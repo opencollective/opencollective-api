@@ -127,4 +127,29 @@ export class OpenSearchCollectivesAdapter implements OpenSearchModelAdapter {
     };
     /* eslint-enable camelcase */
   }
+
+  public getPersonalizationBoosts(userId: number | null, adminOfAccountIds: number[], isRoot: boolean) {
+    /* eslint-disable camelcase */
+    if (isRoot) {
+      return null; // No filter, show all
+    }
+
+    if (!adminOfAccountIds.length) {
+      return null; // No user context, show all
+    }
+
+    return [
+      {
+        bool: {
+          minimum_should_match: 1,
+          should: [
+            { terms: { HostCollectiveId: adminOfAccountIds } },
+            { terms: { ParentCollectiveId: adminOfAccountIds } },
+            { terms: { id: adminOfAccountIds } },
+          ],
+        },
+      },
+    ];
+    /* eslint-enable camelcase */
+  }
 }

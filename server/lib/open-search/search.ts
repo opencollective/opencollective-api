@@ -15,17 +15,24 @@ import { getOpenSearchClient } from './client';
 import { formatIndexNameForOpenSearch } from './common';
 import { OpenSearchIndexName, OpenSearchIndexParams } from './constants';
 
+/** Score multiplier applied to results matching personalization criteria */
+export const PERSONALIZATION_BOOST = 1000;
+
 /**
  * Enforce some conditions to match only entities that are related to this account or host.
  */
-const getAccountFilterConditions = (account: Collective, host: Collective) => {
+const getAccountFilterConditions = (account: Collective, host: Collective, index: OpenSearchIndexName) => {
   const conditions = [];
   if (account) {
-    conditions.push(
-      { term: { FromCollectiveId: account.id } },
-      { term: { CollectiveId: account.id } },
-      { term: { ParentCollectiveId: account.id } },
-    );
+    if (index === OpenSearchIndexName.COLLECTIVES) {
+      conditions.push({ term: { id: account.id } }, { term: { ParentCollectiveId: account.id } });
+    } else {
+      conditions.push(
+        { term: { FromCollectiveId: account.id } },
+        { term: { CollectiveId: account.id } },
+        { term: { ParentCollectiveId: account.id } },
+      );
+    }
   }
   if (host) {
     conditions.push({ term: { HostCollectiveId: host.id } });
@@ -38,6 +45,19 @@ const getAccountFilterConditions = (account: Collective, host: Collective) => {
       { bool: { minimum_should_match: 1, should: conditions } }, // eslint-disable-line camelcase
     ];
   }
+};
+
+const wrapPersonalizationBoosts = (boosts: QueryContainer[] | null): QueryContainer[] => {
+  if (!boosts?.length) {
+    return [];
+  }
+
+  return boosts.map(filter => ({
+    constant_score: {
+      filter,
+      boost: PERSONALIZATION_BOOST,
+    },
+  }));
 };
 
 const getIndexConditions = (index: OpenSearchIndexName, params: OpenSearchIndexParams[OpenSearchIndexName]) => {
@@ -97,6 +117,7 @@ const buildQuery = (
   remoteUser: User | null,
   account: Collective,
   host: Collective,
+  usePersonalization: boolean,
 ): {
   query: QueryContainer;
   /** All fields for which the search term was used. Does not include account constraints */
@@ -104,19 +125,18 @@ const buildQuery = (
   /** All indexes that were fetched */
   indexes: Set<OpenSearchIndexName>;
 } => {
-  const accountConditions = getAccountFilterConditions(account, host);
   const searchedFields = new Set<string>();
   const fetchedIndexes = new Set<OpenSearchIndexName>();
   const adminOfAccountIds = !remoteUser ? [] : remoteUser.getAdministratedCollectiveIds();
   const isRoot = remoteUser && remoteUser.isRoot();
+  const userId = remoteUser?.id || null;
 
   const query: QueryContainer = {
     /* eslint-disable camelcase */
     bool: {
-      // Filter to match on CollectiveId/ParentCollectiveId/HostCollectiveId
-      ...(accountConditions.length && { filter: accountConditions }),
       // We now build the should array dynamically
       should: indexes.flatMap(({ index, indexParams, forbidPrivate }) => {
+        const accountConditions = getAccountFilterConditions(account, host, index);
         const adapter = OpenSearchModelsAdapters[index];
 
         // Avoid searching on private indexes if the user is not an admin of anything
@@ -134,6 +154,12 @@ const buildQuery = (
         searchableFields.forEach(field => searchedFields.add(field));
         fetchedIndexes.add(index);
 
+        // Get personalization boosts if enabled
+        const personalizationBoosts =
+          usePersonalization && remoteUser && adapter.getPersonalizationBoosts
+            ? adapter.getPersonalizationBoosts(userId, adminOfAccountIds, isRoot)
+            : null;
+
         // Build the query for this index
         return [
           // Public fields
@@ -143,33 +169,41 @@ const buildQuery = (
                 { term: { _index: formatIndexNameForOpenSearch(index) } },
                 ...(permissions.default === 'PUBLIC' ? [] : [permissions.default]),
                 ...getIndexConditions(index, indexParams),
+                ...accountConditions,
               ],
-              minimum_should_match: 1,
-              should: [
-                // Search in all public text fields with fuzzy match
+              must: [
                 {
-                  multi_match: {
-                    query: searchTerm,
-                    type: 'best_fields',
-                    operator: 'or',
-                    fuzziness: 'AUTO',
-                    fields: publicFields.map(field => addWeightToField(adapter, field)),
+                  bool: {
+                    minimum_should_match: 1,
+                    should: [
+                      // Search in all public text fields with fuzzy match
+                      {
+                        multi_match: {
+                          query: searchTerm,
+                          type: 'best_fields',
+                          operator: 'or',
+                          fuzziness: 'AUTO',
+                          fields: publicFields.map(field => addWeightToField(adapter, field)),
+                        },
+                      },
+                      // Search in private fields
+                      ...Object.entries(permissions['fields'] || {})
+                        .filter(([, conditions]) => conditions !== 'FORBIDDEN')
+                        .map(([field, conditions]) => {
+                          return {
+                            bool: {
+                              filter: conditions as QueryContainer[],
+                              must: [
+                                { match: { [field]: { query: searchTerm, fuzziness: 'AUTO' } } }, // TODO: Should add field weight here, but it doesn't work with "must" (only "should")
+                              ],
+                            },
+                          } satisfies QueryContainer;
+                        }),
+                    ],
                   },
                 },
-                // Search in private fields
-                ...Object.entries(permissions['fields'] || {})
-                  .filter(([, conditions]) => conditions !== 'FORBIDDEN')
-                  .map(([field, conditions]) => {
-                    return {
-                      bool: {
-                        filter: conditions as QueryContainer[],
-                        must: [
-                          { match: { [field]: { query: searchTerm, fuzziness: 'AUTO' } } }, // TODO: Should add field weight here, but it doesn't work with "must" (only "should")
-                        ],
-                      },
-                    } satisfies QueryContainer;
-                  }),
               ],
+              should: wrapPersonalizationBoosts(personalizationBoosts),
             },
           },
         ] as QueryContainer[];
@@ -205,6 +239,7 @@ export const openSearchMultiIndexGlobalSearch = async (
     limit = 50,
     offset = 0,
     user,
+    usePersonalization = true,
   }: {
     account?: Collective;
     host?: Collective;
@@ -212,10 +247,18 @@ export const openSearchMultiIndexGlobalSearch = async (
     limit?: number;
     offset?: number;
     user?: User;
+    usePersonalization?: boolean;
   } = {},
 ) => {
   const client = getOpenSearchClient({ throwIfUnavailable: true });
-  const { query, searchedFields, indexes } = buildQuery(searchTerm, requestedIndexes, user, account, host);
+  const { query, searchedFields, indexes } = buildQuery(
+    searchTerm,
+    requestedIndexes,
+    user,
+    account,
+    host,
+    usePersonalization,
+  );
 
   // Due to permissions, we may end up searching on no index at all (e.g. trying to search for comments while unauthenticated)
   if (indexes.size === 0) {
@@ -245,7 +288,7 @@ export const openSearchMultiIndexGlobalSearch = async (
                   from: offset,
                   _source: {
                     // We only need to retrieve the IDs, the rest will be fetched by the loaders
-                    includes: ['id', 'uuid'],
+                    includes: ['id', 'uuid', 'type'],
                   },
                   highlight: getHighlightConfig(searchedFields),
                 },
@@ -272,6 +315,7 @@ export const openSearchSingleIndexSearch = async (
     limit = 50,
     offset = 0,
     user,
+    usePersonalization = true,
   }: {
     account?: Collective;
     host?: Collective;
@@ -279,10 +323,11 @@ export const openSearchSingleIndexSearch = async (
     limit?: number;
     offset?: number;
     user?: User;
+    usePersonalization?: boolean;
   } = {},
 ) => {
   const client = getOpenSearchClient({ throwIfUnavailable: true });
-  const { query, searchedFields, indexes } = buildQuery(searchTerm, [request], user, account, host);
+  const { query, searchedFields, indexes } = buildQuery(searchTerm, [request], user, account, host, usePersonalization);
 
   // Due to permissions, we may end up searching on no index at all (e.g. trying to search for comments while unauthenticated)
   if (indexes.size === 0) {
@@ -301,7 +346,7 @@ export const openSearchSingleIndexSearch = async (
         min_score: 0.0001, // Ignore results that fulfill the accounts criteria but don't match the search term
         _source: {
           // We only need to retrieve the IDs, the rest will be fetched by the loaders
-          includes: ['id', 'uuid'],
+          includes: ['id', 'uuid', 'type'],
         },
         highlight: getHighlightConfig(searchedFields),
       },

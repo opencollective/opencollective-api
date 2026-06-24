@@ -33,6 +33,7 @@ import type { SearchQueryAccountsResolverArgs } from '../../graphql/v2/object/Se
 import { Collective, User } from '../../models';
 
 import { OpenSearchIndexName, OpenSearchIndexParams } from './constants';
+import { filterAccountSearchResults } from './account-search-filter';
 
 export type GraphQLSearchParams = {
   requestId: string;
@@ -41,6 +42,7 @@ export type GraphQLSearchParams = {
   account: Collective;
   host: Collective;
   useTopHits: boolean;
+  usePersonalization: boolean;
 };
 
 /**
@@ -52,8 +54,16 @@ export const getOpenSearchQueryId = (
   account: Collective,
   searchTerm: string,
   useTopHits: boolean,
+  usePersonalization: boolean,
 ) => {
-  return `${user?.id || 'public'}-host_${host?.id || 'all'}-account_${account?.id || 'all'}-${searchTerm}-${useTopHits ? 'top_hits' : 'separated_hits'}`;
+  return [
+    user ? `user-${user.id}` : 'users-all',
+    host ? `host-${host.id}` : 'hosts-all',
+    account ? `account-${account.id}` : 'accounts-all',
+    useTopHits ? `top-hits` : 'separated-hits',
+    usePersonalization ? `personalized` : 'no-personalization',
+    searchTerm ? `search-${searchTerm}` : '*',
+  ].join('_');
 };
 
 type GraphQLSearchIndexStrategy = {
@@ -171,13 +181,19 @@ const buildSearchResultsType = (index: OpenSearchIndexName, name: string, collec
         ...baseSearchParams,
         index,
         useTopHits: baseSearchParams.useTopHits,
+        usePersonalization: baseSearchParams.usePersonalization,
         indexParams: strategy.prepareArguments ? strategy.prepareArguments(args) : args,
         forbidPrivate: getForbidPrivate(req, strategy),
         offset,
         limit,
       });
 
-      if (!result || result.count === 0) {
+      const filteredResult =
+        index === OpenSearchIndexName.COLLECTIVES && result
+          ? await filterAccountSearchResults(result, req.remoteUser)
+          : result;
+
+      if (!filteredResult || filteredResult.count === 0) {
         return {
           maxScore: 0,
           collection: { totalCount: 0, offset, limit, nodes: () => [] },
@@ -185,8 +201,8 @@ const buildSearchResultsType = (index: OpenSearchIndexName, name: string, collec
         };
       }
 
-      const getSQLIdFromHit = (hit: (typeof result.hits)[0]): number => hit.source['id'] as number;
-      const hitsGroupedBySQLId = keyBy(result.hits, getSQLIdFromHit);
+      const getSQLIdFromHit = (hit: (typeof filteredResult.hits)[0]): number => hit.source['id'] as number;
+      const hitsGroupedBySQLId = keyBy(filteredResult.hits, getSQLIdFromHit);
       const hitsGroupedByGraphQLKey = mapKeys(hitsGroupedBySQLId, result => strategy.getGraphQLId(result.source));
       const highlights = mapValues(hitsGroupedByGraphQLKey, hit => ({
         score: hit.score,
@@ -194,14 +210,14 @@ const buildSearchResultsType = (index: OpenSearchIndexName, name: string, collec
       }));
 
       return {
-        maxScore: result.maxScore,
+        maxScore: filteredResult.maxScore,
         highlights,
         collection: {
-          totalCount: result.count,
+          totalCount: filteredResult.count,
           offset,
           limit,
           nodes: async () => {
-            const entries = await strategy.loadMany(req, result.hits.map(getSQLIdFromHit));
+            const entries = await strategy.loadMany(req, filteredResult.hits.map(getSQLIdFromHit));
             return entries.filter(Boolean); // Entries in OpenSearch may have been deleted in the DB
           },
         },
