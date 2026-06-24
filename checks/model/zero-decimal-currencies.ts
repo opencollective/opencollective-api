@@ -11,7 +11,7 @@ import { runAllChecksThenExit } from './_utils';
 /**
  * Older transactions may have some issues that we don't have the time to fix right now.
  */
-const START_DATE = '2025-05-15';
+const START_DATE = '2026-05-15';
 
 /**
  * For zero-decimal currencies (e.g. JPY), amounts in the DB are stored with the same ×100 multiplier
