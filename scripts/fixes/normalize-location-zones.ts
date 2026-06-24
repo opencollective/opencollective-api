@@ -60,7 +60,7 @@ async function normalizeLocationZones({ dryRun = false } = {}) {
         await sequelize.query(
           `
           UPDATE "Locations"
-          SET structured = :structured::jsonb, address = :address, "updatedAt" = NOW()
+          SET structured = :structured::jsonb, address = :address
           WHERE id = :id
           `,
           {

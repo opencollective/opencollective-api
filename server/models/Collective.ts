@@ -12,6 +12,7 @@ import {
   differenceWith,
   get,
   includes,
+  isEmpty,
   isNil,
   isNull,
   isUndefined,
@@ -2231,13 +2232,12 @@ class Collective extends ModelWithPublicId<
       let { structured } = locationInput;
       let { address } = locationInput;
 
-      structured = omitBy(structured, v => v === null || v === undefined || v === '');
-
       if (structured?.zone && country) {
         structured = { ...structured, zone: normalizeZoneCode(country, structured.zone) };
       }
 
       // If structured is empty, set it to null
+      structured = omitBy(structured, isEmpty);
       if (Object.keys(structured).length === 0) {
         structured = null;
       }
