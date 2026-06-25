@@ -536,10 +536,12 @@ export async function archiveCollective(_, args, req) {
 
   const isChildren = collective.type === CollectiveType.EVENT || collective.type === CollectiveType.PROJECT;
   const slugsToClearCacheFor = [collective.slug];
+  const hostCollectiveId = collective.HostCollectiveId;
+  const host = hostCollectiveId ? await req.loaders.Collective.byId.load(hostCollectiveId) : null;
+  const deactivatedAt = new Date();
   let children: { id: number; slug: string }[] = [];
   if (!isChildren) {
     // Mark all children as archived, with a special `data.archivedFromParent` flag for later un-archive
-    const deactivatedAt = new Date();
     children = await sequelize.query<{ id: number; slug: string }>(
       `UPDATE "Collectives"
     SET "deactivatedAt" = :deactivatedAt,
@@ -572,7 +574,21 @@ export async function archiveCollective(_, args, req) {
   });
 
   // Mark main account as archived
-  await collective.update({ isActive: false, deactivatedAt: new Date() });
+  await collective.update({ isActive: false, deactivatedAt });
+
+  await models.Activity.create({
+    type: activities.COLLECTIVE_ARCHIVED,
+    CollectiveId: collective.id,
+    HostCollectiveId: hostCollectiveId,
+    UserId: req.remoteUser?.id,
+    UserTokenId: req.userToken?.id,
+    createdAt: deactivatedAt,
+    data: {
+      collective: collective.info,
+      host: host?.info,
+      notify: false,
+    },
+  });
 
   // Cancel all subscriptions which the collective is contributing
   const allAccountIds = [collective.id, ...children.map(c => c.id)];

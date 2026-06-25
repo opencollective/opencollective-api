@@ -115,6 +115,25 @@ describe('server/lib/metrics/sources/HostedCollectivesMembership', () => {
       HostCollectiveId: archivedHost.id,
       createdAt: new Date('2025-08-15'),
     });
+
+    const archivedWithoutUnhost = await fakeCollective({
+      HostCollectiveId: archivedHost.id,
+      type: CollectiveType.COLLECTIVE,
+      deactivatedAt: new Date('2025-07-01'),
+    });
+    await fakeActivity({
+      type: 'collective.approved',
+      CollectiveId: archivedWithoutUnhost.id,
+      HostCollectiveId: archivedHost.id,
+      createdAt: new Date('2025-04-01'),
+    });
+    await fakeActivity({
+      type: 'collective.archived',
+      CollectiveId: archivedWithoutUnhost.id,
+      HostCollectiveId: archivedHost.id,
+      createdAt: new Date('2025-07-01'),
+      data: { notify: false },
+    });
   });
 
   describe('measures', () => {
@@ -204,15 +223,26 @@ describe('server/lib/metrics/sources/HostedCollectivesMembership', () => {
         dateTo: '2026-01-01',
         filters: { host: archivedHost.id, isArchived: false },
       });
-      expect(result.rows[0].values.joinedCount).to.equal(1);
+      expect(result.rows[0].values.joinedCount).to.equal(2);
     });
 
-    it('isArchived=true catches post-archival activity (unhost after archival)', async () => {
+    it('isArchived=true catches post-archival churn events', async () => {
       const result = await queryMetrics({
         source: HostedCollectivesMembership,
         measures: ['churnedCount'],
         dateFrom: '2025-01-01',
         dateTo: '2026-01-01',
+        filters: { host: archivedHost.id, isArchived: true },
+      });
+      expect(result.rows[0].values.churnedCount).to.equal(2);
+    });
+
+    it('isArchived=true counts collective.archived as churn without a separate unhost activity', async () => {
+      const result = await queryMetrics({
+        source: HostedCollectivesMembership,
+        measures: ['churnedCount'],
+        dateFrom: '2025-07-01',
+        dateTo: '2025-07-31',
         filters: { host: archivedHost.id, isArchived: true },
       });
       expect(result.rows[0].values.churnedCount).to.equal(1);
@@ -226,7 +256,7 @@ describe('server/lib/metrics/sources/HostedCollectivesMembership', () => {
         dateTo: '2025-06-01',
         filters: { host: archivedHost.id, isArchived: false },
       });
-      expect(result.rows[0].values.joinedCount).to.equal(1);
+      expect(result.rows[0].values.joinedCount).to.equal(2);
       expect(result.rows[0]?.values.churnedCount ?? 0).to.equal(0);
     });
   });

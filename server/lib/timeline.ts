@@ -114,6 +114,7 @@ const makeTimelineQuery = async (
           ActivityTypes.COLLECTIVE_CORE_MEMBER_REMOVED,
           ActivityTypes.COLLECTIVE_FROZEN,
           ActivityTypes.COLLECTIVE_UNFROZEN,
+          ActivityTypes.COLLECTIVE_ARCHIVED,
           ActivityTypes.COLLECTIVE_UNHOSTED,
           ActivityTypes.COLLECTIVE_APPLY,
         ],

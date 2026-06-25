@@ -18,6 +18,7 @@ enum ActivityTypes {
   COLLECTIVE_CREATED = 'collective.created',
   COLLECTIVE_EDITED = 'collective.edited',
   COLLECTIVE_DELETED = 'collective.deleted',
+  COLLECTIVE_ARCHIVED = 'collective.archived',
   COLLECTIVE_UNHOSTED = 'collective.unhosted',
   COLLECTIVE_BALANCE_TRANSFERRED = 'collective.balance.transferred',
   COLLECTIVE_CONVERTED_TO_ORGANIZATION = 'collective.convertedToOrganization',
@@ -253,6 +254,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.COLLECTIVE_REJECTED,
     ActivityTypes.COLLECTIVE_FROZEN,
     ActivityTypes.COLLECTIVE_UNFROZEN,
+    ActivityTypes.COLLECTIVE_ARCHIVED,
     ActivityTypes.COLLECTIVE_UNHOSTED,
     ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED,
     ActivityTypes.DEACTIVATED_COLLECTIVE_AS_HOST, // deprecated
