@@ -44,7 +44,7 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
   }
 
   // Fall back to the expense's stamped host for host-less billed accounts (e.g. platform-tips).
-  const host = (await firstExpense.collective.getHostCollective()) || (await firstExpense.getHost());
+  const host = await firstExpense.collective.getHostCollective();
   if (!host) {
     throw new Error(`Could not find the host reimbursing the expense.`);
   }
@@ -188,7 +188,7 @@ export const checkBatchItemStatus = async (
 export const checkBatchStatus = async (batch: Expense[]): Promise<Expense[]> => {
   const [firstExpense] = batch;
   // Fall back to the expense's stamped host for host-less billed accounts (e.g. platform-tips).
-  const host = (await firstExpense.collective.getHostCollective()) || (await firstExpense.getHost());
+  const host = await firstExpense.collective.getHostCollective();
   if (!host) {
     throw new Error(`Could not find the host paying the expense.`);
   }

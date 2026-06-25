@@ -17,7 +17,6 @@ import { expenseStatus } from '../../../../constants';
 import ActivityTypes from '../../../../constants/activities';
 import { CollectiveType } from '../../../../constants/collectives';
 import { SupportedCurrency } from '../../../../constants/currencies';
-import PlatformConstants from '../../../../constants/platform';
 import MemberRoles, { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
 import { getBalancesWithVersionPerCollective } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
@@ -178,23 +177,14 @@ const getHostContextConditions = (
   fiscalHost: Collective,
   hostContext: string,
 ): object | undefined => {
-  // Global, host-less platform-owned accounts (e.g. platform-tips) are billed against the fiscal host
-  // (HostCollectiveId = host) but are neither the host nor a hosted collective. Group them with the
-  // host's own activity (INTERNAL / "Organization"), not with hosted collectives (HOSTED), mirroring
-  // the Fiscal-Host vs Hosted-Collectives split used for accounts and transactions.
   if (hostContext === 'INTERNAL') {
     return {
-      [Op.or]: [
-        { [`$${side}.id$`]: fiscalHost.id },
-        { [`$${side}.ParentCollectiveId$`]: fiscalHost.id },
-        { [`$${side}.slug$`]: { [Op.in]: PlatformConstants.PlatformOwnedAccountSlugs } },
-      ],
+      [Op.or]: [{ [`$${side}.id$`]: fiscalHost.id }, { [`$${side}.ParentCollectiveId$`]: fiscalHost.id }],
     };
   }
   if (hostContext === 'HOSTED') {
     return {
       [`$${side}.id$`]: { [Op.ne]: fiscalHost.id },
-      [`$${side}.slug$`]: { [Op.notIn]: PlatformConstants.PlatformOwnedAccountSlugs },
       [Op.or]: [
         { [`$${side}.ParentCollectiveId$`]: { [Op.is]: null } },
         { [`$${side}.ParentCollectiveId$`]: { [Op.ne]: fiscalHost.id } },
@@ -813,8 +803,7 @@ export const ExpensesCollectionQueryResolver = async (
     const conditions = [];
     const CollectiveIds = compact([
       args.lastCommentBy.includes('COLLECTIVE_ADMIN') && '"Expense"."CollectiveId"',
-      args.lastCommentBy.includes('HOST_ADMIN') &&
-        `COALESCE("collective"."HostCollectiveId", "Expense"."HostCollectiveId")`,
+      args.lastCommentBy.includes('HOST_ADMIN') && `"collective"."HostCollectiveId"`,
     ]);
 
     // Collective Conditions
@@ -846,7 +835,7 @@ export const ExpensesCollectionQueryResolver = async (
             NOT IN (
               SELECT "MemberCollectiveId" FROM "Members" WHERE
               "role" = 'ADMIN' AND "deletedAt" IS NULL AND
-              "CollectiveId" = COALESCE("collective"."HostCollectiveId", "Expense"."HostCollectiveId")
+              "CollectiveId" = "collective"."HostCollectiveId"
           )`,
         ),
       );
@@ -1119,19 +1108,14 @@ const fetchExpensesPayees = async (
     );
     replacements.hostId = host.id;
 
-    // Host context: filter on the expense's collective. Platform-owned accounts (e.g. platform-tips)
-    // are grouped with the host's own activity (INTERNAL), not with hosted collectives (HOSTED).
+    // Host context: filter on the expense's collective.
     if (args.hostContext && args.hostContext !== 'ALL') {
-      replacements.platformOwnedSlugs = PlatformConstants.PlatformOwnedAccountSlugs;
       if (args.hostContext === 'INTERNAL') {
-        // The host account, its children (projects/events), and platform-owned accounts
-        expenseConditions.push(
-          '(ec."id" = :hostId OR ec."ParentCollectiveId" = :hostId OR ec."slug" IN (:platformOwnedSlugs))',
-        );
+        // The host account and its children (projects/events)
+        expenseConditions.push('(ec."id" = :hostId OR ec."ParentCollectiveId" = :hostId)');
       } else if (args.hostContext === 'HOSTED') {
-        // Only hosted accounts, excluding the host account, its children and platform-owned accounts
+        // Only hosted accounts, excluding the host account and its children
         expenseConditions.push('ec."id" != :hostId');
-        expenseConditions.push('ec."slug" NOT IN (:platformOwnedSlugs)');
         expenseConditions.push('(ec."ParentCollectiveId" IS NULL OR ec."ParentCollectiveId" != :hostId)');
       }
     }
@@ -1146,14 +1130,10 @@ const fetchExpensesPayees = async (
       Boolean((args as { fromAccount?: unknown }).fromAccount) ||
       Boolean((args.fromAccounts as unknown[] | undefined)?.length);
     if (args.hostContext && args.hostContext !== 'ALL' && !hasExplicitFromAccounts) {
-      replacements.platformOwnedSlugs = PlatformConstants.PlatformOwnedAccountSlugs;
       if (args.hostContext === 'INTERNAL') {
-        expenseConditions.push(
-          '("Collective"."id" = :fromHostId OR "Collective"."ParentCollectiveId" = :fromHostId OR "Collective"."slug" IN (:platformOwnedSlugs))',
-        );
+        expenseConditions.push('("Collective"."id" = :fromHostId OR "Collective"."ParentCollectiveId" = :fromHostId)');
       } else if (args.hostContext === 'HOSTED') {
         expenseConditions.push('"Collective"."id" != :fromHostId');
-        expenseConditions.push('"Collective"."slug" NOT IN (:platformOwnedSlugs)');
         expenseConditions.push(
           '("Collective"."ParentCollectiveId" IS NULL OR "Collective"."ParentCollectiveId" != :fromHostId)',
         );

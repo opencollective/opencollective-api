@@ -850,12 +850,6 @@ const accountFieldsDefinition = () => ({
         defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
         description: 'Order of the results. Defaults to createdAt DESC.',
       },
-      includePlatformAccounts: {
-        type: GraphQLBoolean,
-        defaultValue: false,
-        description:
-          'When the account is a fiscal host, also include the global Open Collective platform-owned account(s) (e.g. "platform-tips"). The backend resolves them, so the slug is never referenced by the caller.',
-      },
     },
     async resolve(account: Collective, args) {
       if (args.limit > 100) {
@@ -911,42 +905,13 @@ const accountFieldsDefinition = () => ({
         }
       }
 
-      // For fiscal hosts, optionally surface the global, host-less platform-owned account(s)
-      // (e.g. platform-tips) alongside the org's own children. The backend resolves them from
-      // PlatformConstants.PlatformOwnedAccountSlugs so callers never reference the slug.
-      //
-      // The platform account is matched by slug on the other side of an OR, so it would otherwise
-      // bypass the WHERE filters above. Honor the filters that should still apply to it: the
-      // accountType filter (only surface it when PLATFORM is among the requested types, if any), the
-      // searchTerm filter (don't surface it for an unrelated search), and the isActive filter (so it
-      // appears under the Active/All tabs but not Archived — the account is active, isActive = true).
-      const platformTypeRequested =
-        !args.accountType?.length ||
-        args.accountType.map(value => AccountTypeToModelMapping[value]).includes(CollectiveType.PLATFORM);
-      const includesPlatformAccounts =
-        args.includePlatformAccounts && account.hasMoneyManagement && platformTypeRequested;
-
-      let finalWhere: WhereOptions = where;
-      if (includesPlatformAccounts) {
-        const platformCondition = { slug: { [Op.in]: PlatformConstants.PlatformOwnedAccountSlugs } };
-        if (where['searchTsVector']) {
-          platformCondition['searchTsVector'] = where['searchTsVector'];
-        }
-        if (!isNil(where['isActive'])) {
-          platformCondition['isActive'] = where['isActive'];
-        }
-        finalWhere = { [Op.or]: [where, platformCondition] };
-      }
-
-      // Keep platform-owned accounts at the bottom of the list (they are not the host's own children),
-      // regardless of the requested sort.
-      if (includesPlatformAccounts) {
-        order = [[Sequelize.literal(`CASE WHEN "Collective"."type" = 'PLATFORM' THEN 1 ELSE 0 END`), 'ASC'], ...order];
-      }
+      // Keep platform-owned accounts (e.g. the per-host platform-tips account) at the bottom of the
+      // list, regardless of the requested sort — they are internal billing accounts, not regular children.
+      order = [[Sequelize.literal(`CASE WHEN "Collective"."type" = 'PLATFORM' THEN 1 ELSE 0 END`), 'ASC'], ...order];
 
       return {
-        nodes: () => models.Collective.findAll({ where: finalWhere, limit: args.limit, offset: args.offset, order }),
-        totalCount: () => models.Collective.count({ where: finalWhere }),
+        nodes: () => models.Collective.findAll({ where, limit: args.limit, offset: args.offset, order }),
+        totalCount: () => models.Collective.count({ where }),
         limit: args.limit,
         offset: args.offset,
       };

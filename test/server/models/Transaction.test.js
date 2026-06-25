@@ -5,6 +5,7 @@ import { createSandbox } from 'sinon';
 import PlatformConstants from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import * as LibActivities from '../../../server/lib/activities';
+import { getHostPlatformTipsAccount } from '../../../server/lib/transactions';
 import models from '../../../server/models';
 import {
   fakeCollective,
@@ -415,7 +416,7 @@ describe('server/models/Transaction', () => {
 
         await Transaction.createFromContributionPayload(transactionPayload);
 
-        const platformTipsAccount = await models.Collective.findBySlug('platform-tips');
+        const platformTipsAccount = await getHostPlatformTipsAccount(host);
         const allTransactions = await Transaction.findAll({
           where: { OrderId: order.id },
           order: [['id', 'ASC']],
@@ -469,7 +470,7 @@ describe('server/models/Transaction', () => {
 
         await Transaction.createFromContributionPayload(transactionPayload);
 
-        const platformTipsAccount = await models.Collective.findBySlug('platform-tips');
+        const platformTipsAccount = await getHostPlatformTipsAccount(host);
         const allTransactions = await Transaction.findAll({
           where: { OrderId: order.id },
           order: [['id', 'ASC']],

@@ -17,7 +17,7 @@ import { getFxRate, roundCentsAmount } from '../../server/lib/currency';
 import { getPendingHostFeeShare } from '../../server/lib/host-metrics';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
-import { getPlatformTipsAccount } from '../../server/lib/transactions';
+import { getHostPlatformTipsAccount } from '../../server/lib/transactions';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, {
   Collective,
@@ -361,7 +361,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     // at collection time and can be toggled mid-month. Settlement is decided from the ledger itself,
     // so tips collected while the flag was on still settle after a host opts out (the query is simply
     // empty for hosts that never participated).
-    const platformTipsAccount = !KIND || KIND === PLATFORM_TIP_DEBT ? await getPlatformTipsAccount() : null;
+    const platformTipsAccount = !KIND || KIND === PLATFORM_TIP_DEBT ? await getHostPlatformTipsAccount(host) : null;
     let newTipTransactions: Transaction[] = [];
     let pendingNewPlatformTips = 0;
     if (platformTipsAccount) {

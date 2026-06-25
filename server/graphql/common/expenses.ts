@@ -197,12 +197,8 @@ const isHostAccountant = async (req: express.Request, expense: Expense): Promise
   }
 
   // Address the exceptional case where the expense host id would be stale after a collective rehost.
-  // Only meaningful when the collective actually has a host to compare against: for a host-less
-  // collective (e.g. the global platform-tips account, billed against a host via expense.HostCollectiveId)
-  // the stamped expense.HostCollectiveId is authoritative and must not be treated as stale.
   const hasStaleExpenseHostId =
     expense.HostCollectiveId &&
-    expense.collective.HostCollectiveId &&
     expense.HostCollectiveId !== expense.collective.HostCollectiveId &&
     expense.status !== expenseStatus.PAID;
 
@@ -265,12 +261,8 @@ export const isHostAdmin = async (req: express.Request, expense: Expense): Promi
   }
 
   // Address the exceptional case where the expense host id would be stale after a collective rehost.
-  // Only meaningful when the collective actually has a host to compare against: for a host-less
-  // collective (e.g. the global platform-tips account, billed against a host via expense.HostCollectiveId)
-  // the stamped expense.HostCollectiveId is authoritative and must not be treated as stale.
   const hasStaleExpenseHostId =
     expense.HostCollectiveId &&
-    expense.collective.HostCollectiveId &&
     expense.HostCollectiveId !== expense.collective.HostCollectiveId &&
     expense.status !== expenseStatus.PAID;
 
@@ -1712,12 +1704,7 @@ export const scheduleExpenseForPayment = async (
     throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
   }
 
-  // Fall back to the expense's stamped host for host-less billed accounts (e.g. the platform-tips
-  // account), whose collective has no host of its own.
-  const host =
-    expense.collective.host ||
-    (await expense.collective.getHostCollective({ loaders: req.loaders })) ||
-    (expense.HostCollectiveId ? await expense.getHost() : null);
+  const host = expense.collective.host || (await expense.collective.getHostCollective({ loaders: req.loaders }));
   if (expense.currency !== expense.collective.currency && !hasMultiCurrency(expense.collective, host)) {
     throw new Forbidden('Multi-currency expenses are not enabled for this collective');
   }
@@ -1948,13 +1935,6 @@ const createAttachedFiles = async (expense, attachedFilesData, remoteUser, trans
 };
 
 export const hasMultiCurrency = (collective, host): boolean => {
-  // Host-less platform-owned accounts (e.g. platform-tips) hold per-host slices denominated in each
-  // host's own currency, so a settlement billed in the host currency may differ from the account
-  // currency. Narrowed to host-less PLATFORM accounts so the exception can't widen to a hypothetical
-  // hosted PLATFORM account.
-  if (collective?.type === CollectiveType.PLATFORM && !collective.HostCollectiveId) {
-    return true;
-  }
   return collective.currency === host?.currency; // Only support multi-currency when collective/host have the same currency
 };
 
@@ -3699,6 +3679,10 @@ export const checkHasBalanceToPayExpense = async (
 
   if (expense.feesPayer === 'PAYEE') {
     assert(
+      ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type),
+      'The payee cannot cover the fees on platform settlements',
+    );
+    assert(
       models.PayoutMethod.typeSupportsFeesPayer(payoutMethodType),
       'Putting the payment processor fees on the payee is only supported for bank accounts, manual payouts and stripe at the moment',
     );
@@ -3868,14 +3852,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     if (!(await permissionFn(req, expense))) {
       throw new Forbidden("You don't have permission to pay this expense");
     }
-    let host = await expense.collective.getHostCollective({ loaders: req.loaders });
-    // Host-less accounts billed per host (e.g. the global platform-tips account) carry the payer host
-    // on expense.HostCollectiveId, stamped at settlement time. Fall back to it so the paid DEBIT lands
-    // on that host's slice and nets to zero. This generalizes to any host-less billed account, not
-    // just PLATFORM type.
-    if (!host && expense.HostCollectiveId) {
-      host = await req.loaders.Collective.byId.load(expense.HostCollectiveId);
-    }
+    const host = await expense.collective.getHostCollective({ loaders: req.loaders });
     if (expense.currency !== expense.collective.currency && !hasMultiCurrency(expense.collective, host)) {
       throw new Forbidden('Multi-currency expenses are not enabled for this collective');
     }
@@ -4109,9 +4086,7 @@ export async function quoteExpense(expense_) {
   const payoutMethod = await expense.getPayoutMethod();
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
 
-  // Fall back to the expense's own host for host-less platform-owned accounts (e.g. Platform Tips),
-  // where the billed host is carried on the expense rather than on the collective.
-  const host = (await expense.collective.getHostCollective()) || (await expense.getHost());
+  const host = await expense.collective.getHostCollective();
   if (!host) {
     throw new Error(
       expense.collective.deactivatedAt

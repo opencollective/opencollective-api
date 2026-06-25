@@ -51,7 +51,7 @@ export async function getCollectiveIds(collective, includeChildren) {
 
 export async function getBalanceAmount(
   collective,
-  { loaders, endDate, includeChildren, withBlockedFunds, version, currency, hostCollectiveId } = {},
+  { loaders, endDate, includeChildren, withBlockedFunds, version, currency } = {},
 ) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
@@ -64,14 +64,7 @@ export async function getBalanceAmount(
     withBlockedFunds,
   };
 
-  const isHostScoped = hostCollectiveId !== undefined && hostCollectiveId !== null;
-
-  // Host-scoped balance (the per-host slice of a global, host-less account): the loaders/matviews are
-  // not host-scoped, so always go through getBalances which forces the direct-sum path.
-  if (isHostScoped) {
-    const results = await getBalances([collective.id], { ...transactionArgs, version, hostCollectiveId });
-    result = results[collective.id];
-  } else if (loaders && version === DEFAULT_BUDGET_VERSION) {
+  if (loaders && version === DEFAULT_BUDGET_VERSION) {
     // Optimized version using loaders
     const balanceLoader = loaders.Collective.balance.buildLoader(transactionArgs);
     result = await balanceLoader.load(collective.id);
@@ -104,19 +97,12 @@ export async function getBalances(
     version = DEFAULT_BUDGET_VERSION,
     useMaterializedView = FAST_BALANCE,
     loaders = null,
-    // When set, scope the balance to a single fiscal host (sum only the rows recorded on that host's
-    // ledger, i.e. HostCollectiveId = hostCollectiveId). Used to get the per-host slice of a global,
-    // host-less account such as the platform-tips account. The materialized views are not host-scoped,
-    // so this forces the direct-sum path.
-    hostCollectiveId = undefined,
   } = {},
 ) {
-  const isHostScoped = hostCollectiveId !== undefined && hostCollectiveId !== null;
-
   // Note: Historical balances (endDate path) don't support withBlockedFunds - the slow path will throw
   // an error for that combination. We must not use the fast path in that case to preserve the error.
   const fastResults =
-    useMaterializedView === true && !includeChildren && !isHostScoped
+    useMaterializedView === true && !includeChildren
       ? endDate
         ? FAST_BALANCE_SUPPORTED_VERSIONS.includes(version) && !withBlockedFunds
           ? await getHistoricalCollectiveBalances(collectiveIds, endDate)
@@ -137,7 +123,7 @@ export async function getBalances(
     includeChildren,
     withBlockedFunds,
     excludeRefunds: false,
-    hostCollectiveId: isHostScoped ? hostCollectiveId : version === 'v3' ? { [Op.not]: null } : null,
+    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
   });
 
   return { ...fastResults, ...results };

@@ -1626,19 +1626,16 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         description: 'Expense on hosted collective child',
       });
 
-      // Global, host-less platform-owned account (e.g. platform-tips) billed against this host: a
-      // settlement expense with CollectiveId = platform-tips and HostCollectiveId = host. It should be
-      // grouped with the host's own (INTERNAL / Organization), not with hosted collectives (HOSTED).
-      // The platform-tips account may already exist (seeded by the migration in the restored test DB),
-      // so reuse it if present rather than colliding on the unique slug.
-      platformTipsAccount =
-        (await models.Collective.findOne({ where: { slug: 'platform-tips' } })) ||
-        (await fakeCollective({
-          slug: 'platform-tips',
-          type: CollectiveType.PLATFORM,
-          HostCollectiveId: null,
-          isActive: true,
-        }));
+      // Per-host platform-tips account: a hosted child of the host (ParentCollectiveId =
+      // HostCollectiveId = host). Its settlement expense is grouped with the host's own activity
+      // (INTERNAL / Organization), not with hosted collectives (HOSTED), via the normal parent-based
+      // grouping — no special-casing.
+      platformTipsAccount = await fakeCollective({
+        type: CollectiveType.PLATFORM,
+        ParentCollectiveId: host.id,
+        HostCollectiveId: host.id,
+        isActive: true,
+      });
       expenseOnPlatformTips = await fakeExpense({
         CollectiveId: platformTipsAccount.id,
         HostCollectiveId: host.id,

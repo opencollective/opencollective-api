@@ -209,6 +209,8 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         return 'Fund';
       case CollectiveTypeEnum.VENDOR:
         return 'Vendor';
+      case CollectiveTypeEnum.PLATFORM:
+        return 'Platform';
       default:
         return null;
     }
@@ -1475,6 +1477,13 @@ export const OrganizationCollectiveType = new GraphQLObjectType({
 export const EventCollectiveType = new GraphQLObjectType({
   name: 'Event',
   description: 'This represents an Event',
+  interfaces: [CollectiveInterfaceType],
+  fields: CollectiveFields,
+});
+
+export const PlatformCollectiveType = new GraphQLObjectType({
+  name: 'Platform',
+  description: 'This represents a Platform account (e.g. a per-host platform-tips account)',
   interfaces: [CollectiveInterfaceType],
   fields: CollectiveFields,
 });

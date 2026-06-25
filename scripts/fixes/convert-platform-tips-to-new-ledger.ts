@@ -60,7 +60,7 @@ import PlatformConstants from '../../server/constants/platform';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { roundCentsAmount } from '../../server/lib/currency';
 import logger from '../../server/lib/logger';
-import { getPlatformTipsAccount } from '../../server/lib/transactions';
+import { getOrCreateHostPlatformTipsAccount } from '../../server/lib/transactions';
 import models, { sequelize } from '../../server/models';
 import { TransactionSettlementStatus } from '../../server/models/TransactionSettlement';
 
@@ -128,10 +128,7 @@ export const convertPlatformTipsToNewLedger = async ({
     );
   }
 
-  const platformTipsAccount = await getPlatformTipsAccount();
-  if (!platformTipsAccount) {
-    throw new Error('Could not find the "platform-tips" account (run migration 20260513120000 first)');
-  }
+  const platformTipsAccount = await getOrCreateHostPlatformTipsAccount(host);
   const platformCollectiveId = PlatformConstants.PlatformCollectiveId;
   const convertedAt = new Date().toISOString();
 

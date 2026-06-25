@@ -4,6 +4,7 @@ import { convertPlatformTipsToNewLedger } from '../../../scripts/fixes/convert-p
 import OrderStatuses from '../../../server/constants/order-status';
 import PlatformConstants from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
+import { getHostPlatformTipsAccount } from '../../../server/lib/transactions';
 import models from '../../../server/models';
 import { TransactionSettlementStatus } from '../../../server/models/TransactionSettlement';
 import {
@@ -16,9 +17,8 @@ import {
 } from '../../test-helpers/fake-data';
 import { resetTestDB, seedDefaultVendors } from '../../utils';
 
-// In the test env Fixer is not configured, so getFxRate returns 1.1 for any cross-currency pair.
-// A legacy 300€ tip is therefore booked on the platform's USD books as 300 * 1.1 = 330 USD.
-const FX_RATE = 1.1;
+// A legacy 300€ tip is booked on the platform's USD books, converted at whatever EUR->USD rate
+// getFxRate returns (1.1 when Fixer is unconfigured, a real rate when a key is present locally).
 const TIP_EUR = 300e2;
 
 describe('scripts/fixes/convert-platform-tips-to-new-ledger', () => {
@@ -43,8 +43,6 @@ describe('scripts/fixes/convert-platform-tips-to-new-ledger', () => {
       CreatedByUserId: platformUser.id,
     });
     await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
-
-    platformTipsAccount = await models.Collective.findBySlug('platform-tips');
 
     // Flag OFF at contribution time, so the tip is recorded in the LEGACY format: a PLATFORM_TIP
     // credit on the platform account (hostCurrency = USD) plus a PLATFORM_TIP_DEBT carrying the
@@ -76,6 +74,10 @@ describe('scripts/fixes/convert-platform-tips-to-new-ledger', () => {
       HostCollectiveId: tipCredit.HostCollectiveId,
       hostCurrency: tipCredit.hostCurrency,
       amountInHostCurrency: tipCredit.amountInHostCurrency,
+      // Capture the rate actually used at recording time. It's 1.1 when Fixer is unconfigured
+      // (CI), but a real EUR->USD rate may be cached locally when a Fixer key is present, so we
+      // assert against the recorded rate rather than the FX_RATE constant.
+      hostCurrencyFxRate: tipCredit.hostCurrencyFxRate,
     };
 
     // The host now opts in; we backfill its historical tips onto the new ledger.
@@ -87,13 +89,17 @@ describe('scripts/fixes/convert-platform-tips-to-new-ledger', () => {
       dryRun: false,
     });
     await tipCredit.reload();
+
+    // The conversion creates (or reuses) the host's per-host platform-tips account.
+    platformTipsAccount = await getHostPlatformTipsAccount(eurHost);
   });
 
   it('records the legacy tip on the platform USD books before conversion', () => {
     expect(before.CollectiveId).to.equal(PlatformConstants.PlatformCollectiveId);
     expect(before.HostCollectiveId).to.equal(PlatformConstants.PlatformCollectiveId);
     expect(before.hostCurrency).to.equal('USD');
-    expect(before.amountInHostCurrency).to.equal(TIP_EUR * FX_RATE); // 33000
+    expect(before.hostCurrencyFxRate).to.not.equal(1); // a genuine EUR->USD conversion happened
+    expect(before.amountInHostCurrency).to.equal(Math.round(TIP_EUR * before.hostCurrencyFxRate));
   });
 
   it('reports one converted OWED tip', () => {
@@ -120,9 +126,9 @@ describe('scripts/fixes/convert-platform-tips-to-new-ledger', () => {
       CollectiveId: PlatformConstants.PlatformCollectiveId,
       HostCollectiveId: PlatformConstants.PlatformCollectiveId,
       hostCurrency: 'USD',
-      amountInHostCurrency: TIP_EUR * FX_RATE,
+      amountInHostCurrency: before.amountInHostCurrency,
     });
-    expect(previous.hostCurrencyFxRate).to.be.closeTo(FX_RATE, 1e-9);
+    expect(previous.hostCurrencyFxRate).to.be.closeTo(before.hostCurrencyFxRate, 1e-9);
   });
 
   it('drops the PLATFORM_TIP_DEBT and moves the OWED settlement onto the PLATFORM_TIP credit', async () => {

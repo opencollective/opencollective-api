@@ -101,8 +101,7 @@ export const seedDefaultVendors = async () => {
       ('VENDOR', 'other-payment-processor-vendor', 'Other Payment Processor', NULL, FALSE, NOW(), NOW()),
       ('VENDOR', 'eu-vat-tax-vendor', 'European VAT', NULL, FALSE, NOW(), NOW()),
       ('VENDOR', 'nz-gst-tax-vendor', 'New Zealand GST', NULL, FALSE, NOW(), NOW()),
-      ('VENDOR', 'other-tax-vendor', 'Other Tax', NULL, FALSE, NOW(), NOW()),
-      ('PLATFORM', 'platform-tips', 'Platform Tips', 'https://opencollective.com', TRUE, NOW(), NOW())
+      ('VENDOR', 'other-tax-vendor', 'Other Tax', NULL, FALSE, NOW(), NOW())
     ON CONFLICT DO NOTHING;
   `);
 };

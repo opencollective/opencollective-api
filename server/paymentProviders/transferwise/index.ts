@@ -26,7 +26,6 @@ import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
-import { CollectiveType } from '../../constants/collectives';
 import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
@@ -96,9 +95,7 @@ async function getTemporaryQuote(
   expense: Expense,
 ): Promise<QuoteV3> {
   expense.collective = expense.collective || (await Collective.findByPk(expense.CollectiveId));
-  // Fall back to the expense's stamped host (HostCollectiveId) for host-less billed accounts such as
-  // the global platform-tips account, whose collective has no host of its own.
-  expense.host = expense.host || (await expense.collective.getHostCollective()) || (await expense.getHost());
+  expense.host = expense.host || (await expense.collective.getHostCollective());
   const rate = await getFxRate(expense.currency, expense.host.currency);
   return await transferwise.getTemporaryQuote(connectedAccount, {
     sourceCurrency: expense.host.currency,
@@ -147,15 +144,7 @@ async function quoteExpense(
   }
 
   expense.collective = expense.collective || (await Collective.findByPk(expense.CollectiveId));
-  // Fall back to the expense's stamped host (HostCollectiveId) for host-less billed accounts such as
-  // the global platform-tips account, whose collective has no host of its own.
-  expense.host = expense.host || (await expense.collective.getHostCollective()) || (await expense.getHost());
-  // Host-less platform-owned accounts (e.g. Platform Tips) are billed in the host's currency rather
-  // than their own nominal currency, so treat the host currency as the effective collective currency
-  // for the quote (mirrors `applyPlatformAccountRecordingCurrency` in lib/transactions).
-  if (expense.collective.type === CollectiveType.PLATFORM && !expense.collective.HostCollectiveId) {
-    expense.collective.currency = expense.host.currency;
-  }
+  expense.host = expense.host || (await expense.collective.getHostCollective());
   const targetCurrency = payoutMethod.data.currency;
   const quoteParams = {
     profileId: connectedAccount.data.id,
@@ -412,16 +401,9 @@ async function scheduleExpenseForPayment(
   remoteUser?: User,
 ): Promise<Expense> {
   const collective = await expense.getCollective();
-  // Fall back to the expense's stamped host for host-less billed accounts (e.g. platform-tips).
-  const host = (await collective.getHostCollective()) || (await expense.getHost());
+  const host = await collective.getHostCollective();
   if (!host) {
     throw new Error(`Can not find Host for expense ${expense.id}`);
-  }
-
-  // Host-less platform-owned accounts (e.g. Platform Tips) are billed in the host's currency rather
-  // than their own nominal currency, so treat the host currency as the effective collective currency.
-  if (collective.type === CollectiveType.PLATFORM && !collective.HostCollectiveId) {
-    collective.currency = host.currency;
   }
 
   if (collective.currency !== host.currency) {
@@ -482,7 +464,7 @@ async function unscheduleExpenseForPayment(expense: Expense): Promise<void> {
 
   const collective = await expense.getCollective();
   // Fall back to the expense's stamped host for host-less billed accounts (e.g. platform-tips).
-  const host = (await collective.getHostCollective()) || (await expense.getHost());
+  const host = await collective.getHostCollective();
   if (!host) {
     throw new Error(`Can not find Host for expense ${expense.id}`);
   }

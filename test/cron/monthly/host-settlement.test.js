@@ -7,7 +7,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/con
 import PlatformConstants from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { createRefundTransaction } from '../../../server/lib/payments';
-import { getTaxesSummary } from '../../../server/lib/transactions';
+import { getHostPlatformTipsAccount, getTaxesSummary } from '../../../server/lib/transactions';
 import models, { sequelize } from '../../../server/models';
 import { ExpenseType } from '../../../server/models/Expense';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
@@ -678,9 +678,6 @@ describe('cron/monthly/host-settlement', () => {
       await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 2000`);
       await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 50`);
 
-      platformTipsAccount = await models.Collective.findBySlug('platform-tips');
-      expect(platformTipsAccount, 'seedDefaultVendors should create platform-tips').to.exist;
-
       const hostAdmin = await fakeUser();
       newLedgerHost = await fakeHost({
         name: 'new-ledger-host',
@@ -706,6 +703,10 @@ describe('cron/monthly/host-settlement', () => {
       });
       await order.markAsPaid(hostAdmin);
       clock.restore();
+
+      // The per-host platform-tips account is created lazily when the first tip is recorded.
+      platformTipsAccount = await models.Collective.findOne({ where: { data: { isPlatformTipsAccount: true } } });
+      expect(platformTipsAccount, 'tip recording should create the per-host platform-tips account').to.exist;
 
       platformTipCredit = await models.Transaction.findOne({
         where: {
@@ -821,9 +822,6 @@ describe('cron/monthly/host-settlement', () => {
       await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 2000`);
       await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 50`);
 
-      platformTipsAccount = await models.Collective.findBySlug('platform-tips');
-      expect(platformTipsAccount, 'seedDefaultVendors should create platform-tips').to.exist;
-
       const hostAdmin = await fakeUser();
       deductionHost = await fakeHost({
         name: 'deduction-host',
@@ -912,6 +910,10 @@ describe('cron/monthly/host-settlement', () => {
         clock.restore();
       }
 
+      // This block exercises two hosts, each with its own per-host platform-tips account.
+      platformTipsAccount = await getHostPlatformTipsAccount(deductionHost);
+      const negativeNetPlatformTipsAccount = await getHostPlatformTipsAccount(negativeNetHost);
+
       heldTipCredit = await models.Transaction.findOne({
         where: {
           HostCollectiveId: deductionHost.id,
@@ -936,7 +938,7 @@ describe('cron/monthly/host-settlement', () => {
       negativeNetRefundDebit = await models.Transaction.findOne({
         where: {
           HostCollectiveId: negativeNetHost.id,
-          CollectiveId: platformTipsAccount.id,
+          CollectiveId: negativeNetPlatformTipsAccount.id,
           kind: TransactionKind.PLATFORM_TIP,
           type: 'DEBIT',
           isRefund: true,
@@ -1075,8 +1077,6 @@ describe('cron/monthly/host-settlement', () => {
       await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 2000`);
       await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 50`);
 
-      platformTipsAccount = await models.Collective.findBySlug('platform-tips');
-
       const hostAdmin = await fakeUser();
       optedOutHost = await fakeHost({
         name: 'opted-out-host',
@@ -1107,6 +1107,8 @@ describe('cron/monthly/host-settlement', () => {
       } finally {
         clock.restore();
       }
+
+      platformTipsAccount = await models.Collective.findOne({ where: { data: { isPlatformTipsAccount: true } } });
 
       platformTipCredit = await models.Transaction.findOne({
         where: {
@@ -1173,8 +1175,6 @@ describe('cron/monthly/host-settlement', () => {
       await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 2000`);
       await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 50`);
 
-      platformTipsAccount = await models.Collective.findBySlug('platform-tips');
-
       const hostAdmin = await fakeUser();
       mixedHost = await fakeHost({
         name: 'mixed-legacy-new-host',
@@ -1237,6 +1237,8 @@ describe('cron/monthly/host-settlement', () => {
       } finally {
         clock.restore();
       }
+
+      platformTipsAccount = await models.Collective.findOne({ where: { data: { isPlatformTipsAccount: true } } });
 
       heldTipCredit = await models.Transaction.findOne({
         where: {
@@ -1316,8 +1318,6 @@ describe('cron/monthly/host-settlement', () => {
       await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 3000`);
       await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 80`);
 
-      platformTipsAccount = await models.Collective.findBySlug('platform-tips');
-
       const hostAdmin = await fakeUser();
       eurLedgerHost = await fakeHost({
         name: 'eur-ledger-host',
@@ -1341,6 +1341,8 @@ describe('cron/monthly/host-settlement', () => {
       });
       await order.markAsPaid(hostAdmin);
       clock.restore();
+
+      platformTipsAccount = await models.Collective.findOne({ where: { data: { isPlatformTipsAccount: true } } });
 
       platformTipCredit = await models.Transaction.findOne({
         where: {
@@ -1449,8 +1451,6 @@ describe('cron/monthly/host-settlement', () => {
       await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 4000`);
       await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 110`);
 
-      platformTipsAccount = await models.Collective.findBySlug('platform-tips');
-
       const hostAdmin = await fakeUser();
       belowThresholdHost = await fakeHost({
         name: 'below-threshold-ledger-host',
@@ -1474,6 +1474,8 @@ describe('cron/monthly/host-settlement', () => {
       });
       await order.markAsPaid(hostAdmin);
       clock.restore();
+
+      platformTipsAccount = await models.Collective.findOne({ where: { data: { isPlatformTipsAccount: true } } });
 
       platformTipCredit = await models.Transaction.findOne({
         where: {

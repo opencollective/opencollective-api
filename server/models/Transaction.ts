@@ -31,7 +31,7 @@ import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
-import { getPaymentProcessorFeeVendor, getPlatformTipsAccount, getTaxVendor } from '../lib/transactions';
+import { getOrCreateHostPlatformTipsAccount, getPaymentProcessorFeeVendor, getTaxVendor } from '../lib/transactions';
 import { exportToCSV, parseToBoolean } from '../lib/utils';
 import type { PaypalCapture, PaypalSale, PaypalTransaction } from '../types/paypal';
 import type { Transfer } from '../types/transferwise';
@@ -619,9 +619,7 @@ class Transaction extends ModelWithPublicId<
         ) {
           const collective = await Collective.findByPk(transaction.CollectiveId, { transaction: sequelizeTransaction });
           const collectiveHost = await collective.getHostCollective({ transaction: sequelizeTransaction });
-          // Host-less platform-owned accounts (e.g. Platform Tips) are not hosted, so there is no
-          // inter-host host fee to apply when settling them.
-          if (collectiveHost && collectiveHost.id !== fromCollectiveHost.id) {
+          if (collectiveHost.id !== fromCollectiveHost.id) {
             const hostFeePercent = fromCollective.hasMoneyManagement ? 0 : fromCollective.hostFeePercent;
             const taxAmountInHostCurrency = roundCentsAmount(
               (transaction.taxAmount || 0) * hostCurrencyFxRate,
@@ -770,12 +768,9 @@ class Transaction extends ModelWithPublicId<
     let tipCollectiveId: number;
     let tipHostCollectiveId: number;
     if (hostHasNewPlatformTipsLedger) {
-      const platformTipsAccount = await getPlatformTipsAccount();
-      if (!platformTipsAccount) {
-        throw new Error('NEW_PLATFORM_TIPS_LEDGER is enabled but the "platform-tips" account is missing');
-      }
+      // Per-host platform-tips account (a hosted child of the host), created on first use.
+      const platformTipsAccount = await getOrCreateHostPlatformTipsAccount(host, { transaction: sequelizeTransaction });
       tipCollectiveId = platformTipsAccount.id;
-      // Scope to the host so the row appears in the host's ledger and accounts tool.
       tipHostCollectiveId = host.id;
     } else {
       tipCollectiveId = PlatformConstants.PlatformCollectiveId;
@@ -892,9 +887,10 @@ class Transaction extends ModelWithPublicId<
       throw new Error('createApplicationFeeTransactions must be given a CREDIT PLATFORM_TIP transaction');
     }
 
-    // Input is the DEBIT side on the platform-tips account (host-scoped). createDoubleEntry uses the
-    // input's FromCollectiveId (the platform collective) to derive the opposite's
-    // HostCollectiveId via fromCollective.getHostCollective(); for OFiTech that is OFiTech itself.
+    // Input is the CREDIT PLATFORM_TIP on the platform-tips account (host-scoped); from it we build the
+    // DEBIT application-fee side below. createDoubleEntry uses the input's FromCollectiveId (the platform
+    // collective) to derive the opposite's HostCollectiveId via fromCollective.getHostCollective(); for
+    // OFiTech that is OFiTech itself.
     const applicationFeeTransactionData = {
       ...pick(platformTipTransaction.dataValues, [
         'TransactionGroup',

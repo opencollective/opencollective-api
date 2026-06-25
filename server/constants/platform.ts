@@ -66,20 +66,6 @@ const getPlatformConstants = () => ({
     );
   },
 
-  /** Slug of the global, host-less PLATFORM account that holds platform tips. */
-  get PlatformTipsAccountSlug() {
-    return 'platform-tips';
-  },
-
-  /**
-   * Slugs of the global, host-less Open Collective platform-owned accounts. Single source of truth
-   * for the account selector clause (sql-search) and the transactions query's
-   * includePlatformTransactions expansion. Extend when more platform-owned accounts are introduced.
-   */
-  get PlatformOwnedAccountSlugs() {
-    return [this.PlatformTipsAccountSlug];
-  },
-
   get FiscalHostOSCCollectiveId() {
     return 11004;
   },

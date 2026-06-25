@@ -16,7 +16,6 @@ import cache, { memoize } from '../../../../lib/cache';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { buildSearchConditions } from '../../../../lib/sql-search';
-import { getPlatformOwnedAccounts } from '../../../../lib/transactions';
 import { getTransactionKindPriorityCase } from '../../../../lib/transactions/kind-priority';
 import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Collective, Expense, PaymentMethod, sequelize } from '../../../../models';
@@ -196,12 +195,6 @@ export const TransactionsCollectionArgs = {
     defaultValue: false,
     description: 'Whether to include transactions from children (Events and Projects)',
   },
-  includePlatformTransactions: {
-    type: new GraphQLNonNull(GraphQLBoolean),
-    defaultValue: false,
-    description:
-      'Whether to also treat the global Open Collective platform-owned account(s) (e.g. "platform-tips") as part of the referenced account/excludeAccount set. Like includeChildrenTransactions, it expands the account filter — used with a host-scoped query so the platform-owned rows are scoped to that host.',
-  },
   includeGiftCardTransactions: {
     type: new GraphQLNonNull(GraphQLBoolean),
     defaultValue: false,
@@ -281,10 +274,6 @@ export const TransactionsCollectionResolver = async (
     ),
   );
 
-  // Resolve the global platform-owned account id(s) once (constant set), reused by the account and
-  // excludeAccount branches below. Only relevant for host-scoped queries (see the gating there).
-  const platformOwnedAccountIds = args.includePlatformTransactions && host ? await getPlatformOwnedAccountIds() : [];
-
   const accountIdsWithGiftCardTransactions = args.includeGiftCardTransactions
     ? await getCollectiveIdsWithGiftCardTransactions()
     : [];
@@ -356,15 +345,6 @@ export const TransactionsCollectionResolver = async (
 
     accountCondition.push(...accountsIds);
 
-    // Treat the global platform-owned account(s) as part of the account set, so a host's Fiscal Host
-    // view includes platform-tips without referencing the slug. Mirrors includeChildrenTransactions.
-    // Gated on `host`: the platform-tips account is global (holds every host's rows), so it must only
-    // be expanded when the query is host-scoped (the `if (host)` block below adds HostCollectiveId =
-    // host). Without a host scope, expanding it would leak other hosts' platform-tip transactions.
-    if (args.includePlatformTransactions && host) {
-      accountCondition.push(...platformOwnedAccountIds);
-    }
-
     // When the remote user is part of the fetched profiles, also fetch the linked incognito contributions
     if (req.remoteUser && args.includeIncognitoTransactions && checkScope(req, 'incognito')) {
       if (accountCondition.includes(req.remoteUser.CollectiveId)) {
@@ -422,12 +402,6 @@ export const TransactionsCollectionResolver = async (
         }),
       ),
     );
-
-    // Symmetric with the account branch (and likewise gated on a host-scoped query): exclude the
-    // platform-owned account(s) too, so a host's Hosted Collectives view drops platform-tips.
-    if (args.includePlatformTransactions && host) {
-      exludedAccountsIds.push(...platformOwnedAccountIds);
-    }
 
     where.push({ CollectiveId: { [Op.notIn]: exludedAccountsIds } });
   }
@@ -899,14 +873,6 @@ const getCollectiveIdsWithGiftCardTransactions = memoize(
     }).then(results => results.map(result => result.UsingGiftCardFromCollectiveId)),
   { key: 'collectiveIdsWithGiftCardTransactions', maxAge: oneDayInSeconds },
 );
-
-// The global, host-less platform-owned account(s). Currently only the "platform-tips" account.
-// Deliberately not memoized (mirrors getPlatformTipsAccount): a process-lifetime cache would go
-// stale across test DB resets.
-const getPlatformOwnedAccountIds = async (): Promise<number[]> => {
-  const platformOwnedAccounts = await getPlatformOwnedAccounts();
-  return platformOwnedAccounts.map(account => account.id);
-};
 
 const TransactionsCollectionQuery = {
   type: new GraphQLNonNull(GraphQLTransactionCollection),

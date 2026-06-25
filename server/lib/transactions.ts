@@ -9,7 +9,6 @@ import { CollectiveType } from '../constants/collectives';
 import { SupportedCurrency } from '../constants/currencies';
 import ExpenseType from '../constants/expense-type';
 import { PAYMENT_METHOD_SERVICE } from '../constants/paymentMethods';
-import PlatformConstants from '../constants/platform';
 import TierType from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
@@ -269,23 +268,6 @@ export async function createTransactionsFromPaidStripeExpense(
  * TODO: This function should accept an `amount` to automatically represent what was really paid from the payment provider,
  * in case it differs from expense.amount (e.g. when fees are put on the payee)
  */
-/**
- * Host-less platform-owned accounts (e.g. Platform Tips) hold per-host balances in the host's
- * currency rather than their own nominal currency: the held PLATFORM_TIP/APPLICATION_FEE
- * transactions are booked in host currency (see `cron/monthly/host-settlement`). When settling
- * such an account we must record the paid DEBIT in host currency too, otherwise it would be
- * recorded in the account's nominal currency and fail to clear the host-scoped balance.
- *
- * This locally aligns the loaded collective's currency with the host's so the downstream
- * recording + FX logic treats them as same-currency. Scoped strictly to host-less PLATFORM
- * accounts, so regular expenses are unaffected.
- */
-function applyPlatformAccountRecordingCurrency(expense: Expense, host: Collective): void {
-  if (expense.collective?.type === CollectiveType.PLATFORM && !expense.collective.HostCollectiveId && host?.currency) {
-    expense.collective.currency = host.currency;
-  }
-}
-
 export async function createTransactionsFromPaidExpense(
   host: Collective,
   expense: Expense,
@@ -300,7 +282,6 @@ export async function createTransactionsFromPaidExpense(
   if (!expense.collective) {
     expense.collective = await models.Collective.findByPk(expense.CollectiveId, { transaction: sequelizeTransaction });
   }
-  applyPlatformAccountRecordingCurrency(expense, host);
 
   // Use the supplied FX rate or fetch a new one for the time of payment
   const expenseToHostFxRate =
@@ -385,7 +366,6 @@ export async function createTransactionsForManuallyPaidExpense(
   if (!expense.collective) {
     expense.collective = await models.Collective.findByPk(expense.CollectiveId);
   }
-  applyPlatformAccountRecordingCurrency(expense, host);
 
   // Values are already adjusted to negative DEBIT values
   const isCoveredByPayee = expense.feesPayer === 'PAYEE';
@@ -669,25 +649,58 @@ export const getTaxVendor = memoize(async (taxId): Promise<Collective> => {
 });
 
 /**
- * Returns the global PLATFORM-type account that holds platform tips under the
- * NEW_PLATFORM_TIPS_LEDGER feature, or null when it is not seeded. The account is host-less and
- * shared across all hosts; per-host scoping is achieved by `HostCollectiveId` on the transactions
- * themselves. Deliberately not memoized: callers (tip creation, the monthly settlement cron) are
- * low-frequency, and a process-lifetime cache would go stale across test DB resets and would pin
- * null forever if resolved before the account exists.
+ * `data` flag that definitively marks a collective as a per-host platform-tips account, so it can be
+ * recognized without relying on the slug (which carries a random suffix on collision) or on it being
+ * the only PLATFORM child of the host.
  */
-export const getPlatformTipsAccount = async (): Promise<Collective | null> => {
-  return Collective.findBySlug(PlatformConstants.PlatformTipsAccountSlug, {}, false);
+export const PLATFORM_TIPS_ACCOUNT_DATA_FLAG = 'isPlatformTipsAccount';
+
+/**
+ * Returns the per-host platform-tips account for a host, or null if it has not been created yet.
+ * Identified by the explicit `data.isPlatformTipsAccount` flag.
+ */
+export const getHostPlatformTipsAccount = async (
+  host: Collective,
+  { transaction }: { transaction?: SequelizeTransaction } = {},
+): Promise<Collective | null> => {
+  return Collective.findOne({
+    where: { ParentCollectiveId: host.id, data: { [PLATFORM_TIPS_ACCOUNT_DATA_FLAG]: true } },
+    transaction,
+  });
 };
 
 /**
- * Returns the global, host-less Open Collective platform-owned accounts (currently just the
- * platform-tips account). Single source of truth alongside `PlatformConstants.PlatformOwnedAccountSlugs`
- * for callers that need to treat these accounts as part of a host's own ledger (e.g. the transactions
- * query's `includePlatformTransactions`). Not memoized for the same reasons as getPlatformTipsAccount.
+ * Returns (creating if needed) the per-host PLATFORM-type account that holds platform tips for a
+ * given host under the NEW_PLATFORM_TIPS_LEDGER feature. The account is a regular hosted child of
+ * the host (ParentCollectiveId = HostCollectiveId = host) denominated in the host's currency, so
+ * its balance, permissions and settlement all behave like any other internal account — no
+ * host-scoping needed. Keyed on the `data.isPlatformTipsAccount` flag (not the slug, which carries a
+ * random suffix on collision like Events/Users).
  */
-export const getPlatformOwnedAccounts = async (): Promise<Collective[]> => {
-  return Collective.findAll({ where: { slug: PlatformConstants.PlatformOwnedAccountSlugs } });
+export const getOrCreateHostPlatformTipsAccount = async (
+  host: Collective,
+  { transaction }: { transaction?: SequelizeTransaction } = {},
+): Promise<Collective> => {
+  const existing = await getHostPlatformTipsAccount(host, { transaction });
+  if (existing) {
+    return existing;
+  }
+
+  return Collective.create(
+    {
+      type: CollectiveType.PLATFORM,
+      slug: await Collective.generateSlug('platform-tips'),
+      name: 'Platform Tips',
+      ParentCollectiveId: host.id,
+      HostCollectiveId: host.id,
+      currency: host.currency,
+      isActive: true,
+      approvedAt: new Date(),
+      CreatedByUserId: host.CreatedByUserId,
+      data: { [PLATFORM_TIPS_ACCOUNT_DATA_FLAG]: true },
+    },
+    { transaction },
+  );
 };
 
 /**

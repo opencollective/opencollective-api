@@ -23,6 +23,7 @@ import {
   sendOrderPendingEmail,
 } from '../../../server/lib/payments';
 import stripe from '../../../server/lib/stripe';
+import { getHostPlatformTipsAccount } from '../../../server/lib/transactions';
 import models from '../../../server/models';
 import * as paypalAPI from '../../../server/paymentProviders/paypal/api';
 import stripeMocks from '../../mocks/stripe';
@@ -680,7 +681,7 @@ describe('server/lib/payments', () => {
       }
 
       // The host's platform-tips slice nets to zero after the refund
-      const platformTipsAccount = await models.Collective.findBySlug('platform-tips');
+      const platformTipsAccount = await getHostPlatformTipsAccount(host);
       const vendorRows = (await order.getTransactions()).filter(t => t.CollectiveId === platformTipsAccount.id);
       expect(vendorRows.reduce((sum, t) => sum + t.amountInHostCurrency, 0)).to.equal(0);
     });
@@ -720,7 +721,7 @@ describe('server/lib/payments', () => {
 
       await createRefundTransaction(transaction, 0, null, user);
 
-      const platformTipsAccount = await models.Collective.findBySlug('platform-tips');
+      const platformTipsAccount = await getHostPlatformTipsAccount(host);
 
       // The reversing APPLICATION_FEE credit lands back on the platform-tips account and must stay
       // scoped to the host.
