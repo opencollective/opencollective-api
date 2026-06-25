@@ -18,6 +18,7 @@ import { GraphQLCurrency } from '../enum/Currency';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLTransactionKind } from '../enum/TransactionKind';
 import { idEncode } from '../identifiers';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLAmount } from '../object/Amount';
 import { GraphQLAmountStats } from '../object/AmountStats';
 import { getNumberOfDays, getTimeUnit, GraphQLTimeSeriesAmount, TimeSeriesArgs } from '../object/TimeSeriesAmount';
@@ -94,14 +95,27 @@ export const GraphQLAccountStats = new GraphQLObjectType({
             description: 'Remove blocked funds from the balance',
             defaultValue: false,
           },
+          host: {
+            type: GraphQLAccountReferenceInput,
+            description:
+              "Scope the balance to a single fiscal host: only the rows recorded on that host's ledger. Useful for the per-host slice of a global, host-less platform-owned account (e.g. platform-tips). Defaults the currency to the host currency.",
+          },
         },
-        resolve(account, args, req) {
+        async resolve(account, args, req) {
+          let hostCollectiveId;
+          let currency = args.currency;
+          if (args.host) {
+            const host = await fetchAccountWithReference(args.host, { loaders: req.loaders, throwIfMissing: true });
+            hostCollectiveId = host.id;
+            currency = currency || host.currency;
+          }
           return account.getBalanceAmount({
             loaders: req.loaders,
             endDate: args.dateTo,
             includeChildren: args.includeChildren,
             withBlockedFunds: args.withBlockedFunds,
-            currency: args.currency,
+            currency,
+            hostCollectiveId,
           });
         },
       },

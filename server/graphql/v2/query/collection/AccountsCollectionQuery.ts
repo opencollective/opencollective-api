@@ -94,10 +94,10 @@ const AccountsCollectionQuery = {
       type: GraphQLAccountReferenceInput,
       description: 'Include vendors for this host',
     },
-    includePlatformVendors: {
+    includePlatformAccounts: {
       type: GraphQLBoolean,
       description:
-        'Include Open Collective platform-owned vendors (currently the global VENDOR account with slug "oc-platform"). Useful when filtering accounts under a host while still surfacing platform-owned vendors.',
+        'Include Open Collective platform-owned accounts (currently the global PLATFORM account with slug "platform-tips"). Useful when filtering accounts under a host while still surfacing platform-owned accounts.',
     },
     consolidatedBalance: {
       type: GraphQLAmountRangeInput,
@@ -171,7 +171,7 @@ const AccountsCollectionQuery = {
       tagSearchOperator: args.tagSearchOperator,
       includeArchived: args.includeArchived,
       includeVendorsForHostId,
-      includePlatformVendors: args.includePlatformVendors,
+      includePlatformAccounts: args.includePlatformAccounts,
       consolidatedBalance: args.consolidatedBalance,
       isRoot: req.remoteUser?.isRoot() || false,
       onlyOpenHosts: args.onlyOpenToApplications ? true : null,

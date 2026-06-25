@@ -1365,8 +1365,8 @@ class Collective extends ModelWithPublicId<
 
   /**
    * Whether this host opted in to the new platform-tips ledger (PLATFORM_TIP credits routed to
-   * the OC Platform vendor, APPLICATION_FEE pair on the Stripe app-fee path, settlement-time
-   * PLATFORM_TIP_TRANSFER transfer from OC Platform to host).
+   * the host-scoped slice of the global platform-tips account, APPLICATION_FEE pair on the Stripe
+   * app-fee path, and settlement billed directly against the platform-tips account).
    */
   hasNewPlatformTipsLedger = function (): boolean {
     return Boolean(this.settings?.[NEW_PLATFORM_TIPS_LEDGER_FLAG]);

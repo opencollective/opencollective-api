@@ -6,7 +6,7 @@
  *   - Legacy: PLATFORM_TIP credit lands on OFiTech (HostCollectiveId = OFiTech); a per-tip
  *     PLATFORM_TIP_DEBT pair carries the host's obligation, with the OWED/INVOICED/SETTLED
  *     lifecycle on a TransactionSettlement keyed (TransactionGroup, PLATFORM_TIP_DEBT).
- *   - New: PLATFORM_TIP credit lands on the host-scoped "oc-platform" vendor
+ *   - New: PLATFORM_TIP credit lands on the host-scoped platform-tips account
  *     (HostCollectiveId = host); the lifecycle lives on a TransactionSettlement keyed
  *     (TransactionGroup, PLATFORM_TIP). Stripe application-fee tips additionally carry an
  *     APPLICATION_FEE pair instead of a debt/settlement.
@@ -16,13 +16,13 @@
  * `amount`) is unchanged; what changes is the account it sits on, its host-currency
  * denomination, and the bookkeeping rows around it. The re-denomination matters: the legacy
  * credit sits on the platform's USD books (hostCurrency = USD), whereas the new-ledger credit
- * lives on the host-scoped oc-platform vendor, i.e. the host's own books, and must be valued in
+ * lives on the host-scoped platform-tips account, i.e. the host's own books, and must be valued in
  * the host currency — otherwise we leave a foreign (USD) hostCurrency on a host ledger and force
  * the settlement cron to convert it back at a later FX rate.
  *
  * Scope / safety:
  *   - Only legacy tips are touched (PLATFORM_TIP credit still routed to the platform account).
- *     Already-converted tips (credit on oc-platform) are skipped, so the script is idempotent.
+ *     Already-converted tips (credit on platform-tips) are skipped, so the script is idempotent.
  *   - Non-application-fee tips are converted only while their settlement is still OWED. INVOICED/SETTLED
  *     tips already have a settlement Expense and are skipped with a warning (converting them
  *     would require reworking that expense too).
@@ -60,7 +60,7 @@ import PlatformConstants from '../../server/constants/platform';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { roundCentsAmount } from '../../server/lib/currency';
 import logger from '../../server/lib/logger';
-import { getOcPlatformVendor } from '../../server/lib/transactions';
+import { getPlatformTipsAccount } from '../../server/lib/transactions';
 import models, { sequelize } from '../../server/models';
 import { TransactionSettlementStatus } from '../../server/models/TransactionSettlement';
 
@@ -128,9 +128,9 @@ export const convertPlatformTipsToNewLedger = async ({
     );
   }
 
-  const ocPlatformVendor = await getOcPlatformVendor();
-  if (!ocPlatformVendor) {
-    throw new Error('Could not find the "oc-platform" vendor (run migration 20260513120000 first)');
+  const platformTipsAccount = await getPlatformTipsAccount();
+  if (!platformTipsAccount) {
+    throw new Error('Could not find the "platform-tips" account (run migration 20260513120000 first)');
   }
   const platformCollectiveId = PlatformConstants.PlatformCollectiveId;
   const convertedAt = new Date().toISOString();
@@ -251,7 +251,7 @@ export const convertPlatformTipsToNewLedger = async ({
     const label = isApplicationFee ? 'application-fee' : 'OWED';
 
     // The legacy credit sits on the platform's USD books; on the new ledger it lives on the
-    // host-scoped oc-platform vendor (the host's own books) and must be denominated in the host
+    // host-scoped platform-tips account (the host's own books) and must be denominated in the host
     // currency, exactly as createPlatformTipTransactions does for a native tip. Re-denominate the
     // host-currency valuation here so we never leave a USD hostCurrency on a host ledger and the
     // settlement cron's host-currency sum hits its no-conversion fast path. The collective-currency
@@ -278,11 +278,11 @@ export const convertPlatformTipsToNewLedger = async ({
     const path = isApplicationFee ? 'application-fee' : 'owed';
 
     await sequelize.transaction(async sequelizeTransaction => {
-      // 1. Re-point the PLATFORM_TIP CREDIT (platform side) onto the host-scoped oc-platform vendor
+      // 1. Re-point the PLATFORM_TIP CREDIT (platform side) onto the host-scoped platform-tips account
       //    and re-denominate it to the host currency, stashing the pre-conversion account ids and
       //    host-currency fields under data.platformTipsLedgerConversion.previous for rollback.
       creditRow.set({
-        CollectiveId: ocPlatformVendor.id,
+        CollectiveId: platformTipsAccount.id,
         HostCollectiveId: host.id,
         hostCurrency: newHostCurrency,
         hostCurrencyFxRate: newHostCurrencyFxRate,
@@ -301,7 +301,7 @@ export const convertPlatformTipsToNewLedger = async ({
       });
       await creditRow.save({ transaction: sequelizeTransaction });
 
-      // ...and its mirror DEBIT (on the contributor): the counterparty is now oc-platform. Its
+      // ...and its mirror DEBIT (on the contributor): the counterparty is now platform-tips. Its
       // host-currency fields are deliberately left untouched — the DEBIT lives on the contributor's
       // books (HostCollectiveId = contributor host, or null), never on this host's ledger, so it is
       // valued in the contributor-side currency just as createDoubleEntry produces for a native tip.
@@ -311,7 +311,7 @@ export const convertPlatformTipsToNewLedger = async ({
       });
       if (debitRow) {
         debitRow.set({
-          FromCollectiveId: ocPlatformVendor.id,
+          FromCollectiveId: platformTipsAccount.id,
           data: conversionMeta(debitRow.data, {
             path,
             action: 're-pointed-platform-tip-debit',
@@ -322,7 +322,7 @@ export const convertPlatformTipsToNewLedger = async ({
       }
 
       if (isApplicationFee) {
-        // New flow: application-fee tips carry an APPLICATION_FEE pair (oc-platform -> OFiTech)
+        // New flow: application-fee tips carry an APPLICATION_FEE pair (platform-tips -> OFiTech)
         // instead of a debt/settlement. Reload the re-pointed credit so the pair derives the right accounts.
         const platformTipTransaction = await models.Transaction.findByPk(creditRow.id, {
           transaction: sequelizeTransaction,

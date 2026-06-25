@@ -617,7 +617,7 @@ describe('server/lib/payments', () => {
       expect(tipSettlement.status).to.eq('INVOICED');
 
       // The refund pair carries a fresh OWED settlement so the negative refund DEBIT on the
-      // OC Platform vendor is deducted from the host's next Platform Tips invoice
+      // platform-tips account is deducted from the host's next Platform Tips invoice
       const refundedTipTransactions = await order.getTransactions({
         where: { isRefund: true, kind: TransactionKind.PLATFORM_TIP },
       });
@@ -679,17 +679,17 @@ describe('server/lib/payments', () => {
         expect(appFeeRow.RefundTransactionId, `RefundTransactionId on APPLICATION_FEE #${appFeeRow.id}`).to.not.be.null;
       }
 
-      // The host's OC Platform vendor slice nets to zero after the refund
-      const ocPlatformVendor = await models.Collective.findBySlug('oc-platform');
-      const vendorRows = (await order.getTransactions()).filter(t => t.CollectiveId === ocPlatformVendor.id);
+      // The host's platform-tips slice nets to zero after the refund
+      const platformTipsAccount = await models.Collective.findBySlug('platform-tips');
+      const vendorRows = (await order.getTransactions()).filter(t => t.CollectiveId === platformTipsAccount.id);
       expect(vendorRows.reduce((sum, t) => sum + t.amountInHostCurrency, 0)).to.equal(0);
     });
 
     it('keeps the refunded APPLICATION_FEE on the host-scoped vendor slice (HostCollectiveId not nulled)', async () => {
-      // Regression: the APPLICATION_FEE pair is host-scoped via HostCollectiveId on the OC Platform
-      // vendor rows. The reversing credit must carry the same HostCollectiveId = host, otherwise the
-      // host's slice of the vendor ledger (CollectiveId = vendor AND HostCollectiveId = host) stays
-      // permanently short by the fee, even though the vendor's account-level total still nets to zero.
+      // Regression: the APPLICATION_FEE pair is host-scoped via HostCollectiveId on the platform-tips
+      // account rows. The reversing credit must carry the same HostCollectiveId = host, otherwise the
+      // host's slice of the platform-tips ledger (CollectiveId = platform-tips AND HostCollectiveId =
+      // host) stays permanently short by the fee, even though the account-level total still nets to zero.
       await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
       const host = await fakeHost({ name: 'Host' });
       await host.update({ settings: { ...host.settings, newPlatformTipsLedger: true } });
@@ -720,23 +720,23 @@ describe('server/lib/payments', () => {
 
       await createRefundTransaction(transaction, 0, null, user);
 
-      const ocPlatformVendor = await models.Collective.findBySlug('oc-platform');
+      const platformTipsAccount = await models.Collective.findBySlug('platform-tips');
 
-      // The reversing APPLICATION_FEE credit lands back on the OC Platform vendor and must stay
+      // The reversing APPLICATION_FEE credit lands back on the platform-tips account and must stay
       // scoped to the host.
       const appFeeRefundCredit = (await order.getTransactions()).find(
         t =>
           t.kind === TransactionKind.APPLICATION_FEE &&
           t.type === 'CREDIT' &&
           t.isRefund &&
-          t.CollectiveId === ocPlatformVendor.id,
+          t.CollectiveId === platformTipsAccount.id,
       );
       expect(appFeeRefundCredit, 'APPLICATION_FEE refund credit on the vendor').to.exist;
       expect(appFeeRefundCredit.HostCollectiveId).to.equal(host.id);
 
       // The host's slice of the vendor ledger (scoped by HostCollectiveId) nets to zero.
       const hostVendorRows = (await order.getTransactions()).filter(
-        t => t.CollectiveId === ocPlatformVendor.id && t.HostCollectiveId === host.id,
+        t => t.CollectiveId === platformTipsAccount.id && t.HostCollectiveId === host.id,
       );
       expect(hostVendorRows.reduce((sum, t) => sum + t.amountInHostCurrency, 0)).to.equal(0);
     });

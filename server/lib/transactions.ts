@@ -8,6 +8,7 @@ import Stripe from 'stripe';
 import { SupportedCurrency } from '../constants/currencies';
 import ExpenseType from '../constants/expense-type';
 import { PAYMENT_METHOD_SERVICE } from '../constants/paymentMethods';
+import PlatformConstants from '../constants/platform';
 import TierType from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
@@ -462,7 +463,6 @@ const kindStrings = {
   PAYMENT_PROCESSOR_COVER: `Cover of Payment Processor Fee`,
   PLATFORM_TIP: `Platform Tip`,
   PLATFORM_TIP_DEBT: `Platform Tip Debt`,
-  PLATFORM_TIP_TRANSFER: `Platform Tip Transfer`,
   PREPAID_PAYMENT_METHOD: `Prepaid Payment Method`,
 };
 
@@ -649,15 +649,25 @@ export const getTaxVendor = memoize(async (taxId): Promise<Collective> => {
 });
 
 /**
- * Returns the Vendor account that holds platform tips on the host's ledger under the
- * NEW_PLATFORM_TIPS_LEDGER feature, or null when the vendor is not seeded. The vendor is global
- * (shared across all hosts); per-host scoping is achieved by `HostCollectiveId` on the
- * transactions themselves. Deliberately not memoized: callers (tip creation, the monthly
- * settlement cron) are low-frequency, and a process-lifetime cache would go stale across test DB
- * resets and would pin null forever if resolved before the vendor exists.
+ * Returns the global PLATFORM-type account that holds platform tips under the
+ * NEW_PLATFORM_TIPS_LEDGER feature, or null when it is not seeded. The account is host-less and
+ * shared across all hosts; per-host scoping is achieved by `HostCollectiveId` on the transactions
+ * themselves. Deliberately not memoized: callers (tip creation, the monthly settlement cron) are
+ * low-frequency, and a process-lifetime cache would go stale across test DB resets and would pin
+ * null forever if resolved before the account exists.
  */
-export const getOcPlatformVendor = async (): Promise<Collective | null> => {
-  return Collective.findBySlug('oc-platform', {}, false);
+export const getPlatformTipsAccount = async (): Promise<Collective | null> => {
+  return Collective.findBySlug(PlatformConstants.PlatformTipsAccountSlug, {}, false);
+};
+
+/**
+ * Returns the global, host-less Open Collective platform-owned accounts (currently just the
+ * platform-tips account). Single source of truth alongside `PlatformConstants.PlatformOwnedAccountSlugs`
+ * for callers that need to treat these accounts as part of a host's own ledger (e.g. the transactions
+ * query's `includePlatformTransactions`). Not memoized for the same reasons as getPlatformTipsAccount.
+ */
+export const getPlatformOwnedAccounts = async (): Promise<Collective[]> => {
+  return Collective.findAll({ where: { slug: PlatformConstants.PlatformOwnedAccountSlugs } });
 };
 
 /**

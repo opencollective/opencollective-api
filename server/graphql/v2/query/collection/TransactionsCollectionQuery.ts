@@ -16,6 +16,7 @@ import cache, { memoize } from '../../../../lib/cache';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { buildSearchConditions } from '../../../../lib/sql-search';
+import { getPlatformOwnedAccounts } from '../../../../lib/transactions';
 import { getTransactionKindPriorityCase } from '../../../../lib/transactions/kind-priority';
 import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Collective, Expense, PaymentMethod, sequelize } from '../../../../models';
@@ -195,6 +196,12 @@ export const TransactionsCollectionArgs = {
     defaultValue: false,
     description: 'Whether to include transactions from children (Events and Projects)',
   },
+  includePlatformTransactions: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    defaultValue: false,
+    description:
+      'Whether to also treat the global Open Collective platform-owned account(s) (e.g. "platform-tips") as part of the referenced account/excludeAccount set. Like includeChildrenTransactions, it expands the account filter — used with a host-scoped query so the platform-owned rows are scoped to that host.',
+  },
   includeGiftCardTransactions: {
     type: new GraphQLNonNull(GraphQLBoolean),
     defaultValue: false,
@@ -345,6 +352,14 @@ export const TransactionsCollectionResolver = async (
 
     accountCondition.push(...accountsIds);
 
+    // Treat the global platform-owned account(s) as part of the account set (scoped to the host via
+    // the host filter), so a host's Fiscal Host view includes platform-tips without referencing the
+    // slug. Mirrors includeChildrenTransactions.
+    if (args.includePlatformTransactions) {
+      const platformAccountIds = await getPlatformOwnedAccountIds();
+      accountCondition.push(...platformAccountIds);
+    }
+
     // When the remote user is part of the fetched profiles, also fetch the linked incognito contributions
     if (req.remoteUser && args.includeIncognitoTransactions && checkScope(req, 'incognito')) {
       if (accountCondition.includes(req.remoteUser.CollectiveId)) {
@@ -402,6 +417,14 @@ export const TransactionsCollectionResolver = async (
         }),
       ),
     );
+
+    // Symmetric with the account branch: exclude the platform-owned account(s) too, so a host's
+    // Hosted Collectives view drops platform-tips without referencing the slug.
+    if (args.includePlatformTransactions) {
+      const platformAccountIds = await getPlatformOwnedAccountIds();
+      exludedAccountsIds.push(...platformAccountIds);
+    }
+
     where.push({ CollectiveId: { [Op.notIn]: exludedAccountsIds } });
   }
 
@@ -872,6 +895,14 @@ const getCollectiveIdsWithGiftCardTransactions = memoize(
     }).then(results => results.map(result => result.UsingGiftCardFromCollectiveId)),
   { key: 'collectiveIdsWithGiftCardTransactions', maxAge: oneDayInSeconds },
 );
+
+// The global, host-less platform-owned account(s). Currently only the "platform-tips" account.
+// Deliberately not memoized (mirrors getPlatformTipsAccount): a process-lifetime cache would go
+// stale across test DB resets.
+const getPlatformOwnedAccountIds = async (): Promise<number[]> => {
+  const platformOwnedAccounts = await getPlatformOwnedAccounts();
+  return platformOwnedAccounts.map(account => account.id);
+};
 
 const TransactionsCollectionQuery = {
   type: new GraphQLNonNull(GraphQLTransactionCollection),

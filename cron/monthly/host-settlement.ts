@@ -17,9 +17,16 @@ import { getFxRate, roundCentsAmount } from '../../server/lib/currency';
 import { getPendingHostFeeShare } from '../../server/lib/host-metrics';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
-import { getOcPlatformVendor } from '../../server/lib/transactions';
+import { getPlatformTipsAccount } from '../../server/lib/transactions';
 import { parseToBoolean } from '../../server/lib/utils';
-import models, { Collective, ConnectedAccount, Expense, PaymentMethod, sequelize } from '../../server/models';
+import models, {
+  Collective,
+  ConnectedAccount,
+  Expense,
+  PaymentMethod,
+  sequelize,
+  Transaction,
+} from '../../server/models';
 import { ExpenseStatus, ExpenseType } from '../../server/models/Expense';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { TransactionSettlementStatus } from '../../server/models/TransactionSettlement';
@@ -127,6 +134,126 @@ function isValidHostPayoutMethodType(
   return false;
 }
 
+/**
+ * Create one SETTLEMENT expense from OFiTech against `billedCollectiveId`, attach its items + CSV,
+ * mark the backing transactions INVOICED, and emit the creation activity. Returns the expense (or
+ * null on a dry run).
+ *
+ * `billedHostId` is stamped on `expense.HostCollectiveId`, which `loadHostForExpense` reads first at
+ * payment time. For the host-billed bundle it is the host itself; for the platform-tips bundle it is
+ * the collecting host, so the paid DEBIT lands on the platform-tips account scoped to that host
+ * (`HostCollectiveId = host`) and the host's slice nets to zero — the platform-tips account is
+ * host-less, so without this the payout could not resolve a host.
+ */
+async function emitSettlementExpense({
+  host,
+  billedCollectiveId,
+  billedHostId,
+  items,
+  transactions,
+  payoutMethod,
+  extraDescription,
+  momentDate,
+  endDate,
+}: {
+  host: Collective;
+  billedCollectiveId: number;
+  billedHostId: number;
+  items: Array<{ incurredAt: Date; amount: number; currency: SupportedCurrency; description: string }>;
+  transactions: Transaction[];
+  payoutMethod: PayoutMethod;
+  extraDescription: string;
+  momentDate: moment.Moment;
+  endDate: Date;
+}): Promise<Expense | null> {
+  const totalAmountCharged = sumBy(items, 'amount');
+  const transactionIds = transactions.map(t => t.id);
+  const expenseData = {
+    FromCollectiveId: PlatformConstants.PlatformCollectiveId,
+    lastEditedById: PlatformConstants.PlatformUserId,
+    UserId: PlatformConstants.PlatformUserId,
+    HostCollectiveId: billedHostId,
+    payeeLocation: {
+      address: PlatformConstants.PlatformAddress,
+      country: PlatformConstants.PlatformCountry,
+    },
+    PayoutMethodId: payoutMethod.id,
+    amount: totalAmountCharged,
+    CollectiveId: billedCollectiveId,
+    currency: host.currency,
+    description: `Platform settlement${extraDescription} for ${momentDate.utc().format('MMMM')}`,
+    incurredAt: today.toDate(),
+    // isPlatformTipSettlement is deprecated but we keep it for now, we should rely on type=SETTLEMENT
+    data: { isPlatformTipSettlement: true, transactionIds },
+    type: expenseTypes.SETTLEMENT,
+    status: expenseStatus.PENDING,
+  };
+
+  if (DRY) {
+    console.debug(`Expense:\n${JSON.stringify(expenseData, null, 2)}`);
+    console.debug(`PayoutMethod: ${payoutMethod.id} - ${payoutMethod.type}`);
+    console.debug(`Items:\n${json2csv(items)}\n`);
+    return null;
+  }
+
+  // Create the settlement expense and flip the backing TransactionSettlement rows OWED -> INVOICED
+  // atomically, so a partial failure never leaves the rows half-invoiced.
+  const expense = await sequelize.transaction(async dbTransaction => {
+    const createdExpense = await models.Expense.create(expenseData, { transaction: dbTransaction });
+
+    const expenseItems = items.map(i => ({
+      ...i,
+      ExpenseId: createdExpense.id,
+      CreatedByUserId: PlatformConstants.PlatformUserId,
+    }));
+    await models.ExpenseItem.bulkCreate(expenseItems, { transaction: dbTransaction });
+
+    await models.TransactionSettlement.markTransactionsAsInvoiced(transactions, createdExpense.id, {
+      transaction: dbTransaction,
+    });
+
+    return createdExpense;
+  });
+
+  // Attach CSV (external S3 call, kept out of the DB transaction). New-ledger PLATFORM_TIP rows live
+  // on the host-less platform-tips account, so the account-scoped `transactions` report cannot return
+  // them. Use the host-scoped `hostTransactions` report whenever such rows are in the batch — legacy
+  // *_DEBT rows carry HostCollectiveId = host too, so nothing is lost.
+  if (transactions.length > 0) {
+    const reportType = transactions.some(t => t.kind === TransactionKind.PLATFORM_TIP)
+      ? 'hostTransactions'
+      : 'transactions';
+    const csvUrl = getTransactionsCsvUrl(reportType, host, {
+      startDate: moment(min(transactions.map(t => t.createdAt)))
+        .startOf('month')
+        .toDate(),
+      endDate,
+      kind: uniq(transactions.map(t => t.kind)),
+      add: ['orderLegacyId'],
+    });
+    if (csvUrl) {
+      await models.ExpenseAttachedFile.create({
+        url: csvUrl,
+        ExpenseId: expense.id,
+        CreatedByUserId: PlatformConstants.PlatformUserId,
+      });
+    }
+  }
+
+  const platformUser = await models.User.findByPk(PlatformConstants.PlatformUserId);
+  try {
+    await expense.createActivity(activityType.COLLECTIVE_EXPENSE_CREATED, platformUser);
+  } catch (error) {
+    logger.warn(`Error creating activity for expense ${expense.id}: ${error}`);
+    reportErrorToSentry(error, { extra: { expenseId: expense.id } });
+  }
+
+  console.info(
+    `${host.name} (#${host.id}) settlement expense #${expense.id} created for ${totalAmountCharged / 100} ${host.currency}.`,
+  );
+  return expense;
+}
+
 export async function run(baseDate: Date | moment.Moment = defaultDate): Promise<void> {
   const momentDate = moment(baseDate).subtract(1, 'month');
   const year = momentDate.year();
@@ -200,8 +327,6 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 
     const plan = host.getLegacyPlan();
 
-    const items = [];
-
     const transactionsKinds = KIND ? [KIND] : [PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT];
 
     const transactions = await sequelize.query(
@@ -224,33 +349,29 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       },
     );
 
-    // New-platform-tips-ledger settlement: each PLATFORM_TIP credit on the OC Platform vendor
-    // (host-scoped) carries its own TransactionSettlement row (kind=PLATFORM_TIP).
-    // The settlement cron picks up those in OWED status, writes a single PLATFORM_TIP_TRANSFER
-    // transfer pair to release the held funds onto the host's books, and lets the standard
-    // markTransactionsAsInvoiced flow flip the PLATFORM_TIP TS rows OWED -> INVOICED.
-    // The transfer itself is a pure balance-mover with no TS row of its own.
+    // New-platform-tips-ledger settlement: each PLATFORM_TIP credit on the platform-tips account
+    // (host-scoped) carries its own TransactionSettlement row (kind=PLATFORM_TIP). The cron picks up
+    // those in OWED status and bills them directly against the platform-tips account (a separate
+    // settlement expense, CollectiveId = platform-tips, HostCollectiveId = host) — there is no
+    // release transfer; the held funds simply stay on the platform-tips balance.
+    // markTransactionsAsInvoiced flips the PLATFORM_TIP rows OWED -> INVOICED once that expense is
+    // created, and the paid DEBIT (host-scoped) later clears the host's slice.
     //
-    // Deliberately NOT gated on the host's NEW_PLATFORM_TIPS_LEDGER flag: the flag only routes
-    // tips at collection time and can be toggled mid-month. Settlement is decided from the vendor
-    // ledger itself, so tips collected while the flag was on still settle after a host opts out
-    // (the query is simply empty for hosts that never participated).
-    //
-    // We only stage the transfer here; it is written further down, alongside the settlement
-    // expense, so it stays in lockstep with markTransactionsAsInvoiced. Writing it here would
-    // leak a transfer on any later `continue` (below-threshold or the HOST_FEE_SHARE anomaly skip):
-    // the source TransactionSettlement rows would stay OWED, and the next run would transfer the
-    // same tips again, inflating the host and OC Platform vendor balances.
-    let platformTipsTransfer: { ocPlatformVendor: Collective; amountInHostCurrency: number } | null = null;
-    const ocPlatformVendor = !KIND || KIND === PLATFORM_TIP_DEBT ? await getOcPlatformVendor() : null;
-    if (ocPlatformVendor) {
-      const newTipTransactions = await sequelize.query(
+    // Deliberately NOT gated on the host's NEW_PLATFORM_TIPS_LEDGER flag: the flag only routes tips
+    // at collection time and can be toggled mid-month. Settlement is decided from the ledger itself,
+    // so tips collected while the flag was on still settle after a host opts out (the query is simply
+    // empty for hosts that never participated).
+    const platformTipsAccount = !KIND || KIND === PLATFORM_TIP_DEBT ? await getPlatformTipsAccount() : null;
+    let newTipTransactions: Transaction[] = [];
+    let pendingNewPlatformTips = 0;
+    if (platformTipsAccount) {
+      const rows = (await sequelize.query(
         `
         SELECT t.*
         FROM "Transactions" t
         INNER JOIN "TransactionSettlements" ts
           ON ts."TransactionGroup" = t."TransactionGroup" AND ts.kind = t.kind
-        WHERE t."CollectiveId" = :ocPlatformVendorId
+        WHERE t."CollectiveId" = :platformTipsAccountId
           AND t."HostCollectiveId" = :HostCollectiveId
           AND t."kind" = 'PLATFORM_TIP'
           AND t."deletedAt" IS NULL
@@ -259,7 +380,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
             (t."type" = 'CREDIT' AND t."RefundTransactionId" IS NULL AND t."isRefund" IS NOT TRUE)
             -- Post-invoice refund deductions: a tip refunded after it was INVOICED/SETTLED gets an
             -- OWED settlement on its refund pair (see createRefundTransaction), and its negative
-            -- DEBIT on the vendor nets against the next invoice.
+            -- DEBIT on the platform-tips account nets against the next invoice.
             OR (t."type" = 'DEBIT' AND t."isRefund" IS TRUE)
           )
           AND ts."deletedAt" IS NULL
@@ -267,74 +388,61 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
           AND t."createdAt" < :endDate
         `,
         {
-          replacements: { ocPlatformVendorId: ocPlatformVendor.id, HostCollectiveId: host.id, endDate },
+          replacements: { platformTipsAccountId: platformTipsAccount.id, HostCollectiveId: host.id, endDate },
           model: models.Transaction,
           mapToModel: true,
         },
-      );
-      // New-ledger PLATFORM_TIP rows are denominated in the host's currency; sumInHostCurrency is
-      // a defensive no-op for them, but still converts any row whose hostCurrency differs (e.g.
-      // legacy USD rows re-pointed by the conversion script).
-      const uninvoicedAmount = await sumInHostCurrency(newTipTransactions, host.currency);
-      if (newTipTransactions.length > 0 && uninvoicedAmount >= 0) {
-        // Queue the PLATFORM_TIP rows (held credits + refund deductions) so they roll into the
-        // Platform Tips total below and get flipped OWED -> INVOICED by markTransactionsAsInvoiced
-        // once the expense is created.
-        transactions.push(...newTipTransactions);
-        if (uninvoicedAmount > 0) {
-          // Stage (don't yet write) the OC Platform -> host transfer.
-          platformTipsTransfer = { ocPlatformVendor, amountInHostCurrency: uninvoicedAmount };
-        }
-        if (DRY) {
-          console.info(
-            `${host.name} (#${host.id}): new-flag tips owed = ${uninvoicedAmount / 100} ${host.currency} across ${newTipTransactions.length} PLATFORM_TIP row(s) (DRY, no transfer written)`,
-          );
-        }
-      } else if (newTipTransactions.length > 0) {
-        // Net negative: refund deductions exceed the tips held this period. A negative release
-        // transfer (host -> OC Platform) is not supported, so roll everything forward — the rows
-        // stay OWED and net against a later run once enough new tips accrue.
+      )) as Transaction[];
+      // New-ledger PLATFORM_TIP rows are denominated in the host's currency; sumInHostCurrency is a
+      // defensive no-op for them, but still converts any row whose hostCurrency differs (e.g. legacy
+      // USD rows re-pointed by the conversion script).
+      const uninvoicedAmount = await sumInHostCurrency(rows, host.currency);
+      if (rows.length > 0 && uninvoicedAmount > 0) {
+        newTipTransactions = rows;
+        pendingNewPlatformTips = uninvoicedAmount;
+      } else if (rows.length > 0) {
+        // Net <= 0: refund deductions meet or exceed the tips held this period. A negative settlement
+        // is not supported, so roll everything forward — the rows stay OWED and net against a later
+        // run once enough new tips accrue.
         console.warn(
-          `${host.name} (#${host.id}): new-flag tips net to ${uninvoicedAmount / 100} ${host.currency} (refund deductions exceed held tips), rolling ${newTipTransactions.length} row(s) forward.`,
+          `${host.name} (#${host.id}): new-flag tips net to ${uninvoicedAmount / 100} ${host.currency} (<= 0), rolling ${rows.length} row(s) forward.`,
         );
       }
     }
 
-    // Compute the Platform Tips total locally from rows we just fetched (legacy + new-ledger),
-    // rather than via a separate metrics query, so both code paths source from the same data.
-    // Both legacy PLATFORM_TIP_DEBT and new-ledger PLATFORM_TIP rows are denominated in the
-    // host's currency; sumInHostCurrency converts any stray row whose hostCurrency differs.
-    const pendingPlatformTips =
+    // Host-billed bundle: legacy platform tips (PLATFORM_TIP_DEBT) + platform share + per-collective
+    // fee, all charged against the host's own collective. `transactions` holds the legacy *_DEBT rows;
+    // they are denominated in the host's currency (sumInHostCurrency converts any stray row).
+    const pendingLegacyPlatformTips =
       !KIND || KIND === PLATFORM_TIP_DEBT
         ? await sumInHostCurrency(
-            transactions.filter(t => t.kind === PLATFORM_TIP_DEBT || t.kind === TransactionKind.PLATFORM_TIP),
+            transactions.filter(t => t.kind === PLATFORM_TIP_DEBT),
             host.currency,
           )
         : 0;
 
-    if (pendingPlatformTips) {
-      items.push({
+    const hostItems = [];
+    if (pendingLegacyPlatformTips) {
+      hostItems.push({
         incurredAt: new Date(),
-        amount: pendingPlatformTips,
+        amount: pendingLegacyPlatformTips,
         currency: host.currency,
         description: 'Platform Tips',
       });
     }
-
     if (pendingHostFeeShare) {
-      items.push({
+      hostItems.push({
         incurredAt: new Date(),
         amount: pendingHostFeeShare,
         currency: host.currency,
         description: 'Platform Share',
       });
     }
-
     if (plan.pricePerCollective && (!KIND || KIND === HOST_FEE_SHARE_DEBT)) {
       const activeHostedCollectives = await host.getHostedCollectivesCount();
       const amount = (activeHostedCollectives || 0) * plan.pricePerCollective;
       if (amount) {
-        items.push({
+        hostItems.push({
           incurredAt: new Date(),
           amount,
           currency: host.currency,
@@ -343,9 +451,21 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       }
     }
 
-    const totalAmountCharged = sumBy(items, 'amount');
-    const hostToPlatformFxRate = await getFxRate(host.currency, 'USD');
-    const totalAmountChargedInUsd = totalAmountCharged * hostToPlatformFxRate;
+    // Platform-tips-billed bundle: new-ledger PLATFORM_TIP held on the platform-tips account.
+    const platformTipsItems = [];
+    if (pendingNewPlatformTips > 0) {
+      platformTipsItems.push({
+        incurredAt: new Date(),
+        amount: pendingNewPlatformTips,
+        currency: host.currency,
+        description: 'Platform Tips',
+      });
+    }
+
+    if (hostItems.length === 0 && platformTipsItems.length === 0) {
+      continue;
+    }
+
     const platformSubscription = await models.PlatformSubscription.getCurrentSubscription(host.id);
     const autoPricingMigrationDate = platformSubscription && host.settings?.automaticBillingMigration;
     const isLastPlatformShareExpense =
@@ -372,33 +492,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       }
     }
 
-    if (totalAmountChargedInUsd < MIN_AMOUNT_USD) {
-      console.warn(
-        `${host.name} (#${host.id}) skipped, total amount pending ${totalAmountChargedInUsd / 100} < $${MIN_AMOUNT_USD / 100}.\n`,
-      );
-      if (isLastPlatformShareExpense) {
-        // Settle the transactions, we don't want to carry them over to the new billing.
-        await models.TransactionSettlement.update(
-          {
-            status: TransactionSettlementStatus.SETTLED,
-          },
-          {
-            where: {
-              TransactionGroup: transactions.map(t => t.TransactionGroup),
-              kind: [HOST_FEE_SHARE_DEBT],
-            },
-          },
-        );
-      }
-      continue;
-    }
-
-    console.info(
-      `${host.name} (#${host.id}) has ${transactions.length} pending transactions and owes ${
-        totalAmountCharged / 100
-      }${host.currency} (${totalAmountChargedInUsd / 100} USD)`,
-    );
-
+    // Payout method is shared by both bundles: the payee is OFiTech in either case.
     const connectedAccounts = await host.getConnectedAccounts({
       where: { deletedAt: null },
     });
@@ -429,140 +523,89 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       throw new Error('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
     }
 
-    let extraDescription = '';
-    if (KIND === PLATFORM_TIP_DEBT) {
-      extraDescription = ' (Platform Tips)';
-    } else if (KIND === HOST_FEE_SHARE_DEBT) {
-      if (plan.pricePerCollective) {
-        extraDescription = ' (Platform Fees)';
-      } else {
-        extraDescription = ' (Platform Share)';
-      }
-    }
+    const hostToUsdFxRate = await getFxRate(host.currency, 'USD');
 
-    const transactionIds = transactions.map(t => t.id);
-    const expenseData = {
-      FromCollectiveId: PlatformConstants.PlatformCollectiveId,
-      lastEditedById: PlatformConstants.PlatformUserId,
-      UserId: PlatformConstants.PlatformUserId,
-      payeeLocation: {
-        address: PlatformConstants.PlatformAddress,
-        country: PlatformConstants.PlatformCountry,
-      },
-      PayoutMethodId: payoutMethod.id,
-      amount: totalAmountCharged,
-      CollectiveId: host.id,
-      currency: host.currency,
-      description: `Platform settlement${extraDescription} for ${momentDate.utc().format('MMMM')}`,
-      incurredAt: today.toDate(),
-      // isPlatformTipSettlement is deprecated but we keep it for now, we should rely on type=SETTLEMENT
-      data: { isPlatformTipSettlement: true, transactionIds },
-      type: expenseTypes.SETTLEMENT,
-      status: expenseStatus.PENDING,
-    };
-    if (DRY) {
-      console.debug(`Expense:\n${JSON.stringify(expenseData, null, 2)}`);
-      console.debug(`PayoutMethod: ${payoutMethod.id} - ${payoutMethod.type}`);
-      console.debug(`Items:\n${json2csv(items)}\n`);
-    } else {
-      // Create the settlement expense, release the new-ledger OC Platform -> host transfer (if any),
-      // and flip the source TransactionSettlement rows OWED -> INVOICED atomically. The transfer
-      // must be committed only together with the invoiced-state change: otherwise a partial failure
-      // would release the funds while leaving the rows OWED, and the next run would release them
-      // again, inflating the host and OC Platform vendor balances.
-      const expense = await sequelize.transaction(async dbTransaction => {
-        const createdExpense = await models.Expense.create(expenseData, { transaction: dbTransaction });
-
-        const expenseItems = items.map(i => ({
-          ...i,
-          ExpenseId: createdExpense.id,
-          CreatedByUserId: PlatformConstants.PlatformUserId,
-        }));
-        await models.ExpenseItem.bulkCreate(expenseItems, { transaction: dbTransaction });
-
-        // New-ledger hosts: release the held funds from the OC Platform vendor onto the host's
-        // books so the host can pay this settlement expense.
-        if (platformTipsTransfer) {
-          await models.Transaction.createPlatformTipSettlementTransfer(
+    // --- Host-billed settlement expense (legacy tips + platform share + per-collective fee) ---
+    if (hostItems.length > 0) {
+      const totalAmountCharged = sumBy(hostItems, 'amount');
+      const totalAmountChargedInUsd = totalAmountCharged * hostToUsdFxRate;
+      if (totalAmountChargedInUsd < MIN_AMOUNT_USD) {
+        console.warn(
+          `${host.name} (#${host.id}) host settlement skipped, total amount pending ${totalAmountChargedInUsd / 100} < $${MIN_AMOUNT_USD / 100}.\n`,
+        );
+        if (isLastPlatformShareExpense) {
+          // Settle the transactions, we don't want to carry them over to the new billing.
+          await models.TransactionSettlement.update(
+            { status: TransactionSettlementStatus.SETTLED },
             {
-              host,
-              ocPlatformVendor: platformTipsTransfer.ocPlatformVendor,
-              amountInHostCurrency: platformTipsTransfer.amountInHostCurrency,
-              hostCurrency: host.currency,
+              where: {
+                TransactionGroup: transactions.map(t => t.TransactionGroup),
+                kind: [HOST_FEE_SHARE_DEBT],
+              },
             },
-            { sequelizeTransaction: dbTransaction },
           );
         }
+      } else {
+        let extraDescription = '';
+        if (KIND === PLATFORM_TIP_DEBT) {
+          extraDescription = ' (Platform Tips)';
+        } else if (KIND === HOST_FEE_SHARE_DEBT) {
+          extraDescription = plan.pricePerCollective ? ' (Platform Fees)' : ' (Platform Share)';
+        }
 
-        // Mark transactions as invoiced
-        await models.TransactionSettlement.markTransactionsAsInvoiced(transactions, createdExpense.id, {
-          transaction: dbTransaction,
-        });
-
-        return createdExpense;
-      });
-
-      // Attach CSV (external S3 call, kept out of the DB transaction), filtered to the kinds
-      // actually present in `transactions`. When the expense carries no transaction-backed items
-      // (e.g. only the "Fixed Fee per Hosted Collective" line), there is nothing to back: skip the
-      // attachment — an empty kind list would emit an invalid `kind=` param (GraphQL enum coercion
-      // failure on the REST service) and a meaningless startDate.
-      if (transactions.length > 0) {
-        // New-ledger PLATFORM_TIP rows live on the OC Platform vendor account, so the
-        // account-scoped `transactions` report (CollectiveId IN [host, children]) cannot return
-        // them. Use the host-scoped `hostTransactions` report (HostCollectiveId = host) whenever
-        // such rows are in the batch — legacy *_DEBT rows carry HostCollectiveId = host too, so
-        // nothing is lost.
-        const reportType = transactions.some(t => t.kind === TransactionKind.PLATFORM_TIP)
-          ? 'hostTransactions'
-          : 'transactions';
-        const csvUrl = getTransactionsCsvUrl(reportType, host, {
-          startDate: moment(min(transactions.map(t => t.createdAt)))
-            .startOf('month')
-            .toDate(),
+        const expense = await emitSettlementExpense({
+          host,
+          billedCollectiveId: host.id,
+          billedHostId: host.id,
+          items: hostItems,
+          transactions,
+          payoutMethod,
+          extraDescription,
+          momentDate,
           endDate,
-          kind: uniq(transactions.map(t => t.kind)),
-          add: ['orderLegacyId'],
         });
-        if (csvUrl) {
-          await models.ExpenseAttachedFile.create({
-            url: csvUrl,
-            ExpenseId: expense.id,
+
+        // For hosts migrated to the new platform subscription billing this month, the Platform Share
+        // expense is the last one of its type. Add a comment pointing to the new billing.
+        if (expense && isLastPlatformShareExpense) {
+          const subscriptionUrl = `${config.host.website}/dashboard/${host.slug}/platform-subscription`;
+          await models.Comment.create({
+            CollectiveId: host.id,
+            FromCollectiveId: PlatformConstants.PlatformCollectiveId,
             CreatedByUserId: PlatformConstants.PlatformUserId,
+            ExpenseId: expense.id,
+            html: [
+              `<p>This is the last Platform Share settlement you will receive. Your account has been migrated to the new <a href="${subscriptionUrl}">platform subscription</a> billing, which replaces Platform Share going forward.</p>`,
+              get(platformSubscription, 'plan.pricing.platformTips')
+                ? `<p>Platform Tips settlements will continue to be billed as usual.</p>`
+                : '',
+            ]
+              .filter(Boolean)
+              .join(''),
           });
         }
       }
+    }
 
-      const platformUser = await models.User.findByPk(PlatformConstants.PlatformUserId);
-
-      try {
-        await expense.createActivity(activityType.COLLECTIVE_EXPENSE_CREATED, platformUser);
-      } catch (error) {
-        logger.warn(`Error creating activity for expense ${expense.id}: ${error}`);
-        reportErrorToSentry(error, { extra: { expenseId: expense.id } });
-      }
-
-      // For hosts that were migrated to the new platform subscription billing
-      // this month, the Platform Share expense is the last one of its type. Add
-      // a comment on the expense to make this clear and point to the new billing.
-      // `pendingHostFeeShare` is only computed when processing HOST_FEE_SHARE_DEBT
-      // (combined run or KIND=HOST_FEE_SHARE_DEBT), so it's a reliable signal that
-      // this expense carries the Platform Share items.
-      if (isLastPlatformShareExpense) {
-        const subscriptionUrl = `${config.host.website}/dashboard/${host.slug}/platform-subscription`;
-        await models.Comment.create({
-          CollectiveId: host.id,
-          FromCollectiveId: PlatformConstants.PlatformCollectiveId,
-          CreatedByUserId: PlatformConstants.PlatformUserId,
-          ExpenseId: expense.id,
-          html: [
-            `<p>This is the last Platform Share settlement you will receive. Your account has been migrated to the new <a href="${subscriptionUrl}">platform subscription</a> billing, which replaces Platform Share going forward.</p>`,
-            get(platformSubscription, 'plan.pricing.platformTips')
-              ? `<p>Platform Tips settlements will continue to be billed as usual.</p>`
-              : '',
-          ]
-            .filter(Boolean)
-            .join(''),
+    // --- Platform-tips-billed settlement expense (new-ledger tips, charged against platform-tips) ---
+    if (platformTipsItems.length > 0 && platformTipsAccount) {
+      const totalAmountCharged = sumBy(platformTipsItems, 'amount');
+      const totalAmountChargedInUsd = totalAmountCharged * hostToUsdFxRate;
+      if (totalAmountChargedInUsd < MIN_AMOUNT_USD) {
+        console.warn(
+          `${host.name} (#${host.id}) platform tips settlement skipped, ${totalAmountChargedInUsd / 100} < $${MIN_AMOUNT_USD / 100}; rolling ${newTipTransactions.length} row(s) forward.\n`,
+        );
+      } else {
+        await emitSettlementExpense({
+          host,
+          billedCollectiveId: platformTipsAccount.id,
+          billedHostId: host.id,
+          items: platformTipsItems,
+          transactions: newTipTransactions,
+          payoutMethod,
+          extraDescription: ' (Platform Tips)',
+          momentDate,
+          endDate,
         });
       }
     }

@@ -385,7 +385,7 @@ describe('server/models/Transaction', () => {
         await host.update({ settings: { ...host.settings, newPlatformTipsLedger: true } });
       });
 
-      it('PayPal path: routes PLATFORM_TIP to OC Platform vendor and writes no PLATFORM_TIP_DEBT', async () => {
+      it('PayPal path: routes PLATFORM_TIP to platform-tips account and writes no PLATFORM_TIP_DEBT', async () => {
         const order = await fakeOrder({
           CreatedByUserId: user.id,
           FromCollectiveId: user.CollectiveId,
@@ -415,7 +415,7 @@ describe('server/models/Transaction', () => {
 
         await Transaction.createFromContributionPayload(transactionPayload);
 
-        const ocPlatformVendor = await models.Collective.findBySlug('oc-platform');
+        const platformTipsAccount = await models.Collective.findBySlug('platform-tips');
         const allTransactions = await Transaction.findAll({
           where: { OrderId: order.id },
           order: [['id', 'ASC']],
@@ -424,10 +424,10 @@ describe('server/models/Transaction', () => {
         await utils.preloadAssociationsForTransactions(allTransactions, SNAPSHOT_COLUMNS_WITH_DEBT);
         utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS_WITH_DEBT });
 
-        // PLATFORM_TIP credit is on OC Platform vendor with HostCollectiveId = host.id
+        // PLATFORM_TIP credit is on platform-tips account with HostCollectiveId = host.id
         const tipCredit = allTransactions.find(t => t.kind === TransactionKind.PLATFORM_TIP && t.type === 'CREDIT');
         expect(tipCredit, 'PLATFORM_TIP credit').to.exist;
-        expect(tipCredit.CollectiveId).to.equal(ocPlatformVendor.id);
+        expect(tipCredit.CollectiveId).to.equal(platformTipsAccount.id);
         expect(tipCredit.HostCollectiveId).to.equal(host.id);
         expect(tipCredit.amount).to.equal(1000);
 
@@ -469,7 +469,7 @@ describe('server/models/Transaction', () => {
 
         await Transaction.createFromContributionPayload(transactionPayload);
 
-        const ocPlatformVendor = await models.Collective.findBySlug('oc-platform');
+        const platformTipsAccount = await models.Collective.findBySlug('platform-tips');
         const allTransactions = await Transaction.findAll({
           where: { OrderId: order.id },
           order: [['id', 'ASC']],
@@ -478,19 +478,19 @@ describe('server/models/Transaction', () => {
         await utils.preloadAssociationsForTransactions(allTransactions, SNAPSHOT_COLUMNS_WITH_DEBT);
         utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS_WITH_DEBT });
 
-        // PLATFORM_TIP credit on OC Platform vendor (host-scoped)
+        // PLATFORM_TIP credit on platform-tips account (host-scoped)
         const tipCredit = allTransactions.find(t => t.kind === TransactionKind.PLATFORM_TIP && t.type === 'CREDIT');
         expect(tipCredit, 'PLATFORM_TIP credit').to.exist;
-        expect(tipCredit.CollectiveId).to.equal(ocPlatformVendor.id);
+        expect(tipCredit.CollectiveId).to.equal(platformTipsAccount.id);
         expect(tipCredit.HostCollectiveId).to.equal(host.id);
 
-        // APPLICATION_FEE: DEBIT on OC Platform vendor (host-scoped) + CREDIT on OFiTech
+        // APPLICATION_FEE: DEBIT on platform-tips account (host-scoped) + CREDIT on OFiTech
         const appFeeDebit = allTransactions.find(t => t.kind === TransactionKind.APPLICATION_FEE && t.type === 'DEBIT');
         const appFeeCredit = allTransactions.find(
           t => t.kind === TransactionKind.APPLICATION_FEE && t.type === 'CREDIT',
         );
         expect(appFeeDebit, 'APPLICATION_FEE debit').to.exist;
-        expect(appFeeDebit.CollectiveId).to.equal(ocPlatformVendor.id);
+        expect(appFeeDebit.CollectiveId).to.equal(platformTipsAccount.id);
         expect(appFeeDebit.HostCollectiveId).to.equal(host.id);
         expect(appFeeDebit.amount).to.equal(-1000);
         expect(appFeeCredit, 'APPLICATION_FEE credit').to.exist;

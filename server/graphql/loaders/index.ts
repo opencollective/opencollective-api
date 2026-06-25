@@ -1266,13 +1266,7 @@ export const generateLoaders = req => {
             },
             type: TransactionTypes.CREDIT,
             kind: {
-              [Op.notIn]: [
-                'HOST_FEE',
-                'HOST_FEE_SHARE',
-                'HOST_FEE_SHARE_DEBT',
-                'PLATFORM_TIP_DEBT',
-                'PLATFORM_TIP_TRANSFER',
-              ],
+              [Op.notIn]: ['HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT', 'PLATFORM_TIP_DEBT'],
             },
             RefundTransactionId: null,
           },

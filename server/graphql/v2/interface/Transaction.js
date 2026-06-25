@@ -789,7 +789,7 @@ export const TransactionFields = () => {
           //    platform's own Stripe report via the application fee id (the charge id lives on the host's
           //    connected account, not the platform's). Covers the legacy/platform-scoped PLATFORM_TIP
           //    CREDIT and its refund (DEBIT, isRefund), and the APPLICATION_FEE CREDIT to OFiTech. See #10491.
-          //  - Host-scoped row (new ledger, on the host's OC Platform vendor): for host accountants,
+          //  - Host-scoped row (new ledger, on the host's platform-tips slice): for host accountants,
           //    reconcile against the host's Stripe/PayPal report via the contribution's merchant id
           //    (Stripe charge id or PayPal capture/sale id). This is the only row a host has for PayPal tips.
           const contributionTransaction =

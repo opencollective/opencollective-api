@@ -1227,4 +1227,55 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       expect(result.data.account.updates.nodes.every(n => n.publishedAt !== null)).to.be.true;
     });
   });
+
+  describe('childrenAccounts includePlatformAccounts', () => {
+    const childrenAccountsQuery = gql`
+      query AccountChildren($slug: String!, $includePlatformAccounts: Boolean) {
+        account(slug: $slug) {
+          id
+          childrenAccounts(includePlatformAccounts: $includePlatformAccounts) {
+            totalCount
+            nodes {
+              id
+              slug
+              type
+            }
+          }
+        }
+      }
+    `;
+
+    let host, organization;
+
+    before(async () => {
+      // The global, host-less PLATFORM account.
+      await fakeCollective({ slug: 'platform-tips', type: 'PLATFORM', HostCollectiveId: null });
+      host = await fakeHost();
+      organization = await fakeOrganization(); // non-host (no money management)
+    });
+
+    it('includes the platform-owned account for a fiscal host when includePlatformAccounts is true', async () => {
+      const result = await graphqlQueryV2(childrenAccountsQuery, { slug: host.slug, includePlatformAccounts: true });
+      expect(result.errors).to.not.exist;
+      const slugs = result.data.account.childrenAccounts.nodes.map(n => n.slug);
+      expect(slugs).to.include('platform-tips');
+    });
+
+    it('does not include the platform-owned account without the flag', async () => {
+      const result = await graphqlQueryV2(childrenAccountsQuery, { slug: host.slug });
+      expect(result.errors).to.not.exist;
+      const slugs = result.data.account.childrenAccounts.nodes.map(n => n.slug);
+      expect(slugs).to.not.include('platform-tips');
+    });
+
+    it('does not include the platform-owned account for a non-host account even with the flag', async () => {
+      const result = await graphqlQueryV2(childrenAccountsQuery, {
+        slug: organization.slug,
+        includePlatformAccounts: true,
+      });
+      expect(result.errors).to.not.exist;
+      const slugs = result.data.account.childrenAccounts.nodes.map(n => n.slug);
+      expect(slugs).to.not.include('platform-tips');
+    });
+  });
 });

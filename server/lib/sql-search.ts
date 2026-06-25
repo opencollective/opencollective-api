@@ -14,6 +14,7 @@ import { QueryTypes } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
 import { CollectiveType } from '../constants/collectives';
+import PlatformConstants from '../constants/platform';
 import { MemberRolesForPrivateAccounts } from '../constants/roles';
 import { BadRequest, RateLimitExceeded } from '../graphql/errors';
 import { ORDER_BY_PSEUDO_FIELDS } from '../graphql/v2/enum/OrderByFieldType';
@@ -326,7 +327,7 @@ export const searchCollectivesInDB = async (
     includeArchived,
     includeVendorsForHostId,
     includeAllVendors,
-    includePlatformVendors,
+    includePlatformAccounts,
     vendorVisibleToAccountIds,
     isHost,
     onlyActive,
@@ -347,7 +348,7 @@ export const searchCollectivesInDB = async (
     includeArchived?: boolean;
     includeVendorsForHostId?: number;
     includeAllVendors?: boolean;
-    includePlatformVendors?: boolean;
+    includePlatformAccounts?: boolean;
     isHost?: boolean;
     onlyActive?: boolean;
     onlyOpenHosts?: boolean;
@@ -386,14 +387,17 @@ export const searchCollectivesInDB = async (
     countryCodes = `${countries.join(',')}`;
   }
 
-  // Open Collective platform-owned vendors (currently only the global VENDOR with slug 'oc-platform')
-  // are surfaced as an exception to the host/vendor gates below when this flag is set.
-  // Extend this clause with additional slugs/IDs when more platform-owned vendors are introduced.
-  const platformVendorsClause = includePlatformVendors ? `(c."slug" IN ('oc-platform'))` : null;
+  // Open Collective platform-owned accounts (currently only the global PLATFORM account with slug
+  // 'platform-tips') are surfaced as an exception to the host/vendor gates below when this flag is
+  // set. Slugs come from PlatformConstants.PlatformOwnedAccountSlugs (single source of truth); they
+  // are constants (not user input), so inlining them here is safe.
+  const platformAccountsClause = includePlatformAccounts
+    ? `(c."slug" IN (${PlatformConstants.PlatformOwnedAccountSlugs.map(slug => `'${slug}'`).join(', ')}))`
+    : null;
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
-    if (platformVendorsClause) {
-      dynamicConditions += `AND ((c."HostCollectiveId" IN (:hostCollectiveIds) AND c."approvedAt" IS NOT NULL) OR ${platformVendorsClause}) `;
+    if (platformAccountsClause) {
+      dynamicConditions += `AND ((c."HostCollectiveId" IN (:hostCollectiveIds) AND c."approvedAt" IS NOT NULL) OR ${platformAccountsClause}) `;
     } else {
       dynamicConditions += 'AND c."HostCollectiveId" IN (:hostCollectiveIds) ';
       dynamicConditions += 'AND c."approvedAt" IS NOT NULL ';
@@ -424,13 +428,13 @@ export const searchCollectivesInDB = async (
   }
 
   if (includeVendorsForHostId) {
-    const vendorClause = platformVendorsClause
-      ? `c."type" != 'VENDOR' OR (c."type" = 'VENDOR' AND c."ParentCollectiveId" = :includeVendorsForHostId) OR ${platformVendorsClause}`
+    const vendorClause = platformAccountsClause
+      ? `c."type" != 'VENDOR' OR (c."type" = 'VENDOR' AND c."ParentCollectiveId" = :includeVendorsForHostId) OR ${platformAccountsClause}`
       : `c."type" != 'VENDOR' OR (c."type" = 'VENDOR' AND c."ParentCollectiveId" = :includeVendorsForHostId)`;
     dynamicConditions += `AND (${vendorClause}) `;
   } else if (!types && !includeAllVendors) {
-    if (platformVendorsClause) {
-      dynamicConditions += `AND (c."type" != 'VENDOR' OR ${platformVendorsClause}) `;
+    if (platformAccountsClause) {
+      dynamicConditions += `AND (c."type" != 'VENDOR' OR ${platformAccountsClause}) `;
     } else {
       dynamicConditions += `AND c."type" != 'VENDOR' `;
     }

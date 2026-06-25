@@ -9,6 +9,7 @@ export type GraphQLAccountTypeKeys =
   | 'FUND'
   | 'INDIVIDUAL'
   | 'ORGANIZATION'
+  | 'PLATFORM'
   | 'PROJECT'
   | 'VENDOR';
 
@@ -22,6 +23,7 @@ export const GraphQLAccountType = new GraphQLEnumType({
     FUND: {},
     INDIVIDUAL: {},
     ORGANIZATION: {},
+    PLATFORM: {},
     PROJECT: {},
     VENDOR: {},
   } satisfies Record<GraphQLAccountTypeKeys, GraphQLEnumValueConfig>,
@@ -34,6 +36,7 @@ export const AccountTypeToModelMapping: Record<GraphQLAccountTypeKeys, Collectiv
   FUND: CollectiveType.FUND,
   INDIVIDUAL: CollectiveType.USER,
   ORGANIZATION: CollectiveType.ORGANIZATION,
+  PLATFORM: CollectiveType.PLATFORM,
   PROJECT: CollectiveType.PROJECT,
   VENDOR: CollectiveType.VENDOR,
 };

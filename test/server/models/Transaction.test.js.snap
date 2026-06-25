@@ -22,18 +22,30 @@ exports[`server/models/Transaction fees on top NEW_PLATFORM_TIPS_LEDGER feature 
 | CONTRIBUTION | CREDIT | false  | User                     | Collective               | Random Host | 10000  | USD      | 0           | -200       |            | $100 PayPal donation + $10 tip                         |"
 `;
 
+exports[`server/models/Transaction fees on top NEW_PLATFORM_TIPS_LEDGER feature PayPal path: routes PLATFORM_TIP to platform-tips account and writes no PLATFORM_TIP_DEBT 1`] = `
+"
+| kind         | type   | isDebt | From          | To            | Host        | amount | currency | platformFee | paymentFee | Settlement | description                                            |
+| ------------ | ------ | ------ | ------------- | ------------- | ----------- | ------ | -------- | ----------- | ---------- | ---------- | ------------------------------------------------------ |
+| PLATFORM_TIP | DEBIT  | false  | Platform Tips | User          | NULL        | -1000  | USD      | 0           | 0          | OWED       | Financial contribution to the Open Collective Platform |
+| PLATFORM_TIP | CREDIT | false  | User          | Platform Tips | Random Host | 1000   | USD      | 0           | 0          | OWED       | Financial contribution to the Open Collective Platform |
+| HOST_FEE     | DEBIT  | false  | Random Host   | Collective    | Random Host | -500   | USD      | 0           | 0          |            | Host Fee                                               |
+| HOST_FEE     | CREDIT | false  | Collective    | Random Host   | Random Host | 500    | USD      | 0           | 0          |            | Host Fee                                               |
+| CONTRIBUTION | DEBIT  | false  | Collective    | User          | NULL        | -9800  | USD      | 0           | -200       |            | $100 PayPal donation + $10 tip                         |
+| CONTRIBUTION | CREDIT | false  | User          | Collective    | Random Host | 10000  | USD      | 0           | -200       |            | $100 PayPal donation + $10 tip                         |"
+`;
+
 exports[`server/models/Transaction fees on top NEW_PLATFORM_TIPS_LEDGER feature Stripe app-fee path: writes both PLATFORM_TIP and APPLICATION_FEE pair, no PLATFORM_TIP_DEBT 1`] = `
 "
-| kind            | type   | isDebt | From                     | To                       | Host            | amount | currency | platformFee | paymentFee | Settlement | description                                                                         |
-| --------------- | ------ | ------ | ------------------------ | ------------------------ | --------------- | ------ | -------- | ----------- | ---------- | ---------- | ----------------------------------------------------------------------------------- |
-| PLATFORM_TIP    | DEBIT  | false  | Open Collective Platform | User                     | NULL            | -1000  | USD      | 0           | 0          |            | Financial contribution to the Open Collective Platform                              |
-| PLATFORM_TIP    | CREDIT | false  | User                     | Open Collective Platform | Random Host     | 1000   | USD      | 0           | 0          |            | Financial contribution to the Open Collective Platform                              |
-| APPLICATION_FEE | DEBIT  | false  | Open Collective          | Open Collective Platform | Random Host     | -1000  | USD      | 0           | 0          |            | Platform tip transferred to the Open Collective platform via Stripe application fee |
-| APPLICATION_FEE | CREDIT | false  | Open Collective Platform | Open Collective          | Open Collective | 1000   | USD      | 0           | 0          |            | Platform tip transferred to the Open Collective platform via Stripe application fee |
-| HOST_FEE        | DEBIT  | false  | Random Host              | Collective               | Random Host     | -500   | USD      | 0           | 0          |            | Host Fee                                                                            |
-| HOST_FEE        | CREDIT | false  | Collective               | Random Host              | Random Host     | 500    | USD      | 0           | 0          |            | Host Fee                                                                            |
-| CONTRIBUTION    | DEBIT  | false  | Collective               | User                     | NULL            | -9800  | USD      | 0           | -200       |            | $100 Stripe donation + $10 tip via application fee                                  |
-| CONTRIBUTION    | CREDIT | false  | User                     | Collective               | Random Host     | 10000  | USD      | 0           | -200       |            | $100 Stripe donation + $10 tip via application fee                                  |"
+| kind            | type   | isDebt | From            | To              | Host            | amount | currency | platformFee | paymentFee | Settlement | description                                                                         |
+| --------------- | ------ | ------ | --------------- | --------------- | --------------- | ------ | -------- | ----------- | ---------- | ---------- | ----------------------------------------------------------------------------------- |
+| PLATFORM_TIP    | DEBIT  | false  | Platform Tips   | User            | NULL            | -1000  | USD      | 0           | 0          |            | Financial contribution to the Open Collective Platform                              |
+| PLATFORM_TIP    | CREDIT | false  | User            | Platform Tips   | Random Host     | 1000   | USD      | 0           | 0          |            | Financial contribution to the Open Collective Platform                              |
+| APPLICATION_FEE | DEBIT  | false  | Open Collective | Platform Tips   | Random Host     | -1000  | USD      | 0           | 0          |            | Platform tip transferred to the Open Collective platform via Stripe application fee |
+| APPLICATION_FEE | CREDIT | false  | Platform Tips   | Open Collective | Open Collective | 1000   | USD      | 0           | 0          |            | Platform tip transferred to the Open Collective platform via Stripe application fee |
+| HOST_FEE        | DEBIT  | false  | Random Host     | Collective      | Random Host     | -500   | USD      | 0           | 0          |            | Host Fee                                                                            |
+| HOST_FEE        | CREDIT | false  | Collective      | Random Host     | Random Host     | 500    | USD      | 0           | 0          |            | Host Fee                                                                            |
+| CONTRIBUTION    | DEBIT  | false  | Collective      | User            | NULL            | -9800  | USD      | 0           | -200       |            | $100 Stripe donation + $10 tip via application fee                                  |
+| CONTRIBUTION    | CREDIT | false  | User            | Collective      | Random Host     | 10000  | USD      | 0           | -200       |            | $100 Stripe donation + $10 tip via application fee                                  |"
 `;
 
 exports[`server/models/Transaction fees on top should create an additional pair of transactions between contributor and Open Collective Inc 1`] = `

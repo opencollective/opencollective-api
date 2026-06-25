@@ -1935,6 +1935,11 @@ const createAttachedFiles = async (expense, attachedFilesData, remoteUser, trans
 };
 
 export const hasMultiCurrency = (collective, host): boolean => {
+  // Host-less PLATFORM accounts (e.g. platform-tips) hold per-host slices denominated in each host's
+  // own currency, so a settlement expense in the host currency may differ from the account currency.
+  if (collective?.type === CollectiveType.PLATFORM) {
+    return true;
+  }
   return collective.currency === host?.currency; // Only support multi-currency when collective/host have the same currency
 };
 
@@ -3848,7 +3853,13 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     if (!(await permissionFn(req, expense))) {
       throw new Forbidden("You don't have permission to pay this expense");
     }
-    const host = await expense.collective.getHostCollective({ loaders: req.loaders });
+    let host = await expense.collective.getHostCollective({ loaders: req.loaders });
+    // Host-less PLATFORM accounts (e.g. platform-tips) are billed per host: the payer host is
+    // stamped on expense.HostCollectiveId at settlement time, so the paid DEBIT lands on that host's
+    // slice (CollectiveId = platform-tips, HostCollectiveId = host) and the slice nets to zero.
+    if (!host && expense.collective.type === CollectiveType.PLATFORM && expense.HostCollectiveId) {
+      host = await req.loaders.Collective.byId.load(expense.HostCollectiveId);
+    }
     if (expense.currency !== expense.collective.currency && !hasMultiCurrency(expense.collective, host)) {
       throw new Forbidden('Multi-currency expenses are not enabled for this collective');
     }

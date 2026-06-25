@@ -1253,6 +1253,7 @@ enum AccountType {
   FUND
   INDIVIDUAL
   ORGANIZATION
+  PLATFORM
   PROJECT
   VENDOR
 }
@@ -2575,7 +2576,6 @@ enum TransactionKind {
   PLATFORM_FEE
   PLATFORM_TIP
   PLATFORM_TIP_DEBT
-  PLATFORM_TIP_TRANSFER
   PREPAID_PAYMENT_METHOD
   TAX
 }
@@ -18743,9 +18743,9 @@ type Query {
     includeVendorsForHost: AccountReferenceInput
 
     """
-    Include Open Collective platform-owned vendors (currently the global VENDOR account with slug "oc-platform"). Useful when filtering accounts under a host while still surfacing platform-owned vendors.
+    Include Open Collective platform-owned accounts (currently the global PLATFORM account with slug "platform-tips"). Useful when filtering accounts under a host while still surfacing platform-owned accounts.
     """
-    includePlatformVendors: Boolean
+    includePlatformAccounts: Boolean
 
     """
     Filter by the balance of the account and its children accounts (events and projects)

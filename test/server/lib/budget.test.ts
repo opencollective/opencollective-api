@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
+import { CollectiveType } from '../../../server/constants/collectives';
 import ExpenseStatuses from '../../../server/constants/expense-status';
 import OrderStatuses from '../../../server/constants/order-status';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
@@ -510,6 +511,42 @@ describe('server/lib/budget', () => {
 
       expect(balances[collective.id]).to.exist;
       expect(balances[collective.id].value).to.eq(20e2);
+    });
+  });
+
+  describe('host-scoped balance (hostCollectiveId)', () => {
+    it('sums only the rows recorded on the given host ledger', async () => {
+      // A global, host-less account (like the platform-tips account) whose rows are scoped per host.
+      const platformAccount = await fakeCollective({
+        type: CollectiveType.PLATFORM,
+        HostCollectiveId: null,
+        currency: 'USD',
+      });
+      const hostA = await fakeCollective();
+      const hostB = await fakeCollective();
+
+      const row = (HostCollectiveId, amount) =>
+        fakeTransaction({
+          type: 'CREDIT',
+          kind: TransactionKind.PLATFORM_TIP,
+          CollectiveId: platformAccount.id,
+          HostCollectiveId,
+          amount,
+          amountInHostCurrency: amount,
+          netAmountInCollectiveCurrency: amount,
+          currency: 'USD',
+          hostCurrency: 'USD',
+        });
+
+      await row(hostA.id, 1000);
+      await row(hostA.id, 500);
+      await row(hostB.id, 2000);
+
+      const balancesA = await getBalances([platformAccount.id], { hostCollectiveId: hostA.id });
+      expect(balancesA[platformAccount.id].value).to.eq(1500);
+
+      const balancesB = await getBalances([platformAccount.id], { hostCollectiveId: hostB.id });
+      expect(balancesB[platformAccount.id].value).to.eq(2000);
     });
   });
 });

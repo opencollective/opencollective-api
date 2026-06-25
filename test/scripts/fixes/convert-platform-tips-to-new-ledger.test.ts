@@ -22,7 +22,7 @@ const FX_RATE = 1.1;
 const TIP_EUR = 300e2;
 
 describe('scripts/fixes/convert-platform-tips-to-new-ledger', () => {
-  let eurHost, ocPlatformVendor, tipCredit, transactionGroup;
+  let eurHost, platformTipsAccount, tipCredit, transactionGroup;
   // Pre-conversion snapshot of the legacy credit (captured before the conversion runs).
   let before;
   let conversionStats;
@@ -44,7 +44,7 @@ describe('scripts/fixes/convert-platform-tips-to-new-ledger', () => {
     });
     await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
 
-    ocPlatformVendor = await models.Collective.findBySlug('oc-platform');
+    platformTipsAccount = await models.Collective.findBySlug('platform-tips');
 
     // Flag OFF at contribution time, so the tip is recorded in the LEGACY format: a PLATFORM_TIP
     // credit on the platform account (hostCurrency = USD) plus a PLATFORM_TIP_DEBT carrying the
@@ -100,8 +100,8 @@ describe('scripts/fixes/convert-platform-tips-to-new-ledger', () => {
     expect(conversionStats).to.include({ converted: 1, owed: 1, applicationFee: 0, skipped: 0 });
   });
 
-  it('re-points the credit onto the host-scoped oc-platform vendor', () => {
-    expect(tipCredit.CollectiveId).to.equal(ocPlatformVendor.id);
+  it('re-points the credit onto the host-scoped platform-tips account', () => {
+    expect(tipCredit.CollectiveId).to.equal(platformTipsAccount.id);
     expect(tipCredit.HostCollectiveId).to.equal(eurHost.id);
   });
 

@@ -850,6 +850,12 @@ const accountFieldsDefinition = () => ({
         defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
         description: 'Order of the results. Defaults to createdAt DESC.',
       },
+      includePlatformAccounts: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description:
+          'When the account is a fiscal host, also include the global Open Collective platform-owned account(s) (e.g. "platform-tips"). The backend resolves them, so the slug is never referenced by the caller.',
+      },
     },
     async resolve(account: Collective, args) {
       if (args.limit > 100) {
@@ -905,9 +911,23 @@ const accountFieldsDefinition = () => ({
         }
       }
 
+      // For fiscal hosts, optionally surface the global, host-less platform-owned account(s)
+      // (e.g. platform-tips) alongside the org's own children. The backend resolves them from
+      // PlatformConstants.PlatformOwnedAccountSlugs so callers never reference the slug.
+      const includesPlatformAccounts = args.includePlatformAccounts && account.hasMoneyManagement;
+      const finalWhere = includesPlatformAccounts
+        ? { [Op.or]: [where, { slug: { [Op.in]: PlatformConstants.PlatformOwnedAccountSlugs } }] }
+        : where;
+
+      // Keep platform-owned accounts at the bottom of the list (they are not the host's own children),
+      // regardless of the requested sort.
+      if (includesPlatformAccounts) {
+        order = [[Sequelize.literal(`CASE WHEN "Collective"."type" = 'PLATFORM' THEN 1 ELSE 0 END`), 'ASC'], ...order];
+      }
+
       return {
-        nodes: () => models.Collective.findAll({ where, limit: args.limit, offset: args.offset, order }),
-        totalCount: () => models.Collective.count({ where }),
+        nodes: () => models.Collective.findAll({ where: finalWhere, limit: args.limit, offset: args.offset, order }),
+        totalCount: () => models.Collective.count({ where: finalWhere }),
         limit: args.limit,
         offset: args.offset,
       };

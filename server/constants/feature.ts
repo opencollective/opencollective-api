@@ -106,9 +106,9 @@ enum FEATURE {
 
 /**
  * Internal opt-in flag stored at `Collective.settings.newPlatformTipsLedger`. When set
- * on a host: route PLATFORM_TIP credits to the OC Platform vendor (host-scoped), skip
+ * on a host: route PLATFORM_TIP credits to the global platform-tips account (host-scoped), skip
  * PLATFORM_TIP_DEBT generation per-tip, emit APPLICATION_FEE on the Stripe app-fee path, and
- * have host-settlement write the OC Platform -> host transfer at settlement time.
+ * have host-settlement bill the held tips directly against the platform-tips account.
  *
  * Not a member of the FEATURE enum because it is an internal ledger flag, not a user-facing
  * feature, and shouldn't appear in `getFeaturesAccessMap`. Lives in `settings` (not
