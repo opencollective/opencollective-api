@@ -103,7 +103,10 @@ describe('server/lib/metrics/sources/HostedCollectivesHostingPeriods', () => {
         createdAt: new Date('2025-05-01'),
         data: { notify: false },
       });
-      await models.Collective.update({ HostCollectiveId: null, approvedAt: null }, { where: { id: archivedHosted.id } });
+      await models.Collective.update(
+        { HostCollectiveId: null, approvedAt: null },
+        { where: { id: archivedHosted.id } },
+      );
     });
 
     it('closes hosting intervals from collective.archived activities', async () => {

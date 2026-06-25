@@ -3,8 +3,8 @@ import gqlV1 from 'fake-tag';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
 
-import roles from '../../../../server/constants/roles';
 import ActivityTypes from '../../../../server/constants/activities';
+import roles from '../../../../server/constants/roles';
 import * as CacheLib from '../../../../server/lib/cache';
 import models from '../../../../server/models';
 import {
