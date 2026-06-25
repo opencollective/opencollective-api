@@ -400,12 +400,36 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       if (rows.length > 0 && uninvoicedAmount > 0) {
         newTipTransactions = rows;
         pendingNewPlatformTips = uninvoicedAmount;
+      } else if (rows.length > 0 && uninvoicedAmount === 0) {
+        // Net exactly zero: the held tips are fully offset by refund deductions in this same period,
+        // so the host's platform-tips slice already nets to zero and there is nothing to bill. Close
+        // the rows out (mark their settlements SETTLED) instead of leaving them OWED — otherwise they
+        // would be re-queried and roll forward on every future run forever.
+        if (DRY) {
+          console.info(
+            `${host.name} (#${host.id}): new-flag tips net to 0 ${host.currency}, would settle ${rows.length} row(s) (DRY).`,
+          );
+        } else {
+          await models.TransactionSettlement.update(
+            { status: TransactionSettlementStatus.SETTLED },
+            {
+              where: {
+                TransactionGroup: rows.map(r => r.TransactionGroup),
+                kind: TransactionKind.PLATFORM_TIP,
+                status: TransactionSettlementStatus.OWED,
+              },
+            },
+          );
+          console.info(
+            `${host.name} (#${host.id}): new-flag tips net to 0 ${host.currency}, settled ${rows.length} self-cancelling row(s).`,
+          );
+        }
       } else if (rows.length > 0) {
-        // Net <= 0: refund deductions meet or exceed the tips held this period. A negative settlement
-        // is not supported, so roll everything forward — the rows stay OWED and net against a later
-        // run once enough new tips accrue.
+        // Net negative: refund deductions exceed the tips held this period. A negative settlement is
+        // not supported, so roll everything forward — the rows stay OWED and net against a later run
+        // once enough new tips accrue.
         console.warn(
-          `${host.name} (#${host.id}): new-flag tips net to ${uninvoicedAmount / 100} ${host.currency} (<= 0), rolling ${rows.length} row(s) forward.`,
+          `${host.name} (#${host.id}): new-flag tips net to ${uninvoicedAmount / 100} ${host.currency} (< 0), rolling ${rows.length} row(s) forward.`,
         );
       }
     }
@@ -525,13 +549,24 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 
     const hostToUsdFxRate = await getFxRate(host.currency, 'USD');
 
+    // The minimum-amount threshold is applied to the COMBINED total of both bundles, not each bundle
+    // independently. Otherwise a host whose host-billed and platform-tips amounts are each below the
+    // minimum but together above it would be skipped on both and deferred indefinitely (a small host
+    // could then never settle its tips). If the combined total clears the threshold, both bundles are
+    // billed even if one alone is small.
+    const combinedAmountChargedInUsd =
+      (sumBy(hostItems, 'amount') + sumBy(platformTipsItems, 'amount')) * hostToUsdFxRate;
+    const belowThreshold = combinedAmountChargedInUsd < MIN_AMOUNT_USD;
+
     // --- Host-billed settlement expense (legacy tips + platform share + per-collective fee) ---
     if (hostItems.length > 0) {
-      const totalAmountCharged = sumBy(hostItems, 'amount');
-      const totalAmountChargedInUsd = totalAmountCharged * hostToUsdFxRate;
-      if (totalAmountChargedInUsd < MIN_AMOUNT_USD) {
+      // The host bundle can net negative (e.g. a legacy refund deduction with no offsetting positive
+      // legacy tips). A negative/zero expense can't be billed, so only emit when it nets positive;
+      // otherwise it rolls forward like a below-threshold bundle.
+      const hostAmountCharged = sumBy(hostItems, 'amount');
+      if (belowThreshold || hostAmountCharged <= 0) {
         console.warn(
-          `${host.name} (#${host.id}) host settlement skipped, total amount pending ${totalAmountChargedInUsd / 100} < $${MIN_AMOUNT_USD / 100}.\n`,
+          `${host.name} (#${host.id}) host settlement skipped (combined ${combinedAmountChargedInUsd / 100} < $${MIN_AMOUNT_USD / 100} or host bundle ${hostAmountCharged / 100} <= 0).\n`,
         );
         if (isLastPlatformShareExpense) {
           // Settle the transactions, we don't want to carry them over to the new billing.
@@ -589,11 +624,9 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 
     // --- Platform-tips-billed settlement expense (new-ledger tips, charged against platform-tips) ---
     if (platformTipsItems.length > 0 && platformTipsAccount) {
-      const totalAmountCharged = sumBy(platformTipsItems, 'amount');
-      const totalAmountChargedInUsd = totalAmountCharged * hostToUsdFxRate;
-      if (totalAmountChargedInUsd < MIN_AMOUNT_USD) {
+      if (belowThreshold) {
         console.warn(
-          `${host.name} (#${host.id}) platform tips settlement skipped, ${totalAmountChargedInUsd / 100} < $${MIN_AMOUNT_USD / 100}; rolling ${newTipTransactions.length} row(s) forward.\n`,
+          `${host.name} (#${host.id}) platform tips settlement skipped, combined amount pending ${combinedAmountChargedInUsd / 100} < $${MIN_AMOUNT_USD / 100}; rolling ${newTipTransactions.length} row(s) forward.\n`,
         );
       } else {
         await emitSettlementExpense({

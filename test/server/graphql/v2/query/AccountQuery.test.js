@@ -1230,10 +1230,21 @@ describe('server/graphql/v2/query/AccountQuery', () => {
 
   describe('childrenAccounts includePlatformAccounts', () => {
     const childrenAccountsQuery = gql`
-      query AccountChildren($slug: String!, $includePlatformAccounts: Boolean) {
+      query AccountChildren(
+        $slug: String!
+        $includePlatformAccounts: Boolean
+        $accountType: [AccountType]
+        $searchTerm: String
+        $isActive: Boolean
+      ) {
         account(slug: $slug) {
           id
-          childrenAccounts(includePlatformAccounts: $includePlatformAccounts) {
+          childrenAccounts(
+            includePlatformAccounts: $includePlatformAccounts
+            accountType: $accountType
+            searchTerm: $searchTerm
+            isActive: $isActive
+          ) {
             totalCount
             nodes {
               id
@@ -1248,8 +1259,8 @@ describe('server/graphql/v2/query/AccountQuery', () => {
     let host, organization;
 
     before(async () => {
-      // The global, host-less PLATFORM account.
-      await fakeCollective({ slug: 'platform-tips', type: 'PLATFORM', HostCollectiveId: null });
+      // The global, host-less PLATFORM account (active, so it shows under Active/All, not Archived).
+      await fakeCollective({ slug: 'platform-tips', type: 'PLATFORM', HostCollectiveId: null, isActive: true });
       host = await fakeHost();
       organization = await fakeOrganization(); // non-host (no money management)
     });
@@ -1272,6 +1283,50 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       const result = await graphqlQueryV2(childrenAccountsQuery, {
         slug: organization.slug,
         includePlatformAccounts: true,
+      });
+      expect(result.errors).to.not.exist;
+      const slugs = result.data.account.childrenAccounts.nodes.map(n => n.slug);
+      expect(slugs).to.not.include('platform-tips');
+    });
+
+    it('respects the accountType filter (does not surface the platform account when PLATFORM is not requested)', async () => {
+      const result = await graphqlQueryV2(childrenAccountsQuery, {
+        slug: host.slug,
+        includePlatformAccounts: true,
+        accountType: ['COLLECTIVE'],
+      });
+      expect(result.errors).to.not.exist;
+      const slugs = result.data.account.childrenAccounts.nodes.map(n => n.slug);
+      expect(slugs).to.not.include('platform-tips');
+    });
+
+    it('respects the searchTerm filter (does not surface the platform account for an unrelated search)', async () => {
+      const result = await graphqlQueryV2(childrenAccountsQuery, {
+        slug: host.slug,
+        includePlatformAccounts: true,
+        searchTerm: 'zzz-no-such-account',
+      });
+      expect(result.errors).to.not.exist;
+      const slugs = result.data.account.childrenAccounts.nodes.map(n => n.slug);
+      expect(slugs).to.not.include('platform-tips');
+    });
+
+    it('shows the (active) platform account under the Active filter', async () => {
+      const result = await graphqlQueryV2(childrenAccountsQuery, {
+        slug: host.slug,
+        includePlatformAccounts: true,
+        isActive: true,
+      });
+      expect(result.errors).to.not.exist;
+      const slugs = result.data.account.childrenAccounts.nodes.map(n => n.slug);
+      expect(slugs).to.include('platform-tips');
+    });
+
+    it('does NOT show the platform account under the Archived filter (isActive: false)', async () => {
+      const result = await graphqlQueryV2(childrenAccountsQuery, {
+        slug: host.slug,
+        includePlatformAccounts: true,
+        isActive: false,
       });
       expect(result.errors).to.not.exist;
       const slugs = result.data.account.childrenAccounts.nodes.map(n => n.slug);

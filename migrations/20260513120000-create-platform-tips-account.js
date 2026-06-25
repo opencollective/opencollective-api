@@ -13,10 +13,24 @@ module.exports = {
     // the collecting host's ledger (HostCollectiveId = host), and billing is drawn directly against
     // this account at settlement time (no per-host release transfer).
     //
-    // ON CONFLICT DO NOTHING keeps the insert idempotent: a rerun after the enum add (or on a DB
-    // where the account already exists) must not abort on the already-present 'platform-tips' slug.
+    // A superseded version of this migration created the same account as a VENDOR with slug
+    // 'oc-platform'. On databases that already ran it, convert that row IN PLACE so its id (and every
+    // PLATFORM_TIP/APPLICATION_FEE transaction already pointing at it) is preserved — otherwise the
+    // old account would be stranded and the new code (which resolves slug 'platform-tips') would see
+    // an empty account. Guarded by NOT EXISTS so it never collides with an already-present
+    // 'platform-tips' row (idempotent / safe if both somehow exist).
     await queryInterface.sequelize.query(`
-      INSERT INTO "Collectives" ("type", "slug", "name", "description", "website", "currency", "createdAt", "updatedAt")
+      UPDATE "Collectives"
+      SET "type" = 'PLATFORM', "slug" = 'platform-tips', "name" = 'Platform Tips', "isActive" = TRUE, "updatedAt" = NOW()
+      WHERE "slug" = 'oc-platform'
+        AND NOT EXISTS (SELECT 1 FROM "Collectives" WHERE "slug" = 'platform-tips');
+    `);
+
+    // Fresh databases (no legacy oc-platform row to convert): create the account. ON CONFLICT DO
+    // NOTHING keeps it idempotent and a no-op when the conversion above (or a prior run) already
+    // produced the 'platform-tips' row.
+    await queryInterface.sequelize.query(`
+      INSERT INTO "Collectives" ("type", "slug", "name", "description", "website", "currency", "isActive", "createdAt", "updatedAt")
       VALUES (
         'PLATFORM',
         'platform-tips',
@@ -24,6 +38,7 @@ module.exports = {
         'Holds platform tips collected on behalf of the Open Collective platform',
         'https://opencollective.com',
         'USD',
+        TRUE,
         NOW(),
         NOW()
       )

@@ -1318,6 +1318,25 @@ describe('server/graphql/common/expenses', () => {
       await expense.update({ status: 'REJECTED' });
       expect(await canApprove(req.hostAdmin, expense)).to.be.true;
     });
+    it('lets the host admin approve a settlement billed against a host-less platform-owned account', async () => {
+      // The platform-tips account has no host of its own; the payer host is stamped on
+      // expense.HostCollectiveId. The host admin must be recognized via that (the stale-host guard
+      // must not treat HostCollectiveId != collective.HostCollectiveId(null) as stale).
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost();
+      await host.addUserWithRole(hostAdmin, 'ADMIN');
+      await hostAdmin.populateRoles();
+
+      const platformAccount = await fakeCollective({ type: 'PLATFORM', HostCollectiveId: null, isActive: true });
+      const expense = await fakeExpense({
+        CollectiveId: platformAccount.id,
+        HostCollectiveId: host.id,
+        type: 'SETTLEMENT',
+        status: 'PENDING',
+      });
+
+      expect(await canApprove(makeRequest(hostAdmin), expense)).to.be.true;
+    });
     it('only with the allowed roles', async () => {
       await runForAllContexts(async context => {
         const { expense } = context;

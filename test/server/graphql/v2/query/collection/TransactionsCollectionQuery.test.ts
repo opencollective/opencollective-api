@@ -383,6 +383,24 @@ describe('TransactionsCollectionQuery - includePlatformTransactions', () => {
     const slugs = result.data.transactions.nodes.map(t => t.account.slug);
     expect(slugs).to.not.include('platform-tips');
   });
+
+  it('does NOT expand the platform-owned account without a host scope (no cross-host leak)', async () => {
+    // The platform-tips account is global (holds every host's rows); the flag must only expand it
+    // when the query is host-scoped, otherwise it would leak other hosts' platform-tip transactions.
+    const result = await graphqlQueryV2(
+      query,
+      {
+        account: [{ slug: collective.slug }],
+        includePlatformTransactions: true,
+        includeChildrenTransactions: true,
+      },
+      hostAdminUser,
+    );
+    result.errors && console.error(result.errors);
+    expect(result.errors).to.not.exist;
+    const slugs = result.data.transactions.nodes.map(t => t.account.slug);
+    expect(slugs).to.not.include('platform-tips');
+  });
 });
 
 const transactionsCollectionQuery = gql`

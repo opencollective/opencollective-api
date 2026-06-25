@@ -177,6 +177,7 @@ class Expense extends ModelWithPublicId<
   // Association getters
   declare getActivities: HasManyGetAssociationsMixin<Activity>;
   declare getCollective: BelongsToGetAssociationMixin<Collective>;
+  declare getHost: BelongsToGetAssociationMixin<Collective>;
   declare getItems: HasManyGetAssociationsMixin<ExpenseItem>;
   declare getPayoutMethod: BelongsToGetAssociationMixin<PayoutMethod>;
   declare getPaymentMethod: BelongsToGetAssociationMixin<PaymentMethod>;
@@ -352,7 +353,9 @@ class Expense extends ModelWithPublicId<
     await this.update({
       status: ExpenseStatus.PAID,
       lastEditedById,
-      HostCollectiveId: collective.HostCollectiveId,
+      // Preserve the stamped host for host-less accounts (e.g. the platform-tips account, which is
+      // billed against the payer host carried on the expense rather than a host of its own).
+      HostCollectiveId: collective.HostCollectiveId ?? this.HostCollectiveId,
       paidAt,
       onHold: false,
     });

@@ -43,7 +43,8 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
     throw new Error('All expenses should have collective prop populated and belong to the same Host.');
   }
 
-  const host = await firstExpense.collective.getHostCollective();
+  // Fall back to the expense's stamped host for host-less billed accounts (e.g. platform-tips).
+  const host = (await firstExpense.collective.getHostCollective()) || (await firstExpense.getHost());
   if (!host) {
     throw new Error(`Could not find the host reimbursing the expense.`);
   }
@@ -186,7 +187,8 @@ export const checkBatchItemStatus = async (
 
 export const checkBatchStatus = async (batch: Expense[]): Promise<Expense[]> => {
   const [firstExpense] = batch;
-  const host = await firstExpense.collective.getHostCollective();
+  // Fall back to the expense's stamped host for host-less billed accounts (e.g. platform-tips).
+  const host = (await firstExpense.collective.getHostCollective()) || (await firstExpense.getHost());
   if (!host) {
     throw new Error(`Could not find the host paying the expense.`);
   }

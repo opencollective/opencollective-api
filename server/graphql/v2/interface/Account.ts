@@ -914,10 +914,29 @@ const accountFieldsDefinition = () => ({
       // For fiscal hosts, optionally surface the global, host-less platform-owned account(s)
       // (e.g. platform-tips) alongside the org's own children. The backend resolves them from
       // PlatformConstants.PlatformOwnedAccountSlugs so callers never reference the slug.
-      const includesPlatformAccounts = args.includePlatformAccounts && account.hasMoneyManagement;
-      const finalWhere = includesPlatformAccounts
-        ? { [Op.or]: [where, { slug: { [Op.in]: PlatformConstants.PlatformOwnedAccountSlugs } }] }
-        : where;
+      //
+      // The platform account is matched by slug on the other side of an OR, so it would otherwise
+      // bypass the WHERE filters above. Honor the filters that should still apply to it: the
+      // accountType filter (only surface it when PLATFORM is among the requested types, if any), the
+      // searchTerm filter (don't surface it for an unrelated search), and the isActive filter (so it
+      // appears under the Active/All tabs but not Archived — the account is active, isActive = true).
+      const platformTypeRequested =
+        !args.accountType?.length ||
+        args.accountType.map(value => AccountTypeToModelMapping[value]).includes(CollectiveType.PLATFORM);
+      const includesPlatformAccounts =
+        args.includePlatformAccounts && account.hasMoneyManagement && platformTypeRequested;
+
+      let finalWhere: WhereOptions = where;
+      if (includesPlatformAccounts) {
+        const platformCondition = { slug: { [Op.in]: PlatformConstants.PlatformOwnedAccountSlugs } };
+        if (where['searchTsVector']) {
+          platformCondition['searchTsVector'] = where['searchTsVector'];
+        }
+        if (!isNil(where['isActive'])) {
+          platformCondition['isActive'] = where['isActive'];
+        }
+        finalWhere = { [Op.or]: [where, platformCondition] };
+      }
 
       // Keep platform-owned accounts at the bottom of the list (they are not the host's own children),
       // regardless of the requested sort.

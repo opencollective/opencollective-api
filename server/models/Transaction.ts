@@ -619,7 +619,9 @@ class Transaction extends ModelWithPublicId<
         ) {
           const collective = await Collective.findByPk(transaction.CollectiveId, { transaction: sequelizeTransaction });
           const collectiveHost = await collective.getHostCollective({ transaction: sequelizeTransaction });
-          if (collectiveHost.id !== fromCollectiveHost.id) {
+          // Host-less platform-owned accounts (e.g. Platform Tips) are not hosted, so there is no
+          // inter-host host fee to apply when settling them.
+          if (collectiveHost && collectiveHost.id !== fromCollectiveHost.id) {
             const hostFeePercent = fromCollective.hasMoneyManagement ? 0 : fromCollective.hostFeePercent;
             const taxAmountInHostCurrency = roundCentsAmount(
               (transaction.taxAmount || 0) * hostCurrencyFxRate,

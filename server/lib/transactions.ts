@@ -5,6 +5,7 @@ import moment from 'moment';
 import { Order, Transaction as SequelizeTransaction } from 'sequelize';
 import Stripe from 'stripe';
 
+import { CollectiveType } from '../constants/collectives';
 import { SupportedCurrency } from '../constants/currencies';
 import ExpenseType from '../constants/expense-type';
 import { PAYMENT_METHOD_SERVICE } from '../constants/paymentMethods';
@@ -268,6 +269,23 @@ export async function createTransactionsFromPaidStripeExpense(
  * TODO: This function should accept an `amount` to automatically represent what was really paid from the payment provider,
  * in case it differs from expense.amount (e.g. when fees are put on the payee)
  */
+/**
+ * Host-less platform-owned accounts (e.g. Platform Tips) hold per-host balances in the host's
+ * currency rather than their own nominal currency: the held PLATFORM_TIP/APPLICATION_FEE
+ * transactions are booked in host currency (see `cron/monthly/host-settlement`). When settling
+ * such an account we must record the paid DEBIT in host currency too, otherwise it would be
+ * recorded in the account's nominal currency and fail to clear the host-scoped balance.
+ *
+ * This locally aligns the loaded collective's currency with the host's so the downstream
+ * recording + FX logic treats them as same-currency. Scoped strictly to host-less PLATFORM
+ * accounts, so regular expenses are unaffected.
+ */
+function applyPlatformAccountRecordingCurrency(expense: Expense, host: Collective): void {
+  if (expense.collective?.type === CollectiveType.PLATFORM && !expense.collective.HostCollectiveId && host?.currency) {
+    expense.collective.currency = host.currency;
+  }
+}
+
 export async function createTransactionsFromPaidExpense(
   host: Collective,
   expense: Expense,
@@ -282,6 +300,7 @@ export async function createTransactionsFromPaidExpense(
   if (!expense.collective) {
     expense.collective = await models.Collective.findByPk(expense.CollectiveId, { transaction: sequelizeTransaction });
   }
+  applyPlatformAccountRecordingCurrency(expense, host);
 
   // Use the supplied FX rate or fetch a new one for the time of payment
   const expenseToHostFxRate =
@@ -366,6 +385,7 @@ export async function createTransactionsForManuallyPaidExpense(
   if (!expense.collective) {
     expense.collective = await models.Collective.findByPk(expense.CollectiveId);
   }
+  applyPlatformAccountRecordingCurrency(expense, host);
 
   // Values are already adjusted to negative DEBIT values
   const isCoveredByPayee = expense.feesPayer === 'PAYEE';

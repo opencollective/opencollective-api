@@ -281,6 +281,10 @@ export const TransactionsCollectionResolver = async (
     ),
   );
 
+  // Resolve the global platform-owned account id(s) once (constant set), reused by the account and
+  // excludeAccount branches below. Only relevant for host-scoped queries (see the gating there).
+  const platformOwnedAccountIds = args.includePlatformTransactions && host ? await getPlatformOwnedAccountIds() : [];
+
   const accountIdsWithGiftCardTransactions = args.includeGiftCardTransactions
     ? await getCollectiveIdsWithGiftCardTransactions()
     : [];
@@ -352,12 +356,13 @@ export const TransactionsCollectionResolver = async (
 
     accountCondition.push(...accountsIds);
 
-    // Treat the global platform-owned account(s) as part of the account set (scoped to the host via
-    // the host filter), so a host's Fiscal Host view includes platform-tips without referencing the
-    // slug. Mirrors includeChildrenTransactions.
-    if (args.includePlatformTransactions) {
-      const platformAccountIds = await getPlatformOwnedAccountIds();
-      accountCondition.push(...platformAccountIds);
+    // Treat the global platform-owned account(s) as part of the account set, so a host's Fiscal Host
+    // view includes platform-tips without referencing the slug. Mirrors includeChildrenTransactions.
+    // Gated on `host`: the platform-tips account is global (holds every host's rows), so it must only
+    // be expanded when the query is host-scoped (the `if (host)` block below adds HostCollectiveId =
+    // host). Without a host scope, expanding it would leak other hosts' platform-tip transactions.
+    if (args.includePlatformTransactions && host) {
+      accountCondition.push(...platformOwnedAccountIds);
     }
 
     // When the remote user is part of the fetched profiles, also fetch the linked incognito contributions
@@ -418,11 +423,10 @@ export const TransactionsCollectionResolver = async (
       ),
     );
 
-    // Symmetric with the account branch: exclude the platform-owned account(s) too, so a host's
-    // Hosted Collectives view drops platform-tips without referencing the slug.
-    if (args.includePlatformTransactions) {
-      const platformAccountIds = await getPlatformOwnedAccountIds();
-      exludedAccountsIds.push(...platformAccountIds);
+    // Symmetric with the account branch (and likewise gated on a host-scoped query): exclude the
+    // platform-owned account(s) too, so a host's Hosted Collectives view drops platform-tips.
+    if (args.includePlatformTransactions && host) {
+      exludedAccountsIds.push(...platformOwnedAccountIds);
     }
 
     where.push({ CollectiveId: { [Op.notIn]: exludedAccountsIds } });

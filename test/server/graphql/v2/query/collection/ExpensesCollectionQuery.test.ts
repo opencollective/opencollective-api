@@ -13,6 +13,7 @@ import {
 } from '../../../../../../server/constants/tax-form';
 import * as libcurrency from '../../../../../../server/lib/currency';
 import { KYCProviderName } from '../../../../../../server/lib/kyc/providers';
+import { CollectiveType } from '../../../../../../server/constants/collectives';
 import models from '../../../../../../server/models';
 import { KYCVerificationStatus } from '../../../../../../server/models/KYCVerification';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../../server/models/LegalDocument';
@@ -1569,10 +1570,12 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       hostChild,
       hostedCollective,
       hostedCollectiveChild,
+      platformTipsAccount,
       expenseOnHost,
       expenseOnHostChild,
       expenseOnHostedCollective,
-      expenseOnHostedCollectiveChild;
+      expenseOnHostedCollectiveChild,
+      expenseOnPlatformTips;
 
     before(async () => {
       // Create a host account with money management
@@ -1622,6 +1625,27 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         status: 'APPROVED',
         description: 'Expense on hosted collective child',
       });
+
+      // Global, host-less platform-owned account (e.g. platform-tips) billed against this host: a
+      // settlement expense with CollectiveId = platform-tips and HostCollectiveId = host. It should be
+      // grouped with the host's own (INTERNAL / Organization), not with hosted collectives (HOSTED).
+      // The platform-tips account may already exist (seeded by the migration in the restored test DB),
+      // so reuse it if present rather than colliding on the unique slug.
+      platformTipsAccount =
+        (await models.Collective.findOne({ where: { slug: 'platform-tips' } })) ||
+        (await fakeCollective({
+          slug: 'platform-tips',
+          type: CollectiveType.PLATFORM,
+          HostCollectiveId: null,
+          isActive: true,
+        }));
+      expenseOnPlatformTips = await fakeExpense({
+        CollectiveId: platformTipsAccount.id,
+        HostCollectiveId: host.id,
+        type: 'SETTLEMENT',
+        status: 'APPROVED',
+        description: 'Platform tips settlement',
+      });
     });
 
     it('should return all expenses when hostContext is ALL', async () => {
@@ -1650,6 +1674,8 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       const expenseIds = result.data.expenses.nodes.map(node => node.legacyId);
       expect(expenseIds).to.include(expenseOnHost.id);
       expect(expenseIds).to.include(expenseOnHostChild.id);
+      // The platform-owned (platform-tips) settlement is grouped with the Organization
+      expect(expenseIds).to.include(expenseOnPlatformTips.id);
       // Verify hosted collective expenses are NOT included
       expect(expenseIds).to.not.include(expenseOnHostedCollective.id);
       expect(expenseIds).to.not.include(expenseOnHostedCollectiveChild.id);
@@ -1669,6 +1695,8 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       // Verify host/internal expenses are NOT included
       expect(expenseIds).to.not.include(expenseOnHost.id);
       expect(expenseIds).to.not.include(expenseOnHostChild.id);
+      // The platform-owned (platform-tips) settlement is NOT a hosted collective
+      expect(expenseIds).to.not.include(expenseOnPlatformTips.id);
     });
 
     it('should return all host expenses when hostContext is not set (default behavior)', async () => {
