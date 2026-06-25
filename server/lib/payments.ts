@@ -36,6 +36,7 @@ import {
 
 import { applyContributionAccountingCategoryRules } from './accounting/categorization/contribution-rules';
 import { notify } from './notifications/email';
+import { syncPaymentIntentFromRefund } from './payment-intents/sync';
 import { getFxRate, roundCentsAmount } from './currency';
 import emailLib from './email';
 import { toNegative } from './math';
@@ -861,6 +862,7 @@ export async function createRefundTransaction(
     const refundTransaction = await Transaction.createDoubleEntry(creditTransactionRefund, {
       sequelizeTransaction: sqlTransaction,
     });
+    await syncPaymentIntentFromRefund(refundTransaction, sqlTransaction);
     return associateTransactionRefundId(transaction, refundTransaction, sqlTransaction, data, refundKind);
   };
 
