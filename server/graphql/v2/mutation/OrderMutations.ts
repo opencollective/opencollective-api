@@ -89,19 +89,19 @@ import {
   GraphQLOrderReferenceInput,
 } from '../input/OrderReferenceInput';
 import { GraphQLOrderUpdateInput } from '../input/OrderUpdateInput';
-import GraphQLPaymentIntentInput from '../input/PaymentIntentInput';
 import { getLegacyPaymentMethodFromPaymentMethodInput } from '../input/PaymentMethodInput';
 import {
   fetchPaymentMethodWithReference,
   GraphQLPaymentMethodReferenceInput,
 } from '../input/PaymentMethodReferenceInput';
+import GraphQLStripePaymentIntentInput, { LegacyGraphQLPaymentIntentInput } from '../input/StripePaymentIntentInput';
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 import { fetchTransactionsImportRowWithReference } from '../input/TransactionsImportRowReferenceInput';
 import { GraphQLAccount } from '../interface/Account';
 import { UncategorizedValue } from '../object/AccountingCategory';
 import { GraphQLOrder } from '../object/Order';
-import GraphQLPaymentIntent from '../object/PaymentIntent';
 import { GraphQLStripeError } from '../object/StripeError';
+import GraphQLStripePaymentIntent, { LegacyGraphQLPaymentIntent } from '../object/StripePaymentIntent';
 
 const GraphQLOrderWithPayment = new GraphQLObjectType({
   name: 'OrderWithPayment',
@@ -1107,12 +1107,12 @@ const orderMutations = {
       return result;
     },
   },
-  createPaymentIntent: {
-    type: new GraphQLNonNull(GraphQLPaymentIntent),
+  createStripePaymentIntent: {
+    type: new GraphQLNonNull(GraphQLStripePaymentIntent),
     description: 'Creates a Stripe payment intent',
     args: {
       paymentIntent: {
-        type: new GraphQLNonNull(GraphQLPaymentIntentInput),
+        type: new GraphQLNonNull(GraphQLStripePaymentIntentInput),
       },
       guestInfo: {
         type: GraphQLGuestInfoInput,
@@ -1593,6 +1593,19 @@ const orderMutations = {
           resumeContributionsStartedAt: new Date(),
         },
       });
+    },
+  },
+};
+
+// TODO(#8851): remove this mutation alias after migrating the frontend.
+orderMutations['createPaymentIntent'] = {
+  ...orderMutations.createStripePaymentIntent,
+  deprecationReason: '2026-06-25: Use createStripePaymentIntent instead',
+  type: new GraphQLNonNull(LegacyGraphQLPaymentIntent),
+  args: {
+    ...orderMutations.createStripePaymentIntent.args,
+    paymentIntent: {
+      type: new GraphQLNonNull(LegacyGraphQLPaymentIntentInput),
     },
   },
 };

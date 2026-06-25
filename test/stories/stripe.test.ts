@@ -7,7 +7,7 @@ import { PAYMENT_METHOD_SERVICE } from '../../server/constants/paymentMethods';
 import PlatformConstants from '../../server/constants/platform';
 import stripe from '../../server/lib/stripe';
 import { ConnectedAccount, Order, User } from '../../server/models';
-import { paymentIntentSucceeded } from '../../server/paymentProviders/stripe/webhook';
+import { stripePaymentIntentSucceeded } from '../../server/paymentProviders/stripe/webhook';
 import { fakeActiveHost, fakeCollective, fakeOrganization, fakeUser, randStr } from '../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../utils';
 
@@ -110,7 +110,7 @@ describe('stripe', () => {
         const stripeChargeId = randStr('stripe-charge-id-');
         const stripePaymentMethodId = randStr('stripe-payment-method-id-');
         const stripeBalanceTransactionId = randStr('stripe-balance-transaction-id-');
-        await paymentIntentSucceeded({
+        await stripePaymentIntentSucceeded({
           account: stripePaymentIntent.stripeAccount,
           data: {
             object: {

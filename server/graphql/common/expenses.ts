@@ -3303,8 +3303,12 @@ export async function editExpense(
 
     const isChangingPayee =
       expenseData.fromCollective?.id && expenseData.fromCollective.id !== expense.FromCollectiveId;
-    if (cleanExpenseData.data?.paymentIntent && (shouldUpdateStatus || isChangingCurrency || isChangingPayee)) {
-      cleanExpenseData.data = omit(cleanExpenseData.data, ['paymentIntent']);
+    // TODO(#8851): remove `data.paymentIntent` to complete the migration
+    if (
+      (cleanExpenseData.data?.stripePaymentIntent ?? cleanExpenseData.data?.paymentIntent) &&
+      (shouldUpdateStatus || isChangingCurrency || isChangingPayee)
+    ) {
+      cleanExpenseData.data = omit(cleanExpenseData.data, ['stripePaymentIntent', 'paymentIntent']);
     }
 
     // Update attached files

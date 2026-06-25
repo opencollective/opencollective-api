@@ -82,7 +82,7 @@ import {
   GraphQLTransactionsImportRowReferenceInput,
 } from '../input/TransactionsImportRowReferenceInput';
 import { GraphQLExpense } from '../object/Expense';
-import GraphQLPaymentIntent from '../object/PaymentIntent';
+import GraphQLStripePaymentIntent from '../object/StripePaymentIntent';
 
 const populatePayoutMethodId = async (
   payoutMethod: { id?: string | number; legacyId?: number },
@@ -807,7 +807,7 @@ const expenseMutations = {
     },
   },
   createExpenseStripePaymentIntent: {
-    type: new GraphQLNonNull(GraphQLPaymentIntent),
+    type: new GraphQLNonNull(GraphQLStripePaymentIntent),
     description: 'Create a Stripe payment intent',
     args: {
       expense: {
@@ -845,9 +845,11 @@ const expenseMutations = {
 
       const isPlatformHost = payeeHostStripeAccount.username === config.stripe.accountId;
 
-      if (expense.data?.paymentIntent?.id) {
+      // TODO(#8851): remove `expense.data.paymentIntent` to complete the migration
+      const storedStripePaymentIntent = expense.data?.stripePaymentIntent ?? expense.data?.paymentIntent;
+      if (storedStripePaymentIntent?.id) {
         const paymentIntent = await stripe.paymentIntents.retrieve(
-          expense.data?.paymentIntent?.id,
+          storedStripePaymentIntent.id,
           !isPlatformHost
             ? {
                 stripeAccount: payeeHostStripeAccount.username,
@@ -922,7 +924,8 @@ const expenseMutations = {
         await expense.update({
           data: {
             ...expense.data,
-            paymentIntent: paymentIntent,
+            stripePaymentIntent: paymentIntent,
+            paymentIntent: paymentIntent, // TODO(#8851): remove `paymentIntent`
           },
         });
 

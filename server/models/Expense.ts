@@ -131,8 +131,12 @@ class Expense extends ModelWithPublicId<
       receiver?: string;
       purpose?: string;
     };
+    /** @deprecated Use stripePaymentIntent instead */
     paymentIntent?: Stripe.PaymentIntent;
+    stripePaymentIntent?: Stripe.PaymentIntent;
+    /** @deprecated Use previousStripePaymentIntents instead */
     previousPaymentIntents?: Stripe.PaymentIntent[];
+    previousStripePaymentIntents?: Stripe.PaymentIntent[];
     bill?: Billing;
   };
 

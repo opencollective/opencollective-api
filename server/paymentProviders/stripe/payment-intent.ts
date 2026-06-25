@@ -75,10 +75,12 @@ async function processNewOrder(order: Order) {
   }
 
   try {
-    const paymentIntent = await stripe.paymentIntents.update(order.data.paymentIntent.id, paymentIntentParams, {
+    // TODO(#8851): remove `order.data.paymentIntent`
+    const storedPaymentIntent = order.data.stripePaymentIntent ?? order.data.paymentIntent;
+    const paymentIntent = await stripe.paymentIntents.update(storedPaymentIntent.id, paymentIntentParams, {
       stripeAccount: hostStripeAccount.username,
     });
-    await order.update({ data: { ...order.data, paymentIntent } });
+    await order.update({ data: { ...order.data, stripePaymentIntent: paymentIntent, paymentIntent } });
   } catch (e) {
     const sanitizedError = pick(e, ['code', 'message', 'requestId', 'statusCode']);
     const errorMessage = `Error processing Stripe Payment Intent: ${e.message}`;
@@ -126,15 +128,20 @@ async function processRecurringOrder(order: Order) {
       stripeAccount: hostStripeAccount.username,
     });
 
+    const paymentIntentSnapshot = { id: paymentIntent.id, status: paymentIntent.status };
     await order.update({
-      data: { ...order.data, paymentIntent: { id: paymentIntent.id, status: paymentIntent.status } },
+      data: {
+        ...order.data,
+        stripePaymentIntent: paymentIntentSnapshot,
+        paymentIntent: paymentIntentSnapshot,
+      },
     });
 
     paymentIntent = await stripe.paymentIntents.confirm(paymentIntent.id, {
       stripeAccount: hostStripeAccount.username,
     });
 
-    await order.update({ data: { ...order.data, paymentIntent } });
+    await order.update({ data: { ...order.data, stripePaymentIntent: paymentIntent, paymentIntent } });
 
     if (paymentIntent.status === 'processing') {
       return;

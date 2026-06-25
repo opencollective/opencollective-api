@@ -537,11 +537,11 @@ describe('webhook', () => {
       };
     });
 
-    describe('paymentIntentSucceeded()', () => {
+    describe('stripePaymentIntentSucceeded()', () => {
       it('returns if no order is found', async () => {
         sandbox.stub(common, 'createChargeTransactions').throws();
         set(event, 'data.object.id', 'pi_notfound');
-        await webhook.paymentIntentSucceeded(event);
+        await webhook.stripePaymentIntentSucceeded(event);
         await order.reload();
 
         expect(order.status).to.equal(OrderStatuses.PROCESSING);
@@ -551,7 +551,7 @@ describe('webhook', () => {
       it('create transactions, send notifications, and updates the order', async () => {
         sandbox.stub(common, 'createChargeTransactions').resolves();
         sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
-        await webhook.paymentIntentSucceeded(event);
+        await webhook.stripePaymentIntentSucceeded(event);
 
         assert.calledOnceWithMatch(common.createChargeTransactions, event.data.object.charges.data[0], {
           order: {
@@ -570,7 +570,7 @@ describe('webhook', () => {
       it('does not process the order when PaymentIntent amount does not match', async () => {
         sandbox.stub(common, 'createChargeTransactions').throws();
         set(event, 'data.object.amount', 50e2);
-        await webhook.paymentIntentSucceeded(event);
+        await webhook.stripePaymentIntentSucceeded(event);
 
         await order.reload();
         expect(order.status).to.equal(OrderStatuses.PROCESSING);
@@ -580,7 +580,7 @@ describe('webhook', () => {
       it('does not process the order when PaymentIntent currency does not match', async () => {
         sandbox.stub(common, 'createChargeTransactions').throws();
         set(event, 'data.object.currency', 'eur');
-        await webhook.paymentIntentSucceeded(event);
+        await webhook.stripePaymentIntentSucceeded(event);
 
         await order.reload();
         expect(order.status).to.equal(OrderStatuses.PROCESSING);
@@ -594,7 +594,7 @@ describe('webhook', () => {
         );
         sandbox.stub(common, 'createChargeTransactions').resolves();
         sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
-        await webhook.paymentIntentSucceeded(event);
+        await webhook.stripePaymentIntentSucceeded(event);
 
         assert.calledOnceWithMatch(common.createChargeTransactions, event.data.object.charges.data[0], {
           order: {
@@ -631,7 +631,7 @@ describe('webhook', () => {
         );
         sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
         await order.update({ interval: 'month', SubscriptionId: null });
-        await webhook.paymentIntentSucceeded(event);
+        await webhook.stripePaymentIntentSucceeded(event);
 
         assert.calledOnceWithMatch(common.createChargeTransactions, event.data.object.charges.data[0], {
           order: {
@@ -673,7 +673,7 @@ describe('webhook', () => {
           isActive: true,
         });
         await order.update({ interval: 'month', SubscriptionId: subscription.id });
-        await webhook.paymentIntentSucceeded(event);
+        await webhook.stripePaymentIntentSucceeded(event);
 
         assert.calledOnceWithMatch(common.createChargeTransactions, event.data.object.charges.data[0], {
           order: {
@@ -708,7 +708,7 @@ describe('webhook', () => {
             status: OrderStatuses.CANCELLED,
           });
 
-          await webhook.paymentIntentSucceeded(event);
+          await webhook.stripePaymentIntentSucceeded(event);
 
           assert.calledOnce(common.createChargeTransactions);
           await order.reload();
@@ -739,7 +739,7 @@ describe('webhook', () => {
             status: OrderStatuses.CANCELLED,
           });
 
-          await webhook.paymentIntentSucceeded(event);
+          await webhook.stripePaymentIntentSucceeded(event);
 
           await order.reload();
           await subscription.reload();
@@ -754,7 +754,7 @@ describe('webhook', () => {
     describe('paymentIntentProcessing()', () => {
       it('returns if no order is found', async () => {
         set(event, 'data.object.id', 'pi_notfound');
-        await webhook.paymentIntentProcessing(event);
+        await webhook.stripePaymentIntentProcessing(event);
         await order.reload();
 
         sandbox.stub(order, 'update').throws();
@@ -773,7 +773,7 @@ describe('webhook', () => {
           },
         });
 
-        await webhook.paymentIntentProcessing(event);
+        await webhook.stripePaymentIntentProcessing(event);
         await order.reload();
         expect(order.status).to.equal(OrderStatuses.PROCESSING);
         expect(order.data.paymentIntent.charges).to.not.be.null;
@@ -796,7 +796,7 @@ describe('webhook', () => {
           },
         });
 
-        await webhook.paymentIntentProcessing(event);
+        await webhook.stripePaymentIntentProcessing(event);
         await order.reload();
         expect(order.status).to.equal(OrderStatuses.PROCESSING);
         expect(order.data.paymentIntent.charges).to.not.be.null;
@@ -823,7 +823,7 @@ describe('webhook', () => {
     describe('paymentIntentFailed()', () => {
       it('returns if no order is found', async () => {
         set(event, 'data.object.id', 'pi_notfound');
-        await webhook.paymentIntentFailed(event);
+        await webhook.stripePaymentIntentFailed(event);
         await order.reload();
 
         sandbox.stub(order, 'update').throws();
@@ -839,7 +839,7 @@ describe('webhook', () => {
           message: "You invested all your money on FTX and now you don't have anything left",
         });
 
-        await webhook.paymentIntentFailed(event);
+        await webhook.stripePaymentIntentFailed(event);
         await order.reload();
 
         expect(order.status).to.equal(OrderStatuses.ERROR);
@@ -862,7 +862,7 @@ describe('webhook', () => {
           status: OrderStatuses.CANCELLED,
         });
 
-        await webhook.paymentIntentFailed(event);
+        await webhook.stripePaymentIntentFailed(event);
         await order.reload();
 
         expect(order.status).to.equal(OrderStatuses.CANCELLED);
@@ -1195,7 +1195,7 @@ describe('webhook', () => {
 
     describe('paymentIntentSucceeded', () => {
       it('marks expense as PAID', async () => {
-        await webhook.paymentIntentSucceeded(event);
+        await webhook.stripePaymentIntentSucceeded(event);
 
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.PAID);
@@ -1203,7 +1203,7 @@ describe('webhook', () => {
 
       it('does not mark expense as PAID when PaymentIntent amount does not match the expense', async () => {
         event.data.object.amount = 50e2;
-        await webhook.paymentIntentSucceeded(event);
+        await webhook.stripePaymentIntentSucceeded(event);
 
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
@@ -1212,7 +1212,7 @@ describe('webhook', () => {
 
       it('does not mark expense as PAID when PaymentIntent currency does not match the expense', async () => {
         event.data.object.currency = 'eur';
-        await webhook.paymentIntentSucceeded(event);
+        await webhook.stripePaymentIntentSucceeded(event);
 
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
@@ -1222,7 +1222,7 @@ describe('webhook', () => {
 
     describe('paymentIntentProcessing', () => {
       it('marks expense as PROGRESSING', async () => {
-        await webhook.paymentIntentProcessing(event);
+        await webhook.stripePaymentIntentProcessing(event);
 
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.PROCESSING);
@@ -1231,15 +1231,15 @@ describe('webhook', () => {
 
     describe('paymentIntentFailed', () => {
       it('marks expense as ERROR if expense was processing', async () => {
-        await webhook.paymentIntentProcessing(event);
-        await webhook.paymentIntentFailed(event);
+        await webhook.stripePaymentIntentProcessing(event);
+        await webhook.stripePaymentIntentFailed(event);
 
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.ERROR);
       });
 
       it('keeps expense status if payment failed immediately', async () => {
-        await webhook.paymentIntentFailed(event);
+        await webhook.stripePaymentIntentFailed(event);
 
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.APPROVED);

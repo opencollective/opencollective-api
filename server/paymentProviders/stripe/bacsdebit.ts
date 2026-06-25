@@ -51,8 +51,9 @@ const processOrder = async (order: Order): Promise<void> => {
       stripeAccount: hostStripeAccount.username,
     });
 
+    const paymentIntentSnapshot = { id: paymentIntent.id, status: paymentIntent.status };
     await order.update({
-      data: { ...order.data, paymentIntent: { id: paymentIntent.id, status: paymentIntent.status } },
+      data: { ...order.data, stripePaymentIntent: paymentIntentSnapshot, paymentIntent: paymentIntentSnapshot },
     });
 
     paymentIntent = await stripe.paymentIntents.confirm(
@@ -67,7 +68,7 @@ const processOrder = async (order: Order): Promise<void> => {
 
     await order.update({
       status: OrderStatuses.PROCESSING,
-      data: { ...order.data, paymentIntent },
+      data: { ...order.data, stripePaymentIntent: paymentIntent, paymentIntent },
     });
 
     if (paymentIntent.status === 'processing') {

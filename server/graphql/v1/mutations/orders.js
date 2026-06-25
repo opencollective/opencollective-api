@@ -250,14 +250,18 @@ export async function createOrder(order, req) {
     throw new ValidationFailed('Subscriptions cannot be free');
   }
 
-  if (order.paymentMethod?.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT && order.paymentMethod?.paymentIntentId) {
+  // TODO(#8851): remove `data.paymentIntentId` to complete the migration
+  if (
+    order.paymentMethod?.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT &&
+    (order.paymentMethod?.stripePaymentIntentId ?? order.paymentMethod?.paymentIntentId)
+  ) {
+    const stripePaymentIntentId = order.paymentMethod.stripePaymentIntentId ?? order.paymentMethod.paymentIntentId;
     const existingOrder = await Order.findOne({
       where: {
-        data: {
-          paymentIntent: {
-            id: order.paymentMethod.paymentIntentId,
-          },
-        },
+        [Op.or]: [
+          { data: { stripePaymentIntent: { id: stripePaymentIntentId } } },
+          { data: { paymentIntent: { id: stripePaymentIntentId } } },
+        ],
       },
     });
 
@@ -510,7 +514,17 @@ export async function createOrder(order, req) {
         isGuest,
         isBalanceTransfer: order.isBalanceTransfer,
         fromAccountInfo: order.fromAccountInfo,
-        paymentIntent: order.paymentMethod?.paymentIntentId ? { id: order.paymentMethod.paymentIntentId } : undefined,
+        // TODO(#8851): remove `data.paymentIntent` to complete the migration
+        ...(order.paymentMethod?.stripePaymentIntentId || order.paymentMethod?.paymentIntentId
+          ? {
+              stripePaymentIntent: {
+                id: order.paymentMethod.stripePaymentIntentId ?? order.paymentMethod.paymentIntentId,
+              },
+              paymentIntent: {
+                id: order.paymentMethod.stripePaymentIntentId ?? order.paymentMethod.paymentIntentId,
+              },
+            }
+          : {}),
         isManualContribution: isManualPayment,
       },
       status: orderStatus,
@@ -674,7 +688,13 @@ export async function confirmOrder(order, remoteUser, guestToken) {
       await processOrder(order);
 
       order.status = status.ACTIVE;
-      order.data = omit(order.data, ['error', 'latestError', 'paymentIntent', 'needsConfirmation']);
+      order.data = omit(order.data, [
+        'error',
+        'latestError',
+        'stripePaymentIntent',
+        'paymentIntent', // TODO(#8851): remove `paymentIntent`
+        'needsConfirmation',
+      ]);
       order.Subscription = Object.assign(order.Subscription, getNextChargeAndPeriodStartDates('success', order));
       order.Subscription.chargeRetryCount = getChargeRetryCount('success', order);
       if (order.Subscription.chargeNumber !== null) {

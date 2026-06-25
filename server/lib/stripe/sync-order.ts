@@ -3,18 +3,20 @@ import type Stripe from 'stripe';
 
 import OrderStatuses from '../../constants/order-status';
 import models from '../../models';
-import { paymentIntentFailed, paymentIntentSucceeded } from '../../paymentProviders/stripe/webhook';
+import { stripePaymentIntentFailed, stripePaymentIntentSucceeded } from '../../paymentProviders/stripe/webhook';
 import stripe from '../stripe';
 
 export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? } = {}) => {
   logging?.(`Processing order ${order.id}...`);
-  if (!order.data?.paymentIntent?.id) {
-    logging?.(`Order ${order.id} has no paymentIntent`);
+  // TODO(#8851): remove `paymentIntent`
+  const stripePaymentIntent = order.data.stripePaymentIntent ?? order.data.paymentIntent;
+  if (!stripePaymentIntent?.id) {
+    logging?.(`Order ${order.id} has no stripePaymentIntent`);
     return;
   }
   const hostStripeAccount = await order.collective.getHostStripeAccount();
   const stripeAccount = hostStripeAccount.username;
-  const paymentIntent = await stripe.paymentIntents.retrieve(order.data.paymentIntent.id, {
+  const paymentIntent = await stripe.paymentIntents.retrieve(stripePaymentIntent.id, {
     stripeAccount,
   });
   logging?.(`Order ${order.id} paymentIntent status: ${paymentIntent.status}`);
@@ -30,7 +32,7 @@ export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? 
       if (transaction.OrderId !== order.id) {
         await order.update({
           status: OrderStatuses.CANCELLED,
-          data: omit(order.data, 'paymentIntent'),
+          data: omit(order.data, ['stripePaymentIntent', 'paymentIntent']), // TODO(#8851): remove `paymentIntent`
         });
       }
       return;
@@ -38,19 +40,19 @@ export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? 
 
     logging?.(`Order ${order.id} is missing charge ${charge.id}, re-processing payment intent...`);
     if (!IS_DRY) {
-      await paymentIntentSucceeded({ account: stripeAccount, data: { object: paymentIntent } } as any);
+      await stripePaymentIntentSucceeded({ account: stripeAccount, data: { object: paymentIntent } } as any);
     }
   } else if (charge?.status === 'failed') {
     logging?.(`Order ${order.id} has failed charge: ${charge.id}`);
     if (!IS_DRY) {
-      await paymentIntentFailed({ account: stripeAccount, data: { object: paymentIntent } } as any);
+      await stripePaymentIntentFailed({ account: stripeAccount, data: { object: paymentIntent } } as any);
     }
   } else if (!charge && ['requires_payment_method', 'requires_source'].includes(paymentIntent.status)) {
     logging?.(`Order ${order.id} has no payment method`);
     if (!IS_DRY) {
       await order.update({
         status: OrderStatuses.ERROR,
-        data: { ...order.data, paymentIntent },
+        data: { ...order.data, stripePaymentIntent: paymentIntent, paymentIntent }, // TODO(#8851): remove `paymentIntent`
       });
     }
   }

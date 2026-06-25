@@ -18,6 +18,7 @@ const ENFORCE_SUSPENDED_ASSET = parseToBoolean(config.fraud.enforceSuspendedAsse
 
 type FraudStats = { errorRate: number; numberOfOrders: number; paymentMethodRate: number };
 
+// TODO(#8851): remove `paymentIntent` to complete the migration
 const BASE_STATS_QUERY = `
   SELECT
     ROUND(COALESCE(AVG(CASE WHEN o."status" = 'ERROR' THEN 1 ELSE 0 END), 0), 5)::Float as "errorRate",
@@ -25,7 +26,9 @@ const BASE_STATS_QUERY = `
     COALESCE(
       COUNT(
         DISTINCT COALESCE(
+          NULLIF(o."data"#>>'{stripePaymentIntent,last_payment_error,payment_method,card,fingerprint}', ''),
           NULLIF(o."data"#>>'{paymentIntent,last_payment_error,payment_method,card,fingerprint}', ''),
+          NULLIF(o."data"#>>'{stripePaymentIntent,last_payment_error,payment_method,us_bank_account,fingerprint}', ''),
           NULLIF(o."data"#>>'{paymentIntent,last_payment_error,payment_method,us_bank_account,fingerprint}', ''),
           NULLIF(CONCAT(pm."name", pm."data"->>'expYear'), ''),
           pm."id"::TEXT

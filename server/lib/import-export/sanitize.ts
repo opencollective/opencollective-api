@@ -217,12 +217,15 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
       'platformTip',
     ];
 
+    // TODO(#8851): remove `paymentIntent` and `previousPaymentIntents`
     const privateDataFields = [
       'needsConfirmation',
       'paypalStatusChangeNote',
       'memo',
       'paymentIntent',
+      'stripePaymentIntent',
       'previousPaymentIntents',
+      'previousStripePaymentIntents',
       'customData',
       'savePaymentMethod',
       'messageForContributors',
