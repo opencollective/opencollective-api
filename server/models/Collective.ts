@@ -12,6 +12,7 @@ import {
   differenceWith,
   get,
   includes,
+  isEmpty,
   isNil,
   isNull,
   isUndefined,
@@ -87,6 +88,7 @@ import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../lib/github';
 import { isValidUploadedImage } from '../lib/images';
 import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
+import { normalizeZoneCode } from '../lib/normalize-zone';
 import { openSearchFullAccountReIndex } from '../lib/open-search/sync-postgres';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { getPolicy, POLICIES_EDITABLE_BY_HOST_ONLY } from '../lib/policies';
@@ -2230,9 +2232,12 @@ class Collective extends ModelWithPublicId<
       let { structured } = locationInput;
       let { address } = locationInput;
 
-      structured = omitBy(structured, v => v === null || v === undefined || v === '');
+      if (structured?.zone && country) {
+        structured = { ...structured, zone: normalizeZoneCode(country, structured.zone) };
+      }
 
       // If structured is empty, set it to null
+      structured = omitBy(structured, isEmpty);
       if (Object.keys(structured).length === 0) {
         structured = null;
       }
