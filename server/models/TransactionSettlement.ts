@@ -108,7 +108,15 @@ class TransactionSettlement extends Model<
     transactions: Transaction[],
     status: TransactionSettlementStatus,
     expenseId: number = undefined,
+    { transaction }: { transaction?: SQLTransaction } = {},
   ): Promise<void> {
+    // Guard against an empty list: an empty `Op.or` compiles to `WHERE 0 = 1` (a no-op) in the
+    // current Sequelize, but returning early avoids the pointless query and is resilient to that
+    // behaviour changing. Mirrors the guard in `attachStatusesToTransactions`.
+    if (!transactions.length) {
+      return;
+    }
+
     const newData = { status };
     if (expenseId !== undefined) {
       newData['ExpenseId'] = expenseId;
@@ -121,14 +129,20 @@ class TransactionSettlement extends Model<
           kind: transaction.kind,
         })),
       },
+      transaction,
     });
   }
 
-  static async markTransactionsAsInvoiced(transactions: Transaction[], expenseId: number): Promise<void> {
+  static async markTransactionsAsInvoiced(
+    transactions: Transaction[],
+    expenseId: number,
+    { transaction }: { transaction?: SQLTransaction } = {},
+  ): Promise<void> {
     return TransactionSettlement.updateTransactionsSettlementStatus(
       transactions,
       TransactionSettlementStatus.INVOICED,
       expenseId,
+      { transaction },
     );
   }
 
@@ -165,12 +179,16 @@ class TransactionSettlement extends Model<
   }
 
   static async attachStatusesToTransactions(transactions: Transaction[]): Promise<void> {
-    const debts = transactions.filter(t => t.isDebt);
-    const where = { [Op.or]: debts.map(t => ({ TransactionGroup: t.TransactionGroup, kind: t.kind })) };
+    // Under NEW_PLATFORM_TIPS_LEDGER, settlement state lives on PLATFORM_TIP credits (isDebt=false),
+    // so we can no longer filter by isDebt — look up TS rows for every input transaction.
+    if (!transactions.length) {
+      return;
+    }
+    const where = { [Op.or]: transactions.map(t => ({ TransactionGroup: t.TransactionGroup, kind: t.kind })) };
     const settlements = await TransactionSettlement.findAll({ where });
     const groupedSettlements = groupBy(settlements, 'TransactionGroup');
 
-    debts.forEach(transaction => {
+    transactions.forEach(transaction => {
       const settlement = groupedSettlements[transaction.TransactionGroup]?.find(s => transaction.kind === s.kind);
       transaction['dataValues']['settlementStatus'] = settlement?.status || null;
     });

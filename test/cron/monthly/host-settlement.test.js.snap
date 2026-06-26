@@ -1,5 +1,36 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`cron/monthly/host-settlement NEW_PLATFORM_TIPS_LEDGER host matches the new-ledger settlement ledger snapshot 1`] = `
+"
+| kind         | type   | isDebt | amount | currency | hostCurrency | amountInHostCurrency | Settlement |
+| ------------ | ------ | ------ | ------ | -------- | ------------ | -------------------- | ---------- |
+| PLATFORM_TIP | CREDIT | false  | 5000   | USD      | USD          | 5000                 | INVOICED   |"
+`;
+
+exports[`cron/monthly/host-settlement NEW_PLATFORM_TIPS_LEDGER host with a tip refunded after it was invoiced matches the negative-net (rolled-forward) host ledger snapshot 1`] = `
+"
+| kind         | type   | isDebt | isRefund | amount | currency | hostCurrency | amountInHostCurrency | Settlement |
+| ------------ | ------ | ------ | -------- | ------ | -------- | ------------ | -------------------- | ---------- |
+| PLATFORM_TIP | CREDIT | false  | false    | 2000   | USD      | USD          | 2000                 | INVOICED   |
+| PLATFORM_TIP | DEBIT  | false  | true     | -2000  | USD      | USD          | -2000                | OWED       |"
+`;
+
+exports[`cron/monthly/host-settlement NEW_PLATFORM_TIPS_LEDGER host with a tip refunded after it was invoiced matches the net-positive (deduction) host ledger snapshot 1`] = `
+"
+| kind         | type   | isDebt | isRefund | amount | currency | hostCurrency | amountInHostCurrency | Settlement |
+| ------------ | ------ | ------ | -------- | ------ | -------- | ------------ | -------------------- | ---------- |
+| PLATFORM_TIP | CREDIT | false  | false    | 5000   | USD      | USD          | 5000                 | INVOICED   |
+| PLATFORM_TIP | CREDIT | false  | false    | 2000   | USD      | USD          | 2000                 | INVOICED   |
+| PLATFORM_TIP | DEBIT  | false  | true     | -2000  | USD      | USD          | -2000                | INVOICED   |"
+`;
+
+exports[`cron/monthly/host-settlement NEW_PLATFORM_TIPS_LEDGER host with non-USD currency matches the EUR host ledger snapshot (no platform-currency round trip) 1`] = `
+"
+| kind         | type   | isDebt | amount | currency | hostCurrency | amountInHostCurrency | Settlement |
+| ------------ | ------ | ------ | ------ | -------- | ------------ | -------------------- | ---------- |
+| PLATFORM_TIP | CREDIT | false  | 30000  | EUR      | EUR          | 30000                | INVOICED   |"
+`;
+
 exports[`cron/monthly/host-settlement should update all settlement status for EU host 1`] = `
 "
 | kind                | type   | amount | isRefund | Settlement |

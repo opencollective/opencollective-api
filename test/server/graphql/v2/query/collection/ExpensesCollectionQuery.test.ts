@@ -5,6 +5,7 @@ import moment from 'moment';
 import { createSandbox } from 'sinon';
 
 import ActivityTypes from '../../../../../../server/constants/activities';
+import { CollectiveType } from '../../../../../../server/constants/collectives';
 import ExpenseStatuses from '../../../../../../server/constants/expense-status';
 import roles from '../../../../../../server/constants/roles';
 import {
@@ -1569,10 +1570,12 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       hostChild,
       hostedCollective,
       hostedCollectiveChild,
+      platformTipsAccount,
       expenseOnHost,
       expenseOnHostChild,
       expenseOnHostedCollective,
-      expenseOnHostedCollectiveChild;
+      expenseOnHostedCollectiveChild,
+      expenseOnPlatformTips;
 
     before(async () => {
       // Create a host account with money management
@@ -1622,6 +1625,24 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         status: 'APPROVED',
         description: 'Expense on hosted collective child',
       });
+
+      // Per-host platform-tips account: a hosted child of the host (ParentCollectiveId =
+      // HostCollectiveId = host). Its settlement expense is grouped with the host's own activity
+      // (INTERNAL / Organization), not with hosted collectives (HOSTED), via the normal parent-based
+      // grouping — no special-casing.
+      platformTipsAccount = await fakeCollective({
+        type: CollectiveType.PLATFORM,
+        ParentCollectiveId: host.id,
+        HostCollectiveId: host.id,
+        isActive: true,
+      });
+      expenseOnPlatformTips = await fakeExpense({
+        CollectiveId: platformTipsAccount.id,
+        HostCollectiveId: host.id,
+        type: 'SETTLEMENT',
+        status: 'APPROVED',
+        description: 'Platform tips settlement',
+      });
     });
 
     it('should return all expenses when hostContext is ALL', async () => {
@@ -1650,6 +1671,8 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       const expenseIds = result.data.expenses.nodes.map(node => node.legacyId);
       expect(expenseIds).to.include(expenseOnHost.id);
       expect(expenseIds).to.include(expenseOnHostChild.id);
+      // The platform-owned (platform-tips) settlement is grouped with the Organization
+      expect(expenseIds).to.include(expenseOnPlatformTips.id);
       // Verify hosted collective expenses are NOT included
       expect(expenseIds).to.not.include(expenseOnHostedCollective.id);
       expect(expenseIds).to.not.include(expenseOnHostedCollectiveChild.id);
@@ -1669,6 +1692,8 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       // Verify host/internal expenses are NOT included
       expect(expenseIds).to.not.include(expenseOnHost.id);
       expect(expenseIds).to.not.include(expenseOnHostChild.id);
+      // The platform-owned (platform-tips) settlement is NOT a hosted collective
+      expect(expenseIds).to.not.include(expenseOnPlatformTips.id);
     });
 
     it('should return all host expenses when hostContext is not set (default behavior)', async () => {

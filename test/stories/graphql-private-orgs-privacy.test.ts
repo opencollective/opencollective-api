@@ -191,6 +191,13 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Organization.host': 'parent-gate',
   'Organization.mainProfile': 'parent-gate',
 
+  // ---- Platform nested fields ----
+  'Platform.parentAccount': 'parent-gate',
+  'Platform.duplicatedFromAccount': 'parent-gate',
+  'Platform.host': 'parent-gate',
+  'Platform.parent': 'parent-gate',
+  'Platform.mainProfile': 'parent-gate',
+
   // ---- Vendor nested fields ----
   'Vendor.parentAccount': 'parent-gate',
   'Vendor.duplicatedFromAccount': 'parent-gate',

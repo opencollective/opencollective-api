@@ -723,7 +723,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
           const payoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
           if (payoutMethod?.type === 'BANK_ACCOUNT' && (await ExpenseLib.canPayExpense(req, expense))) {
             const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-            const host = await collective.getHostCollective({ loaders: req.loaders });
+            const host = await loadHostForExpense(expense, req);
             if (!host) {
               throw new Error(
                 collective.deactivatedAt
