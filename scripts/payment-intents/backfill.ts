@@ -39,8 +39,6 @@ const parseList = (value: string | undefined, asNumbers = false): (string | numb
 const main = async (): Promise<void> => {
   const program = new Command();
   program
-    .option('--dry-run', 'Log actions only, do not write (default unless DRY_RUN=false)')
-    .option('--no-dry-run', 'Apply changes')
     .option('--limit <n>', 'Max records per phase', parseInt)
     .option('--after-id <n>', 'Resume cursor (id > after-id)', parseInt)
     .option('--phase <name>', 'ledger | pending-orders | pending-expenses | all', 'all')
@@ -50,7 +48,7 @@ const main = async (): Promise<void> => {
     .parse();
 
   const options = program.opts();
-  const dryRun = options.noDryRun ? false : options.dryRun || process.env.DRY_RUN !== 'false';
+  const dryRun = process.env.DRY_RUN !== 'false';
   const phase = options.phase as BackfillPhase;
 
   if (!['ledger', 'pending-orders', 'pending-expenses', 'all'].includes(phase)) {
