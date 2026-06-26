@@ -80,7 +80,7 @@ export async function hasUploadedFilePermission(
         UploadedFileId: uploadedFile.id,
       },
     });
-    return req.remoteUser.isAdmin(exportRequest.CollectiveId);
+    return Boolean(exportRequest && req.remoteUser.isAdmin(exportRequest.CollectiveId));
   }
 
   const result = await sequelize.query<Array<{ ExpenseId: number }>>(

@@ -6,8 +6,14 @@ import * as awsS3 from '../../../../../server/lib/awsS3';
 import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import { ExportRequestStatus, ExportRequestTypes } from '../../../../../server/models/ExportRequest';
 import UploadedFile from '../../../../../server/models/UploadedFile';
-import { fakeCollective, fakeExportRequest, fakeUploadedFile, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import {
+  fakeCollective,
+  fakeExportRequest,
+  fakeUploadedFile,
+  fakeUser,
+  fakeUserToken,
+} from '../../../../test-helpers/fake-data';
+import { graphqlQueryV2, oAuthGraphqlQueryV2 } from '../../../../utils';
 
 const createExportRequestMutation = gql`
   mutation CreateExportRequest($exportRequest: ExportRequestCreateInput!) {
@@ -148,6 +154,52 @@ describe('server/graphql/v2/mutation/ExportRequestMutations', () => {
       expect(result.data.createExportRequest.type).to.eq(ExportRequestTypes.HOSTED_COLLECTIVES);
       expect(result.data.createExportRequest.status).to.eq(ExportRequestStatus.ENQUEUED);
       expect(result.data.createExportRequest.parameters).to.deep.eq({});
+    });
+
+    it('rejects OAuth token without exportRequests scope', async () => {
+      const adminUser = await fakeUser();
+      const collective = await fakeCollective({ admin: adminUser });
+      const userToken = await fakeUserToken({ user: adminUser, scope: ['account'] });
+
+      const result = await oAuthGraphqlQueryV2(
+        createExportRequestMutation,
+        {
+          exportRequest: {
+            account: { legacyId: collective.id },
+            name: 'Test Export',
+            type: 'HOSTED_COLLECTIVES',
+          },
+        },
+        userToken,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'The User Token is not allowed for operations in scope "exportRequests".',
+      );
+    });
+
+    it('rejects OAuth token without transactions scope for TRANSACTIONS exports', async () => {
+      const adminUser = await fakeUser();
+      const collective = await fakeCollective({ admin: adminUser });
+      const userToken = await fakeUserToken({ user: adminUser, scope: ['exportRequests'] });
+
+      const result = await oAuthGraphqlQueryV2(
+        createExportRequestMutation,
+        {
+          exportRequest: {
+            account: { legacyId: collective.id },
+            name: 'Test Export',
+            type: 'TRANSACTIONS',
+          },
+        },
+        userToken,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'The User Token is not allowed for operations in scope "transactions".',
+      );
     });
   });
 
