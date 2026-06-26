@@ -2,7 +2,10 @@ import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLS
 import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import ExportRequest from '../../../models/ExportRequest';
+import { checkScopeForExportRequest } from '../../common/scope-check';
+import { Forbidden, NotFound } from '../../errors';
 import { GraphQLExportRequestStatus } from '../enum/ExportRequestStatus';
 import { GraphQLExportRequestType } from '../enum/ExportRequestType';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -83,9 +86,24 @@ export const GraphQLExportRequest = new GraphQLObjectType({
       type: GraphQLFileInfo,
       description: 'The exported file (if completed)',
       async resolve(exportRequest: ExportRequest, _, req) {
+        // Re-validate the scope, as the file itself is the most sensitive part.
+        checkScopeForExportRequest(req, exportRequest);
+
+        // Also re-check the permissions, as a defensive measure.
+        const account = await req.loaders.Collective.byId.load(exportRequest.CollectiveId);
+        if (!account) {
+          throw new NotFound('Account not found');
+        }
+
+        await assertCanSeeAccount(req, account);
+        if (!req.remoteUser.isAdminOfCollective(account)) {
+          throw new Forbidden('You do not have permission to view this export request');
+        }
+
         if (exportRequest.UploadedFileId) {
           return req.loaders.UploadedFile.byId.load(exportRequest.UploadedFileId);
         }
+
         return null;
       },
     },
