@@ -58,7 +58,7 @@
     "@sentry/profiling-node": "10.56.0",
     "@simplewebauthn/server": "13.3.1",
     "async-mutex": "0.5.0",
-    "axios": "1.18.0",
+    "axios": "1.18.1",
     "babel-plugin-add-module-exports": "1.0.4",
     "bayes": "1.0.0",
     "bcrypt": "6.0.0",
