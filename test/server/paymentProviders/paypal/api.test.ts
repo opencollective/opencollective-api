@@ -9,6 +9,7 @@ import {
   exchangeAuthCodeForToken,
   paypalConnectAuthorizeUrl,
   paypalRequest,
+  paypalRequestV2,
   paypalUrl,
   refreshPaypalUserToken,
   retrieveOAuthToken,
@@ -102,6 +103,28 @@ describe('server/paymentProviders/paypal/api', () => {
         const output = await paypalRequest('path/we/are/testing', {}, host);
         expect(output).to.deep.equal({ success: 1 });
       }); /* End of "#paypalRequest" */
+
+      it('returns a user-friendly message when refund time limit is exceeded', async () => {
+        nock('https://api.sandbox.paypal.com')
+          .matchHeader('Authorization', 'Bearer dat-token')
+          .post('/v2/payments/captures/capture-id/refund')
+          .reply(422, {
+            name: 'UNPROCESSABLE_ENTITY',
+            message:
+              'The requested action could not be performed, semantically incorrect, or failed business validation.',
+            details: [
+              {
+                issue: 'REFUND_TIME_LIMIT_EXCEEDED',
+                description: 'Refund time limit exceeded.',
+              },
+            ],
+          });
+
+        await expect(paypalRequestV2('payments/captures/capture-id/refund', host, 'POST', {})).to.be.rejectedWith(
+          Error,
+          'This contribution is too old to refund through PayPal. PayPal only allows refunds within 180 days of the original payment.',
+        );
+      });
     }); /* End of "#paypalRequest" */
   }); /* End of "With PayPal auth" */
 

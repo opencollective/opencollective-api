@@ -63,88 +63,113 @@ const migrate = async () => {
       continue;
     }
 
-    // Create host fee transaction
-    const creditPreMigrationData = pick(credit.dataValues, BACKUP_COLUMNS);
-    const result = await models.Transaction.createHostFeeTransactions(credit, transactionsData);
-    if (!result) {
-      continue;
-    }
-
-    const { hostFeeTransaction } = result;
-
-    // Update hostFeeInHostCurrency for both DEBIT and CREDIT
-    const transactionFees = credit.platformFeeInHostCurrency + credit.paymentProcessorFeeInHostCurrency;
-    const transactionTaxes = credit.taxAmount || 0;
-    const netAmountInCollectiveCurrency = Math.round(
-      (credit.amountInHostCurrency + transactionFees) / credit.hostCurrencyFxRate + transactionTaxes,
-    );
-
-    await credit.update({
-      hostFeeInHostCurrency: 0,
-      netAmountInCollectiveCurrency,
-      data: {
-        ...credit.data,
-        ...transactionsData,
-        preMigrationData: creditPreMigrationData,
-      },
-    });
-
-    await debit.update({
-      hostFeeInHostCurrency: 0,
-      amount: -Math.round(netAmountInCollectiveCurrency),
-      amountInHostCurrency: -Math.round(netAmountInCollectiveCurrency * debit.hostCurrencyFxRate),
-      data: {
-        ...debit.data,
-        ...transactionsData,
-        preMigrationData: pick(debit.dataValues, BACKUP_COLUMNS),
-      },
-    });
-
-    // If there is a refund for this transaction, it needs to be updated as well
-    if (credit.RefundTransactionId) {
-      const refundDebit = await credit.getRefundTransaction();
-      const refundCredit = await debit.getRefundTransaction();
-      await refundCredit.update({
-        hostFeeInHostCurrency: 0,
-        amount: netAmountInCollectiveCurrency,
-        amountInHostCurrency: Math.round(netAmountInCollectiveCurrency / debit.hostCurrencyFxRate),
-        paymentProcessorFeeInHostCurrency: -credit.paymentProcessorFeeInHostCurrency,
-        data: {
-          ...refundCredit.data,
-          ...transactionsData,
-          preMigrationData: pick(refundCredit.dataValues, BACKUP_COLUMNS),
-        },
+    await sequelize.transaction(async sqlTransaction => {
+      // Create host fee transaction
+      const creditPreMigrationData = pick(credit.dataValues, BACKUP_COLUMNS);
+      const result = await models.Transaction.createHostFeeTransactions(credit, transactionsData, {
+        sequelizeTransaction: sqlTransaction,
       });
-      await refundDebit.update({
-        hostFeeInHostCurrency: 0,
-        netAmountInCollectiveCurrency: -netAmountInCollectiveCurrency,
-        paymentProcessorFeeInHostCurrency: -credit.paymentProcessorFeeInHostCurrency,
-        data: {
-          ...refundDebit.data,
-          ...transactionsData,
-          preMigrationData: pick(refundDebit.dataValues, BACKUP_COLUMNS),
-        },
-      });
+      if (!result) {
+        return;
+      }
 
-      // Create a refund for the host fee
-      const hostFeeRefund = {
-        ...buildRefundForTransaction(hostFeeTransaction, null, transactionsData),
-        TransactionGroup: refundCredit.TransactionGroup,
-        createdAt: refundCredit.createdAt,
-        RefundKind: RefundKind.REFUND,
-      };
+      const { hostFeeTransaction } = result;
 
-      const hostFeeRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeRefund);
-      await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction);
-
-      // Refund payment processor fee from the host to the collective
-      await refundPaymentProcessorFeeToCollective(
-        credit,
-        refundCredit.TransactionGroup,
-        transactionsData,
-        refundCredit.createdAt,
+      // Update hostFeeInHostCurrency for both DEBIT and CREDIT
+      const transactionFees = credit.platformFeeInHostCurrency + credit.paymentProcessorFeeInHostCurrency;
+      const transactionTaxes = credit.taxAmount || 0;
+      const netAmountInCollectiveCurrency = Math.round(
+        (credit.amountInHostCurrency + transactionFees) / credit.hostCurrencyFxRate + transactionTaxes,
       );
-    }
+
+      await credit.update(
+        {
+          hostFeeInHostCurrency: 0,
+          netAmountInCollectiveCurrency,
+          data: {
+            ...credit.data,
+            ...transactionsData,
+            preMigrationData: creditPreMigrationData,
+          },
+        },
+        {
+          transaction: sqlTransaction,
+        },
+      );
+
+      await debit.update(
+        {
+          hostFeeInHostCurrency: 0,
+          amount: -Math.round(netAmountInCollectiveCurrency),
+          amountInHostCurrency: -Math.round(netAmountInCollectiveCurrency * debit.hostCurrencyFxRate),
+          data: {
+            ...debit.data,
+            ...transactionsData,
+            preMigrationData: pick(debit.dataValues, BACKUP_COLUMNS),
+          },
+        },
+        {
+          transaction: sqlTransaction,
+        },
+      );
+
+      // If there is a refund for this transaction, it needs to be updated as well
+      if (credit.RefundTransactionId) {
+        const refundDebit = await credit.getRefundTransaction();
+        const refundCredit = await debit.getRefundTransaction();
+        await refundCredit.update(
+          {
+            hostFeeInHostCurrency: 0,
+            amount: netAmountInCollectiveCurrency,
+            amountInHostCurrency: Math.round(netAmountInCollectiveCurrency / debit.hostCurrencyFxRate),
+            paymentProcessorFeeInHostCurrency: -credit.paymentProcessorFeeInHostCurrency,
+            data: {
+              ...refundCredit.data,
+              ...transactionsData,
+              preMigrationData: pick(refundCredit.dataValues, BACKUP_COLUMNS),
+            },
+          },
+          {
+            transaction: sqlTransaction,
+          },
+        );
+        await refundDebit.update(
+          {
+            hostFeeInHostCurrency: 0,
+            netAmountInCollectiveCurrency: -netAmountInCollectiveCurrency,
+            paymentProcessorFeeInHostCurrency: -credit.paymentProcessorFeeInHostCurrency,
+            data: {
+              ...refundDebit.data,
+              ...transactionsData,
+              preMigrationData: pick(refundDebit.dataValues, BACKUP_COLUMNS),
+            },
+          },
+          {
+            transaction: sqlTransaction,
+          },
+        );
+
+        // Create a refund for the host fee
+        const hostFeeRefund = {
+          ...buildRefundForTransaction(hostFeeTransaction, null, transactionsData),
+          TransactionGroup: refundCredit.TransactionGroup,
+          createdAt: refundCredit.createdAt,
+          RefundKind: RefundKind.REFUND,
+        };
+
+        const hostFeeRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeRefund, {
+          sequelizeTransaction: sqlTransaction,
+        });
+        await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, sqlTransaction);
+
+        // Refund payment processor fee from the host to the collective
+        await refundPaymentProcessorFeeToCollective(credit, refundCredit.TransactionGroup, RefundKind.REFUND, {
+          createdAt: refundCredit.createdAt,
+          data: transactionsData,
+          sqlTransaction,
+        });
+      }
+    });
   }
 };
 

@@ -2,18 +2,17 @@
 import { URLSearchParams } from 'url';
 
 import config from 'config';
-import debugLib from 'debug';
-import jwt from 'jsonwebtoken';
-import { get } from 'lodash';
+import express from 'express';
+import { random } from 'lodash';
 
-import FEATURE from '../../constants/feature';
+import { sessionCache } from '../../lib/cache';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { reportErrorToSentry } from '../../lib/sentry';
 import stripe from '../../lib/stripe';
-import { addParamsToUrl } from '../../lib/utils';
-import models from '../../models';
-import { hashObject } from '../utils';
+import models, { sequelize } from '../../models';
+import User from '../../models/User';
+import { hashObject, validateRedirectUrl } from '../utils';
 
 import bacsdebit from './bacsdebit';
 import bancontact from './bancontact';
@@ -21,22 +20,108 @@ import creditcard from './creditcard';
 import paymentintent from './payment-intent';
 import { webhook } from './webhook';
 
-const debug = debugLib('stripe');
-
 const AUTHORIZE_URI = 'https://connect.stripe.com/oauth/authorize';
+const PROVIDER_NAME = 'stripe';
+export const STATE_CACHE_PREFIX = 'stripe_oauth_';
+const STATE_TTL_SECONDS = 60 * 45; // 45 minutes - users may need time to set up their Stripe Account
 
-const validateRedirectUrl = redirect => {
-  let parsedRedirect;
+/**
+ * Builds the Stripe OAuth authorize URL for a given state.
+ */
+const getOAuthAuthorizeUrl = (state: string): string => {
+  const params = new URLSearchParams({
+    response_type: 'code',
+    scope: 'read_write',
+    client_id: config.stripe.clientId,
+    redirect_uri: config.stripe.redirectUri,
+    state,
+  });
+  return `${AUTHORIZE_URI}?${params.toString()}`;
+};
+
+/**
+ * Exchanges an OAuth authorization code with Stripe and creates/updates the corresponding
+ * `stripe` ConnectedAccount, then synchronizes basic location/currency/timezone information
+ * on the connected Collective.
+ *
+ * Permission checks (the user being an admin of the Collective) are expected to be done by the caller.
+ */
+async function connectStripeAccount({
+  code,
+  CollectiveId,
+  CreatedByUserId,
+}: {
+  code: string;
+  CollectiveId: number;
+  CreatedByUserId: number;
+}) {
+  const collective = await models.Collective.findByPk(CollectiveId);
+  if (!collective) {
+    throw new errors.NotFound(`Could not find Collective #${CollectiveId}`);
+  }
+
+  const token = await stripe.oauth.token({
+    grant_type: 'authorization_code',
+    code,
+  });
+  const data = await stripe.accounts.retrieve(token.stripe_user_id);
+  const connectedAccount = await sequelize.transaction(async transaction => {
+    // Replace any existing Stripe connected account for this collective
+    await models.ConnectedAccount.destroy({ where: { service: PROVIDER_NAME, CollectiveId }, transaction });
+    return await models.ConnectedAccount.create(
+      {
+        service: PROVIDER_NAME,
+        CollectiveId,
+        CreatedByUserId,
+        username: token.stripe_user_id,
+        token: token.access_token,
+        refreshToken: token.refresh_token,
+        hash: hashObject({ CollectiveId, username: token.stripe_user_id }),
+        data: {
+          publishableKey: token.stripe_publishable_key,
+          tokenType: token.token_type,
+          scope: token.scope,
+          account: data,
+        },
+      },
+      { transaction },
+    );
+  });
+
+  const { account: stripeAccount } = connectedAccount.data;
+  const location = await collective.getLocation();
+
+  if (!location?.structured && stripeAccount.legal_entity) {
+    const {
+      line1: address1,
+      line2: address2,
+      country,
+      state: zone,
+      city,
+      postal_code: postalCode,
+    } = stripeAccount.legal_entity.address || {};
+
+    await collective.setLocation({
+      country,
+      structured: { address1, address2, city, zone, postalCode },
+    });
+  }
 
   try {
-    parsedRedirect = new URL(redirect);
-    if (parsedRedirect.origin !== config.host.website) {
-      throw new Error();
+    if (stripeAccount.default_currency) {
+      await collective.setCurrency(stripeAccount.default_currency.toUpperCase());
     }
-  } catch {
-    throw new Error(`Invalid redirect url: ${redirect}`);
+  } catch (error) {
+    logger.error(`Unable to set currency for '${collective.slug}': ${error.message}`);
+    reportErrorToSentry(error, { extra: { CollectiveId } });
   }
-};
+
+  if (!collective.timezone && stripeAccount.timezone) {
+    await collective.update({ timezone: stripeAccount.timezone });
+  }
+
+  return connectedAccount;
+}
 
 export default {
   // Payment Method types implemented using Stripe
@@ -51,141 +136,50 @@ export default {
     link: paymentintent,
   },
 
+  connectStripeAccount,
+
   oauth: {
-    // Returns the redirectUrl to connect the Stripe Account to the Host Collective Id
-    redirectUrl: async (remoteUser, CollectiveId, query) => {
-      if (query.redirect) {
+    /**
+     * Returns the Stripe Connect OAuth URL to initiate the connection flow.
+     *
+     * The OAuth state is a random opaque token persisted in the session cache (along with the
+     * CollectiveId, the initiating UserId, and the optional redirect URL) so it cannot be tampered with.
+     * This mirrors the TransferWise OAuth flow.
+     */
+    redirectUrl: async function (
+      user: User,
+      CollectiveId: string | number,
+      query?: { redirect?: string },
+    ): Promise<string> {
+      if (!user.rolesByCollectiveId) {
+        await user.populateRoles();
+      }
+      if (!user.isAdmin(CollectiveId)) {
+        throw new Error('User must be an admin of the Collective');
+      }
+
+      if (query?.redirect) {
         validateRedirectUrl(query.redirect);
       }
 
-      // Since we pass the redirectUrl in clear to the frontend, we cannot pass the CollectiveId in the state query variable
-      // It would be trivial to change that value and attach a Stripe Account to someone else's collective
-      // That's why we encode the state in a JWT
-      const state = jwt.sign(
-        {
-          CollectiveId,
-          CreatedByUserId: remoteUser.id,
-          redirect: query.redirect,
-        },
-        config.keys.opencollective.jwtSecret,
-        {
-          expiresIn: '45m', // People may need some time to set up their Stripe Account if they don't have one already
-        },
+      const state = hashObject({ CollectiveId, userId: user.id, nonce: random(100000) });
+      await sessionCache.set(
+        `${STATE_CACHE_PREFIX}${state}`,
+        { CollectiveId, redirect: query?.redirect, UserId: user.id },
+        STATE_TTL_SECONDS,
       );
 
-      const params = new URLSearchParams({
-        response_type: 'code',
-        scope: 'read_write',
-        client_id: config.stripe.clientId,
-        redirect_uri: config.stripe.redirectUri,
-        state,
-      });
-
-      return `${AUTHORIZE_URI}?${params.toString()}`;
+      return getOAuthAuthorizeUrl(state);
     },
 
-    // callback called by Stripe after the user approves the connection
-    callback: async (req, res, next) => {
-      let state;
-      debug('req.query', JSON.stringify(req.query, null, '  '));
-      try {
-        state = jwt.verify(req.query.state, config.keys.opencollective.jwtSecret);
-      } catch (e) {
-        return next(new errors.BadRequest(`Invalid JWT: ${e.message}`));
-      }
-      debug('state', state);
-      const { CollectiveId, CreatedByUserId, redirect } = state;
-
-      if (req.query.error === 'access_denied') {
-        return res.redirect(redirect);
-      }
-
-      if (!CollectiveId) {
-        return next(new errors.BadRequest('No state in the callback'));
-      }
-
-      let redirectUrl = redirect;
-      try {
-        const collective = await models.Collective.findByPk(CollectiveId);
-        redirectUrl = redirectUrl || `${config.host.website}/${collective.slug}`;
-        await models.ConnectedAccount.destroy({
-          where: {
-            service: 'stripe',
-            CollectiveId,
-          },
-        });
-
-        const token = await stripe.oauth.token({
-          grant_type: 'authorization_code',
-          code: req.query.code,
-        });
-        const data = await stripe.accounts.retrieve(token.stripe_user_id);
-        const connectedAccount = await models.ConnectedAccount.create({
-          service: 'stripe',
-          CollectiveId,
-          CreatedByUserId,
-          username: token.stripe_user_id,
-          token: token.access_token,
-          refreshToken: token.refresh_token,
-          hash: hashObject({ CollectiveId, username: token.stripe_user_id }),
-          data: {
-            publishableKey: token.stripe_publishable_key,
-            tokenType: token.token_type,
-            scope: token.scope,
-            account: data,
-          },
-        });
-
-        const { account } = connectedAccount.data;
-        const location = await collective.getLocation();
-
-        if (!location?.structured && account.legal_entity) {
-          const {
-            line1: address1,
-            line2: address2,
-            country,
-            state: zone,
-            city,
-            postal_code: postalCode,
-          } = account.legal_entity.address || {};
-
-          await collective.setLocation({
-            country,
-            structured: {
-              address1,
-              address2,
-              city,
-              zone,
-              postalCode,
-            },
-          });
-        }
-
-        try {
-          await collective.setCurrency(account.default_currency.toUpperCase());
-        } catch (error) {
-          logger.error(`Unable to set currency for '${collective.slug}': ${error.message}`);
-          reportErrorToSentry(error, { extra: { CollectiveId } });
-        }
-
-        collective.timezone = collective.timezone || account.timezone;
-
-        await collective.save();
-        redirectUrl = addParamsToUrl(redirectUrl, {
-          message: 'StripeAccountConnected',
-          CollectiveId: collective.id,
-        });
-        debug('redirectUrl', redirectUrl);
-        return res.redirect(redirectUrl);
-      } catch (e) {
-        logger.error('Failed to connect Stripe account', e);
-        reportErrorToSentry(e, { extra: { CollectiveId }, feature: FEATURE.CONNECTED_ACCOUNTS });
-        if (get(e, 'data.error_description')) {
-          return next(new errors.BadRequest(e.data.error_description));
-        } else {
-          return next(e);
-        }
-      }
+    /**
+     * Legacy REST callback: the OAuth flow has been migrated to the `connectStripeAccount`
+     * GraphQL mutation. Stripe now redirects directly to the frontend callback page which calls
+     * the mutation, so the REST endpoint should no longer be hit.
+     */
+    callback: async function (_req: express.Request, res: express.Response): Promise<void> {
+      res.sendStatus(401);
+      return;
     },
   },
 

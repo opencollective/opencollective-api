@@ -114,6 +114,7 @@ const makeTimelineQuery = async (
           ActivityTypes.COLLECTIVE_CORE_MEMBER_REMOVED,
           ActivityTypes.COLLECTIVE_FROZEN,
           ActivityTypes.COLLECTIVE_UNFROZEN,
+          ActivityTypes.COLLECTIVE_ARCHIVED,
           ActivityTypes.COLLECTIVE_UNHOSTED,
           ActivityTypes.COLLECTIVE_APPLY,
         ],
@@ -272,7 +273,7 @@ const createNewFeed = async (collective: Collective, classes: ActivityClasses[])
   const redis = await createRedisClient(RedisInstanceType.TIMELINE);
 
   const where = await makeTimelineQuery(collective, classes);
-  let result = [];
+  let result;
   let lastId = null;
   let total = 0;
   do {

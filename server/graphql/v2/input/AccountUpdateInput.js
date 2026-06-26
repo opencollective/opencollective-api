@@ -41,6 +41,7 @@ export const GraphQLAccountUpdateInput = new GraphQLInputObjectType({
       type: new GraphQLInputObjectType({
         name: 'AccountUpdateSettingsInput',
         fields: () => ({
+          // Be careful if adding more fields here: some settings require permission checks or 2FA. See `server/lib/account-settings.ts`.
           apply: {
             type: GraphQLBoolean,
             description: 'Whether this host account is accepting fiscal sponsorship applications.',

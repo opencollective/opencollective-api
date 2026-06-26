@@ -1055,6 +1055,11 @@ interface Account {
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -2625,9 +2630,14 @@ type TaxInfo {
   rate: Float!
 
   """
-  Tax ID number of the 3rd party receiving/paying the tax
+  Tax ID number of the 3rd party receiving/paying the tax. Will be null if not allowed to see it.
   """
   idNumber: String
+
+  """
+  Whether the tax ID number is available. Contrary to `idNumber`, this field is public.
+  """
+  hasTaxIdNumber: Boolean!
 }
 
 """
@@ -3911,6 +3921,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -4194,7 +4209,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   Returns the current platform subscription
   """
   platformSubscription: PlatformSubscription
-  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling!
+  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling
   legacyPlan: HostPlan!
   hostFeePercent: Float
   totalHostedCollectives: Int @deprecated(reason: "2023-03-20: Renamed to totalHostedAccounts")
@@ -4390,6 +4405,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Filter by accounts participating in the agreement
     """
     accounts: [AccountReferenceInput]
+
+    """
+    Include agreements from the children of the provided accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): AgreementCollection!
 
   """
@@ -4654,9 +4674,10 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     forAccount: AccountReferenceInput
 
     """
-    Only returns vendors that are visible to the given accounts
+    Only return vendors that can be used with the given accounts
     """
-    visibleToAccounts: [AccountReferenceInput]
+    canBeUsedWithAccounts: [AccountReferenceInput]
+    visibleToAccounts: [AccountReferenceInput] @deprecated(reason: "Use canBeUsedWithAccounts instead.")
 
     """
     Filter on archived vendors
@@ -5010,7 +5031,7 @@ interface AccountWithPlatformSubscription {
   Returns the current platform subscription
   """
   platformSubscription: PlatformSubscription
-  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling!
+  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling
   legacyPlan: HostPlan!
 }
 
@@ -6035,6 +6056,7 @@ enum ActivityType {
   USER_CREATED
   USER_NEW_TOKEN
   USER_SIGNIN
+  USER_NEW_PASSWORD_SIGNIN
   USER_RESET_PASSWORD
   USER_OTP_REQUESTED
   OAUTH_APPLICATION_AUTHORIZED
@@ -6713,6 +6735,11 @@ type ConnectedAccount {
   The date on which the ConnectedAccount was last updated
   """
   updatedAt: DateTime!
+
+  """
+  When the bank account authorization expires and needs to be reconnected
+  """
+  authorizationExpiresAt: DateTime
   settings: JSON
   service: ConnectedAccountService!
 
@@ -7480,7 +7507,6 @@ type CollectiveFeatures {
   PAYPAL_CONNECT: CollectiveFeatureStatus
   CHART_OF_ACCOUNTS: CollectiveFeatureStatus
   ACCOUNTING_CATEGORIZATION_RULES: CollectiveFeatureStatus
-  HOST_METRICS: CollectiveFeatureStatus
   EXPENSE_SECURITY_CHECKS: CollectiveFeatureStatus
   EXPECTED_FUNDS: CollectiveFeatureStatus
   CHARGE_HOSTING_FEES: CollectiveFeatureStatus
@@ -7548,7 +7574,6 @@ type Policies {
   COLLECTIVE_MINIMUM_ADMINS: COLLECTIVE_MINIMUM_ADMINS
   MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL: MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL
   EXPENSE_CATEGORIZATION: EXPENSE_CATEGORIZATION
-  EXPENSE_PUBLIC_VENDORS: Boolean @deprecated(reason: "Use USE_VENDOR_POLICY instead.")
 
   """
   Default rule for who can attribute financial activities to vendors under this host.
@@ -11092,6 +11117,11 @@ type Bot implements Account {
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -12176,6 +12206,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -12520,7 +12555,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   Returns the current platform subscription
   """
   platformSubscription: PlatformSubscription
-  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling!
+  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling
   legacyPlan: HostPlan!
 }
 
@@ -13840,6 +13875,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -15221,6 +15261,11 @@ type Individual implements Account {
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -16630,6 +16675,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -16913,7 +16963,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   Returns the current platform subscription
   """
   platformSubscription: PlatformSubscription
-  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling!
+  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling
   legacyPlan: HostPlan!
   email: String @deprecated(reason: "2022-07-18: This field is deprecated and will return null")
 
@@ -16962,9 +17012,10 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     forAccount: AccountReferenceInput
 
     """
-    Only returns vendors that are visible to the given accounts
+    Only return vendors that can be used with the given accounts
     """
-    visibleToAccounts: [AccountReferenceInput]
+    canBeUsedWithAccounts: [AccountReferenceInput]
+    visibleToAccounts: [AccountReferenceInput] @deprecated(reason: "Use canBeUsedWithAccounts instead.")
 
     """
     Filter on archived vendors
@@ -18135,6 +18186,11 @@ type Vendor implements Account & AccountWithContributions {
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -18426,9 +18482,10 @@ type Vendor implements Account & AccountWithContributions {
   createdByAccount: Account
 
   """
-  The accounts where this vendor is visible, if empty or null applies to all collectives under the vendor host
+  The accounts this vendor can be used with. If empty, the vendor can be used with any collective under the vendor host.
   """
-  visibleToAccounts: [Account]!
+  canBeUsedWithAccounts: [Account]!
+  visibleToAccounts: [Account]! @deprecated(reason: "Use canBeUsedWithAccounts instead.")
 
   """
   Per-vendor override for who can attribute financial activities to this vendor. Null means inherit from host.
@@ -21375,6 +21432,7 @@ enum ActivityAndClassesType {
   USER_CREATED
   USER_NEW_TOKEN
   USER_SIGNIN
+  USER_NEW_PASSWORD_SIGNIN
   USER_RESET_PASSWORD
   USER_OTP_REQUESTED
   OAUTH_APPLICATION_AUTHORIZED
@@ -22479,6 +22537,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -23720,6 +23783,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -26078,6 +26146,71 @@ type Mutation {
   ): GoCardlessConnectAccountResponse!
 
   """
+  Get the Stripe OAuth URL to initiate the account connection flow for a host. Scope: "connectedAccounts".
+  """
+  getStripeOAuthUrl(
+    """
+    The host account to connect Stripe to
+    """
+    account: AccountReferenceInput!
+
+    """
+    The URL or path to redirect the user to once the OAuth flow is complete
+    """
+    redirect: String
+  ): URL!
+
+  """
+  Complete the Stripe OAuth flow and connect the account to the host. Scope: "connectedAccounts".
+  """
+  connectStripeAccount(
+    """
+    The authorization code returned by Stripe in the OAuth callback
+    """
+    code: NonEmptyString!
+
+    """
+    The OAuth state token that was generated when initiating the connection
+    """
+    state: NonEmptyString!
+  ): StripeConnectAccountResponse!
+
+  """
+  Get the Wise (TransferWise) OAuth URL to initiate the account connection flow for a host. Scope: "connectedAccounts".
+  """
+  getTransferwiseOAuthUrl(
+    """
+    The host account to connect Wise to
+    """
+    account: AccountReferenceInput!
+
+    """
+    The URL or path to redirect the user to once the OAuth flow is complete
+    """
+    redirect: String
+  ): URL!
+
+  """
+  Complete the Wise (TransferWise) OAuth flow and connect the account to the host. Scope: "connectedAccounts".
+  """
+  connectTransferwiseAccount(
+    """
+    The authorization code returned by Wise in the OAuth callback
+    """
+    code: NonEmptyString!
+
+    """
+    The Wise profile id returned in the OAuth callback
+    """
+    profileId: NonEmptyString!
+
+    """
+    The OAuth state token that was generated when initiating the connection
+    """
+    state: NonEmptyString!
+  ): TransferwiseConnectAccountResponse!
+
+  """
   [Root only] Edits account flags (deleted, banned, archived, trusted host)
   """
   editAccountFlags(
@@ -27118,7 +27251,6 @@ input PoliciesInput {
   COLLECTIVE_ADMINS_CAN_REFUND: Boolean
   COLLECTIVE_MINIMUM_ADMINS: PoliciesCollectiveMinimumAdminsInput
   EXPENSE_CATEGORIZATION: PoliciesExpenseCategorizationInput
-  EXPENSE_PUBLIC_VENDORS: Boolean @deprecated(reason: "Use USE_VENDOR_POLICY instead.")
   USE_VENDOR_POLICY: UseVendorPolicy
   COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS: Boolean
   CONTRIBUTOR_INFO_THRESHOLDS: PoliciesContributorInfoThresholdsInput
@@ -29006,6 +29138,30 @@ type GoCardlessConnectAccountResponse {
   transactionsImport: TransactionsImport!
 }
 
+type StripeConnectAccountResponse {
+  """
+  The connected account that was created
+  """
+  connectedAccount: ConnectedAccount!
+
+  """
+  The URL to redirect the user to once the connection is complete
+  """
+  redirectUrl: URL
+}
+
+type TransferwiseConnectAccountResponse {
+  """
+  The connected account that was created
+  """
+  connectedAccount: ConnectedAccount!
+
+  """
+  The URL to redirect the user to once the connection is complete
+  """
+  redirectUrl: URL
+}
+
 enum AccountCacheType {
   CLOUDFLARE
   GRAPHQL_QUERIES
@@ -29402,6 +29558,9 @@ input PersonalTokenCreateInput {
   The account to use as the owner of the application. Defaults to currently logged in user.
   """
   account: AccountReferenceInput
+    @deprecated(
+      reason: "2026-06-03: This field is ignored, the account will always default to the currently logged in user."
+    )
 }
 
 """
@@ -29464,7 +29623,12 @@ input VendorCreateInput {
   imageUrl: String @deprecated(reason: "2024-11-26: Please use image + backgroundImage fields")
   vendorInfo: VendorInfoInput
   payoutMethod: PayoutMethodInput
-  visibleToAccounts: [AccountReferenceInput]
+
+  """
+  Restrict this vendor to specific accounts under the host. If empty/omitted, the vendor can be used with any hosted account.
+  """
+  canBeUsedWithAccounts: [AccountReferenceInput]
+  visibleToAccounts: [AccountReferenceInput] @deprecated(reason: "Use canBeUsedWithAccounts instead.")
 
   """
   Per-vendor override for who can attribute financial activities. Null means inherit from host.
@@ -29524,7 +29688,12 @@ input VendorEditInput {
   imageUrl: String @deprecated(reason: "2024-11-26: Please use image + backgroundImage fields")
   vendorInfo: VendorInfoInput
   payoutMethod: PayoutMethodInput
-  visibleToAccounts: [AccountReferenceInput]
+
+  """
+  Restrict this vendor to specific accounts under the host. If empty/omitted, the vendor can be used with any hosted account.
+  """
+  canBeUsedWithAccounts: [AccountReferenceInput]
+  visibleToAccounts: [AccountReferenceInput] @deprecated(reason: "Use canBeUsedWithAccounts instead.")
 
   """
   Per-vendor override for who can attribute financial activities. Null means inherit from host.

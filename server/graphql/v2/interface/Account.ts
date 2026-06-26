@@ -627,14 +627,25 @@ const accountFieldsDefinition = () => ({
         defaultValue: UPDATE_CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
       },
       searchTerm: { type: GraphQLString },
+      includeChildren: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        defaultValue: false,
+        description: 'Include updates from children accounts (events/projects).',
+      },
     },
     async resolve(
       collective: Collective,
-      { limit, offset, onlyPublishedUpdates, isDraft, onlyChangelogUpdates, orderBy, searchTerm },
+      { limit, offset, onlyPublishedUpdates, isDraft, onlyChangelogUpdates, orderBy, searchTerm, includeChildren },
       req,
     ) {
+      let collectiveIds: number | { [Op.in]: number[] } = collective.id;
+      if (includeChildren) {
+        const childIds = await collective.getChildren({ attributes: ['id'] }).then(children => children.map(c => c.id));
+        collectiveIds = { [Op.in]: [collective.id, ...childIds] };
+      }
+
       let where = {
-        CollectiveId: collective.id,
+        CollectiveId: collectiveIds,
         [Op.and]: [],
       };
 

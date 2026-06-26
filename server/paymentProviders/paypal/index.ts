@@ -240,6 +240,7 @@ export default {
           if (payoutMethod) {
             await payoutMethod.update(
               {
+                currency,
                 data: {
                   isPayPalOAuth: true,
                   verifiedAt: new Date().toISOString(),
@@ -259,6 +260,7 @@ export default {
                 type: PayoutMethodTypes.PAYPAL,
                 name: name || primaryEmail,
                 isSaved: true,
+                currency,
                 CreatedByUserId: req.remoteUser.id,
                 CollectiveId: collective.id,
                 data: {

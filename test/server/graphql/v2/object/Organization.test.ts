@@ -284,10 +284,10 @@ describe('server/graphql/v2/object/Organization', () => {
 
   describe('vendors field', () => {
     const hostVendorsQuery = gql`
-      query HostVendors($slug: String!, $visibleToAccounts: [AccountReferenceInput]) {
+      query HostVendors($slug: String!, $canBeUsedWithAccounts: [AccountReferenceInput]) {
         host(slug: $slug) {
           id
-          vendors(visibleToAccounts: $visibleToAccounts) {
+          vendors(canBeUsedWithAccounts: $canBeUsedWithAccounts) {
             totalCount
             nodes {
               slug
@@ -367,7 +367,7 @@ describe('server/graphql/v2/object/Organization', () => {
           vendorPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
           vendorScope: ['hosted-collective'],
           queryScope: ['host'],
-          visible: false,
+          visible: true,
         },
 
         {
@@ -542,7 +542,7 @@ describe('server/graphql/v2/object/Organization', () => {
 
           const args = {
             slug: host.slug,
-            visibleToAccounts: queryScope?.map(s => ({ slug: queryScopes[s].slug })),
+            canBeUsedWithAccounts: queryScope?.map(s => ({ slug: queryScopes[s].slug })),
           };
 
           const result = await graphqlQueryV2(hostVendorsQuery, args, queries[querier]);

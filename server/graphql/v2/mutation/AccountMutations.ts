@@ -15,6 +15,7 @@ import { cloneDeep, defaultsDeep, isEmpty, isEqual, isNull, keys, omitBy, pick, 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import POLICIES from '../../../constants/policies';
+import { assertSettingsChangeAllowed } from '../../../lib/account-settings';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { duplicateAccount } from '../../../lib/duplicate-account';
@@ -32,7 +33,6 @@ import { PAYPAL_SUSPEND_MAX_REASON_LENGTH } from '../../../paymentProviders/payp
 import { sendMessage } from '../../common/collective';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
-import { AccountTypeToModelMapping } from '../enum/AccountType';
 import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLAccountUpdateInput } from '../input/AccountUpdateInput';
@@ -154,28 +154,12 @@ const accountMutations = {
           checkRemoteUserCanUseAccount(req);
         }
 
-        // Enforce 2FA if trying to change 2FA rolling limit settings while it's already enabled
-        if (args.key.split('.')[0] === 'payoutsTwoFactorAuth' && account.settings?.payoutsTwoFactorAuth?.enabled) {
-          await TwoFactorAuthLib.validateRequest(req, {
-            alwaysAskForToken: true,
-            requireTwoFactorAuthEnabled: true,
-            FromCollectiveId: account.id,
-          });
-        }
-
-        if (
-          args.key === 'collectivePage' &&
-          ![AccountTypeToModelMapping.FUND, AccountTypeToModelMapping.PROJECT].includes(account.type)
-        ) {
-          const budgetSection = args.value.sections?.find(s => s.section === 'budget');
-          if (budgetSection && !budgetSection.isEnabled) {
-            throw new Forbidden();
-          }
-        }
-
+        // Enforce 2FA if trying to change payout 2FA settings while it's already enabled
         const previousSettings = account.settings ? account.settings : {};
         const settings = cloneDeep(previousSettings);
         set(settings, args.key, args.value);
+
+        await assertSettingsChangeAllowed(req, account, previousSettings, settings);
 
         const updatedAccount = await account.update({ settings }, { transaction });
         purgeCacheForCollective(account.slug); // Some settings affect the collective page
@@ -683,6 +667,7 @@ const accountMutations = {
             previousData['settings'] = pick(account.settings, keys(args.account.settings));
             newData['settings'] = args.account.settings;
             const settings = defaultsDeep(cloneDeep(args.account.settings), cloneDeep(account.settings));
+            await assertSettingsChangeAllowed(req, account, account.settings, settings);
             updateParams.settings = settings;
             break;
           }

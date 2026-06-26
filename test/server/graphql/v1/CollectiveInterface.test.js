@@ -15,35 +15,15 @@ const collectiveQuery = gqlV1 /* GraphQL */ `
           id
           slug
           name
-          createdByUser {
-            id
-            email
-          }
-        }
-      }
-      transactions {
-        id
-        description
-        createdByUser {
-          id
-          email
         }
       }
       orders {
         id
         description
         totalAmount
-        createdByUser {
-          id
-          email
-        }
         fromCollective {
           slug
           name
-          createdByUser {
-            id
-            email
-          }
         }
       }
     }
@@ -96,21 +76,11 @@ describe('server/graphql/v1/CollectiveInterface', () => {
       const collectiveData = res.data.Collective;
       expect(collectiveData).to.exist;
       expect(collectiveData.orders).to.not.be.empty;
-      expect(collectiveData.orders[0].createdByUser.email).to.be.null;
       expect(collectiveData.orders[0].fromCollective.name).to.equal('incognito');
-      expect(collectiveData.orders[0].fromCollective.createdByUser.email).to.be.null;
       expect(collectiveData.members.length).to.equal(4);
 
-      const adminMember = collectiveData.members.find(m => m.member.id === adminUser.CollectiveId);
-      const backerMember = collectiveData.members.find(m => m.member.id === backerUser.CollectiveId);
       const incognitoMember = collectiveData.members.find(m => m.member.id === incognitoCollective.id);
-      const hostMember = collectiveData.members.find(m => m.member.id === hostCollective.id);
-      expect(adminMember.member.createdByUser.email).to.be.null;
-      expect(backerMember.member.createdByUser.email).to.be.null;
       expect(incognitoMember.member.slug).to.not.be.null;
-      expect(incognitoMember.member.createdByUser.email).to.be.null;
-      expect(hostMember.member.createdByUser.email).to.be.null;
-      expect(collectiveData.transactions[0].createdByUser.email).to.be.null;
     });
 
     it("doesn't leak incognito info when querying the api logged in as another backer", async () => {
@@ -118,20 +88,10 @@ describe('server/graphql/v1/CollectiveInterface', () => {
       res.errors && console.error(res.errors[0]);
       expect(res.errors).to.not.exist;
       const collectiveData = res.data.Collective;
-      expect(collectiveData.orders[0].createdByUser.email).to.be.null;
       expect(collectiveData.orders[0].fromCollective.name).to.equal('incognito');
-      expect(collectiveData.orders[0].fromCollective.createdByUser.email).to.be.null;
 
-      const adminMember = collectiveData.members.find(m => m.member.id === adminUser.CollectiveId);
-      const backerMember = collectiveData.members.find(m => m.member.id === backerUser.CollectiveId);
       const incognitoMember = collectiveData.members.find(m => m.member.id === incognitoCollective.id);
-      const hostMember = collectiveData.members.find(m => m.member.id === hostCollective.id);
-      expect(adminMember.member.createdByUser.email).to.be.null;
-      expect(backerMember.member.createdByUser.email).to.not.be.null;
       expect(incognitoMember.member.slug).to.not.be.null;
-      expect(incognitoMember.member.createdByUser.email).to.be.null;
-      expect(hostMember.member.createdByUser.email).to.be.null;
-      expect(collectiveData.transactions[0].createdByUser.email).to.be.null;
     });
 
     it('do not expose incognito email to the collective admin', async () => {
@@ -139,20 +99,10 @@ describe('server/graphql/v1/CollectiveInterface', () => {
       res.errors && console.error(res.errors[0]);
       expect(res.errors).to.not.exist;
       const collectiveData = res.data.Collective;
-      expect(collectiveData.orders[0].createdByUser.email).to.be.null;
       expect(collectiveData.orders[0].fromCollective.name).to.equal('incognito');
-      expect(collectiveData.orders[0].fromCollective.createdByUser.email).to.be.null;
 
-      const adminMember = collectiveData.members.find(m => m.member.id === adminUser.CollectiveId);
-      const backerMember = collectiveData.members.find(m => m.member.id === backerUser.CollectiveId);
       const incognitoMember = collectiveData.members.find(m => m.member.id === incognitoCollective.id);
-      const hostMember = collectiveData.members.find(m => m.member.id === hostCollective.id);
-      expect(adminMember.member.createdByUser.email).to.not.be.null;
-      expect(backerMember.member.createdByUser.email).to.not.be.null;
       expect(incognitoMember.member.slug).to.not.be.null;
-      expect(incognitoMember.member.createdByUser.email).to.be.null;
-      expect(hostMember.member.createdByUser.email).to.be.null;
-      expect(collectiveData.transactions[0].createdByUser.email).to.be.null;
     });
 
     it('do not expose incognito email to the host admin', async () => {
@@ -160,20 +110,10 @@ describe('server/graphql/v1/CollectiveInterface', () => {
       res.errors && console.error(res.errors[0]);
       expect(res.errors).to.not.exist;
       const collectiveData = res.data.Collective;
-      expect(collectiveData.orders[0].createdByUser.email).to.be.null;
       expect(collectiveData.orders[0].fromCollective.name).to.equal('incognito');
-      expect(collectiveData.orders[0].fromCollective.createdByUser.email).to.be.null;
 
-      const adminMember = collectiveData.members.find(m => m.member.id === adminUser.CollectiveId);
-      const backerMember = collectiveData.members.find(m => m.member.id === backerUser.CollectiveId);
       const incognitoMember = collectiveData.members.find(m => m.member.id === incognitoCollective.id);
-      const hostMember = collectiveData.members.find(m => m.member.id === hostCollective.id);
-      expect(adminMember.member.createdByUser.email).to.equal(adminUser.email);
-      expect(backerMember.member.createdByUser.email).to.equal(backerUser.email);
       expect(incognitoMember.member.slug).to.not.be.null;
-      expect(incognitoMember.member.createdByUser.email).to.be.null;
-      expect(hostMember.member.createdByUser.email).to.not.be.null;
-      expect(collectiveData.transactions[0].createdByUser.email).to.be.null;
     });
   });
 });

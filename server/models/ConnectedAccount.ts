@@ -40,6 +40,7 @@ class ConnectedAccount extends ModelWithPublicId<
   declare public createdAt: CreationOptional<Date>;
   declare public updatedAt: CreationOptional<Date>;
   declare public deletedAt: CreationOptional<Date>;
+  declare public authorizationExpiresAt: CreationOptional<Date | null>;
 
   declare public collective?: NonAttribute<Collective>;
   declare public user?: NonAttribute<User>;
@@ -124,6 +125,10 @@ ConnectedAccount.init(
     updatedAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
+    },
+    authorizationExpiresAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
     },
     hash: {
       type: DataTypes.STRING,

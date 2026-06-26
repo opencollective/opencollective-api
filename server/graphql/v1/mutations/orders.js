@@ -18,7 +18,13 @@ import { checkCaptcha } from '../../../lib/check-captcha';
 import { roundCentsAmount } from '../../../lib/currency';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import { mustUpdateLocation } from '../../../lib/location';
-import { calcFee, executeOrder, isPlatformTipEligible, processOrder } from '../../../lib/payments';
+import {
+  calcFee,
+  executeOrder,
+  isBalanceOnlyCollectiveType,
+  isPlatformTipEligible,
+  processOrder,
+} from '../../../lib/payments';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
@@ -389,6 +395,16 @@ export async function createOrder(order, req) {
 
     // Update the contributing profile with legal name / location
     await checkAndUpdateProfileInfo(order, fromCollective, isGuest);
+
+    if (paymentRequired && order.paymentMethod && isBalanceOnlyCollectiveType(fromCollective.type)) {
+      const { service, type } = order.paymentMethod;
+      const isAllowedPaymentMethod =
+        service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+        (type === PAYMENT_METHOD_TYPE.COLLECTIVE || type === PAYMENT_METHOD_TYPE.HOST);
+      if (!isAllowedPaymentMethod) {
+        throw new ValidationFailed('This account can only pay with its balance');
+      }
+    }
 
     // ---- Taxes ----
     const taxInfo = await getOrderTaxInfo(order, collective, host, tier, loaders);

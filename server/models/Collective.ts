@@ -12,6 +12,7 @@ import {
   differenceWith,
   get,
   includes,
+  isEmpty,
   isNil,
   isNull,
   isUndefined,
@@ -27,7 +28,6 @@ import {
   unset,
 } from 'lodash';
 import moment from 'moment';
-import fetch from 'node-fetch';
 import pMap from 'p-map';
 import {
   Attributes,
@@ -40,7 +40,6 @@ import {
   InferAttributes,
   InferCreationAttributes,
   NonAttribute,
-  OrderItem,
   WhereOptions,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
@@ -89,6 +88,7 @@ import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../lib/github';
 import { isValidUploadedImage } from '../lib/images';
 import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
+import { normalizeZoneCode } from '../lib/normalize-zone';
 import { openSearchFullAccountReIndex } from '../lib/open-search/sync-postgres';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { getPolicy, POLICIES_EDITABLE_BY_HOST_ONLY } from '../lib/policies';
@@ -149,6 +149,7 @@ type TaxSettings = {
 type Settings = {
   goals?: Array<Goal>;
   collectivePage?: {
+    sections?: Array<{ section?: string; isEnabled?: boolean }>;
     showGoals?: boolean;
   };
   budget?: { version?: 'v0' | 'v1' | 'v2' | 'v3' };
@@ -179,6 +180,7 @@ type Settings = {
   };
   payoutsTwoFactorAuth?: {
     enabled?: boolean;
+    rollingLimit?: number;
   };
   customEmailMessage?: string;
   earlyAccess?: Record<string, boolean>;
@@ -1845,11 +1847,17 @@ class Collective extends ModelWithPublicId<
     order = [
       ['createdAt', 'DESC'],
       ['id', 'DESC'],
-    ] as OrderItem[],
+    ],
+    include = [],
+  }: {
+    where?: Omit<Parameters<typeof Order.findAll>[0]['where'], 'CollectiveId'>;
+    order?: Parameters<typeof Order.findAll>[0]['order'];
+    include?: Parameters<typeof Order.findAll>[0]['include'];
   } = {}) {
     return Order.findAll({
       where: { ...where, CollectiveId: this.id },
       order,
+      include,
     });
   };
 
@@ -1859,7 +1867,11 @@ class Collective extends ModelWithPublicId<
     order = [
       ['createdAt', 'DESC'],
       ['id', 'DESC'],
-    ] as OrderItem[],
+    ],
+  }: {
+    where?: Omit<Parameters<typeof Order.findAll>[0]['where'], 'FromCollectiveId'>;
+    include?: Parameters<typeof Order.findAll>[0]['include'];
+    order?: Parameters<typeof Order.findAll>[0]['order'];
   } = {}) {
     return Order.findAll({
       where: { ...where, FromCollectiveId: this.id },
@@ -2220,9 +2232,12 @@ class Collective extends ModelWithPublicId<
       let { structured } = locationInput;
       let { address } = locationInput;
 
-      structured = omitBy(structured, v => v === null || v === undefined || v === '');
+      if (structured?.zone && country) {
+        structured = { ...structured, zone: normalizeZoneCode(country, structured.zone) };
+      }
 
       // If structured is empty, set it to null
+      structured = omitBy(structured, isEmpty);
       if (Object.keys(structured).length === 0) {
         structured = null;
       }
@@ -2687,9 +2702,9 @@ class Collective extends ModelWithPublicId<
    * @param {*} newHostCollective: { id }
    * @param {*} remoteUser { id }
    */
-  changeHost = async function (
-    newHostCollectiveId,
-    remoteUser = undefined,
+  changeHost = async (
+    newHostCollectiveId: number | null,
+    remoteUser: User | null = null,
     {
       pauseContributions = true,
       isChildren = false,
@@ -2707,12 +2722,13 @@ class Collective extends ModelWithPublicId<
       message?: string;
       shouldAutomaticallyApprove?: boolean;
     } = {},
-  ) {
-    // Skip
+  ) => {
+    // Skip if the host is the same
     if (this.HostCollectiveId === newHostCollectiveId) {
       return this;
     }
 
+    // Pre-conditions checks
     const balance = await this.getBalance();
     if (balance > 0) {
       if (isChildren) {
@@ -2726,6 +2742,15 @@ class Collective extends ModelWithPublicId<
       }
     }
 
+    const blockingExpensesCount = await Expense.count({
+      where: { CollectiveId: this.id, status: expenseStatus.PROCESSING },
+    });
+
+    if (blockingExpensesCount > 0) {
+      throw new Error(`Unable to change host: there are still ${blockingExpensesCount} expenses in a processing state`);
+    }
+
+    // Proceed with host removal
     await Member.destroy({
       where: {
         CollectiveId: this.id,
@@ -2791,9 +2816,22 @@ class Collective extends ModelWithPublicId<
       },
     );
 
+    // Clear stale host references from unpaid expenses so payment authorization uses the current host
+    await Expense.update(
+      { HostCollectiveId: null },
+      {
+        where: {
+          CollectiveId: [this.id, ...children.map(c => c.id)],
+          status: { [Op.not]: 'PAID' },
+          HostCollectiveId: { [Op.not]: null },
+        },
+      },
+    );
+
     // If frozen, unfreeze
     if (this.isFrozen()) {
-      await this.unfreeze();
+      const message = 'Leaving current Fiscal Host';
+      await this.unfreeze(message, message, remoteUser);
     }
 
     // Reset current host
@@ -3203,6 +3241,7 @@ class Collective extends ModelWithPublicId<
     order = [['createdAt', 'DESC']],
     includeUsedGiftCardsEmittedByOthers = true,
     includeExpenseTransactions = true,
+    excludePrivateAccounts = false,
   }: any = {}) {
     // Base query
     const query: any = { where: this.transactionsWhereQuery(includeUsedGiftCardsEmittedByOthers) };
@@ -3252,6 +3291,21 @@ class Collective extends ModelWithPublicId<
     // OrderBy
     if (order) {
       query.order = order;
+    }
+
+    if (excludePrivateAccounts) {
+      query.include = query.include || [];
+      query.include.push({ association: 'collective', attributes: [] });
+      query.include.push({ association: 'fromCollective', attributes: [] });
+      query.include.push({ association: 'host', attributes: [] });
+      query.where[Op.and] = query.where[Op.and] || [];
+      query.where[Op.and].push({
+        [Op.and]: [
+          { [Op.or]: [{ '$collective.isPrivate$': false }, { '$collective.isPrivate$': null }] },
+          { [Op.or]: [{ '$fromCollective.isPrivate$': false }, { '$fromCollective.isPrivate$': null }] },
+          { [Op.or]: [{ '$host.isPrivate$': false }, { '$host.isPrivate$': null }] },
+        ],
+      });
     }
 
     return Transaction.findAll(query);
@@ -3336,24 +3390,30 @@ class Collective extends ModelWithPublicId<
   getHostCollective = async function ({
     loaders = null,
     returnEvenIfNotApproved = false,
+    transaction = undefined,
   } = {}): Promise<null | Collective> {
     if (!this.isActive && !returnEvenIfNotApproved) {
       return null;
     }
 
     if (this.HostCollectiveId) {
-      return loaders ? loaders.Collective.byId.load(this.HostCollectiveId) : Collective.findByPk(this.HostCollectiveId);
+      if (!transaction && loaders) {
+        return loaders.Collective.byId.load(this.HostCollectiveId);
+      } else {
+        return Collective.findByPk(this.HostCollectiveId, { transaction });
+      }
     }
 
     return Member.findOne({
       attributes: ['MemberCollectiveId'],
       where: { role: roles.HOST, CollectiveId: this.ParentCollectiveId },
       include: [{ model: Collective, as: 'memberCollective' }],
+      transaction,
     }).then(m => {
       if (m && m.memberCollective) {
         return m.memberCollective;
       }
-      return this.isHost().then(isHost => (isHost ? this : null));
+      return this.isHost({ transaction }).then(isHost => (isHost ? this : null));
     });
   };
 

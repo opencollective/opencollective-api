@@ -20,8 +20,8 @@ import {
   fakeUpdate,
   fakeUser,
 } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
 import * as utils from '../../utils';
+import { resetTestDB } from '../../utils';
 
 const generateCollectiveActivity = async (collective, activityType, fromCollective = null) => {
   return fakeActivity(

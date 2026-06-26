@@ -17,7 +17,7 @@ import { QueryTypes } from 'sequelize';
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
-import { FEATURE, hasFeature } from '../../../lib/allowed-features';
+import { FEATURE } from '../../../lib/allowed-features';
 import { listMatchingDimensionValues } from '../../../lib/metrics';
 import { GraphQLMetricsDateRangeInput, hostMetricsField } from '../../../lib/metrics/graphql';
 import {
@@ -1033,6 +1033,11 @@ export const GraphQLHost = new GraphQLObjectType({
             type: new GraphQLList(GraphQLAccountReferenceInput),
             description: 'Filter by accounts participating in the agreement',
           },
+          includeChildren: {
+            type: new GraphQLNonNull(GraphQLBoolean),
+            defaultValue: false,
+            description: 'Include agreements from the children of the provided accounts (events/projects).',
+          },
         },
         async resolve(host, args, req) {
           if (!Agreement.canSeeAgreementsForHostCollectiveId(req.remoteUser, host.id)) {
@@ -1051,7 +1056,18 @@ export const GraphQLHost = new GraphQLObjectType({
 
             const allIds = accounts.map(account => account.id);
             const allParentIds = accounts.map(account => account.ParentCollectiveId).filter(Boolean);
-            includeWhereArgs['id'] = uniq([...allIds, ...allParentIds]);
+            const ids = [...allIds, ...allParentIds];
+
+            // Also include agreements of the provided accounts' children (events/projects).
+            if (args.includeChildren) {
+              const children = await Collective.findAll({
+                attributes: ['id'],
+                where: { ParentCollectiveId: allIds, type: { [Op.ne]: CollectiveType.VENDOR } },
+              });
+              ids.push(...children.map(child => child.id));
+            }
+
+            includeWhereArgs['id'] = uniq(ids);
           }
 
           const agreements = await Agreement.findAndCountAll({
@@ -1140,7 +1156,7 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLMetricsDateRangeInput,
           },
         },
-        async resolve(host, args, req) {
+        async resolve(host, args) {
           const where: Parameters<typeof models.Collective.findAndCountAll>[0]['where'] = {
             HostCollectiveId: host.id,
             id: { [Op.not]: host.id },
@@ -1223,9 +1239,7 @@ export const GraphQLHost = new GraphQLObjectType({
           const toIdNumbers = (values: Array<string | number>): number[] =>
             values.map(v => Number(v)).filter(n => Number.isFinite(n) && n > 0);
 
-          const hasMetricsFeature = await hasFeature(host, FEATURE.HOST_METRICS, { loaders: req.loaders });
-
-          if (hasMetricsFeature && args.joinedBetween) {
+          if (args.joinedBetween) {
             intersectMetricIds(
               toIdNumbers(
                 await listMatchingDimensionValues({
@@ -1238,7 +1252,7 @@ export const GraphQLHost = new GraphQLObjectType({
               ),
             );
           }
-          if (hasMetricsFeature && args.unhostedBetween) {
+          if (args.unhostedBetween) {
             intersectMetricIds(
               toIdNumbers(
                 await listMatchingDimensionValues({
@@ -1252,7 +1266,7 @@ export const GraphQLHost = new GraphQLObjectType({
             );
             delete where['HostCollectiveId'];
           }
-          if (hasMetricsFeature && args.hadActivityBetween) {
+          if (args.hadActivityBetween) {
             intersectMetricIds(
               toIdNumbers(
                 await listMatchingDimensionValues({
@@ -1266,7 +1280,7 @@ export const GraphQLHost = new GraphQLObjectType({
               ),
             );
           }
-          if (hasMetricsFeature && args.noActivityBetween) {
+          if (args.noActivityBetween) {
             const [hostedIds, activeIds] = await Promise.all([
               listMatchingDimensionValues({
                 source: HostedCollectivesHostingPeriods,

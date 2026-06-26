@@ -7,6 +7,8 @@ import { createSandbox, useFakeTimers } from 'sinon';
 
 import { activities, roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order-status';
+import PaymentIntentStatus from '../../../../../server/constants/payment-intent-status';
+import PaymentIntentType from '../../../../../server/constants/payment-intent-type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../../../server/constants/platform';
 import MemberRoles from '../../../../../server/constants/roles';
@@ -36,6 +38,10 @@ import {
   fakeVendor,
   randStr,
 } from '../../../../test-helpers/fake-data';
+import {
+  expectPaymentIntentForOrder,
+  expectTransactionsLinkedToPaymentIntent,
+} from '../../../../test-helpers/payment-intent';
 import {
   generateValid2FAHeader,
   graphqlQueryV2,
@@ -457,6 +463,32 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(order.frequency).to.eq('ONETIME');
           expect(order.fromAccount.legacyId).to.eq(fromUser.CollectiveId);
           expect(order.toAccount.legacyId).to.eq(toCollective.id);
+
+          const paymentIntent = await expectPaymentIntentForOrder(order.legacyId, {
+            status: PaymentIntentStatus.PAID,
+            type: PaymentIntentType.Contribution,
+          });
+          expect(paymentIntent.primaryTransactionGroup).to.exist;
+          await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
+        });
+
+        it('cannot create an order with a credit card on behalf of a collective', async () => {
+          const fromCollective = await fakeCollective({ HostCollectiveId: host.id });
+          const collectiveAdmin = await fakeUser();
+          await fromCollective.addUserWithRole(collectiveAdmin, roles.ADMIN);
+
+          const result = await callCreateOrder(
+            {
+              order: {
+                ...validOrderParams,
+                fromAccount: { legacyId: fromCollective.id },
+              },
+            },
+            collectiveAdmin,
+          );
+
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(/only pay with its balance/i);
         });
 
         it('supports additional params', async () => {
@@ -1865,6 +1897,13 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(resultOrder.fromAccount.legacyId).to.equal(validOrderPrams.fromAccount.legacyId);
       expect(resultOrder.toAccount.legacyId).to.equal(validOrderPrams.toAccount.legacyId);
       expect(resultOrder.accountingCategory.id).to.equal(validOrderPrams.accountingCategory.id);
+
+      await expectPaymentIntentForOrder(resultOrder.legacyId, {
+        status: PaymentIntentStatus.PENDING,
+        type: PaymentIntentType.Contribution,
+        primaryTransactionGroup: null,
+        paidAt: null,
+      });
     });
 
     it('creates a pending order with a custom tier', async () => {
@@ -3196,6 +3235,49 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.data.updateOrder.paymentMethod.id).to.eq(idEncode(paymentMethod.id, 'paymentMethod'));
       });
 
+      it('cannot update a collective balance recurring contribution to a credit card', async () => {
+        const host = await fakeActiveHost();
+        const fromCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const toCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const collectiveAdmin = await fakeUser();
+        await fromCollective.addUserWithRole(collectiveAdmin, roles.ADMIN);
+
+        const collectiveBalancePaymentMethod = await models.PaymentMethod.findOne({
+          where: { type: PAYMENT_METHOD_TYPE.COLLECTIVE, CollectiveId: fromCollective.id },
+        });
+
+        const collectiveOrder = await fakeOrder(
+          {
+            CreatedByUserId: collectiveAdmin.id,
+            FromCollectiveId: fromCollective.id,
+            CollectiveId: toCollective.id,
+            PaymentMethodId: collectiveBalancePaymentMethod.id,
+            status: OrderStatuses.ACTIVE,
+            totalAmount: 1000,
+          },
+          { withSubscription: true },
+        );
+
+        const creditCardPaymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+          data: { expMonth: 11, expYear: 2025 },
+          CollectiveId: collectiveAdmin.CollectiveId,
+        });
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(collectiveOrder.id, 'order') },
+            paymentMethod: { id: idEncode(creditCardPaymentMethod.id, 'paymentMethod') },
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/Changing the payment method is not allowed/i);
+      });
+
       it('accepts publicId in PaymentMethodReferenceInput', async () => {
         const publicId = `pm_${paymentMethod.id}`;
         await paymentMethod.update({ publicId });
@@ -3268,6 +3350,68 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(orderWithTaxes.platformTipAmount).to.eq(100);
         expect(orderWithTaxes.taxAmount).to.eq(333); // 20% VAT on $2000 (tip is not included in the tax calculation)
         expect(orderWithTaxes.totalAmount - orderWithTaxes.taxAmount - orderWithTaxes.platformTipAmount).to.eq(1667); // Gross amount
+      });
+
+      describe('clears stored Stripe paymentIntent when subscription details change', () => {
+        const buildOrderWithStalePaymentIntent = (overrides = {}) =>
+          fakeOrder(
+            {
+              CreatedByUserId: user.id,
+              FromCollectiveId: user.CollectiveId,
+              CollectiveId: collective.id,
+              status: OrderStatuses.ACTIVE,
+              totalAmount: 1000,
+              currency: 'USD',
+              data: {
+                paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' },
+                needsConfirmation: true,
+              },
+              ...overrides,
+            },
+            { withSubscription: true },
+          );
+
+        it('drops data.paymentIntent and data.needsConfirmation when amount changes', async () => {
+          const staleOrder = await buildOrderWithStalePaymentIntent();
+
+          const result = await graphqlQueryV2(
+            updateOrderMutation,
+            {
+              order: { id: idEncode(staleOrder.id, 'order') },
+              amount: { valueInCents: 5000, currency: 'USD' },
+            },
+            user,
+          );
+
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          await staleOrder.reload();
+          expect(staleOrder.totalAmount).to.eq(5000);
+          expect(staleOrder.data?.paymentIntent).to.be.undefined;
+          expect(staleOrder.data?.needsConfirmation).to.be.undefined;
+        });
+
+        it('keeps data.paymentIntent when the amount is not changing', async () => {
+          const staleOrder = await buildOrderWithStalePaymentIntent();
+          const originalPaymentIntent = { ...staleOrder.data.paymentIntent };
+
+          const result = await graphqlQueryV2(
+            updateOrderMutation,
+            {
+              order: { id: idEncode(staleOrder.id, 'order') },
+              amount: { valueInCents: 1000, currency: 'USD' },
+            },
+            user,
+          );
+
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          await staleOrder.reload();
+          expect(staleOrder.data?.paymentIntent).to.deep.equal(originalPaymentIntent);
+          expect(staleOrder.data?.needsConfirmation).to.eq(true);
+        });
       });
 
       it('updates the platform tip amount without changing the contribution amount', async () => {
@@ -3646,6 +3790,13 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         expect(result.errors).to.not.exist;
         expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
+
+        const paymentIntent = await expectPaymentIntentForOrder(order.id, {
+          status: PaymentIntentStatus.PAID,
+          type: PaymentIntentType.Contribution,
+        });
+        expect(paymentIntent.primaryTransactionGroup).to.exist;
+        await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
       });
 
       it('should mark as paid and update amount details', async () => {

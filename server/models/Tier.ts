@@ -492,8 +492,12 @@ Tier.init(
         }
       },
       validateMinAmount() {
-        const minPreset = this.presets ? Math.min(...this.presets) : null;
-        if (this.amountType === 'FLEXIBLE' && this.minAmount && minPreset < this.minAmount) {
+        if (this.amountType !== 'FLEXIBLE' || isNil(this.minimumAmount) || !this.presets?.length) {
+          return;
+        }
+
+        const minPreset = Math.min(...this.presets);
+        if (minPreset < this.minimumAmount) {
           throw new Error(`In ${this.name}'s tier, minimum amount cannot be less than minimum suggested amounts`);
         }
       },

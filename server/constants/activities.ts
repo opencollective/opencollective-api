@@ -18,6 +18,7 @@ enum ActivityTypes {
   COLLECTIVE_CREATED = 'collective.created',
   COLLECTIVE_EDITED = 'collective.edited',
   COLLECTIVE_DELETED = 'collective.deleted',
+  COLLECTIVE_ARCHIVED = 'collective.archived',
   COLLECTIVE_UNHOSTED = 'collective.unhosted',
   COLLECTIVE_BALANCE_TRANSFERRED = 'collective.balance.transferred',
   COLLECTIVE_CONVERTED_TO_ORGANIZATION = 'collective.convertedToOrganization',
@@ -32,6 +33,7 @@ enum ActivityTypes {
   EXPENSE_COMMENT_CREATED = 'expense.comment.created',
   CONVERSATION_COMMENT_CREATED = 'conversation.comment.created',
   ORDER_COMMENT_CREATED = 'order.comment.created',
+  HOST_APPLICATION_COMMENT_CREATED = 'host.application.comment.created',
   // Expenses
   COLLECTIVE_EXPENSE_CREATED = 'collective.expense.created',
   COLLECTIVE_EXPENSE_DELETED = 'collective.expense.deleted',
@@ -96,7 +98,6 @@ enum ActivityTypes {
   // Contact
   COLLECTIVE_CONTACT = 'collective.contact',
   HOST_APPLICATION_CONTACT = 'host.application.contact',
-  HOST_APPLICATION_COMMENT_CREATED = 'host.application.comment.created',
   // Contributions
   CONTRIBUTION_REJECTED = 'contribution.rejected',
   CONTRIBUTION_REFUNDED = 'contribution.refunded',
@@ -253,6 +254,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.COLLECTIVE_REJECTED,
     ActivityTypes.COLLECTIVE_FROZEN,
     ActivityTypes.COLLECTIVE_UNFROZEN,
+    ActivityTypes.COLLECTIVE_ARCHIVED,
     ActivityTypes.COLLECTIVE_UNHOSTED,
     ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED,
     ActivityTypes.DEACTIVATED_COLLECTIVE_AS_HOST, // deprecated

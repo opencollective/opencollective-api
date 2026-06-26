@@ -103,6 +103,7 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
   CurrencyExchangeRate: () => {},
   ManualPaymentProvider: () => {},
   Member: () => {},
+  PaymentIntent: () => {},
   PaypalPlan: () => {},
   PaypalProduct: () => {},
   RecurringExpense: () => {}, // Private data only exists in the expense itself
@@ -236,7 +237,6 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
     }
 
     return {
-      privateMessage: null, // This field is not used since 2017, we don't want to export it
       CreatedByUserId: (await OrdersLib.canSeeOrderCreator(req, order)) ? order.CreatedByUserId : null,
       data: pick(order.data, isHostAdmin ? [...publicDataFields, ...privateDataFields] : publicDataFields),
     };

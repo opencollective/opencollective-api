@@ -4,7 +4,7 @@ import { has } from 'lodash';
 
 import { lockUntilOrThrow, lockUntilResolved, MutexLockError } from '../../../server/lib/mutex';
 import { createRedisClient } from '../../../server/lib/redis';
-import { sleep } from '../../utils';
+import { getResumableSleep, sleep, waitForCondition } from '../../utils';
 
 describe('lockUntilResolved', () => {
   if (has(config, 'redis.serverUrl')) {
@@ -16,51 +16,71 @@ describe('lockUntilResolved', () => {
     afterEach(clearRedis);
 
     it('should wait for the first lock to finish', async () => {
-      const start = Date.now();
-      let endFirst;
+      const firstHold = getResumableSleep();
+      let firstRunning = false;
       const pFirst = lockUntilResolved('test', async () => {
-        await sleep(25);
+        firstRunning = true;
+        await firstHold.promise;
         return 'first';
       });
-      const second = await lockUntilResolved(
+
+      await waitForCondition(() => firstRunning, { timeout: 5000 });
+
+      let secondRunning = false;
+      const pSecond = lockUntilResolved(
         'test',
         async () => {
-          endFirst = Date.now();
-          await sleep(25);
+          secondRunning = true;
           return 'second';
         },
         { retryDelayMs: 1 },
       );
-      const endSecond = Date.now();
 
-      assert.approximately(endFirst - start, 25, 5);
-      assert.approximately(endSecond - start, 25 + 25, 10);
-      assert.equal(await pFirst, 'first');
+      for (let i = 0; i < 10; i++) {
+        assert.isFalse(secondRunning, 'second should wait while first holds the lock');
+        await sleep(5);
+      }
+
+      firstHold.resume();
+      const [first, second] = await Promise.all([pFirst, pSecond]);
+
+      assert.equal(first, 'first');
       assert.equal(second, 'second');
+      assert.isTrue(secondRunning);
     });
 
     it('releases the lock if the callback function fails', async () => {
-      const start = Date.now();
-      let endFirst;
+      const firstHold = getResumableSleep();
+      let firstRunning = false;
       const pFirst = lockUntilResolved('test', async () => {
-        await sleep(25);
+        firstRunning = true;
+        await firstHold.promise;
         throw new Error('first');
       });
-      const second = await lockUntilResolved(
+
+      await waitForCondition(() => firstRunning, { timeout: 5000 });
+
+      let secondRunning = false;
+      const pSecond = lockUntilResolved(
         'test',
         async () => {
-          endFirst = Date.now();
-          await sleep(25);
+          secondRunning = true;
           return 'second';
         },
-        { retryDelayMs: 5 },
+        { retryDelayMs: 1 },
       );
-      const endSecond = Date.now();
 
-      assert.approximately(endFirst - start, 25, 5);
-      assert.approximately(endSecond - start, 25 + 25, 10);
+      for (let i = 0; i < 10; i++) {
+        assert.isFalse(secondRunning, 'second should wait while first holds the lock');
+        await sleep(5);
+      }
+
+      firstHold.resume();
+      const second = await pSecond;
+
       await assert.isRejected(pFirst, /first/);
       assert.equal(second, 'second');
+      assert.isTrue(secondRunning);
     });
 
     it('throws if it fails to acquire a lock', async () => {

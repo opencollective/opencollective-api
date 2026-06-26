@@ -2,6 +2,7 @@ import { get } from 'lodash';
 
 import MemberRoles from '../../constants/roles';
 import cache, { purgeCacheForCollective } from '../../lib/cache';
+import { assertCanSeeAccount } from '../../lib/private-accounts';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { Collective } from '../../models';
 import { UPDATE_NOTIFICATION_AUDIENCE } from '../../models/Update';
@@ -138,16 +139,22 @@ const canSeeUpdateForCollectiveAdmins = async (req, collective): Promise<boolean
 };
 
 export async function canSeeUpdate(req, update): Promise<boolean> {
-  if (update.publishedAt && !update.isPrivate) {
-    return true; // If the update is published and not private, it's visible to everyone
-  } else if (!req.remoteUser) {
-    return false; // If the update is not published or private, it's not visible to logged out users
-  }
-
   // Load collective
   update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
   if (!update.collective) {
     return false;
+  } else if (update.collective.isPrivate) {
+    try {
+      await assertCanSeeAccount(req, update.collective);
+    } catch {
+      return false;
+    }
+  }
+
+  if (update.publishedAt && !update.isPrivate) {
+    return true; // If the update is published and not private, it's visible to everyone
+  } else if (!req.remoteUser) {
+    return false; // If the update is not published or private, it's not visible to logged out users
   }
 
   // Admins & community managers can always see updates

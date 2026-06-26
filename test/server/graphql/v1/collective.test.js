@@ -125,11 +125,6 @@ describe('server/graphql/v1/collective', () => {
           id
           slug
           type
-          createdByUser {
-            id
-            email
-            __typename
-          }
           name
           website
           twitterHandle
@@ -155,9 +150,6 @@ describe('server/graphql/v1/collective', () => {
               id
               publicMessage
               createdAt
-              stats {
-                totalTransactions
-              }
               fromCollective {
                 id
                 name
@@ -212,7 +204,6 @@ describe('server/graphql/v1/collective', () => {
     expect(memberships[0].role).to.equal('HOST');
     expect(memberships[1].role).to.equal('ADMIN');
     expect(memberships[2].role).to.equal('BACKER');
-    expect(collective.createdByUser.email).to.be.null;
     expect(collective.tiers).to.have.length(2);
 
     expect(collective.stats.backers).to.deep.equal({
@@ -257,7 +248,7 @@ describe('server/graphql/v1/collective', () => {
     expect(result.data.Collective.host.path).to.equal('/brusselstogether');
   });
 
-  it('gets the members by type with stats, transactions and orders', async () => {
+  it('gets the members by type with stats and transactions', async () => {
     // Given some users
     const { theadmin } = await store.newUser('theadmin');
     const { theuser0 } = await store.newUser('theuser0');
@@ -341,10 +332,6 @@ describe('server/graphql/v1/collective', () => {
             transactions {
               id
               amount
-            }
-            orders {
-              id
-              totalAmount
             }
             member {
               id
@@ -682,48 +669,50 @@ describe('server/graphql/v1/collective', () => {
     it('gets totalAmountSpent by collective', async () => {
       const sandbox = createSandbox();
 
-      const stub = sandbox.stub(currency, 'getFxRate');
+      try {
+        const stub = sandbox.stub(currency, 'getFxRate');
 
-      stub
-        .withArgs('EUR', 'EUR')
-        .resolves(1)
-        .withArgs('USD', 'USD')
-        .resolves(1)
-        .withArgs('EUR', 'USD')
-        .resolves(1.1)
-        .withArgs('USD', 'EUR')
-        .resolves(1 / 1.1);
+        stub
+          .withArgs('EUR', 'EUR')
+          .resolves(1)
+          .withArgs('USD', 'USD')
+          .resolves(1)
+          .withArgs('EUR', 'USD')
+          .resolves(1.1)
+          .withArgs('USD', 'EUR')
+          .resolves(1 / 1.1);
 
-      const query = gqlV1 /* GraphQL */ `
-        query TotalCollectiveContributions($slug: String, $type: String) {
-          Collective(slug: $slug) {
-            id
-            currency
-            stats {
+        const query = gqlV1 /* GraphQL */ `
+          query TotalCollectiveContributions($slug: String, $type: String) {
+            Collective(slug: $slug) {
               id
-              totalAmountSpent
+              currency
+              stats {
+                id
+                totalAmountSpent
+              }
             }
-            transactions(type: $type) {
+            allTransactions(collectiveSlug: $slug, type: $type) {
               currency
               netAmountInCollectiveCurrency
             }
           }
-        }
-      `;
+        `;
 
-      const result = await utils.graphqlQuery(query, {
-        slug: 'olu',
-        type: 'DEBIT',
-      });
+        const result = await utils.graphqlQuery(query, {
+          slug: 'olu',
+          type: 'DEBIT',
+        });
 
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      const collective = result.data.Collective;
-      expect(Number.isInteger(collective.stats.totalAmountSpent)).to.be.true;
-      const totalAmountSpent = Math.round(1000 * 1.1 + 1000);
-      expect(collective.stats.totalAmountSpent).to.equal(totalAmountSpent);
-
-      sandbox.restore();
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        const collective = result.data.Collective;
+        expect(Number.isInteger(collective.stats.totalAmountSpent)).to.be.true;
+        const totalAmountSpent = Math.round(1000 * 1.1 + 1000);
+        expect(collective.stats.totalAmountSpent).to.equal(totalAmountSpent);
+      } finally {
+        sandbox.restore();
+      }
     });
   });
 

@@ -34,10 +34,12 @@ import platformSubscriptionMutations from './PlatformSubscriptionsMutations';
 import rootMutations from './RootMutations';
 import { sendSurveyResponseMutation } from './SendSurveyResponseMutation';
 import socialLinkMutations from './SocialLinkMutations';
+import { stripeMutations } from './StripeMutations';
 import tagMutations from './TagMutations';
 import tierMutations from './TierMutations';
 import transactionImportsMutations from './TransactionImportsMutations';
 import transactionMutations from './TransactionMutations';
+import { transferwiseMutations } from './TransferwiseMutations';
 import updateMutations from './UpdateMutations';
 import uploadedFileMutations from './UploadedFileMutations';
 import vendorMutations from './VendorMutations';
@@ -73,6 +75,8 @@ const mutation = {
   ...payoutMethodMutations,
   ...plaidMutations,
   ...goCardlessMutations,
+  ...stripeMutations,
+  ...transferwiseMutations,
   ...rootMutations,
   ...transactionMutations,
   ...transactionImportsMutations,

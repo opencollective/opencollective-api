@@ -4,7 +4,6 @@ import * as path from 'path';
 import { buildClientSchema } from 'graphql/utilities/buildClientSchema';
 import { getIntrospectionQuery } from 'graphql/utilities/getIntrospectionQuery';
 import { printSchema } from 'graphql/utilities/printSchema';
-import fetch from 'node-fetch';
 
 /**
  *

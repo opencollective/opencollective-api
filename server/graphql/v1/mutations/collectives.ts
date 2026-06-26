@@ -8,6 +8,7 @@ import { v4 as uuid } from 'uuid';
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import roles from '../../../constants/roles';
+import { assertSettingsChangeAllowed } from '../../../lib/account-settings';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { defaultHostCollective } from '../../../lib/collectivelib';
@@ -434,6 +435,21 @@ export function editCollective(_, args, req) {
           return collective.changeHost(newCollectiveData.HostCollectiveId, req.remoteUser);
         }
       })
+      .then(async () => {
+        // Some settings are forbidden to be edited via GraphQL v1
+        const V1_FORBIDDEN_SETTINGS_KEYS = ['payoutsTwoFactorAuth'] as const;
+        if (newCollectiveData.settings !== undefined) {
+          for (const key of V1_FORBIDDEN_SETTINGS_KEYS) {
+            if (!isEqual(newCollectiveData.settings?.[key], collective.settings?.[key])) {
+              throw new ValidationFailed(
+                `Setting "${key}" cannot be edited via GraphQL v1. Use editAccountSetting on GraphQL v2.`,
+              );
+            }
+          }
+
+          await assertSettingsChangeAllowed(req, collective, collective.settings, newCollectiveData.settings);
+        }
+      })
       .then(() => {
         // we omit those attributes that have already been updated above
         return collective.update(omit(newCollectiveData, ['HostCollectiveId']));
@@ -520,10 +536,12 @@ export async function archiveCollective(_, args, req) {
 
   const isChildren = collective.type === CollectiveType.EVENT || collective.type === CollectiveType.PROJECT;
   const slugsToClearCacheFor = [collective.slug];
+  const hostCollectiveId = collective.HostCollectiveId;
+  const host = hostCollectiveId ? await req.loaders.Collective.byId.load(hostCollectiveId) : null;
+  const deactivatedAt = new Date();
   let children: { id: number; slug: string }[] = [];
   if (!isChildren) {
     // Mark all children as archived, with a special `data.archivedFromParent` flag for later un-archive
-    const deactivatedAt = new Date();
     children = await sequelize.query<{ id: number; slug: string }>(
       `UPDATE "Collectives"
     SET "deactivatedAt" = :deactivatedAt,
@@ -556,7 +574,21 @@ export async function archiveCollective(_, args, req) {
   });
 
   // Mark main account as archived
-  await collective.update({ isActive: false, deactivatedAt: new Date() });
+  await collective.update({ isActive: false, deactivatedAt });
+
+  await models.Activity.create({
+    type: activities.COLLECTIVE_ARCHIVED,
+    CollectiveId: collective.id,
+    HostCollectiveId: hostCollectiveId,
+    UserId: req.remoteUser?.id,
+    UserTokenId: req.userToken?.id,
+    createdAt: deactivatedAt,
+    data: {
+      collective: collective.info,
+      host: host?.info,
+      notify: false,
+    },
+  });
 
   // Cancel all subscriptions which the collective is contributing
   const allAccountIds = [collective.id, ...children.map(c => c.id)];

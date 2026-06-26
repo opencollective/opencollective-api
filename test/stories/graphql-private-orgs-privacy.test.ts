@@ -193,6 +193,7 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Vendor.parentAccount': 'parent-gate',
   'Vendor.duplicatedFromAccount': 'parent-gate',
   'Vendor.createdByAccount': 'parent-gate',
+  'Vendor.canBeUsedWithAccounts': 'admin-only',
   'Vendor.visibleToAccounts': 'admin-only',
   'Vendor.mainProfile': 'parent-gate',
 
@@ -285,7 +286,7 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'MemberInvitation.memberAccount': 'admin-only',
 
   // ---- Order ----
-  'Order.fromAccount': 'parent-gate',
+  'Order.fromAccount': 'entry-gate',
   'Order.toAccount': 'parent-gate',
   'Order.createdByAccount': 'parent-gate',
 
@@ -301,7 +302,7 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Expense.approvedBy': 'admin-only',
   'Expense.paidBy': 'admin-only',
   'Expense.account': 'parent-gate',
-  'Expense.payee': 'parent-gate',
+  'Expense.payee': 'entry-gate',
   'Expense.createdByAccount': 'parent-gate',
   'Expense.host': 'parent-gate',
   'Expense.requestedByAccount': 'admin-only',

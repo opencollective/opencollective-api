@@ -48,7 +48,7 @@ export const getConsolidatedInvoicesData = async fromCollective => {
   }
 
   const where = {
-    kind: ['CONTRIBUTION', 'PLATFORM_TIP'],
+    kind: ['CONTRIBUTION', 'PLATFORM_TIP', 'ADDED_FUNDS'],
     createdAt: { [Op.lt]: moment().startOf('month') },
     [Op.or]: [{ FromCollectiveId: fromAccountCondition }, { UsingGiftCardFromCollectiveId: fromCollective.id }],
   };
@@ -64,9 +64,17 @@ export const getConsolidatedInvoicesData = async fromCollective => {
   });
 
   const hostsById = {};
-  const invoicesByKey = {};
-  let invoices = [];
-
+  const invoicesByKey: Record<
+    string,
+    {
+      HostCollectiveId: number;
+      FromCollectiveId: number;
+      slug: string;
+      year: number;
+      month: number;
+      totalTransactions: number;
+    }
+  > = {};
   for (const transaction of transactions) {
     const HostCollectiveId = transaction.HostCollectiveId;
     if (!HostCollectiveId) {
@@ -96,7 +104,7 @@ export const getConsolidatedInvoicesData = async fromCollective => {
     };
   }
 
-  invoices = Object.values(invoicesByKey);
+  const invoices = Object.values(invoicesByKey);
   invoices.sort((a, b) => {
     return b.slug.localeCompare(a.slug);
   });
@@ -191,7 +199,7 @@ export const getUSTaxFormPdf = async (formType: USTaxFormType, formData) => {
 
   const { status } = response;
   if (status >= 200 && status < 300) {
-    return response.buffer();
+    return Buffer.from(await response.arrayBuffer());
   } else {
     reportMessageToSentry(`Failed to generate PDF: ${status}`, { extra: { formType, formData } });
     throw new Error(`Failed to generate PDF`);

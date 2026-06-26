@@ -5,7 +5,7 @@ import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNul
 import { GraphQLDateTime } from 'graphql-scalars';
 import { Expression, ExpressionBuilder, expressionBuilder, OrderByModifiers, sql, SqlBool } from 'kysely';
 import { KyselifyModel } from 'kysely-sequelize';
-import { compact, isEmpty, isInteger, isNil, uniq } from 'lodash';
+import { compact, isEmpty, isNil, uniq } from 'lodash';
 import moment from 'moment';
 import { Includeable, WhereOptions } from 'sequelize';
 
@@ -16,9 +16,9 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constan
 import { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import { DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
-import { EntityShortIdPrefix, isEntityPublicId } from '../../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
-import { buildSearchConditions } from '../../../../lib/sql-search';
+import { buildKyselySearchConditions, buildSearchConditions, parseSearchTerm } from '../../../../lib/sql-search';
 import models, { Collective, ManualPaymentProvider, Op, PaymentMethod, Tier, User } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../../errors';
@@ -503,18 +503,11 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     }
   }
 
-  const isHostAdmin = account?.hasMoneyManagement && req.remoteUser?.isAdminOfCollective(account);
-  const searchTermLooksLikeAnEmail = !!args.searchTerm && args.searchTerm.includes('@');
-
-  let collectiveBySearchTerm: Collective | null = null;
-  if (isEntityPublicId(args.searchTerm, EntityShortIdPrefix.Collective)) {
-    const collective = await models.Collective.findOne({
-      where: { publicId: args.searchTerm },
-    });
-    if (collective) {
-      collectiveBySearchTerm = collective;
-    }
-  }
+  const isCollectiveAdmin = req.remoteUser?.isAdminOfCollective(account);
+  const isHostAdmin = account?.hasMoneyManagement && isCollectiveAdmin;
+  const parsedSearchTerm = parseSearchTerm(args.searchTerm);
+  const isHostAdminEmailSearch = isHostAdmin && parsedSearchTerm.type === 'email';
+  const hasSearchTerm = !!parsedSearchTerm.term;
 
   const shouldApplyPrivateRecipientVisibilityFilter = !req.remoteUser?.isRoot() && !host;
   const kysely = getKysely();
@@ -548,57 +541,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
           });
         });
     })
-    .with(
-      cte => cte('filterByOrderSearchTerm').materialized(),
-      db => {
-        const ors: Expression<SqlBool>[] = [];
-        return db
-          .selectFrom('Orders')
-          .select('Orders.id')
-          .where('Orders.deletedAt', 'is', null)
-          .$if(!!args.searchTerm, qb => {
-            return qb.where(({ or, eb }) => {
-              if (isFinite(Number(args.searchTerm)) && isInteger(Number(args.searchTerm))) {
-                ors.push(eb('Orders.id', '=', Number(args.searchTerm)));
-              }
-
-              if (isEntityPublicId(args.searchTerm, EntityShortIdPrefix.Order)) {
-                ors.push(eb('Orders.publicId', '=', args.searchTerm));
-              }
-
-              if (collectiveBySearchTerm) {
-                ors.push(eb('Orders.CollectiveId', '=', collectiveBySearchTerm.id));
-                ors.push(eb('Orders.FromCollectiveId', '=', collectiveBySearchTerm.id));
-              }
-
-              ors.push(eb('Orders.description', 'ilike', `%${args.searchTerm}%`));
-              ors.push(eb(sql`"Orders".data->>'ponumber'`, 'ilike', `%${args.searchTerm}%`));
-              ors.push(eb(sql`"Orders".data#>>'{fromAccountInfo,name}'`, 'ilike', `%${args.searchTerm}%`));
-              ors.push(eb(sql`"Orders".data#>>'{fromAccountInfo,email}'`, 'ilike', `%${args.searchTerm}%`));
-              ors.push(
-                eb('Orders.tags', '&&', sql<string[]>`ARRAY[${args.searchTerm.toLocaleLowerCase()}]::varchar[]`),
-              );
-
-              return or(ors);
-            });
-          })
-          .$if(isHostAdmin && searchTermLooksLikeAnEmail, qb => {
-            return qb.union(
-              db
-                .selectFrom('Orders')
-                .select('Orders.id')
-                .innerJoin('Users', 'Users.id', 'Orders.CreatedByUserId')
-                .where('Orders.deletedAt', 'is', null)
-                .where('Users.email', '=', args.searchTerm)
-                .where('Users.deletedAt', 'is', null),
-            );
-          });
-      },
-    )
     .selectFrom('Orders')
-    .$if(!!args.searchTerm, qb => {
-      return qb.innerJoin('filterByOrderSearchTerm', 'filterByOrderSearchTerm.id', 'Orders.id');
-    })
     .innerJoin('Collectives as collective', join =>
       join.onRef('collective.id', '=', 'Orders.CollectiveId').on('collective.deletedAt', 'is', null),
     )
@@ -727,6 +670,38 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         return or(ors);
       });
     })
+    .$if(isHostAdminEmailSearch && hasSearchTerm, qb =>
+      qb.leftJoin('Users', join =>
+        join.onRef('Users.id', '=', 'Orders.CreatedByUserId').on('Users.deletedAt', 'is', null),
+      ),
+    )
+    .$if(hasSearchTerm, qb =>
+      buildKyselySearchConditions(args.searchTerm, {
+        idFields: ['Orders.id'],
+        slugFields: ['collective.slug', 'fromCollective.slug'],
+        textFields: [
+          'collective.name',
+          'fromCollective.name',
+          'Orders.description',
+          ...(isCollectiveAdmin
+            ? [sql`"Orders".data->>'ponumber'`, sql`"Orders".data#>>'{fromAccountInfo,name}'`]
+            : []),
+        ],
+        emailFields: [
+          isCollectiveAdmin && sql<string>`lower("Orders".data#>>'{fromAccountInfo,email}')`,
+          isHostAdminEmailSearch && 'Users.email',
+        ].filter(Boolean),
+        stringArrayFields: ['Orders.tags'],
+        stringArrayTransformFn: (str: string) => str.toLowerCase(),
+        publicIdFields: [
+          { field: 'Orders.publicId', prefix: EntityShortIdPrefix.Order },
+          {
+            field: ['collective.publicId', 'fromCollective.publicId'],
+            prefix: EntityShortIdPrefix.Collective,
+          },
+        ],
+      })(qb),
+    )
     .$if(!!args.oppositeAccountScope, qb => {
       const isInternalScope = args.oppositeAccountScope === 'INTERNAL';
       return qb.where(({ eb, not, and, or }) => {

@@ -10,15 +10,11 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
-import { get, has, isNil, isNull, merge, omitBy, sortBy } from 'lodash';
-import moment from 'moment';
-import sequelize from 'sequelize';
-import SqlString from 'sequelize/lib/sql-string';
+import { get, has, isNil, isNull, merge, omitBy } from 'lodash';
 
 import { CollectiveType as CollectiveTypeEnum } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
-import PlatformConstants from '../../constants/platform';
 import MemberRoles, { MemberRolesForPrivateAccounts } from '../../constants/roles';
 import { hasFeature } from '../../lib/allowed-features';
 import { isCollectiveDeletable } from '../../lib/collectivelib';
@@ -27,7 +23,6 @@ import logger from '../../lib/logger';
 import queries from '../../lib/queries';
 import { canSeeLegalName } from '../../lib/user-permissions';
 import models, { Op } from '../../models';
-import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import Tier, { AllTierTypes } from '../../models/Tier';
 import { hostResolver } from '../common/collective';
 import { GraphQLCollectiveFeatures } from '../common/CollectiveFeatures';
@@ -36,26 +31,20 @@ import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { GraphQLPolicies } from '../v2/object/Policies';
 import { GraphQLSocialLink } from '../v2/object/SocialLink';
 
-import { TransactionInterfaceType } from './TransactionInterface';
 import {
   ConnectedAccountType,
   ContributorRoleEnum,
   ContributorType,
   DateString,
-  ExpenseType,
-  ImageFormatType,
   LocationType,
   MemberType,
   NotificationType,
-  OrderDirectionType,
   OrderStatusType,
   OrderType,
   PaginatedPaymentMethodsType,
   PaymentMethodBatchInfo,
   PaymentMethodType,
-  PayoutMethodType,
   TierType,
-  UserType,
 } from './types';
 
 export const TypeOfCollectiveType = new GraphQLEnumType({
@@ -69,66 +58,6 @@ export const TypeOfCollectiveType = new GraphQLEnumType({
     PROJECT: {},
     FUND: {},
     VENDOR: {},
-  },
-});
-
-const CollectiveOrderFieldType = new GraphQLEnumType({
-  name: 'CollectiveOrderField',
-  description: 'Properties by which collectives can be ordered.',
-  values: {
-    monthlySpending: {
-      description: 'Order collectives by their average monthly spending (based on last 90 days)',
-    },
-    balance: {
-      description: 'Order collectives by total balance.',
-    },
-    createdAt: {
-      description: 'Order collectives by creation time.',
-    },
-    name: {
-      description: 'Order collectives by name.',
-    },
-    slug: {
-      description: 'Order collectives by slug.',
-    },
-    updatedAt: {
-      description: 'Order collectives by updated time.',
-    },
-    totalDonations: {
-      description: 'Order collectives by total donations.',
-    },
-    financialContributors: {
-      description: 'Order collectives by number of financial contributors (unique members).',
-    },
-  },
-});
-
-const PaymentMethodOrderFieldType = new GraphQLEnumType({
-  name: 'PaymenMethodOrderField',
-  description: 'Properties by which PaymenMethods can be ordered',
-  values: {
-    type: {
-      description: 'Order payment methods by type (creditcard, giftcard, etc.)',
-    },
-  },
-});
-
-export const HostCollectiveOrderFieldType = new GraphQLEnumType({
-  name: 'HostCollectiveOrderFieldType',
-  description: 'Properties by which hosts can be ordered.',
-  values: {
-    createdAt: {
-      description: 'Order hosts by creation time.',
-    },
-    name: {
-      description: 'Order hosts by name.',
-    },
-    collectives: {
-      description: 'Order hosts by number of collectives it is hosting.',
-    },
-    updatedAt: {
-      description: 'Order hosts by updated time.',
-    },
   },
 });
 
@@ -193,41 +122,17 @@ const PlanType = new GraphQLObjectType({
     hostedCollectives: {
       type: GraphQLInt,
     },
-    hostedCollectivesLimit: {
-      type: GraphQLInt,
-    },
-    addedFunds: {
-      type: GraphQLInt,
-    },
-    addedFundsLimit: {
-      type: GraphQLInt,
-    },
     hostDashboard: {
       type: GraphQLBoolean,
     },
     manualPayments: {
       type: GraphQLBoolean,
     },
-    bankTransfers: {
-      type: GraphQLInt,
-    },
-    bankTransfersLimit: {
-      type: GraphQLInt,
-    },
-    transferwisePayouts: {
-      type: GraphQLInt,
-    },
-    transferwisePayoutsLimit: {
-      type: GraphQLInt,
-    },
     hostFees: {
       type: GraphQLBoolean,
     },
     hostFeeSharePercent: {
       type: GraphQLFloat,
-    },
-    platformTips: {
-      type: GraphQLBoolean,
     },
   }),
 });
@@ -274,49 +179,10 @@ export const CollectiveStatsType = new GraphQLObjectType({
           return collective.getTotalAmountSpent({ loaders: req.loaders, net: true });
         },
       },
-      totalAmountReceived: {
-        description: 'Total amount received',
-        type: GraphQLFloat,
-        args: {
-          startDate: { type: DateString },
-          endDate: { type: DateString },
-          periodInMonths: {
-            type: GraphQLInt,
-            description: 'Computes contributions from the last x months. Cannot be used with startDate/endDate',
-          },
-        },
-        resolve(collective, args, req) {
-          let startDate = args.startDate ? new Date(args.startDate) : null;
-          let endDate = args.endDate ? new Date(args.endDate) : null;
-
-          if (args.periodInMonths) {
-            startDate = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
-            endDate = null;
-          }
-
-          return collective.getTotalAmountReceived({ loaders: req.loaders, startDate, endDate });
-        },
-      },
-      totalNetAmountReceived: {
-        description: 'Total net amount received',
-        type: GraphQLFloat,
-        resolve(collective, _, req) {
-          return collective.getTotalAmountReceived({ loaders: req.loaders, net: true });
-        },
-      },
       yearlyBudget: {
         type: GraphQLFloat,
         resolve(collective, args, req) {
           return collective.getYearlyBudget({ loaders: req.loaders });
-        },
-      },
-      activeRecurringContributions: {
-        type: GraphQLJSON,
-        resolve(collective, args, req) {
-          const loader = req.loaders.Collective.stats.activeRecurringContributions.buildLoader({
-            currency: collective.currency,
-          });
-          return loader.load(collective.id);
         },
       },
     };
@@ -351,13 +217,11 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
     return {
       id: { type: GraphQLInt },
       idV2: { type: GraphQLString },
-      createdByUser: { type: UserType },
       parentCollective: { type: CollectiveInterfaceType },
       children: { type: new GraphQLNonNull(new GraphQLList(CollectiveInterfaceType)) },
       type: { type: GraphQLString },
       isActive: { type: GraphQLBoolean },
       hasHosting: { type: GraphQLBoolean },
-      hasMoneyManagement: { type: GraphQLBoolean },
       name: { type: GraphQLString },
       legalName: { type: GraphQLString },
       company: { type: GraphQLString },
@@ -381,9 +245,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         type: GraphQLString,
         args: {
           height: { type: GraphQLInt },
-          format: {
-            type: ImageFormatType,
-          },
         },
       },
       backgroundImage: { type: GraphQLString },
@@ -391,9 +252,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         type: GraphQLString,
         args: {
           height: { type: GraphQLInt },
-          format: {
-            type: ImageFormatType,
-          },
         },
       },
       settings: { type: new GraphQLNonNull(GraphQLJSON) },
@@ -405,7 +263,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         type: GraphQLString,
         description: 'Private instructions related to an event',
       },
-      githubContributors: { type: new GraphQLNonNull(GraphQLJSON) },
       slug: { type: GraphQLString },
       path: { type: GraphQLString },
       isHost: { type: GraphQLBoolean },
@@ -475,27 +332,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           roles: { type: new GraphQLList(ContributorRoleEnum) },
         },
       },
-      collectives: {
-        type: CollectiveSearchResultsType,
-        description: 'List of all collectives hosted by this collective',
-        args: {
-          orderBy: { defaultValue: 'name', type: CollectiveOrderFieldType },
-          orderDirection: { defaultValue: 'ASC', type: OrderDirectionType },
-          expenseStatus: { defaultValue: null, type: GraphQLString },
-          limit: { type: GraphQLInt },
-          offset: { type: GraphQLInt },
-          isActive: { type: GraphQLBoolean },
-          isArchived: { type: GraphQLBoolean },
-        },
-      },
-      followers: {
-        type: new GraphQLList(CollectiveInterfaceType),
-        description: 'List of all followers of this collective',
-        args: {
-          limit: { type: GraphQLInt },
-          offset: { type: GraphQLInt },
-        },
-      },
       notifications: {
         type: new GraphQLList(NotificationType),
         description: 'List of all notifications for this collective',
@@ -532,38 +368,11 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           status: { type: OrderStatusType },
         },
       },
-      ordersFromCollective: {
-        type: new GraphQLList(OrderType),
-        args: {
-          subscriptionsOnly: { type: GraphQLBoolean },
-        },
-      },
       stats: { type: CollectiveStatsType },
-      transactions: {
-        type: new GraphQLList(TransactionInterfaceType),
-        args: {
-          type: { type: GraphQLString },
-          limit: { type: GraphQLInt },
-          offset: { type: GraphQLInt },
-          includeExpenseTransactions: { type: GraphQLBoolean },
-        },
-      },
-      expenses: {
-        type: new GraphQLList(ExpenseType),
-        deprecationReason: '2024-12-13: Please move to GraphQL v2',
-        args: {
-          type: { type: GraphQLString },
-          limit: { type: GraphQLInt },
-          offset: { type: GraphQLInt },
-          status: { type: GraphQLString },
-          includeHostedCollectives: { type: GraphQLBoolean },
-        },
-      },
       supportedExpenseTypes: {
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLString))),
         description: 'The list of expense types supported by this account',
       },
-      role: { type: GraphQLString },
       twitterHandle: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
       githubHandle: { type: GraphQLString, deprecationReason: '2022-06-03: Please use repositoryUrl' },
       repositoryUrl: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
@@ -610,20 +419,12 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
             type: new GraphQLList(GraphQLString),
             description: 'Filter on given types  (creditcard, giftcard, etc.)',
           },
-          orderBy: {
-            type: PaymentMethodOrderFieldType,
-            description: 'Order entries based on given column. Set to null for no ordering.',
-          },
           includeHostCollectivePaymentMethod: {
             type: GraphQLBoolean,
             defaultValue: false,
             description: 'Defines if the host "collective" payment method should be returned',
           },
         },
-      },
-      payoutMethods: {
-        type: new GraphQLList(PayoutMethodType),
-        description: 'The list of payout methods that this collective can use to get paid',
       },
       giftCardsBatches: {
         type: new GraphQLList(PaymentMethodBatchInfo),
@@ -658,18 +459,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         description:
           'Policies for the account. To see non-public policies you need to be admin and have the scope: "account".',
       },
-      duplicatedFromCollective: {
-        type: CollectiveInterfaceType,
-        description: 'If created by duplication, the account from which this one was duplicated',
-      },
-      duplicatedCollectives: {
-        type: new GraphQLNonNull(CollectiveSearchResultsType),
-        description: 'If this account was duplicated, the accounts that were created from it',
-        args: {
-          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
-          offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-        },
-      },
     };
   },
 });
@@ -686,26 +475,6 @@ const CollectiveFields = () => {
       type: GraphQLString,
       resolve(collective) {
         return idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
-      },
-    },
-    createdByUser: {
-      type: UserType,
-      async resolve(collective, args, req) {
-        // Vendors don't have a `createdByUser`
-        if (!collective.CreatedByUserId) {
-          return null;
-        }
-
-        // If the profile is incognito, remoteUser must be allowed to see its `createdByUser`
-        const user = await req.loaders.User.byId.load(collective.CreatedByUserId);
-        if (
-          user &&
-          (!collective.isIncognito || (await req.loaders.Collective.canSeePrivateProfileInfo.load(user.CollectiveId)))
-        ) {
-          return user;
-        } else {
-          return {};
-        }
       },
     },
     parentCollective: {
@@ -741,12 +510,6 @@ const CollectiveFields = () => {
       type: new GraphQLNonNull(GraphQLBoolean),
       resolve(collective) {
         return collective.hasHosting;
-      },
-    },
-    hasMoneyManagement: {
-      type: new GraphQLNonNull(GraphQLBoolean),
-      resolve(collective) {
-        return collective.hasMoneyManagement;
       },
     },
     name: {
@@ -884,9 +647,6 @@ const CollectiveFields = () => {
       type: GraphQLString,
       args: {
         height: { type: GraphQLInt },
-        format: {
-          type: ImageFormatType,
-        },
       },
       async resolve(collective, args, req) {
         if (collective.type === 'EVENT' && !collective.image) {
@@ -908,9 +668,6 @@ const CollectiveFields = () => {
       type: GraphQLString,
       args: {
         height: { type: GraphQLInt },
-        format: {
-          type: ImageFormatType,
-        },
       },
       resolve(collective, args) {
         return collective.getBackgroundImageUrl(args);
@@ -940,12 +697,6 @@ const CollectiveFields = () => {
         ) {
           return collective.data?.privateInstructions;
         }
-      },
-    },
-    githubContributors: {
-      type: new GraphQLNonNull(GraphQLJSON),
-      resolve(collective) {
-        return collective.data?.githubContributors || {};
       },
     },
     slug: {
@@ -1258,78 +1009,6 @@ const CollectiveFields = () => {
         return filterContributors(contributors.all, args);
       },
     },
-    collectives: {
-      type: CollectiveSearchResultsType,
-      args: {
-        orderBy: { defaultValue: 'name', type: CollectiveOrderFieldType },
-        orderDirection: { defaultValue: 'ASC', type: OrderDirectionType },
-        expenseStatus: { defaultValue: null, type: GraphQLString },
-        limit: { type: GraphQLInt },
-        offset: { type: GraphQLInt },
-        isActive: { type: GraphQLBoolean },
-        isArchived: { type: GraphQLBoolean },
-      },
-      async resolve(collective, args) {
-        const query = {
-          where: {
-            HostCollectiveId: collective.id,
-            type: { [Op.in]: [CollectiveTypeEnum.COLLECTIVE, CollectiveTypeEnum.FUND] },
-          },
-          order: [[args.orderBy, args.orderDirection]],
-          limit: args.limit,
-          offset: args.offset,
-        };
-
-        if (typeof args.isActive !== 'undefined') {
-          query.where.isActive = args.isActive;
-        } else if (typeof args.isArchived !== 'undefined') {
-          query.where.isArchived = args.isArchived;
-        }
-
-        /* if any specific Expense status was passed */
-        if (args.expenseStatus) {
-          /* The escape trick came from here:
-             https://github.com/sequelize/sequelize/issues/1132
-
-             Didin't really find a better way to do it. */
-          const status = SqlString.escape(args.expenseStatus.toUpperCase());
-          query.where.expenseCount = sequelize.where(
-            /* This tests if collective has any expenses in the given
-             * status. */
-            sequelize.literal(
-              '(SELECT COUNT("id") FROM "Expenses" WHERE "Expenses"."CollectiveId" =' +
-                ` "Collective"."id" AND "status" = ${status})`,
-              args.expenseStatus,
-            ),
-            '>',
-            0,
-          );
-        }
-        const result = await models.Collective.findAndCountAll(query);
-        const { count, rows } = result;
-        return {
-          total: count,
-          collectives: rows,
-          limit: args.limit,
-          offset: args.offset,
-        };
-      },
-    },
-    followers: {
-      type: new GraphQLList(CollectiveInterfaceType),
-      args: {
-        limit: { type: GraphQLInt },
-        offset: { type: GraphQLInt },
-      },
-      resolve(collective, args) {
-        return models.Member.findAll({
-          where: { CollectiveId: collective.id, role: MemberRoles.FOLLOWER },
-          include: [{ model: models.Collective, as: 'memberCollective' }],
-          limit: args.limit,
-          offset: args.offset,
-        }).then(memberships => memberships.memberCollective);
-      },
-    },
     notifications: {
       type: new GraphQLList(NotificationType),
       args: {
@@ -1430,96 +1109,16 @@ const CollectiveFields = () => {
 
         return collective.getIncomingOrders({
           where,
+          // We never return private accounts related stuff on GraphQL V1
+          include: [
+            { association: 'fromCollective', where: { isPrivate: false }, required: true, attributes: [] },
+            { association: 'collective', where: { isPrivate: false }, required: true, attributes: [] },
+          ],
           order: [
             ['createdAt', 'DESC'],
             ['id', 'DESC'],
           ],
         });
-      },
-    },
-    ordersFromCollective: {
-      type: new GraphQLList(OrderType),
-      args: {
-        subscriptionsOnly: { type: GraphQLBoolean },
-      },
-      resolve(collective, args) {
-        const query = {
-          where: {}, // TODO: might need a filter of 'processedAt'
-          order: [
-            ['createdAt', 'DESC'],
-            ['id', 'DESC'],
-          ],
-        };
-
-        if (args.subscriptionsOnly) {
-          query.include = [
-            {
-              model: models.Subscription,
-              required: true,
-            },
-          ];
-        }
-        return collective.getOutgoingOrders(query);
-      },
-    },
-    transactions: {
-      type: new GraphQLList(TransactionInterfaceType),
-      args: {
-        type: {
-          type: GraphQLString,
-          description: 'type of transaction (DEBIT/CREDIT)',
-        },
-        limit: { type: GraphQLInt },
-        offset: { type: GraphQLInt },
-        includeExpenseTransactions: {
-          type: GraphQLBoolean,
-          default: true,
-          description: 'If false, only the transactions not linked to an expense (orders/refunds) will be returned',
-        },
-      },
-      resolve(collective, args) {
-        return collective.getTransactions({ ...args, order: [['id', 'DESC']] });
-      },
-    },
-    expenses: {
-      type: new GraphQLList(ExpenseType),
-      deprecationReason: '2024-12-13: Please move to GraphQL v2',
-      args: {
-        type: { type: GraphQLString },
-        limit: { type: GraphQLInt },
-        offset: { type: GraphQLInt },
-        includeHostedCollectives: { type: GraphQLBoolean },
-        status: { type: GraphQLString },
-      },
-      async resolve(collective, args) {
-        const query = { where: {} };
-        if (args.status) {
-          query.where.status = args.status;
-        }
-        if (args.limit) {
-          query.limit = args.limit;
-        }
-        if (args.offset) {
-          query.offset = args.offset;
-        }
-        query.order = [['createdAt', 'DESC']];
-
-        let collectiveIds;
-        // if is host, we get all the expenses across all the hosted collectives
-        if (args.includeHostedCollectives) {
-          const members = await models.Member.findAll({
-            where: {
-              MemberCollectiveId: collective.id,
-              role: 'HOST',
-            },
-          });
-          collectiveIds = members.map(members => members.CollectiveId);
-        } else {
-          collectiveIds = [collective.id];
-        }
-
-        query.where.CollectiveId = { [Op.in]: collectiveIds };
-        return models.Expense.findAll(query);
       },
     },
     supportedExpenseTypes: {
@@ -1547,12 +1146,6 @@ const CollectiveFields = () => {
         }
 
         return supportedFromConfig;
-      },
-    },
-    role: {
-      type: GraphQLString,
-      resolve(collective, args, req) {
-        return collective.role || collective.getRoleForMemberCollective(req.remoteUser.CollectiveId);
       },
     },
     twitterHandle: {
@@ -1601,7 +1194,7 @@ const CollectiveFields = () => {
         },
       },
       resolve(collective, args) {
-        const query = { where: { data: { isSuspended: { [Op.not]: true } } } };
+        const query = { where: { isPrivate: false, data: { isSuspended: { [Op.not]: true } } } };
 
         if (args.limit) {
           query.limit = args.limit;
@@ -1645,7 +1238,7 @@ const CollectiveFields = () => {
       resolve(collective, args) {
         return collective.getProjects({
           ...args,
-          where: { data: { isSuspended: { [Op.not]: true } } },
+          where: { isPrivate: false, data: { isSuspended: { [Op.not]: true } } },
         });
       },
     },
@@ -1657,10 +1250,6 @@ const CollectiveFields = () => {
         hasBalanceAboveZero: { type: GraphQLBoolean },
         isConfirmed: { type: GraphQLBoolean, defaultValue: true },
         type: { type: new GraphQLList(GraphQLString) },
-        orderBy: {
-          type: PaymentMethodOrderFieldType,
-          defaultValue: 'type',
-        },
         includeHostCollectivePaymentMethod: {
           type: GraphQLBoolean,
           defaultValue: false,
@@ -1710,30 +1299,9 @@ const CollectiveFields = () => {
         if (args.limit) {
           paymentMethods = paymentMethods.slice(0, args.limit);
         }
-        if (args.orderBy) {
-          paymentMethods = sortBy(paymentMethods, args.orderBy);
-        }
 
         const now = new Date();
         return paymentMethods.filter(pm => !pm.expiryDate || pm.expiryDate > now);
-      },
-    },
-    payoutMethods: {
-      type: new GraphQLList(PayoutMethodType),
-      description: 'The list of payout methods that this collective can use to get paid',
-      async resolve(collective, _, req) {
-        if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
-          return null;
-        } else {
-          const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
-          return payoutMethods.filter(pm => {
-            if (pm.type === PayoutMethodTypes.STRIPE && collective.id !== PlatformConstants.OfitechCollectiveId) {
-              return false;
-            }
-
-            return true;
-          });
-        }
       },
     },
     giftCardsBatches: {
@@ -1848,38 +1416,6 @@ const CollectiveFields = () => {
       type: new GraphQLNonNull(GraphQLPolicies),
       resolve(account) {
         return account;
-      },
-    },
-    duplicatedFromCollective: {
-      type: CollectiveInterfaceType,
-      description: 'If created by duplication, the account from which this one was duplicated',
-      async resolve(collective, _, req) {
-        if (collective.data?.duplicatedFromCollectiveId) {
-          return req.loaders.Collective.byId.load(collective.data.duplicatedFromCollectiveId);
-        }
-      },
-    },
-    duplicatedCollectives: {
-      type: new GraphQLNonNull(CollectiveSearchResultsType),
-      description: 'If this account was duplicated, the accounts that were created from it',
-      args: {
-        limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
-        offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-      },
-      async resolve(collective, args) {
-        const { limit, offset } = args;
-        if (!collective.data?.duplicatedToCollectiveIds) {
-          return { nodes: [], totalCount: 0, limit, offset };
-        } else {
-          const where = { id: collective.data.duplicatedToCollectiveIds };
-          return {
-            id: `duplicatedCollectives-${collective.id}-${limit}-${offset}`,
-            collectives: () => models.Collective.findAll({ where, limit, offset }),
-            total: () => models.Collective.count({ where }),
-            limit,
-            offset,
-          };
-        }
       },
     },
   };

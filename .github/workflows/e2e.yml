@@ -52,12 +52,12 @@ jobs:
 
     services:
       redis:
-        image: redis
+        image: redis@sha256:027002f3d4161eb427643e0cc71023b582fb461c6199e699f46db843f0b39fb1
         ports:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.13
+        image: postgres:16.14@sha256:287eced1f33b59ed265ed13a60d3680dd7646d70c4dc0e785f59a470ebc03eeb
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -67,13 +67,15 @@ jobs:
         # needed because the postgres container does not provide a healthcheck
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
       minio:
-        image: minio/minio:edge-cicd
+        image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
         ports:
           - 9000:9000
+        command: server /data
         options: --name=minio --health-cmd "curl http://localhost:9000/minio/health/live"
         env:
           MINIO_ROOT_USER: user
           MINIO_ROOT_PASSWORD: password
+          MINIO_BROWSER: 'off'
 
     steps:
       # man-db trigger on apt install is taking some time
@@ -106,7 +108,7 @@ jobs:
           ./mc mb --ignore-existing minio/opencollective-e2e
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup node
         uses: actions/setup-node@v6
@@ -133,7 +135,7 @@ jobs:
 
       - name: Checkout (frontend - matching branch)
         if: steps.check-matching-branch.outputs.status == 200
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: opencollective/opencollective-frontend
           path: opencollective-frontend
@@ -141,19 +143,19 @@ jobs:
 
       - name: Checkout (frontend - main)
         if: steps.check-matching-branch.outputs.status != 200
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: opencollective/opencollective-frontend
           path: opencollective-frontend
 
       - name: Checkout (images)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: opencollective/opencollective-images
           path: opencollective-images
 
       - name: Checkout (PDF)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: opencollective/opencollective-pdf
           path: opencollective-pdf

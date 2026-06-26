@@ -1,7 +1,5 @@
 import '../server/env';
 
-import fetch from 'node-fetch';
-
 import models, { Op } from '../server/models';
 
 async function main() {

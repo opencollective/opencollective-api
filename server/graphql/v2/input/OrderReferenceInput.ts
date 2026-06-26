@@ -61,7 +61,7 @@ export const fetchOrderWithReference = async (
     return models.Order.findByPk(id, { include });
   };
 
-  let order: Order | null = null;
+  let order: Order | null;
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Order)) {
     order = await (loaders
       ? loaders.Order.byPublicId.load(input.id)

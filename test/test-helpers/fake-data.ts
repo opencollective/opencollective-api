@@ -19,6 +19,8 @@ import { SupportedCurrency } from '../../server/constants/currencies';
 import { SUPPORTED_FILE_KINDS } from '../../server/constants/file-kind';
 import OAuthScopes from '../../server/constants/oauth-scopes';
 import OrderStatuses from '../../server/constants/order-status';
+import PaymentIntentStatus from '../../server/constants/payment-intent-status';
+import PaymentIntentType from '../../server/constants/payment-intent-type';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import MemberRoles from '../../server/constants/roles';
@@ -28,6 +30,7 @@ import { crypto } from '../../server/lib/encryption';
 import { KYCProviderName } from '../../server/lib/kyc/providers';
 import { createTransactionsForManuallyPaidExpense } from '../../server/lib/transactions';
 import { TwoFactorMethod } from '../../server/lib/two-factor-authentication';
+import { parseToBoolean } from '../../server/lib/utils';
 import models, {
   Agreement,
   Collective,
@@ -63,6 +66,7 @@ import ManualPaymentProvider, { ManualPaymentProviderTypes } from '../../server/
 import Member from '../../server/models/Member';
 import MemberInvitation from '../../server/models/MemberInvitation';
 import Order from '../../server/models/Order';
+import PaymentIntent from '../../server/models/PaymentIntent';
 import PaymentMethod from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { Billing } from '../../server/models/PlatformSubscription';
@@ -88,7 +92,7 @@ export const multiple = <T extends (...args: any[]) => Promise<any>>(
   ...args: Parameters<T>
 ): Promise<Array<Awaited<ReturnType<T>>>> => Promise.all([...Array(n).keys()].map(() => fn(...args)));
 export const fakeOpenCollectiveS3URL = ({ key = randStr(), bucket = config.aws.s3.bucket } = {}) => {
-  if (config.aws.s3.endpoint && config.aws.s3.forcePathStyle) {
+  if (config.aws.s3.endpoint && parseToBoolean(config.aws.s3.forcePathStyle)) {
     return `${config.aws.s3.endpoint}/${bucket}/${key}`;
   } else {
     return `https://${bucket}.s3.us-west-1.amazonaws.com/${key}`;
@@ -1501,5 +1505,23 @@ export const fakeExportRequest = async (exportRequestData: Partial<InferCreation
     CollectiveId: collective.id,
     CreatedByUserId: createdByUser.id,
     ...exportRequestData,
+  });
+};
+
+/**
+ * Creates a fake payment intent. All params are optional.
+ */
+export const fakePaymentIntent = async (
+  data: Partial<InferCreationAttributes<PaymentIntent>> = {},
+): Promise<PaymentIntent> => {
+  const PayerCollectiveId = data.PayerCollectiveId !== undefined ? data.PayerCollectiveId : (await fakeCollective()).id;
+  const PayeeCollectiveId = data.PayeeCollectiveId !== undefined ? data.PayeeCollectiveId : (await fakeCollective()).id;
+
+  return PaymentIntent.create({
+    status: PaymentIntentStatus.PENDING,
+    type: PaymentIntentType.Contribution,
+    ...data,
+    PayerCollectiveId,
+    PayeeCollectiveId,
   });
 };

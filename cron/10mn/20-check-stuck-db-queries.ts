@@ -23,6 +23,9 @@ const PRINT_TO_LOCAL = parseToBoolean(process.env.PRINT_TO_LOCAL);
 const STUCK_QUERY_THRESHOLD_SECONDS = process.env.STUCK_QUERY_THRESHOLD_SECONDS
   ? parseInt(process.env.STUCK_QUERY_THRESHOLD_SECONDS)
   : 3 * 30;
+const STUCK_MATERIALIZED_VIEW_QUERY_THRESHOLD_SECONDS = process.env.STUCK_MATERIALIZED_VIEW_QUERY_THRESHOLD_SECONDS
+  ? parseInt(process.env.STUCK_MATERIALIZED_VIEW_QUERY_THRESHOLD_SECONDS)
+  : 15 * 60;
 
 type StuckQueryGroup = {
   pids: number[];
@@ -74,7 +77,12 @@ async function run() {
       max(now() - query_start)::varchar AS longest_run
     FROM pg_stat_activity
     WHERE state = 'active'
-    AND (now() - query_start) > (:threshold * interval '1 second')
+    AND (
+      CASE
+        WHEN query ILIKE '%REFRESH MATERIALIZED VIEW%' THEN (now() - query_start) > (:mvThreshold * interval '1 second')
+        ELSE (now() - query_start) > (:defaultThreshold * interval '1 second')
+      END
+    )
     -- Filter out system/ignored queries
     AND application_name != 'Heroku Postgres Backups'
     AND query != 'SHOW TRANSACTION ISOLATION LEVEL'
@@ -89,7 +97,10 @@ async function run() {
     {
       raw: true,
       type: QueryTypes.SELECT,
-      replacements: { threshold: STUCK_QUERY_THRESHOLD_SECONDS },
+      replacements: {
+        defaultThreshold: STUCK_QUERY_THRESHOLD_SECONDS,
+        mvThreshold: STUCK_MATERIALIZED_VIEW_QUERY_THRESHOLD_SECONDS,
+      },
     },
   );
 
@@ -102,9 +113,11 @@ async function run() {
   const numGroups = stuckQueries.length;
   const distinctLabel = numGroups < totalQueries ? ` (${numGroups} distinct)` : '';
 
-  logger.warn(`Found ${totalQueries} stuck query(ies) running for more than ${STUCK_QUERY_THRESHOLD_SECONDS} seconds.`);
+  logger.warn(
+    `Found ${totalQueries} stuck query(ies) (threshold: ${STUCK_QUERY_THRESHOLD_SECONDS}s, materialized view refreshes: ${STUCK_MATERIALIZED_VIEW_QUERY_THRESHOLD_SECONDS}s).`,
+  );
 
-  const summary = `:warning: *${totalQueries} stuck DB query(ies)*${distinctLabel} running for more than ${STUCK_QUERY_THRESHOLD_SECONDS} seconds:`;
+  const summary = `:warning: *${totalQueries} stuck DB query(ies)*${distinctLabel} (threshold: ${STUCK_QUERY_THRESHOLD_SECONDS}s, materialized view refreshes: ${STUCK_MATERIALIZED_VIEW_QUERY_THRESHOLD_SECONDS}s):`;
   if (numGroups === 1) {
     await postOnSlack(`${summary}\n${formatStuckQueryGroup(stuckQueries[0])}`);
   } else {

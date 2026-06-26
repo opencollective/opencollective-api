@@ -78,7 +78,7 @@ import Expense, {
   ExpenseType,
 } from '../../models/Expense';
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
-import ExpenseItem from '../../models/ExpenseItem';
+import ExpenseItem, { sanitizeExpenseItemDescription } from '../../models/ExpenseItem';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import User from '../../models/User';
 import paymentProviders from '../../paymentProviders';
@@ -189,16 +189,24 @@ const isHostAccountant = async (req: express.Request, expense: Expense): Promise
     return false;
   }
 
-  if (expense.HostCollectiveId) {
+  if (!expense.collective) {
+    expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+    if (!expense.collective) {
+      return false;
+    }
+  }
+
+  // Address the exceptional case where the expense host id would be stale after a collective rehost
+  const hasStaleExpenseHostId =
+    expense.HostCollectiveId &&
+    expense.HostCollectiveId !== expense.collective.HostCollectiveId &&
+    expense.status !== expenseStatus.PAID;
+
+  if (expense.HostCollectiveId && !hasStaleExpenseHostId) {
     return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.HostCollectiveId);
   }
 
-  expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
-  if (!expense.collective) {
-    return false;
-  } else {
-    return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.collective.HostCollectiveId);
-  }
+  return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.collective.HostCollectiveId);
 };
 
 const isCollectiveOrHostAccountant = async (req: express.Request, expense: Expense): Promise<boolean> => {
@@ -243,13 +251,23 @@ const isCollectiveAdmin = async (req: express.Request, expense: Expense): Promis
 export const isHostAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
-  } else if (expense.HostCollectiveId) {
-    return req.remoteUser.isAdmin(expense.HostCollectiveId);
-  } else if (!expense.collective) {
+  }
+
+  if (!expense.collective) {
     expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
     if (!expense.collective) {
       return false;
     }
+  }
+
+  // Address the exceptional case where the expense host id would be stale after a collective rehost
+  const hasStaleExpenseHostId =
+    expense.HostCollectiveId &&
+    expense.HostCollectiveId !== expense.collective.HostCollectiveId &&
+    expense.status !== expenseStatus.PAID;
+
+  if (expense.HostCollectiveId && !hasStaleExpenseHostId) {
+    return req.remoteUser.isAdmin(expense.HostCollectiveId);
   }
 
   return req.remoteUser.isAdmin(expense.collective.HostCollectiveId) && expense.collective.isActive;
@@ -745,10 +763,12 @@ export const canEditPayoutMethod: ExpensePermissionEvaluator = async (req, expen
       throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (expense.status === ExpenseStatus.DRAFT) {
+    // Mirror `canEditExpense` for drafts: the invited payee (and host admin) must be able to
+    // set the payout method when completing a "submit on behalf" invitation, not just the owner.
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isDraftPayee], options);
   } else if (
-    [ExpenseStatus.DRAFT, ExpenseStatus.PENDING, ExpenseStatus.INCOMPLETE, ExpenseStatus.APPROVED].includes(
-      expense.status as ExpenseStatus,
-    )
+    [ExpenseStatus.PENDING, ExpenseStatus.INCOMPLETE, ExpenseStatus.APPROVED].includes(expense.status as ExpenseStatus)
   ) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
   }
@@ -1602,19 +1622,20 @@ export const markExpenseAsSpam = async (req: express.Request, expense: Expense):
 
 const ROLLING_LIMIT_CACHE_VALIDITY = 3600; // 1h in secs for cache to expire
 
-async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmountKey) {
-  const hostPayoutTwoFactorAuthenticationRollingLimit = get(
-    host,
-    'settings.payoutsTwoFactorAuth.rollingLimit',
-    1000000,
+const getExpensePayout2FALimitCacheKey = (userId: number, hostId: number) => `${userId}_2fa_payment_limit_${hostId}`;
+
+async function validateExpensePayout2FALimit(req, host, expense) {
+  const expensePaidAmountKey = getExpensePayout2FALimitCacheKey(req.remoteUser.id, host.id);
+  const hostPayoutTwoFactorAuthenticationRollingLimit = Number(
+    get(host, 'settings.payoutsTwoFactorAuth.rollingLimit', 10_000_00),
   );
 
   const twoFactorSession =
     req.jwtPayload?.sessionId || (req.personalToken?.id && `personalToken_${req.personalToken.id}`);
 
   const currentPaidExpenseAmountCache = await cache.get(expensePaidAmountKey);
-  const currentPaidExpenseAmount = currentPaidExpenseAmountCache || 0;
-  const expenseAmountInHostCurrency = await convertToCurrency(expense.amount, expense.currency, host.currency);
+  const currentPaidExpenseAmount = Number(currentPaidExpenseAmountCache) || 0;
+  const expenseAmountInHostCurrency = Number(await convertToCurrency(expense.amount, expense.currency, host.currency));
 
   // requires a 2FA token to be present if there is no value in the cache (first payout by user)
   // or the this payout would put the user over the rolling limit.
@@ -1699,8 +1720,7 @@ export const scheduleExpenseForPayment = async (
     const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
 
     if (hostHasPayoutTwoFactorAuthenticationEnabled) {
-      const expensePaidAmountKey = `${req.remoteUser.id}_2fa_payment_limit`;
-      await validateExpensePayout2FALimit(req, host, expense, expensePaidAmountKey);
+      await validateExpensePayout2FALimit(req, host, expense);
     }
   }
 
@@ -1784,9 +1804,9 @@ const checkExpenseItems = (expenseType, items: ExpenseItem[] | Record<string, un
   }
 };
 
-const checkExpenseType = async (
+export const checkExpenseType = async (
   newType: ExpenseType,
-  fromAccount: Collective,
+  fromAccount: Collective | null,
   account: Collective,
   parent: Collective | null,
   host: Collective | null,
@@ -1811,7 +1831,7 @@ const checkExpenseType = async (
   if (!existingExpense && [ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(newType)) {
     if (!remoteUser?.isAdminOfPlatform()) {
       throw new ValidationFailed('Only platform admins can create platform expenses');
-    } else if (fromAccount.id !== PlatformConstants.PlatformCollectiveId) {
+    } else if (fromAccount?.id !== PlatformConstants.PlatformCollectiveId) {
       throw new ValidationFailed('Platform expenses can only be created for the platform account');
     }
   }
@@ -1842,7 +1862,13 @@ const checkExpenseType = async (
   }
 };
 
-export const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction?) => {
+export const getPayoutMethodFromExpenseData = async (
+  expenseData,
+  remoteUser,
+  fromCollective,
+  toCollective,
+  dbTransaction?,
+) => {
   if (expenseData.payoutMethod) {
     if (expenseData.payoutMethod.id) {
       const pm = await models.PayoutMethod.findByPk(expenseData.payoutMethod.id);
@@ -1865,10 +1891,28 @@ export const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fr
       }
       return pm;
     } else {
+      // New payout method: created on the payee by default. For cross-host expenses, when the
+      // submitter is an admin of the payee's host (but not of the payee itself, e.g. a host admin
+      // completing an invited draft), create the payout method on the payee's host so they can
+      // add their own payment method.
+      const isCrossHostExpense = Boolean(
+        toCollective?.HostCollectiveId && fromCollective.HostCollectiveId !== toCollective.HostCollectiveId,
+      );
+      let payoutMethodCollective = fromCollective;
+      if (
+        isCrossHostExpense &&
+        fromCollective.HostCollectiveId &&
+        fromCollective.HostCollectiveId !== fromCollective.id &&
+        !remoteUser.isAdmin(fromCollective.id) &&
+        remoteUser.isAdmin(fromCollective.HostCollectiveId)
+      ) {
+        payoutMethodCollective =
+          fromCollective.host || (await models.Collective.findByPk(fromCollective.HostCollectiveId));
+      }
       return models.PayoutMethod.getOrCreateFromUserData(
         expenseData.payoutMethod,
         remoteUser,
-        fromCollective,
+        payoutMethodCollective,
         dbTransaction,
       );
     }
@@ -2090,7 +2134,7 @@ export const prepareExpenseItemInputs = async (
   req: express.Request,
   expenseCurrency: SupportedCurrency,
   itemsInput: Array<ExpenseItem | (Record<string, unknown> & { url?: string })>,
-  { isEditing = false } = {},
+  { isEditing = false, expenseType }: { isEditing?: boolean; expenseType?: string } = {},
 ): Promise<Array<Partial<ExpenseItem>>> => {
   if (!itemsInput) {
     return null;
@@ -2209,6 +2253,10 @@ export const prepareExpenseItemInputs = async (
       values.currency = expenseCurrency;
       values.expenseCurrencyFxRate = 1;
       values.expenseCurrencyFxRateSource = null;
+    }
+
+    if (expenseType && values.description) {
+      values.description = sanitizeExpenseItemDescription(values.description, expenseType);
     }
 
     return values;
@@ -2387,7 +2435,7 @@ export async function createExpense(
   const payoutMethod =
     fromCollective.type === CollectiveType.VENDOR
       ? await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first)
-      : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
+      : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, collective, null);
 
   if (
     payoutMethod?.type === PayoutMethodTypes.STRIPE &&
@@ -2611,7 +2659,14 @@ export async function submitExpenseDraft(
   // It is a submit on behalf being completed
   let existingExpense = await models.Expense.findByPk(expenseData.id, {
     include: [
-      { model: models.Collective, as: 'collective' },
+      {
+        model: models.Collective,
+        as: 'collective',
+        include: [
+          { association: 'host', required: false },
+          { association: 'parent', required: false },
+        ],
+      },
       { model: models.Collective, as: 'fromCollective' },
     ],
   });
@@ -2632,6 +2687,24 @@ export async function submitExpenseDraft(
   }
 
   await checkLockedFields(existingExpense, { ...expenseData, payee: requestedPayee || args.expense.payee });
+
+  const collective = await models.Collective.findByPk(existingExpense.CollectiveId, {
+    include: [
+      { association: 'host', required: false },
+      { association: 'parent', required: false },
+    ],
+  });
+  const fromCollective = expenseData.fromCollective || requestedPayee || existingExpense.fromCollective;
+  await checkExpenseType(
+    expenseData.type || existingExpense.type,
+    fromCollective,
+    collective,
+    collective.parent,
+    collective.host,
+    existingExpense,
+    req.remoteUser,
+    req,
+  );
 
   const options = {
     overrideRemoteUser: undefined,
@@ -2805,7 +2878,18 @@ export async function editExpenseDraft(
   opts?: { isNewExpenseFlow?: boolean },
 ) {
   const existingExpense = await models.Expense.findByPk(expenseData.id, {
-    include: [{ model: models.ExpenseItem, as: 'items' }],
+    include: [
+      { model: models.ExpenseItem, as: 'items' },
+      {
+        model: models.Collective,
+        as: 'collective',
+        required: true,
+        include: [
+          { association: 'parent', required: false },
+          { association: 'host', required: false },
+        ],
+      },
+    ],
   });
   if (!existingExpense) {
     throw new NotFound('Expense not found.');
@@ -2818,10 +2902,24 @@ export async function editExpenseDraft(
     throw new Unauthorized('Only the author of the draft can edit it');
   }
 
+  if (expenseData.type && existingExpense.type !== expenseData.type) {
+    await checkExpenseType(
+      expenseData.type,
+      null,
+      existingExpense.collective,
+      existingExpense.collective.parent,
+      existingExpense.collective.host,
+      existingExpense,
+      req.remoteUser,
+      req,
+    );
+  }
+
   const currency = expenseData.currency || existingExpense.currency;
   const items =
     (await prepareExpenseItemInputs(req, currency, expenseData.items || (existingExpense.data.items as any), {
       isEditing: true,
+      expenseType: expenseData.type || existingExpense.type,
     })) || existingExpense.items;
 
   const attachedFiles =
@@ -3147,7 +3245,7 @@ export async function editExpense(
         payoutMethod = await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first);
         assert(payoutMethod, 'The vendor payee must have a saved payout method');
       } else {
-        payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
+        payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, collective, null);
       }
 
       if (
@@ -3202,6 +3300,12 @@ export async function editExpense(
     newPayoutMethodId = PayoutMethodId;
     oldPayoutMethodId = expense.PayoutMethodId;
     const shouldUpdateStatus = changesRequireStatusUpdate(expense, expenseData, hasItemChanges, hasPayoutMethodChanges);
+
+    const isChangingPayee =
+      expenseData.fromCollective?.id && expenseData.fromCollective.id !== expense.FromCollectiveId;
+    if (cleanExpenseData.data?.paymentIntent && (shouldUpdateStatus || isChangingCurrency || isChangingPayee)) {
+      cleanExpenseData.data = omit(cleanExpenseData.data, ['paymentIntent']);
+    }
 
     // Update attached files
     if (expenseData.attachedFiles) {
@@ -3534,7 +3638,7 @@ export const getExpenseFees = async (
   }
 
   // Build fees in expense currency
-  let feesInExpenseCurrency = {};
+  let feesInExpenseCurrency;
   if (expense.currency === expense.collective.currency) {
     feesInExpenseCurrency = {
       paymentProcessorFee: resultFees['paymentProcessorFeeInCollectiveCurrency'],
@@ -3784,12 +3888,12 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     const use2FARollingLimit =
       isTwoFactorAuthenticationRequiredForPayoutMethod && !forceManual && hostHasPayoutTwoFactorAuthenticationEnabled;
 
-    const totalPaidExpensesAmountKey = `${req.remoteUser.id}_2fa_payment_limit`;
+    const totalPaidExpensesAmountKey = getExpensePayout2FALimitCacheKey(req.remoteUser.id, host.id);
     let totalPaidExpensesAmount;
 
     if (use2FARollingLimit) {
       totalPaidExpensesAmount = await cache.get(totalPaidExpensesAmountKey);
-      await validateExpensePayout2FALimit(req, host, expense, totalPaidExpensesAmountKey);
+      await validateExpensePayout2FALimit(req, host, expense);
     } else {
       // Not using rolling limit, but still enforcing 2FA for all admins
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });

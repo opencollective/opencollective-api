@@ -30,6 +30,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import PlatformConstants from '../constants/platform';
 import TierType from '../constants/tiers';
 import { TransactionTypes } from '../constants/transactions';
+import { deletePaymentIntentForSource, syncPaymentIntentFromOrder } from '../lib/payment-intents/sync';
 import { executeOrder } from '../lib/payments';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
@@ -92,7 +93,6 @@ class Order extends ModelWithPublicId<
   declare deletedAt?: Date;
   declare PaymentMethodId?: ForeignKey<PaymentMethod['id']>;
   declare processedAt?: Date;
-  declare privateMessage?: string;
   declare TierId?: ForeignKey<Tier['id']>;
   declare FromCollectiveId: ForeignKey<Collective['id']>;
   declare publicMessage?: string;
@@ -354,12 +354,23 @@ class Order extends ModelWithPublicId<
     );
   }
 
-  static countActiveRecurringForPaymentService(
-    paymentMethodService: PAYMENT_METHOD_SERVICE | `${PAYMENT_METHOD_SERVICE}`,
-  ) {
+  static countActiveRecurringForPaymentService({
+    service,
+    HostCollectiveId,
+  }: {
+    service: PAYMENT_METHOD_SERVICE | `${PAYMENT_METHOD_SERVICE}`;
+    HostCollectiveId: number;
+  }) {
     return models.Order.count({
       where: { status: { [Op.or]: [OrderStatus.ACTIVE, OrderStatus.ERROR] } },
-      include: [{ where: { service: paymentMethodService }, association: 'paymentMethod', required: true }],
+      include: [
+        { where: { service }, association: 'paymentMethod', required: true },
+        {
+          where: { HostCollectiveId, isActive: true, approvedAt: { [Op.not]: null } },
+          association: 'collective',
+          required: true,
+        },
+      ],
     });
   }
 
@@ -627,8 +638,6 @@ Order.init(
       type: DataTypes.STRING,
     },
 
-    privateMessage: DataTypes.STRING,
-
     SubscriptionId: {
       type: DataTypes.INTEGER,
       references: {
@@ -727,7 +736,6 @@ Order.init(
           platformTipAmount: this.platformTipAmount,
           chargeAmount: this.totalAmount,
           description: this.description,
-          privateMessage: this.privateMessage,
           publicMessage: this.publicMessage,
           SubscriptionId: this.SubscriptionId,
           AccountingCategoryId: this.AccountingCategoryId,
@@ -745,6 +753,21 @@ Order.init(
         if ((order.taxAmount || 0) + (order.platformTipAmount || 0) > order.totalAmount) {
           throw new Error('Invalid contribution amount: Taxes and platform tip cannot exceed the total amount');
         }
+      },
+      async afterCreate(order: Order, options) {
+        await syncPaymentIntentFromOrder(order, options.transaction);
+      },
+      async afterUpdate(order: Order, options) {
+        if (order.changed('status')) {
+          // PAID/ACTIVE are finalized by the ledger hook in Transaction.createDoubleEntry
+          if ([OrderStatus.PAID, OrderStatus.ACTIVE].includes(order.status)) {
+            return;
+          }
+          await syncPaymentIntentFromOrder(order, options.transaction);
+        }
+      },
+      async afterDestroy(order: Order, options) {
+        await deletePaymentIntentForSource({ order }, options.transaction);
       },
     },
   },

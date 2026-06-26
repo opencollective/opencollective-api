@@ -27,8 +27,8 @@ import {
   fakeVendor,
   randStr,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, oAuthGraphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
+import { graphqlQueryV2, oAuthGraphqlQueryV2 } from '../../../../utils';
 
 const addFundsMutation = gql`
   mutation AddFunds(
