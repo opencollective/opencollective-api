@@ -21,6 +21,8 @@ import {
 
 type PaymentIntentSyncTrigger = 'lifecycle' | 'ledger' | 'refund' | 'soft-delete';
 
+type BackfillPaymentIntentTrigger = Exclude<PaymentIntentSyncTrigger, 'soft-delete'>;
+
 type UpsertPaymentIntentSource = {
   order?: Order;
   expense?: Expense;
@@ -298,3 +300,15 @@ export const syncPaymentIntentFromRefund = async (
   sequelizeTransaction?: SequelizeTransaction,
 ): Promise<PaymentIntent | null> =>
   upsertPaymentIntentFor({ transaction }, { sequelizeTransaction, trigger: 'refund' });
+
+/** Backfill entrypoint: propagates errors (unlike production sync wrappers). */
+export const backfillPaymentIntentFromSource = async (
+  source: UpsertPaymentIntentSource,
+  {
+    sequelizeTransaction,
+    trigger,
+  }: {
+    sequelizeTransaction?: SequelizeTransaction;
+    trigger: BackfillPaymentIntentTrigger;
+  },
+): Promise<PaymentIntent | null> => _upsertPaymentIntentFor(source, { sequelizeTransaction, trigger });
