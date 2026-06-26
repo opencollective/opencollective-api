@@ -1,13 +1,10 @@
 import config from 'config';
 import { get } from 'lodash';
 
-import { Service } from '../constants/connected-account';
-import { mustBeLoggedInTo } from '../lib/auth';
 import errors from '../lib/errors';
 import * as github from '../lib/github';
-import logger from '../lib/logger';
 import RateLimit from '../lib/rate-limit';
-import models, { sequelize } from '../models';
+import models from '../models';
 import paymentProviders from '../paymentProviders';
 
 export const createOrUpdate = async (req, res, next, accessToken, data) => {
@@ -64,54 +61,6 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
 
     default:
       throw new errors.BadRequest(`unsupported service ${service}`);
-  }
-};
-
-export const disconnect = async (req, res) => {
-  const { collectiveId: CollectiveId, service } = req.params;
-  const { remoteUser } = req;
-
-  try {
-    mustBeLoggedInTo(remoteUser, 'disconnect this connected account');
-
-    if (!remoteUser.isAdmin(CollectiveId)) {
-      throw new errors.Unauthorized('You are either logged out or not authorized to disconnect this account');
-    }
-
-    const account = await models.ConnectedAccount.findOne({
-      where: { service, CollectiveId },
-    });
-
-    if (!account) {
-      throw new errors.NotFound('Connected account not found');
-    }
-
-    await sequelize.transaction(async transaction => {
-      if (account.service === Service.TRANSFERWISE) {
-        const mirroredAccounts = await models.ConnectedAccount.findOne({
-          where: {
-            data: { MirrorConnectedAccountId: account.id },
-          },
-          transaction,
-        });
-        if (mirroredAccounts) {
-          throw new Error(
-            'This connected account is being mirrored by other organization(s). Please disconnect mirrors before removing this account.',
-          );
-        }
-      }
-      await account.destroy({ transaction });
-    });
-    res.send({
-      deleted: true,
-      service,
-    });
-  } catch (err) {
-    res.send({
-      error: {
-        message: err.message,
-      },
-    });
   }
 };
 
@@ -173,12 +122,7 @@ export const fetchAllRepositories = async (req, res, next) => {
     const errorMessage = `Cannot use this token on this route (scope: ${
       req.jwtPayload?.scope || 'session'
     }, expected: connected-account)`;
-    if (['e2e', 'ci'].includes(config.env)) {
-      // An E2E test is relying on this, so let's relax for now
-      logger.warn(errorMessage);
-    } else {
-      return next(new errors.BadRequest(errorMessage));
-    }
+    return next(new errors.BadRequest(errorMessage));
   }
 
   const githubAccount = await getGithubAccount(req);
