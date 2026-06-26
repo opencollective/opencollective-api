@@ -905,6 +905,10 @@ const accountFieldsDefinition = () => ({
         }
       }
 
+      // Keep platform-owned accounts (e.g. the per-host platform-tips account) at the bottom of the
+      // list, regardless of the requested sort — they are internal billing accounts, not regular children.
+      order = [[Sequelize.literal(`CASE WHEN "Collective"."type" = 'PLATFORM' THEN 1 ELSE 0 END`), 'ASC'], ...order];
+
       return {
         nodes: () => models.Collective.findAll({ where, limit: args.limit, offset: args.offset, order }),
         totalCount: () => models.Collective.count({ where }),

@@ -23,6 +23,7 @@ import {
   sendOrderPendingEmail,
 } from '../../../server/lib/payments';
 import stripe from '../../../server/lib/stripe';
+import { getHostPlatformTipsAccount } from '../../../server/lib/transactions';
 import models from '../../../server/models';
 import * as paypalAPI from '../../../server/paymentProviders/paypal/api';
 import stripeMocks from '../../mocks/stripe';
@@ -519,6 +520,226 @@ describe('server/lib/payments', () => {
       // Settlement should be marked as SETTLED since it's was not invoiced yet
       await tipSettlement.reload();
       expect(tipSettlement.status).to.eq('SETTLED');
+    });
+
+    it('marks the PLATFORM_TIP settlement as SETTLED when refunding a tip under the new platform-tips ledger', async () => {
+      // Create Open Collective Inc
+      await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
+      const host = await fakeHost({ name: 'Host' });
+      await host.update({ settings: { ...host.settings, newPlatformTipsLedger: true } });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
+      const contributorUser = await fakeUser(undefined, { name: 'User' });
+      const order = await fakeOrder({
+        status: 'ACTIVE',
+        CollectiveId: collective.id,
+        FromCollectiveId: contributorUser.CollectiveId,
+      });
+      const transaction = await models.Transaction.createFromContributionPayload({
+        CreatedByUserId: contributorUser.id,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        PaymentMethodId: order.PaymentMethodId,
+        type: 'CREDIT',
+        OrderId: order.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        amountInHostCurrency: 5000,
+        hostCurrencyFxRate: 1,
+        hostFeeInHostCurrency: 250,
+        paymentProcessorFeeInHostCurrency: 175,
+        description: 'Monthly subscription to Webpack',
+        // No isPlatformRevenueDirectlyCollected flag: behaves like PayPal
+        data: { charge: { id: 'ch_refunded_charge' }, platformTip: 500 },
+      });
+
+      // New ledger: no per-tip debt, the OWED settlement lives on the PLATFORM_TIP credit
+      const originalTransactions = await order.getTransactions();
+      expect(originalTransactions.filter(t => t.kind === TransactionKind.PLATFORM_TIP_DEBT)).to.have.lengthOf(0);
+      const tipSettlement = await models.TransactionSettlement.findOne({
+        where: { TransactionGroup: transaction.TransactionGroup, kind: TransactionKind.PLATFORM_TIP },
+      });
+      expect(tipSettlement.status).to.eq('OWED');
+
+      // Do refund
+      await createRefundTransaction(transaction, 0, null, user);
+
+      const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
+      expect(refundedTransactions.filter(t => t.kind === TransactionKind.PLATFORM_TIP)).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === TransactionKind.PLATFORM_TIP_DEBT)).to.have.lengthOf(0);
+
+      // Settlement must be SETTLED so the settlement cron never invoices the host for the refunded tip
+      await tipSettlement.reload();
+      expect(tipSettlement.status).to.eq('SETTLED');
+    });
+
+    it('carries an OWED settlement on the refund pair when an already-invoiced tip is refunded under the new platform-tips ledger', async () => {
+      // Create Open Collective Inc
+      await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
+      const host = await fakeHost({ name: 'Host' });
+      await host.update({ settings: { ...host.settings, newPlatformTipsLedger: true } });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
+      const contributorUser = await fakeUser(undefined, { name: 'User' });
+      const order = await fakeOrder({
+        status: 'ACTIVE',
+        CollectiveId: collective.id,
+        FromCollectiveId: contributorUser.CollectiveId,
+      });
+      const transaction = await models.Transaction.createFromContributionPayload({
+        CreatedByUserId: contributorUser.id,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        PaymentMethodId: order.PaymentMethodId,
+        type: 'CREDIT',
+        OrderId: order.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        amountInHostCurrency: 5000,
+        hostCurrencyFxRate: 1,
+        hostFeeInHostCurrency: 250,
+        paymentProcessorFeeInHostCurrency: 175,
+        description: 'Monthly subscription to Webpack',
+        // No isPlatformRevenueDirectlyCollected flag: behaves like PayPal
+        data: { charge: { id: 'ch_invoiced_then_refunded' }, platformTip: 500 },
+      });
+
+      // Simulate last month's settlement run: the tip was invoiced to the host
+      const tipSettlement = await models.TransactionSettlement.findOne({
+        where: { TransactionGroup: transaction.TransactionGroup, kind: TransactionKind.PLATFORM_TIP },
+      });
+      await tipSettlement.update({ status: 'INVOICED' });
+
+      // Do refund
+      await createRefundTransaction(transaction, 0, null, user);
+
+      // The original settlement is left as-is (its expense lifecycle is unchanged)
+      await tipSettlement.reload();
+      expect(tipSettlement.status).to.eq('INVOICED');
+
+      // The refund pair carries a fresh OWED settlement so the negative refund DEBIT on the
+      // platform-tips account is deducted from the host's next Platform Tips invoice
+      const refundedTipTransactions = await order.getTransactions({
+        where: { isRefund: true, kind: TransactionKind.PLATFORM_TIP },
+      });
+      expect(refundedTipTransactions).to.have.lengthOf(2);
+      const refundSettlement = await models.TransactionSettlement.findOne({
+        where: { TransactionGroup: refundedTipTransactions[0].TransactionGroup, kind: TransactionKind.PLATFORM_TIP },
+      });
+      expect(refundSettlement).to.exist;
+      expect(refundSettlement.status).to.eq('OWED');
+    });
+
+    it('reverses the APPLICATION_FEE pair when refunding a Stripe direct-collected tip under the new platform-tips ledger', async () => {
+      // Create Open Collective Inc
+      await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
+      const host = await fakeHost({ name: 'Host' });
+      await host.update({ settings: { ...host.settings, newPlatformTipsLedger: true } });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
+      const contributorUser = await fakeUser(undefined, { name: 'User' });
+      const order = await fakeOrder({
+        status: 'ACTIVE',
+        CollectiveId: collective.id,
+        FromCollectiveId: contributorUser.CollectiveId,
+      });
+      const transaction = await models.Transaction.createFromContributionPayload({
+        CreatedByUserId: contributorUser.id,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        PaymentMethodId: order.PaymentMethodId,
+        type: 'CREDIT',
+        OrderId: order.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        amountInHostCurrency: 5000,
+        hostCurrencyFxRate: 1,
+        hostFeeInHostCurrency: 250,
+        paymentProcessorFeeInHostCurrency: 175,
+        description: 'Monthly subscription to Webpack',
+        data: { charge: { id: 'ch_refunded_charge' }, platformTip: 500, isPlatformRevenueDirectlyCollected: true },
+      });
+
+      // Stripe direct-collected: tip is auto-settled through an APPLICATION_FEE pair, no debt
+      const originalTransactions = await order.getTransactions();
+      expect(originalTransactions.filter(t => t.kind === TransactionKind.APPLICATION_FEE)).to.have.lengthOf(2);
+      expect(originalTransactions.filter(t => t.kind === TransactionKind.PLATFORM_TIP_DEBT)).to.have.lengthOf(0);
+
+      // Do refund
+      await createRefundTransaction(transaction, 0, null, user);
+
+      // Stripe claws the application fee back on refund, so the pair must be reversed
+      const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
+      expect(refundedTransactions.filter(t => t.kind === TransactionKind.PLATFORM_TIP)).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === TransactionKind.APPLICATION_FEE)).to.have.lengthOf(2);
+
+      // Original APPLICATION_FEE rows are linked to their refunds
+      const allAppFeeRows = (await order.getTransactions()).filter(t => t.kind === TransactionKind.APPLICATION_FEE);
+      expect(allAppFeeRows).to.have.lengthOf(4);
+      for (const appFeeRow of allAppFeeRows) {
+        expect(appFeeRow.RefundTransactionId, `RefundTransactionId on APPLICATION_FEE #${appFeeRow.id}`).to.not.be.null;
+      }
+
+      // The host's platform-tips slice nets to zero after the refund
+      const platformTipsAccount = await getHostPlatformTipsAccount(host);
+      const vendorRows = (await order.getTransactions()).filter(t => t.CollectiveId === platformTipsAccount.id);
+      expect(vendorRows.reduce((sum, t) => sum + t.amountInHostCurrency, 0)).to.equal(0);
+    });
+
+    it('keeps the refunded APPLICATION_FEE on the host-scoped vendor slice (HostCollectiveId not nulled)', async () => {
+      // Regression: the APPLICATION_FEE pair is host-scoped via HostCollectiveId on the platform-tips
+      // account rows. The reversing credit must carry the same HostCollectiveId = host, otherwise the
+      // host's slice of the platform-tips ledger (CollectiveId = platform-tips AND HostCollectiveId =
+      // host) stays permanently short by the fee, even though the account-level total still nets to zero.
+      await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
+      const host = await fakeHost({ name: 'Host' });
+      await host.update({ settings: { ...host.settings, newPlatformTipsLedger: true } });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
+      const contributorUser = await fakeUser(undefined, { name: 'User' });
+      const order = await fakeOrder({
+        status: 'ACTIVE',
+        CollectiveId: collective.id,
+        FromCollectiveId: contributorUser.CollectiveId,
+      });
+      const transaction = await models.Transaction.createFromContributionPayload({
+        CreatedByUserId: contributorUser.id,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        PaymentMethodId: order.PaymentMethodId,
+        type: 'CREDIT',
+        OrderId: order.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        amountInHostCurrency: 5000,
+        hostCurrencyFxRate: 1,
+        hostFeeInHostCurrency: 250,
+        paymentProcessorFeeInHostCurrency: 175,
+        description: 'Monthly subscription to Webpack',
+        data: { charge: { id: 'ch_refunded_charge' }, platformTip: 500, isPlatformRevenueDirectlyCollected: true },
+      });
+
+      await createRefundTransaction(transaction, 0, null, user);
+
+      const platformTipsAccount = await getHostPlatformTipsAccount(host);
+
+      // The reversing APPLICATION_FEE credit lands back on the platform-tips account and must stay
+      // scoped to the host.
+      const appFeeRefundCredit = (await order.getTransactions()).find(
+        t =>
+          t.kind === TransactionKind.APPLICATION_FEE &&
+          t.type === 'CREDIT' &&
+          t.isRefund &&
+          t.CollectiveId === platformTipsAccount.id,
+      );
+      expect(appFeeRefundCredit, 'APPLICATION_FEE refund credit on the vendor').to.exist;
+      expect(appFeeRefundCredit.HostCollectiveId).to.equal(host.id);
+
+      // The host's slice of the vendor ledger (scoped by HostCollectiveId) nets to zero.
+      const hostVendorRows = (await order.getTransactions()).filter(
+        t => t.CollectiveId === platformTipsAccount.id && t.HostCollectiveId === host.id,
+      );
+      expect(hostVendorRows.reduce((sum, t) => sum + t.amountInHostCurrency, 0)).to.equal(0);
     });
 
     it('should not create payment processor fee cover for contribution to the host itself', async () => {

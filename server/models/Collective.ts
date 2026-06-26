@@ -52,7 +52,7 @@ import { Service } from '../constants/connected-account';
 import { SupportedCurrency } from '../constants/currencies';
 import expenseStatus from '../constants/expense-status';
 import expenseTypes from '../constants/expense-type';
-import FEATURE from '../constants/feature';
+import FEATURE, { NEW_PLATFORM_TIPS_LEDGER_FLAG } from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans, { HostPlan, PlatformSubscriptionTiers } from '../constants/plans';
@@ -1361,6 +1361,15 @@ class Collective extends ModelWithPublicId<
 
   hasPublicLocation = function (): boolean {
     return [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.ORGANIZATION].includes(this.type);
+  };
+
+  /**
+   * Whether this host opted in to the new platform-tips ledger (PLATFORM_TIP credits routed to
+   * the host's own platform-tips account, APPLICATION_FEE pair on the Stripe app-fee path, and
+   * settlement billed directly against the platform-tips account).
+   */
+  hasNewPlatformTipsLedger = function (): boolean {
+    return Boolean(this.settings?.[NEW_PLATFORM_TIPS_LEDGER_FLAG]);
   };
 
   /**
