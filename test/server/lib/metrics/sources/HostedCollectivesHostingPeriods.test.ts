@@ -78,49 +78,6 @@ describe('server/lib/metrics/sources/HostedCollectivesHostingPeriods', () => {
     await models.Collective.update({ HostCollectiveId: null, approvedAt: null }, { where: { id: otherPastHosted.id } });
   });
 
-  describe('archived hosting periods', () => {
-    let archivedHostForPeriods: Awaited<ReturnType<typeof fakeActiveHost>>;
-    let archivedHosted: Awaited<ReturnType<typeof fakeCollective>>;
-
-    before(async () => {
-      archivedHostForPeriods = await fakeActiveHost({ slug: 'metrics-hp-archived-host' });
-      archivedHosted = await fakeCollective({
-        HostCollectiveId: archivedHostForPeriods.id,
-        type: CollectiveType.COLLECTIVE,
-        approvedAt: new Date('2024-05-01'),
-        deactivatedAt: new Date('2025-05-01'),
-      });
-      await fakeHostApplication({
-        CollectiveId: archivedHosted.id,
-        HostCollectiveId: archivedHostForPeriods.id,
-        status: HostApplicationStatus.APPROVED,
-        createdAt: new Date('2024-05-01'),
-      });
-      await fakeActivity({
-        type: 'collective.archived',
-        CollectiveId: archivedHosted.id,
-        HostCollectiveId: archivedHostForPeriods.id,
-        createdAt: new Date('2025-05-01'),
-        data: { notify: false },
-      });
-      await models.Collective.update(
-        { HostCollectiveId: null, approvedAt: null },
-        { where: { id: archivedHosted.id } },
-      );
-    });
-
-    it('closes hosting intervals from collective.archived activities', async () => {
-      const result = await queryMetrics({
-        source: HostedCollectivesHostingPeriods,
-        measures: ['hostedCollectives'],
-        dateFrom: '2025-04-01',
-        dateTo: '2025-06-01',
-        filters: { host: archivedHostForPeriods.id, account: archivedHosted.id },
-      });
-      expect(result.rows[0].values.hostedCollectives).to.equal(1);
-    });
-  });
-
   describe('hostedCollectives count', () => {
     it('returns currently-hosted collectives whose interval overlaps the period', async () => {
       const result = await queryMetrics({

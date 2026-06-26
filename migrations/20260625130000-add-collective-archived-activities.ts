@@ -4,38 +4,42 @@
 module.exports = {
   async up(queryInterface) {
     await queryInterface.sequelize.query(`
-      WITH archived_without_activity AS (
-        SELECT c.id, c."deactivatedAt"
-        FROM "Collectives" c
-        LEFT OUTER JOIN "Activities" a ON c.id = a."CollectiveId" AND a.type = 'collective.archived'
-        WHERE c."deactivatedAt" IS NOT NULL
-          AND c."deletedAt" IS NULL
-          AND a.id IS NULL
-      ),
-      with_host AS (
+      WITH archived_collectives AS (
         SELECT
-          a.id,
-          a."deactivatedAt",
+          c.id,
+          c."deactivatedAt",
+          -- Infer host from closest approved activity
           (
-            SELECT ah."HostCollectiveId"
-            FROM "Activities" ah
-            WHERE ah."CollectiveId" = a.id
-              AND ah.type = 'collective.approved'
-              AND ah."HostCollectiveId" IS NOT NULL
-              AND ah."createdAt" <= a."deactivatedAt"
-            ORDER BY ah."createdAt" DESC
+            SELECT a."HostCollectiveId"
+            FROM "Activities" a
+            WHERE a."CollectiveId" = COALESCE(c."ParentCollectiveId", c.id)
+              AND a.type = 'collective.approved'
+              AND a."HostCollectiveId" IS NOT NULL
+              AND a."CollectiveId" != a."HostCollectiveId"
+              AND a."createdAt" <= c."deactivatedAt"
+              AND NOT EXISTS (
+                SELECT 1
+                FROM "Activities" u
+                WHERE u."CollectiveId" = COALESCE(c."ParentCollectiveId", c.id)
+                  AND u."HostCollectiveId" = a."HostCollectiveId"
+                  AND u.type = 'collective.unhosted'
+                  AND u."createdAt" > a."createdAt"
+                  AND u."createdAt" <= c."deactivatedAt"
+            )
+            ORDER BY a."createdAt" DESC
             LIMIT 1
           ) AS "HostCollectiveId"
-        FROM archived_without_activity a
-      )
-      INSERT INTO "Activities" ("type", "CollectiveId", "HostCollectiveId", "createdAt", "data")
+        FROM "Collectives" c
+        WHERE c."deactivatedAt" IS NOT NULL
+          AND c."deletedAt" IS NULL
+      ) INSERT INTO "Activities" ("type", "CollectiveId", "HostCollectiveId", "createdAt", "data")
       SELECT
         'collective.archived',
-        w.id,
-        w."HostCollectiveId",
-        w."deactivatedAt",
+        c.id,
+        c."HostCollectiveId",
+        c."deactivatedAt",
         '{"notify": false, "createdFromMigration": true}'::jsonb
-      FROM with_host w
+      FROM archived_collectives c
     `);
   },
 
