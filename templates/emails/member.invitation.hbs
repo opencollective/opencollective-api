@@ -11,16 +11,37 @@ Subject: Invitation to join {{{collective.name}}} on Open Collective
 <p>
   {{#if skipDefaultAdmin}}
     You were just invited to the role of {{role}} of {{> linkCollective collective=collective}} on Open Collective.
-  {{else}}
+  {{else if invitedByUser}}
     <a href="{{accountUrl invitedByUser.collective}}">{{invitedByUser.collective.name}}</a> just invited you to the role of {{role}} of {{> linkCollective collective=collective}} on Open Collective.
+  {{else}}
+    You were just invited to the role of {{role}} of {{> linkCollective collective=collective}} on Open Collective.
   {{/if}}
 </p>
+
+{{#if privateNote}}
+  {{#if skipDefaultAdmin}}
+    <p style="margin-top: 24px;">Private note:</p>
+  {{else if invitedByUser}}
+    <p style="margin-top: 24px;">
+      Private note from <a href="{{accountUrl invitedByUser.collective}}">{{invitedByUser.collective.name}}</a>:
+    </p>
+  {{else}}
+    <p style="margin-top: 24px;">Private note:</p>
+  {{/if}}
+<blockquote style="color: #6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">{{privateNote}}</blockquote>
+{{/if}}
 
 <p>
 Click on the button below to accept or decline:
 </p>
 
 <br />
+{{#if isNewUser}}
+<a class="btn blue" href="{{config.host.website}}/signin?next=/signup/profile?next=%2Fmember-invitations%23invitation-{{invitation.id}}">
+  <div style="font-size: 15px;">Sign up and view invitation</div>
+</a>
+{{else}}
 <a class="btn blue" href="{{config.host.website}}/member-invitations#invitation-{{invitation.id}}">
   <div style="font-size: 15px;">View invitation</div>
 </a>
+{{/if}}

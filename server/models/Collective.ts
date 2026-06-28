@@ -1,6 +1,7 @@
 import assert from 'assert';
 
 import config from 'config';
+import cryptoRandomString from 'crypto-random-string';
 import debugLib from 'debug';
 import * as ics from 'ics';
 import slugify from 'limax';
@@ -472,6 +473,16 @@ class Collective extends ModelWithPublicId<
       }
       return collective;
     });
+  };
+
+  static generatePrivateSlug = async () => {
+    let exists = true;
+    let slug: string;
+    while (exists) {
+      slug = cryptoRandomString({ length: 16, type: 'alphanumeric' });
+      exists = (await Collective.findOne({ where: { slug }, paranoid: false })) !== null;
+    }
+    return slug;
   };
 
   get previewImage() {
