@@ -5,7 +5,6 @@ import { Request } from 'express';
 import { get, omit } from 'lodash';
 import moment from 'moment';
 import { Op, QueryTypes, Transaction } from 'sequelize';
-import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../constants/activities';
@@ -28,6 +27,7 @@ import {
 } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount, getDashboardObjectIdURL } from '../../lib/stripe';
+import type { Stripe } from '../../lib/stripe-types';
 import { createTransactionsFromPaidStripeExpense, getPaymentProcessorFeeVendor } from '../../lib/transactions';
 import models, { sequelize } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
@@ -66,7 +66,7 @@ export async function createOrUpdatePaymentMethod(
     return matchingPaymentMethod;
   }
 
-  const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId, {
+  const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId, undefined, {
     stripeAccount,
   });
 
@@ -140,7 +140,7 @@ export const mandateUpdated = async (event: Stripe.Event) => {
     });
 
     if (!paymentMethod) {
-      const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId, {
+      const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId, undefined, {
         stripeAccount,
       });
 
@@ -204,7 +204,7 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
 
   let charge = paymentIntent.latest_charge || ((paymentIntent as any).charges?.data?.[0] as Stripe.Charge);
   if (typeof charge === 'string') {
-    charge = await stripe.charges.retrieve(charge, { stripeAccount });
+    charge = await stripe.charges.retrieve(charge, undefined, { stripeAccount });
   }
 
   const order = await models.Order.findOne({
@@ -480,9 +480,13 @@ async function handleOrderPaymentIntentProcessing(event: Stripe.Event) {
     });
 
     if (!pm) {
-      const stripePaymentMethod = await stripe.paymentMethods.retrieve(paymentIntent.payment_method as string, {
-        stripeAccount,
-      });
+      const stripePaymentMethod = await stripe.paymentMethods.retrieve(
+        paymentIntent.payment_method as string,
+        undefined,
+        {
+          stripeAccount,
+        },
+      );
 
       const stripeCustomer = stripePaymentMethod.customer
         ? typeof stripePaymentMethod.customer === 'string'
@@ -554,9 +558,13 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
     });
 
     if (!pm) {
-      const stripePaymentMethod = await stripe.paymentMethods.retrieve(paymentIntent.payment_method as string, {
-        stripeAccount,
-      });
+      const stripePaymentMethod = await stripe.paymentMethods.retrieve(
+        paymentIntent.payment_method as string,
+        undefined,
+        {
+          stripeAccount,
+        },
+      );
 
       const stripeCustomer = stripePaymentMethod.customer
         ? typeof stripePaymentMethod.customer === 'string'

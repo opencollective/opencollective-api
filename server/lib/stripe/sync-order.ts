@@ -1,10 +1,10 @@
 import { omit } from 'lodash';
-import type Stripe from 'stripe';
 
 import OrderStatuses from '../../constants/order-status';
 import models from '../../models';
 import { paymentIntentFailed, paymentIntentSucceeded } from '../../paymentProviders/stripe/webhook';
 import stripe from '../stripe';
+import type { Stripe } from '../stripe-types';
 
 export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? } = {}) => {
   logging?.(`Processing order ${order.id}...`);
@@ -14,7 +14,7 @@ export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? 
   }
   const hostStripeAccount = await order.collective.getHostStripeAccount();
   const stripeAccount = hostStripeAccount.username;
-  const paymentIntent = await stripe.paymentIntents.retrieve(order.data.paymentIntent.id, {
+  const paymentIntent = await stripe.paymentIntents.retrieve(order.data.paymentIntent.id, undefined, {
     stripeAccount,
   });
   logging?.(`Order ${order.id} paymentIntent status: ${paymentIntent.status}`);

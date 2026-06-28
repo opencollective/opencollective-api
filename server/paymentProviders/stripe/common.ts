@@ -2,7 +2,6 @@ import config from 'config';
 import { get, result, toUpper } from 'lodash';
 import moment from 'moment';
 import type { CreateOptions } from 'sequelize';
-import Stripe from 'stripe';
 
 import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
@@ -20,6 +19,7 @@ import {
 } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
+import type { Stripe } from '../../lib/stripe-types';
 import models, { Collective, ConnectedAccount } from '../../models';
 import Order from '../../models/Order';
 import PaymentMethod from '../../models/PaymentMethod';
@@ -56,8 +56,8 @@ export const refundTransaction: BasePaymentProviderService['refundTransaction'] 
     { stripeAccount: hostStripeAccount.username },
   );
 
-  const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });
-  const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction as string, {
+  const charge = await stripe.charges.retrieve(chargeId, undefined, { stripeAccount: hostStripeAccount.username });
+  const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction as string, undefined, {
     stripeAccount: hostStripeAccount.username,
   });
   const refundedFees = extractFees(refundBalance, refundBalance.currency);
@@ -105,6 +105,7 @@ export const refundTransactionOnlyInDatabase: BasePaymentProviderService['refund
   }
   const refundBalance = await stripe.balanceTransactions.retrieve(
     (refund?.balance_transaction || dispute?.balance_transactions[0].id) as string,
+    undefined,
     {
       stripeAccount: hostStripeAccount.username,
     },
@@ -140,9 +141,13 @@ export const createChargeTransactions = async (
 
   const hostFeeSharePercent = await getHostFeeSharePercent(order);
   const isSharedRevenue = !!hostFeeSharePercent;
-  const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction as string, {
-    stripeAccount: hostStripeAccount.username,
-  });
+  const balanceTransaction = await stripe.balanceTransactions.retrieve(
+    charge.balance_transaction as string,
+    undefined,
+    {
+      stripeAccount: hostStripeAccount.username,
+    },
+  );
 
   // Create a Transaction
   const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
@@ -268,7 +273,7 @@ export async function resolvePaymentMethodForOrder(
   // might have expired and are not clonable.
   if (paymentMethod.data?.customerIdForHost && paymentMethod.data?.customerIdForHost?.[hostStripeAccount]) {
     const customerId = paymentMethod.data?.customerIdForHost?.[hostStripeAccount];
-    const customer = await stripe.customers.retrieve(customerId, {
+    const customer = await stripe.customers.retrieve(customerId, undefined, {
       stripeAccount: hostStripeAccount,
     });
 
@@ -671,7 +676,7 @@ async function createOrRetrieveStripePaymentMethod(
   }
 
   const stripeAccount = customerConnectedAccount.clientId;
-  const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId, {
+  const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId, undefined, {
     stripeAccount,
   });
 
