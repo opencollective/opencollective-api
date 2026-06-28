@@ -25,7 +25,7 @@ export const GraphQLEventCreateInput = new GraphQLInputObjectType({
     timezone: {
       description: 'Timezone of the Event (TZ database format, e.g. UTC or Europe/Berlin)',
       type: new GraphQLNonNull(GraphQLString),
-      default: 'UTC',
+      default: { value: 'UTC' },
     },
     ...AccountImagesInputFields,
   }),

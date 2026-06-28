@@ -1506,7 +1506,6 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       ...mapValues(
         pick(getOrganizationFields(), [
-          'location',
           'accountingCategories',
           'contributionAccountingCategoryRules',
           'hasMoneyManagement',

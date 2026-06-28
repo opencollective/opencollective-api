@@ -14,10 +14,10 @@ import { GraphQLTransactionGroupCollection } from '../../collection/TransactionG
 import { GraphQLTransactionKind } from '../../enum/TransactionKind';
 import { GraphQLTransactionType } from '../../enum/TransactionType';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
-import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import { CollectionArgs, CollectionReturnType, collectionLimitArg } from '../../interface/Collection';
 
 export const TransactionGroupCollectionArgs = {
-  limit: { ...CollectionArgs.limit, defaultValue: 100 },
+  limit: collectionLimitArg(100),
   offset: CollectionArgs.offset,
   type: {
     type: GraphQLTransactionType,

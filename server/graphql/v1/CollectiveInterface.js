@@ -350,6 +350,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       },
       tiers: {
         type: new GraphQLList(TierType),
+        deprecationReason: '2025-12-05: Will be deleted soon. Use GraphQL v2',
         args: {
           id: { type: GraphQLInt },
           slug: { type: GraphQLString },
@@ -368,7 +369,10 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           status: { type: OrderStatusType },
         },
       },
-      stats: { type: CollectiveStatsType },
+      stats: {
+        type: CollectiveStatsType,
+        deprecationReason: '2025-07-10: Please use GraphQL V2',
+      },
       supportedExpenseTypes: {
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLString))),
         description: 'The list of expense types supported by this account',
@@ -448,7 +452,10 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         type: new GraphQLNonNull(GraphQLCollectiveFeatures),
         description: 'Describes the features enabled and available for this collective',
       },
-      plan: { type: PlanType },
+      plan: {
+        type: PlanType,
+        deprecationReason: '2026-04-02: Replaced by new pricing',
+      },
       contributionPolicy: { type: GraphQLString },
       categories: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLString)),

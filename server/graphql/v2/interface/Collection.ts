@@ -30,35 +30,36 @@ const GraphQLCollection = new GraphQLInterfaceType({
   fields: () => CollectionFields,
 });
 
+export const COLLECTION_DEFAULT_LIMIT = 10;
+export const COLLECTION_DEFAULT_OFFSET = 0;
+
+export const collectionLimitArg = (defaultLimit = COLLECTION_DEFAULT_LIMIT) => ({
+  type: new GraphQLNonNull(GraphQLInt),
+  description: 'The number of results to fetch (default 10, max 1000)',
+  default: { value: defaultLimit },
+});
+
+export const collectionOffsetArg = (defaultOffset = COLLECTION_DEFAULT_OFFSET) => ({
+  type: new GraphQLNonNull(GraphQLInt),
+  description: 'The offset to use to fetch',
+  default: { value: defaultOffset },
+});
+
 /**
  * Types to use as arguments for fields that return types
  * that implement the Collection interface.
  */
 const CollectionArgs = {
-  limit: {
-    type: new GraphQLNonNull(GraphQLInt),
-    description: 'The number of results to fetch (default 10, max 1000)',
-    defaultValue: 10,
-  },
-  offset: {
-    type: new GraphQLNonNull(GraphQLInt),
-    description: 'The offset to use to fetch',
-    defaultValue: 0,
-  },
+  limit: collectionLimitArg(),
+  offset: collectionOffsetArg(),
 };
 
 /**
  * A helper to return `CollectionArgs` with custom defaults
  */
-export const getCollectionArgs = ({ limit = 10, offset = 0 }) => ({
-  limit: {
-    ...CollectionArgs.limit,
-    defaultValue: limit ?? CollectionArgs.limit.defaultValue,
-  },
-  offset: {
-    ...CollectionArgs.offset,
-    defaultValue: offset ?? CollectionArgs.offset.defaultValue,
-  },
+export const getCollectionArgs = ({ limit = COLLECTION_DEFAULT_LIMIT, offset = COLLECTION_DEFAULT_OFFSET } = {}) => ({
+  limit: collectionLimitArg(limit ?? COLLECTION_DEFAULT_LIMIT),
+  offset: collectionOffsetArg(offset ?? COLLECTION_DEFAULT_OFFSET),
 });
 
 export interface CollectionReturnType<T = unknown> {
