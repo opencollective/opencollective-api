@@ -20,16 +20,29 @@ import { filterUntil } from './utils';
  * Represent a single contributor.
  */
 export interface Contributor {
+  /** = Collective.id */
   id: number;
+  /** = Collective.name */
   name: string;
+  /** = Member.role (aggregated into an array) */
   roles: Array<MemberRoles>;
+  /** Whether there is at least one ADMIN role */
   isAdmin: boolean;
+  /** Whether there is at least one MEMBER role */
   isCore: boolean;
+  /** Whether there is at least one BACKER role */
   isBacker: boolean;
+  /** = Collective.isIncognito */
   isIncognito: boolean;
+  /** = Collective.isPrivate */
+  isPrivate: boolean;
+  /** = Collective.isGuest */
   isGuest: boolean;
+  /** = Member.TierId (aggregated into an array) */
   tiersIds: Array<number | null>;
+  /** = Collective.type */
   type: string;
+  /** = Member.since */
   since: string;
   totalAmountDonated: number;
   totalAmountDonatedInHostCurrency: number;
@@ -101,6 +114,7 @@ const contributorsQuery = `
     ARRAY_AGG(DISTINCT m."TierId") as "tiersIds",
     MAX(m."publicMessage") AS "publicMessage",
     c."isIncognito" as "isIncognito",
+    c."isPrivate" as "isPrivate",
     BOOL_OR(COALESCE((c."data" ->> 'isGuest') :: boolean, FALSE)) AS "isGuest",
     COALESCE(MAX(m.description), MAX(tiers.name)) AS "description",
     COALESCE(SUM(transactions."amountInHostCurrency") / COUNT(DISTINCT m.id), 0) AS "totalAmountDonatedInHostCurrency",
@@ -213,10 +227,27 @@ const getContributorsFilteringFuncForRoles = (roles: Array<MemberRoles>): Contri
 /**
  * Filter and slice a list of contributors.
  */
-export const filterContributors = (
+export const filterContributors = async (
+  req: Express.Request,
   contributors: ContributorsList,
   filters: ContributorsFilters | null,
-): ContributorsList => {
+): Promise<ContributorsList> => {
+  // Remove unauthorized private accounts
+  const privateContributors = contributors.filter(c => c.isPrivate);
+  if (privateContributors.length > 0) {
+    const privateAccountIds = privateContributors.map(c => c.id);
+    const canSeeResults = await req.loaders.Collective.canSeePrivateAccount.loadMany(privateAccountIds);
+    const toRemove = new Set<number>();
+    for (const [index, canSeeResult] of canSeeResults.entries()) {
+      if (!canSeeResult) {
+        toRemove.add(privateAccountIds[index]);
+      }
+    }
+
+    contributors = contributors.filter(c => !toRemove.has(c.id));
+  }
+
+  // Stop there if there's no filters
   if (!filters) {
     return contributors;
   }

@@ -180,8 +180,8 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   // ---- Contributor/Member nested fields ----
   'ContributorProfile.account': 'parent-gate',
   'ContributorProfile.forAccount': 'parent-gate',
-  'Member.account': 'parent-gate',
-  'MemberOf.account': 'parent-gate',
+  'Member.account': 'entry-gate',
+  'MemberOf.account': 'entry-gate',
 
   // ---- Organization nested fields ----
   'Organization.parentAccount': 'parent-gate',
@@ -316,7 +316,7 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Host.mainProfile': 'parent-gate',
 
   // ---- Contributor ----
-  'Contributor.account': 'parent-gate',
+  'Contributor.account': 'entry-gate',
 
   // ---- AccountCollection ----
   'AccountCollection.nodes': 'parent-gate',

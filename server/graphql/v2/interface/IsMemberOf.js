@@ -85,6 +85,25 @@ export const IsMemberOfFields = {
 
       const where = { MemberCollectiveId: collective.id, CollectiveId: { [Op.ne]: collective.id } };
       const collectiveConditions = { isPrivate: false };
+
+      // Handle private accounts
+      if (req.remoteUser) {
+        if (req.remoteUser.isRoot()) {
+          delete collectiveConditions.isPrivate;
+        } else {
+          const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
+          if (directAccess.length > 0) {
+            delete collectiveConditions.isPrivate;
+            collectiveConditions[Op.or] = [
+              { isPrivate: false },
+              { id: directAccess },
+              { ParentCollectiveId: directAccess },
+              { HostCollectiveId: directAccess, approvedAt: { [Op.ne]: null } },
+            ];
+          }
+        }
+      }
+
       const collectiveDataConditions = [];
 
       if (!isNil(args.isApproved)) {
@@ -208,26 +227,6 @@ export const IsMemberOfFields = {
           order.push(['createdAt', direction]);
         } else {
           order.push([field, direction]);
-        }
-      }
-
-      // Handle private accounts
-      if (req.remoteUser) {
-        if (req.remoteUser.isRoot()) {
-          // Allow all private accounts to be seen by root admins
-          delete collectiveConditions.isPrivate;
-        } else {
-          const directAccess = req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts);
-          if (directAccess.size) {
-            const idsList = Array.from(directAccess);
-            delete collectiveConditions.isPrivate;
-            collectiveConditions[Op.or] = [
-              { isPrivate: false },
-              { id: idsList }, // User is an admin of accountant of the collective
-              { ParentCollectiveId: idsList }, // User is an admin of accountant of the collective's parent collective (for events/projects)
-              { HostCollectiveId: idsList, approvedAt: { [Op.ne]: null } }, // User is an admin of accountant of the collective's fiscal host
-            ];
-          }
         }
       }
 
