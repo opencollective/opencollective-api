@@ -3,6 +3,7 @@ import { pick } from 'lodash';
 
 import FEATURE from '../../constants/feature';
 import { hasFeature } from '../../lib/allowed-features';
+import { assertCanSeeAccount } from '../../lib/private-accounts';
 import models from '../../models';
 import Conversation from '../../models/Conversation';
 import { FeatureNotSupportedForCollective, NotFound, Unauthorized } from '../errors';
@@ -32,7 +33,11 @@ export const createConversation = async (req: Request, params: CreateConversatio
   const collective = await req.loaders.Collective.byId.load(CollectiveId);
   if (!collective) {
     throw new Error("This Collective doesn't exist or has been deleted");
-  } else if (!(await hasFeature(collective, FEATURE.CONVERSATIONS, { loaders: req.loaders }))) {
+  }
+
+  await assertCanSeeAccount(req, collective);
+
+  if (!(await hasFeature(collective, FEATURE.CONVERSATIONS, { loaders: req.loaders }))) {
     throw new FeatureNotSupportedForCollective();
   }
 
@@ -53,13 +58,16 @@ export const editConversation = async (req: Request, params: EditConversationPar
   checkRemoteUserCanUseConversations(req);
 
   // Collective must exist and use be author or collective admin
-  const conversation = await models.Conversation.findByPk(params.id);
+  const conversation = await models.Conversation.findByPk(params.id, {
+    include: [{ association: 'collective', required: true }],
+  });
+
   if (!conversation) {
     throw new NotFound();
-  } else if (
-    !req.remoteUser.isAdmin(conversation.FromCollectiveId) &&
-    !req.remoteUser.isAdmin(conversation.CollectiveId)
-  ) {
+  }
+
+  await assertCanSeeAccount(req, conversation.collective);
+  if (!req.remoteUser.isAdmin(conversation.FromCollectiveId) && !req.remoteUser.isAdmin(conversation.CollectiveId)) {
     throw new Unauthorized();
   }
 

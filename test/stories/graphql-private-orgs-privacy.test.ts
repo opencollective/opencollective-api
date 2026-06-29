@@ -146,6 +146,8 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Mutation.editVendor': 'skipped',
   'Mutation.convertOrganizationToVendor': 'skipped',
   'Mutation.updateAccountPlatformSubscription': 'skipped',
+  'Mutation.createConversation': 'skipped',
+  'Mutation.editConversation': 'skipped',
 
   // ---- Query.loggedInAccount ----
   'Query.loggedInAccount': 'no-private', // Returns the authenticated user
@@ -325,8 +327,8 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'LegalDocument.account': 'admin-only',
 
   // ---- Conversation ----
-  'Conversation.account': 'parent-gate',
-  'Conversation.fromAccount': 'parent-gate',
+  'Conversation.account': 'entry-gate',
+  'Conversation.fromAccount': 'entry-gate',
 
   // ---- Comment ----
   'Comment.fromAccount': 'parent-gate',
