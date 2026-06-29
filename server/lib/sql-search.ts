@@ -9,7 +9,7 @@ import type { Request } from 'express';
 import express from 'express';
 import { Expression, RawBuilder, SelectQueryBuilder, sql } from 'kysely';
 import slugify from 'limax';
-import { get, isEmpty, isNil, isUndefined, toString, words } from 'lodash';
+import { isEmpty, isNil, isUndefined, toString, words } from 'lodash';
 import { QueryTypes } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
@@ -118,25 +118,34 @@ export const searchCollectivesByEmail = async (
     throw new RateLimitExceeded();
   }
 
-  // Emails are uniques, thus there should never be more than one result - this is
-  // why it's safe to use `collectives.length` in the return.
-  const collectives = await sequelize.query(
-    `
-    SELECT  c.*, COUNT(*) OVER() AS __total__
+  const replacements = { offset, limit, email };
+  const fromAndWhere = `
     FROM "Collectives" c
     INNER JOIN "Users" u ON u."CollectiveId" = c.id
-    WHERE c."isIncognito" = FALSE AND c.type = 'USER' AND u.email = :email
+    WHERE c."isIncognito" = FALSE AND c.type = 'USER' AND u.email = :email`;
+
+  const [collectives, countRows] = await Promise.all([
+    sequelize.query(
+      `
+    SELECT c.*
+    ${fromAndWhere}
     OFFSET :offset
     LIMIT :limit
     `,
-    {
-      model: models.Collective,
-      mapToModel: true,
-      replacements: { offset, limit, email },
-    },
-  );
+      {
+        model: models.Collective,
+        mapToModel: true,
+        replacements,
+      },
+    ),
+    sequelize.query<{ total: number }>(`SELECT COUNT(*)::int AS total ${fromAndWhere}`, {
+      type: QueryTypes.SELECT,
+      replacements,
+      plain: true,
+    }),
+  ]);
 
-  return [collectives, get(collectives[0], 'dataValues.__total__', 0)];
+  return [collectives, countRows.total];
 };
 
 /**
@@ -311,10 +320,47 @@ const getSortSubQuery = (
   }
 };
 
+export type SearchCollectivesInDBOptions = {
+  countries?: string[];
+  currency?: string;
+  hasCustomContributionsEnabled?: boolean;
+  hostCollectiveIds?: number[];
+  vendorVisibleToAccountIds?: number[];
+  includeArchived?: boolean;
+  includeVendorsForHostId?: number;
+  includeAllVendors?: boolean;
+  isHost?: boolean;
+  onlyActive?: boolean;
+  onlyOpenHosts?: boolean;
+  orderBy?: { field?: string | ORDER_BY_PSEUDO_FIELDS; direction?: string };
+  parentCollectiveIds?: number[];
+  skipGuests?: boolean;
+  skipRecentAccounts?: boolean;
+  tags?: string[];
+  tagSearchOperator?: 'AND' | 'OR';
+  types?: string[];
+  consolidatedBalance?: AmountRangeInputType;
+  isRoot?: boolean;
+  isPlatformSubscriber?: boolean;
+  plan?: string[];
+  isVerified?: boolean;
+  isFirstPartyHost?: boolean;
+  lastTransactionFrom?: Date;
+  lastTransactionTo?: Date;
+};
+
+type BuildSearchCollectivesQueryResult = {
+  pageSql: string;
+  countSql: string;
+  replacements: Record<string, unknown>;
+  sortField: string;
+};
+
 /**
- * Search collectives directly in the DB, using a full-text query.
+ * Builds the page and count SQL for `searchCollectivesInDB` without executing them.
+ * Used by the search benchmark script to run EXPLAIN ANALYZE on production-shaped queries.
  */
-export const searchCollectivesInDB = async (
+export const buildSearchCollectivesQuery = async (
   req: express.Request,
   term: string,
   offset = 0,
@@ -337,45 +383,8 @@ export const searchCollectivesInDB = async (
     tagSearchOperator,
     types,
     ...args
-  }: {
-    countries?: string[];
-    currency?: string;
-    hasCustomContributionsEnabled?: boolean;
-    hostCollectiveIds?: number[];
-    vendorVisibleToAccountIds?: number[];
-    includeArchived?: boolean;
-    includeVendorsForHostId?: number;
-    includeAllVendors?: boolean;
-    isHost?: boolean;
-    onlyActive?: boolean;
-    onlyOpenHosts?: boolean;
-    orderBy?: { field?: string | ORDER_BY_PSEUDO_FIELDS; direction?: string };
-    parentCollectiveIds?: number[];
-    skipGuests?: boolean;
-    skipRecentAccounts?: boolean;
-    tags?: string[];
-    tagSearchOperator?: 'AND' | 'OR';
-    types?: string[];
-    consolidatedBalance?: AmountRangeInputType;
-    isRoot?: boolean;
-    isPlatformSubscriber?: boolean;
-    plan?: string[];
-    isVerified?: boolean;
-    isFirstPartyHost?: boolean;
-    lastTransactionFrom?: Date;
-    lastTransactionTo?: Date;
-  } = {},
-): Promise<[Collective[], number]> => {
-  if (isEntityPublicId(term, EntityShortIdPrefix.Collective)) {
-    const collective = await models.Collective.findOne({
-      where: { publicId: term },
-    });
-    if (collective && (!collective.isPrivate || (await canSeePrivateAccount(req, collective)))) {
-      return [[collective], 1];
-    }
-  }
-
-  // Build dynamic conditions based on arguments
+  }: SearchCollectivesInDBOptions = {},
+): Promise<BuildSearchCollectivesQueryResult> => {
   const privateAccountVisibility = await buildPrivateAccountSearchVisibilitySQL(req);
   let dynamicConditions = privateAccountVisibility.sql;
   let countryCodes = null;
@@ -517,55 +526,98 @@ export const searchCollectivesInDB = async (
   const needsTransactionStatsJoin =
     sortSubQuery.requiredJoin === 'transaction_stats' || args.lastTransactionFrom || args.lastTransactionTo;
 
-  // Build the query
-  const result = await sequelize.query(
-    `
-    SELECT
-      c.*,
-      COUNT(*) OVER() AS __total__,
-      (${sortSubQuery.query}) as __sort__
+  const sortDirection = orderBy?.direction || 'DESC';
+  const fromAndJoins = `
     FROM "Collectives" c
     ${countryCodes ? 'LEFT JOIN "Collectives" parentCollective ON c."ParentCollectiveId" = parentCollective.id' : ''}
-    ${needsTransactionStatsJoin ? 'LEFT JOIN "CollectiveTransactionStats" transaction_stats ON transaction_stats."id" = c.id' : ''}
+    ${needsTransactionStatsJoin ? 'LEFT JOIN "CollectiveTransactionStats" transaction_stats ON transaction_stats."id" = c.id' : ''}`;
+
+  const whereClause = `
     WHERE c."deletedAt" IS NULL
     AND (c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE
-    AND c.name != 'incognito'
-    AND c.name != 'anonymous'
+    AND c.name NOT IN ('incognito', 'anonymous')
     AND c."isIncognito" = FALSE ${dynamicConditions}
-    ${!isEmpty(args.consolidatedBalance) ? `AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${getAmountRangeQuery(args.consolidatedBalance)}` : ''}
-    ORDER BY __sort__ ${orderBy?.direction || 'DESC'}, c.id ${orderBy?.direction || 'DESC'}
+    ${!isEmpty(args.consolidatedBalance) ? `AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${getAmountRangeQuery(args.consolidatedBalance)}` : ''}`;
+
+  const replacements = {
+    types,
+    term: term,
+    slugifiedTerm: term ? slugify(term) : '',
+    sanitizedTerm: searchTermConditions.sanitizedTerm,
+    sanitizedTermNoWhitespaces: searchTermConditions.sanitizedTermNoWhitespaces,
+    sanitizedTermForILike: searchTermConditions.sanitizedTermForILike,
+    searchedTags,
+    countryCodes,
+    offset,
+    limit,
+    hostCollectiveIds,
+    parentCollectiveIds,
+    isHost,
+    currency: args.currency,
+    includeVendorsForHostId,
+    plan: args.plan,
+    lastTransactionFrom: args.lastTransactionFrom,
+    lastTransactionTo: args.lastTransactionTo,
+    vendorVisibleToAccountIds,
+    privilegedCollectiveIds: privateAccountVisibility.privilegedCollectiveIds,
+  };
+
+  return {
+    pageSql: `
+    SELECT
+      c.*,
+      (${sortSubQuery.query}) as __sort__
+    ${fromAndJoins}
+    ${whereClause}
+    ORDER BY __sort__ ${sortDirection}, c.id ${sortDirection}
     OFFSET :offset
     LIMIT :limit
     `,
-    {
+    countSql: `
+    SELECT COUNT(*)::int AS total
+    ${fromAndJoins}
+    ${whereClause}
+    `,
+    replacements,
+    sortField: sortSubQuery.type,
+  };
+};
+
+/**
+ * Search collectives directly in the DB, using a full-text query.
+ */
+export const searchCollectivesInDB = async (
+  req: express.Request,
+  term: string,
+  offset = 0,
+  limit = 100,
+  options: SearchCollectivesInDBOptions = {},
+): Promise<[Collective[], number]> => {
+  if (isEntityPublicId(term, EntityShortIdPrefix.Collective)) {
+    const collective = await models.Collective.findOne({
+      where: { publicId: term },
+    });
+    if (collective && (!collective.isPrivate || (await canSeePrivateAccount(req, collective)))) {
+      return [[collective], 1];
+    }
+  }
+
+  const { pageSql, countSql, replacements } = await buildSearchCollectivesQuery(req, term, offset, limit, options);
+
+  const [result, countRows] = await Promise.all([
+    sequelize.query(pageSql, {
       model: models.Collective,
       mapToModel: true,
-      replacements: {
-        types,
-        term: term,
-        slugifiedTerm: term ? slugify(term) : '',
-        sanitizedTerm: searchTermConditions.sanitizedTerm,
-        sanitizedTermNoWhitespaces: searchTermConditions.sanitizedTermNoWhitespaces,
-        sanitizedTermForILike: searchTermConditions.sanitizedTermForILike,
-        searchedTags,
-        countryCodes,
-        offset,
-        limit,
-        hostCollectiveIds,
-        parentCollectiveIds,
-        isHost,
-        currency: args.currency,
-        includeVendorsForHostId,
-        plan: args.plan,
-        lastTransactionFrom: args.lastTransactionFrom,
-        lastTransactionTo: args.lastTransactionTo,
-        vendorVisibleToAccountIds,
-        privilegedCollectiveIds: privateAccountVisibility.privilegedCollectiveIds,
-      },
-    },
-  );
+      replacements,
+    }),
+    sequelize.query<{ total: number }>(countSql, {
+      type: QueryTypes.SELECT,
+      replacements,
+      plain: true,
+    }),
+  ]);
 
-  return [result, get(result[0], 'dataValues.__total__', 0)];
+  return [result, countRows.total];
 };
 
 /**
