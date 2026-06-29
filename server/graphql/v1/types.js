@@ -898,7 +898,7 @@ export const TierType = new GraphQLObjectType({
         async resolve(tier, args, req) {
           const contributorsCache = await req.loaders.Contributors.forCollectiveId.load(tier.CollectiveId);
           const tierContributors = contributorsCache?.tiers?.[tier.id.toString()];
-          return tierContributors ? filterContributors(tierContributors, args) : [];
+          return tierContributors ? filterContributors(req, tierContributors, args) : [];
         },
       },
       stats: {

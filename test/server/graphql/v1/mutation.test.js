@@ -3,6 +3,7 @@ import gqlV1 from 'fake-tag';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
 
+import ActivityTypes from '../../../../server/constants/activities';
 import roles from '../../../../server/constants/roles';
 import * as CacheLib from '../../../../server/lib/cache';
 import models from '../../../../server/models';
@@ -283,6 +284,23 @@ describe('server/graphql/v1/mutation', () => {
         expect(purgeCacheSpy.callCount).to.equal(2);
         expect(purgeCacheSpy.firstCall.args[0]).to.equal(project.slug);
         expect(purgeCacheSpy.secondCall.args[0]).to.equal((await project.getParentCollective()).slug);
+      });
+
+      it('creates a COLLECTIVE_ARCHIVED activity without sending notifications', async () => {
+        const admin = await fakeUser();
+        const hostCollective = await fakeActiveHost();
+        const collective = await fakeCollective({ admin, HostCollectiveId: hostCollective.id });
+
+        const response = await utils.graphqlQuery(archiveCollectiveMutation, { id: collective.id }, admin);
+        expect(response.errors).to.not.exist;
+        expect(response.data.archiveCollective.isArchived).to.be.true;
+
+        const activity = await models.Activity.findOne({
+          where: { type: ActivityTypes.COLLECTIVE_ARCHIVED, CollectiveId: collective.id },
+        });
+        expect(activity).to.exist;
+        expect(activity.HostCollectiveId).to.equal(hostCollective.id);
+        expect(activity.data.notify).to.be.false;
       });
 
       it('should mark all unprocessed expenses as canceled', async () => {

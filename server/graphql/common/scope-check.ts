@@ -4,6 +4,7 @@ import FEATURE from '../../constants/feature';
 import OAuthScopes from '../../constants/oauth-scopes';
 import { canUseFeature } from '../../lib/user-permissions';
 import Comment from '../../models/Comment';
+import ExportRequest, { ExportRequestTypes } from '../../models/ExportRequest';
 import { FeatureNotAllowedForUser, Forbidden, Unauthorized } from '../errors';
 
 export const checkRemoteUserCanUseKYC = (req: Express.Request): void => {
@@ -136,6 +137,23 @@ export const checkRemoteUserCanRoot = (req: Express.Request): void => {
     throw new Forbidden('You need to be logged in as root.');
   }
   enforceScope(req, 'root');
+};
+
+export const checkScopeForExportRequest = (
+  req: Express.Request,
+  exportRequest: {
+    type: ExportRequest['type'];
+    parameters: ExportRequest['parameters'];
+  },
+): void => {
+  if (exportRequest.type === ExportRequestTypes.TRANSACTIONS) {
+    checkRemoteUserCanUseTransactions(req);
+    if (exportRequest.parameters?.isHostReport) {
+      checkRemoteUserCanUseHost(req);
+    }
+  } else if (exportRequest.type === ExportRequestTypes.HOSTED_COLLECTIVES) {
+    checkRemoteUserCanUseHost(req);
+  }
 };
 
 // In many places we check the scope using a direct string. This type will ensure we still use values from the enum.

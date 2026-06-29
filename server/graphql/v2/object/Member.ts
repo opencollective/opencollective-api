@@ -1,7 +1,9 @@
+import type express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
+import { canSeeAllPrivateAccounts } from '../../../lib/private-accounts';
 import { Member } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLMemberRole } from '../enum/MemberRole';
@@ -103,19 +105,28 @@ const getMemberFields = () => ({
   isActive: {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Whether the membership is active. Warning: this definition is subject to change.',
-    async resolve(member: Member, _, req: Express.Request) {
+    async resolve(member: Member, _, req: express.Request) {
       return req.loaders.Member.isActive.load(member.id);
     },
   },
 });
 
-const getMemberAccountResolver = field => async (member: Member, args, req: Express.Request) => {
+const getMemberAccountResolver = field => async (member: Member, args, req: express.Request) => {
   const memberAccount = member.memberCollective || (await req.loaders.Collective.byId.load(member.MemberCollectiveId));
   const account = member.collective || (await req.loaders.Collective.byId.load(member.CollectiveId));
-
-  if (!account?.isIncognito || (req.remoteUser?.isAdmin(memberAccount.id) && checkScope(req, 'incognito'))) {
-    return field === 'collective' ? account : memberAccount;
+  const resolvedAccount = field === 'collective' ? account : memberAccount;
+  if (!resolvedAccount) {
+    return null;
+  } else if (
+    resolvedAccount.isIncognito &&
+    !(req.remoteUser?.isAdmin(resolvedAccount.id) && checkScope(req, 'incognito'))
+  ) {
+    return null;
+  } else if (!(await canSeeAllPrivateAccounts(req, [memberAccount, account]))) {
+    return null;
   }
+
+  return resolvedAccount;
 };
 
 export const GraphQLMember = new GraphQLObjectType({

@@ -12,7 +12,6 @@ export const getGoCardlessClient = () => {
   }
 
   if (!gocardlessClient) {
-    // @ts-expect-error Property 'baseUrl' is missing in type [...] - see https://github.com/nordigen/nordigen-node/pull/64
     gocardlessClient = new NordigenClient({
       secretId: config.gocardless.secretId,
       secretKey: config.gocardless.secretKey,

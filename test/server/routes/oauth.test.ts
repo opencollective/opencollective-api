@@ -6,6 +6,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { useFakeTimers } from 'sinon';
 import request from 'supertest';
 
+import models from '../../../server/models';
 import { fakeApplication, fakeOAuthAuthorizationCode, fakeUser } from '../../test-helpers/fake-data';
 import { startTestServer, stopTestServer } from '../../test-helpers/server';
 import { resetTestDB } from '../../utils';
@@ -726,7 +727,6 @@ describe('server/routes/oauth', () => {
 
     it('rejects expired refresh tokens', async () => {
       // Manually expire the refresh token in the database
-      const models = (await import('../../../server/models')).default;
       const userToken = await models.UserToken.findOne({
         where: { refreshToken: originalToken.refresh_token },
       });

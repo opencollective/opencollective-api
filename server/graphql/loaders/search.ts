@@ -1,6 +1,6 @@
 import assert from 'assert';
 
-import { ResponseBody } from '@opensearch-project/opensearch/api/_types/_core.search';
+import { ResponseBody } from '@opensearch-project/opensearch/api/_types/_core.search.js';
 import config from 'config';
 import DataLoader from 'dataloader';
 import { groupBy, pick } from 'lodash';

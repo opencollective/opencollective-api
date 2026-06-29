@@ -25,6 +25,7 @@ import { shouldGenerateTransactionActivities } from '../lib/activities';
 import { getFxRate, roundCentsAmount } from '../lib/currency';
 import logger from '../lib/logger';
 import { toNegative } from '../lib/math';
+import { syncPaymentIntentFromLedgerTransaction } from '../lib/payment-intents/sync';
 import { calcFee, getHostFeeSharePercent } from '../lib/payments';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { stripHTML } from '../lib/sanitize-html';
@@ -420,6 +421,11 @@ class Transaction extends ModelWithPublicId<
     { sequelizeTransaction }: { sequelizeTransaction?: SequelizeTransaction } = {},
   ): Promise<Transaction> {
     const runInTransaction = async sequelizeTransaction => {
+      const finalizeLedgerWrite = async (writtenTransaction: Transaction): Promise<Transaction> => {
+        await syncPaymentIntentFromLedgerTransaction(writtenTransaction, sequelizeTransaction);
+        return writtenTransaction;
+      };
+
       // Force transaction type based on amount sign
       if (transaction.amount > 0) {
         transaction.type = CREDIT;
@@ -510,7 +516,9 @@ class Transaction extends ModelWithPublicId<
 
       // If FromCollectiveId = CollectiveId, we only create one transaction (DEBIT or CREDIT)
       if (transaction.FromCollectiveId === transaction.CollectiveId) {
-        return Transaction.create(transaction, { transaction: sequelizeTransaction }) as Promise<Transaction>;
+        return finalizeLedgerWrite(
+          (await Transaction.create(transaction, { transaction: sequelizeTransaction })) as Transaction,
+        );
       }
 
       if (!isUndefined(transaction.amountInHostCurrency)) {
@@ -635,10 +643,10 @@ class Transaction extends ModelWithPublicId<
       if (transaction.type === DEBIT) {
         const t = await Transaction.create(transaction, { transaction: sequelizeTransaction });
         await Transaction.create(oppositeTransaction, { transaction: sequelizeTransaction });
-        return t;
+        return finalizeLedgerWrite(t);
       } else {
         await Transaction.create(oppositeTransaction, { transaction: sequelizeTransaction });
-        return Transaction.create(transaction, { transaction: sequelizeTransaction });
+        return finalizeLedgerWrite(await Transaction.create(transaction, { transaction: sequelizeTransaction }));
       }
     };
 
@@ -849,7 +857,7 @@ class Transaction extends ModelWithPublicId<
       return;
     }
 
-    const host = await Transaction.fetchHost(transaction);
+    const host = await Transaction.fetchHost(transaction, { sqlTransaction: sequelizeTransaction });
 
     // The reference value is currently passed as "hostFeeInHostCurrency"
     const amountInHostCurrency = Math.abs(transaction.hostFeeInHostCurrency);

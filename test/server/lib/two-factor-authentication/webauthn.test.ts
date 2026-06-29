@@ -4,6 +4,7 @@ import { TwoFactorMethod } from '../../../../server/lib/two-factor-authenticatio
 import {
   authenticationOptions,
   generateRegistrationOptions,
+  validateToken,
 } from '../../../../server/lib/two-factor-authentication/webauthn';
 import { fakeUser, fakeUserTwoFactorMethod } from '../../../test-helpers/fake-data';
 
@@ -136,7 +137,6 @@ describe('lib/two-factor-authentication', () => {
 
     describe('validateToken', () => {
       it('fails if credential is not found', async () => {
-        const { validateToken } = await import('../../../../server/lib/two-factor-authentication/webauthn');
         const user = await fakeUser();
         const token = {
           type: TwoFactorMethod.WEBAUTHN,

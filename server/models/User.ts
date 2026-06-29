@@ -238,7 +238,7 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     if (incognitoProfile) {
       where.MemberCollectiveId = { [Op.in]: [this.CollectiveId, incognitoProfile.id] };
     }
-    const memberships = await Member.findAll({ where });
+    const memberships = await Member.findAll({ attributes: ['CollectiveId', 'role'], where });
     memberships.map(m => {
       rolesByCollectiveId[m.CollectiveId] = rolesByCollectiveId[m.CollectiveId] || [];
       rolesByCollectiveId[m.CollectiveId].push(m.role);

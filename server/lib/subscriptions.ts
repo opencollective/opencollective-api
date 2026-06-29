@@ -108,6 +108,9 @@ export const updatePaymentMethodForSubscription = async (
     }
   }
 
+  // Ensure that this payment method can be used for this order
+  await newPaymentMethod.canBeUsedForOrder(order, user);
+
   // Order changes
   const newStatus = [OrderStatus.ERROR, OrderStatus.PAUSED].includes(order.status) ? OrderStatus.ACTIVE : order.status;
   const newOrderData = { PaymentMethodId: newPaymentMethod.id, status: newStatus };

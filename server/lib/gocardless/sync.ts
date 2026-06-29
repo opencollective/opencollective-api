@@ -126,7 +126,6 @@ const syncIndividualAccount = async (
     let transactions: AccountTransactions;
     while (!transactions && (!options.retryFor || timeSpent < options.retryFor)) {
       try {
-        // @ts-expect-error Invalid type in nordigen-node: country is not a valid parameter
         transactions = await client.account(account).getTransactions({
           dateFrom: !dateFrom ? undefined : dateFrom.toISOString().split('T')[0],
           dateTo: !dateTo ? undefined : dateTo.toISOString().split('T')[0],
