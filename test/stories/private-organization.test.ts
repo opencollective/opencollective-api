@@ -9,6 +9,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import MemberRoles from '../../server/constants/roles';
+import { invalidateContributorsCache } from '../../server/lib/contributors';
 import models from '../../server/models';
 import {
   fakeActiveHost,
@@ -17,6 +18,7 @@ import {
   fakeExpense,
   fakeMember,
   fakeOrder,
+  fakeOrganization,
   fakeTransaction,
   fakeUpdate,
   fakeUser,
@@ -93,6 +95,53 @@ const conversationsQuery = gql`
         totalCount
         nodes {
           id
+        }
+      }
+    }
+  }
+`;
+
+const membersQuery = gql`
+  query Members($slug: String!, $role: [MemberRole]) {
+    account(slug: $slug) {
+      slug
+      members(role: $role) {
+        totalCount
+        nodes {
+          role
+          account {
+            slug
+            name
+            description
+            isPrivate
+            type
+          }
+        }
+      }
+    }
+  }
+`;
+
+const contributorsQuery = gql`
+  query Contributors($slug: String!) {
+    account(slug: $slug) {
+      slug
+      ... on AccountWithContributions {
+        contributors {
+          totalCount
+          nodes {
+            name
+            collectiveSlug
+            isAdmin
+            isBacker
+            account {
+              slug
+              name
+              description
+              isPrivate
+              type
+            }
+          }
         }
       }
     }
@@ -337,6 +386,100 @@ describe('test/stories/private-organization', () => {
     it('collectives under a public host are not private', async () => {
       const newCollective = await fakeCollective({ HostCollectiveId: ctx.publicHost.id });
       expect(newCollective.isPrivate).to.be.false;
+    });
+  });
+
+  describe('Scenario 6: members and contributors on public collectives', () => {
+    let privateOrg, publicCollective, orgAdmin;
+
+    before(async function () {
+      this.timeout(60_000);
+      await resetTestDB();
+
+      orgAdmin = await fakeUser();
+      privateOrg = await fakeOrganization({
+        isPrivate: true,
+        slug: 'secret-private-org-members',
+        name: 'Secret Private Org',
+        description: 'This description should be hidden from non-members',
+        admin: orgAdmin.collective,
+      });
+
+      publicCollective = await fakeCollective({
+        slug: 'public-collective-with-private-backer',
+        name: 'Public Collective',
+      });
+
+      await fakeMember({
+        CollectiveId: publicCollective.id,
+        MemberCollectiveId: privateOrg.id,
+        role: MemberRoles.BACKER,
+      });
+
+      await invalidateContributorsCache(publicCollective.id);
+    });
+
+    it('blocks direct anonymous access to the private org', async () => {
+      const result = await graphqlQueryV2(accountQuery, { slug: privateOrg.slug });
+      expectForbiddenError(result);
+    });
+
+    it('does not expose private org via anonymous Account.members', async () => {
+      const result = await graphqlQueryV2(membersQuery, {
+        slug: publicCollective.slug,
+        role: ['BACKER'],
+      });
+      expect(result.errors).to.be.undefined;
+      expect(result.data.account.members.totalCount).to.eq(0);
+      expect(result.data.account.members.nodes).to.be.empty;
+    });
+
+    it('does not expose private org via anonymous Account.contributors', async () => {
+      const result = await graphqlQueryV2(contributorsQuery, { slug: publicCollective.slug });
+      expect(result.errors).to.be.undefined;
+      const leaked = result.data.account.contributors.nodes.find(n => n.collectiveSlug === privateOrg.slug);
+      expect(leaked, 'private org should not appear in contributors').to.be.undefined;
+      expect(result.data.account.contributors.nodes.every(n => n.account?.slug !== privateOrg.slug)).to.be.true;
+    });
+
+    it('does not expose private admin org via anonymous Account.members', async () => {
+      const adminOrg = await fakeOrganization({
+        isPrivate: true,
+        slug: 'secret-private-admin-org',
+        name: 'Secret Private Admin Org',
+      });
+      const publicCollective2 = await fakeCollective({
+        slug: 'public-collective-with-private-admin',
+      });
+      await fakeMember({
+        CollectiveId: publicCollective2.id,
+        MemberCollectiveId: adminOrg.id,
+        role: MemberRoles.ADMIN,
+      });
+
+      const result = await graphqlQueryV2(membersQuery, {
+        slug: publicCollective2.slug,
+        role: ['ADMIN'],
+      });
+      expect(result.errors).to.be.undefined;
+      expect(result.data.account.members.nodes.find(n => n.account?.slug === adminOrg.slug)).to.be.undefined;
+    });
+
+    it('allows private org admins to see their org in Account.members', async () => {
+      const result = await graphqlQueryV2(membersQuery, { slug: publicCollective.slug, role: ['BACKER'] }, orgAdmin);
+      expect(result.errors).to.be.undefined;
+      expect(result.data.account.members.totalCount).to.eq(1);
+      expect(result.data.account.members.nodes[0].account.slug).to.eq(privateOrg.slug);
+      expect(result.data.account.members.nodes[0].account.name).to.eq(privateOrg.name);
+    });
+
+    it('allows private org admins to see their org in Account.contributors', async () => {
+      const result = await graphqlQueryV2(contributorsQuery, { slug: publicCollective.slug }, orgAdmin);
+      expect(result.errors).to.be.undefined;
+      const contributor = result.data.account.contributors.nodes.find(n => n.account?.slug === privateOrg.slug);
+      expect(contributor, 'private org admin should see their org in contributors').to.exist;
+      expect(contributor.account.name).to.eq(privateOrg.name);
+      expect(contributor.collectiveSlug).to.eq(privateOrg.slug);
     });
   });
 });
