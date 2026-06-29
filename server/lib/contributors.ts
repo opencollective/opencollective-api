@@ -239,7 +239,7 @@ export const filterContributors = async (
     const canSeeResults = await req.loaders.Collective.canSeePrivateAccount.loadMany(privateAccountIds);
     const toRemove = new Set<number>();
     for (const [index, canSeeResult] of canSeeResults.entries()) {
-      if (!canSeeResult) {
+      if (canSeeResult === false) {
         toRemove.add(privateAccountIds[index]);
       }
     }

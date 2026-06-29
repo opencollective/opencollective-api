@@ -247,7 +247,8 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     });
     const relatedCollectiveIds = hostIdsForPriviledgedCollectiveIds
       .map(c => [c.id, c.HostCollectiveId, c.ParentCollectiveId])
-      .flat();
+      .flat()
+      .filter(Boolean);
 
     return new Set([...priviledgedCollectiveIds, ...relatedCollectiveIds]);
   }
