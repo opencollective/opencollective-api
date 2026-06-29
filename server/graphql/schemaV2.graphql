@@ -6737,7 +6737,7 @@ type ConnectedAccount {
   updatedAt: DateTime!
 
   """
-  When the bank account authorization expires and needs to be reconnected
+  For when the authorization expires after a certain time
   """
   authorizationExpiresAt: DateTime
   settings: JSON
