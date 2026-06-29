@@ -534,8 +534,6 @@ export const ExpensesCollectionQueryResolver = async (
     const orConditions: WhereOptions[] = [{ '$collective.isPrivate$': false }];
 
     if (req.remoteUser) {
-      // We're not using `getDirectlyAccessibleCollectiveIds` here because it would give people access to expenses from
-      // other collectives under the same host.
       const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
 
       // Allow user to see all expenses they have submitted through their administrated accounts or own profile

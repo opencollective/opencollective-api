@@ -2,7 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql
 import { intersection, isNil, isUndefined } from 'lodash';
 
 import { CollectiveType } from '../../../constants/collectives';
-import MemberRoles from '../../../constants/roles';
+import MemberRoles, { MemberRolesForPrivateAccounts } from '../../../constants/roles';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import models, { Op, sequelize } from '../../../models';
 import { checkScope } from '../../common/scope-check';
@@ -75,10 +75,15 @@ export const HasMembersFields = {
         if (req.remoteUser.isRoot()) {
           delete collectiveConditions.isPrivate;
         } else {
-          const directAccess = Array.from(await req.remoteUser.getDirectlyAccessibleCollectiveIds());
+          const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
           if (directAccess.length > 0) {
             delete collectiveConditions.isPrivate;
-            collectiveConditions[Op.or] = [{ isPrivate: false }, { id: directAccess }];
+            collectiveConditions[Op.or] = [
+              { isPrivate: false },
+              { id: directAccess },
+              { ParentCollectiveId: directAccess },
+              { HostCollectiveId: directAccess },
+            ];
           }
         }
       }

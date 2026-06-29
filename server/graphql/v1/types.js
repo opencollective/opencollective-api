@@ -20,7 +20,7 @@ import INTERVALS from '../../constants/intervals';
 import { maxInteger } from '../../constants/math';
 import orderStatus from '../../constants/order-status';
 import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
-import roles from '../../constants/roles';
+import roles, { MemberRolesForPrivateAccounts } from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { filterContributors } from '../../lib/contributors';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
@@ -165,11 +165,16 @@ export const UserType = new GraphQLObjectType({
               // Allow all private accounts to be seen by root admins
               delete collectiveConditions.isPrivate;
             } else {
-              const directAccess = await req.remoteUser.getDirectlyAccessibleCollectiveIds();
+              const directAccess = req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts);
               if (directAccess.size) {
                 const idsList = Array.from(directAccess);
                 delete collectiveConditions.isPrivate;
-                collectiveConditions[Op.or] = [{ isPrivate: false }, { id: idsList }];
+                collectiveConditions[Op.or] = [
+                  { isPrivate: false },
+                  { id: idsList }, // User is an admin of accountant of the collective
+                  { ParentCollectiveId: idsList }, // User is an admin of accountant of the collective's parent collective (for events/projects)
+                  { HostCollectiveId: idsList, approvedAt: { [Op.ne]: null } }, // User is an admin of accountant of the collective's fiscal host
+                ];
               }
             }
           }

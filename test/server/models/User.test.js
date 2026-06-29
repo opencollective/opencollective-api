@@ -10,14 +10,7 @@ import MemberRoles from '../../../server/constants/roles';
 import * as auth from '../../../server/lib/auth';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
-import {
-  fakeCollective,
-  fakeConnectedAccount,
-  fakeEvent,
-  fakeHost,
-  fakeUser,
-  multiple,
-} from '../../test-helpers/fake-data';
+import { fakeCollective, fakeConnectedAccount, fakeEvent, fakeUser, multiple } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 const userData = utils.data('user1');
 
@@ -213,62 +206,6 @@ describe('server/models/User', () => {
         const adminOnly = user.getCollectiveIdsForRoles(new Set([MemberRoles.ADMIN]));
         expect(adminOnly.has(asAdmin.id)).to.be.true;
         expect(adminOnly.has(asAccountantCollective.id)).to.be.false;
-      });
-    });
-
-    describe('getDirectlyAccessibleCollectiveIds', () => {
-      it('returns an empty set when roles have not been populated', async () => {
-        const user = await fakeUser();
-        const ids = await user.getDirectlyAccessibleCollectiveIds();
-        expect(ids.size).to.equal(0);
-      });
-
-      it('returns an empty set when the user has no admin or accountant roles', async () => {
-        const user = await fakeUser();
-        const collective = await fakeCollective();
-        await collective.addUserWithRole(user, 'BACKER');
-        await user.populateRoles({ force: true });
-
-        const ids = await user.getDirectlyAccessibleCollectiveIds();
-        expect(ids.size).to.equal(0);
-      });
-
-      it('returns collective ids where the user is admin or accountant', async () => {
-        const user = await fakeUser();
-        const asAdmin = await fakeCollective({ admin: user });
-        const asAccountantCollective = await fakeCollective();
-        await asAccountantCollective.addUserWithRole(user, 'ACCOUNTANT');
-        const backerOnly = await fakeCollective();
-        await backerOnly.addUserWithRole(user, 'BACKER');
-        await user.populateRoles({ force: true });
-
-        const ids = await user.getDirectlyAccessibleCollectiveIds();
-        expect(ids.has(asAdmin.id)).to.be.true;
-        expect(ids.has(asAccountantCollective.id)).to.be.true;
-        expect(ids.has(backerOnly.id)).to.be.false;
-      });
-
-      it('includes the host collective when the user is admin of a hosted collective', async () => {
-        const user = await fakeUser();
-        const host = await fakeHost();
-        const collective = await fakeCollective({ admin: user, HostCollectiveId: host.id });
-        await user.populateRoles({ force: true });
-
-        const ids = await user.getDirectlyAccessibleCollectiveIds();
-        expect(ids.has(collective.id)).to.be.true;
-        expect(ids.has(host.id)).to.be.true;
-      });
-
-      it('includes the parent collective when the user is admin of an event', async () => {
-        const user = await fakeUser();
-        const parent = await fakeCollective();
-        const event = await fakeEvent({ ParentCollectiveId: parent.id });
-        await event.addUserWithRole(user, 'ADMIN');
-        await user.populateRoles({ force: true });
-
-        const ids = await user.getDirectlyAccessibleCollectiveIds();
-        expect(ids.has(event.id)).to.be.true;
-        expect(ids.has(parent.id)).to.be.true;
       });
     });
   });
