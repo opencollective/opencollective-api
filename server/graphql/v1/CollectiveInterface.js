@@ -15,7 +15,7 @@ import { get, has, isNil, isNull, merge, omitBy } from 'lodash';
 import { CollectiveType as CollectiveTypeEnum } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
-import MemberRoles, { MemberRolesForPrivateAccounts } from '../../constants/roles';
+import MemberRoles from '../../constants/roles';
 import { hasFeature } from '../../lib/allowed-features';
 import { isCollectiveDeletable } from '../../lib/collectivelib';
 import { filterContributors } from '../../lib/contributors';
@@ -964,16 +964,11 @@ const CollectiveFields = () => {
             // Allow all private accounts to be seen by root admins
             delete collectiveConditions.isPrivate;
           } else {
-            const directAccess = req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts);
+            const directAccess = await req.remoteUser.getDirectlyAccessibleCollectiveIds();
             if (directAccess.size) {
               const idsList = Array.from(directAccess);
               delete collectiveConditions.isPrivate;
-              collectiveConditions[Op.or] = [
-                { isPrivate: false },
-                { id: idsList }, // User is an admin of accountant of the collective
-                { ParentCollectiveId: idsList }, // User is an admin of accountant of the collective's parent collective (for events/projects)
-                { HostCollectiveId: idsList, approvedAt: { [Op.ne]: null } }, // User is an admin of accountant of the collective's fiscal host
-              ];
+              collectiveConditions[Op.or] = [{ isPrivate: false }, { id: idsList }];
             }
           }
         }

@@ -12,7 +12,7 @@ import { Service } from '../constants/connected-account';
 import FEATURE from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
 import PlatformConstants from '../constants/platform';
-import MemberRoles from '../constants/roles';
+import MemberRoles, { MemberRolesForPrivateAccounts } from '../constants/roles';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
 import logger from '../lib/logger';
@@ -226,6 +226,32 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     return collective.getIncognitoProfile();
   };
 
+  /**
+   * Related to private accounts: return the collective IDs that the user can see directly.
+   * Prefer using `canSeePrivateAccount` when possible.
+   */
+  async getDirectlyAccessibleCollectiveIds(): Promise<Set<number>> {
+    const priviledgedCollectiveIds = this.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts);
+    if (priviledgedCollectiveIds.size === 0) {
+      return priviledgedCollectiveIds;
+    }
+
+    // Collective admins can see the host of their priviledged collectives
+    const hostIdsForPriviledgedCollectiveIds = await Collective.findAll({
+      raw: true,
+      attributes: ['id', 'HostCollectiveId', 'ParentCollectiveId'],
+      where: {
+        id: { [Op.in]: Array.from(priviledgedCollectiveIds) },
+        [Op.or]: [{ HostCollectiveId: { [Op.ne]: null } }, { ParentCollectiveId: { [Op.ne]: null } }],
+      },
+    });
+    const relatedCollectiveIds = hostIdsForPriviledgedCollectiveIds
+      .map(c => [c.id, c.HostCollectiveId, c.ParentCollectiveId])
+      .flat();
+
+    return new Set([...priviledgedCollectiveIds, ...relatedCollectiveIds]);
+  }
+
   populateRoles = async function ({ force = false } = {}) {
     if (this.rolesByCollectiveId && !force) {
       debug('roles already populated');
@@ -238,7 +264,7 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     if (incognitoProfile) {
       where.MemberCollectiveId = { [Op.in]: [this.CollectiveId, incognitoProfile.id] };
     }
-    const memberships = await Member.findAll({ where });
+    const memberships = await Member.findAll({ attributes: ['CollectiveId', 'role'], where });
     memberships.map(m => {
       rolesByCollectiveId[m.CollectiveId] = rolesByCollectiveId[m.CollectiveId] || [];
       rolesByCollectiveId[m.CollectiveId].push(m.role);

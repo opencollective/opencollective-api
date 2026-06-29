@@ -2,7 +2,6 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString 
 import { cloneDeep, invert, isEmpty, isNil, isUndefined } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
-import { MemberRolesForPrivateAccounts } from '../../../constants/roles';
 import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import models, { Op, sequelize } from '../../../models';
@@ -91,15 +90,10 @@ export const IsMemberOfFields = {
         if (req.remoteUser.isRoot()) {
           delete collectiveConditions.isPrivate;
         } else {
-          const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
+          const directAccess = Array.from(await req.remoteUser.getDirectlyAccessibleCollectiveIds());
           if (directAccess.length > 0) {
             delete collectiveConditions.isPrivate;
-            collectiveConditions[Op.or] = [
-              { isPrivate: false },
-              { id: directAccess },
-              { ParentCollectiveId: directAccess },
-              { HostCollectiveId: directAccess, approvedAt: { [Op.ne]: null } },
-            ];
+            collectiveConditions[Op.or] = [{ isPrivate: false }, { id: directAccess }];
           }
         }
       }

@@ -554,6 +554,8 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         const ors: Expression<SqlBool>[] = [eb('collective.isPrivate', '=', false)];
 
         if (req.remoteUser) {
+          // We're not using `getDirectlyAccessibleCollectiveIds` here because it would give people access to orders from/to
+          // other collectives under the same host.
           const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
           ors.push(eb('Orders.FromCollectiveId', 'in', [req.remoteUser.CollectiveId, ...directAccess]));
           if (directAccess.length > 0) {
