@@ -189,7 +189,8 @@
     "sinon-chai": "^3.7.0",
     "supertest": "^7.0.0",
     "ts-unused-exports": "^11.0.1",
-    "typescript": "^6.0.3",
+    "typescript": "npm:@typescript/typescript6@^6.0.3",
+    "typescript-7": "npm:typescript@rc",
     "typescript-eslint": "^8.60.1",
     "ws": "^8.18.3"
   },
@@ -264,7 +265,7 @@
     "test:scripts": "npm run test test/scripts",
     "test:sql": "npm run test test/sql",
     "ts-unused-exports": "ts-unused-exports tsconfig.json --ignoreFiles=server/types --ignoreFiles=server/paymentProviders/types",
-    "type:check": "tsc",
+    "type:check": "tsc -p tsconfig.json",
     "prepare": "husky",
     "lint-staged": "lint-staged",
     "heroku-postbuild": "npm run build && ./scripts/upload-sourcemaps.sh"
