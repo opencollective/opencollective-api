@@ -1,6 +1,8 @@
-import { GraphQLEnumType } from 'graphql';
+import { GraphQLEnumType, GraphQLEnumValueConfig } from 'graphql';
 
 import INTERVALS from '../../../constants/intervals';
+
+export type GraphQLContributionFrequencyType = 'MONTHLY' | 'YEARLY' | 'ONETIME';
 
 export const GraphQLContributionFrequency = new GraphQLEnumType({
   name: 'ContributionFrequency',
@@ -8,7 +10,7 @@ export const GraphQLContributionFrequency = new GraphQLEnumType({
     MONTHLY: {},
     YEARLY: {},
     ONETIME: {},
-  },
+  } satisfies Record<GraphQLContributionFrequencyType, GraphQLEnumValueConfig>,
 });
 
 /**
