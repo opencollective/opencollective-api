@@ -303,6 +303,16 @@ WITH requested_collectives AS (
   AND         deleted_orders."SubscriptionId" IS NOT NULL
   AND         s.id = deleted_orders."SubscriptionId"
   RETURNING   s.id
+), deleted_payment_intents AS (
+  -- Delete payment intents
+  UPDATE ONLY "PaymentIntents" pi SET "deletedAt" = NOW()
+  FROM        deleted_collectives
+  WHERE       pi."deletedAt" IS NULL
+  AND         (
+    pi."PayerCollectiveId" = deleted_collectives.id
+    OR pi."PayeeCollectiveId" = deleted_collectives.id
+  )
+  RETURNING   pi.id
 ), deleted_uploaded_files AS (
   -- Delete uploaded files
   UPDATE ONLY "UploadedFiles" uf SET "deletedAt" = NOW()
@@ -347,5 +357,6 @@ WITH requested_collectives AS (
   (SELECT COUNT(*) FROM deleted_manual_payment_providers) AS nb_deleted_manual_payment_providers,
   (SELECT COUNT(*) FROM deleted_kyc_verifications) AS nb_deleted_kyc_verifications,
   (SELECT COUNT(*) FROM deleted_subscriptions) AS nb_deleted_subscriptions,
+  (SELECT COUNT(*) FROM deleted_payment_intents) AS nb_deleted_payment_intents,
   (SELECT COUNT(*) FROM deleted_uploaded_files) AS nb_deleted_uploaded_files,
   (SELECT ARRAY_AGG(deleted_collectives.id) FROM deleted_collectives) AS deleted_collectives_ids

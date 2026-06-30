@@ -1006,7 +1006,7 @@ const CollectiveFields = () => {
         }
 
         const contributors = await req.loaders.Contributors.forCollectiveId.load(collective.id);
-        return filterContributors(contributors.all, args);
+        return filterContributors(req, contributors.all, args);
       },
     },
     notifications: {

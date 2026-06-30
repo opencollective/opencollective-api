@@ -2,6 +2,7 @@ import { CountryCode, formatAddress as libFormatAddress } from 'lib-address';
 
 import { Location } from '../types/Location';
 
+import { normalizeZoneCode } from './normalize-zone';
 import { reportErrorToSentry } from './sentry';
 
 type Options = {
@@ -19,6 +20,7 @@ export async function formatAddress(
   }
 
   const { address1, address2, city, zone, postalCode } = structured;
+  const normalizedZone = normalizeZoneCode(country, zone);
 
   try {
     const formatted = libFormatAddress(
@@ -27,7 +29,7 @@ export async function formatAddress(
         addressLine1: address1,
         addressLine2: address2,
         city,
-        state: zone,
+        state: normalizedZone,
         zip: postalCode,
       },
       {
@@ -47,6 +49,8 @@ export async function formatAddress(
     reportErrorToSentry(error);
 
     // Use fallback formatting (US format)
-    return [address1, address2, [city, zone, postalCode].filter(Boolean).join(' ')].filter(Boolean).join(lineDivider);
+    return [address1, address2, [city, normalizedZone, postalCode].filter(Boolean).join(' ')]
+      .filter(Boolean)
+      .join(lineDivider);
   }
 }

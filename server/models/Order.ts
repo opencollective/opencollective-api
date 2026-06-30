@@ -30,6 +30,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import PlatformConstants from '../constants/platform';
 import TierType from '../constants/tiers';
 import { TransactionTypes } from '../constants/transactions';
+import { deletePaymentIntentForSource, syncPaymentIntentFromOrder } from '../lib/payment-intents/sync';
 import { executeOrder } from '../lib/payments';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
@@ -756,6 +757,21 @@ Order.init(
         if ((order.taxAmount || 0) + (order.platformTipAmount || 0) > order.totalAmount) {
           throw new Error('Invalid contribution amount: Taxes and platform tip cannot exceed the total amount');
         }
+      },
+      async afterCreate(order: Order, options) {
+        await syncPaymentIntentFromOrder(order, options.transaction);
+      },
+      async afterUpdate(order: Order, options) {
+        if (order.changed('status')) {
+          // PAID/ACTIVE are finalized by the ledger hook in Transaction.createDoubleEntry
+          if ([OrderStatus.PAID, OrderStatus.ACTIVE].includes(order.status)) {
+            return;
+          }
+          await syncPaymentIntentFromOrder(order, options.transaction);
+        }
+      },
+      async afterDestroy(order: Order, options) {
+        await deletePaymentIntentForSource({ order }, options.transaction);
       },
     },
   },

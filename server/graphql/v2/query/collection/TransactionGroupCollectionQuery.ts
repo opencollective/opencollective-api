@@ -6,6 +6,7 @@ import { isNil } from 'lodash';
 import { SupportedCurrency } from '../../../../constants/currencies';
 import { roundCentsAmount } from '../../../../lib/currency';
 import { assertCanSeeAccount } from '../../../../lib/private-accounts';
+import { getTransactionKindPriorityCase } from '../../../../lib/transactions/kind-priority';
 import { Op, sequelize } from '../../../../models';
 import Transaction from '../../../../models/Transaction';
 import { enforceScope } from '../../../common/scope-check';
@@ -14,8 +15,6 @@ import { GraphQLTransactionKind } from '../../enum/TransactionKind';
 import { GraphQLTransactionType } from '../../enum/TransactionType';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
-
-import { getTransactionKindPriorityCase } from './TransactionsCollectionQuery';
 
 export const TransactionGroupCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },

@@ -4,6 +4,7 @@ import { cloneDeep, invert, isEmpty, isNil, isUndefined } from 'lodash';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import { MemberRolesForPrivateAccounts } from '../../../constants/roles';
 import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import models, { Op, sequelize } from '../../../models';
 import { checkScope } from '../../common/scope-check';
@@ -113,7 +114,8 @@ export const IsMemberOfFields = {
         };
       }
       if (args.account) {
-        const account = await fetchAccountWithReference(args.account, { loaders: req.loaders });
+        const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+        await assertCanSeeAccount(req, account);
         where.CollectiveId = account.id;
       }
       if (!args.includeIncognito || !req.remoteUser?.isAdmin(collective.id) || !checkScope(req, 'incognito')) {

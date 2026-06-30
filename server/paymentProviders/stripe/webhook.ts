@@ -20,12 +20,14 @@ import { TransactionTypes } from '../../constants/transactions';
 import { applyContributionAccountingCategoryRules } from '../../lib/accounting/categorization/contribution-rules';
 import { getFxRate, isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
+import { lockUntilResolved } from '../../lib/mutex';
 import {
   createRefundTransaction,
   createSubscription,
   sendEmailNotifications,
   sendOrderFailedEmail,
 } from '../../lib/payments';
+import { getChargeRetryCount, getNextChargeAndPeriodStartDates, MAX_RETRIES } from '../../lib/recurring-contributions';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount, getDashboardObjectIdURL } from '../../lib/stripe';
 import { createTransactionsFromPaidStripeExpense, getPaymentProcessorFeeVendor } from '../../lib/transactions';
@@ -187,20 +189,24 @@ export const mandateUpdated = async (event: Stripe.Event) => {
   });
 };
 
+const paymentIntentLockKey = (paymentIntent: Stripe.PaymentIntent) => `stripe-payment-intent-${paymentIntent.id}`;
+
 export async function stripePaymentIntentSucceeded(event: Stripe.Event) {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
-  const target = await paymentIntentTarget(paymentIntent);
+  return lockUntilResolved(paymentIntentLockKey(paymentIntent), async () => {
+    const target = await paymentIntentTarget(paymentIntent);
 
-  switch (target) {
-    case 'EXPENSE': {
-      return handleExpensePaymentIntentSucceeded(event);
+    switch (target) {
+      case 'EXPENSE': {
+        return handleExpensePaymentIntentSucceeded(event);
+      }
+      case 'ORDER':
+      default: {
+        return handleOrderPaymentIntentSucceeded(event);
+      }
     }
-    case 'ORDER':
-    default: {
-      return handleOrderPaymentIntentSucceeded(event);
-    }
-  }
+  });
 }
 
 const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
@@ -297,12 +303,24 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
     sideEffects.push(() => applyContributionAccountingCategoryRules(order));
   } else if (order.SubscriptionId) {
     const subscription = await models.Subscription.findByPk(order.SubscriptionId);
-    sideEffects.push(() => subscription.update({ lastChargedAt: transaction.clearedAt }));
+    order.Subscription = subscription;
+    const chargeRetryCount = getChargeRetryCount('success', order);
+    const { nextPeriodStart, nextChargeDate } = getNextChargeAndPeriodStartDates('success', order);
+
+    sideEffects.push(() =>
+      subscription.update({
+        chargeNumber: subscription.chargeNumber + 1,
+        lastChargedAt: transaction.clearedAt,
+        chargeRetryCount,
+        nextPeriodStart,
+        nextChargeDate,
+      }),
+    );
   } else {
     sideEffects.push(() => applyContributionAccountingCategoryRules(order));
   }
 
-  sendEmailNotifications(order, transaction);
+  sendEmailNotifications(order, transaction, { firstPayment: order.interval && !order.SubscriptionId });
 
   await sideEffects.reduce(async (promise, effect) => {
     await promise;
@@ -449,17 +467,19 @@ async function paymentIntentTarget(paymentIntent: Stripe.PaymentIntent): Promise
 export const stripePaymentIntentProcessing = async (event: Stripe.Event) => {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
-  const target = await paymentIntentTarget(paymentIntent);
+  return lockUntilResolved(paymentIntentLockKey(paymentIntent), async () => {
+    const target = await paymentIntentTarget(paymentIntent);
 
-  switch (target) {
-    case 'EXPENSE': {
-      return handleExpensePaymentIntentProcessing(event);
+    switch (target) {
+      case 'EXPENSE': {
+        return handleExpensePaymentIntentProcessing(event);
+      }
+      case 'ORDER':
+      default: {
+        return handleOrderPaymentIntentProcessing(event);
+      }
     }
-    case 'ORDER':
-    default: {
-      return handleOrderPaymentIntentProcessing(event);
-    }
-  }
+  });
 };
 
 async function handleOrderPaymentIntentProcessing(event: Stripe.Event) {
@@ -610,17 +630,19 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
 export async function stripePaymentIntentFailed(event: Stripe.Event) {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
-  const target = await paymentIntentTarget(paymentIntent);
+  return lockUntilResolved(paymentIntentLockKey(paymentIntent), async () => {
+    const target = await paymentIntentTarget(paymentIntent);
 
-  switch (target) {
-    case 'EXPENSE': {
-      return handleExpensePaymentIntentFailed(event);
+    switch (target) {
+      case 'EXPENSE': {
+        return handleExpensePaymentIntentFailed(event);
+      }
+      case 'ORDER':
+      default: {
+        return handleOrderPaymentIntentFailed(event);
+      }
     }
-    case 'ORDER':
-    default: {
-      return handleOrderPaymentIntentFailed(event);
-    }
-  }
+  });
 }
 
 const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
@@ -650,6 +672,29 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
   });
 
   const userFriendlyError = userFriendlyErrorMessage({ message: reason }) || UNKNOWN_ERROR_MSG;
+
+  if (order.SubscriptionId) {
+    const subscription = await models.Subscription.findByPk(order.SubscriptionId);
+    order.Subscription = subscription;
+    const chargeRetryCount = getChargeRetryCount('failure', order);
+
+    const exceededAttempts = chargeRetryCount >= MAX_RETRIES;
+
+    if (exceededAttempts) {
+      await subscription.update({
+        isActive: false,
+        deactivatedAt: new Date(),
+      });
+      await order.update({ status: OrderStatuses.CANCELLED });
+    } else {
+      const { nextPeriodStart, nextChargeDate } = getNextChargeAndPeriodStartDates('failure', order);
+      await subscription.update({
+        chargeRetryCount,
+        nextPeriodStart,
+        nextChargeDate,
+      });
+    }
+  }
 
   sendOrderFailedEmail(order, userFriendlyError);
 };

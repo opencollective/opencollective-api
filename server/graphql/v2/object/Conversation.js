@@ -2,6 +2,7 @@ import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLStri
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import models, { Op } from '../../../models';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { CommentCollection } from '../collection/CommentCollection';
@@ -37,14 +38,26 @@ const GraphQLConversation = new GraphQLObjectType({
       summary: { type: new GraphQLNonNull(GraphQLString) },
       account: {
         type: GraphQLAccount,
-        resolve(conversation, args, req) {
-          return req.loaders.Collective.byId.load(conversation.CollectiveId);
+        async resolve(conversation, args, req) {
+          const collective = await req.loaders.Collective.byId.load(conversation.CollectiveId);
+          if (!collective) {
+            return null;
+          }
+
+          await assertCanSeeAccount(req, collective);
+          return collective;
         },
       },
       fromAccount: {
         type: GraphQLAccount,
-        resolve(conversation, args, req) {
-          return req.loaders.Collective.byId.load(conversation.FromCollectiveId);
+        async resolve(conversation, args, req) {
+          const fromCollective = await req.loaders.Collective.byId.load(conversation.FromCollectiveId);
+          if (!fromCollective) {
+            return null;
+          }
+
+          await assertCanSeeAccount(req, fromCollective);
+          return fromCollective;
         },
       },
       body: {

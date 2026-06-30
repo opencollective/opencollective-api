@@ -16,6 +16,7 @@ import cache, { memoize } from '../../../../lib/cache';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { buildSearchConditions } from '../../../../lib/sql-search';
+import { getTransactionKindPriorityCase } from '../../../../lib/transactions/kind-priority';
 import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Collective, Expense, PaymentMethod, sequelize } from '../../../../models';
 import Order from '../../../../models/Order';
@@ -69,19 +70,6 @@ const LEDGER_ORDERED_TRANSACTIONS_FIELDS = {
 };
 
 const { PLATFORM_TIP, HOST_FEE_SHARE } = TransactionKind;
-
-export const getTransactionKindPriorityCase = tableName => `
-  CASE
-    WHEN "${tableName}"."kind" IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD') THEN 1
-    WHEN "${tableName}"."kind" IN ('PLATFORM_TIP') THEN 2
-    WHEN "${tableName}"."kind" IN ('PLATFORM_TIP_DEBT') THEN 3
-    WHEN "${tableName}"."kind" IN ('PAYMENT_PROCESSOR_FEE') THEN 4
-    WHEN "${tableName}"."kind" IN ('PAYMENT_PROCESSOR_COVER') THEN 5
-    WHEN "${tableName}"."kind" IN ('HOST_FEE') THEN 6
-    WHEN "${tableName}"."kind" IN ('HOST_FEE_SHARE') THEN 7
-    WHEN "${tableName}"."kind" IN ('HOST_FEE_SHARE_DEBT') THEN 8
-    ELSE 9
-  END`;
 
 export const TransactionsCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },

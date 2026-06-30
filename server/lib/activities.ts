@@ -212,6 +212,9 @@ const doFormatMessage = (activity, format): string | { message: string; options:
     case activities.COLLECTIVE_UNHOSTED:
       return `Collective unhosted: ${collective} is no longer hosted by ${getUserString(format, activity.data.host)}`;
 
+    case activities.COLLECTIVE_ARCHIVED:
+      return `Collective archived: ${collective} has been archived`;
+
     case activities.COLLECTIVE_FROZEN:
       return `Collective frozen: ${collective} has been frozen`;
 

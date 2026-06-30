@@ -405,18 +405,6 @@ export const authenticateServiceCallback = async (req: Request, res: Response, n
   })(req, res, next);
 };
 
-export const authenticateServiceDisconnect = async (req: Request, res: Response, next: NextFunction) => {
-  // How many times a user can call this endpoint in a minute.
-  const rateLimit = new RateLimit(`connected-accounts-disconnect-${req.ip}`, 60, 10);
-  try {
-    await rateLimit.registerCallOrThrow();
-  } catch {
-    return next(new errors.RateLimitExceeded());
-  }
-
-  await connectedAccounts.disconnect(req, res);
-};
-
 function getOAuthCallbackUrl(req: Request) {
   const { service } = req.params;
   const params = new URLSearchParams(omitBy(pick(req.query, ['context', 'CollectiveId']), isNil));

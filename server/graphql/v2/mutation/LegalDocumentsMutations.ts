@@ -4,7 +4,7 @@ import debugLib from 'debug';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
-import { FileUpload } from 'graphql-upload/Upload';
+import { FileUpload } from 'graphql-upload/Upload.js';
 import { encodeBase64 } from 'tweetnacl-util';
 
 import ActivityTypes from '../../../constants/activities';
