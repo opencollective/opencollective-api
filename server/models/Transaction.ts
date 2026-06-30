@@ -1279,25 +1279,29 @@ class Transaction extends ModelWithPublicId<
     return host;
   }
 
-  static async createActivity(
-    transaction: Transaction,
-    options: { sequelizeTransaction?: SequelizeTransaction } = {},
-  ): Promise<Activity | void> {
+  static async createActivity(transaction: Transaction): Promise<Activity | void> {
     if (transaction.deletedAt || ['TAX', 'PAYMENT_PROCESSOR_FEE'].includes(transaction.kind)) {
       return Promise.resolve();
     }
+    const transactionId = transaction.id;
     return (
-      Transaction.findByPk(transaction.id, {
+      Transaction.findByPk(transactionId, {
         include: [
           { model: Collective, as: 'fromCollective' },
           { model: Collective, as: 'collective' },
           { model: User, as: 'createdByUser' },
           { model: PaymentMethod },
         ],
-        transaction: options?.sequelizeTransaction,
       })
         // Create activity.
         .then(transaction => {
+          if (!transaction) {
+            reportMessageToSentry('Transaction not found when creating activity', {
+              extra: { transactionId },
+            });
+            return;
+          }
+
           const activityPayload = {
             type: activities.COLLECTIVE_TRANSACTION_CREATED,
             TransactionId: transaction.id,
@@ -1319,7 +1323,7 @@ class Transaction extends ModelWithPublicId<
           if (transaction.PaymentMethod) {
             activityPayload.data['paymentMethod'] = transaction.PaymentMethod.info;
           }
-          return Activity.create(activityPayload, { transaction: options?.sequelizeTransaction });
+          return Activity.create(activityPayload);
         })
         .catch(err => {
           reportErrorToSentry(err);
@@ -1919,13 +1923,14 @@ Transaction.init(
     },
 
     hooks: {
-      afterCreate: transaction => {
-        if (shouldGenerateTransactionActivities(transaction.CollectiveId)) {
+      afterCreate: (transaction: Transaction, options): void => {
+        if (!shouldGenerateTransactionActivities(transaction.CollectiveId)) {
+          return null;
+        } else if (options.transaction) {
+          options.transaction.afterCommit(() => void Transaction.createActivity(transaction));
+        } else {
           Transaction.createActivity(transaction);
         }
-
-        // intentionally returns null, needs to be async
-        return null;
       },
     },
   },
