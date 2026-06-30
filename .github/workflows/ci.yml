@@ -427,7 +427,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: GraphQL Inspector (V1)
-        uses: kamilkisiela/graphql-inspector@b29c3143fda6d5fe51d2720da13f158598a688c7 # v3.4.0
+        uses: kamilkisiela/graphql-inspector@c0ecb19ad21de709b80ed897041a4976c079c718 # v4.0.0
         with:
           name: 'GraphQL Inspector - Schema v1'
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -435,7 +435,7 @@ jobs:
           fail-on-breaking: false
 
       - name: GraphQL Inspector (V2)
-        uses: kamilkisiela/graphql-inspector@b29c3143fda6d5fe51d2720da13f158598a688c7 # v3.4.0
+        uses: kamilkisiela/graphql-inspector@c0ecb19ad21de709b80ed897041a4976c079c718 # v4.0.0
         with:
           name: 'GraphQL Inspector - Schema v2'
           github-token: ${{ secrets.GITHUB_TOKEN }}
