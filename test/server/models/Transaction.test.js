@@ -2,10 +2,11 @@ import { expect } from 'chai';
 import config from 'config';
 import { createSandbox } from 'sinon';
 
+import { activities } from '../../../server/constants';
 import PlatformConstants from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import * as LibActivities from '../../../server/lib/activities';
-import models from '../../../server/models';
+import models, { Op } from '../../../server/models';
 import {
   fakeCollective,
   fakeHost,
@@ -221,6 +222,58 @@ describe('server/models/Transaction', () => {
 
     await utils.waitForCondition(() => createActivityStub.called);
     expect(createActivityStub.firstCall.args[0].description).to.equal(transaction.description);
+  });
+
+  it('createFromContributionPayload() persists a collective.transaction.created activity record', async () => {
+    sandbox.stub(LibActivities, 'shouldGenerateTransactionActivities').returns(true);
+
+    const description = randStr('contribution-');
+    const transactionPayload = {
+      CreatedByUserId: user.id,
+      FromCollectiveId: user.CollectiveId,
+      CollectiveId: collective.id,
+      ...transactionsData[7],
+      description,
+      amountInHostCurrency: transactionsData[7].amount,
+      hostCurrency: transactionsData[7].currency,
+      hostCurrencyFxRate: 1,
+      hostFeeInHostCurrency: 0,
+      platformFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
+      type: 'CREDIT',
+      kind: TransactionKind.CONTRIBUTION,
+    };
+
+    // createFromContributionPayload ultimately calls createDoubleEntry inside a SQL transaction.
+    const creditTransaction = await Transaction.createFromContributionPayload(transactionPayload);
+
+    const transactionsInGroup = await Transaction.findAll({
+      where: { TransactionGroup: creditTransaction.TransactionGroup, kind: TransactionKind.CONTRIBUTION },
+    });
+    expect(transactionsInGroup).to.have.length(2);
+
+    await utils.waitForCondition(async () => {
+      const activityCount = await models.Activity.count({
+        where: {
+          type: activities.COLLECTIVE_TRANSACTION_CREATED,
+          TransactionId: { [Op.in]: transactionsInGroup.map(t => t.id) },
+        },
+      });
+      return activityCount === transactionsInGroup.length;
+    });
+
+    const transactionActivities = await models.Activity.findAll({
+      where: {
+        type: activities.COLLECTIVE_TRANSACTION_CREATED,
+        TransactionId: { [Op.in]: transactionsInGroup.map(t => t.id) },
+      },
+    });
+
+    expect(transactionActivities, 'expected activities to be persisted for each ledger entry').to.have.length(2);
+    const creditActivity = transactionActivities.find(activity => activity.TransactionId === creditTransaction.id);
+    expect(creditActivity).to.exist;
+    expect(creditActivity.CollectiveId).to.equal(collective.id);
+    expect(creditActivity.data.transaction.description).to.equal(description);
   });
 
   describe('fees on top', () => {
