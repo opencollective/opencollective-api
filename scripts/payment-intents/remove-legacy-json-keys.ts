@@ -93,6 +93,69 @@ const getRemoveLegacyKeysSQL = (table: TableName) => `
   RETURNING id;
 `;
 
+const formatDuration = (ms: number): string => {
+  if (ms < 1000) {
+    return `${Math.round(ms)}ms`;
+  }
+
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) {
+    return `${sec}s`;
+  }
+
+  const min = Math.floor(sec / 60);
+  const remSec = sec % 60;
+  if (min < 60) {
+    return remSec > 0 ? `${min}m ${remSec}s` : `${min}m`;
+  }
+
+  const hr = Math.floor(min / 60);
+  const remMin = min % 60;
+  return remMin > 0 ? `${hr}h ${remMin}m` : `${hr}h`;
+};
+
+const formatEta = (processed: number, total: number, elapsedMs: number): string => {
+  if (processed === 0 || processed >= total || elapsedMs === 0) {
+    return 'n/a';
+  }
+
+  const remaining = total - processed;
+  const etaMs = (remaining / processed) * elapsedMs;
+  return formatDuration(etaMs);
+};
+
+const logBatchProgress = ({
+  phaseName,
+  dryRun,
+  batchNumber,
+  batchProcessed,
+  processed,
+  effectiveTotal,
+  afterId,
+  phaseStartedAt,
+  batchStartedAt,
+}: {
+  phaseName: string;
+  dryRun: boolean;
+  batchNumber: number;
+  batchProcessed: number;
+  processed: number;
+  effectiveTotal: number;
+  afterId: number;
+  phaseStartedAt: number;
+  batchStartedAt: number;
+}): void => {
+  const elapsedMs = Date.now() - phaseStartedAt;
+  const batchMs = Date.now() - batchStartedAt;
+  const rowsPerSec = batchMs > 0 ? Math.round((batchProcessed / batchMs) * 1000) : batchProcessed;
+  const pct = effectiveTotal > 0 ? ((processed / effectiveTotal) * 100).toFixed(1) : 'n/a';
+  const remaining = Math.max(effectiveTotal - processed, 0);
+
+  logger.info(
+    `${phaseName}: batch ${batchNumber} ${dryRun ? 'scanned' : 'updated'} ${batchProcessed} rows in ${formatDuration(batchMs)} (${rowsPerSec} rows/s) | progress ${processed}/${effectiveTotal} (${pct}%, ~${remaining} left, lastId=${afterId}, elapsed=${formatDuration(elapsedMs)}, eta=${formatEta(processed, effectiveTotal, elapsedMs)})`,
+  );
+};
+
 const countRemaining = async (db: Sequelize, table: TableName, afterId = 0): Promise<number> => {
   const [rows] = (await db.query(
     `
@@ -112,11 +175,15 @@ const runPaginatedTableUpdate = async ({
   db,
   table,
   mode,
+  phaseName,
+  totalRemaining,
   options = {},
 }: {
   db: Sequelize;
   table: TableName;
   mode: 'backfill' | 'remove';
+  phaseName: string;
+  totalRemaining: number;
   options?: RemoveLegacyJsonKeysOptions;
 }): Promise<PhaseStats> => {
   const batchSize = options.batchSize ?? 1000;
@@ -124,11 +191,20 @@ const runPaginatedTableUpdate = async ({
   const dryRun = options.dryRun ?? false;
   let afterId = options.afterId ?? 0;
   let processed = 0;
+  let batchNumber = 0;
   let complete = false;
+  const phaseStartedAt = Date.now();
   const updateSql = mode === 'backfill' ? getBackfillDataSQL(table) : getRemoveLegacyKeysSQL(table);
+  const effectiveTotal = Math.min(totalRemaining, limit);
+
+  logger.info(
+    `${phaseName}: ${dryRun ? 'dry-run' : 'updating'} ${table} (mode=${mode}, batchSize=${batchSize}, limit=${Number.isFinite(limit) ? limit : 'none'}, afterId=${afterId}, rowsToProcess=${effectiveTotal})`,
+  );
 
   while (processed < limit) {
     const pageSize = Math.min(batchSize, limit - processed);
+    const batchStartedAt = Date.now();
+    batchNumber += 1;
 
     if (dryRun) {
       const [rows] = (await db.query(
@@ -145,38 +221,70 @@ const runPaginatedTableUpdate = async ({
       )) as [{ id: number }[], unknown];
 
       if (!rows.length) {
+        logger.info(`${phaseName}: batch ${batchNumber} - no more rows (lastId=${afterId})`);
         complete = true;
         break;
       }
 
-      processed += rows.length;
+      const batchProcessed = rows.length;
+      processed += batchProcessed;
       afterId = rows[rows.length - 1].id;
 
       if (rows.length < pageSize) {
         complete = true;
+      }
+
+      logBatchProgress({
+        phaseName,
+        dryRun,
+        batchNumber,
+        batchProcessed,
+        processed,
+        effectiveTotal,
+        afterId,
+        phaseStartedAt,
+        batchStartedAt,
+      });
+    } else {
+      const [rows] = (await db.query(updateSql, {
+        replacements: { afterId, batchSize: pageSize },
+      })) as [{ id: number }[], unknown];
+
+      if (!rows.length) {
+        logger.info(`${phaseName}: batch ${batchNumber} - no more rows (lastId=${afterId})`);
+        complete = true;
         break;
       }
 
-      continue;
+      const batchProcessed = rows.length;
+      processed += batchProcessed;
+      afterId = Math.max(...rows.map(({ id }) => id));
+
+      if (rows.length < pageSize) {
+        complete = true;
+      }
+
+      logBatchProgress({
+        phaseName,
+        dryRun,
+        batchNumber,
+        batchProcessed,
+        processed,
+        effectiveTotal,
+        afterId,
+        phaseStartedAt,
+        batchStartedAt,
+      });
     }
 
-    const [rows] = (await db.query(updateSql, {
-      replacements: { afterId, batchSize: pageSize },
-    })) as [{ id: number }[], unknown];
-
-    if (!rows.length) {
-      complete = true;
-      break;
-    }
-
-    processed += rows.length;
-    afterId = Math.max(...rows.map(({ id }) => id));
-
-    if (rows.length < pageSize) {
-      complete = true;
+    if (complete) {
       break;
     }
   }
+
+  logger.info(
+    `${phaseName}: finished ${dryRun ? 'scanning' : 'updating'} ${table} - ${processed} rows in ${batchNumber} batches over ${formatDuration(Date.now() - phaseStartedAt)}, lastId=${afterId}, complete=${complete}`,
+  );
 
   return { processed, lastId: afterId, complete };
 };
@@ -196,6 +304,10 @@ export const runRemoveLegacyJsonKeys = async (
   const results: Record<string, PhaseStats> = {};
   const phasesToRun = phase === 'all' ? PHASES : [phase];
 
+  logger.info(
+    `remove-legacy-json-keys: phase=${phase}, dryRun=${dryRun}, batchSize=${options.batchSize ?? 1000}, limit=${options.limit ?? 'none'}, afterId=${options.afterId ?? 0}`,
+  );
+
   for (const currentPhase of phasesToRun) {
     const phaseOptions = phase === 'all' ? { ...options, afterId: 0, limit: undefined } : options;
 
@@ -206,6 +318,8 @@ export const runRemoveLegacyJsonKeys = async (
         db,
         table: 'Orders',
         mode: 'backfill',
+        phaseName: 'backfill-orders',
+        totalRemaining: remaining,
         options: phaseOptions,
       });
       logPhaseSummary('backfill-orders', results['backfill-orders'], dryRun);
@@ -219,6 +333,8 @@ export const runRemoveLegacyJsonKeys = async (
         db,
         table: 'Expenses',
         mode: 'backfill',
+        phaseName: 'backfill-expenses',
+        totalRemaining: remaining,
         options: phaseOptions,
       });
       logPhaseSummary('backfill-expenses', results['backfill-expenses'], dryRun);
@@ -232,6 +348,8 @@ export const runRemoveLegacyJsonKeys = async (
         db,
         table: 'Orders',
         mode: 'remove',
+        phaseName: 'remove-legacy-orders',
+        totalRemaining: remaining,
         options: phaseOptions,
       });
       logPhaseSummary('remove-legacy-orders', results['remove-legacy-orders'], dryRun);
@@ -245,6 +363,8 @@ export const runRemoveLegacyJsonKeys = async (
         db,
         table: 'Expenses',
         mode: 'remove',
+        phaseName: 'remove-legacy-expenses',
+        totalRemaining: remaining,
         options: phaseOptions,
       });
       logPhaseSummary('remove-legacy-expenses', results['remove-legacy-expenses'], dryRun);
@@ -254,8 +374,13 @@ export const runRemoveLegacyJsonKeys = async (
     if (currentPhase === 'drop-indexes') {
       logger.info('Starting drop-indexes...');
       if (!dryRun) {
+        logger.info('drop-indexes: dropping orders__data__payment_intent_id...');
         await db.query(`DROP INDEX CONCURRENTLY IF EXISTS "orders__data__payment_intent_id"`);
+        logger.info('drop-indexes: dropping expenses__data__payment_intent_id...');
         await db.query(`DROP INDEX CONCURRENTLY IF EXISTS "expenses__data__payment_intent_id"`);
+        logger.info('drop-indexes: indexes dropped');
+      } else {
+        logger.info('drop-indexes: would drop orders__data__payment_intent_id and expenses__data__payment_intent_id');
       }
       results['drop-indexes'] = { processed: 0, lastId: 0, complete: true };
       logPhaseSummary('drop-indexes', results['drop-indexes'], dryRun);
