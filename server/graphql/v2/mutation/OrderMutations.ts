@@ -1111,7 +1111,7 @@ const orderMutations = {
     type: new GraphQLNonNull(GraphQLStripePaymentIntent),
     description: 'Creates a Stripe payment intent',
     args: {
-      paymentIntent: {
+      stripePaymentIntent: {
         type: new GraphQLNonNull(GraphQLStripePaymentIntentInput),
       },
       guestInfo: {
@@ -1126,7 +1126,8 @@ const orderMutations = {
         throw new FeatureNotAllowedForUser();
       }
 
-      const paymentIntentInput = args.paymentIntent;
+      // TODO(#8851): remove args.paymentIntent after migration
+      const paymentIntentInput = args.stripePaymentIntent ?? args.paymentIntent;
 
       const toAccount = await fetchAccountWithReference(paymentIntentInput.toAccount, { throwIfMissing: true });
       const hostStripeAccount = await toAccount.getHostStripeAccount();
