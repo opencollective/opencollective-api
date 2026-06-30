@@ -845,10 +845,9 @@ const expenseMutations = {
 
       const isPlatformHost = payeeHostStripeAccount.username === config.stripe.accountId;
 
-      // TODO(#8851): remove `expense.data.paymentIntent` to complete the migration
-      const storedStripePaymentIntent = expense.data?.stripePaymentIntent ?? expense.data?.paymentIntent;
+      const storedStripePaymentIntent = expense.data?.stripePaymentIntent;
       if (storedStripePaymentIntent?.id) {
-        const paymentIntent = await stripe.paymentIntents.retrieve(
+        const stripePaymentIntent = await stripe.paymentIntents.retrieve(
           storedStripePaymentIntent.id,
           !isPlatformHost
             ? {
@@ -858,14 +857,14 @@ const expenseMutations = {
         );
 
         const matchesExpense =
-          paymentIntent.amount === convertToStripeAmount(expense.currency, expense.amount) &&
-          paymentIntent.currency?.toLowerCase() === expense.currency.toLowerCase() &&
-          !['canceled', 'succeeded'].includes(paymentIntent.status);
+          stripePaymentIntent.amount === convertToStripeAmount(expense.currency, expense.amount) &&
+          stripePaymentIntent.currency?.toLowerCase() === expense.currency.toLowerCase() &&
+          !['canceled', 'succeeded'].includes(stripePaymentIntent.status);
 
         if (matchesExpense) {
           return {
-            id: paymentIntent.id,
-            paymentIntentClientSecret: paymentIntent.client_secret,
+            id: stripePaymentIntent.id,
+            paymentIntentClientSecret: stripePaymentIntent.client_secret,
             stripeAccount: payeeHostStripeAccount.username,
             stripeAccountPublishableSecret: payeeHostStripeAccount.data.publishableKey,
           };
@@ -897,7 +896,7 @@ const expenseMutations = {
       try {
         const paymentMethodConfiguration = config.stripe.oneTimePaymentMethodConfiguration;
 
-        const paymentIntent = await stripe.paymentIntents.create(
+        const stripePaymentIntent = await stripe.paymentIntents.create(
           {
             /* eslint-disable camelcase */
             payment_method_configuration: paymentMethodConfiguration,
@@ -924,14 +923,13 @@ const expenseMutations = {
         await expense.update({
           data: {
             ...expense.data,
-            stripePaymentIntent: paymentIntent,
-            paymentIntent: paymentIntent, // TODO(#8851): remove `paymentIntent`
+            stripePaymentIntent: stripePaymentIntent,
           },
         });
 
         return {
-          id: paymentIntent.id,
-          paymentIntentClientSecret: paymentIntent.client_secret,
+          id: stripePaymentIntent.id,
+          paymentIntentClientSecret: stripePaymentIntent.client_secret,
           stripeAccount: payeeHostStripeAccount.username,
           stripeAccountPublishableSecret: payeeHostStripeAccount.data.publishableKey,
         };

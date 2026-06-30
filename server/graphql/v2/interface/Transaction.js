@@ -571,14 +571,14 @@ export const TransactionFields = () => {
         }
 
         if (pm.service === PAYMENT_METHOD_SERVICE.STRIPE) {
-          const paymentIntentId = get(transaction, 'data.charge.payment_intent');
-          if (!paymentIntentId) {
+          const stripePaymentIntentId = get(transaction, 'data.charge.payment_intent');
+          if (!stripePaymentIntentId) {
             return null;
           }
 
           const stripeAccountId = pm.data?.stripeAccount;
 
-          return getDashboardObjectIdURL(paymentIntentId, stripeAccountId);
+          return getDashboardObjectIdURL(stripePaymentIntentId, stripeAccountId);
         }
 
         return null;

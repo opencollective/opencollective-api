@@ -1672,10 +1672,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     describe('clears stored Stripe paymentIntent when payment-relevant fields change', () => {
-      it('drops data.paymentIntent when items (and therefore amount) change', async () => {
+      it('drops data.stripePaymentIntent when items (and therefore amount) change', async () => {
         const expense = await fakeExpense({
           status: 'APPROVED',
-          data: { paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' } },
+          data: { stripePaymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' } },
         });
         const newExpenseData = {
           id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
@@ -1686,14 +1686,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.editExpense.status).to.equal('PENDING');
 
         await expense.reload();
-        expect(expense.data?.paymentIntent).to.be.undefined;
+        expect(expense.data?.stripePaymentIntent).to.be.undefined;
       });
 
-      it('drops data.paymentIntent when payout method changes', async () => {
+      it('drops data.stripePaymentIntent when payout method changes', async () => {
         const expense = await fakeExpense({
           status: 'APPROVED',
           legacyPayoutMethod: 'other',
-          data: { paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' } },
+          data: { stripePaymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' } },
         });
         const newPayoutMethod = await fakePayoutMethod({ CollectiveId: expense.User.CollectiveId });
         const newExpenseData = {
@@ -1705,19 +1705,19 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.editExpense.status).to.equal('PENDING');
 
         await expense.reload();
-        expect(expense.data?.paymentIntent).to.be.undefined;
+        expect(expense.data?.stripePaymentIntent).to.be.undefined;
       });
 
-      it('keeps data.paymentIntent when only the description changes', async () => {
+      it('keeps data.stripePaymentIntent when only the description changes', async () => {
         const paymentIntent = { id: 'pi_old', amount: 1000, currency: 'usd' };
-        const expense = await fakeExpense({ status: 'APPROVED', data: { paymentIntent } });
+        const expense = await fakeExpense({ status: 'APPROVED', data: { stripePaymentIntent: paymentIntent } });
         const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
         const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
         expect(result.errors).to.not.exist;
         expect(result.data.editExpense.status).to.equal('APPROVED');
 
         await expense.reload();
-        expect(expense.data?.paymentIntent).to.deep.equal(paymentIntent);
+        expect(expense.data?.stripePaymentIntent).to.deep.equal(paymentIntent);
       });
     });
 
@@ -6817,7 +6817,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       }
     `;
 
-    const setupStripeExpense = async ({ paymentIntent } = {}) => {
+    const setupStripeExpense = async ({ stripePaymentIntent } = {}) => {
       const hostAdmin = await fakeUser();
       const host = await fakeActiveHost({ admin: hostAdmin });
       await fakeConnectedAccount({
@@ -6835,7 +6835,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         currency: 'USD',
         CollectiveId: collective.id,
         FromCollectiveId: payee.id,
-        data: paymentIntent ? { paymentIntent } : {},
+        data: stripePaymentIntent ? { stripePaymentIntent } : {},
       });
       return { hostAdmin, expense };
     };
@@ -6844,7 +6844,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
     it('returns the stored PaymentIntent when it is still processing', async () => {
       const { hostAdmin, expense } = await setupStripeExpense({
-        paymentIntent: { id: 'pi_inflight', amount: 1000, currency: 'usd' },
+        stripePaymentIntent: { id: 'pi_inflight', amount: 1000, currency: 'usd' },
       });
       sandbox.stub(stripe.paymentIntents, 'retrieve').resolves({
         id: 'pi_inflight',
@@ -6864,13 +6864,13 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(createStub.called).to.be.false;
 
       await expense.reload();
-      expect(expense.data.paymentIntent.id).to.equal('pi_inflight'); // not overwritten
+      expect(expense.data.stripePaymentIntent.id).to.equal('pi_inflight'); // not overwritten
     });
 
     for (const status of ['canceled', 'succeeded']) {
       it(`creates a new PaymentIntent when the stored one is ${status}`, async () => {
         const { hostAdmin, expense } = await setupStripeExpense({
-          paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' },
+          stripePaymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' },
         });
         sandbox
           .stub(stripe.paymentIntents, 'retrieve')
@@ -6888,7 +6888,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(createStub.calledOnce).to.be.true;
 
         await expense.reload();
-        expect(expense.data.paymentIntent.id).to.equal('pi_new'); // overwritten with the fresh PI
+        expect(expense.data.stripePaymentIntent.id).to.equal('pi_new'); // overwritten with the fresh PI
       });
     }
   });

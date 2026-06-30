@@ -8,21 +8,20 @@ import stripe from '../stripe';
 
 export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? } = {}) => {
   logging?.(`Processing order ${order.id}...`);
-  // TODO(#8851): remove `paymentIntent`
-  const stripePaymentIntent = order.data.stripePaymentIntent ?? order.data.paymentIntent;
-  if (!stripePaymentIntent?.id) {
+  const storedStripePaymentIntent = order.data.stripePaymentIntent;
+  if (!storedStripePaymentIntent?.id) {
     logging?.(`Order ${order.id} has no stripePaymentIntent`);
     return;
   }
   const hostStripeAccount = await order.collective.getHostStripeAccount();
   const stripeAccount = hostStripeAccount.username;
-  const paymentIntent = await stripe.paymentIntents.retrieve(stripePaymentIntent.id, {
+  const stripePaymentIntent = await stripe.paymentIntents.retrieve(storedStripePaymentIntent.id, {
     stripeAccount,
   });
-  logging?.(`Order ${order.id} paymentIntent status: ${paymentIntent.status}`);
+  logging?.(`Order ${order.id} paymentIntent status: ${stripePaymentIntent.status}`);
 
-  const charge = (paymentIntent as any).charges?.data?.[0] as Stripe.Charge;
-  if (charge && paymentIntent.status === 'succeeded') {
+  const charge = (stripePaymentIntent as any).charges?.data?.[0] as Stripe.Charge;
+  if (charge && stripePaymentIntent.status === 'succeeded') {
     logging?.(`Order ${order.id} has charge: ${charge.id}`);
     const transaction = await models.Transaction.findOne({
       where: { data: { charge: { id: charge.id } } },
@@ -32,7 +31,7 @@ export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? 
       if (transaction.OrderId !== order.id) {
         await order.update({
           status: OrderStatuses.CANCELLED,
-          data: omit(order.data, ['stripePaymentIntent', 'paymentIntent']), // TODO(#8851): remove `paymentIntent`
+          data: omit(order.data, ['stripePaymentIntent']),
         });
       }
       return;
@@ -40,19 +39,19 @@ export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? 
 
     logging?.(`Order ${order.id} is missing charge ${charge.id}, re-processing payment intent...`);
     if (!IS_DRY) {
-      await stripePaymentIntentSucceeded({ account: stripeAccount, data: { object: paymentIntent } } as any);
+      await stripePaymentIntentSucceeded({ account: stripeAccount, data: { object: stripePaymentIntent } } as any);
     }
   } else if (charge?.status === 'failed') {
     logging?.(`Order ${order.id} has failed charge: ${charge.id}`);
     if (!IS_DRY) {
-      await stripePaymentIntentFailed({ account: stripeAccount, data: { object: paymentIntent } } as any);
+      await stripePaymentIntentFailed({ account: stripeAccount, data: { object: stripePaymentIntent } } as any);
     }
-  } else if (!charge && ['requires_payment_method', 'requires_source'].includes(paymentIntent.status)) {
+  } else if (!charge && ['requires_payment_method', 'requires_source'].includes(stripePaymentIntent.status)) {
     logging?.(`Order ${order.id} has no payment method`);
     if (!IS_DRY) {
       await order.update({
         status: OrderStatuses.ERROR,
-        data: { ...order.data, stripePaymentIntent: paymentIntent, paymentIntent }, // TODO(#8851): remove `paymentIntent`
+        data: { ...order.data, stripePaymentIntent: stripePaymentIntent },
       });
     }
   }
