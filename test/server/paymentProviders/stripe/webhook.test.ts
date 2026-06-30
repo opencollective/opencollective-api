@@ -506,7 +506,7 @@ describe('webhook', () => {
         status: OrderStatuses.PROCESSING,
         totalAmount: 100e2,
         description: 'Do you even donate, brah?!',
-        data: { paymentIntent: { id: randStr('pi_fake') } },
+        data: { stripePaymentIntent: { id: randStr('pi_fake') } },
       });
       const hostId = order.collective.HostCollectiveId;
       await fakeConnectedAccount({
@@ -519,7 +519,7 @@ describe('webhook', () => {
       event = {
         data: {
           object: {
-            id: order.data.paymentIntent.id,
+            id: order.data.stripePaymentIntent.id,
             amount: 100e2,
             currency: 'usd',
             charges: {
@@ -878,11 +878,11 @@ describe('webhook', () => {
         sandbox.stub(order, 'update').throws();
 
         expect(order.status).to.equal(OrderStatuses.PROCESSING);
-        expect(order.data.paymentIntent).to.have.property('id').not.equal('pi_notfound');
+        expect(order.data.stripePaymentIntent).to.have.property('id').not.equal('pi_notfound');
         assert.notCalled(order.update);
       });
 
-      it('updates order.data.paymentIntent', async () => {
+      it('updates order.data.stripePaymentIntent', async () => {
         sandbox.stub(stripe.paymentMethods, 'retrieve').resolves({
           type: 'us_bank_account',
           us_bank_account: {
@@ -894,7 +894,7 @@ describe('webhook', () => {
         await webhook.stripePaymentIntentProcessing(event);
         await order.reload();
         expect(order.status).to.equal(OrderStatuses.PROCESSING);
-        expect(order.data.paymentIntent.charges).to.not.be.null;
+        expect(order.data.stripePaymentIntent.charges).to.not.be.null;
 
         const paymentMethod = await order.getPaymentMethod();
         expect(paymentMethod.service).to.equal(PAYMENT_METHOD_SERVICE.STRIPE);
@@ -917,7 +917,7 @@ describe('webhook', () => {
         await webhook.stripePaymentIntentProcessing(event);
         await order.reload();
         expect(order.status).to.equal(OrderStatuses.PROCESSING);
-        expect(order.data.paymentIntent.charges).to.not.be.null;
+        expect(order.data.stripePaymentIntent.charges).to.not.be.null;
 
         const paymentMethod = await order.getPaymentMethod();
         expect(paymentMethod.service).to.equal(PAYMENT_METHOD_SERVICE.STRIPE);
@@ -947,7 +947,7 @@ describe('webhook', () => {
         sandbox.stub(order, 'update').throws();
 
         expect(order.status).to.equal(OrderStatuses.PROCESSING);
-        expect(order.data.paymentIntent).to.have.property('id').not.equal('pi_notfound');
+        expect(order.data.stripePaymentIntent).to.have.property('id').not.equal('pi_notfound');
         assert.notCalled(order.update);
       });
 
@@ -961,7 +961,7 @@ describe('webhook', () => {
         await order.reload();
 
         expect(order.status).to.equal(OrderStatuses.ERROR);
-        expect(order.data.paymentIntent.charges).to.not.be.null;
+        expect(order.data.stripePaymentIntent.charges).to.not.be.null;
         assert.calledOnceWithMatch(
           libPayments.sendOrderFailedEmail,
           {
@@ -1345,7 +1345,7 @@ describe('webhook', () => {
         currency: 'USD',
         amount: 100e2,
         description: 'A expense to be paid with stripe',
-        data: { paymentIntent: { id: randStr('pi_fake') } },
+        data: { stripePaymentIntent: { id: randStr('pi_fake') } },
       });
 
       sandbox.stub(stripe.paymentMethods, 'retrieve').resolves({
@@ -1361,7 +1361,7 @@ describe('webhook', () => {
       event = {
         data: {
           object: {
-            id: expense.data.paymentIntent.id,
+            id: expense.data.stripePaymentIntent.id,
             amount: 100e2,
             currency: 'usd',
             payment_method: randStr('pm_fake'),

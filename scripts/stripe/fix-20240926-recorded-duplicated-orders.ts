@@ -8,14 +8,14 @@ const sequelize: Sequelize = s;
 
 const AFFECTED_ORDERS_QUERY = `
     WITH count_payment_intents AS (
-        SELECT o."data"#>>'{previousPaymentIntents,0,id}' AS payment_intent_id, count(1) AS count
+        SELECT o."data"#>>'{previousStripePaymentIntents,0,id}' AS payment_intent_id, count(1) AS count
         FROM "Orders" o
         INNER JOIN "PaymentMethods" pm ON pm.id = o."PaymentMethodId"
         WHERE TRUE
         AND pm."service" = 'stripe'
         AND o.status = 'PAID'
-        AND o."data"#>>'{previousPaymentIntents,0,id}' IS NOT NULL
-        GROUP BY o."data"#>>'{previousPaymentIntents,0,id}'
+        AND o."data"#>>'{previousStripePaymentIntents,0,id}' IS NOT NULL
+        GROUP BY o."data"#>>'{previousStripePaymentIntents,0,id}'
     ),
     duplicated_payment_intents as (
         SELECT payment_intent_id FROM count_payment_intents WHERE count >= 2
@@ -38,23 +38,23 @@ const AFFECTED_ORDERS_QUERY = `
             o."FromCollectiveId",
             from_collective."slug"
         FROM "Orders" o
-        INNER JOIN duplicated_payment_intents ON duplicated_payment_intents.payment_intent_id = o."data"#>>'{previousPaymentIntents,0,id}'
+        INNER JOIN duplicated_payment_intents ON duplicated_payment_intents.payment_intent_id = o."data"#>>'{previousStripePaymentIntents,0,id}'
         JOIN "Collectives" from_collective ON from_collective.id = o."FromCollectiveId"
-        ORDER BY o."data"#>>'{previousPaymentIntents,0,id}', o."processedAt" ASC
+        ORDER BY o."data"#>>'{previousStripePaymentIntents,0,id}', o."processedAt" ASC
     )
     SELECT * FROM duplicated_orders WHERE duplicated_number >= 2
 `;
 
 const AFFECTED_ORDERS_NON_PAID_QUERY = `
     WITH count_payment_intents AS (
-        SELECT o."data"#>>'{paymentIntent,id}' AS payment_intent_id, count(1) AS count
+        SELECT o."data"#>>'{stripePaymentIntent,id}' AS payment_intent_id, count(1) AS count
         FROM "Orders" o
         INNER JOIN "PaymentMethods" pm ON pm.id = o."PaymentMethodId"
         WHERE TRUE
         AND pm."service" = 'stripe'
         AND o.status <> 'PAID'
-        AND o."data"#>>'{paymentIntent,id}' IS NOT NULL
-        GROUP BY o."data"#>>'{paymentIntent,id}'
+        AND o."data"#>>'{stripePaymentIntent,id}' IS NOT NULL
+        GROUP BY o."data"#>>'{stripePaymentIntent,id}'
     ),
     duplicated_payment_intents as (
         SELECT payment_intent_id FROM count_payment_intents WHERE count >= 2
@@ -78,23 +78,23 @@ const AFFECTED_ORDERS_NON_PAID_QUERY = `
             o."FromCollectiveId",
             from_collective."slug"
         FROM "Orders" o
-        INNER JOIN duplicated_payment_intents ON duplicated_payment_intents.payment_intent_id = o."data"#>>'{paymentIntent,id}'
+        INNER JOIN duplicated_payment_intents ON duplicated_payment_intents.payment_intent_id = o."data"#>>'{stripePaymentIntent,id}'
         JOIN "Collectives" from_collective ON from_collective.id = o."FromCollectiveId"
-        ORDER BY o."data"#>>'{paymentIntent,id}', o."processedAt" NULLS LAST, o."id" ASC
+        ORDER BY o."data"#>>'{stripePaymentIntent,id}', o."processedAt" NULLS LAST, o."id" ASC
     )
     SELECT * FROM duplicated_non_paid_orders WHERE duplicated_number >= 2
 `;
 
 const AFFECTED_TRANSACTIONS_QUERY = `
     WITH count_payment_intents AS (
-        SELECT o."data"#>>'{previousPaymentIntents,0,id}' AS payment_intent_id, count(1) AS count
+        SELECT o."data"#>>'{previousStripePaymentIntents,0,id}' AS payment_intent_id, count(1) AS count
         FROM "Orders" o
         INNER JOIN "PaymentMethods" pm ON pm.id = o."PaymentMethodId"
         WHERE TRUE
         AND pm."service" = 'stripe'
         AND o.status = 'PAID'
-        AND o."data"#>>'{previousPaymentIntents,0,id}' IS NOT NULL
-        GROUP BY o."data"#>>'{previousPaymentIntents,0,id}'
+        AND o."data"#>>'{previousStripePaymentIntents,0,id}' IS NOT NULL
+        GROUP BY o."data"#>>'{previousStripePaymentIntents,0,id}'
     ),
     duplicated_payment_intents as (
         SELECT payment_intent_id FROM count_payment_intents WHERE count >= 2
@@ -117,9 +117,9 @@ const AFFECTED_TRANSACTIONS_QUERY = `
             o."FromCollectiveId",
             from_collective."slug"
         FROM "Orders" o
-        INNER JOIN duplicated_payment_intents ON duplicated_payment_intents.payment_intent_id = o."data"#>>'{previousPaymentIntents,0,id}'
+        INNER JOIN duplicated_payment_intents ON duplicated_payment_intents.payment_intent_id = o."data"#>>'{previousStripePaymentIntents,0,id}'
         JOIN "Collectives" from_collective ON from_collective.id = o."FromCollectiveId"
-        ORDER BY o."data"#>>'{previousPaymentIntents,0,id}', o."processedAt" ASC
+        ORDER BY o."data"#>>'{previousStripePaymentIntents,0,id}', o."processedAt" ASC
     ),
     orders_to_delete AS (
         SELECT * FROM duplicated_orders WHERE duplicated_number >= 2
@@ -131,14 +131,14 @@ const AFFECTED_TRANSACTIONS_QUERY = `
 
 const DUPLICATED_PAYMENT_INTENTS = `
     WITH count_payment_intents AS (
-        SELECT o."data"#>>'{paymentIntent,id}' AS payment_intent_id, count(1) AS count
+        SELECT o."data"#>>'{stripePaymentIntent,id}' AS payment_intent_id, count(1) AS count
         FROM "Orders" o
         INNER JOIN "PaymentMethods" pm ON pm.id = o."PaymentMethodId"
         WHERE TRUE
         AND pm."service" = 'stripe'
         AND o.status <> 'PAID'
-        AND o."data"#>>'{paymentIntent,id}' IS NOT NULL
-        GROUP BY o."data"#>>'{paymentIntent,id}'
+        AND o."data"#>>'{stripePaymentIntent,id}' IS NOT NULL
+        GROUP BY o."data"#>>'{stripePaymentIntent,id}'
     )
     SELECT count(payment_intent_id) FROM count_payment_intents WHERE count >= 2
 `;

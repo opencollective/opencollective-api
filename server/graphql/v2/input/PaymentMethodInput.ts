@@ -64,11 +64,6 @@ export const GraphQLPaymentMethodInput = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'The Stripe Payment Intent ID used in this checkout',
     },
-    paymentIntentId: {
-      type: GraphQLString,
-      description: 'The Payment Intent ID used in this checkout',
-      deprecationReason: '2026-06-25: Use stripePaymentIntentId instead',
-    },
     manualPaymentProvider: {
       type: GraphQLManualPaymentProviderReferenceInput,
       description: 'The Manual Payment Provider ID used in this checkout',
@@ -135,14 +130,11 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
         },
       };
     }
-  } else if (pm.stripePaymentIntentId || pm.paymentIntentId) {
-    // TODO(#8851): remove `pm.paymentIntentId` to complete the migration
-    const stripePaymentIntentId = pm.stripePaymentIntentId ?? pm.paymentIntentId;
+  } else if (pm.stripePaymentIntentId) {
     return {
       service: pm.service,
       type: pm.type || pm.newType,
-      paymentIntentId: stripePaymentIntentId,
-      stripePaymentIntentId: stripePaymentIntentId,
+      stripePaymentIntentId: pm.stripePaymentIntentId,
       save: pm.isSavedForLater,
     };
   } else if (pm.legacyType) {

@@ -29,11 +29,7 @@ async function* staleStripeNewPaymentIntentOrdersPager() {
     ],
     where: {
       status: OrderStatuses.NEW,
-      // TODO(#8851): remove `data.paymentIntent` to complete the migration
-      [Op.or]: [
-        { data: { stripePaymentIntent: { id: { [Op.ne]: null } } } },
-        { data: { paymentIntent: { id: { [Op.ne]: null } } } },
-      ],
+      data: { stripePaymentIntent: { id: { [Op.ne]: null } } },
       createdAt: {
         [Op.lte]: moment().subtract(2, 'days').toDate(),
       },

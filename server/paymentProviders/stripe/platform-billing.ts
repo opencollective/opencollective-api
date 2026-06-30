@@ -26,7 +26,6 @@ export async function chargePlatformBillingExpenseWithStripe(expense: Expense) {
     data: {
       ...expense.data,
       stripePaymentIntent: paymentIntentResult,
-      paymentIntent: paymentIntentResult,
     },
   });
 

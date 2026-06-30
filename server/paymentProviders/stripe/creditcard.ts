@@ -45,17 +45,16 @@ const createChargeAndTransactions = async (
 
   /* eslint-disable camelcase */
 
-  // TODO(#8851): remove `order.data.paymentIntent`
-  let paymentIntent: Stripe.PaymentIntent | undefined = order.data.stripePaymentIntent ?? order.data.paymentIntent;
+  let stripePaymentIntent: Stripe.PaymentIntent | undefined = order.data.stripePaymentIntent;
   if (
-    paymentIntent &&
-    (paymentIntent.amount !== convertToStripeAmount(order.currency, order.totalAmount) ||
-      paymentIntent.currency?.toLowerCase() !== order.currency.toLowerCase())
+    stripePaymentIntent &&
+    (stripePaymentIntent.amount !== convertToStripeAmount(order.currency, order.totalAmount) ||
+      stripePaymentIntent.currency?.toLowerCase() !== order.currency.toLowerCase())
   ) {
-    paymentIntent = undefined;
+    stripePaymentIntent = undefined;
   }
   let shouldConfirmOnCreate = false;
-  if (!paymentIntent || paymentIntent.status === 'succeeded') {
+  if (!stripePaymentIntent || stripePaymentIntent.status === 'succeeded') {
     shouldConfirmOnCreate = Boolean(order.processedAt && order.interval);
     const createPayload: Stripe.PaymentIntentCreateParams = {
       amount: convertToStripeAmount(order.currency, order.totalAmount),
@@ -95,14 +94,14 @@ const createChargeAndTransactions = async (
       logger.info('paymentMethod is missing in paymentMethod to pass to Payment Intent.');
       logger.info(JSON.stringify(stripePaymentMethod));
     }
-    paymentIntent = await stripe.paymentIntents.create(createPayload, {
+    stripePaymentIntent = await stripe.paymentIntents.create(createPayload, {
       stripeAccount: hostStripeAccount.username,
     });
   }
 
   if (!shouldConfirmOnCreate) {
-    paymentIntent = await stripe.paymentIntents.confirm(
-      paymentIntent.id,
+    stripePaymentIntent = await stripe.paymentIntents.confirm(
+      stripePaymentIntent.id,
       { payment_method: stripePaymentMethod.id, expand: ['latest_charge'] },
       { stripeAccount: hostStripeAccount.username },
     );
@@ -110,36 +109,32 @@ const createChargeAndTransactions = async (
 
   /* eslint-enable camelcase */
 
-  if (paymentIntent.next_action) {
-    // TODO(#8851): remove `order.data.paymentIntent`
-    await order.update({ data: { ...order.data, stripePaymentIntent: paymentIntent, paymentIntent } }); // Store the payment intent to make sure it will be re-used after the 3D secure confirmation
+  if (stripePaymentIntent.next_action) {
+    await order.update({ data: { ...order.data, stripePaymentIntent: stripePaymentIntent } }); // Store the payment intent to make sure it will be re-used after the 3D secure confirmation
     const paymentIntentError = new Error('Payment Intent require action');
     paymentIntentError['stripeAccount'] = hostStripeAccount.username;
-    paymentIntentError['stripeResponse'] = { paymentIntent };
+    paymentIntentError['stripeResponse'] = { paymentIntent: stripePaymentIntent };
     throw paymentIntentError;
   }
 
-  if (paymentIntent.status !== 'succeeded') {
+  if (stripePaymentIntent.status !== 'succeeded') {
     logger.error('Unknown error with Stripe Payment Intent.');
-    logger.error(paymentIntent);
-    reportMessageToSentry('Unknown error with Stripe Payment Intent', { extra: { paymentIntent } });
+    logger.error(stripePaymentIntent);
+    reportMessageToSentry('Unknown error with Stripe Payment Intent', {
+      extra: { stripePaymentIntent },
+    });
     throw new Error(UNKNOWN_ERROR_MSG);
   }
 
-  // TODO(#8851): remove `order.data.previousPaymentIntents`
-  const previousStripePaymentIntents = [
-    ...(order.data.previousStripePaymentIntents ?? order.data.previousPaymentIntents ?? []),
-    paymentIntent,
-  ];
+  const previousStripePaymentIntents = [...(order.data.previousStripePaymentIntents ?? []), stripePaymentIntent];
   await order.update({
     data: {
-      ...omit(order.data, ['stripePaymentIntent', 'paymentIntent']),
+      ...omit(order.data, ['stripePaymentIntent']),
       previousStripePaymentIntents,
-      previousPaymentIntents: previousStripePaymentIntents,
     },
   });
 
-  const charge = (paymentIntent as any).charges.data[0];
+  const charge = (stripePaymentIntent as any).charges.data[0];
   const transaction = await createChargeTransactions(charge as Stripe.Charge, { order });
   if (order.SubscriptionId) {
     const subscription = await models.Subscription.findByPk(order.SubscriptionId);

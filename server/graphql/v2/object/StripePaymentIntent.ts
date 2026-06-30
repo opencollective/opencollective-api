@@ -25,11 +25,4 @@ const GraphQLStripePaymentIntent = new GraphQLObjectType({
   fields: getFields,
 });
 
-// TODO(#8851): remove this legacy type
-export const LegacyGraphQLPaymentIntent = new GraphQLObjectType({
-  name: 'PaymentIntent',
-  description: 'A Stripe payment intent (deprecated, use StripePaymentIntent)',
-  fields: getFields,
-});
-
 export default GraphQLStripePaymentIntent;

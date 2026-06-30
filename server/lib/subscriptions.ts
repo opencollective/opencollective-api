@@ -285,11 +285,8 @@ export const updateSubscriptionDetails = async (
     newMemberData['TierId'] = newTierId;
   }
 
-  if (
-    !isEmpty(newOrderData) &&
-    (order.data?.stripePaymentIntent || order.data?.paymentIntent || order.data?.needsConfirmation) // TODO(#8851): remove `paymentIntent`
-  ) {
-    newOrderData['data'] = omit(order.data, ['stripePaymentIntent', 'paymentIntent', 'needsConfirmation']);
+  if (!isEmpty(newOrderData) && (order.data?.stripePaymentIntent || order.data?.needsConfirmation)) {
+    newOrderData['data'] = omit(order.data, ['stripePaymentIntent', 'needsConfirmation']);
   }
 
   // Backup previous values

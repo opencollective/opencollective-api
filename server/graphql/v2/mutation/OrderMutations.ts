@@ -12,7 +12,6 @@ import {
   keyBy,
   keys,
   mapValues,
-  omit,
   omitBy,
   pick,
   uniq,
@@ -98,7 +97,6 @@ import {
 } from '../input/PaymentMethodReferenceInput';
 import GraphQLStripePaymentIntentInput, {
   GraphQLStripePaymentIntentInputFields,
-  LegacyGraphQLPaymentIntentInput,
 } from '../input/StripePaymentIntentInput';
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 import { fetchTransactionsImportRowWithReference } from '../input/TransactionsImportRowReferenceInput';
@@ -106,7 +104,7 @@ import { GraphQLAccount } from '../interface/Account';
 import { UncategorizedValue } from '../object/AccountingCategory';
 import { GraphQLOrder } from '../object/Order';
 import { GraphQLStripeError } from '../object/StripeError';
-import GraphQLStripePaymentIntent, { LegacyGraphQLPaymentIntent } from '../object/StripePaymentIntent';
+import GraphQLStripePaymentIntent from '../object/StripePaymentIntent';
 
 const GraphQLOrderWithPayment = new GraphQLObjectType({
   name: 'OrderWithPayment',
@@ -226,13 +224,8 @@ const orderMutations = {
         paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
       }
 
-      if (order.paymentMethod?.paymentIntentId) {
-        paymentMethod.paymentIntentId = order.paymentMethod?.paymentIntentId;
-        paymentMethod.stripePaymentIntentId = order.paymentMethod?.paymentIntentId;
-      }
       if (order.paymentMethod?.stripePaymentIntentId) {
-        paymentMethod.paymentIntentId = null;
-        paymentMethod.stripePaymentIntentId = order.paymentMethod?.stripePaymentIntentId;
+        paymentMethod.stripePaymentIntentId = order.paymentMethod.stripePaymentIntentId;
       }
 
       // Ensure amounts are provided with the right currency
@@ -1143,8 +1136,7 @@ const orderMutations = {
         throw new FeatureNotAllowedForUser();
       }
 
-      // TODO(#8851): remove args.paymentIntent after migration
-      const paymentIntentInput = args.stripePaymentIntent ?? args['paymentIntent'];
+      const paymentIntentInput = args.stripePaymentIntent;
 
       const toAccount = await fetchAccountWithReference(paymentIntentInput.toAccount, { throwIfMissing: true });
       const hostStripeAccount = await toAccount.getHostStripeAccount();
@@ -1243,7 +1235,7 @@ const orderMutations = {
           paymentMethodConfiguration = config.stripe.recurringPaymentMethodConfiguration;
         }
 
-        const paymentIntent = await stripe.paymentIntents.create(
+        const stripePaymentIntent = await stripe.paymentIntents.create(
           {
             /* eslint-disable camelcase */
             payment_method_configuration: paymentMethodConfiguration,
@@ -1267,8 +1259,8 @@ const orderMutations = {
         );
 
         return {
-          id: paymentIntent.id,
-          paymentIntentClientSecret: paymentIntent.client_secret,
+          id: stripePaymentIntent.id,
+          paymentIntentClientSecret: stripePaymentIntent.client_secret,
           stripeAccount: hostStripeAccount.username,
           stripeAccountPublishableSecret: hostStripeAccount.data.publishableKey,
         };
@@ -1611,19 +1603,6 @@ const orderMutations = {
           resumeContributionsStartedAt: new Date(),
         },
       });
-    },
-  },
-};
-
-// TODO(#8851): remove this mutation alias after migrating the frontend.
-orderMutations['createPaymentIntent'] = {
-  ...orderMutations.createStripePaymentIntent,
-  deprecationReason: '2026-06-25: Use createStripePaymentIntent instead',
-  type: new GraphQLNonNull(LegacyGraphQLPaymentIntent),
-  args: {
-    ...omit(orderMutations.createStripePaymentIntent.args, ['stripePaymentIntent']),
-    paymentIntent: {
-      type: new GraphQLNonNull(LegacyGraphQLPaymentIntentInput),
     },
   },
 };

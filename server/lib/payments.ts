@@ -1044,7 +1044,7 @@ export const executeOrder = async (
     await order.update({
       status: OrderStatuses.PAID,
       processedAt: order.processedAt || new Date(),
-      data: omit(order.data, ['stripePaymentIntent', 'paymentIntent']), // TODO(#8851): remove `paymentIntent`
+      data: omit(order.data, ['stripePaymentIntent']),
     });
 
     await applyContributionAccountingCategoryRules(order);
@@ -1264,15 +1264,14 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
 export async function getOrderPaymentProcessingUrl(order: Order): Promise<string | null> {
   const pm = order.paymentMethod || (await order.getPaymentMethod());
   if (pm?.service === PAYMENT_METHOD_SERVICE.STRIPE) {
-    // TODO(#8851): remove `paymentIntent`
-    const paymentIntentId = get(order, 'data.stripePaymentIntent.id') ?? get(order, 'data.paymentIntent.id'); // TODO(#8851): remove `paymentIntent`
-    if (!paymentIntentId) {
+    const stripePaymentIntentId = get(order, 'data.stripePaymentIntent.id');
+    if (!stripePaymentIntentId) {
       return null;
     }
 
     const stripeAccountId = pm.data?.stripeAccount;
 
-    return getDashboardObjectIdURL(paymentIntentId, stripeAccountId);
+    return getDashboardObjectIdURL(stripePaymentIntentId, stripeAccountId);
   }
   return null;
 }

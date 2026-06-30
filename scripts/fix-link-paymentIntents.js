@@ -32,11 +32,11 @@ const getHostStripeAccountUsername = async slug => {
   return stripeAccount.username;
 };
 
-async function checkAndRecordCharge(charge, paymentIntent, stripeAccount) {
+async function checkAndRecordCharge(charge, stripePaymentIntent, stripeAccount) {
   // Copy code from Stripe webhook (paymentIntentSucceeded)
   const order = await models.Order.findOne({
     where: {
-      data: { paymentIntent: { id: paymentIntent.id } },
+      data: { stripePaymentIntent: { id: stripePaymentIntent.id } },
     },
     include: [
       { association: 'collective', required: true },
@@ -46,7 +46,7 @@ async function checkAndRecordCharge(charge, paymentIntent, stripeAccount) {
   });
 
   if (!order) {
-    logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
+    logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${stripePaymentIntent.id}`);
     return;
   }
 
@@ -67,7 +67,7 @@ async function checkAndRecordCharge(charge, paymentIntent, stripeAccount) {
     logger.info(`Recording charge ...`);
   }
 
-  await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, paymentIntent);
+  await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, stripePaymentIntent);
 
   const transaction = await createChargeTransactions(charge, { order });
 
@@ -81,8 +81,8 @@ async function checkAndRecordCharge(charge, paymentIntent, stripeAccount) {
     status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
     processedAt: new Date(),
     data: {
-      ...omit(order.data, 'paymentIntent'),
-      previousPaymentIntents: [...(order.data.previousPaymentIntents ?? []), paymentIntent],
+      ...omit(order.data, 'stripePaymentIntent'),
+      previousStripePaymentIntents: [...(order.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
     },
   });
 
@@ -110,16 +110,16 @@ async function main() {
     console.info(`🔎️ Checking paymentIntents ${totalAlreadyChecked} to ${totalAlreadyChecked + nbToCheckInThisPage}`);
 
     // Retrieve the list and check all charges
-    const paymentIntents = await stripe.paymentIntents.list(
+    const stripePaymentIntents = await stripe.paymentIntents.list(
       { limit: nbToCheckInThisPage, starting_after: lastChargeId }, // eslint-disable-line camelcase
       { stripeAccount: stripeUserName },
     );
-    for (let idx = 0; idx < paymentIntents.data.length; idx++) {
-      const paymentIntent = paymentIntents.data[idx];
-      if (paymentIntent.status === 'succeeded') {
-        const charge = paymentIntent.charges.data[0];
+    for (let idx = 0; idx < stripePaymentIntents.data.length; idx++) {
+      const stripePaymentIntent = stripePaymentIntents.data[idx];
+      if (stripePaymentIntent.status === 'succeeded') {
+        const charge = stripePaymentIntent.charges.data[0];
         if (charge.payment_method_details.type === 'link') {
-          await checkAndRecordCharge(charge, paymentIntent, stripeUserName);
+          await checkAndRecordCharge(charge, stripePaymentIntent, stripeUserName);
         } else {
           // Non-link Payment Method type
         }
@@ -134,12 +134,12 @@ async function main() {
     }
 
     // We reached the end
-    if (!paymentIntents.has_more) {
+    if (!stripePaymentIntents.has_more) {
       break;
     }
 
     // Register last charge for pagination
-    lastChargeId = get(last(paymentIntents.data), 'id');
+    lastChargeId = get(last(stripePaymentIntents.data), 'id');
   }
 
   console.info('--------------------------------------\nDone!');
