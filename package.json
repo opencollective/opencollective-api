@@ -114,7 +114,7 @@
     "passport": "0.7.0",
     "passport-github": "1.1.0",
     "pg": "8.22.0",
-    "pg-connection-string": "2.13.0",
+    "pg-connection-string": "2.14.0",
     "pg-format": "1.0.4",
     "pg-listen": "1.7.0",
     "plaid": "42.2.0",
