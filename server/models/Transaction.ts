@@ -740,7 +740,7 @@ class Transaction extends ModelWithPublicId<
       return;
     }
 
-    const host = await Transaction.fetchHost(transaction);
+    const host = await Transaction.fetchHost(transaction, { sqlTransaction: sequelizeTransaction });
     const hostHasNewPlatformTipsLedger = Boolean(host?.hasNewPlatformTipsLedger?.());
 
     // amount of the CREDIT should be in the same currency as the original transaction
