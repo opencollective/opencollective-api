@@ -284,7 +284,8 @@ export const GraphQLOrder = new GraphQLObjectType({
           }
 
           if (pm?.service === PAYMENT_METHOD_SERVICE.STRIPE) {
-            const paymentIntentId = get(order, 'data.paymentIntent.id');
+            // TODO(#8851): remove `paymentIntent`
+            const paymentIntentId = get(order, 'data.stripePaymentIntent.id') ?? get(order, 'data.paymentIntent.id');
             if (!paymentIntentId) {
               return null;
             }

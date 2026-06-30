@@ -45,7 +45,8 @@ const createChargeAndTransactions = async (
 
   /* eslint-disable camelcase */
 
-  let paymentIntent: Stripe.PaymentIntent | undefined = order.data.paymentIntent;
+  // TODO(#8851): remove `order.data.paymentIntent`
+  let paymentIntent: Stripe.PaymentIntent | undefined = order.data.stripePaymentIntent ?? order.data.paymentIntent;
   if (
     paymentIntent &&
     (paymentIntent.amount !== convertToStripeAmount(order.currency, order.totalAmount) ||
@@ -110,7 +111,8 @@ const createChargeAndTransactions = async (
   /* eslint-enable camelcase */
 
   if (paymentIntent.next_action) {
-    await order.update({ data: { ...order.data, paymentIntent } }); // Store the payment intent to make sure it will be re-used after the 3D secure confirmation
+    // TODO(#8851): remove `order.data.paymentIntent`
+    await order.update({ data: { ...order.data, stripePaymentIntent: paymentIntent, paymentIntent } }); // Store the payment intent to make sure it will be re-used after the 3D secure confirmation
     const paymentIntentError = new Error('Payment Intent require action');
     paymentIntentError['stripeAccount'] = hostStripeAccount.username;
     paymentIntentError['stripeResponse'] = { paymentIntent };
@@ -124,10 +126,16 @@ const createChargeAndTransactions = async (
     throw new Error(UNKNOWN_ERROR_MSG);
   }
 
+  // TODO(#8851): remove `order.data.previousPaymentIntents`
+  const previousStripePaymentIntents = [
+    ...(order.data.previousStripePaymentIntents ?? order.data.previousPaymentIntents ?? []),
+    paymentIntent,
+  ];
   await order.update({
     data: {
-      ...omit(order.data, 'paymentIntent'),
-      previousPaymentIntents: [...(order.data.previousPaymentIntents ?? []), paymentIntent],
+      ...omit(order.data, ['stripePaymentIntent', 'paymentIntent']),
+      previousStripePaymentIntents,
+      previousPaymentIntents: previousStripePaymentIntents,
     },
   });
 

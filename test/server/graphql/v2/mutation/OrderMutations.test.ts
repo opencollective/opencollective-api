@@ -3363,6 +3363,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
               totalAmount: 1000,
               currency: 'USD',
               data: {
+                stripePaymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' },
                 paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' },
                 needsConfirmation: true,
               },
@@ -3388,13 +3389,14 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           await staleOrder.reload();
           expect(staleOrder.totalAmount).to.eq(5000);
+          expect(staleOrder.data?.stripePaymentIntent).to.be.undefined;
           expect(staleOrder.data?.paymentIntent).to.be.undefined;
           expect(staleOrder.data?.needsConfirmation).to.be.undefined;
         });
 
         it('keeps data.paymentIntent when the amount is not changing', async () => {
           const staleOrder = await buildOrderWithStalePaymentIntent();
-          const originalPaymentIntent = { ...staleOrder.data.paymentIntent };
+          const originalPaymentIntent = { ...staleOrder.data.stripePaymentIntent };
 
           const result = await graphqlQueryV2(
             updateOrderMutation,
@@ -3409,6 +3411,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(result.errors).to.not.exist;
 
           await staleOrder.reload();
+          expect(staleOrder.data?.stripePaymentIntent).to.deep.equal(originalPaymentIntent);
           expect(staleOrder.data?.paymentIntent).to.deep.equal(originalPaymentIntent);
           expect(staleOrder.data?.needsConfirmation).to.eq(true);
         });
