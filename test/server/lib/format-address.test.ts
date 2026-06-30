@@ -282,6 +282,32 @@ describe('server/lib/format-address', () => {
         });
         expect(result).to.equal('123 Main Street');
       });
+
+      it('normalizes state names to subdivision codes', async () => {
+        const result = await formatAddress({
+          country: 'US',
+          structured: {
+            address1: '123 Main Street',
+            city: 'Los Angeles',
+            zone: 'California',
+            postalCode: '90001',
+          },
+        });
+        expect(result).to.equal('123 Main Street, Los Angeles, California 90001');
+      });
+
+      it('normalizes Australian state names to subdivision codes', async () => {
+        const result = await formatAddress({
+          country: 'AU',
+          structured: {
+            address1: '123 George Street',
+            city: 'Sydney',
+            zone: 'New South Wales',
+            postalCode: '2000',
+          },
+        });
+        expect(result).to.equal('123 George Street, Sydney New South Wales 2000');
+      });
     });
   });
 });

@@ -1,8 +1,9 @@
 /* eslint-disable camelcase */
 
 import { expect } from 'chai';
+import config from 'config';
 import { set } from 'lodash';
-import { assert, createSandbox } from 'sinon';
+import sinon, { assert, createSandbox } from 'sinon';
 import Stripe from 'stripe';
 
 import { Service } from '../../../../server/constants/connected-account';
@@ -13,6 +14,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import * as applyContributionAccountingCategoryRules from '../../../../server/lib/accounting/categorization/contribution-rules';
 import * as libPayments from '../../../../server/lib/payments';
+import { MAX_RETRIES } from '../../../../server/lib/recurring-contributions';
 import stripe from '../../../../server/lib/stripe';
 import * as transactions from '../../../../server/lib/transactions';
 import models, { Collective, Expense } from '../../../../server/models';
@@ -518,6 +520,8 @@ describe('webhook', () => {
         data: {
           object: {
             id: order.data.paymentIntent.id,
+            amount: 100e2,
+            currency: 'usd',
             charges: {
               data: [
                 {
@@ -562,6 +566,26 @@ describe('webhook', () => {
         await order.reload();
         expect(order.status).to.equal(OrderStatuses.PAID);
         expect(order.processedAt).to.not.be.null;
+      });
+
+      it('does not process the order when PaymentIntent amount does not match', async () => {
+        sandbox.stub(common, 'createChargeTransactions').throws();
+        set(event, 'data.object.amount', 50e2);
+        await webhook.paymentIntentSucceeded(event);
+
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.PROCESSING);
+        assert.notCalled(common.createChargeTransactions);
+      });
+
+      it('does not process the order when PaymentIntent currency does not match', async () => {
+        sandbox.stub(common, 'createChargeTransactions').throws();
+        set(event, 'data.object.currency', 'eur');
+        await webhook.paymentIntentSucceeded(event);
+
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.PROCESSING);
+        assert.notCalled(common.createChargeTransactions);
       });
 
       it('calls applyContributionAccountingCategoryRules after processing stripe order', async () => {
@@ -666,6 +690,183 @@ describe('webhook', () => {
         expect(order.processedAt).to.not.be.null;
         expect(applyContributionAccountingCategoryRulesSpy).to.not.have.been.called;
       });
+
+      it('updates chargeNumber, resets chargeRetryCount, and bumps next dates on recurring success', async () => {
+        sandbox.stub(common, 'createChargeTransactions').resolves(
+          fakeTransaction(
+            {
+              OrderId: order.id,
+              amount: 100e2,
+              currency: order.currency,
+              type: 'CREDIT',
+            },
+            { createDoubleEntry: true },
+          ),
+        );
+        sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+        const subscription = await fakeSubscription({
+          CollectiveId: order.collective.id,
+          interval: 'month',
+          isActive: true,
+          chargeNumber: 2,
+          chargeRetryCount: 3, // had been failing before this success
+          nextPeriodStart: new Date('2026-03-15 0:0'),
+          nextChargeDate: new Date('2026-03-20 0:0'),
+        });
+        await order.update({ interval: 'month', SubscriptionId: subscription.id });
+
+        await webhook.paymentIntentSucceeded(event);
+
+        await subscription.reload();
+        // chargeNumber is incremented to record the successful attempt
+        expect(subscription.chargeNumber).to.equal(3);
+        // chargeRetryCount resets to 0 because we recovered from previous failures
+        expect(subscription.chargeRetryCount).to.equal(0);
+        // both date fields are advanced one month from nextPeriodStart
+        expect(subscription.nextPeriodStart.getTime()).to.equal(new Date('2026-04-15 0:0').getTime());
+        expect(subscription.nextChargeDate.getTime()).to.equal(new Date('2026-04-15 0:0').getTime());
+        expect(subscription.lastChargedAt).to.not.be.null;
+      });
+
+      it('ignores a redelivered succeeded event when the charge was already recorded', async () => {
+        const chargeId = randStr('ch_fake');
+        set(event, 'data.object.charges.data[0].id', chargeId);
+        // Simulate a previous delivery that already recorded the transaction for this charge
+        await fakeTransaction({ OrderId: order.id, data: { charge: { id: chargeId } as Stripe.Charge } });
+
+        const createChargeTransactionsStub = sandbox.stub(common, 'createChargeTransactions').resolves();
+        const sendEmailNotificationsStub = sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+        const subscription = await fakeSubscription({
+          CollectiveId: order.collective.id,
+          interval: 'month',
+          isActive: true,
+          chargeNumber: 2,
+        });
+        await order.update({ interval: 'month', SubscriptionId: subscription.id });
+
+        await webhook.paymentIntentSucceeded(event);
+
+        // The existing-charge dedup short-circuits the handler before any side effect
+        assert.notCalled(createChargeTransactionsStub);
+        assert.notCalled(sendEmailNotificationsStub);
+        await subscription.reload();
+        expect(subscription.chargeNumber).to.equal(2);
+      });
+
+      it('passes firstPayment: false when paying a subscription that already has a SubscriptionId', async () => {
+        sandbox
+          .stub(common, 'createChargeTransactions')
+          .resolves(
+            fakeTransaction(
+              { OrderId: order.id, amount: 100e2, currency: order.currency, type: 'CREDIT' },
+              { createDoubleEntry: true },
+            ),
+          );
+        sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+        const subscription = await fakeSubscription({
+          CollectiveId: order.collective.id,
+          interval: 'month',
+          isActive: true,
+        });
+        await order.update({ interval: 'month', SubscriptionId: subscription.id });
+
+        await webhook.paymentIntentSucceeded(event);
+
+        // Recurring charges (subscription already exists) should never display the "first payment" copy.
+        assert.calledOnceWithMatch(
+          libPayments.sendEmailNotifications,
+          sinon.match(v => v.id === order.id),
+          sinon.match.any,
+          {
+            firstPayment: false,
+          },
+        );
+      });
+
+      it('passes firstPayment: true on the initial subscription charge (no SubscriptionId yet)', async () => {
+        sandbox
+          .stub(common, 'createChargeTransactions')
+          .resolves(
+            fakeTransaction(
+              { OrderId: order.id, amount: 100e2, currency: order.currency, type: 'CREDIT' },
+              { createDoubleEntry: true },
+            ),
+          );
+        sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+        await order.update({ interval: 'month', SubscriptionId: null });
+
+        await webhook.paymentIntentSucceeded(event);
+
+        // First-time async confirmation of a recurring contribution should mark the email as a first payment.
+        assert.calledOnceWithMatch(
+          libPayments.sendEmailNotifications,
+          sinon.match(v => v.id === order.id),
+          sinon.match.any,
+          {
+            firstPayment: true,
+          },
+        );
+      });
+
+      describe('when the order was cancelled while the async charge was in-flight', () => {
+        it('records the transaction and creates the membership but keeps the order CANCELLED', async () => {
+          sandbox
+            .stub(common, 'createChargeTransactions')
+            .resolves(
+              fakeTransaction(
+                { OrderId: order.id, amount: 100e2, currency: order.currency, type: 'CREDIT' },
+                { createDoubleEntry: true },
+              ),
+            );
+          sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+          const getOrCreateMembersSpy = sandbox.spy(models.Order.prototype, 'getOrCreateMembers');
+
+          // User cancelled while the async charge was still being confirmed
+          await order.update({
+            status: OrderStatuses.CANCELLED,
+          });
+
+          await webhook.paymentIntentSucceeded(event);
+
+          assert.calledOnce(common.createChargeTransactions);
+          await order.reload();
+          expect(order.status).to.equal(OrderStatuses.CANCELLED);
+          expect(getOrCreateMembersSpy).to.have.been.called;
+        });
+
+        it('records the charge but keeps a recurring order CANCELLED without reactivating the subscription', async () => {
+          sandbox
+            .stub(common, 'createChargeTransactions')
+            .resolves(
+              fakeTransaction(
+                { OrderId: order.id, amount: 100e2, currency: order.currency, type: 'CREDIT' },
+                { createDoubleEntry: true },
+              ),
+            );
+          sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+
+          const subscription = await fakeSubscription({
+            CollectiveId: order.collective.id,
+            interval: 'month',
+            isActive: false, // cancellation deactivated the subscription
+            lastChargedAt: null,
+          });
+          await order.update({
+            interval: 'month',
+            SubscriptionId: subscription.id,
+            status: OrderStatuses.CANCELLED,
+          });
+
+          await webhook.paymentIntentSucceeded(event);
+
+          await order.reload();
+          await subscription.reload();
+
+          expect(order.status).to.equal(OrderStatuses.CANCELLED);
+          expect(subscription.isActive).to.be.false;
+          expect(subscription.lastChargedAt).to.not.be.null;
+        });
+      });
     });
 
     describe('paymentIntentProcessing()', () => {
@@ -768,6 +969,88 @@ describe('webhook', () => {
           },
           'Something went wrong with the payment, please contact support@opencollective.com.',
         );
+      });
+
+      describe('when the order has a subscription', () => {
+        it('increments chargeRetryCount and reschedules nextChargeDate when below MAX_RETRIES', async () => {
+          sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+          set(event, 'data.object.last_payment_error', { message: 'card_declined' });
+
+          const subscription = await fakeSubscription({
+            CollectiveId: order.collective.id,
+            interval: 'month',
+            isActive: true,
+            chargeRetryCount: 0,
+            nextPeriodStart: new Date('2026-04-01 0:0'),
+            nextChargeDate: new Date('2026-04-01 0:0'),
+          });
+          await order.update({ interval: 'month', SubscriptionId: subscription.id });
+
+          await webhook.paymentIntentFailed(event);
+          await subscription.reload();
+          await order.reload();
+
+          // Subscription stays active and the retry count is bumped to schedule a retry attempt
+          expect(subscription.isActive).to.equal(true);
+          expect(subscription.deactivatedAt).to.be.null;
+          expect(subscription.chargeRetryCount).to.equal(1);
+          expect(subscription.nextChargeDate.getTime()).to.be.greaterThan(new Date('2026-04-01 0:0').getTime());
+          expect(order.status).to.equal(OrderStatuses.ERROR);
+        });
+
+        it('cancels the subscription and order when chargeRetryCount reaches MAX_RETRIES', async () => {
+          sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+          set(event, 'data.object.last_payment_error', { message: 'card_declined' });
+
+          const subscription = await fakeSubscription({
+            CollectiveId: order.collective.id,
+            interval: 'month',
+            isActive: true,
+            chargeRetryCount: MAX_RETRIES - 1,
+          });
+          await order.update({ interval: 'month', SubscriptionId: subscription.id });
+
+          await webhook.paymentIntentFailed(event);
+          await subscription.reload();
+          await order.reload();
+
+          expect(subscription.isActive).to.equal(false);
+          expect(subscription.deactivatedAt).to.not.be.null;
+          expect(order.status).to.equal(OrderStatuses.CANCELLED);
+        });
+
+        it('still calls sendOrderFailedEmail for subscription failures', async () => {
+          sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+          set(event, 'data.object.last_payment_error', { message: 'card_declined' });
+
+          const subscription = await fakeSubscription({
+            CollectiveId: order.collective.id,
+            interval: 'month',
+            isActive: true,
+            chargeRetryCount: 1,
+          });
+          await order.update({ interval: 'month', SubscriptionId: subscription.id });
+
+          await webhook.paymentIntentFailed(event);
+
+          assert.calledOnceWithMatch(libPayments.sendOrderFailedEmail, { dataValues: { id: order.id } });
+        });
+      });
+
+      it('keeps the order CANCELLED when the user cancelled before the failure webhook arrived', async () => {
+        sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+        set(event, 'data.object.last_payment_error', { message: 'card_declined' });
+
+        // User cancelled while the async charge was still being processed
+        await order.update({
+          status: OrderStatuses.CANCELLED,
+        });
+
+        await webhook.paymentIntentFailed(event);
+        await order.reload();
+
+        expect(order.status).to.equal(OrderStatuses.CANCELLED);
+        assert.calledOnceWithMatch(libPayments.sendOrderFailedEmail, { dataValues: { id: order.id } });
       });
     });
   });
@@ -1079,6 +1362,8 @@ describe('webhook', () => {
         data: {
           object: {
             id: expense.data.paymentIntent.id,
+            amount: 100e2,
+            currency: 'usd',
             payment_method: randStr('pm_fake'),
             latest_charge: {
               amount: 100e2,
@@ -1098,6 +1383,24 @@ describe('webhook', () => {
 
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.PAID);
+      });
+
+      it('does not mark expense as PAID when PaymentIntent amount does not match the expense', async () => {
+        event.data.object.amount = 50e2;
+        await webhook.paymentIntentSucceeded(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
+        expect(transactions.createTransactionsFromPaidStripeExpense).to.not.have.been.called;
+      });
+
+      it('does not mark expense as PAID when PaymentIntent currency does not match the expense', async () => {
+        event.data.object.currency = 'eur';
+        await webhook.paymentIntentSucceeded(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
+        expect(transactions.createTransactionsFromPaidStripeExpense).to.not.have.been.called;
       });
     });
 
@@ -1125,6 +1428,54 @@ describe('webhook', () => {
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
       });
+    });
+  });
+
+  describe('createOrUpdatePaymentMethod()', () => {
+    const PLATFORM_ACCOUNT_ID = config.stripe.accountId;
+
+    it('matches a legacy platform PM that has no data.stripeAccount', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ CreatedByUserId: user.id });
+      const stripePaymentMethodId = randStr('pm_legacy_');
+      const existingPm = await fakePaymentMethod({
+        CollectiveId: collective.id,
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        data: { stripePaymentMethodId },
+      });
+      const retrieveStub = sandbox.stub(stripe.paymentMethods, 'retrieve');
+
+      const result = await webhook.createOrUpdatePaymentMethod(collective.id, user.id, PLATFORM_ACCOUNT_ID, {
+        payment_method: stripePaymentMethodId,
+      } as Stripe.PaymentIntent);
+
+      expect(result.id).to.equal(existingPm.id);
+      assert.notCalled(retrieveStub);
+      const count = await models.PaymentMethod.count({ where: { data: { stripePaymentMethodId } } });
+      expect(count).to.equal(1);
+    });
+
+    it('matches a platform PM that has data.stripeAccount set to the platform id', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ CreatedByUserId: user.id });
+      const stripePaymentMethodId = randStr('pm_platform_');
+      const existingPm = await fakePaymentMethod({
+        CollectiveId: collective.id,
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        data: { stripePaymentMethodId, stripeAccount: PLATFORM_ACCOUNT_ID },
+      });
+      const retrieveStub = sandbox.stub(stripe.paymentMethods, 'retrieve');
+
+      const result = await webhook.createOrUpdatePaymentMethod(collective.id, user.id, PLATFORM_ACCOUNT_ID, {
+        payment_method: stripePaymentMethodId,
+      } as Stripe.PaymentIntent);
+
+      expect(result.id).to.equal(existingPm.id);
+      assert.notCalled(retrieveStub);
+      const count = await models.PaymentMethod.count({ where: { data: { stripePaymentMethodId } } });
+      expect(count).to.equal(1);
     });
   });
 });

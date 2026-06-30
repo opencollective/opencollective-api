@@ -27,10 +27,11 @@ import OrderStatuses from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { applyContributionAccountingCategoryRules } from '../../../lib/accounting/categorization/contribution-rules';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
-import { purgeAllCachesForAccount } from '../../../lib/cache';
+import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
 import { roundCentsAmount } from '../../../lib/currency';
 import logger from '../../../lib/logger';
+import { isBalanceOnlyCollectiveType } from '../../../lib/payments';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../../lib/sanitize-html';
 import { checkGuestContribution, checkOrdersLimit } from '../../../lib/security/limit';
@@ -286,6 +287,15 @@ const orderMutations = {
         type: GraphQLString,
         description: 'Category for cancelling subscription',
       },
+      removeAsContributor: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Remove the contributor from the collective public profile. Host admins only.',
+      },
+      messageForContributor: {
+        type: GraphQLString,
+        description: 'Optional message to send to the contributor. Host admins only.',
+      },
     },
     async resolve(_, args, req) {
       checkRemoteUserCanUseOrders(req);
@@ -305,22 +315,67 @@ const orderMutations = {
         throw new NotFound('Recurring contribution not found');
       }
 
-      if (!req.remoteUser.isAdminOfCollective(order.fromCollective) && !req.remoteUser.isRoot()) {
-        throw new Unauthorized("You don't have permission to cancel this recurring contribution");
-      } else if (!order.Subscription?.isActive && order.status === OrderStatuses.CANCELLED) {
-        throw new Error('Recurring contribution already canceled');
-      } else if (order.status === OrderStatuses.PAID) {
-        throw new Error('Cannot cancel a paid order');
+      const isHostAdmin = await OrdersLib.isOrderHostAdmin(req, order);
+      const hasHostOptions = Boolean(args.removeAsContributor || args.messageForContributor);
+      if (hasHostOptions && !isHostAdmin) {
+        throw new Forbidden('Only host admins can use these options');
       }
+
+      await OrdersLib.canCancelOrder(req, order, { throw: true });
+
+      if (args.removeAsContributor && !(await OrdersLib.canRemoveContributorFromOrder(req, order))) {
+        throw new Forbidden("You don't have permission to remove contributor from the collective");
+      } else if (!order.Subscription) {
+        throw new Error('This contribution is not a recurring contribution');
+      }
+
+      const host = order.collective.HostCollectiveId
+        ? await req.loaders.Collective.byId.load(order.collective.HostCollectiveId)
+        : null;
+      const messageForContributor = isHostAdmin
+        ? OrdersLib.sanitizeMessageForContributor(args.messageForContributor)
+        : null;
 
       // Check 2FA
-      await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, isHostAdmin && host ? host : order.fromCollective, {
+        onlyAskOnLogin: true,
+      });
 
       const previousStatus = order.status;
-      await order.update({ status: OrderStatuses.CANCELLED, data: { ...order.data, previousStatus } });
-      if (order.Subscription?.isActive) {
-        await order.Subscription.deactivate();
-      }
+      await sequelize.transaction(async transaction => {
+        await order.update(
+          { status: OrderStatuses.CANCELLED, data: { ...order.data, previousStatus } },
+          { transaction },
+        );
+
+        if (isHostAdmin && args.removeAsContributor) {
+          await models.Member.destroy({
+            where: {
+              MemberCollectiveId: order.FromCollectiveId,
+              CollectiveId: order.CollectiveId,
+              role: roles.BACKER,
+            },
+            transaction,
+          });
+        }
+
+        // `deactivate` can perform an external PayPal call. If it fails, the function will throw and the transaction will be rolled back.
+        if (order.Subscription.isActive) {
+          await order.Subscription.deactivate(isHostAdmin ? 'Cancelled by host admin' : undefined, host, transaction);
+        }
+      });
+
+      // The SUBSCRIPTION_CANCELED activity sends the user-facing email for this
+      // host-driven cancel flow. The follow-up CONTRIBUTOR_REMOVED_BY_HOST activity
+      // is recorded for the timeline / webhooks only — it has no email template,
+      // so the contributor doesn't receive duplicate notifications.
+      const cancelFlowHostAction = isHostAdmin
+        ? {
+            cancel: true,
+            refund: false,
+            removeAsContributor: Boolean(args.removeAsContributor),
+          }
+        : undefined;
 
       await models.Activity.create({
         type: activities.SUBSCRIPTION_CANCELED,
@@ -328,20 +383,51 @@ const orderMutations = {
         FromCollectiveId: order.FromCollectiveId,
         HostCollectiveId: order.collective.HostCollectiveId,
         OrderId: order.id,
-        UserId: order.CreatedByUserId,
+        UserId: req.remoteUser.id,
         UserTokenId: req.userToken?.id,
         data: {
           subscription: order.Subscription,
           collective: order.collective.minimal,
           user: req.remoteUser.minimal,
           fromCollective: order.fromCollective.minimal,
+          host: host?.minimal,
           reason: args.reason,
           reasonCode: args.reasonCode,
           order: order.info,
           tier: order.Tier?.info,
           previousStatus,
+          messageForContributors: messageForContributor,
+          messageSource: isHostAdmin ? 'HOST' : 'CONTRIBUTOR',
+          hostAction: cancelFlowHostAction,
         },
       });
+
+      if (isHostAdmin && args.removeAsContributor) {
+        await models.Activity.create({
+          type: activities.CONTRIBUTOR_REMOVED_BY_HOST,
+          CollectiveId: order.CollectiveId,
+          FromCollectiveId: order.FromCollectiveId,
+          HostCollectiveId: order.collective.HostCollectiveId,
+          OrderId: order.id,
+          UserId: req.remoteUser.id,
+          UserTokenId: req.userToken?.id,
+          data: {
+            collective: order.collective.minimal,
+            host: host?.minimal,
+            user: req.remoteUser.minimal,
+            fromCollective: order.fromCollective.minimal,
+            order: order.info,
+            messageForContributors: messageForContributor,
+            messageSource: 'HOST',
+            hostAction: cancelFlowHostAction,
+          },
+        });
+      }
+
+      if (isHostAdmin) {
+        purgeCacheForCollective(order.fromCollective.slug);
+        purgeCacheForCollective(order.collective.slug);
+      }
 
       return order.reload();
     },
@@ -368,7 +454,12 @@ const orderMutations = {
       },
       amount: {
         type: GraphQLAmountInput,
-        description: 'An Amount to update the order to',
+        description: 'New amount to charge the contributor, excluding the platform tip. Includes taxes if any.',
+      },
+      platformTipAmount: {
+        type: GraphQLAmountInput,
+        description:
+          'Platform tip for this order. Omit or pass null to keep the current tip; provide a value (including zero) to update it.',
       },
     },
     async resolve(_, args, req) {
@@ -377,7 +468,7 @@ const orderMutations = {
       const decodedId = isEntityPublicId(args.order.id, EntityShortIdPrefix.Order)
         ? await req.loaders.Order.idByPublicId.load(args.order.id)
         : idDecode(args.order.id, IDENTIFIER_TYPES.ORDER);
-      const haveDetailsChanged = !isUndefined(args.amount) || !isUndefined(args.tier);
+      const haveDetailsChanged = !isUndefined(args.amount) || !isUndefined(args.tier) || !isNil(args.platformTipAmount);
       const hasPaymentMethodChanged = !isUndefined(args.paymentMethod) || Boolean(args.paypalSubscriptionId);
 
       let order = await models.Order.findOne({
@@ -444,21 +535,36 @@ const orderMutations = {
             where: { MemberCollectiveId: order.FromCollectiveId, CollectiveId: order.CollectiveId, role: 'BACKER' },
           }));
         const expectedCurrency = order.currency;
-        let newTotalAmount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency });
-        // We add the current Platform Tip to the totalAmount
-        if (order.platformTipAmount) {
-          newTotalAmount = newTotalAmount + order.platformTipAmount;
+        if (!isUndefined(args.amount)) {
+          assertAmountInputCurrency(args.amount, expectedCurrency, { name: 'amount' });
         }
-        // interval, amount, tierId, paymentMethodId
+        if (!isNil(args.platformTipAmount)) {
+          assertAmountInputCurrency(args.platformTipAmount, expectedCurrency, { name: 'platformTipAmount' });
+        }
+
+        // `args.amount` (when provided) is the post-tax total excluding the platform tip — i.e. it matches `Order.amount`.
+        // When not provided, fall back to the order's existing amount under the same convention.
+        const amountWithoutTip = !isUndefined(args.amount)
+          ? getValueInCentsFromAmountInput(args.amount, { expectedCurrency })
+          : order.totalAmount - order.platformTipAmount;
+        const platformTipAmount = isNil(args.platformTipAmount)
+          ? order.platformTipAmount
+          : getValueInCentsFromAmountInput(args.platformTipAmount, { expectedCurrency });
+        const newTotalAmount = amountWithoutTip + platformTipAmount;
         ({ previousOrderValues, previousSubscriptionValues } = await updateSubscriptionDetails(
           order,
           tier,
           membership,
           newTotalAmount,
+          platformTipAmount,
         ));
       }
 
       if (hasPaymentMethodChanged) {
+        if (isBalanceOnlyCollectiveType(order.fromCollective.type)) {
+          throw new ValidationFailed('Changing the payment method is not allowed for this contribution');
+        }
+
         const previousOrderStatus = order.status;
         if (args.paypalSubscriptionId) {
           // Update from PayPal subscription ID

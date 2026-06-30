@@ -1,5 +1,4 @@
 import config from 'config';
-import fetch, { Response } from 'node-fetch';
 
 import logger from '../../lib/logger';
 import { getHostPaypalAccount } from '../../lib/paypal';
@@ -144,7 +143,7 @@ const parsePaypalError = async (
   message: string;
   metadata: { response: Response; error: Error | Record<string, unknown>; status: number; url: string };
 }> => {
-  let error = null;
+  let error;
   let message = defaultMessage;
 
   // Parse error
@@ -170,6 +169,9 @@ const parsePaypalError = async (
     } else if (errorDetails.issue === 'REFUND_FAILED_INSUFFICIENT_FUNDS') {
       message =
         'Capture could not be refunded due to insufficient funds. Please check to see if you have sufficient funds in your PayPal account or if the bank account linked to your PayPal account is verified and has sufficient funds.';
+    } else if (errorDetails.issue === 'REFUND_TIME_LIMIT_EXCEEDED') {
+      message =
+        'This contribution is too old to refund through PayPal. PayPal only allows refunds within 180 days of the original payment.';
     } else {
       message = `${message} (${errorDetails.issue})`;
     }

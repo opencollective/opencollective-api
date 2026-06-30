@@ -18,7 +18,13 @@ import { checkCaptcha } from '../../../lib/check-captcha';
 import { roundCentsAmount } from '../../../lib/currency';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import { mustUpdateLocation } from '../../../lib/location';
-import { calcFee, executeOrder, isPlatformTipEligible, processOrder } from '../../../lib/payments';
+import {
+  calcFee,
+  executeOrder,
+  isBalanceOnlyCollectiveType,
+  isPlatformTipEligible,
+  processOrder,
+} from '../../../lib/payments';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
@@ -125,8 +131,8 @@ const getOrderTaxInfo = async (order, collective, host, tier, loaders) => {
       taxerCountry: taxFromCountry,
       taxedCountry: order.tax?.country,
       percentage: taxPercent,
-      taxIDNumber: order.tax?.idNumber,
-      taxIDNumberFrom: vatSettings.number,
+      idNumber: order.tax?.idNumber,
+      idNumberFrom: vatSettings.number,
     };
   } else if (taxes.some(({ type }) => type === LibTaxes.TaxType.GST)) {
     const hostGSTNumber = get(host, 'settings.GST.number');
@@ -142,8 +148,8 @@ const getOrderTaxInfo = async (order, collective, host, tier, loaders) => {
       taxerCountry: host.countryISO,
       taxedCountry: order.tax.country,
       percentage: taxPercent,
-      taxIDNumber: order.tax.idNumber,
-      taxIDNumberFrom: hostGSTNumber,
+      idNumber: order.tax.idNumber,
+      idNumberFrom: hostGSTNumber,
     };
   }
 };
@@ -390,6 +396,16 @@ export async function createOrder(order, req) {
     // Update the contributing profile with legal name / location
     await checkAndUpdateProfileInfo(order, fromCollective, isGuest);
 
+    if (paymentRequired && order.paymentMethod && isBalanceOnlyCollectiveType(fromCollective.type)) {
+      const { service, type } = order.paymentMethod;
+      const isAllowedPaymentMethod =
+        service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+        (type === PAYMENT_METHOD_TYPE.COLLECTIVE || type === PAYMENT_METHOD_TYPE.HOST);
+      if (!isAllowedPaymentMethod) {
+        throw new ValidationFailed('This account can only pay with its balance');
+      }
+    }
+
     // ---- Taxes ----
     const taxInfo = await getOrderTaxInfo(order, collective, host, tier, loaders);
     const taxPercent = taxInfo?.percentage || 0;
@@ -458,7 +474,11 @@ export async function createOrder(order, req) {
       orderPublicData = pick(order.data, []);
     }
 
-    const platformTipEligible = await isPlatformTipEligible({ ...order, collective });
+    // When the frontend explicitly indicates the tip was not offered (e.g. OSC platform tip A/B
+    // treatment arm), persist the order as not eligible so downstream tip logic respects it and
+    // analytics can group by this flag.
+    const platformTipEligible =
+      order.context?.platformTipOffered === false ? false : await isPlatformTipEligible({ ...order, collective });
 
     const orderData = {
       CreatedByUserId: remoteUser.id,

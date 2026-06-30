@@ -2,8 +2,8 @@
  * The core search mechanism. Queries ultimately end up here after being processed by the GraphQL loader.
  */
 
-import { Search_Request as SearchRequest } from '@opensearch-project/opensearch/api';
-import { QueryContainer } from '@opensearch-project/opensearch/api/_types/_common.query_dsl';
+import { QueryContainer } from '@opensearch-project/opensearch/api/_types/_common.query_dsl.js';
+import { Search_Request as SearchRequest } from '@opensearch-project/opensearch/api/index.js';
 import { isEmpty, isNil } from 'lodash';
 
 import { Collective, User } from '../../models';

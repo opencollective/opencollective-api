@@ -14,6 +14,7 @@ import OrderStatuses from '../constants/order-status';
 import PlatformConstants from '../constants/platform';
 import MemberRoles from '../constants/roles';
 import * as auth from '../lib/auth';
+import emailLib from '../lib/email';
 import logger from '../lib/logger';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
@@ -99,6 +100,7 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     updateLastLoginAt = false,
     expiration = null,
     req = null,
+    isPasswordLogin = false,
   } = {}) {
     if (createActivity && !parseToBoolean(config.database.readOnly)) {
       await Activity.create({
@@ -111,11 +113,39 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     }
 
     if (updateLastLoginAt && req && !parseToBoolean(config.database.readOnly)) {
+      const currentIp = req.ip;
+      const currentUserAgent = req.header('user-agent');
+      const previousSignInRequest = this.data?.lastSignInRequest;
+
+      // Check if this is a new device/location (different IP or user agent)
+      const isNewDeviceOrLocation =
+        !previousSignInRequest ||
+        previousSignInRequest.ip !== currentIp ||
+        previousSignInRequest.userAgent !== currentUserAgent;
+
       await this.update({
         // The login was accepted, we can update lastLoginAt. This will invalidate all older login tokens.
         lastLoginAt: new Date(),
-        data: { ...this.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
+        data: { ...this.data, lastSignInRequest: { ip: currentIp, userAgent: currentUserAgent } },
       });
+
+      // Send new sign-in email only for password logins from new device/location
+      if (isPasswordLogin && isNewDeviceOrLocation && previousSignInRequest) {
+        try {
+          const collective = await this.getCollective();
+          const signInTime = new Date().toISOString();
+
+          await emailLib.send(activities.USER_NEW_PASSWORD_SIGNIN, this.email, {
+            clientIP: currentIp,
+            userAgent: currentUserAgent,
+            signInTime,
+            collective: collective.info,
+          });
+        } catch (e) {
+          logger.error('Error sending new sign-in email', { error: e, userId: this.id });
+          // Don't fail the login if email sending fails
+        }
+      }
     }
 
     return this.jwt({ scope: 'session', sessionId }, expiration || auth.TOKEN_EXPIRATION_SESSION);
@@ -196,8 +226,8 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     return collective.getIncognitoProfile();
   };
 
-  populateRoles = async function () {
-    if (this.rolesByCollectiveId) {
+  populateRoles = async function ({ force = false } = {}) {
+    if (this.rolesByCollectiveId && !force) {
       debug('roles already populated');
       return Promise.resolve(this);
     }
@@ -208,7 +238,7 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     if (incognitoProfile) {
       where.MemberCollectiveId = { [Op.in]: [this.CollectiveId, incognitoProfile.id] };
     }
-    const memberships = await Member.findAll({ where });
+    const memberships = await Member.findAll({ attributes: ['CollectiveId', 'role'], where });
     memberships.map(m => {
       rolesByCollectiveId[m.CollectiveId] = rolesByCollectiveId[m.CollectiveId] || [];
       rolesByCollectiveId[m.CollectiveId].push(m.role);
@@ -234,7 +264,7 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
       return false;
     }
 
-    let rolesArray: MemberRoles[] = [];
+    let rolesArray: MemberRoles[];
     if (typeof roles === 'string') {
       rolesArray = [roles];
     } else if (roles instanceof Set) {
@@ -382,6 +412,10 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     } else {
       return this.isMember(collective.id);
     }
+  };
+
+  isLimited = function (): boolean {
+    return get(this.data, 'features')?.ALL === false;
   };
 
   /**

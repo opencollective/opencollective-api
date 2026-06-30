@@ -512,11 +512,13 @@ export const TransactionFields = () => {
             type: tax.id,
             percentage: Math.round(tax.percentage ?? tax.rate * 100), // Does not support float
             rate: tax.rate ?? round(tax.percentage / 100, 2),
+            hasTaxIdNumber: Boolean(tax.idNumber),
             idNumber: () => {
               const collectiveId = transaction.paymentMethodProviderCollectiveId();
               const canSeeDetails =
                 getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, collectiveId) ||
-                req.remoteUser?.isAdmin(transaction.HostCollectiveId);
+                (transaction.HostCollectiveId &&
+                  req.remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], transaction.HostCollectiveId));
 
               return canSeeDetails ? tax.idNumber : null;
             },

@@ -1,5 +1,5 @@
 /* eslint-disable camelcase */
-import { isNil, round, toNumber, truncate } from 'lodash';
+import { isNil, omit, round, toNumber, truncate } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
@@ -79,7 +79,7 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
     const updateExpenses = expenses.map(async e => {
       await e.update({ data: { ...e.data, ...response.batch_header }, status: status.PROCESSING });
       const user = await models.User.findByPk(e.lastEditedById);
-      await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user);
+      await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user, { payoutResponse: response.batch_header });
       return e;
     });
     return Promise.all(updateExpenses);
@@ -153,7 +153,7 @@ export const checkBatchItemStatus = async (
           clearedAt,
         });
         // Mark Expense as Paid, create activity and send notifications
-        await expense.markAsPaid({ paidAt: clearedAt });
+        await expense.markAsPaid({ paidAt: clearedAt, activityData: { payoutItem: item } });
       }
       break;
     case 'FAILED':
@@ -163,10 +163,12 @@ export const checkBatchItemStatus = async (
     case 'REVERSED':
       if (expense.status !== status.ERROR) {
         await expense.setError(expense.lastEditedById);
+        const data = omit(expense.data, ['payout_batch_id', 'batch_status', 'sender_batch_header']);
+        await expense.update({ data });
         await expense.createActivity(
           activities.COLLECTIVE_EXPENSE_ERROR,
           { id: expense.lastEditedById },
-          { error: item.errors, isSystem: true },
+          { error: item.errors, isSystem: true, payoutItem: item },
         );
       }
       break;
@@ -186,10 +188,13 @@ export const checkBatchStatus = async (batch: Expense[]): Promise<Expense[]> => 
   const [firstExpense] = batch;
   const host = await firstExpense.collective.getHostCollective();
   if (!host) {
-    throw new Error(`Could not find the host reimbursing the expense.`);
+    throw new Error(`Could not find the host paying the expense.`);
   }
 
   const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
+  if (!connectedAccount) {
+    throw new Error(`Could not find connected account for host ${host.id}`);
+  }
 
   const batchId = firstExpense.data.payout_batch_id as string;
   try {

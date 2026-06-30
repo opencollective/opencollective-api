@@ -5,6 +5,8 @@ import { createSandbox } from 'sinon';
 
 import { activities } from '../../../server/constants';
 import status from '../../../server/constants/order-status';
+import PaymentIntentStatus from '../../../server/constants/payment-intent-status';
+import PaymentIntentType from '../../../server/constants/payment-intent-type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../server/constants/platform';
 import roles from '../../../server/constants/roles';
@@ -34,6 +36,10 @@ import {
   fakeUser,
   randStr,
 } from '../../test-helpers/fake-data';
+import {
+  expectPaymentIntentForOrder,
+  expectTransactionsLinkedToPaymentIntent,
+} from '../../test-helpers/payment-intent';
 import * as utils from '../../utils';
 
 const AMOUNT = 1099;
@@ -245,16 +251,23 @@ describe('server/lib/payments', () => {
                 expect(res.rows[0]).to.have.property('service', 'stripe');
               }));
 
-            it('successfully creates an order in the database', () =>
-              models.Order.findAndCountAll().then(res => {
-                expect(res.count).to.equal(1);
-                const order = res.rows[0];
-                expect(order).to.have.property('CreatedByUserId', user.id);
-                expect(order).to.have.property('CollectiveId', collective.id);
-                expect(order).to.have.property('currency', CURRENCY);
-                expect(order).to.have.property('totalAmount', AMOUNT);
-                expect(order).to.have.property('status', status.PAID);
-              }));
+            it('successfully creates an order in the database', async () => {
+              const res = await models.Order.findAndCountAll();
+              expect(res.count).to.equal(1);
+              const order = res.rows[0];
+              expect(order).to.have.property('CreatedByUserId', user.id);
+              expect(order).to.have.property('CollectiveId', collective.id);
+              expect(order).to.have.property('currency', CURRENCY);
+              expect(order).to.have.property('totalAmount', AMOUNT);
+              expect(order).to.have.property('status', status.PAID);
+
+              const paymentIntent = await expectPaymentIntentForOrder(order.id, {
+                status: PaymentIntentStatus.PAID,
+                type: PaymentIntentType.Contribution,
+              });
+              expect(paymentIntent.primaryTransactionGroup).to.exist;
+              await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
+            });
 
             it('successfully adds the user as a backer', () =>
               models.Member.findOne({
@@ -432,6 +445,14 @@ describe('server/lib/payments', () => {
 
       expect(refundTaxTransactions.find(t => t.type === 'DEBIT').amount).to.equal(-100);
       expect(refundTaxTransactions.find(t => t.type === 'CREDIT').amount).to.equal(100);
+
+      const paymentIntent = await expectPaymentIntentForOrder(order.id, {
+        status: PaymentIntentStatus.REVERSED,
+        type: PaymentIntentType.Contribution,
+      });
+      expect(paymentIntent.primaryTransactionGroup).to.exist;
+      const refundContribution = refundTransactions.find(t => t.type === 'CREDIT');
+      await expectTransactionsLinkedToPaymentIntent(refundContribution.TransactionGroup, paymentIntent.id);
     });
 
     it('should refund platform fees on top when refunding original transaction', async () => {
@@ -801,20 +822,22 @@ describe('server/lib/payments', () => {
         instructions:
           'Please make a bank transfer as follows:\n\n<code>\n    Amount: {amount}\n    Reference/Communication: {OrderId}\n    {account}\n</code>\n\nPlease note that it will take a few days to process your payment.',
         data: {
-          type: 'sort_code',
-          accountHolderName: 'John Malkovich',
-          currency: 'GBP',
-          IBAN: 'DE893219828398123',
-          details: {
+          accountDetails: {
+            type: 'sort_code',
+            accountHolderName: 'John Malkovich',
+            currency: 'GBP',
             IBAN: 'DE893219828398123',
-            sortCode: '40-30-20',
-            legalType: 'PRIVATE',
-            accountNumber: '12345678',
-            address: {
-              country: 'US',
-              state: 'NY',
-              city: 'New York',
-              zip: '10001',
+            details: {
+              IBAN: 'DE893219828398123',
+              sortCode: '40-30-20',
+              legalType: 'PRIVATE',
+              accountNumber: '12345678',
+              address: {
+                country: 'US',
+                state: 'NY',
+                city: 'New York',
+                zip: '10001',
+              },
             },
           },
         },

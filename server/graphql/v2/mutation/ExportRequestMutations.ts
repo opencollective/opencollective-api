@@ -6,7 +6,7 @@ import { parseS3Url, permanentlyDeleteFileFromS3 } from '../../../lib/awsS3';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import ExportRequest, { ExportRequestStatus } from '../../../models/ExportRequest';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { checkRemoteUserCanUseExportRequests, checkScopeForExportRequest } from '../../common/scope-check';
 import { Forbidden, RateLimitExceeded } from '../../errors';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { GraphQLExportRequestCreateInput } from '../input/ExportRequestCreateInput';
@@ -19,7 +19,8 @@ import { GraphQLExportRequest } from '../object/ExportRequest';
 const exportRequestMutations = {
   createExportRequest: {
     type: new GraphQLNonNull(GraphQLExportRequest),
-    description: 'Create a new export request. Scope: "account".',
+    description:
+      'Create a new export request. Scopes: "exportRequests" (+ "transactions" for TRANSACTIONS exports, "host" for HOSTED_COLLECTIVES exports).',
     args: {
       exportRequest: {
         type: new GraphQLNonNull(GraphQLExportRequestCreateInput),
@@ -27,7 +28,10 @@ const exportRequestMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<ExportRequest> {
-      checkRemoteUserCanUseAccount(req);
+      // Scope checks
+      const { exportRequest: input } = args;
+      checkRemoteUserCanUseExportRequests(req);
+      checkScopeForExportRequest(req, input);
 
       // Rate limit
       const rateLimitKey = `create_export_request_${req.remoteUser.id}`;
@@ -35,8 +39,6 @@ const exportRequestMutations = {
       if (!(await rateLimit.registerCall())) {
         throw new RateLimitExceeded();
       }
-
-      const { exportRequest: input } = args;
 
       // Fetch account and check permissions
       const account = await fetchAccountWithReference(input.account, { throwIfMissing: true });
@@ -60,7 +62,7 @@ const exportRequestMutations = {
 
   editExportRequest: {
     type: new GraphQLNonNull(GraphQLExportRequest),
-    description: 'Edit an existing export request. Scope: "account".',
+    description: 'Edit an existing export request. Scopes: "exportRequests".',
     args: {
       exportRequest: {
         type: new GraphQLNonNull(GraphQLExportRequestReferenceInput),
@@ -72,7 +74,7 @@ const exportRequestMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<ExportRequest> {
-      checkRemoteUserCanUseAccount(req);
+      checkRemoteUserCanUseExportRequests(req);
 
       // Fetch the export request
       const exportRequest = await fetchExportRequestWithReference(args.exportRequest, { throwIfMissing: true });
@@ -100,7 +102,7 @@ const exportRequestMutations = {
 
   removeExportRequest: {
     type: new GraphQLNonNull(GraphQLExportRequest),
-    description: 'Remove an existing export request. Scope: "account".',
+    description: 'Remove an existing export request. Scope: "exportRequests".',
     args: {
       exportRequest: {
         type: new GraphQLNonNull(GraphQLExportRequestReferenceInput),
@@ -108,7 +110,7 @@ const exportRequestMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<ExportRequest> {
-      checkRemoteUserCanUseAccount(req);
+      checkRemoteUserCanUseExportRequests(req);
 
       // Fetch the export request
       const exportRequest = await fetchExportRequestWithReference(args.exportRequest, {

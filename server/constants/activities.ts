@@ -18,6 +18,7 @@ enum ActivityTypes {
   COLLECTIVE_CREATED = 'collective.created',
   COLLECTIVE_EDITED = 'collective.edited',
   COLLECTIVE_DELETED = 'collective.deleted',
+  COLLECTIVE_ARCHIVED = 'collective.archived',
   COLLECTIVE_UNHOSTED = 'collective.unhosted',
   COLLECTIVE_BALANCE_TRANSFERRED = 'collective.balance.transferred',
   COLLECTIVE_CONVERTED_TO_ORGANIZATION = 'collective.convertedToOrganization',
@@ -32,6 +33,7 @@ enum ActivityTypes {
   EXPENSE_COMMENT_CREATED = 'expense.comment.created',
   CONVERSATION_COMMENT_CREATED = 'conversation.comment.created',
   ORDER_COMMENT_CREATED = 'order.comment.created',
+  HOST_APPLICATION_COMMENT_CREATED = 'host.application.comment.created',
   // Expenses
   COLLECTIVE_EXPENSE_CREATED = 'collective.expense.created',
   COLLECTIVE_EXPENSE_DELETED = 'collective.expense.deleted',
@@ -96,9 +98,10 @@ enum ActivityTypes {
   // Contact
   COLLECTIVE_CONTACT = 'collective.contact',
   HOST_APPLICATION_CONTACT = 'host.application.contact',
-  HOST_APPLICATION_COMMENT_CREATED = 'host.application.comment.created',
   // Contributions
   CONTRIBUTION_REJECTED = 'contribution.rejected',
+  CONTRIBUTION_REFUNDED = 'contribution.refunded',
+  CONTRIBUTOR_REMOVED_BY_HOST = 'contributor.removed.by.host',
   SUBSCRIPTION_ACTIVATED = 'subscription.activated',
   SUBSCRIPTION_CANCELED = 'subscription.canceled',
   SUBSCRIPTION_PAUSED = 'subscription.paused',
@@ -143,6 +146,7 @@ enum ActivityTypes {
   USER_CREATED = 'user.created',
   USER_NEW_TOKEN = 'user.new.token', // Replaced by USER_SIGNIN but still used in the email notification
   USER_SIGNIN = 'user.signin',
+  USER_NEW_PASSWORD_SIGNIN = 'user.new.password.signin', // New sign-in from new device/location (password login only)
   USER_RESET_PASSWORD = 'user.resetPassword',
   USER_OTP_REQUESTED = 'user.otp.requested',
   OAUTH_APPLICATION_AUTHORIZED = 'oauth.application.authorized',
@@ -201,10 +205,12 @@ enum ActivityTypes {
 /** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */
 export const TransactionalActivities = [
   ActivityTypes.USER_NEW_TOKEN,
+  ActivityTypes.USER_NEW_PASSWORD_SIGNIN,
   ActivityTypes.USER_CHANGE_EMAIL,
   ActivityTypes.ORDER_PENDING,
   ActivityTypes.ORDER_PENDING_CRYPTO,
   ActivityTypes.ORDER_PROCESSED,
+  ActivityTypes.CONTRIBUTION_REFUNDED,
   ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
   ActivityTypes.PAYMENT_CREDITCARD_CONFIRMATION,
   ActivityTypes.PAYMENT_FAILED,
@@ -248,6 +254,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.COLLECTIVE_REJECTED,
     ActivityTypes.COLLECTIVE_FROZEN,
     ActivityTypes.COLLECTIVE_UNFROZEN,
+    ActivityTypes.COLLECTIVE_ARCHIVED,
     ActivityTypes.COLLECTIVE_UNHOSTED,
     ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED,
     ActivityTypes.DEACTIVATED_COLLECTIVE_AS_HOST, // deprecated
@@ -290,6 +297,8 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
   [ActivityClasses.CONTRIBUTIONS]: [
     ActivityTypes.COLLECTIVE_MEMBER_CREATED,
     ActivityTypes.CONTRIBUTION_REJECTED,
+    ActivityTypes.CONTRIBUTION_REFUNDED,
+    ActivityTypes.CONTRIBUTOR_REMOVED_BY_HOST,
     ActivityTypes.ORDER_PAYMENT_FAILED,
     ActivityTypes.ORDER_PENDING_CONTRIBUTION_NEW,
     ActivityTypes.ORDER_PENDING_CONTRIBUTION_REMINDER,

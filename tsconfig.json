@@ -1,11 +1,13 @@
 {
   "compilerOptions": {
-    "ignoreDeprecations": "6.0",
     "resolveJsonModule": true,
+    "paths": {
+      "config": ["./server/types/node-config.d.ts"]
+    },
     // Target latest version of ECMAScript.
     "target": "esnext",
-    // Search under node_modules for non-relative imports.
-    "moduleResolution": "node",
+    // Node.js module resolution (required for TypeScript 7).
+    "moduleResolution": "nodenext",
     // Process & infer types from .js files.
     "allowJs": true,
     // Don't emit; allow Babel to transform files.
@@ -15,12 +17,12 @@
     // Import non-ES modules as default imports.
     "esModuleInterop": true,
     "checkJs": false,
-    "downlevelIteration": true,
     "lib": ["esnext", "dom", "dom.iterable"],
-    "module": "commonjs",
+    "module": "nodenext",
     "noUnusedLocals": true,
     "outDir": "dist",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["node", "mocha"]
   },
   "include": ["server", "test", "scripts", "migrations", "reports", "cron", "checks"]
 }

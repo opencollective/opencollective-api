@@ -5,8 +5,10 @@ import { cloneDeep, set } from 'lodash';
 import moment from 'moment';
 import { createSandbox, useFakeTimers } from 'sinon';
 
-import { roles } from '../../../../../server/constants';
+import { activities, roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order-status';
+import PaymentIntentStatus from '../../../../../server/constants/payment-intent-status';
+import PaymentIntentType from '../../../../../server/constants/payment-intent-type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../../../server/constants/platform';
 import MemberRoles from '../../../../../server/constants/roles';
@@ -36,6 +38,10 @@ import {
   fakeVendor,
   randStr,
 } from '../../../../test-helpers/fake-data';
+import {
+  expectPaymentIntentForOrder,
+  expectTransactionsLinkedToPaymentIntent,
+} from '../../../../test-helpers/payment-intent';
 import {
   generateValid2FAHeader,
   graphqlQueryV2,
@@ -193,14 +199,25 @@ const updateOrderMutation = gql`
   mutation UpdateOrder(
     $order: OrderReferenceInput!
     $amount: AmountInput
+    $platformTipAmount: AmountInput
     $tier: TierReferenceInput
     $paymentMethod: PaymentMethodReferenceInput
   ) {
-    updateOrder(order: $order, amount: $amount, tier: $tier, paymentMethod: $paymentMethod) {
+    updateOrder(
+      order: $order
+      amount: $amount
+      platformTipAmount: $platformTipAmount
+      tier: $tier
+      paymentMethod: $paymentMethod
+    ) {
       id
       status
       amount {
         value
+        currency
+      }
+      platformTipAmount {
+        valueInCents
         currency
       }
       tier {
@@ -295,6 +312,23 @@ const orderPublicIdQuery = gql`
 const cancelRecurringContributionMutation = gql`
   mutation CancelRecurringContribution($order: OrderReferenceInput!) {
     cancelOrder(order: $order) {
+      id
+      status
+    }
+  }
+`;
+
+const cancelRecurringContributionAsHostMutation = gql`
+  mutation CancelRecurringContributionAsHost(
+    $order: OrderReferenceInput!
+    $removeAsContributor: Boolean
+    $messageForContributor: String
+  ) {
+    cancelOrder(
+      order: $order
+      removeAsContributor: $removeAsContributor
+      messageForContributor: $messageForContributor
+    ) {
       id
       status
     }
@@ -429,6 +463,32 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(order.frequency).to.eq('ONETIME');
           expect(order.fromAccount.legacyId).to.eq(fromUser.CollectiveId);
           expect(order.toAccount.legacyId).to.eq(toCollective.id);
+
+          const paymentIntent = await expectPaymentIntentForOrder(order.legacyId, {
+            status: PaymentIntentStatus.PAID,
+            type: PaymentIntentType.Contribution,
+          });
+          expect(paymentIntent.primaryTransactionGroup).to.exist;
+          await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
+        });
+
+        it('cannot create an order with a credit card on behalf of a collective', async () => {
+          const fromCollective = await fakeCollective({ HostCollectiveId: host.id });
+          const collectiveAdmin = await fakeUser();
+          await fromCollective.addUserWithRole(collectiveAdmin, roles.ADMIN);
+
+          const result = await callCreateOrder(
+            {
+              order: {
+                ...validOrderParams,
+                fromAccount: { legacyId: fromCollective.id },
+              },
+            },
+            collectiveAdmin,
+          );
+
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(/only pay with its balance/i);
         });
 
         it('supports additional params', async () => {
@@ -1010,7 +1070,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             id: 'VAT',
             taxerCountry: 'FR',
             taxedCountry: 'FR',
-            taxIDNumberFrom: 'FRXX999999999',
+            idNumberFrom: 'FRXX999999999',
             percentage: 20,
           });
 
@@ -1131,7 +1191,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             id: 'VAT',
             taxerCountry: 'FR',
             taxedCountry: 'FR',
-            taxIDNumberFrom: 'FRXX999999999',
+            idNumberFrom: 'FRXX999999999',
             percentage: 20,
           });
         });
@@ -1837,6 +1897,13 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(resultOrder.fromAccount.legacyId).to.equal(validOrderPrams.fromAccount.legacyId);
       expect(resultOrder.toAccount.legacyId).to.equal(validOrderPrams.toAccount.legacyId);
       expect(resultOrder.accountingCategory.id).to.equal(validOrderPrams.accountingCategory.id);
+
+      await expectPaymentIntentForOrder(resultOrder.legacyId, {
+        status: PaymentIntentStatus.PENDING,
+        type: PaymentIntentType.Contribution,
+        primaryTransactionGroup: null,
+        paidAt: null,
+      });
     });
 
     it('creates a pending order with a custom tier', async () => {
@@ -2870,9 +2937,19 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
       await collective.addUserWithRole(adminUser, roles.ADMIN);
       await host.addUserWithRole(hostAdminUser, roles.ADMIN);
+      await hostAdminUser.populateRoles();
     });
 
     describe('cancelOrder', () => {
+      let cancelOrderSandbox, sendEmailSpy;
+
+      before(() => {
+        cancelOrderSandbox = createSandbox();
+        sendEmailSpy = cancelOrderSandbox.spy(emailLib, 'send');
+      });
+
+      after(() => cancelOrderSandbox.restore());
+
       it('must be authenticated', async () => {
         const result = await graphqlQueryV2(cancelRecurringContributionMutation, {
           order: { id: idEncode(order.id, 'order') },
@@ -2892,6 +2969,92 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.match(/You don't have permission to cancel this recurring contribution/);
+      });
+
+      it('rejects host-only options for non-host admins', async () => {
+        const result = await graphqlQueryV2(
+          cancelRecurringContributionAsHostMutation,
+          {
+            order: { id: idEncode(order.id, 'order') },
+            removeAsContributor: true,
+            messageForContributor: 'A note from the host',
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/Only host admins can use these options/);
+      });
+
+      it('allows host admins to cancel and remove the contributor', async () => {
+        const hostOrder = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+          },
+          { withSubscription: true },
+        );
+        await models.Member.create({
+          CollectiveId: collective.id,
+          MemberCollectiveId: user.CollectiveId,
+          role: MemberRoles.BACKER,
+          CreatedByUserId: user.id,
+        });
+
+        sendEmailSpy.resetHistory();
+
+        const messageForContributor = 'We are ending this recurring contribution.';
+        const result = await graphqlQueryV2(
+          cancelRecurringContributionAsHostMutation,
+          {
+            order: { id: idEncode(hostOrder.id, 'order') },
+            removeAsContributor: true,
+            messageForContributor,
+          },
+          hostAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.cancelOrder.status).to.eq('CANCELLED');
+
+        const membership = await models.Member.findOne({
+          where: {
+            CollectiveId: collective.id,
+            MemberCollectiveId: user.CollectiveId,
+            role: MemberRoles.BACKER,
+          },
+        });
+        expect(membership).to.not.exist;
+
+        const cancelActivity = await models.Activity.findOne({
+          where: { type: activities.SUBSCRIPTION_CANCELED, OrderId: hostOrder.id },
+        });
+        expect(cancelActivity.data.messageSource).to.equal('HOST');
+        expect(cancelActivity.data.messageForContributors).to.equal(messageForContributor);
+        expect(cancelActivity.data.hostAction).to.deep.equal({
+          cancel: true,
+          refund: false,
+          removeAsContributor: true,
+        });
+
+        const removeActivity = await models.Activity.findOne({
+          where: { type: activities.CONTRIBUTOR_REMOVED_BY_HOST, OrderId: hostOrder.id },
+        });
+        expect(removeActivity).to.exist;
+        expect(removeActivity.data.hostAction).to.deep.equal({
+          cancel: true,
+          refund: false,
+          removeAsContributor: true,
+        });
+
+        // Only the cancel email should reach the contributor: the
+        // contributor-removed activity has no email template and is recorded
+        // for the timeline / webhooks only.
+        await waitForCondition(() => sendEmailSpy.calledWith('subscription.canceled'));
+        expect(sendEmailSpy.calledWith('subscription.canceled')).to.be.true;
       });
 
       it('cancels the order', async () => {
@@ -3072,6 +3235,49 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.data.updateOrder.paymentMethod.id).to.eq(idEncode(paymentMethod.id, 'paymentMethod'));
       });
 
+      it('cannot update a collective balance recurring contribution to a credit card', async () => {
+        const host = await fakeActiveHost();
+        const fromCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const toCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const collectiveAdmin = await fakeUser();
+        await fromCollective.addUserWithRole(collectiveAdmin, roles.ADMIN);
+
+        const collectiveBalancePaymentMethod = await models.PaymentMethod.findOne({
+          where: { type: PAYMENT_METHOD_TYPE.COLLECTIVE, CollectiveId: fromCollective.id },
+        });
+
+        const collectiveOrder = await fakeOrder(
+          {
+            CreatedByUserId: collectiveAdmin.id,
+            FromCollectiveId: fromCollective.id,
+            CollectiveId: toCollective.id,
+            PaymentMethodId: collectiveBalancePaymentMethod.id,
+            status: OrderStatuses.ACTIVE,
+            totalAmount: 1000,
+          },
+          { withSubscription: true },
+        );
+
+        const creditCardPaymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+          data: { expMonth: 11, expYear: 2025 },
+          CollectiveId: collectiveAdmin.CollectiveId,
+        });
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(collectiveOrder.id, 'order') },
+            paymentMethod: { id: idEncode(creditCardPaymentMethod.id, 'paymentMethod') },
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/Changing the payment method is not allowed/i);
+      });
+
       it('accepts publicId in PaymentMethodReferenceInput', async () => {
         const publicId = `pm_${paymentMethod.id}`;
         await paymentMethod.update({ publicId });
@@ -3144,6 +3350,224 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(orderWithTaxes.platformTipAmount).to.eq(100);
         expect(orderWithTaxes.taxAmount).to.eq(333); // 20% VAT on $2000 (tip is not included in the tax calculation)
         expect(orderWithTaxes.totalAmount - orderWithTaxes.taxAmount - orderWithTaxes.platformTipAmount).to.eq(1667); // Gross amount
+      });
+
+      describe('clears stored Stripe paymentIntent when subscription details change', () => {
+        const buildOrderWithStalePaymentIntent = (overrides = {}) =>
+          fakeOrder(
+            {
+              CreatedByUserId: user.id,
+              FromCollectiveId: user.CollectiveId,
+              CollectiveId: collective.id,
+              status: OrderStatuses.ACTIVE,
+              totalAmount: 1000,
+              currency: 'USD',
+              data: {
+                paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' },
+                needsConfirmation: true,
+              },
+              ...overrides,
+            },
+            { withSubscription: true },
+          );
+
+        it('drops data.paymentIntent and data.needsConfirmation when amount changes', async () => {
+          const staleOrder = await buildOrderWithStalePaymentIntent();
+
+          const result = await graphqlQueryV2(
+            updateOrderMutation,
+            {
+              order: { id: idEncode(staleOrder.id, 'order') },
+              amount: { valueInCents: 5000, currency: 'USD' },
+            },
+            user,
+          );
+
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          await staleOrder.reload();
+          expect(staleOrder.totalAmount).to.eq(5000);
+          expect(staleOrder.data?.paymentIntent).to.be.undefined;
+          expect(staleOrder.data?.needsConfirmation).to.be.undefined;
+        });
+
+        it('keeps data.paymentIntent when the amount is not changing', async () => {
+          const staleOrder = await buildOrderWithStalePaymentIntent();
+          const originalPaymentIntent = { ...staleOrder.data.paymentIntent };
+
+          const result = await graphqlQueryV2(
+            updateOrderMutation,
+            {
+              order: { id: idEncode(staleOrder.id, 'order') },
+              amount: { valueInCents: 1000, currency: 'USD' },
+            },
+            user,
+          );
+
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          await staleOrder.reload();
+          expect(staleOrder.data?.paymentIntent).to.deep.equal(originalPaymentIntent);
+          expect(staleOrder.data?.needsConfirmation).to.eq(true);
+        });
+      });
+
+      it('updates the platform tip amount without changing the contribution amount', async () => {
+        const orderWithPlatformTip = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+            totalAmount: 1100,
+            platformTipAmount: 100,
+            currency: 'USD',
+            subscription: {
+              amount: 1100,
+            },
+          },
+          {
+            withSubscription: true,
+          },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(orderWithPlatformTip.id, 'order') },
+            platformTipAmount: { valueInCents: 250, currency: 'USD' },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.updateOrder.amount.value).to.eq(10);
+        expect(result.data.updateOrder.platformTipAmount.valueInCents).to.eq(250);
+
+        await orderWithPlatformTip.reload({ include: [{ association: 'Subscription' }] });
+        expect(orderWithPlatformTip.totalAmount).to.eq(1250);
+        expect(orderWithPlatformTip.platformTipAmount).to.eq(250);
+        expect(orderWithPlatformTip.Subscription.amount).to.eq(1250);
+      });
+
+      it('preserves tax calculation when updating the platform tip amount', async () => {
+        const orderWithTaxes = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+            totalAmount: 1300,
+            taxAmount: 200,
+            platformTipAmount: 100,
+            currency: 'USD',
+            data: { tax: { id: 'VAT', percentage: 20 } },
+            subscription: {
+              amount: 1300,
+            },
+          },
+          {
+            withSubscription: true,
+          },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(orderWithTaxes.id, 'order') },
+            platformTipAmount: { valueInCents: 300, currency: 'USD' },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await orderWithTaxes.reload({ include: [{ association: 'Subscription' }] });
+        expect(orderWithTaxes.totalAmount).to.eq(1500);
+        expect(orderWithTaxes.platformTipAmount).to.eq(300);
+        expect(orderWithTaxes.taxAmount).to.eq(200);
+        expect(orderWithTaxes.Subscription.amount).to.eq(1500);
+      });
+
+      it('recomputes tax when changing the amount and platform tip together', async () => {
+        const orderWithTaxes = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+            totalAmount: 1300,
+            taxAmount: 200,
+            platformTipAmount: 100,
+            currency: 'USD',
+            data: { tax: { id: 'VAT', percentage: 20 } },
+            subscription: {
+              amount: 1300,
+            },
+          },
+          {
+            withSubscription: true,
+          },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(orderWithTaxes.id, 'order') },
+            amount: { valueInCents: 900, currency: 'USD' },
+            platformTipAmount: { valueInCents: 400, currency: 'USD' },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await orderWithTaxes.reload({ include: [{ association: 'Subscription' }] });
+        expect(orderWithTaxes.totalAmount).to.eq(1300);
+        expect(orderWithTaxes.platformTipAmount).to.eq(400);
+        expect(orderWithTaxes.taxAmount).to.eq(150); // 20% VAT back-derived from $9.00 charge (gross $7.50)
+      });
+
+      it('clears the platform tip amount when set to zero', async () => {
+        const orderWithTaxes = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+            totalAmount: 1500,
+            taxAmount: 200,
+            platformTipAmount: 300,
+            currency: 'USD',
+            data: { tax: { id: 'VAT', percentage: 20 } },
+            subscription: {
+              amount: 1500,
+            },
+          },
+          {
+            withSubscription: true,
+          },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(orderWithTaxes.id, 'order') },
+            platformTipAmount: { valueInCents: 0, currency: 'USD' },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await orderWithTaxes.reload({ include: [{ association: 'Subscription' }] });
+        expect(orderWithTaxes.totalAmount).to.eq(1200);
+        expect(orderWithTaxes.platformTipAmount).to.eq(0);
+        expect(orderWithTaxes.taxAmount).to.eq(200);
+        expect(orderWithTaxes.Subscription.amount).to.eq(1200);
       });
 
       it('rejects amount/tier change for PayPal-managed subscription without paypalSubscriptionId', async () => {
@@ -3366,6 +3790,13 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         expect(result.errors).to.not.exist;
         expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
+
+        const paymentIntent = await expectPaymentIntentForOrder(order.id, {
+          status: PaymentIntentStatus.PAID,
+          type: PaymentIntentType.Contribution,
+        });
+        expect(paymentIntent.primaryTransactionGroup).to.exist;
+        await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
       });
 
       it('should mark as paid and update amount details', async () => {

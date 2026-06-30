@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { getCollectiveAvatarUrl } from '../../../lib/collectivelib';
+import { canSeePrivateAccount } from '../../../lib/private-accounts';
 import Collective from '../../../models/Collective';
 import { GraphQLImageFormat, GraphQLMemberRole } from '../enum';
 import { GraphQLAccount } from '../interface/Account';
@@ -77,15 +78,27 @@ export const GraphQLContributor = new GraphQLObjectType({
       description:
         'If the contributor has a page on Open Collective, this is the slug to link to it. Always null for incognito contributors',
       deprecationReason: '2024-08-26: Use account.slug instead',
-      resolve(contributor): Promise<string | null> {
-        // Don't return the collective slug if the contributor wants to be incognito
-        return contributor.isIncognito ? null : contributor.collectiveSlug;
+      async resolve(contributor, _, req): Promise<string | null> {
+        if (contributor.isIncognito) {
+          return null;
+        }
+        if (
+          contributor.isPrivate &&
+          !(await canSeePrivateAccount(req, { id: contributor.id, isPrivate: true } as Collective))
+        ) {
+          return null;
+        }
+        return contributor.collectiveSlug;
       },
     },
     account: {
       type: GraphQLAccount,
-      resolve(contributor, _, req): Promise<Collective | null> {
-        return req.loaders.Collective.byId.load(contributor.id);
+      async resolve(contributor, _, req): Promise<Collective | null> {
+        const account = await req.loaders.Collective.byId.load(contributor.id);
+        if (!account || !(await canSeePrivateAccount(req, account))) {
+          return null;
+        }
+        return account;
       },
     },
     image: {

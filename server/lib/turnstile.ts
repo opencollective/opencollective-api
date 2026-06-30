@@ -1,7 +1,6 @@
 import { URLSearchParams } from 'url';
 
 import config from 'config';
-import fetch from 'node-fetch';
 
 import { reportErrorToSentry } from './sentry';
 

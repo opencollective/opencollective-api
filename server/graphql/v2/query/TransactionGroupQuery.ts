@@ -2,11 +2,10 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { roundCentsAmount } from '../../../lib/currency';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
+import { getTransactionKindPriorityCase } from '../../../lib/transactions/kind-priority';
 import { sequelize, Transaction } from '../../../models';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLTransactionGroup } from '../object/TransactionGroup';
-
-import { getTransactionKindPriorityCase } from './collection/TransactionsCollectionQuery';
 
 const TransactionGroupQuery = {
   type: GraphQLTransactionGroup,

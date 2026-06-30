@@ -105,7 +105,6 @@ const createGiftCardsMutation = gqlV1 /* GraphQL */ `
       monthlyLimitPerMember
       expiryDate
       currency
-      limitedToTags
       limitedToHostCollectiveIds
     }
   }
@@ -146,6 +145,17 @@ const createOrderMutation = gql`
           currency
         }
         description
+      }
+    }
+  }
+`;
+
+const updateOrderMutation = gql`
+  mutation UpdateOrder($order: OrderReferenceInput!, $paymentMethod: PaymentMethodReferenceInput) {
+    updateOrder(order: $order, paymentMethod: $paymentMethod) {
+      id
+      paymentMethod {
+        id
       }
     }
   }
@@ -1145,6 +1155,50 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
         );
       });
 
+      it('updateOrder should NOT switch to gift card limited by tags', async () => {
+        const stripePm = await models.PaymentMethod.create({
+          name: '4242',
+          service: 'stripe',
+          type: 'creditcard',
+          token: 'tok_123456781234567812345678',
+          CollectiveId: userGiftCardCollective.id,
+          CreatedByUserId: userGiftCard.id,
+        });
+        const subscription = await models.Subscription.create({
+          CollectiveId: collective2.id,
+          amount: 1000,
+          currency: 'USD',
+          interval: 'month',
+          isActive: true,
+        });
+        const recurringOrder = await models.Order.create({
+          CreatedByUserId: userGiftCard.id,
+          FromCollectiveId: userGiftCardCollective.id,
+          CollectiveId: collective2.id,
+          PaymentMethodId: stripePm.id,
+          SubscriptionId: subscription.id,
+          totalAmount: 1000,
+          currency: 'USD',
+          interval: 'month',
+          status: 'ACTIVE',
+        });
+
+        const gqlResult = await utils.graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(recurringOrder.id, IDENTIFIER_TYPES.ORDER) },
+            paymentMethod: { id: idEncode(giftCardPaymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD) },
+          },
+          userGiftCard,
+        );
+        expect(gqlResult.errors).to.be.an('array');
+        expect(gqlResult.errors[0].toString()).to.contain(
+          'This payment method can only be used for collectives in open source',
+        );
+        await recurringOrder.reload();
+        expect(recurringOrder.PaymentMethodId).to.equal(stripePm.id);
+      });
+
       it('Order should NOT be executed because the gift card is limited to be used on another host', async () => {
         // Setting up order
         await giftCardPaymentMethod.update({ limitedToTags: null });
@@ -1162,6 +1216,52 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
         expect(gqlResult.errors[0].toString()).to.contain(
           'This payment method can only be used for collectives hosted by Host 1',
         );
+      });
+
+      it('updateOrder should NOT switch to gift card limited to another host', async () => {
+        await giftCardPaymentMethod.update({ limitedToTags: null });
+
+        const stripePm = await models.PaymentMethod.create({
+          name: '4242',
+          service: 'stripe',
+          type: 'creditcard',
+          token: 'tok_123456781234567812345678',
+          CollectiveId: userGiftCardCollective.id,
+          CreatedByUserId: userGiftCard.id,
+        });
+        const subscription = await models.Subscription.create({
+          CollectiveId: collective2.id,
+          amount: 1000,
+          currency: 'USD',
+          interval: 'month',
+          isActive: true,
+        });
+        const recurringOrder = await models.Order.create({
+          CreatedByUserId: userGiftCard.id,
+          FromCollectiveId: userGiftCardCollective.id,
+          CollectiveId: collective2.id,
+          PaymentMethodId: stripePm.id,
+          SubscriptionId: subscription.id,
+          totalAmount: 1000,
+          currency: 'USD',
+          interval: 'month',
+          status: 'ACTIVE',
+        });
+
+        const gqlResult = await utils.graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(recurringOrder.id, IDENTIFIER_TYPES.ORDER) },
+            paymentMethod: { id: idEncode(giftCardPaymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD) },
+          },
+          userGiftCard,
+        );
+        expect(gqlResult.errors).to.be.an('array');
+        expect(gqlResult.errors[0].toString()).to.contain(
+          'This payment method can only be used for collectives hosted by Host 1',
+        );
+        await recurringOrder.reload();
+        expect(recurringOrder.PaymentMethodId).to.equal(stripePm.id);
       });
 
       it('Process order of a gift card', async () => {

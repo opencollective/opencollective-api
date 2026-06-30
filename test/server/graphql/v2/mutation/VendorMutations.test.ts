@@ -2,7 +2,9 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
+import { UseVendorPolicyValue } from '../../../../../server/constants/policies';
 import MemberRoles from '../../../../../server/constants/roles';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
@@ -189,6 +191,119 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       expect(vendor.image).to.match(/\/account-avatar\/.+\/camera.png/);
       expect(vendor.backgroundImage).to.match(/\/account-banner\/.+\/camera.png/);
     });
+
+    it('persists useVendorPolicy when provided', async () => {
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { legacyId: host.id },
+          vendor: { ...vendorData, useVendorPolicy: 'ALL_SUBMITTERS' },
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
+      expect(vendor.data.useVendorPolicy).to.equal('ALL_SUBMITTERS');
+    });
+
+    it('defaults useVendorPolicy to null (inherit from host) when not provided', async () => {
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        { host: { legacyId: host.id }, vendor: vendorData },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
+      expect(vendor.data.useVendorPolicy).to.be.null;
+    });
+
+    it('persists canBeUsedWithAccountIds for "host-only" state ([host])', async () => {
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { legacyId: host.id },
+          vendor: { ...vendorData, canBeUsedWithAccounts: [{ legacyId: host.id }] },
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
+      expect(vendor.data.canBeUsedWithAccountIds).to.deep.equal([host.id]);
+    });
+
+    it('persists canBeUsedWithAccountIds for specific collectives', async () => {
+      const collectiveA = await fakeCollective({ HostCollectiveId: host.id });
+      const collectiveB = await fakeCollective({ HostCollectiveId: host.id });
+
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { legacyId: host.id },
+          vendor: {
+            ...vendorData,
+            canBeUsedWithAccounts: [{ legacyId: collectiveA.id }, { legacyId: collectiveB.id }],
+          },
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
+      expect(vendor.data.canBeUsedWithAccountIds).to.have.members([collectiveA.id, collectiveB.id]);
+    });
+
+    it('accepts the deprecated `visibleToAccounts` alias for backward compat', async () => {
+      const collectiveA = await fakeCollective({ HostCollectiveId: host.id });
+
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { legacyId: host.id },
+          vendor: { ...vendorData, visibleToAccounts: [{ legacyId: collectiveA.id }] },
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
+      expect(vendor.data.canBeUsedWithAccountIds).to.deep.equal([collectiveA.id]);
+    });
+
+    it('blocks initial payout method when host requires 2FA for admins', async () => {
+      const twoFactorHostAdmin = await fakeUser();
+      const twoFactorHost = await fakeHost({
+        admin: twoFactorHostAdmin,
+        data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+      });
+
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { legacyId: twoFactorHost.id },
+          vendor: {
+            name: 'New vendor',
+            payoutMethod: {
+              type: PayoutMethodTypes.PAYPAL,
+              name: 'Attacker payout',
+              data: { email: 'attacker-controlled@example.com', currency: 'USD' },
+              isSaved: true,
+            },
+          },
+        },
+        twoFactorHostAdmin,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+    });
   });
 
   describe('editVendor', () => {
@@ -330,6 +445,101 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
 
       await models.PayoutMethod.destroy({ where: { CollectiveId: vendor.id }, force: true });
       await models.Expense.destroy({ where: { FromCollectiveId: vendor.id }, force: true });
+    });
+
+    it('blocks payout-method changes when host requires 2FA for admins', async () => {
+      const createPayoutMethodMutation = gql`
+        mutation CreatePayoutMethod($payoutMethod: PayoutMethodInput!, $account: AccountReferenceInput!) {
+          createPayoutMethod(payoutMethod: $payoutMethod, account: $account) {
+            id
+          }
+        }
+      `;
+
+      const editPayoutMethodMutation = gql`
+        mutation EditPayoutMethod($payoutMethod: PayoutMethodInput!) {
+          editPayoutMethod(payoutMethod: $payoutMethod) {
+            id
+          }
+        }
+      `;
+
+      const twoFactorHostAdmin = await fakeUser();
+      const twoFactorHost = await fakeHost({
+        admin: twoFactorHostAdmin,
+        data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+      });
+
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: twoFactorHost.id,
+      });
+
+      const existingPayoutMethod = await fakePayoutMethod({
+        CollectiveId: vendor.id,
+        isSaved: true,
+        type: PayoutMethodTypes.PAYPAL,
+        data: { email: 'vendor-original@example.com', currency: 'USD' },
+      });
+
+      const approvedExpense = await fakeExpense({
+        FromCollectiveId: vendor.id,
+        PayoutMethodId: existingPayoutMethod.id,
+        status: 'APPROVED',
+      });
+
+      const newPayoutMethodPayload = {
+        type: PayoutMethodTypes.PAYPAL,
+        name: 'Attacker payout',
+        data: { email: 'attacker-controlled@example.com', currency: 'USD' },
+        isSaved: true,
+      };
+
+      const createBlocked = await graphqlQueryV2(
+        createPayoutMethodMutation,
+        { payoutMethod: newPayoutMethodPayload, account: { legacyId: vendor.id } },
+        twoFactorHostAdmin,
+      );
+      expect(createBlocked.errors).to.exist;
+      expect(createBlocked.errors[0].message).to.equal('Two factor authentication must be configured');
+
+      const editBlocked = await graphqlQueryV2(
+        editPayoutMethodMutation,
+        {
+          payoutMethod: {
+            id: idEncode(existingPayoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+            type: existingPayoutMethod.type,
+            name: 'Renamed',
+            data: existingPayoutMethod.data,
+          },
+        },
+        twoFactorHostAdmin,
+      );
+      expect(editBlocked.errors).to.exist;
+      expect(editBlocked.errors[0].message).to.equal('Two factor authentication must be configured');
+
+      const editVendorResult = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: {
+            legacyId: vendor.id,
+            payoutMethod: newPayoutMethodPayload,
+          },
+        },
+        twoFactorHostAdmin,
+      );
+      expect(editVendorResult.errors).to.exist;
+      expect(editVendorResult.errors[0].message).to.equal('Two factor authentication must be configured');
+
+      await existingPayoutMethod.reload();
+      expect(existingPayoutMethod.isSaved).to.be.true;
+
+      await approvedExpense.reload();
+      expect(approvedExpense.PayoutMethodId).to.equal(existingPayoutMethod.id);
+
+      await models.Expense.destroy({ where: { id: approvedExpense.id }, force: true });
+      await models.PayoutMethod.destroy({ where: { CollectiveId: vendor.id }, force: true });
+      await models.Collective.destroy({ where: { id: vendor.id }, force: true });
     });
 
     it('prevents selecting a payout method owned by another account', async () => {
@@ -504,6 +714,135 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       expect(victimPm.isSaved).to.be.true;
 
       await models.PayoutMethod.destroy({ where: { id: victimPm.id }, force: true });
+    });
+
+    it('updates useVendorPolicy when provided', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { useVendorPolicy: UseVendorPolicyValue.HOST_ADMINS },
+      });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        { vendor: { legacyId: vendor.id, name: vendor.name, useVendorPolicy: 'ALL_SUBMITTERS' } },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await vendor.reload();
+      expect(vendor.data.useVendorPolicy).to.equal('ALL_SUBMITTERS');
+    });
+
+    it('preserves existing useVendorPolicy when arg is not provided', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { useVendorPolicy: UseVendorPolicyValue.HOST_ADMINS },
+      });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        { vendor: { legacyId: vendor.id, name: 'Renamed' } },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await vendor.reload();
+      expect(vendor.data.useVendorPolicy).to.equal('HOST_ADMINS');
+    });
+
+    it('clears useVendorPolicy when explicitly set to null', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { useVendorPolicy: UseVendorPolicyValue.HOST_ADMINS },
+      });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        { vendor: { legacyId: vendor.id, name: vendor.name, useVendorPolicy: null } },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await vendor.reload();
+      expect(vendor.data.useVendorPolicy).to.be.null;
+    });
+
+    it('updates canBeUsedWithAccountIds when canBeUsedWithAccounts is provided', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { canBeUsedWithAccountIds: [host.id] },
+      });
+      const collectiveA = await fakeCollective({ HostCollectiveId: host.id });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: {
+            legacyId: vendor.id,
+            name: vendor.name,
+            canBeUsedWithAccounts: [{ legacyId: collectiveA.id }],
+          },
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await vendor.reload();
+      expect(vendor.data.canBeUsedWithAccountIds).to.deep.equal([collectiveA.id]);
+    });
+
+    it('preserves existing canBeUsedWithAccountIds when canBeUsedWithAccounts is not provided', async () => {
+      const collectiveA = await fakeCollective({ HostCollectiveId: host.id });
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { canBeUsedWithAccountIds: [collectiveA.id] },
+      });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        { vendor: { legacyId: vendor.id, name: 'Renamed' } },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await vendor.reload();
+      expect(vendor.data.canBeUsedWithAccountIds).to.deep.equal([collectiveA.id]);
+    });
+
+    it('accepts the deprecated `visibleToAccounts` alias for backward compat', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { canBeUsedWithAccountIds: [host.id] },
+      });
+      const collectiveA = await fakeCollective({ HostCollectiveId: host.id });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: {
+            legacyId: vendor.id,
+            name: vendor.name,
+            visibleToAccounts: [{ legacyId: collectiveA.id }],
+          },
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await vendor.reload();
+      expect(vendor.data.canBeUsedWithAccountIds).to.deep.equal([collectiveA.id]);
     });
   });
 

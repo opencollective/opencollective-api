@@ -1,7 +1,15 @@
-import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
+import {
+  CreationOptional,
+  ForeignKey,
+  InferAttributes,
+  InferCreationAttributes,
+  NonAttribute,
+  Transaction,
+} from 'sequelize';
 
 import ActivityTypes from '../constants/activities';
 import dispatch from '../lib/notifications';
+import { trackActivityDispatch, waitAllActivityDispatches } from '../lib/notifications/activity-dispatch-tracker';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize, { DataTypes } from '../lib/sequelize';
 
@@ -30,7 +38,26 @@ class Activity extends ModelWithPublicId<
   declare public ExpenseId: ForeignKey<Expense['id']>;
   declare public OrderId: CreationOptional<number>;
   declare public createdAt: CreationOptional<Date>;
+
+  public static waitAllDispatch = waitAllActivityDispatches;
 }
+
+const scheduleActivityDispatch = (
+  activity: Activity,
+  { transaction, onlyAwaitEmails = true }: { transaction?: Transaction; onlyAwaitEmails?: boolean } = {},
+) => {
+  const runDispatch = () => dispatch(activity, { onlyAwaitEmails });
+
+  if (transaction) {
+    transaction.afterCommit(() => {
+      trackActivityDispatch(runDispatch());
+    });
+  } else {
+    const dispatchPromise = runDispatch();
+    trackActivityDispatch(dispatchPromise);
+    return dispatchPromise;
+  }
+};
 
 Activity.init(
   {
@@ -120,12 +147,9 @@ Activity.init(
     sequelize,
     updatedAt: false,
     hooks: {
-      async afterCreate(activity) {
+      async afterCreate(activity, options) {
         if (activity.data?.notify !== false) {
-          const dispatchPromise = dispatch(activity, { onlyAwaitEmails: true }); // intentionally no return statement, needs to be async by default
-          if (activity.data?.awaitForDispatch) {
-            await dispatchPromise;
-          }
+          scheduleActivityDispatch(activity, { transaction: options.transaction });
         }
       },
     },

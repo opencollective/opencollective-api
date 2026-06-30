@@ -177,7 +177,7 @@ const AccountsCollectionQuery = {
       lastTransactionTo: args.lastTransactionTo,
     };
 
-    const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);
+    const [accounts, totalCount] = await searchCollectivesInDB(req, cleanTerm, offset, limit, extraParameters);
 
     return { nodes: accounts, totalCount, limit, offset };
   },

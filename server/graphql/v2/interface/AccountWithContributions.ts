@@ -13,7 +13,6 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { isNil, omit } from 'lodash';
 import { OrderItem, QueryTypes, WhereOptions } from 'sequelize';
 
-import PlatformConstants from '../../../constants/platform';
 import { filterContributors } from '../../../lib/contributors';
 import models, { Collective, sequelize } from '../../../models';
 import Tier, { AllTierTypes, TierType } from '../../../models/Tier';
@@ -117,7 +116,7 @@ export const AccountWithContributionsFields = {
 
       const contributorsCache = await req.loaders.Contributors.forCollectiveId.load(collective.id);
       const contributors = contributorsCache.all || [];
-      const filteredContributors = filterContributors(contributors, omit(args, ['offset', 'limit']));
+      const filteredContributors = await filterContributors(req, contributors, omit(args, ['offset', 'limit']));
       const offset = args.offset || 0;
       const limit = args.limit || 50;
       return {
@@ -130,7 +129,8 @@ export const AccountWithContributionsFields = {
   },
   activeContributors: {
     type: new GraphQLNonNull(GraphQLAccountCollection),
-    description: '[!] Warning: this query is currently in beta and the API might change',
+    description:
+      '[!] Warning: this query is currently in beta and the API might change. Does not include private accounts.',
     args: {
       ...CollectionArgs,
       dateFrom: { type: GraphQLDateTime },
@@ -176,6 +176,7 @@ export const AccountWithContributionsFields = {
           AND m."deletedAt" IS NULL
           AND m."role" = 'BACKER'
           AND "Collectives"."deletedAt" IS NULL 
+          AND "Collectives"."isPrivate" = FALSE
           AND "CollectiveDonations".total_donated > 0
           ORDER BY "CollectiveDonations".total_donated DESC;
           `,
@@ -230,27 +231,7 @@ export const AccountWithContributionsFields = {
     description:
       'Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account',
     async resolve(account: Collective, _, req: express.Request): Promise<boolean> {
-      if (!isNil(account.data?.platformTips)) {
-        return account.data.platformTips;
-      } else if (PlatformConstants.AllPlatformCollectiveIds.includes(account.id)) {
-        return false;
-      }
-
-      // Look at the host's plan
-      const host = await req.loaders.Collective.host.load(account);
-      if (host) {
-        // New pricing
-        const hasPlatformTips = await req.loaders.PlatformSubscription.hasPlatformTips.load(host.id);
-        if (typeof hasPlatformTips === 'boolean') {
-          return hasPlatformTips;
-        }
-
-        // hasPlatformTips undefined means we're on a legacy plan
-        const plan = host.getLegacyPlan();
-        return plan.platformTips;
-      }
-
-      return false;
+      return account.hasPlatformTips({ loaders: req.loaders });
     },
   },
   contributionPolicy: {

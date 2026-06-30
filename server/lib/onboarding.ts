@@ -90,6 +90,7 @@ export async function processHostOnBoardingTemplate(template: string, HostCollec
         isActive: true,
         HostCollectiveId,
         approvedAt: { [Op.gte]: startsAt, [Op.lt]: endsAt },
+        isPrivate: false, // The content of onboarding emails has not been adapted to private organizations yet
       },
     });
 

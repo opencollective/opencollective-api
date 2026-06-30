@@ -16,11 +16,12 @@ import {
   fakeTransaction,
   fakeUpdate,
   fakeUser,
+  fakeUserToken,
   fakeVendor,
   multiple,
 } from '../../../../test-helpers/fake-data';
 import { createPrivateAccountFixture } from '../../../../test-helpers/private-account-fixture';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { graphqlQueryV2, oAuthGraphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const accountQuery = gql`
   query Account($slug: String!, $updatesOrder: UpdateChronologicalOrderInput) {
@@ -832,6 +833,15 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         const result = await graphqlQueryV2(accountQuery, { slug: collective.slug }, accountant);
         expect(result.data.account.permissions.canDownloadPaymentReceipts.allowed).to.be.true;
       });
+
+      it('is false for OAuth token with email scope only', async () => {
+        const collective = await fakeCollective();
+        const admin = await fakeUser();
+        await collective.addUserWithRole(admin, 'ADMIN');
+        const userToken = await fakeUserToken({ user: admin, scope: ['email'] });
+        const result = await oAuthGraphqlQueryV2(accountQuery, { slug: collective.slug }, userToken);
+        expect(result.data.account.permissions.canDownloadPaymentReceipts.allowed).to.be.false;
+      });
     });
   });
 
@@ -1140,6 +1150,81 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         );
         expect(result.errors).to.be.undefined;
       });
+    });
+  });
+
+  describe('updates with includeChildren', () => {
+    let hostAdmin, randomUser, host, collective, event, project, vendorChild;
+
+    const updatesWithChildrenQuery = gql`
+      query AccountUpdates($slug: String!, $includeChildren: Boolean!, $onlyPublished: Boolean!) {
+        account(slug: $slug) {
+          id
+          updates(includeChildren: $includeChildren, onlyPublishedUpdates: $onlyPublished) {
+            totalCount
+            nodes {
+              id
+              publishedAt
+              account {
+                id
+                slug
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    before(async () => {
+      hostAdmin = await fakeUser();
+      randomUser = await fakeUser();
+      host = await fakeHost({ admin: hostAdmin.collective });
+      collective = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
+      event = await fakeEvent({ ParentCollectiveId: collective.id });
+      project = await fakeProject({ ParentCollectiveId: collective.id });
+      vendorChild = await fakeVendor({ ParentCollectiveId: collective.id });
+
+      // One published update on the parent + each child, and a vendor child update that must be excluded.
+      await fakeUpdate({ CollectiveId: collective.id, publishedAt: new Date(), isPrivate: false });
+      await fakeUpdate({ CollectiveId: event.id, publishedAt: new Date(), isPrivate: false });
+      await fakeUpdate({ CollectiveId: project.id, publishedAt: new Date(), isPrivate: false });
+      await fakeUpdate({ CollectiveId: vendorChild.id, publishedAt: new Date(), isPrivate: false });
+      // A draft (unpublished) update on the parent, only visible to collective admins.
+      await fakeUpdate({ CollectiveId: collective.id, publishedAt: null });
+    });
+
+    it('host admin gets parent + children published updates (excluding vendor children)', async () => {
+      const result = await graphqlQueryV2(
+        updatesWithChildrenQuery,
+        { slug: collective.slug, includeChildren: true, onlyPublished: true },
+        hostAdmin,
+      );
+      expect(result.errors).to.be.undefined;
+      const slugs = result.data.account.updates.nodes.map(n => n.account.slug).sort();
+      expect(slugs).to.deep.equal([collective.slug, event.slug, project.slug].sort());
+      expect(slugs).to.not.include(vendorChild.slug);
+    });
+
+    it('without includeChildren returns only the parent updates', async () => {
+      const result = await graphqlQueryV2(
+        updatesWithChildrenQuery,
+        { slug: collective.slug, includeChildren: false, onlyPublished: true },
+        hostAdmin,
+      );
+      expect(result.errors).to.be.undefined;
+      const slugs = result.data.account.updates.nodes.map(n => n.account.slug);
+      expect(slugs).to.deep.equal([collective.slug]);
+    });
+
+    it('a non-host, non-member user cannot see drafts (only published)', async () => {
+      const result = await graphqlQueryV2(
+        updatesWithChildrenQuery,
+        { slug: collective.slug, includeChildren: true, onlyPublished: false },
+        randomUser,
+      );
+      expect(result.errors).to.be.undefined;
+      // All returned updates must be published; the parent draft must not leak.
+      expect(result.data.account.updates.nodes.every(n => n.publishedAt !== null)).to.be.true;
     });
   });
 });

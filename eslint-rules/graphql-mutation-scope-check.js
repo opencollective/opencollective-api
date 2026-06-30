@@ -37,6 +37,7 @@ const SCOPE_CHECK_FUNCTIONS = new Set([
   'checkRemoteUserCanRoot',
   'checkScope',
   'enforceScope',
+  'rejectOAuthAndPersonalTokenAuth',
 ]);
 
 /**

@@ -2,7 +2,8 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql
 import { intersection, isNil, isUndefined } from 'lodash';
 
 import { CollectiveType } from '../../../constants/collectives';
-import MemberRoles from '../../../constants/roles';
+import MemberRoles, { MemberRolesForPrivateAccounts } from '../../../constants/roles';
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import models, { Op, sequelize } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { BadRequest } from '../../errors';
@@ -42,6 +43,8 @@ export const HasMembersFields = {
       },
     },
     async resolve(collective, args, req) {
+      await assertCanSeeAccount(req, collective);
+
       // Check Pagination arguments
       if (isNil(args.limit) || args.limit < 0) {
         args.limit = 100;
@@ -64,7 +67,27 @@ export const HasMembersFields = {
       if (args.role && args.role.length > 0) {
         where.role = { [Op.in]: args.role };
       }
-      const collectiveConditions = { deletedAt: null };
+
+      const collectiveConditions = { deletedAt: null, isPrivate: false };
+
+      // Handle private accounts
+      if (req.remoteUser) {
+        if (req.remoteUser.isRoot()) {
+          delete collectiveConditions.isPrivate;
+        } else {
+          const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
+          if (directAccess.length > 0) {
+            delete collectiveConditions.isPrivate;
+            collectiveConditions[Op.or] = [
+              { isPrivate: false },
+              { id: directAccess },
+              { ParentCollectiveId: directAccess },
+              { HostCollectiveId: directAccess },
+            ];
+          }
+        }
+      }
+
       if (args.accountType && args.accountType.length > 0) {
         collectiveConditions.type = {
           [Op.in]: [...new Set(args.accountType.map(value => AccountTypeToModelMapping[value]))],

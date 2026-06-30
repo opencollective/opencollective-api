@@ -142,13 +142,10 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
             { raw: true, type: QueryTypes.SELECT, replacements: { FromCollectiveId, HostCollectiveId } },
           );
 
-          let currency = 'USD';
-          if (results.length > 0) {
-            currency = results[0].hostCurrency || 'USD';
-          } else {
-            const host = await req.loaders.Collective.byId.load(HostCollectiveId);
-            currency = host?.currency || 'USD';
-          }
+          const currency =
+            results.length > 0
+              ? results[0].hostCurrency || 'USD'
+              : (await req.loaders.Collective.byId.load(HostCollectiveId))?.currency || 'USD';
 
           const getAmountAndCount = (
             row: AdminCommunityHostYearlyTransactionSummaryRow,

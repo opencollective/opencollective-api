@@ -10,7 +10,7 @@ import { randStr } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 describe('server/graphql/v1/tiers', () => {
-  let user1, host, collective1, collective2, tierWithCustomFields;
+  let user1, host, collective1, collective2;
   let sandbox;
 
   beforeEach(() => utils.resetTestDB());
@@ -47,9 +47,6 @@ describe('server/graphql/v1/tiers', () => {
   // Create tiers
   beforeEach(async () => {
     await collective1.createTier(utils.data('tier1'));
-  });
-  beforeEach(async () => {
-    tierWithCustomFields = await collective1.createTier(utils.data('tierWithCustomFields'));
   });
 
   // Add hosts to collectives
@@ -156,7 +153,6 @@ describe('server/graphql/v1/tiers', () => {
             tiers(slug: $tierSlug, id: $tierId) {
               id
               name
-              customFields
             }
           }
         }
@@ -169,20 +165,7 @@ describe('server/graphql/v1/tiers', () => {
         res.errors && console.error(res.errors[0]);
         expect(res.errors).to.not.exist;
         const tiers = res.data.Collective.tiers;
-        expect(tiers).to.have.length(4);
-      });
-
-      it('fetch tier with customFields', async () => {
-        const res = await utils.graphqlQuery(collectiveTiersQuery, {
-          collectiveSlug: collective1.slug,
-          tierId: tierWithCustomFields.id,
-        });
-        res.errors && console.error(res.errors[0]);
-        expect(res.errors).to.not.exist;
-        const tiers = res.data.Collective.tiers;
-        expect(tiers).to.have.length(1);
-        expect(tiers[0].name).to.equal(tierWithCustomFields.name);
-        expect(tiers[0].customFields).to.have.length(1);
+        expect(tiers).to.have.length(3);
       });
 
       it('filter tiers by slug', async () => {

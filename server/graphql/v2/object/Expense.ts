@@ -22,6 +22,7 @@ import { hasFeature } from '../../../lib/allowed-features';
 import { floatAmountToCents } from '../../../lib/currency';
 import { expenseKycStatus } from '../../../lib/kyc/expenses/kyc-expenses-check';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import SQLQueries from '../../../lib/queries';
 import models, { Activity, UploadedFile } from '../../../models';
 import { CommentType } from '../../../models/Comment';
@@ -78,7 +79,6 @@ const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'payee.slug',
   'payee.id',
   'payee.organization',
-  'reference',
 ];
 const EXPENSE_DRAFT_PRIVATE_FIELDS = [
   'recipientNote',
@@ -88,6 +88,7 @@ const EXPENSE_DRAFT_PRIVATE_FIELDS = [
   'payeeLocation',
   'payee.email',
   'payee.legalName',
+  'reference',
 ];
 const EXPENSE_DRAFT_ITEMS_PUBLIC_FIELDS = [
   'id',
@@ -145,6 +146,11 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
       reference: {
         type: GraphQLString,
         description: 'User-provided reference number or any other identifier that references the invoice',
+        async resolve(expense, _, req) {
+          if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
+            return expense.reference;
+          }
+        },
       },
       amount: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -200,6 +206,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
               percentage: round(rate * 100, 2),
               type,
               rate,
+              hasTaxIdNumber: Boolean(idNumber),
               idNumber: async () => {
                 const canSeePayoutDetails = await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense);
                 return canSeePayoutDetails ? idNumber : null;
@@ -365,7 +372,10 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
             allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, expense.FromCollectiveId);
           }
 
-          return req.loaders.Collective.byId.load(expense.FromCollectiveId);
+          // Expenses are guarded above, but we still add this layer of protection just in case
+          const payee = await req.loaders.Collective.byId.load(expense.FromCollectiveId);
+          await assertCanSeeAccount(req, payee);
+          return payee;
         },
       },
       payeeLocation: {

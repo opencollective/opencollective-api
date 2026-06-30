@@ -37,7 +37,7 @@ const IGNORED_FILES = [
 ];
 
 const getNonTrashedFilesFromS3 = async (ignoreCache: boolean) => {
-  let objects: Awaited<ReturnType<typeof listFilesInS3>> = [];
+  let objects: Awaited<ReturnType<typeof listFilesInS3>>;
   let message;
 
   if (!ignoreCache && fs.existsSync(LOCAL_CACHE_FILE)) {

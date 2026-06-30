@@ -27,14 +27,17 @@ import config from 'config';
 import logger from '../lib/logger';
 
 import { reportErrorToSentry } from './sentry';
+import { parseToBoolean } from './utils';
 
 export const S3_TRASH_PREFIX = 'trash/';
+
+const FORCE_PATH_STYLE = parseToBoolean(config.aws.s3.forcePathStyle) ?? false;
 
 // Create S3 service object & set credentials and region
 let s3: S3Client;
 if (config.aws.s3.key) {
   s3 = new S3Client({
-    forcePathStyle: config.aws.s3.forcePathStyle,
+    forcePathStyle: FORCE_PATH_STYLE,
     endpoint: config.aws.s3.endpoint,
     tls: config.aws.s3.sslEnabled,
     apiVersion: config.aws.s3.apiVersion,
@@ -117,7 +120,7 @@ export const streamToS3 = (
 export const parseS3Url = (s3Url: string): { bucket: string; key: string } => {
   const parsedUrl = new URL(s3Url);
 
-  if (config.aws.s3.endpoint && config.aws.s3.forcePathStyle) {
+  if (config.aws.s3.endpoint && FORCE_PATH_STYLE) {
     const pathParts = parsedUrl.pathname.split('/');
     if (pathParts.length < 2) {
       throw new Error(`Invalid S3 URL: ${s3Url}`);
@@ -148,7 +151,7 @@ export const getS3URL = (bucket: string, key: string): string => {
   const encodedKeyLastPart = encodeURIComponent(keyParts.pop() || '');
   const fullKey = [...keyParts, encodedKeyLastPart].join('/');
 
-  if (config.aws.s3.endpoint && config.aws.s3.forcePathStyle) {
+  if (config.aws.s3.endpoint && FORCE_PATH_STYLE) {
     return `${config.aws.s3.endpoint}/${bucket}/${fullKey}`;
   }
 

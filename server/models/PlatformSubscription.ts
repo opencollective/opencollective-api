@@ -18,6 +18,7 @@ import Temporal from 'sequelize-temporal';
 
 import ActivityTypes from '../constants/activities';
 import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
+import ExpenseType from '../constants/expense-type';
 import FEATURE from '../constants/feature';
 import { PlatformSubscriptionPlan, PlatformSubscriptionTiers, PlatformSubscriptionTierTypes } from '../constants/plans';
 import { sortResultsSimple } from '../graphql/loaders/helpers';
@@ -212,7 +213,7 @@ class PlatformSubscription extends Model<
     return [subBillingStart, subBillingEnd];
   }
 
-  terminate({
+  async terminate({
     date = moment.utc().toDate(),
     transaction = undefined,
     inclusive = false,
@@ -220,8 +221,16 @@ class PlatformSubscription extends Model<
     date?: Date;
     inclusive?: boolean;
     transaction?: SequelizeTransaction;
-  }): Promise<PlatformSubscription> {
-    return this.update({ period: [this.start, { value: date, inclusive }] }, { transaction });
+  }): Promise<void> {
+    const dayStart = moment.utc(date).startOf('day');
+    const subStart = moment.utc(this.startDate);
+
+    // When terminating a subscription on the same day (or in the future), we destroy it directly
+    if (subStart.isSameOrAfter(dayStart)) {
+      await this.destroy({ transaction });
+    } else {
+      await this.update({ period: [this.start, { value: date, inclusive }] }, { transaction });
+    }
   }
 
   get info(): NonAttribute<
@@ -266,6 +275,7 @@ class PlatformSubscription extends Model<
       `
       SELECT COUNT(DISTINCT(a."ExpenseId")) "expensesPaid"
         FROM "Activities" a
+        JOIN "Expenses" e ON e.id = a."ExpenseId"
         LEFT JOIN LATERAL (
           SELECT count(1) > 0 "previouslyPaid"
           FROM "Activities" "hist"
@@ -278,6 +288,7 @@ class PlatformSubscription extends Model<
         WHERE a."HostCollectiveId" = :HostCollectiveId
         AND a."type" = 'collective.expense.paid'
         AND a."createdAt" <@ ${billingRangeArg}
+        AND e."type" NOT IN (:excludedExpenseTypes)
         AND NOT "hist"."previouslyPaid"
     `,
       {
@@ -286,6 +297,7 @@ class PlatformSubscription extends Model<
         plain: true,
         replacements: {
           HostCollectiveId: collectiveId,
+          excludedExpenseTypes: [ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING],
         },
       },
     );
@@ -524,7 +536,6 @@ class PlatformSubscription extends Model<
             notify,
             startDate: alignedStart,
             isAutomaticMigration: opts?.isAutomaticMigration ?? false,
-            awaitForDispatch: true, // Ensure the email is sent
             isSystem: !user,
           },
         },
@@ -560,7 +571,12 @@ class PlatformSubscription extends Model<
     when: Date,
     plan: Partial<PlatformSubscriptionPlan>,
     user: User | null,
-    opts?: { transaction?: SequelizeTransaction; UserTokenId?: number; isAutomaticMigration?: boolean },
+    opts?: {
+      transaction?: SequelizeTransaction;
+      UserTokenId?: number;
+      isAutomaticMigration?: boolean;
+      notify?: boolean;
+    },
   ): Promise<PlatformSubscription> {
     const currentSubscription = await PlatformSubscription.getCurrentSubscription(collective.id);
     const newSubscriptionStart = moment.utc(when).startOf('day');

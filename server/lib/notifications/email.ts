@@ -259,7 +259,18 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.SUBSCRIPTION_CANCELED:
-      await notify.user(activity);
+      // When the cancel happens as part of a host-driven refund flow, the
+      // CONTRIBUTION_REFUNDED email already covers the cancellation, so we skip
+      // this one to avoid sending the contributor multiple emails for what they
+      // perceive as a single action.
+      if (activity.data?.hostAction?.refund) {
+        break;
+      }
+      await notify.collective(activity, { collectiveId: activity.FromCollectiveId });
+      break;
+
+    case ActivityTypes.CONTRIBUTION_REFUNDED:
+      await notify.collective(activity, { collectiveId: activity.FromCollectiveId });
       break;
 
     case ActivityTypes.SUBSCRIPTION_PAUSED:
@@ -420,7 +431,9 @@ export const notifyByEmail = async (activity: Activity) => {
       });
       activity.data.expense = activity.data.expense.info;
       activity.data.UserId = activity.data.expense.UserId;
-      activity.data.path = `/${activity.data.collective.slug}/expenses/${activity.data.expense.id}`;
+      activity.data.path = activity.data.expense.publicId
+        ? `/permalink/${activity.data.expense.publicId}`
+        : `/${activity.data.collective.slug}/expenses/${activity.data.expense.id}`;
 
       const customEmailHeaders = {
         'x-opencollective-expense-status': activity.data.expense.status,
@@ -486,9 +499,6 @@ export const notifyByEmail = async (activity: Activity) => {
     }
 
     case ActivityTypes.COLLECTIVE_EXPENSE_APPROVED:
-      activity.data.actions = {
-        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
-      };
       activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
       await notify.user(activity, { from: config.email.noReply, userId: activity.data.expense.UserId });
       // We only notify the admins of the host if the collective is active (ie. has been approved by the host)
@@ -525,9 +535,6 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_EXPENSE_REJECTED:
-      activity.data.actions = {
-        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
-      };
       await notify.user(activity, {
         from: config.email.noReply,
         userId: activity.data.expense.UserId,
@@ -559,9 +566,6 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_EXPENSE_ERROR:
-      activity.data.actions = {
-        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
-      };
       await notify.user(activity, {
         from: config.email.noReply,
         userId: activity.data.expense.UserId,
@@ -575,9 +579,6 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_EXPENSE_PROCESSING:
-      activity.data.actions = {
-        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
-      };
       await notify.user(activity, { from: config.email.noReply, userId: activity.data.expense.UserId });
       break;
 
@@ -609,14 +610,16 @@ export const notifyByEmail = async (activity: Activity) => {
           MemberCollectiveId: activity.FromCollectiveId,
         },
       });
+      const isPrivateNote = activity.data.comment.type === CommentType.PRIVATE_NOTE;
 
-      if (isCommentFromHostAdmin) {
+      if (isCommentFromHostAdmin && !isPrivateNote) {
         await notify.collective(activity, {
           replyTo: activity.data.host.data?.replyToEmail || undefined,
         });
       } else {
         await notify.collective(activity, {
           collectiveId: activity.data.host.id,
+          exclude: [activity.UserId],
           template: 'host.application.comment.created.host',
         });
       }

@@ -10,19 +10,39 @@ import { resetTestDB } from '../../utils';
 
 describe('server/models/PayoutMethod', () => {
   describe('filterUserSubmittedData()', () => {
-    it('drops connectedAccountId and stripeAccountId from client payloads', () => {
-      const cleaned = models.PayoutMethod.filterUserSubmittedData({
+    it('only allows email and currency for PAYPAL', () => {
+      const cleaned = models.PayoutMethod.filterUserSubmittedData(PayoutMethodTypes.PAYPAL, {
         email: 'user@example.com',
         currency: 'USD',
         connectedAccountId: 999,
         stripeAccountId: 'acct_fake',
+        isPayPalOAuth: true,
       });
       expect(cleaned).to.deep.equal({ email: 'user@example.com', currency: 'USD' });
     });
 
+    it('only allows content and currency for OTHER', () => {
+      const cleaned = models.PayoutMethod.filterUserSubmittedData(PayoutMethodTypes.OTHER, {
+        content: 'Wire transfer to Bank XYZ',
+        currency: 'EUR',
+        connectedAccountId: 999,
+        email: 'user@example.com',
+      });
+      expect(cleaned).to.deep.equal({ content: 'Wire transfer to Bank XYZ', currency: 'EUR' });
+    });
+
     it('returns empty object for non-object input', () => {
-      expect(models.PayoutMethod.filterUserSubmittedData(null)).to.deep.equal({});
-      expect(models.PayoutMethod.filterUserSubmittedData(undefined)).to.deep.equal({});
+      expect(models.PayoutMethod.filterUserSubmittedData(PayoutMethodTypes.PAYPAL, null)).to.deep.equal({});
+      expect(models.PayoutMethod.filterUserSubmittedData(PayoutMethodTypes.PAYPAL, undefined)).to.deep.equal({});
+    });
+
+    it('returns empty object for types that do not accept user-submitted data', () => {
+      expect(
+        models.PayoutMethod.filterUserSubmittedData(PayoutMethodTypes.STRIPE, {
+          stripeAccountId: 'acct_fake',
+          connectedAccountId: 999,
+        }),
+      ).to.deep.equal({});
     });
   });
 
@@ -140,6 +160,37 @@ describe('server/models/PayoutMethod', () => {
         CreatedByUserId: 1,
       });
       expect(ccPm.getFilteredData()).to.deep.equal({});
+    });
+  });
+
+  describe('createFromUserData()', () => {
+    beforeEach(async () => {
+      await resetTestDB();
+    });
+
+    it('sets top-level currency from data.currency when not provided explicitly', async () => {
+      const user = await fakeUser();
+      const payoutMethod = await models.PayoutMethod.createFromUserData(
+        {
+          type: PayoutMethodTypes.BANK_ACCOUNT,
+          isSaved: false,
+          data: {
+            accountHolderName: 'Jane Smith',
+            currency: 'GBP',
+            type: 'sort_code',
+            details: {
+              legalType: 'PRIVATE',
+              sortCode: '070806',
+              accountNumber: '01656500',
+            },
+          },
+        },
+        user,
+        user.collective,
+      );
+
+      expect(payoutMethod.currency).to.eq('GBP');
+      expect(payoutMethod.data.currency).to.eq('GBP');
     });
   });
 

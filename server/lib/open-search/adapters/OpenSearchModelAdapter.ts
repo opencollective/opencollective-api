@@ -1,5 +1,5 @@
-import { TypeMapping } from '@opensearch-project/opensearch/api/_types/_common.mapping';
-import { QueryContainer } from '@opensearch-project/opensearch/api/_types/_common.query_dsl';
+import { TypeMapping } from '@opensearch-project/opensearch/api/_types/_common.mapping.js';
+import { QueryContainer } from '@opensearch-project/opensearch/api/_types/_common.query_dsl.js';
 import { ModelStatic } from 'sequelize';
 
 import { ModelType } from '../../../models';

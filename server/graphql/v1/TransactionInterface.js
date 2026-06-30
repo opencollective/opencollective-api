@@ -8,12 +8,13 @@ import {
 } from 'graphql';
 import { get, round } from 'lodash';
 
+import roles from '../../constants/roles';
 import models from '../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
 import { GraphQLTaxInfo } from '../v2/object/TaxInfo';
 
 import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface';
-import { DateString, ExpenseType, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types';
+import { DateString, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types';
 
 export const TransactionInterfaceType = new GraphQLInterfaceType({
   name: 'Transaction',
@@ -241,11 +242,18 @@ const TransactionFields = () => {
             type: tax.id,
             percentage: Math.round(tax.percentage ?? tax.rate * 100), // Does not support float
             rate: tax.rate ?? round(tax.percentage / 100, 2),
+            hasTaxIdNumber: Boolean(tax.idNumber),
             idNumber: () => {
+              if (!req.remoteUser) {
+                return null;
+              }
+
               const collectiveId = transaction.paymentMethodProviderCollectiveId();
               const canSeeDetails =
                 getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, collectiveId) ||
-                req.remoteUser.isAdmin(transaction.HostCollectiveId);
+                (transaction.HostCollectiveId &&
+                  req.remoteUser.hasRole([roles.ACCOUNTANT, roles.ADMIN], transaction.HostCollectiveId));
+              // We should ideally allow fromCollective too, but we need to look at the transaction direction (CREDIT/DEBIT) to make sure we don't allow the collective admins too in the process
 
               return canSeeDetails ? tax.idNumber : null;
             },
@@ -412,15 +420,6 @@ export const TransactionExpenseType = new GraphQLObjectType({
             ? transaction.getExpense().then(expense => expense && expense.description)
             : null;
           return transaction.description || expense;
-        },
-      },
-      expense: {
-        type: ExpenseType,
-        deprecationReason: '2024-12-13: Please move to GraphQL v2',
-        resolve(transaction, args, req) {
-          // If it's a expense transaction it'll have an ExpenseId
-          // otherwise we return null
-          return transaction.ExpenseId ? req.loaders.Expense.byId.load(transaction.ExpenseId) : null;
         },
       },
     };

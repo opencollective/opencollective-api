@@ -3,10 +3,11 @@ import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttrib
 import { DataTypes, Transaction } from 'sequelize';
 
 import { SUPPORTED_CURRENCIES, SupportedCurrency } from '../constants/currencies';
+import ExpenseType from '../constants/expense-type';
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
-import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import sequelize from '../lib/sequelize';
 import { isValidURL } from '../lib/url-utils';
 
@@ -101,7 +102,6 @@ class ExpenseItem extends ModelWithPublicId<
     return pick(data, ExpenseItem.editableFields);
   }
 }
-
 const descriptionSanitizerOptions = buildSanitizerOptions({
   titles: true,
   basicTextFormatting: true,
@@ -109,6 +109,21 @@ const descriptionSanitizerOptions = buildSanitizerOptions({
   images: true,
   links: true,
 });
+
+export const sanitizeExpenseItemDescription = (
+  description: string | null | undefined,
+  expenseType: string,
+): string | null => {
+  if (!description) {
+    return null;
+  }
+
+  if (expenseType === ExpenseType.GRANT) {
+    return sanitizeHTML(description, descriptionSanitizerOptions);
+  }
+
+  return stripHTML(description);
+};
 
 // Link the model to database fields
 ExpenseItem.init(

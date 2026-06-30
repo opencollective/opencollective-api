@@ -99,7 +99,7 @@ export default async (app: express.Application) => {
   const redisClient = await createRedisClient(RedisInstanceType.DEFAULT);
   if (redisClient) {
     const expressLimiterOptions = {
-      lookup: function (req, res, opts, next) {
+      lookup: function (req: express.Request, res: express.Response, opts, next: express.NextFunction) {
         if (req.personalToken) {
           opts.lookup = 'personalToken.id';
           // 100 requests / minute for registered API Key
@@ -118,12 +118,12 @@ export default async (app: express.Application) => {
         }
         return next();
       },
-      whitelist: function (req) {
-        const apiKey = req.query.api_key || req.body.api_key;
+      whitelist: function (req: express.Request) {
+        const apiKey = req.query.api_key || req.body?.api_key;
         // No limit with internal API Key
         return apiKey === config.keys.opencollective.apiKey;
       },
-      onRateLimited: function (req, res) {
+      onRateLimited: function (req: express.Request, res: express.Response) {
         let message;
         if (req.personalToken) {
           message = 'Rate limit exceeded. Contact-us to get higher limits.';
@@ -354,7 +354,7 @@ export default async (app: express.Application) => {
    */
   app.post('/webhooks/stripe', stripeWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
-  app.post('/webhooks/paypal{/:hostId}', paypalWebhook);
+  app.post('/webhooks/paypal/:hostId', paypalWebhook);
   app.post('/webhooks/plaid', plaidWebhook);
   app.get('/connected-accounts/:service/callback', noCache, (req, res, next) => {
     if (!oauthServiceAllowlist.has(req.params.service)) {
@@ -362,11 +362,6 @@ export default async (app: express.Application) => {
     }
     return authentication.authenticateServiceCallback(req, res, next);
   }); // oauth callback
-  app.delete(
-    '/connected-accounts/:service/disconnect/:collectiveId',
-    noCache,
-    authentication.authenticateServiceDisconnect,
-  );
 
   /** Returns the PayPal Connect client ID when configured on this platform (used to initialize the SDK button) */
   app.get('/connected-accounts/paypal/connect-config', noCache, paypal.oauth.connectConfig);

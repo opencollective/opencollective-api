@@ -17,6 +17,7 @@ async function blockUnlessCanSeePrivateCollective(
   req: express.Request,
   res: express.Response,
   collective: Collective | null | undefined,
+  { customUnauthorizedHandler }: { customUnauthorizedHandler?: Handler } = {},
 ): Promise<boolean> {
   if (!collective?.isPrivate) {
     return false;
@@ -24,7 +25,11 @@ async function blockUnlessCanSeePrivateCollective(
     return false;
   }
   if (!req.remoteUser) {
-    await handleUnauthorized(req, res);
+    if (customUnauthorizedHandler) {
+      await customUnauthorizedHandler(req, res);
+    } else {
+      await handleUnauthorized(req, res);
+    }
   } else {
     await handleAccessDenied(req, res);
   }
@@ -451,6 +456,25 @@ export const handleExportRequest: Handler = async (req, res) => {
   return redirect(res, getDashboardRoute(exportRequest.collective, `exports/${exportRequest.publicId}`));
 };
 
+/** Make sure that whatever draft key included in the permalink is preserved in the redirect. */
+export const preserveExpensePagePermalinkParameters = (url: string, query): string => {
+  const draftKey = query.key;
+  const edit = query.edit;
+
+  const [base, existingQuery] = url.split('?');
+  const params = new URLSearchParams(existingQuery);
+
+  if (draftKey && typeof draftKey === 'string') {
+    params.set('key', draftKey);
+  }
+  if (edit && typeof edit === 'string') {
+    params.set('edit', edit);
+  }
+
+  const queryString = params.toString();
+  return queryString ? `${base}?${queryString}` : base;
+};
+
 export const handleExpense: Handler = async (req, res) => {
   const expense = await models.Expense.findOne({
     where: { publicId: req.params.id },
@@ -462,35 +486,66 @@ export const handleExpense: Handler = async (req, res) => {
   });
   if (!expense) {
     return handleNotFound(req, res);
-  } else if (await blockUnlessCanSeePrivateCollective(req, res, expense.collective)) {
+  } else if (
+    await blockUnlessCanSeePrivateCollective(req, res, expense.collective, {
+      customUnauthorizedHandler: async (req, res) => {
+        const permalink = preserveExpensePagePermalinkParameters(`/permalink/${req.params.id}`, req.query);
+        return redirect(res, `/signin?next=${encodeURIComponent(permalink)}`);
+      },
+    })
+  ) {
     // In the future, we may want to tweak that part to allow some form of public expense submissions.
     // See scope 2 in https://github.com/oficonsortium/studies/blob/main/private-organizations/implementation-scope.md.
     return;
   }
 
   if (!req.remoteUser) {
-    return redirect(res, `${await getCollectivePageRoute(expense.collective)}/expenses/${expense.id}`);
+    return redirect(
+      res,
+      preserveExpensePagePermalinkParameters(
+        `${await getCollectivePageRoute(expense.collective)}/expenses/${expense.id}`,
+        req.query,
+      ),
+    );
   }
 
   const hostCollectiveId = expense.HostCollectiveId || expense.collective?.HostCollectiveId;
 
   const host = await models.Collective.findByPk(hostCollectiveId);
   if (host && req.remoteUser.isAdmin(host.id)) {
-    return redirect(res, getDashboardRoute(host, `host-payment-requests/${expense.id}`));
+    return redirect(
+      res,
+      preserveExpensePagePermalinkParameters(getDashboardRoute(host, `host-payment-requests/${expense.id}`), req.query),
+    );
   }
 
   if (req.remoteUser.isAdmin(expense.collective.id)) {
-    return redirect(res, getDashboardRoute(expense.collective, 'payment-requests', { openExpenseId: expense.id }));
+    return redirect(
+      res,
+      preserveExpensePagePermalinkParameters(
+        getDashboardRoute(expense.collective, 'payment-requests', { openExpenseId: expense.id }),
+        req.query,
+      ),
+    );
   }
 
   if (req.remoteUser.isAdmin(expense.fromCollective.id)) {
     return redirect(
       res,
-      getDashboardRoute(expense.fromCollective, 'submitted-expenses', { openExpenseId: expense.id }),
+      preserveExpensePagePermalinkParameters(
+        getDashboardRoute(expense.fromCollective, 'submitted-expenses', { openExpenseId: expense.id }),
+        req.query,
+      ),
     );
   }
 
-  return redirect(res, `${await getCollectivePageRoute(expense.collective)}/expenses/${expense.id}`);
+  return redirect(
+    res,
+    preserveExpensePagePermalinkParameters(
+      `${await getCollectivePageRoute(expense.collective)}/expenses/${expense.id}`,
+      req.query,
+    ),
+  );
 };
 
 export const handleOrder: Handler = async (req, res) => {
@@ -922,5 +977,9 @@ export const handleNotification: Handler = async (req, res) => {
 };
 
 export const handleOAuthAuthorizationCode: Handler = async (req, res) => {
+  return handleNotFound(req, res);
+};
+
+export const handlePaymentIntent: Handler = async (req, res) => {
   return handleNotFound(req, res);
 };

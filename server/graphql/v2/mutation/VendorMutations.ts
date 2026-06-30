@@ -9,6 +9,7 @@ import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { getDiffBetweenInstances } from '../../../lib/data';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Activity, Collective, LegalDocument, Op, sequelize } from '../../../models';
 import { ExpenseStatus } from '../../../models/Expense';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
@@ -47,15 +48,17 @@ const vendorMutations = {
         throw new Unauthorized("You're not authorized to create a vendor for this host");
       }
 
-      const { vendorInfo, visibleToAccounts: visibleToAccountsArg } = args.vendor;
+      const { vendorInfo, useVendorPolicy } = args.vendor;
+      // `visibleToAccounts` is the deprecated alias of `canBeUsedWithAccounts`.
+      const canBeUsedWithAccountsArg = args.vendor.canBeUsedWithAccounts ?? args.vendor.visibleToAccounts;
 
-      let visibleToAccounts: Collective[] = [];
-      if (visibleToAccountsArg) {
-        visibleToAccounts = await fetchAccountsWithReferences(visibleToAccountsArg, { throwIfMissing: true });
+      let canBeUsedWithAccounts: Collective[] = [];
+      if (canBeUsedWithAccountsArg) {
+        canBeUsedWithAccounts = await fetchAccountsWithReferences(canBeUsedWithAccountsArg, { throwIfMissing: true });
       }
 
-      if (!visibleToAccounts.every(acc => acc.HostCollectiveId === host.id)) {
-        throw new Unauthorized("You're not authorized to set a vendor visbility for this account");
+      if (!canBeUsedWithAccounts.every(acc => acc.id === host.id || acc.HostCollectiveId === host.id)) {
+        throw new Unauthorized("You're not authorized to set a vendor visibility for this account");
       }
 
       const vendorData = {
@@ -69,7 +72,8 @@ const vendorMutations = {
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
         data: {
           vendorInfo: pick(vendorInfo, VENDOR_INFO_FIELDS),
-          visibleToAccountIds: uniq(visibleToAccounts.map(acc => acc.id)),
+          canBeUsedWithAccountIds: uniq(canBeUsedWithAccounts.map(acc => acc.id)),
+          useVendorPolicy: useVendorPolicy ?? null,
         },
         settings: {},
       };
@@ -83,6 +87,11 @@ const vendorMutations = {
       // Validate now to avoid uploading images if the collective is invalid
       const vendor = models.Collective.build(vendorData);
       await vendor.validate();
+
+      // Enforce 2FA before making any changes
+      if (args.vendor.payoutMethod) {
+        await twoFactorAuthLib.enforceForAccount(req, host);
+      }
 
       // Attach images
       const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.vendor);
@@ -107,12 +116,25 @@ const vendorMutations = {
       }
 
       if (args.vendor.payoutMethod) {
-        await models.PayoutMethod.create({
-          ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
-          CollectiveId: vendor.id,
-          CreatedByUserId: req.remoteUser.id,
-          isSaved: true,
-        });
+        if (
+          args.vendor.payoutMethod.currency &&
+          args.vendor.payoutMethod.data?.currency &&
+          args.vendor.payoutMethod.currency !== args.vendor.payoutMethod.data?.currency
+        ) {
+          throw new ValidationFailed('Currency mismatch between data and currency');
+        }
+
+        await models.PayoutMethod.createFromUserData(
+          {
+            name: args.vendor.payoutMethod.name,
+            type: args.vendor.payoutMethod.type,
+            currency: args.vendor.payoutMethod.currency || args.vendor.payoutMethod.data?.currency,
+            data: args.vendor.payoutMethod.data, // createFromUserData calls filterUserSubmittedData
+            isSaved: true,
+          },
+          req.remoteUser,
+          vendor,
+        );
       }
 
       await Activity.create({
@@ -140,7 +162,7 @@ const vendorMutations = {
         description: 'Whether to archive (true) or unarchive (unarchive) the vendor',
       },
     },
-    resolve: async (_, args, req: Express.Request) => {
+    resolve: async (_, args, req) => {
       checkRemoteUserCanUseHost(req);
 
       const vendor = await fetchAccountWithReference(args.vendor, { loaders: req.loaders, throwIfMissing: true });
@@ -152,15 +174,22 @@ const vendorMutations = {
         throw new Unauthorized("You're not authorized to edit a vendor for this host");
       }
 
-      const { vendorInfo, visibleToAccounts: visibleToAccountsArg } = args.vendor;
+      const { vendorInfo, useVendorPolicy } = args.vendor;
+      // `visibleToAccounts` is the deprecated alias of `canBeUsedWithAccounts`.
+      const canBeUsedWithAccountsArg = args.vendor.canBeUsedWithAccounts ?? args.vendor.visibleToAccounts;
 
-      let visibleToAccounts: Collective[] = [];
-      if (visibleToAccountsArg) {
-        visibleToAccounts = await fetchAccountsWithReferences(visibleToAccountsArg, { throwIfMissing: true });
+      let canBeUsedWithAccounts: Collective[] = [];
+      if (canBeUsedWithAccountsArg) {
+        canBeUsedWithAccounts = await fetchAccountsWithReferences(canBeUsedWithAccountsArg, { throwIfMissing: true });
       }
 
-      if (!visibleToAccounts.every(acc => acc.HostCollectiveId === host.id)) {
+      if (!canBeUsedWithAccounts.every(acc => acc.id === host.id || acc.HostCollectiveId === host.id)) {
         throw new Unauthorized("You're not authorized to set a vendor visbility for this account");
+      }
+
+      // Enforce 2FA before making any changes
+      if (args.vendor.payoutMethod) {
+        await twoFactorAuthLib.enforceForAccount(req, host);
       }
 
       const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.vendor);
@@ -178,7 +207,10 @@ const vendorMutations = {
         settings: vendor.settings,
         data: {
           ...vendor.data,
-          visibleToAccountIds: uniq(visibleToAccounts.map(acc => acc.id)),
+          canBeUsedWithAccountIds: isUndefined(canBeUsedWithAccountsArg)
+            ? (vendor.data?.canBeUsedWithAccountIds ?? [])
+            : uniq(canBeUsedWithAccounts.map(acc => acc.id)),
+          useVendorPolicy: isUndefined(useVendorPolicy) ? (vendor.data?.useVendorPolicy ?? null) : useVendorPolicy,
           vendorInfo: { ...vendor.data?.vendorInfo, ...pick(vendorInfo, VENDOR_INFO_FIELDS) },
         },
       };
@@ -223,6 +255,16 @@ const vendorMutations = {
 
       if (args.vendor.payoutMethod) {
         let payoutMethod;
+
+        // Validate currency arguments
+        if (
+          args.vendor.payoutMethod.currency &&
+          args.vendor.payoutMethod.data?.currency &&
+          args.vendor.payoutMethod.currency !== args.vendor.payoutMethod.data?.currency
+        ) {
+          throw new ValidationFailed('Currency mismatch between data and currency');
+        }
+
         // If the payout method doesn't have an id, we consider it as a new payout method and we archive the previous one(s)
         if (!args.vendor.payoutMethod.id) {
           payoutMethod = await sequelize.transaction(async transaction => {
@@ -230,14 +272,17 @@ const vendorMutations = {
             if (!isEmpty(existingPayoutMethods)) {
               await Promise.all(existingPayoutMethods.map(pm => pm.update({ isSaved: false }, { transaction })));
             }
-            return await models.PayoutMethod.create(
+            return models.PayoutMethod.createFromUserData(
               {
-                ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
-                CollectiveId: vendor.id,
-                CreatedByUserId: req.remoteUser.id,
+                name: args.vendor.payoutMethod.name,
+                type: args.vendor.payoutMethod.type,
+                data: args.vendor.payoutMethod.data, // createFromUserData calls filterUserSubmittedData
+                currency: args.vendor.payoutMethod.currency || args.vendor.payoutMethod.data?.currency,
                 isSaved: true,
               },
-              { transaction },
+              req.remoteUser,
+              vendor,
+              transaction,
             );
           });
         }

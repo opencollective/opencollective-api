@@ -2,6 +2,7 @@ import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
+import { omit } from 'lodash';
 
 import { activities } from '../../../constants';
 import { CollectiveType } from '../../../constants/collectives';
@@ -77,7 +78,7 @@ const HostApplicationMutations = {
         description: 'A list of members to invite when applying to the host',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseAccount(req);
 
       const collective = await fetchAccountWithReference(args.collective);
@@ -294,6 +295,8 @@ const HostApplicationMutations = {
       const isAccountAdmin = req.remoteUser.isAdminOfCollective(account);
       if (!isHostAdmin && !isAccountAdmin && !(req.remoteUser.isRoot() && checkScope(req, 'root'))) {
         throw new Forbidden('Only the host admin or the account admin can trigger this action');
+      } else if (host.isPrivate && !isHostAdmin) {
+        throw new Forbidden('Only the host admin can trigger this action');
       }
 
       await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, [account, host], { alwaysAskForToken: true });
@@ -348,15 +351,20 @@ const approveApplication = async (host: Collective, collective: Collective, req:
   // Run updates in a transaction to make sure we don't end up approving half accounts if something goes wrong
   await sequelize.transaction(async transaction => {
     const newAccountData = {
-      isActive: true,
       approvedAt: new Date(),
       HostCollectiveId: host.id,
       currency: host.currency,
+      isActive: true,
     };
 
-    // Approve all events and projects created by this collective
+    // Approve all non-archived events and projects created by this collective
     await models.Collective.update(newAccountData, {
-      where: { ParentCollectiveId: collective.id },
+      where: { ParentCollectiveId: collective.id, deactivatedAt: null },
+      hooks: false,
+      transaction,
+    });
+    await models.Collective.update(omit(newAccountData, ['isActive']), {
+      where: { ParentCollectiveId: collective.id, deactivatedAt: { [Op.not]: null } },
       hooks: false,
       transaction,
     });

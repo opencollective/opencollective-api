@@ -1,4 +1,4 @@
-import { InferAttributes, InferCreationAttributes, Model } from 'sequelize';
+import { InferAttributes, InferCreationAttributes, Model, Transaction } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { SupportedCurrency } from '../constants/currencies';
@@ -34,7 +34,7 @@ class Subscription extends Model<InferAttributes<Subscription>, InferCreationAtt
 
   // Class methods
   declare activate: () => Promise<Subscription>;
-  declare deactivate: (reason?: string, host?: Collective) => Promise<Subscription>;
+  declare deactivate: (reason?: string, host?: Collective, transaction?: Transaction) => Promise<Subscription>;
 }
 
 Subscription.init(
@@ -110,15 +110,15 @@ Subscription.prototype.activate = function () {
   return this.save();
 };
 
-Subscription.prototype.deactivate = async function (reason = undefined, host = undefined) {
+Subscription.prototype.deactivate = async function (reason = undefined, host = undefined, transaction = undefined) {
   // If subscription exists on a third party, cancel it there
   if (this.paypalSubscriptionId) {
-    const order = await this.getOrder();
+    const order = await this.getOrder({ transaction });
     order.Subscription = this;
     await cancelPaypalSubscription(order, reason, host);
   }
 
-  return this.update({ isActive: false, deactivatedAt: new Date() });
+  return this.update({ isActive: false, deactivatedAt: new Date() }, { transaction });
 };
 
 Temporal(Subscription, sequelize);

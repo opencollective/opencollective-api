@@ -74,7 +74,10 @@ export class OpenSearchUpdatesAdapter implements OpenSearchModelAdapter {
           association: 'collective',
           required: true,
           attributes: ['isActive', 'HostCollectiveId', 'ParentCollectiveId'],
-          where: { data: { hideFromSearch: { [Op.not]: true } } },
+          where: {
+            data: { hideFromSearch: { [Op.not]: true } },
+            isPrivate: false, // Don't index private accounts for now
+          },
         },
       ],
     });

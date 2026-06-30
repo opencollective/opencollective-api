@@ -185,7 +185,7 @@ export const createChargeTransactions = async (
     platformFeeInHostCurrency = fees.applicationFee;
   }
 
-  const clearedAtField = balanceTransaction.available_on || charge.created || null;
+  const clearedAtField = charge.created;
   const clearedAt = clearedAtField ? moment.unix(clearedAtField).toDate() : null;
 
   const paymentProcessorFeeInHostCurrency = fees.stripeFee;

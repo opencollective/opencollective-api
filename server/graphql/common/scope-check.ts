@@ -4,6 +4,7 @@ import FEATURE from '../../constants/feature';
 import OAuthScopes from '../../constants/oauth-scopes';
 import { canUseFeature } from '../../lib/user-permissions';
 import Comment from '../../models/Comment';
+import ExportRequest, { ExportRequestTypes } from '../../models/ExportRequest';
 import { FeatureNotAllowedForUser, Forbidden, Unauthorized } from '../errors';
 
 export const checkRemoteUserCanUseKYC = (req: Express.Request): void => {
@@ -138,10 +139,32 @@ export const checkRemoteUserCanRoot = (req: Express.Request): void => {
   enforceScope(req, 'root');
 };
 
+export const checkScopeForExportRequest = (
+  req: Express.Request,
+  exportRequest: {
+    type: ExportRequest['type'];
+    parameters: ExportRequest['parameters'];
+  },
+): void => {
+  if (exportRequest.type === ExportRequestTypes.TRANSACTIONS) {
+    checkRemoteUserCanUseTransactions(req);
+    if (exportRequest.parameters?.isHostReport) {
+      checkRemoteUserCanUseHost(req);
+    }
+  } else if (exportRequest.type === ExportRequestTypes.HOSTED_COLLECTIVES) {
+    checkRemoteUserCanUseHost(req);
+  }
+};
+
 // In many places we check the scope using a direct string. This type will ensure we still use values from the enum.
 type OAuthScope = keyof typeof OAuthScopes;
 
 export const checkScope = (req: Express.Request, scope: OAuthScope): boolean => {
+  // For now, limited users don't have any scope regardless of the authentication method
+  if (req.remoteUser?.isLimited()) {
+    return false;
+  }
+
   if (req.userToken) {
     return req.userToken.hasScope(scope);
   } else if (req.personalToken) {
@@ -150,11 +173,6 @@ export const checkScope = (req: Express.Request, scope: OAuthScope): boolean => 
       return true;
     }
     return req.personalToken.hasScope(scope);
-  }
-
-  // Make sure the user is not limited
-  if (req.remoteUser?.data?.features?.ALL === false) {
-    return false;
   }
 
   // No userToken or personalToken, no checkScope
@@ -169,5 +187,14 @@ export const enforceScope = (req: Express.Request, scope: OAuthScope): void => {
     if (req.personalToken) {
       throw new Forbidden(`The Personal Token is not allowed for operations in scope "${scope}".`);
     }
+  }
+};
+
+export const rejectOAuthAndPersonalTokenAuth = (
+  req: Express.Request,
+  message = 'OAuth and personal tokens cannot be used to manage tokens. Please use the web interface.',
+): void => {
+  if (req.userToken || req.personalToken) {
+    throw new Forbidden(message);
   }
 };

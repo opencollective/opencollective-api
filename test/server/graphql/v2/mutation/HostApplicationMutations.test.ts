@@ -367,6 +367,85 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         expect(body).to.include(`the money will be held by ${host.name}`);
       });
 
+      it('does not un-archive archived child projects/events when approving', async () => {
+        // Create isolated host, collective and application for this test
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({
+          HostCollectiveId: host.id,
+          admin: collectiveAdmin,
+          isActive: false,
+          approvedAt: null,
+        });
+        const application = await fakeHostApplication({
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          status: HostApplicationStatus.PENDING,
+        });
+
+        // Create an archived project, an archived event, and a non-archived project as children
+        const archivedProject = await fakeProject({
+          ParentCollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          isActive: false,
+          deactivatedAt: new Date(),
+        });
+        const archivedEvent = await fakeEvent({
+          ParentCollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          isActive: false,
+          deactivatedAt: new Date(),
+        });
+        const activeProject = await fakeProject({
+          ParentCollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          isActive: false,
+          approvedAt: null,
+          deactivatedAt: null,
+        });
+
+        // Verify pre-conditions
+        expect(Boolean(archivedProject.deactivatedAt && !archivedProject.isActive)).to.be.true;
+        expect(Boolean(archivedEvent.deactivatedAt && !archivedEvent.isActive)).to.be.true;
+        expect(activeProject.deactivatedAt).to.be.null;
+
+        // Approve the application
+        const result = await graphqlQueryV2(
+          PROCESS_HOST_APPLICATION_MUTATION,
+          { host: { slug: host.slug }, account: { slug: collective.slug }, action: 'APPROVE' },
+          hostAdmin,
+        );
+        expect(result.errors).to.not.exist;
+
+        await Promise.all([
+          archivedProject.reload(),
+          archivedEvent.reload(),
+          activeProject.reload(),
+          application.reload(),
+        ]);
+
+        // The non-archived project should be approved and active
+        expect(activeProject.HostCollectiveId).to.equal(host.id);
+        expect(activeProject.isActive).to.be.true;
+        expect(activeProject.approvedAt).to.not.be.null;
+        expect(activeProject.deactivatedAt).to.be.null;
+
+        // The archived children should have their host preserved but remain archived
+        expect(archivedProject.HostCollectiveId).to.equal(host.id);
+        expect(archivedProject.isActive).to.be.false;
+        expect(archivedProject.deactivatedAt).to.not.be.null;
+        expect(Boolean(archivedProject.deactivatedAt && !archivedProject.isActive)).to.be.true;
+
+        expect(archivedEvent.HostCollectiveId).to.equal(host.id);
+        expect(archivedEvent.isActive).to.be.false;
+        expect(archivedEvent.deactivatedAt).to.not.be.null;
+        expect(Boolean(archivedEvent.deactivatedAt && !archivedEvent.isActive)).to.be.true;
+
+        expect(application.status).to.eq('APPROVED');
+
+        // Drain the async approval email fired by approveApplication before afterEach resets the shared spy
+        await waitForCondition(() => sendEmailSpy.callCount === 1);
+      });
+
       it('sends a special template for OSC', async () => {
         const collectiveAdmin = await fakeUser();
         const collective = await fakeCollective({
@@ -455,6 +534,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
 
     it('allows application when invite members satisfy host minimum admin policy', async () => {
       const host = await fakeHost({
+        settings: { apply: true },
         data: {
           policies: {
             [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 3 },
@@ -502,7 +582,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
     });
 
     it('applies to host and invite other admins', async () => {
-      const host = await fakeHost();
+      const host = await fakeHost({ settings: { apply: true } });
       const adminUser = await fakeUser();
       const existingUserToInvite = await fakeUser();
       const collective = await fakeCollective({ HostCollectiveId: null, admin: adminUser });

@@ -136,7 +136,7 @@ describe('server/lib/transferwise', () => {
           data: { created_at: new Date(), expires_in: 10000 },
         });
 
-        nock('https://api.sandbox.transferwise.tech', { encodedQueryParams: true })
+        nock('https://api.wise-sandbox.com', { encodedQueryParams: true })
           .persist()
           .post('/oauth/token')
           .reply(200, { access_token: 'fresh-token', created_at: new Date(), expires_in: 10000 }); // eslint-disable-line camelcase

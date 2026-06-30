@@ -51,7 +51,7 @@ function slugify(value) {
  * @return {Object} with references for `user` and `userCollective`.
  * @deprecated Prefer the `fake-data` lib: use `fakeUser()`
  */
-export async function newUser(name, data = {}) {
+export async function newUser(name = undefined, data = {}) {
   name = name || uuid().split('-')[0];
   const slug = slugify(name);
   const email = randEmail(`${slug}@oc.com`);
@@ -113,6 +113,7 @@ export async function newHost(name, currency, hostFee, userData = {}, hostData =
     CreatedByUserId: hostAdmin.id,
     isActive: true,
     settings: { apply: true },
+    hasHosting: true,
     ...hostData,
   });
   await hostCollective.addUserWithRole(hostAdmin, 'ADMIN');

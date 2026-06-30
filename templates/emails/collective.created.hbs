@@ -10,11 +10,11 @@ Subject: Welcome to Open Collective!
 
 <p>
   {{#if hostPending}}
-  Your {{accountType}} is pending approval for Fiscal Hosting by (<a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>).
+  Your {{accountType}} is pending approval for Fiscal Hosting by (<a href="{{accountUrl host}}">{{host.name}}</a>).
   Your Host will hold money on behalf of your {{accountType}}.
   Once approved, your {{accountType}} will be able to receive money.
   {{else}}
-  Your {{accountType}} is hosted by <a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>, which will hold money on its behalf.
+  Your {{accountType}} is hosted by <a href="{{accountUrl host}}">{{host.name}}</a>, which will hold money on its behalf.
   {{/if}}
 </p>
 
@@ -34,7 +34,7 @@ In order to receive money, you need to specify where funds will be held. You sho
 
 <p>
   <center>
-    <a href="https://opencollective.com/{{collective.slug}}" class="btn blue"><div>Get Started!</div></a>
+    <a href="{{accountUrl collective}}" class="btn blue"><div>Get Started!</div></a>
   </center>
 </p>
 

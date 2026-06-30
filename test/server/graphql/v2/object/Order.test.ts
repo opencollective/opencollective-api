@@ -3,7 +3,15 @@ import gql from 'fake-tag';
 
 import OrderStatuses from '../../../../../server/constants/order-status';
 import roles from '../../../../../server/constants/roles';
-import { fakeActiveHost, fakeCollective, fakeMember, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
+import {
+  fakeActiveHost,
+  fakeCollective,
+  fakeIncognitoProfile,
+  fakeMember,
+  fakeOrder,
+  fakePrivateOrganization,
+  fakeUser,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const orderQuery = gql`
@@ -54,6 +62,115 @@ describe('server/graphql/v2/object/Order', () => {
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.order.needsConfirmation).to.be.false;
+    });
+  });
+
+  describe('createdByAccount', () => {
+    const createdByAccountQuery = gql`
+      query Order($legacyId: Int!) {
+        order(order: { legacyId: $legacyId }) {
+          id
+          createdByAccount {
+            id
+            slug
+          }
+        }
+      }
+    `;
+
+    it('returns the user profile for a regular (non-incognito) contribution', async () => {
+      const contributor = await fakeUser();
+      const order = await fakeOrder({
+        CreatedByUserId: contributor.id,
+        FromCollectiveId: contributor.collective.id,
+      });
+
+      const result = await graphqlQueryV2(createdByAccountQuery, { legacyId: order.id }, contributor);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.order.createdByAccount).to.exist;
+      expect(result.data.order.createdByAccount.slug).to.eq(contributor.collective.slug);
+    });
+
+    it('returns the profile to the order owner even when the contribution was made through an incognito profile', async () => {
+      const contributor = await fakeUser();
+      const incognitoProfile = await fakeIncognitoProfile(contributor);
+      const order = await fakeOrder({
+        CreatedByUserId: contributor.id,
+        FromCollectiveId: incognitoProfile.id,
+      });
+
+      const result = await graphqlQueryV2(createdByAccountQuery, { legacyId: order.id }, contributor);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.order.createdByAccount).to.exist;
+      expect(result.data.order.createdByAccount.slug).to.eq(contributor.collective.slug);
+    });
+
+    it('returns null to an unrelated user when the contribution was made through an incognito profile', async () => {
+      const contributor = await fakeUser();
+      const incognitoProfile = await fakeIncognitoProfile(contributor);
+      const order = await fakeOrder({
+        CreatedByUserId: contributor.id,
+        FromCollectiveId: incognitoProfile.id,
+      });
+
+      const unrelatedUser = await fakeUser();
+      const result = await graphqlQueryV2(createdByAccountQuery, { legacyId: order.id }, unrelatedUser);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.order.createdByAccount).to.be.null;
+    });
+
+    describe('incognito contributions accessed by fiscal host staff', () => {
+      let contributor, hostAdminUser, hostAccountantUser, unrelatedHostAdminUser;
+      let order;
+
+      before(async () => {
+        contributor = await fakeUser();
+        hostAdminUser = await fakeUser();
+        hostAccountantUser = await fakeUser();
+        unrelatedHostAdminUser = await fakeUser();
+
+        const host = await fakeActiveHost({ admin: hostAdminUser.collective });
+        await fakeActiveHost({ admin: unrelatedHostAdminUser.collective });
+        await fakeMember({
+          CollectiveId: host.id,
+          MemberCollectiveId: hostAccountantUser.collective.id,
+          role: roles.ACCOUNTANT,
+        });
+
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const incognitoProfile = await fakeIncognitoProfile(contributor);
+        order = await fakeOrder({
+          CreatedByUserId: contributor.id,
+          FromCollectiveId: incognitoProfile.id,
+          CollectiveId: collective.id,
+        });
+      });
+
+      it('fiscal host admin can see createdByAccount for an incognito contribution', async () => {
+        const result = await graphqlQueryV2(createdByAccountQuery, { legacyId: order.id }, hostAdminUser);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.order.createdByAccount).to.exist;
+        expect(result.data.order.createdByAccount.slug).to.eq(contributor.collective.slug);
+      });
+
+      it('fiscal host accountant can see createdByAccount for an incognito contribution', async () => {
+        const result = await graphqlQueryV2(createdByAccountQuery, { legacyId: order.id }, hostAccountantUser);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.order.createdByAccount).to.exist;
+        expect(result.data.order.createdByAccount.slug).to.eq(contributor.collective.slug);
+      });
+
+      it('admin of an unrelated host cannot see createdByAccount for an incognito contribution', async () => {
+        const result = await graphqlQueryV2(createdByAccountQuery, { legacyId: order.id }, unrelatedHostAdminUser);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.order.createdByAccount).to.be.null;
+      });
     });
   });
 
@@ -124,6 +241,26 @@ describe('server/graphql/v2/object/Order', () => {
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.order.fromAccount.legalName).to.be.null;
+    });
+
+    it('blocks unauthenticated access when fromAccount is private', async () => {
+      const publicHost = await fakeActiveHost();
+      const publicCollective = await fakeCollective({ HostCollectiveId: publicHost.id });
+      const privateFromAccount = await fakePrivateOrganization();
+      const contributor = await fakeUser();
+      const privateOrder = await fakeOrder({
+        CollectiveId: publicCollective.id,
+        FromCollectiveId: privateFromAccount.id,
+        CreatedByUserId: contributor.id,
+        status: OrderStatuses.PAID,
+      });
+
+      const result = await graphqlQueryV2(fromAccountQuery, { legacyId: privateOrder.id }, null);
+
+      expect(result.errors).to.exist;
+      expect(result.errors.some(error => error.message === 'This account is private. You must be a member to view it.'))
+        .to.be.true;
+      expect(result.data.order.fromAccount).to.be.null;
     });
   });
 });

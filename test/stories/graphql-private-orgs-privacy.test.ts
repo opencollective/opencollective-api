@@ -146,6 +146,8 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Mutation.editVendor': 'skipped',
   'Mutation.convertOrganizationToVendor': 'skipped',
   'Mutation.updateAccountPlatformSubscription': 'skipped',
+  'Mutation.createConversation': 'skipped',
+  'Mutation.editConversation': 'skipped',
 
   // ---- Query.loggedInAccount ----
   'Query.loggedInAccount': 'no-private', // Returns the authenticated user
@@ -180,8 +182,8 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   // ---- Contributor/Member nested fields ----
   'ContributorProfile.account': 'parent-gate',
   'ContributorProfile.forAccount': 'parent-gate',
-  'Member.account': 'parent-gate',
-  'MemberOf.account': 'parent-gate',
+  'Member.account': 'entry-gate',
+  'MemberOf.account': 'entry-gate',
 
   // ---- Organization nested fields ----
   'Organization.parentAccount': 'parent-gate',
@@ -193,6 +195,7 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Vendor.parentAccount': 'parent-gate',
   'Vendor.duplicatedFromAccount': 'parent-gate',
   'Vendor.createdByAccount': 'parent-gate',
+  'Vendor.canBeUsedWithAccounts': 'admin-only',
   'Vendor.visibleToAccounts': 'admin-only',
   'Vendor.mainProfile': 'parent-gate',
 
@@ -285,7 +288,7 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'MemberInvitation.memberAccount': 'admin-only',
 
   // ---- Order ----
-  'Order.fromAccount': 'parent-gate',
+  'Order.fromAccount': 'entry-gate',
   'Order.toAccount': 'parent-gate',
   'Order.createdByAccount': 'parent-gate',
 
@@ -301,7 +304,7 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Expense.approvedBy': 'admin-only',
   'Expense.paidBy': 'admin-only',
   'Expense.account': 'parent-gate',
-  'Expense.payee': 'parent-gate',
+  'Expense.payee': 'entry-gate',
   'Expense.createdByAccount': 'parent-gate',
   'Expense.host': 'parent-gate',
   'Expense.requestedByAccount': 'admin-only',
@@ -315,7 +318,7 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Host.mainProfile': 'parent-gate',
 
   // ---- Contributor ----
-  'Contributor.account': 'parent-gate',
+  'Contributor.account': 'entry-gate',
 
   // ---- AccountCollection ----
   'AccountCollection.nodes': 'parent-gate',
@@ -324,8 +327,8 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'LegalDocument.account': 'admin-only',
 
   // ---- Conversation ----
-  'Conversation.account': 'parent-gate',
-  'Conversation.fromAccount': 'parent-gate',
+  'Conversation.account': 'entry-gate',
+  'Conversation.fromAccount': 'entry-gate',
 
   // ---- Comment ----
   'Comment.fromAccount': 'parent-gate',
@@ -347,6 +350,14 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Account.parentAccount': 'parent-gate',
   'Account.duplicatedFromAccount': 'parent-gate',
   'Account.mainProfile': 'parent-gate',
+
+  // ---- Host Metrics ----
+  'HostedCollectivesFinancialActivityMetricsGroup.account': 'parent-gate',
+  'HostedCollectivesFinancialActivityMetricsGroup.parent': 'parent-gate',
+  'HostedCollectivesFinancialActivityMetricsGroup.mainAccount': 'parent-gate',
+  'HostedCollectivesMembershipMetricsGroup.account': 'parent-gate',
+  'HostedCollectivesHostingMetricsGroup.account': 'parent-gate',
+  'HostedCollectivesHostingMetricsGroup.parent': 'parent-gate',
 };
 
 // ---------------------------------------------------------------------------

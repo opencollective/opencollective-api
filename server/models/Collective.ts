@@ -2,7 +2,6 @@ import assert from 'assert';
 
 import config from 'config';
 import debugLib from 'debug';
-import deepmerge from 'deepmerge';
 import * as ics from 'ics';
 import slugify from 'limax';
 import {
@@ -13,6 +12,7 @@ import {
   differenceWith,
   get,
   includes,
+  isEmpty,
   isNil,
   isNull,
   isUndefined,
@@ -28,7 +28,6 @@ import {
   unset,
 } from 'lodash';
 import moment from 'moment';
-import fetch from 'node-fetch';
 import pMap from 'p-map';
 import {
   Attributes,
@@ -58,7 +57,7 @@ import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans, { HostPlan, PlatformSubscriptionTiers } from '../constants/plans';
 import PlatformConstants from '../constants/platform';
-import POLICIES, { DEFAULT_POLICIES, Policies } from '../constants/policies';
+import POLICIES, { DEFAULT_POLICIES, Policies, UseVendorPolicyValue } from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import {
   getBalanceAmount,
@@ -86,16 +85,10 @@ import { getFxRate, roundCentsAmount } from '../lib/currency';
 import emailLib from '../lib/email';
 import { formatAddress } from '../lib/format-address';
 import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../lib/github';
-import {
-  getHostFees,
-  getHostFeeShare,
-  getPendingHostFeeShare,
-  getPendingPlatformTips,
-  getPlatformTips,
-} from '../lib/host-metrics';
 import { isValidUploadedImage } from '../lib/images';
 import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
+import { normalizeZoneCode } from '../lib/normalize-zone';
 import { openSearchFullAccountReIndex } from '../lib/open-search/sync-postgres';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { getPolicy, POLICIES_EDITABLE_BY_HOST_ONLY } from '../lib/policies';
@@ -156,6 +149,7 @@ type TaxSettings = {
 type Settings = {
   goals?: Array<Goal>;
   collectivePage?: {
+    sections?: Array<{ section?: string; isEnabled?: boolean }>;
     showGoals?: boolean;
   };
   budget?: { version?: 'v0' | 'v1' | 'v2' | 'v3' };
@@ -186,6 +180,7 @@ type Settings = {
   };
   payoutsTwoFactorAuth?: {
     enabled?: boolean;
+    rollingLimit?: number;
   };
   customEmailMessage?: string;
   earlyAccess?: Record<string, boolean>;
@@ -198,6 +193,8 @@ type Settings = {
   disabledTierTypes?: string[];
   /** Set when the account was automatically migrated to the new platform subscription pricing. */
   automaticBillingMigration?: Date | string;
+  /** When true, publicly show "Administrative contribution" instead of "Host fee". */
+  useAlternativeHostFeeNaming?: boolean;
 } & TaxSettings;
 
 type Data = Partial<{
@@ -228,7 +225,8 @@ type Data = Partial<{
     taxId: string;
     notes: string;
   }>;
-  visibleToAccountIds: number[];
+  canBeUsedWithAccountIds?: number[];
+  useVendorPolicy?: UseVendorPolicyValue;
   requiresProfileCompletion: boolean;
 }> &
   Record<string, unknown>;
@@ -296,7 +294,6 @@ class Collective extends ModelWithPublicId<
         | 'invoice'
         | 'minimal'
         | 'activity'
-        | 'searchIndex'
         | 'getChildren'
         | 'getEvents'
         | 'getProjects';
@@ -519,6 +516,7 @@ class Collective extends ModelWithPublicId<
       platformFeePercent: this.platformFeePercent,
       tags: this.tags,
       HostCollectiveId: this.HostCollectiveId,
+      isPrivate: this.isPrivate,
     };
   }
 
@@ -535,6 +533,7 @@ class Collective extends ModelWithPublicId<
       settings: this.settings,
       currency: this.currency,
       hasHosting: this.hasHosting,
+      isPrivate: this.isPrivate,
     };
   }
 
@@ -568,6 +567,7 @@ class Collective extends ModelWithPublicId<
       repositoryUrl: this.repositoryUrl,
       publicUrl: this.publicUrl,
       hasHosting: this.hasHosting,
+      isPrivate: this.isPrivate,
     };
   }
 
@@ -589,22 +589,7 @@ class Collective extends ModelWithPublicId<
       description: this.description,
       previewImage: this.previewImage,
       hasHosting: this.hasHosting,
-    };
-  }
-
-  get searchIndex() {
-    // TODO: Not used?
-    return {
-      id: this.id,
-      name: this.name,
-      description: this.description,
-      currency: this.currency,
-      slug: this.slug,
-      type: this.type,
-      tags: this.tags,
-      balance: (this as any).balance, // useful in ranking
-      yearlyBudget: (this as any).yearlyBudget,
-      backersCount: (this as any).backersCount,
+      isPrivate: this.isPrivate,
     };
   }
 
@@ -1031,7 +1016,7 @@ class Collective extends ModelWithPublicId<
 
       if (hasNewPricing) {
         const defaultPlan = PlatformSubscriptionTiers[0]; // Discover plan
-        await PlatformSubscription.createSubscription(this, new Date(), defaultPlan, remoteUser, {
+        await PlatformSubscription.replaceCurrentSubscription(this, new Date(), defaultPlan, remoteUser, {
           notify: !silent,
           transaction,
         });
@@ -1482,8 +1467,8 @@ class Collective extends ModelWithPublicId<
   /**
    * Returns true if Collective is a host account open to applications.
    */
-  canApply = async function () {
-    return Boolean(this.hasMoneyManagement && this.settings?.apply);
+  canApply = function () {
+    return Boolean(this.hasHosting && !this.isPrivate && this.settings?.apply);
   };
 
   /**
@@ -1857,26 +1842,42 @@ class Collective extends ModelWithPublicId<
     });
   };
 
-  getIncomingOrders = function (options) {
-    const query = deepmerge(
-      {
-        where: { CollectiveId: this.id },
-      },
-      options,
-      { clone: false },
-    );
-    return Order.findAll(query);
+  getIncomingOrders = function ({
+    where = undefined,
+    order = [
+      ['createdAt', 'DESC'],
+      ['id', 'DESC'],
+    ],
+    include = [],
+  }: {
+    where?: Omit<Parameters<typeof Order.findAll>[0]['where'], 'CollectiveId'>;
+    order?: Parameters<typeof Order.findAll>[0]['order'];
+    include?: Parameters<typeof Order.findAll>[0]['include'];
+  } = {}) {
+    return Order.findAll({
+      where: { ...where, CollectiveId: this.id },
+      order,
+      include,
+    });
   };
 
-  getOutgoingOrders = function (options) {
-    const query = deepmerge(
-      {
-        where: { FromCollectiveId: this.id },
-      },
-      options,
-      { clone: false },
-    );
-    return Order.findAll(query);
+  getOutgoingOrders = function ({
+    where = undefined,
+    include = undefined,
+    order = [
+      ['createdAt', 'DESC'],
+      ['id', 'DESC'],
+    ],
+  }: {
+    where?: Omit<Parameters<typeof Order.findAll>[0]['where'], 'FromCollectiveId'>;
+    include?: Parameters<typeof Order.findAll>[0]['include'];
+    order?: Parameters<typeof Order.findAll>[0]['order'];
+  } = {}) {
+    return Order.findAll({
+      where: { ...where, FromCollectiveId: this.id },
+      order,
+      include,
+    });
   };
 
   getRoleForMemberCollective = function (MemberCollectiveId) {
@@ -2231,9 +2232,12 @@ class Collective extends ModelWithPublicId<
       let { structured } = locationInput;
       let { address } = locationInput;
 
-      structured = omitBy(structured, v => v === null || v === undefined || v === '');
+      if (structured?.zone && country) {
+        structured = { ...structured, zone: normalizeZoneCode(country, structured.zone) };
+      }
 
       // If structured is empty, set it to null
+      structured = omitBy(structured, isEmpty);
       if (Object.keys(structured).length === 0) {
         structured = null;
       }
@@ -2479,7 +2483,7 @@ class Collective extends ModelWithPublicId<
    * @param {*} creatorUser { id } (optional, falls back to hostCollective.CreatedByUserId)
    * @param {object} [options] (optional, to peform specific actions)
    */
-  addHost = async function (hostCollective, creatorUser, options = undefined) {
+  addHost = async function (hostCollective: Collective, creatorUser: User, options = undefined) {
     if (this.HostCollectiveId) {
       throw new Error(`This collective already has a host (HostCollectiveId: ${this.HostCollectiveId})`);
     } else if (this.hasMoneyManagement) {
@@ -2514,7 +2518,12 @@ class Collective extends ModelWithPublicId<
     }
 
     // If we can't automatically approve the collective and it is not open to new applications, reject it
-    if (!shouldAutomaticallyApprove && !hostCollective.canApply()) {
+    if (
+      !shouldAutomaticallyApprove &&
+      !hostCollective.canApply() &&
+      // Exception to the canApply rule: hosting is enabled, and remote user is an admin of the host
+      !(hostCollective.hasHosting && creatorUser.isAdmin(hostCollective.id))
+    ) {
       throw new Error('This host is not open to applications');
     }
 
@@ -2523,8 +2532,13 @@ class Collective extends ModelWithPublicId<
       hostFeePercent: hostCollective.hostFeePercent,
       platformFeePercent: hostCollective.platformFeePercent,
       currency: undefined,
+      isPrivate: this.isPrivate,
       ...(shouldAutomaticallyApprove ? { isActive: true, approvedAt: new Date() } : null),
     };
+
+    if (this.ParentCollectiveId && !isNull(this.deactivatedAt)) {
+      updatedValues.isActive = false;
+    }
 
     // events should take the currency of their parent collective, not necessarily the one from their host.
     if ([CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(this.type)) {
@@ -2688,9 +2702,9 @@ class Collective extends ModelWithPublicId<
    * @param {*} newHostCollective: { id }
    * @param {*} remoteUser { id }
    */
-  changeHost = async function (
-    newHostCollectiveId,
-    remoteUser = undefined,
+  changeHost = async (
+    newHostCollectiveId: number | null,
+    remoteUser: User | null = null,
     {
       pauseContributions = true,
       isChildren = false,
@@ -2708,12 +2722,13 @@ class Collective extends ModelWithPublicId<
       message?: string;
       shouldAutomaticallyApprove?: boolean;
     } = {},
-  ) {
-    // Skip
+  ) => {
+    // Skip if the host is the same
     if (this.HostCollectiveId === newHostCollectiveId) {
       return this;
     }
 
+    // Pre-conditions checks
     const balance = await this.getBalance();
     if (balance > 0) {
       if (isChildren) {
@@ -2727,6 +2742,15 @@ class Collective extends ModelWithPublicId<
       }
     }
 
+    const blockingExpensesCount = await Expense.count({
+      where: { CollectiveId: this.id, status: expenseStatus.PROCESSING },
+    });
+
+    if (blockingExpensesCount > 0) {
+      throw new Error(`Unable to change host: there are still ${blockingExpensesCount} expenses in a processing state`);
+    }
+
+    // Proceed with host removal
     await Member.destroy({
       where: {
         CollectiveId: this.id,
@@ -2792,9 +2816,22 @@ class Collective extends ModelWithPublicId<
       },
     );
 
+    // Clear stale host references from unpaid expenses so payment authorization uses the current host
+    await Expense.update(
+      { HostCollectiveId: null },
+      {
+        where: {
+          CollectiveId: [this.id, ...children.map(c => c.id)],
+          status: { [Op.not]: 'PAID' },
+          HostCollectiveId: { [Op.not]: null },
+        },
+      },
+    );
+
     // If frozen, unfreeze
     if (this.isFrozen()) {
-      await this.unfreeze();
+      const message = 'Leaving current Fiscal Host';
+      await this.unfreeze(message, message, remoteUser);
     }
 
     // Reset current host
@@ -3204,6 +3241,7 @@ class Collective extends ModelWithPublicId<
     order = [['createdAt', 'DESC']],
     includeUsedGiftCardsEmittedByOthers = true,
     includeExpenseTransactions = true,
+    excludePrivateAccounts = false,
   }: any = {}) {
     // Base query
     const query: any = { where: this.transactionsWhereQuery(includeUsedGiftCardsEmittedByOthers) };
@@ -3253,6 +3291,21 @@ class Collective extends ModelWithPublicId<
     // OrderBy
     if (order) {
       query.order = order;
+    }
+
+    if (excludePrivateAccounts) {
+      query.include = query.include || [];
+      query.include.push({ association: 'collective', attributes: [] });
+      query.include.push({ association: 'fromCollective', attributes: [] });
+      query.include.push({ association: 'host', attributes: [] });
+      query.where[Op.and] = query.where[Op.and] || [];
+      query.where[Op.and].push({
+        [Op.and]: [
+          { [Op.or]: [{ '$collective.isPrivate$': false }, { '$collective.isPrivate$': null }] },
+          { [Op.or]: [{ '$fromCollective.isPrivate$': false }, { '$fromCollective.isPrivate$': null }] },
+          { [Op.or]: [{ '$host.isPrivate$': false }, { '$host.isPrivate$': null }] },
+        ],
+      });
     }
 
     return Transaction.findAll(query);
@@ -3337,24 +3390,30 @@ class Collective extends ModelWithPublicId<
   getHostCollective = async function ({
     loaders = null,
     returnEvenIfNotApproved = false,
+    transaction = undefined,
   } = {}): Promise<null | Collective> {
     if (!this.isActive && !returnEvenIfNotApproved) {
       return null;
     }
 
     if (this.HostCollectiveId) {
-      return loaders ? loaders.Collective.byId.load(this.HostCollectiveId) : Collective.findByPk(this.HostCollectiveId);
+      if (!transaction && loaders) {
+        return loaders.Collective.byId.load(this.HostCollectiveId);
+      } else {
+        return Collective.findByPk(this.HostCollectiveId, { transaction });
+      }
     }
 
     return Member.findOne({
       attributes: ['MemberCollectiveId'],
       where: { role: roles.HOST, CollectiveId: this.ParentCollectiveId },
       include: [{ model: Collective, as: 'memberCollective' }],
+      transaction,
     }).then(m => {
       if (m && m.memberCollective) {
         return m.memberCollective;
       }
-      return this.isHost().then(isHost => (isHost ? this : null));
+      return this.isHost({ transaction }).then(isHost => (isHost ? this : null));
     });
   };
 
@@ -3435,7 +3494,7 @@ class Collective extends ModelWithPublicId<
     }
 
     // If the account is connected to another account, we follow the chain
-    if (connectedAccount?.data?.MirrorConnectedAccountId) {
+    if (connectedAccount?.service === Service.TRANSFERWISE && connectedAccount?.data?.MirrorConnectedAccountId) {
       connectedAccount = await ConnectedAccount.findOne({
         where: { id: connectedAccount.data.MirrorConnectedAccountId },
       });
@@ -3653,59 +3712,70 @@ class Collective extends ModelWithPublicId<
     return plan;
   };
 
+  hasPlatformTips = async function ({ loaders = null } = {}): Promise<boolean> {
+    if (!isNil(this.data?.platformTips)) {
+      return Boolean(this.data.platformTips);
+    }
+    if (this.ParentCollectiveId) {
+      const parent = loaders
+        ? await loaders.Collective.byId.load(this.ParentCollectiveId)
+        : await this.getParentCollective();
+      if (parent && !isNil(parent.data?.platformTips)) {
+        return Boolean(parent.data.platformTips);
+      }
+    }
+    if (PlatformConstants.CurrentPlatformCollectiveIds.includes(this.id)) {
+      return false;
+    }
+
+    const host = loaders ? await loaders.Collective.host.load(this) : await this.getHostCollective();
+    if (!host) {
+      return false;
+    }
+    if (PlatformConstants.CurrentPlatformCollectiveIds.includes(host.id)) {
+      return false;
+    }
+
+    if (loaders) {
+      const hasPlatformTips = await loaders.PlatformSubscription.hasPlatformTips.load(host.id);
+      if (typeof hasPlatformTips === 'boolean') {
+        return hasPlatformTips;
+      }
+    } else {
+      const subscription = await PlatformSubscription.getCurrentSubscription(host.id);
+      if (subscription) {
+        return Boolean(subscription.plan.pricing.platformTips);
+      }
+    }
+
+    return Boolean(host.getLegacyPlan()?.platformTips);
+  };
+
   /**
-   * Returns financial metrics from the Host collective.
-   * @param {Date} from The start date from which the metrics should be calculated.
-   * @param {Date} to The end date upto which the metrics should be calculated.
-   * @param {[Integer]} [collectiveIds] Optional, a list of collective ids for which the metrics are returned.
+   * Returns zeroed-out financial metrics from the Host collective.
+   *
+   * This method backs the deprecated `Host.hostMetrics` GraphQL field. As of 2026-05-15 no
+   * frontend consumer queries any HostMetrics field, so all values are stubbed to 0 and the
+   * underlying SQL helpers (getHostFees, getHostFeeShare, getPlatformTips) have been removed.
+   * If you need any of these numbers, derive them inline from transactions or settlement state
+   * rather than reintroducing the old metrics helpers.
    */
-  getHostMetrics = async function (from, to, collectiveIds) {
+  getHostMetrics = async function () {
     if (!this.hasMoneyManagement || !this.isActive || this.type !== CollectiveType.ORGANIZATION) {
       return null;
     }
-    from = from ? moment(from) : null;
-    to = to ? moment(to) : null;
-
-    const plan = await this.getLegacyPlan();
-    const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
-
-    const hostFees = await getHostFees(this, { startDate: from, endDate: to, fromCollectiveIds: collectiveIds });
-
-    const hostFeeShare = await getHostFeeShare(this, {
-      startDate: from,
-      endDate: to,
-      collectiveIds,
-    });
-    const pendingHostFeeShare = await getPendingHostFeeShare(this, {
-      startDate: from,
-      endDate: to,
-      collectiveIds,
-    });
-    const settledHostFeeShare = hostFeeShare - pendingHostFeeShare;
-
-    const totalMoneyManaged = await this.getTotalMoneyManaged({ endDate: to, collectiveIds });
-
-    const platformTips = await getPlatformTips(this, { startDate: from, endDate: to, collectiveIds });
-    const pendingPlatformTips = await getPendingPlatformTips(this, { startDate: from, endDate: to, collectiveIds });
-
-    // We don't support platform fees anymore
-    const platformFees = 0;
-    const pendingPlatformFees = 0;
-
-    const metrics = {
-      hostFees,
-      platformFees,
-      pendingPlatformFees,
-      platformTips,
-      pendingPlatformTips,
-      hostFeeShare,
-      pendingHostFeeShare,
-      settledHostFeeShare,
-      hostFeeSharePercent,
-      totalMoneyManaged,
+    return {
+      hostFees: 0,
+      platformFees: 0,
+      pendingPlatformFees: 0,
+      platformTips: 0,
+      pendingPlatformTips: 0,
+      hostFeeShare: 0,
+      pendingHostFeeShare: 0,
+      settledHostFeeShare: 0,
+      hostFeeSharePercent: 0,
+      totalMoneyManaged: 0,
     };
-
-    return metrics;
   };
 
   setPolicies = async function (policies: Policies) {

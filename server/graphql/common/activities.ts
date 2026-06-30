@@ -3,8 +3,21 @@ import { pick } from 'lodash';
 
 import ActivityTypes from '../../constants/activities';
 import { Activity } from '../../models';
+import { CommentType } from '../../models/Comment';
 
 import * as ExpenseLib from './expenses';
+
+const canSeeExpenseCommentActivity = async (req: Express.Request, activity, expense): Promise<boolean> => {
+  const commentType = activity.data?.comment?.type;
+  if (commentType === CommentType.PRIVATE_NOTE) {
+    return (
+      (await ExpenseLib.canUsePrivateNotes(req, expense)) &&
+      (!activity.HostCollectiveId || Boolean(req.remoteUser?.isAdmin(activity.HostCollectiveId)))
+    );
+  }
+
+  return ExpenseLib.canComment(req, expense);
+};
 
 export const sanitizeActivityData = async (req: Express.Request, activity): Promise<Partial<Activity['data']>> => {
   const toPick = [];
@@ -27,7 +40,7 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
     if (activity.ExpenseId) {
       const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
       if (expense && (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense))) {
-        toPick.push('message', 'reference', 'estimatedDelivery');
+        toPick.push('message', 'reference', 'estimatedDelivery', 'payoutResponse.payout_batch_id');
       }
     }
   } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_MOVED) {
@@ -58,8 +71,8 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
     }
   } else if (activity.type === ActivityTypes.EXPENSE_COMMENT_CREATED && activity.ExpenseId) {
     const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
-    if (expense && (await ExpenseLib.canComment(req, expense))) {
-      toPick.push('comment');
+    if (expense && (await canSeeExpenseCommentActivity(req, activity, expense))) {
+      toPick.push('comment.id', 'comment.html', 'comment.type', 'comment.publicId');
     }
   } else if (activity.type === ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED && !activity.data.update.isPrivate) {
     toPick.push('update.title', 'update.html');

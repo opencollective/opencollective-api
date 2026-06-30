@@ -1,6 +1,5 @@
 import config from 'config';
 import { get } from 'lodash';
-import fetch from 'node-fetch';
 
 const GITBOOK_API_URL = get(config, 'gitbook.apiUrl');
 const GITBOOK_API_KEY = get(config, 'gitbook.apiKey');

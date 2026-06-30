@@ -10,6 +10,9 @@ import { createSandbox } from 'sinon';
 import { activities, expenseStatus, expenseTypes } from '../../../../../server/constants';
 import ExpenseTypes from '../../../../../server/constants/expense-type';
 import FEATURE from '../../../../../server/constants/feature';
+import PaymentIntentStatus from '../../../../../server/constants/payment-intent-status';
+import PaymentIntentType from '../../../../../server/constants/payment-intent-type';
+import { UseVendorPolicyValue } from '../../../../../server/constants/policies';
 import {
   US_TAX_FORM_THRESHOLD_POST_2026,
   US_TAX_FORM_THRESHOLD_PRE_2026,
@@ -18,11 +21,12 @@ import { TransactionKind } from '../../../../../server/constants/transaction-kin
 import VirtualCardProviders from '../../../../../server/constants/virtual-card-providers';
 import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
-import { getFxRate } from '../../../../../server/lib/currency';
 import * as LibCurrency from '../../../../../server/lib/currency';
+import { getFxRate } from '../../../../../server/lib/currency';
 import emailLib from '../../../../../server/lib/email';
 import * as kycExpensesCheck from '../../../../../server/lib/kyc/expenses/kyc-expenses-check';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
+import stripe from '../../../../../server/lib/stripe';
 import {
   TwoFactorAuthenticationHeader,
   TwoFactorMethod,
@@ -50,6 +54,7 @@ import {
   fakeOrganization,
   fakePayoutMethod,
   fakePlatformSubscription,
+  fakeProject,
   fakeRecurringExpense,
   fakeTransaction,
   fakeTransactionsImport,
@@ -63,9 +68,15 @@ import {
 } from '../../../../test-helpers/fake-data';
 import { fakeGraphQLAmountInput } from '../../../../test-helpers/fake-graphql-data';
 import {
+  expectPaymentIntentForExpense,
+  expectPaymentIntentSoftDeletedForExpense,
+  expectTransactionsLinkedToPaymentIntent,
+} from '../../../../test-helpers/payment-intent';
+import {
   graphqlQueryV2,
   makeRequest,
   preloadAssociationsForTransactions,
+  resetCaches,
   resetTestDB,
   seedDefaultVendors,
   snapshotTransactions,
@@ -538,6 +549,13 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(createdExpense.customData.myCustomField).to.eq('myCustomValue');
       expect(createdExpense.accountingCategory.id).to.eq(encodedAccountingCategoryId);
       expect(createdExpense.valuesByRole.submitter.accountingCategory.id).to.eq(encodedAccountingCategoryId);
+
+      await expectPaymentIntentForExpense(createdExpense.legacyId, {
+        status: PaymentIntentStatus.PENDING,
+        type: PaymentIntentType.PaymentRequest,
+        primaryTransactionGroup: null,
+        paidAt: null,
+      });
 
       // Should have updated collective's location
       await payee.reload({ include: [{ association: 'location' }] });
@@ -1653,6 +1671,56 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
     });
 
+    describe('clears stored Stripe paymentIntent when payment-relevant fields change', () => {
+      it('drops data.paymentIntent when items (and therefore amount) change', async () => {
+        const expense = await fakeExpense({
+          status: 'APPROVED',
+          data: { paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' } },
+        });
+        const newExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          items: { url: randUrl(), amount: 5000, description: randStr() },
+        };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('PENDING');
+
+        await expense.reload();
+        expect(expense.data?.paymentIntent).to.be.undefined;
+      });
+
+      it('drops data.paymentIntent when payout method changes', async () => {
+        const expense = await fakeExpense({
+          status: 'APPROVED',
+          legacyPayoutMethod: 'other',
+          data: { paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' } },
+        });
+        const newPayoutMethod = await fakePayoutMethod({ CollectiveId: expense.User.CollectiveId });
+        const newExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          payoutMethod: { id: idEncode(newPayoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD) },
+        };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('PENDING');
+
+        await expense.reload();
+        expect(expense.data?.paymentIntent).to.be.undefined;
+      });
+
+      it('keeps data.paymentIntent when only the description changes', async () => {
+        const paymentIntent = { id: 'pi_old', amount: 1000, currency: 'usd' };
+        const expense = await fakeExpense({ status: 'APPROVED', data: { paymentIntent } });
+        const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('APPROVED');
+
+        await expense.reload();
+        expect(expense.data?.paymentIntent).to.deep.equal(paymentIntent);
+      });
+    });
+
     describe('INCOMPLETE side effects', () => {
       it('goes back to APPROVED if only Payout changes', async () => {
         const expense2 = await fakeExpense({ status: 'INCOMPLETE', legacyPayoutMethod: 'other' });
@@ -2166,7 +2234,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       it('collective admins can edit an expense to set a vendor if the policy explicitly allows it', async () => {
         const collectiveAdminUser = await fakeUser();
-        const host = await fakeHost({ data: { policies: { EXPENSE_PUBLIC_VENDORS: true } } });
+        const host = await fakeHost({ data: { policies: { USE_VENDOR_POLICY: 'ALL_SUBMITTERS' } } });
         const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
         const vendor = await fakeVendor({ ParentCollectiveId: host.id });
         const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
@@ -2182,12 +2250,152 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.editExpense.payee.legacyId).to.equal(vendor.id);
       });
 
-      it('collective admins cannot edit an expense to set a vendor if the policy does not explicitly allow it', async () => {
+      it('collective admins cannot edit an expense to set a vendor under USE_VENDOR_POLICY=HOST_ADMINS', async () => {
         const collectiveAdminUser = await fakeUser();
-        const host = await fakeHost();
+        const host = await fakeHost({ data: { policies: { USE_VENDOR_POLICY: 'HOST_ADMINS' } } });
         const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
         const vendor = await fakeVendor({ ParentCollectiveId: host.id });
         const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          collectiveAdminUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+      });
+
+      it('host policy USE_VENDOR_POLICY=ALL_SUBMITTERS lets random users set a vendor', async () => {
+        const randomUser = await fakeUser();
+        const host = await fakeHost({ data: { policies: { USE_VENDOR_POLICY: 'ALL_SUBMITTERS' } } });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({ ParentCollectiveId: host.id });
+        const expense = await fakeExpense({
+          status: 'PENDING',
+          CollectiveId: collective.id,
+          UserId: randomUser.id,
+          FromCollectiveId: randomUser.CollectiveId,
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          randomUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.equal(vendor.id);
+      });
+
+      it('host policy USE_VENDOR_POLICY=HOST_ADMINS blocks collective admins even on scoped vendors', async () => {
+        const collectiveAdminUser = await fakeUser();
+        const host = await fakeHost({ data: { policies: { USE_VENDOR_POLICY: 'HOST_ADMINS' } } });
+        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { canBeUsedWithAccountIds: [collective.id] },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          collectiveAdminUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+      });
+
+      it('per-vendor useVendorPolicy=ALL_SUBMITTERS overrides a stricter host policy', async () => {
+        const randomUser = await fakeUser();
+        const host = await fakeHost({ data: { policies: { USE_VENDOR_POLICY: 'HOST_ADMINS' } } });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { useVendorPolicy: 'ALL_SUBMITTERS' },
+        });
+        const expense = await fakeExpense({
+          status: 'PENDING',
+          CollectiveId: collective.id,
+          UserId: randomUser.id,
+          FromCollectiveId: randomUser.CollectiveId,
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          randomUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.eq(vendor.id);
+      });
+
+      it('per-vendor useVendorPolicy=HOST_ADMINS overrides a permissive host policy', async () => {
+        const collectiveAdminUser = await fakeUser();
+        const host = await fakeHost({ data: { policies: { USE_VENDOR_POLICY: 'ALL_SUBMITTERS' } } });
+        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: {
+            useVendorPolicy: 'HOST_ADMINS',
+            canBeUsedWithAccountIds: [collective.id],
+          },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          collectiveAdminUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+      });
+
+      it('collective admin can use a vendor scoped to the parent collective on a child project', async () => {
+        const collectiveAdminUser = await fakeUser();
+        const host = await fakeHost({
+          data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS } },
+        });
+        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
+        const project = await fakeProject({ HostCollectiveId: host.id, ParentCollectiveId: collective.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { canBeUsedWithAccountIds: [collective.id] },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: project.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          collectiveAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.equal(vendor.id);
+      });
+
+      it('collective admin cannot use a vendor scoped to a different collective on a child project', async () => {
+        const collectiveAdminUser = await fakeUser();
+        const host = await fakeHost({
+          data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS } },
+        });
+        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
+        const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const project = await fakeProject({ HostCollectiveId: host.id, ParentCollectiveId: collective.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { canBeUsedWithAccountIds: [otherCollective.id] },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: project.id });
 
         const result = await graphqlQueryV2(
           editExpenseMutation,
@@ -2220,6 +2428,77 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+      });
+
+      it('ALL_SUBMITTERS host: random user cannot set a vendor scoped to a different collective', async () => {
+        const randomUser = await fakeUser();
+        const host = await fakeHost({
+          data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.ALL_SUBMITTERS } },
+        });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { canBeUsedWithAccountIds: [otherCollective.id] },
+        });
+        const expense = await fakeExpense({
+          status: 'PENDING',
+          CollectiveId: collective.id,
+          UserId: randomUser.id,
+          FromCollectiveId: randomUser.CollectiveId,
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          randomUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+      });
+
+      it('host admin can set a vendor scoped to a different collective', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeHost({ admin: hostAdmin });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { canBeUsedWithAccountIds: [otherCollective.id] },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.eq(vendor.id);
+      });
+
+      it('host admin can set a host-only vendor as payee on a hosted collective expense', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeHost({ admin: hostAdmin });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { canBeUsedWithAccountIds: [host.id] },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.eq(vendor.id);
       });
     });
 
@@ -3671,6 +3950,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.deleteExpense.legacyId).to.eq(expense.id);
         await expense.reload({ paranoid: false });
         expect(expense.deletedAt).to.exist;
+        await expectPaymentIntentSoftDeletedForExpense(expense.id);
       });
 
       it('if collective admin', async () => {
@@ -4305,6 +4585,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'REJECT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.data.processExpense.status).to.eq('REJECTED');
+        await expectPaymentIntentForExpense(expense.id, { status: PaymentIntentStatus.ERROR });
       });
 
       it('Expense needs to be pending', async () => {
@@ -4451,6 +4732,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(await collective.getBalanceWithBlockedFunds()).to.equal(initialBalance);
         result.errors && console.error(result.errors);
         expect(result.data.processExpense.status).to.eq('PAID');
+
+        const paymentIntent = await expectPaymentIntentForExpense(expense.id, {
+          status: PaymentIntentStatus.PAID,
+          type: PaymentIntentType.PaymentRequest,
+        });
+        expect(paymentIntent.primaryTransactionGroup).to.exist;
+        expect(paymentIntent.paidAt).to.exist;
+        await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
 
         // Check paidAt is set
         await expense.reload();
@@ -5830,6 +6119,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     after(() => sandbox.restore());
 
     before(async () => {
+      await resetCaches();
       hostAdmin = await fakeUser();
       user = await fakeUser();
       collectiveAdmin = await fakeUser();
@@ -6286,5 +6576,320 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const draftedExpense = result.data.draftExpenseAndInviteUser;
       expect(draftedExpense.lockedFields).to.deep.equal(['AMOUNT', 'TYPE']);
     });
+
+    describe('draft invite item description sanitization', () => {
+      let grantCollective;
+
+      const phishingDescription = '</td></tr></table><br><a href="https://attacker.example.com/phish">Click here</a>';
+
+      before(async () => {
+        const host = await fakeActiveHost({
+          plan: 'start-plan-2021',
+          settings: {
+            expenseTypes: {
+              GRANT: true,
+              INVOICE: true,
+              RECEIPT: true,
+            },
+          },
+        });
+        grantCollective = await fakeCollective({ HostCollectiveId: host.id });
+      });
+
+      it('strips HTML from item descriptions for non-grant draft invites', async () => {
+        emailLib.sendMessage.resetHistory();
+        const payeeEmail = randEmail();
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: {
+              ...invoice,
+              payee: { name: 'John Doe', email: payeeEmail },
+              items: [{ ...invoice.items[0], description: phishingDescription }],
+            },
+            account: { legacyId: collective.id },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        const draftedExpense = await models.Expense.findByPk(result.data.draftExpenseAndInviteUser.legacyId);
+        expect(draftedExpense.data.items[0].description).to.not.include('<a href');
+        expect(draftedExpense.data.items[0].description).to.not.include('attacker.example.com');
+
+        await waitForCondition(() => emailLib.sendMessage.lastCall);
+        const body = emailLib.sendMessage.lastCall.args[2];
+        expect(body).to.not.include('href="https://attacker.example.com/phish"');
+      });
+
+      it('preserves allowed HTML for grant draft invites', async () => {
+        emailLib.sendMessage.resetHistory();
+        const payeeEmail = randEmail();
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: {
+              ...invoice,
+              type: 'GRANT',
+              payee: { name: 'John Doe', email: payeeEmail },
+              items: [{ ...invoice.items[0], description: '<strong>Scope</strong>' }],
+            },
+            account: { legacyId: grantCollective.id },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        const draftedExpense = await models.Expense.findByPk(result.data.draftExpenseAndInviteUser.legacyId);
+        expect(draftedExpense.data.items[0].description).to.include('<strong>Scope</strong>');
+
+        await waitForCondition(() => emailLib.sendMessage.lastCall);
+        const body = emailLib.sendMessage.lastCall.args[2];
+        expect(body).to.include('<strong>Scope</strong>');
+      });
+
+      it('strips disallowed HTML for grant draft invites', async () => {
+        emailLib.sendMessage.resetHistory();
+        const payeeEmail = randEmail();
+        const maliciousDescription = '<script>alert(1)</script></td></tr></table><strong>Scope</strong>';
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: {
+              ...invoice,
+              type: 'GRANT',
+              payee: { name: 'John Doe', email: payeeEmail },
+              items: [{ ...invoice.items[0], description: maliciousDescription }],
+            },
+            account: { legacyId: grantCollective.id },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        const draftedExpense = await models.Expense.findByPk(result.data.draftExpenseAndInviteUser.legacyId);
+        expect(draftedExpense.data.items[0].description).to.not.include('<script>');
+        expect(draftedExpense.data.items[0].description).to.not.match(/<\/td><\/tr><\/table>/);
+
+        await waitForCondition(() => emailLib.sendMessage.lastCall);
+        const body = emailLib.sendMessage.lastCall.args[2];
+        expect(body).to.not.include('<script>alert(1)</script>');
+        expect(body).to.include('<strong>Scope</strong>');
+      });
+    });
+
+    describe('disabled expense type policy', () => {
+      const getDraftInviteData = payeeEmail => ({
+        description: 'Disabled type policy test draft',
+        type: 'INVOICE',
+        payee: { name: 'Invited Payee', email: payeeEmail },
+        items: [{ amount: 4200, incurredAt: '2020-10-08', description: 'Item' }],
+        payeeLocation: { address: '123 Potatoes street', country: 'BE' },
+        currency: 'USD',
+      });
+
+      it('rejects draftExpenseAndInviteUser when disabled by the host', async () => {
+        const collectiveAdmin = await fakeUser();
+        const host = await fakeHost({ settings: { expenseTypes: { INVOICE: false } } });
+        const disabledCollective = await fakeCollective({
+          HostCollectiveId: host.id,
+          admin: collectiveAdmin.collective,
+        });
+
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: getDraftInviteData(randEmail()),
+            account: { legacyId: disabledCollective.id },
+            skipInvite: true,
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the host');
+      });
+
+      it('rejects draftExpenseAndInviteUser when disabled by the collective', async () => {
+        const collectiveAdmin = await fakeUser();
+        const disabledCollective = await fakeCollective({
+          admin: collectiveAdmin.collective,
+          settings: { expenseTypes: { INVOICE: false } },
+        });
+
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: getDraftInviteData(randEmail()),
+            account: { legacyId: disabledCollective.id },
+            skipInvite: true,
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the account');
+      });
+
+      it('rejects draftExpenseAndInviteUser when disabled by the parent', async () => {
+        const collectiveAdmin = await fakeUser();
+        const parent = await fakeCollective({ settings: { expenseTypes: { INVOICE: false } } });
+        const disabledCollective = await fakeCollective({
+          ParentCollectiveId: parent.id,
+          admin: collectiveAdmin.collective,
+        });
+
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: getDraftInviteData(randEmail()),
+            account: { legacyId: disabledCollective.id },
+            skipInvite: true,
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the parent');
+      });
+
+      it('rejects draft submission when the expense type is disabled', async () => {
+        const payeeEmail = randEmail();
+        const host = await fakeHost({ settings: { expenseTypes: { INVOICE: false } } });
+        const disabledCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+        const draftExpense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: 'INVOICE',
+          CollectiveId: disabledCollective.id,
+          data: {
+            draftKey: 'fake-key',
+            payee: { email: payeeEmail },
+            items: [{ amount: 4200, incurredAt: '2020-10-08T00:00:00.000Z', description: 'Item' }],
+          },
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: {
+              id: idEncode(draftExpense.id, IDENTIFIER_TYPES.EXPENSE),
+              description: 'Submitted draft',
+              payee: { name: 'Invited Payee', email: payeeEmail },
+              payoutMethod: { type: 'PAYPAL', data: { email: randEmail(), currency: 'USD' } },
+              items: [{ amount: 4200, incurredAt: '2020-10-08T00:00:00.000Z', description: 'Item' }],
+            },
+            draftKey: 'fake-key',
+          },
+          await fakeUser(),
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the host');
+        await draftExpense.reload();
+        expect(draftExpense.status).to.eq(expenseStatus.DRAFT);
+      });
+    });
+  });
+
+  describe('createExpenseStripePaymentIntent', () => {
+    let sandbox;
+
+    beforeEach(() => {
+      sandbox = createSandbox();
+    });
+
+    afterEach(() => sandbox.restore());
+
+    const createPaymentIntentMutation = gql`
+      mutation CreateExpenseStripePaymentIntent($expense: ExpenseReferenceInput!) {
+        createExpenseStripePaymentIntent(expense: $expense) {
+          id
+          paymentIntentClientSecret
+          stripeAccount
+          stripeAccountPublishableSecret
+        }
+      }
+    `;
+
+    const setupStripeExpense = async ({ paymentIntent } = {}) => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      await fakeConnectedAccount({
+        CollectiveId: host.id,
+        service: 'stripe',
+        username: 'acct_test',
+        token: 'sk_test_token',
+        data: { publishableKey: 'pk_test_123' },
+      });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const payee = await fakeCollective({ HostCollectiveId: host.id });
+      const expense = await fakeExpense({
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        CollectiveId: collective.id,
+        FromCollectiveId: payee.id,
+        data: paymentIntent ? { paymentIntent } : {},
+      });
+      return { hostAdmin, expense };
+    };
+
+    const expenseRef = expense => ({ id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE) });
+
+    it('returns the stored PaymentIntent when it is still processing', async () => {
+      const { hostAdmin, expense } = await setupStripeExpense({
+        paymentIntent: { id: 'pi_inflight', amount: 1000, currency: 'usd' },
+      });
+      sandbox.stub(stripe.paymentIntents, 'retrieve').resolves({
+        id: 'pi_inflight',
+        amount: 1000,
+        currency: 'usd',
+        status: 'processing',
+        // eslint-disable-next-line camelcase
+        client_secret: 'cs_inflight',
+      });
+      const createStub = sandbox.stub(stripe.paymentIntents, 'create');
+
+      const result = await graphqlQueryV2(createPaymentIntentMutation, { expense: expenseRef(expense) }, hostAdmin);
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.createExpenseStripePaymentIntent.id).to.equal('pi_inflight');
+      expect(result.data.createExpenseStripePaymentIntent.paymentIntentClientSecret).to.equal('cs_inflight');
+      expect(createStub.called).to.be.false;
+
+      await expense.reload();
+      expect(expense.data.paymentIntent.id).to.equal('pi_inflight'); // not overwritten
+    });
+
+    for (const status of ['canceled', 'succeeded']) {
+      it(`creates a new PaymentIntent when the stored one is ${status}`, async () => {
+        const { hostAdmin, expense } = await setupStripeExpense({
+          paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' },
+        });
+        sandbox
+          .stub(stripe.paymentIntents, 'retrieve')
+          .resolves({ id: 'pi_old', amount: 1000, currency: 'usd', status });
+        sandbox.stub(stripe.customers, 'create').resolves({ id: 'cus_test' });
+        const createStub = sandbox
+          .stub(stripe.paymentIntents, 'create')
+          // eslint-disable-next-line camelcase
+          .resolves({ id: 'pi_new', client_secret: 'cs_new', status: 'requires_payment_method' });
+
+        const result = await graphqlQueryV2(createPaymentIntentMutation, { expense: expenseRef(expense) }, hostAdmin);
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.createExpenseStripePaymentIntent.id).to.equal('pi_new');
+        expect(createStub.calledOnce).to.be.true;
+
+        await expense.reload();
+        expect(expense.data.paymentIntent.id).to.equal('pi_new'); // overwritten with the fresh PI
+      });
+    }
   });
 });

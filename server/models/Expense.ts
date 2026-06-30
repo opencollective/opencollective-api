@@ -23,6 +23,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import roles from '../constants/roles';
 import { reduceArrayToCurrency } from '../lib/currency';
 import logger from '../lib/logger';
+import { deletePaymentIntentForSource, syncPaymentIntentFromExpense } from '../lib/payment-intents/sync';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import SQLQueries from '../lib/queries';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
@@ -270,6 +271,8 @@ class Expense extends ModelWithPublicId<
           'reference',
           'estimatedDelivery',
           'previousData',
+          'payoutResponse',
+          'payoutItem',
         ]),
         host: get(host, 'minimal'),
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },
@@ -341,6 +344,7 @@ class Expense extends ModelWithPublicId<
     isManualPayout = false,
     skipActivity = false,
     paidAt = new Date() as Date,
+    activityData = {},
   } = {}) {
     const collective = this.collective || (await this.getCollective());
     const lastEditedById = user?.id || this.lastEditedById;
@@ -368,7 +372,7 @@ class Expense extends ModelWithPublicId<
 
     if (!skipActivity) {
       user = user ?? (await User.findByPk(lastEditedById));
-      await this.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_PAID, user, { isManualPayout });
+      await this.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_PAID, user, { ...activityData, isManualPayout });
     }
   };
 
@@ -1041,6 +1045,18 @@ Expense.init(
     paranoid: true,
     tableName: 'Expenses',
     hooks: {
+      async afterCreate(expense: Expense, options) {
+        await syncPaymentIntentFromExpense(expense, options.transaction);
+      },
+      async afterUpdate(expense: Expense, options) {
+        if (expense.changed('status')) {
+          // PAID is finalized by the ledger hook in Transaction.createDoubleEntry
+          if (expense.status === ExpenseStatus.PAID) {
+            return;
+          }
+          await syncPaymentIntentFromExpense(expense, options.transaction);
+        }
+      },
       async afterDestroy(expense: Expense, options) {
         // Not considering ExpensesAttachedFiles because they don't support soft delete (they should)
         const promises = [
@@ -1064,6 +1080,7 @@ Expense.init(
         }
 
         await Promise.all(promises);
+        await deletePaymentIntentForSource({ expense }, options.transaction);
       },
     },
   },

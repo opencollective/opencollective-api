@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 
+import config from 'config';
 import slugify from 'limax';
 
 import activities from '../constants/activities';
@@ -290,6 +291,19 @@ export const getOrCreateVendor = async (vendorProviderId, vendorName) => {
   }
 
   return vendor;
+};
+
+export const validateRedirectUrl = (redirect: string): void => {
+  let parsedRedirect;
+
+  try {
+    parsedRedirect = new URL(redirect);
+    if (parsedRedirect.origin !== config.host.website) {
+      throw new Error();
+    }
+  } catch {
+    throw new Error(`Invalid redirect url: ${redirect}`);
+  }
 };
 
 export const hashObject = (obj: object) =>

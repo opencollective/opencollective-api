@@ -1,6 +1,6 @@
 import { Client } from '@opensearch-project/opensearch';
-import { DeleteByQuery_Request as DeleteByQueryRequest } from '@opensearch-project/opensearch/api';
-import { BulkByScrollResponseBase } from '@opensearch-project/opensearch/api/_types/_common';
+import { BulkByScrollResponseBase } from '@opensearch-project/opensearch/api/_types/_common.js';
+import { DeleteByQuery_Request as DeleteByQueryRequest } from '@opensearch-project/opensearch/api/index.js';
 import config from 'config';
 import debugLib from 'debug';
 import { groupBy, keyBy } from 'lodash';

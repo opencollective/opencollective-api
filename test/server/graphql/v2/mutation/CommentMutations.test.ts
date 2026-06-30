@@ -264,13 +264,242 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
       await utils.waitForCondition(() => sendEmailSpy.callCount > 0);
       expect(sendEmailSpy.callCount).to.be.greaterThan(0);
 
-      console.log('getCalls', sendEmailSpy.getCalls());
       const isCollectiveAdminEmailSent = sendEmailSpy
         .getCalls()
         .some(
           call => call.args[0] === collectiveAdmin.email && call.args[1].includes('New message about your application'),
         );
       expect(isCollectiveAdminEmailSent).to.be.true;
+    });
+
+    it('creates a host application PRIVATE_NOTE and does not notify the applicant admin', async () => {
+      const host = await fakeActiveHost();
+      const hostAdmin = await fakeUser();
+      await fakeMember({ CollectiveId: host.id, MemberCollectiveId: hostAdmin.CollectiveId, role: roles.ADMIN });
+      const anotherHostAdmin = await fakeUser();
+      await fakeMember({ CollectiveId: host.id, MemberCollectiveId: anotherHostAdmin.CollectiveId, role: roles.ADMIN });
+
+      const collectiveAdmin = await fakeUser();
+      const applyingCollective = await fakeCollective({
+        HostCollectiveId: host.id,
+        admin: collectiveAdmin,
+        isActive: false,
+        approvedAt: null,
+      });
+      const hostApplication = await fakeHostApplication({
+        CollectiveId: applyingCollective.id,
+        HostCollectiveId: host.id,
+      });
+
+      const result = await utils.graphqlQueryV2(
+        createCommentMutation,
+        {
+          comment: {
+            html: '<p>Host private note</p>',
+            type: CommentType.PRIVATE_NOTE,
+            hostApplication: { id: idEncode(hostApplication.id, 'host-application') },
+          },
+        },
+        hostAdmin,
+      );
+      utils.expectNoErrorsFromResult(result);
+
+      await utils.waitForCondition(() => sendEmailSpy.callCount > 0);
+      assert.neverCalledWithMatch(sendEmailSpy, collectiveAdmin.email);
+      const isOtherHostAdminEmailSent = sendEmailSpy
+        .getCalls()
+        .some(
+          call =>
+            call.args[0] === anotherHostAdmin.email &&
+            call.lastArg.template === 'host.application.comment.created.host',
+        );
+      expect(isOtherHostAdminEmailSent).to.be.true;
+    });
+  });
+
+  describe('host application PRIVATE_NOTE edit and delete', () => {
+    const editCommentMutation = gql`
+      mutation EditComment($comment: CommentUpdateInput!) {
+        editComment(comment: $comment) {
+          id
+          html
+        }
+      }
+    `;
+    const deleteCommentMutation = gql`
+      mutation DeleteComment($id: String!) {
+        deleteComment(id: $id) {
+          id
+        }
+      }
+    `;
+
+    it('prevents applicant admin from editing or deleting a host application PRIVATE_NOTE', async () => {
+      const host = await fakeActiveHost();
+      const hostAdmin = await fakeUser();
+      await fakeMember({ CollectiveId: host.id, MemberCollectiveId: hostAdmin.CollectiveId, role: roles.ADMIN });
+
+      const collectiveAdmin = await fakeUser();
+      const applyingCollective = await fakeCollective({
+        HostCollectiveId: host.id,
+        admin: collectiveAdmin,
+        isActive: false,
+        approvedAt: null,
+      });
+      const hostApplication = await fakeHostApplication({
+        CollectiveId: applyingCollective.id,
+        HostCollectiveId: host.id,
+      });
+      const privateNote = await fakeComment({
+        HostApplicationId: hostApplication.id,
+        FromCollectiveId: hostAdmin.CollectiveId,
+        CollectiveId: applyingCollective.id,
+        CreatedByUserId: hostAdmin.id,
+        type: CommentType.PRIVATE_NOTE,
+        html: '<p>Host private note</p>',
+      });
+
+      const editResult = await utils.graphqlQueryV2(
+        editCommentMutation,
+        { comment: { id: idEncode(privateNote.id, 'comment'), html: '<p>Applicant overwrite</p>' } },
+        collectiveAdmin,
+      );
+      expect(editResult.errors).to.exist;
+      expect(editResult.errors[0].message).to.equal('You need to be a host admin to edit or delete this comment');
+
+      const deleteResult = await utils.graphqlQueryV2(
+        deleteCommentMutation,
+        { id: idEncode(privateNote.id, 'comment') },
+        collectiveAdmin,
+      );
+      expect(deleteResult.errors).to.exist;
+      expect(deleteResult.errors[0].message).to.equal('You need to be a host admin to edit or delete this comment');
+    });
+
+    it('allows host admin to edit a host application PRIVATE_NOTE', async () => {
+      const host = await fakeActiveHost();
+      const hostAdmin = await fakeUser();
+      await fakeMember({ CollectiveId: host.id, MemberCollectiveId: hostAdmin.CollectiveId, role: roles.ADMIN });
+
+      const collectiveAdmin = await fakeUser();
+      const applyingCollective = await fakeCollective({
+        HostCollectiveId: host.id,
+        admin: collectiveAdmin,
+        isActive: false,
+        approvedAt: null,
+      });
+      const hostApplication = await fakeHostApplication({
+        CollectiveId: applyingCollective.id,
+        HostCollectiveId: host.id,
+      });
+      const privateNote = await fakeComment({
+        HostApplicationId: hostApplication.id,
+        FromCollectiveId: hostAdmin.CollectiveId,
+        CollectiveId: applyingCollective.id,
+        CreatedByUserId: hostAdmin.id,
+        type: CommentType.PRIVATE_NOTE,
+        html: '<p>Host private note</p>',
+      });
+
+      const html = '<p>Updated host private note</p>';
+      const editResult = await utils.graphqlQueryV2(
+        editCommentMutation,
+        { comment: { id: idEncode(privateNote.id, 'comment'), html } },
+        hostAdmin,
+      );
+      utils.expectNoErrorsFromResult(editResult);
+      expect(editResult.data.editComment.html).to.equal(html);
+    });
+  });
+
+  describe('expense PRIVATE_NOTE edit and delete', () => {
+    const editCommentMutation = gql`
+      mutation EditComment($comment: CommentUpdateInput!) {
+        editComment(comment: $comment) {
+          id
+          html
+        }
+      }
+    `;
+    const deleteCommentMutation = gql`
+      mutation DeleteComment($id: String!) {
+        deleteComment(id: $id) {
+          id
+        }
+      }
+    `;
+
+    it('prevents collective admin from editing or deleting an expense PRIVATE_NOTE', async () => {
+      const host = await fakeActiveHost();
+      const hostAdmin = await fakeUser();
+      await fakeMember({ CollectiveId: host.id, MemberCollectiveId: hostAdmin.CollectiveId, role: roles.ADMIN });
+
+      const collectiveAdmin = await fakeUser();
+      const hostedCollective = await fakeCollective({
+        HostCollectiveId: host.id,
+        admin: collectiveAdmin,
+      });
+      const expense = await fakeExpense({
+        CollectiveId: hostedCollective.id,
+        status: ExpenseStatuses.APPROVED,
+      });
+      const privateNote = await fakeComment({
+        ExpenseId: expense.id,
+        FromCollectiveId: hostAdmin.CollectiveId,
+        CollectiveId: hostedCollective.id,
+        CreatedByUserId: hostAdmin.id,
+        type: CommentType.PRIVATE_NOTE,
+        html: '<p>Host private expense note</p>',
+      });
+
+      const editResult = await utils.graphqlQueryV2(
+        editCommentMutation,
+        { comment: { id: idEncode(privateNote.id, 'comment'), html: '<p>Collective overwrite</p>' } },
+        collectiveAdmin,
+      );
+      expect(editResult.errors).to.exist;
+      expect(editResult.errors[0].message).to.equal('You need to be a host admin to edit or delete this comment');
+
+      const deleteResult = await utils.graphqlQueryV2(
+        deleteCommentMutation,
+        { id: idEncode(privateNote.id, 'comment') },
+        collectiveAdmin,
+      );
+      expect(deleteResult.errors).to.exist;
+      expect(deleteResult.errors[0].message).to.equal('You need to be a host admin to edit or delete this comment');
+    });
+
+    it('allows host admin to edit an expense PRIVATE_NOTE', async () => {
+      const host = await fakeActiveHost();
+      const hostAdmin = await fakeUser();
+      await fakeMember({ CollectiveId: host.id, MemberCollectiveId: hostAdmin.CollectiveId, role: roles.ADMIN });
+
+      const collectiveAdmin = await fakeUser();
+      const hostedCollective = await fakeCollective({
+        HostCollectiveId: host.id,
+        admin: collectiveAdmin,
+      });
+      const expense = await fakeExpense({
+        CollectiveId: hostedCollective.id,
+        status: ExpenseStatuses.APPROVED,
+      });
+      const privateNote = await fakeComment({
+        ExpenseId: expense.id,
+        FromCollectiveId: hostAdmin.CollectiveId,
+        CollectiveId: hostedCollective.id,
+        CreatedByUserId: hostAdmin.id,
+        type: CommentType.PRIVATE_NOTE,
+        html: '<p>Host private expense note</p>',
+      });
+
+      const html = '<p>Updated host private expense note</p>';
+      const editResult = await utils.graphqlQueryV2(
+        editCommentMutation,
+        { comment: { id: idEncode(privateNote.id, 'comment'), html } },
+        hostAdmin,
+      );
+      utils.expectNoErrorsFromResult(editResult);
+      expect(editResult.data.editComment.html).to.equal(html);
     });
   });
 

@@ -1,12 +1,15 @@
 import config from 'config';
-import deepmerge from 'deepmerge';
+import { merge } from 'lodash';
 
 import logger from '../server/lib/logger';
 import { lockUntilOrThrow } from '../server/lib/mutex';
+import {
+  disableActivityDispatchTracking,
+  enableActivityDispatchTracking,
+} from '../server/lib/notifications/activity-dispatch-tracker';
 import { closeRedisClient } from '../server/lib/redis';
 import { CaptureErrorParams, reportErrorToSentry, Sentry } from '../server/lib/sentry';
-import { sleep } from '../server/lib/utils';
-import { sequelize } from '../server/models';
+import { Activity, sequelize } from '../server/models';
 
 /**
  * Heroku scheduler only has daily or hourly cron jobs, we only want to run
@@ -28,6 +31,7 @@ export const runCronJob = async (
   errorParameters?: CaptureErrorParams,
 ) => {
   let exitCode = 0;
+  enableActivityDispatchTracking();
   try {
     await lockUntilOrThrow(
       `cron:${name}`,
@@ -46,16 +50,17 @@ export const runCronJob = async (
     logger.error(`Error running ${name} job`, error);
     reportErrorToSentry(
       error,
-      deepmerge({ handler: 'CRON', extra: { name, timeout: timeoutSeconds } }, errorParameters || {}),
+      merge({ handler: 'CRON', extra: { name, timeout: timeoutSeconds } }, errorParameters || {}),
     );
     // Await for Sentry to finish sending the error
     exitCode = 1;
+  } finally {
+    await Activity.waitAllDispatch();
+    disableActivityDispatchTracking();
   }
 
   const isNotTest = process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'ci' && config.env !== 'e2e';
   if (isNotTest) {
-    // Wait for 5 seconds before for async notifications to be sent before we close connections.
-    await sleep(5000);
     await closeRedisClient();
     await sequelize.close();
     await Sentry.close(10e3);

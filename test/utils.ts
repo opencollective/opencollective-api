@@ -22,7 +22,7 @@ import PlatformConstants from '../server/constants/platform';
 import { generateLoaders, Loaders } from '../server/graphql/loaders';
 import schemaV1 from '../server/graphql/v1/schema';
 import schemaV2 from '../server/graphql/v2/schema';
-import cache from '../server/lib/cache';
+import cache, { sessionCache } from '../server/lib/cache';
 import { crypto } from '../server/lib/encryption';
 import logger from '../server/lib/logger';
 /* Server code being used */
@@ -44,7 +44,10 @@ export const data = path => {
   return isArray(get(jsonData, path)) ? values(copy) : copy;
 };
 
-export const resetCaches = () => cache.clear();
+export const resetCaches = async () => {
+  await cache.clear();
+  await sessionCache.clear();
+};
 
 export const resetTestDB = async ({ groupedTruncate = true, retries = 5 } = {}) => {
   const resetFn = async () => {
@@ -66,6 +69,7 @@ export const resetTestDB = async ({ groupedTruncate = true, retries = 5 } = {}) 
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTagStats"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "ExpenseTagStats"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+    await sequelize.query(`REFRESH MATERIALIZED VIEW "HostedCollectivesDailyFinancialActivity"`);
   };
 
   let t = 1;
@@ -78,7 +82,9 @@ export const resetTestDB = async ({ groupedTruncate = true, retries = 5 } = {}) 
         console.error(e);
         process.exit(1);
       }
-      console.error('Error while resetting the DB, retrying...');
+      console.error(
+        `Error while resetting the DB for connection ${JSON.stringify(config.database)}. Error: ${JSON.stringify(e)}\nRetrying...`,
+      );
       await sleep(1000 * t);
       t++;
     }
@@ -637,6 +643,24 @@ export const prettifyTransactionsData = (transactions, columns, opts = null) => 
 /**
  * Create a nock for Fixer.io at given rate
  */
+/**
+ * Directly seeds the cache with FX rates, using the same key format as `lib/currency.ts`.
+ * This is an alternative to `nockFixerRates` that bypasses HTTP entirely.
+ *
+ * @param ratesConfig - A nested map of { [fromCurrency]: { [toCurrency]: rate } }
+ * @param date - The date key to use (defaults to 'latest')
+ */
+export const seedCachedRates = async (
+  ratesConfig: Record<string, Record<string, number>>,
+  date = 'latest',
+): Promise<void> => {
+  for (const [fromCurrency, targets] of Object.entries(ratesConfig)) {
+    for (const [toCurrency, rate] of Object.entries(targets)) {
+      await cache.set(`${date}-${fromCurrency}-${toCurrency}`, rate);
+    }
+  }
+};
+
 export const nockFixerRates = ratesConfig => {
   nock('https://data.fixer.io')
     .persist()
