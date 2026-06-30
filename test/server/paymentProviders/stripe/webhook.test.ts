@@ -715,7 +715,7 @@ describe('webhook', () => {
         });
         await order.update({ interval: 'month', SubscriptionId: subscription.id });
 
-        await webhook.paymentIntentSucceeded(event);
+        await webhook.stripePaymentIntentSucceeded(event);
 
         await subscription.reload();
         // chargeNumber is incremented to record the successful attempt
@@ -744,7 +744,7 @@ describe('webhook', () => {
         });
         await order.update({ interval: 'month', SubscriptionId: subscription.id });
 
-        await webhook.paymentIntentSucceeded(event);
+        await webhook.stripePaymentIntentSucceeded(event);
 
         // The existing-charge dedup short-circuits the handler before any side effect
         assert.notCalled(createChargeTransactionsStub);
@@ -770,7 +770,7 @@ describe('webhook', () => {
         });
         await order.update({ interval: 'month', SubscriptionId: subscription.id });
 
-        await webhook.paymentIntentSucceeded(event);
+        await webhook.stripePaymentIntentSucceeded(event);
 
         // Recurring charges (subscription already exists) should never display the "first payment" copy.
         assert.calledOnceWithMatch(
@@ -795,7 +795,7 @@ describe('webhook', () => {
         sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
         await order.update({ interval: 'month', SubscriptionId: null });
 
-        await webhook.paymentIntentSucceeded(event);
+        await webhook.stripePaymentIntentSucceeded(event);
 
         // First-time async confirmation of a recurring contribution should mark the email as a first payment.
         assert.calledOnceWithMatch(
@@ -986,7 +986,7 @@ describe('webhook', () => {
           });
           await order.update({ interval: 'month', SubscriptionId: subscription.id });
 
-          await webhook.paymentIntentFailed(event);
+          await webhook.stripePaymentIntentFailed(event);
           await subscription.reload();
           await order.reload();
 
@@ -1010,7 +1010,7 @@ describe('webhook', () => {
           });
           await order.update({ interval: 'month', SubscriptionId: subscription.id });
 
-          await webhook.paymentIntentFailed(event);
+          await webhook.stripePaymentIntentFailed(event);
           await subscription.reload();
           await order.reload();
 
@@ -1031,7 +1031,7 @@ describe('webhook', () => {
           });
           await order.update({ interval: 'month', SubscriptionId: subscription.id });
 
-          await webhook.paymentIntentFailed(event);
+          await webhook.stripePaymentIntentFailed(event);
 
           assert.calledOnceWithMatch(libPayments.sendOrderFailedEmail, { dataValues: { id: order.id } });
         });

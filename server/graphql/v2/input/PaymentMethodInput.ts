@@ -142,6 +142,7 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
       service: pm.service,
       type: pm.type || pm.newType,
       paymentIntentId: stripePaymentIntentId,
+      stripePaymentIntentId: stripePaymentIntentId,
       save: pm.isSavedForLater,
     };
   } else if (pm.legacyType) {

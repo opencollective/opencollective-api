@@ -228,6 +228,11 @@ const orderMutations = {
 
       if (order.paymentMethod?.paymentIntentId) {
         paymentMethod.paymentIntentId = order.paymentMethod?.paymentIntentId;
+        paymentMethod.stripePaymentIntentId = order.paymentMethod?.paymentIntentId;
+      }
+      if (order.paymentMethod?.stripePaymentIntentId) {
+        paymentMethod.paymentIntentId = null;
+        paymentMethod.stripePaymentIntentId = order.paymentMethod?.stripePaymentIntentId;
       }
 
       // Ensure amounts are provided with the right currency
