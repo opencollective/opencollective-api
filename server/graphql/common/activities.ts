@@ -1,5 +1,5 @@
 import type Express from 'express';
-import { pick } from 'lodash';
+import { omit, pick } from 'lodash';
 
 import ActivityTypes from '../../constants/activities';
 import { Activity } from '../../models';
@@ -134,5 +134,16 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
       toPick.push('message');
     }
   }
-  return pick(activity.data, toPick);
+  const result = pick(activity.data, toPick);
+
+  if (activity.type === ActivityTypes.COLLECTIVE_EDITED) {
+    if (result.previousData) {
+      result.previousData = omit(result.previousData, 'data');
+    }
+    if (result.newData) {
+      result.newData = omit(result.newData, 'data');
+    }
+  }
+
+  return result;
 };

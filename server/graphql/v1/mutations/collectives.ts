@@ -321,7 +321,7 @@ export async function createCollectiveFromGithub(_, args, req) {
 }
 
 function getCollectiveDataDiff(originalCollective, modifiedCollective) {
-  const collectiveInputTypeFields = Object.keys(CollectiveInputType.getFields());
+  const collectiveInputTypeFields = Object.keys(CollectiveInputType.getFields()).filter(field => field !== 'data');
   const originalCollectiveData = pick(originalCollective, collectiveInputTypeFields);
   const modifiedCollectiveData = pick(modifiedCollective, collectiveInputTypeFields);
   const differenceKeys = Object.keys(originalCollectiveData).filter(

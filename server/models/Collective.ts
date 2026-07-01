@@ -492,7 +492,6 @@ class Collective extends ModelWithPublicId<
       currency: this.currency,
       image: this.image,
       previewImage: this.previewImage,
-      data: this.data,
       backgroundImage: this.backgroundImage,
       startsAt: this.startsAt,
       endsAt: this.endsAt,
@@ -2621,7 +2620,6 @@ class Collective extends ModelWithPublicId<
             'githubHandle',
             'website',
             'tags',
-            'data',
             'settings',
           ]),
           user: {
