@@ -17,7 +17,7 @@ import * as errors from '../graphql/errors';
 import logger from '../lib/logger';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import * as SQLQueries from '../lib/queries';
-import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
+import { generateSummaryForHTML, optsSanitizeUpdateHtml, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 
@@ -27,16 +27,6 @@ import Comment from './Comment';
 import { ModelWithPublicId } from './ModelWithPublicId';
 import Tier from './Tier';
 import User from './User';
-
-export const sanitizerOptions = buildSanitizerOptions({
-  titles: true,
-  mainTitles: true,
-  basicTextFormatting: true,
-  multilineTextFormatting: true,
-  images: true,
-  links: true,
-  videoIframes: true,
-});
 
 export const UPDATE_NOTIFICATION_AUDIENCE = {
   ALL: 'ALL',
@@ -498,7 +488,7 @@ Update.init(
     html: {
       type: DataTypes.TEXT,
       set(html: string) {
-        this.setDataValue('html', sanitizeHTML(html, sanitizerOptions));
+        this.setDataValue('html', sanitizeHTML(html, optsSanitizeUpdateHtml));
         this.setDataValue('summary', generateSummaryForHTML(html, 240));
       },
     },

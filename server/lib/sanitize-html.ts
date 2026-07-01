@@ -2,6 +2,7 @@ import config from 'config';
 import { truncate, uniq } from 'lodash';
 import LibSanitize from 'sanitize-html';
 
+import { parseServiceLink } from './notifications/utils';
 import { isValidUploadedImage } from './images';
 import { prependHttp } from './url-utils';
 
@@ -32,6 +33,26 @@ interface SanitizeOptions {
   allowedIframeHostnames: string[];
   transformTags: Record<string, unknown>;
 }
+
+export const YOUTUBE_IFRAME_REFERRER_POLICY = 'strict-origin-when-cross-origin';
+
+const transformIframe = (_, attribs) => {
+  const { service } = parseServiceLink(attribs.src);
+
+  if (!service) {
+    return {}; // Strip unsupported iframes
+  } else if (service === 'youtube') {
+    return {
+      tagName: 'iframe',
+      attribs: {
+        ...attribs,
+        referrerpolicy: YOUTUBE_IFRAME_REFERRER_POLICY, // Inject referrer policy for YouTube, to avoir "153" errors (see https://github.com/opencollective/opencollective/issues/8868)
+      },
+    };
+  }
+
+  return { tagName: 'iframe', attribs };
+};
 
 export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): SanitizeOptions => {
   const allowedTags = []; // Nothing allowed by default
@@ -104,6 +125,7 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
       'src',
       'allowfullscreen',
       'frameborder',
+      'referrerpolicy',
       'autoplay',
       'width',
       'height',
@@ -113,6 +135,7 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
         values: ['autoplay', 'encrypted-media', 'gyroscope'],
       },
     ];
+    transformTags['iframe'] = transformIframe;
   }
 
   return {
@@ -151,6 +174,19 @@ export const optsSanitizedSimplifiedWithImages = buildSanitizerOptions({
   images: true,
   mainTitles: true,
   titles: true,
+});
+
+/**
+ * Options preset matching Update.html sanitizer rules.
+ */
+export const optsSanitizeUpdateHtml = buildSanitizerOptions({
+  titles: true,
+  mainTitles: true,
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  images: true,
+  links: true,
+  videoIframes: true,
 });
 
 /**
@@ -230,10 +266,15 @@ const formatLinkHref = (url: string): string => {
   }
 
   const baseUrl = prependHttp(url);
-  if (isTrustedLinkUrl(baseUrl)) {
-    return baseUrl;
-  } else {
-    return `${config.host.website}/redirect?url=${encodeURIComponent(baseUrl)}`;
+  try {
+    if (isTrustedLinkUrl(baseUrl)) {
+      return baseUrl;
+    } else {
+      return `${config.host.website}/redirect?url=${encodeURIComponent(baseUrl)}`;
+    }
+  } catch {
+    // If the URL is invalid, return a placeholder
+    return '#';
   }
 };
 
