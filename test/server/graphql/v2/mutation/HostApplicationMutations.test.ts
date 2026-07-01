@@ -328,6 +328,9 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
 
     describe('APPROVE', () => {
       it('approves a host application', async () => {
+        const hostReplyToEmail = 'host-reply@example.com';
+        await host.update({ data: { ...host.data, replyToEmail: hostReplyToEmail } });
+
         // Initialize the collective as "PENDING"
         await collective.update({ isActive: false, approvedAt: null, HostCollectiveId: host.id });
         await application.update({ status: 'PENDING' });
@@ -360,11 +363,12 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         // Test email
         await waitForCondition(() => sendEmailSpy.callCount === 1);
         expect(sendEmailSpy.callCount).to.eq(1);
-        const [emailTo, subject, body] = sendEmailSpy.getCall(0).args;
+        const [emailTo, subject, body, emailOptions] = sendEmailSpy.getCall(0).args;
         expect(emailTo).to.eq(collectiveAdmin.email);
         expect(subject).to.eq('🎉 Your Collective has been approved!');
         expect(body).to.include(`Hey ${collective.name}`);
         expect(body).to.include(`the money will be held by ${host.name}`);
+        expect(emailOptions.replyTo).to.eq(hostReplyToEmail);
       });
 
       it('does not un-archive archived child projects/events when approving', async () => {
@@ -478,6 +482,9 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
 
     describe('REJECT', () => {
       it('rejects a host application', async () => {
+        const hostReplyToEmail = 'host-reply@example.com';
+        await host.update({ data: { ...host.data, replyToEmail: hostReplyToEmail } });
+
         // Initialize the collective as "PENDING"
         await collective.update({ isActive: false, approvedAt: null, HostCollectiveId: host.id });
         await application.update({ status: 'PENDING' });
@@ -502,11 +509,12 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
 
         // Test email
         await waitForCondition(() => sendEmailSpy.callCount === 1);
-        const [emailTo, subject, body] = sendEmailSpy.getCall(0).args;
+        const [emailTo, subject, body, emailOptions] = sendEmailSpy.getCall(0).args;
         expect(emailTo).to.eq(collectiveAdmin.email);
         expect(subject).to.eq(`Your application to ${host.name}`);
         expect(body).to.include(`Hello ${collective.name}`);
         expect(body).to.include(`Your application to be fiscally hosted by ${host.name} has been rejected`);
+        expect(emailOptions.replyTo).to.eq(hostReplyToEmail);
       });
     });
   });
