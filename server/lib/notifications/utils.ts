@@ -1,7 +1,7 @@
 import sanitizeHtml from 'sanitize-html';
 
-import { optsSanitizeUpdateHtml } from '../sanitize-html';
-import { parseAnchorFmURL, parseYouTubeVideoId, YOUTUBE_VIDEO_ID_PATTERN } from '../url-utils';
+import { optsSanitizeUpdateHtml, parseServiceLink } from '../sanitize-html';
+import { YOUTUBE_VIDEO_ID_PATTERN } from '../url-utils';
 
 const constructPreviewImageURL = (service: string, id: string) => {
   if (service === 'youtube' && YOUTUBE_VIDEO_ID_PATTERN.test(id)) {
@@ -11,20 +11,6 @@ const constructPreviewImageURL = (service: string, id: string) => {
   } else {
     return null;
   }
-};
-
-export const parseServiceLink = (videoLink: string) => {
-  const youtubeId = parseYouTubeVideoId(videoLink);
-  if (youtubeId) {
-    return { service: 'youtube', id: youtubeId };
-  }
-
-  const anchorFmId = parseAnchorFmURL(videoLink);
-  if (anchorFmId) {
-    return { service: 'anchorFm', id: anchorFmId };
-  }
-
-  return {};
 };
 
 export const replaceVideosByImagePreviews = (html: string) => {

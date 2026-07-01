@@ -2,9 +2,8 @@ import config from 'config';
 import { truncate, uniq } from 'lodash';
 import LibSanitize from 'sanitize-html';
 
-import { parseServiceLink } from './notifications/utils';
 import { isValidUploadedImage } from './images';
-import { prependHttp } from './url-utils';
+import { parseAnchorFmURL, parseYouTubeVideoId, prependHttp } from './url-utils';
 
 interface AllowedContentType {
   /** Allows titles  supported by RichTextEditor (`h3` only) */
@@ -33,6 +32,20 @@ interface SanitizeOptions {
   allowedIframeHostnames: string[];
   transformTags: Record<string, unknown>;
 }
+
+export const parseServiceLink = (videoLink: string) => {
+  const youtubeId = parseYouTubeVideoId(videoLink);
+  if (youtubeId) {
+    return { service: 'youtube', id: youtubeId };
+  }
+
+  const anchorFmId = parseAnchorFmURL(videoLink);
+  if (anchorFmId) {
+    return { service: 'anchorFm', id: anchorFmId };
+  }
+
+  return {};
+};
 
 export const YOUTUBE_IFRAME_REFERRER_POLICY = 'strict-origin-when-cross-origin';
 
