@@ -1,5 +1,7 @@
 import { defineRelationMetricSource } from '..';
 
+import { CONTRIBUTION_FREQUENCY_VALUES } from './hosted-collectives-enum-values';
+
 export const HostedCollectivesFinancialActivity = defineRelationMetricSource(
   'HostedCollectivesDailyFinancialActivity',
   {
@@ -56,6 +58,13 @@ export const HostedCollectivesFinancialActivity = defineRelationMetricSource(
         kind: 'boolean',
         description: 'Whether the main parent account was archived',
       },
+      contributionFrequency: {
+        name: 'contributionFrequency',
+        column: 'contributionFrequency',
+        kind: 'enumValues',
+        description: 'How a contribution recurs.',
+        values: CONTRIBUTION_FREQUENCY_VALUES,
+      },
       hostCurrency: { name: 'hostCurrency', column: 'hostCurrency', kind: 'string' },
     },
     measures: {
@@ -100,6 +109,22 @@ export const HostedCollectivesFinancialActivity = defineRelationMetricSource(
         aggregation: eb => eb.fn.sum<number>('transactionCount'),
         kind: 'count',
         description: 'Total number of transactions in the queried scope.',
+      },
+      contributionsCount: {
+        name: 'contributionsCount',
+        aggregation: eb => eb.fn.sum<number>('contributionsCount'),
+        kind: 'count',
+        description:
+          'Number of contribution (CREDIT) transactions, excluding refunds, refunded transactions and internal transfers.\n' +
+          'Matches the count behind `amountReceived`.',
+      },
+      payoutsCount: {
+        name: 'payoutsCount',
+        aggregation: eb => eb.fn.sum<number>('payoutsCount'),
+        kind: 'count',
+        description:
+          'Number of payout (DEBIT) transactions, excluding host/processor fees, refunds, refunded transactions and internal transfers.\n' +
+          'Matches the count behind `amountSpent`.',
       },
       activeCollectives: {
         name: 'activeCollectives',

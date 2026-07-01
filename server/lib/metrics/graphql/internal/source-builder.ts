@@ -26,10 +26,12 @@ import type {
 import { gqlNameForDimension, graphqlNameToDimName } from '../utils';
 
 import {
+  buildEnumDimensionTypes,
   dimensionGraphQLInputResolver,
   dimensionGraphQLInputType,
   dimensionGraphQLResolver,
   dimensionGraphQLType,
+  type EnumDimensionTypes,
   measureGraphQLResolver,
   measureGraphQLType,
 } from './metric-types';
@@ -67,15 +69,23 @@ export function buildSourceField<P>(options: SourceFieldOptions<P>): GraphQLFiel
   const exposedDims = Object.values(source.dimensions).filter(d => !boundDimNames.has(d.name));
   const measures = Object.values(source.measures);
 
+  const enumTypes = new Map<string, EnumDimensionTypes>();
+  for (const d of exposedDims) {
+    if (d.kind === 'enumValues') {
+      const name = `${schemaPrefix}${d.name[0].toUpperCase()}${d.name.slice(1)}`;
+      enumTypes.set(d.name, buildEnumDimensionTypes(name, d.values));
+    }
+  }
+
   const measureEnum = buildMeasureEnum(schemaPrefix, measures);
   const dimensionEnum = buildDimensionEnum(schemaPrefix, exposedDims);
 
-  const filtersInput = buildFiltersInput(schemaPrefix, exposedDims);
+  const filtersInput = buildFiltersInput(schemaPrefix, exposedDims, enumTypes);
   const havingInput = buildHavingInput(schemaPrefix, measureEnum);
   const orderByInput = buildOrderByInput(schemaPrefix, measureEnum);
   const mainInput = buildMainInput(schemaPrefix, measureEnum, dimensionEnum, filtersInput, havingInput, orderByInput);
 
-  const groupType = buildGroupType(schemaPrefix, exposedDims);
+  const groupType = buildGroupType(schemaPrefix, exposedDims, enumTypes);
   const valuesType = buildValuesType(schemaPrefix, measures);
   const rowType = buildRowType(schemaPrefix, groupType, valuesType);
   const resultTypeName = `${schemaPrefix}MetricsResult`;
@@ -130,12 +140,17 @@ function buildDimensionEnum(prefix: string, dims: Dimension[]): GraphQLEnumType 
   });
 }
 
-function buildFiltersInput(prefix: string, dims: Dimension[]): GraphQLInputObjectType {
+function buildFiltersInput(
+  prefix: string,
+  dims: Dimension[],
+  enumTypes: Map<string, EnumDimensionTypes>,
+): GraphQLInputObjectType {
   // Name reserves room for a future recursive `${prefix}MetricsFilter` (a boolean
   // tree of leaves) — today's input is strictly an AND of per-dimension leaves.
   return new GraphQLInputObjectType({
     name: `${prefix}MetricsFiltersAllOf`,
-    fields: () => Object.fromEntries(dims.map(d => [gqlNameForDimension(d), { type: dimensionGraphQLInputType(d) }])),
+    fields: () =>
+      Object.fromEntries(dims.map(d => [gqlNameForDimension(d), { type: dimensionGraphQLInputType(d, enumTypes) }])),
   });
 }
 
@@ -205,13 +220,17 @@ type MetricRowShape = {
   currency?: string;
 };
 
-function buildGroupType(prefix: string, dims: Dimension[]): GraphQLObjectType {
+function buildGroupType(
+  prefix: string,
+  dims: Dimension[],
+  enumTypes: Map<string, EnumDimensionTypes>,
+): GraphQLObjectType {
   return new GraphQLObjectType({
     name: `${prefix}MetricsGroup`,
     fields: () =>
       Object.fromEntries(
         dims.map(d => {
-          const gqlType = dimensionGraphQLType(d);
+          const gqlType = dimensionGraphQLType(d, enumTypes);
           const gqlResolver = dimensionGraphQLResolver(d);
 
           const gqlName = gqlNameForDimension(d);
