@@ -104,6 +104,18 @@ enum FEATURE {
   PUBLIC_PROFILE = 'PUBLIC_PROFILE',
 }
 
+/**
+ * Internal opt-in flag stored at `Collective.settings.newPlatformTipsLedger`. When set
+ * on a host: route PLATFORM_TIP credits to the host's own platform-tips account, skip
+ * PLATFORM_TIP_DEBT generation per-tip, emit APPLICATION_FEE on the Stripe app-fee path, and
+ * have host-settlement bill the held tips directly against the platform-tips account.
+ *
+ * Not a member of the FEATURE enum because it is an internal ledger flag, not a user-facing
+ * feature, and shouldn't appear in `getFeaturesAccessMap`. Lives in `settings` (not
+ * `data.features`) so it goes through the COLLECTIVE_SETTINGS_KEYS_LIST allowlist.
+ */
+export const NEW_PLATFORM_TIPS_LEDGER_FLAG = 'newPlatformTipsLedger';
+
 // features that can conditionally enabled/disabled based on subscription
 export const CommercialFeatures = [
   FEATURE.TRANSFERWISE,

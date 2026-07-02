@@ -13,6 +13,7 @@ import { GraphQLIndividual } from './object/Individual';
 import { GraphQLMember, GraphQLMemberOf } from './object/Member';
 import { GraphQLOffPlatformTransactionsInstitution } from './object/OffPlatformTransactionsInstitution';
 import { GraphQLOrganization } from './object/Organization';
+import { GraphQLPlatform } from './object/Platform';
 import { GraphQLTransferWise } from './object/TransferWise';
 import { GraphQLVendor } from './object/Vendor';
 import { GraphQLVirtualCard } from './object/VirtualCard';
@@ -33,6 +34,7 @@ const types = [
   GraphQLMember,
   GraphQLMemberOf,
   GraphQLOrganization,
+  GraphQLPlatform,
   GraphQLTransferWise,
   GraphQLVendor,
   GraphQLVirtualCard,

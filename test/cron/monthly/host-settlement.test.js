@@ -7,7 +7,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/con
 import PlatformConstants from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { createRefundTransaction } from '../../../server/lib/payments';
-import { getTaxesSummary } from '../../../server/lib/transactions';
+import { getHostPlatformTipsAccount, getTaxesSummary } from '../../../server/lib/transactions';
 import models, { sequelize } from '../../../server/models';
 import { ExpenseType } from '../../../server/models/Expense';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
@@ -467,6 +467,8 @@ describe('cron/monthly/host-settlement', () => {
     const [attachment] = await gphHostSettlementExpense.getAttachedFiles();
     expect(attachment).to.have.property('url');
     expect(attachment.url).to.have.string('.csv');
+    // Legacy hosts keep the account-scoped report (all their settled rows live on the host account)
+    expect(attachment.url).to.have.string('/transactions.csv');
   });
 
   it('should include entries from previous months in the CSV url startDate', async () => {
@@ -649,6 +651,993 @@ describe('cron/monthly/host-settlement', () => {
       for (const t of anomalyHostDebtTransactions) {
         expect(anomalyWarning).to.include(`#${t.id}`);
       }
+    });
+  });
+
+  describe('NEW_PLATFORM_TIPS_LEDGER host', () => {
+    let newLedgerHost, platformTipsAccount, platformTipCredit, settlementExpense;
+
+    before(async () => {
+      await utils.resetTestDB();
+      await utils.seedDefaultVendors();
+
+      const platformUser = await fakeUser({ id: PlatformConstants.PlatformUserId }, { slug: 'ofitech-admin' });
+      const oc = await fakeHost({
+        id: PlatformConstants.PlatformCollectiveId,
+        slug: randStr('platform-'),
+        CreatedByUserId: platformUser.id,
+      });
+      await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
+      // The cron requires a USD BANK_ACCOUNT payout method on the platform org.
+      await fakePayoutMethod({
+        CollectiveId: oc.id,
+        type: 'BANK_ACCOUNT',
+        data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
+      });
+
+      await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 2000`);
+      await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 50`);
+
+      const hostAdmin = await fakeUser();
+      newLedgerHost = await fakeHost({
+        name: 'new-ledger-host',
+        currency: 'USD',
+        plan: 'grow-plan-2021',
+        admin: hostAdmin,
+        settings: { newPlatformTipsLedger: true },
+      });
+      await fakeConnectedAccount({ CollectiveId: newLedgerHost.id, service: 'transferwise' });
+
+      const collective = await fakeCollective({ HostCollectiveId: newLedgerHost.id, currency: 'USD' });
+
+      // Drive a contribution with a tip through markAsPaid so the full createPlatformTipTransactions
+      // path runs (writes PLATFORM_TIP on the platform-tips account + TransactionSettlement OWED).
+      const clock = useFakeTimers({ now: lastMonth.toDate(), toFake: ['Date'] });
+      const order = await fakeOrder({
+        description: 'Contribution with $50 tip on new-ledger host',
+        CollectiveId: collective.id,
+        currency: 'USD',
+        status: 'PENDING',
+        platformTipAmount: 5000,
+        totalAmount: 15000,
+      });
+      await order.markAsPaid(hostAdmin);
+      clock.restore();
+
+      // The per-host platform-tips account is created lazily when the first tip is recorded.
+      platformTipsAccount = await models.Collective.findOne({ where: { data: { isPlatformTipsAccount: true } } });
+      expect(platformTipsAccount, 'tip recording should create the per-host platform-tips account').to.exist;
+
+      platformTipCredit = await models.Transaction.findOne({
+        where: {
+          HostCollectiveId: newLedgerHost.id,
+          CollectiveId: platformTipsAccount.id,
+          kind: TransactionKind.PLATFORM_TIP,
+          type: 'CREDIT',
+        },
+      });
+      expect(platformTipCredit, 'PLATFORM_TIP credit should be written on the platform-tips account').to.exist;
+      expect(platformTipCredit.amountInHostCurrency).to.equal(5000);
+
+      const initialTs = await models.TransactionSettlement.getByTransaction(platformTipCredit);
+      expect(initialTs).to.have.property('status', 'OWED');
+
+      await invoicePlatformFees();
+
+      // The tip is now billed directly against the platform-tips account (host-scoped), not the host.
+      const settlementExpenses = await models.Expense.findAll({
+        where: {
+          CollectiveId: platformTipsAccount.id,
+          HostCollectiveId: newLedgerHost.id,
+          type: ExpenseType.SETTLEMENT,
+        },
+      });
+      expect(settlementExpenses, 'cron should bill one SETTLEMENT expense against platform-tips').to.have.length(1);
+      settlementExpense = settlementExpenses[0];
+      settlementExpense.items = await settlementExpense.getItems();
+    });
+
+    after(async () => {
+      await utils.resetTestDB();
+    });
+
+    it('bills the platform tip exactly once (regression: prior code double-counted)', () => {
+      const platformTipsItem = settlementExpense.items.find(i => i.description === 'Platform Tips');
+      expect(platformTipsItem, 'expense should have a Platform Tips item').to.exist;
+      expect(platformTipsItem.amount).to.equal(5000);
+    });
+
+    it('bills the tip against the platform-tips account (host-scoped) and writes no release transfer', async () => {
+      expect(settlementExpense.CollectiveId).to.equal(platformTipsAccount.id);
+      expect(settlementExpense.HostCollectiveId).to.equal(newLedgerHost.id);
+      expect(settlementExpense.FromCollectiveId).to.equal(PlatformConstants.PlatformCollectiveId);
+      expect(settlementExpense.amount).to.equal(5000);
+
+      // No release transfer is written anymore — the held tip stays on the platform-tips slice until
+      // the settlement expense is paid, at which point the paid DEBIT (host-scoped) clears it.
+      const slice = await models.Transaction.findAll({
+        where: { CollectiveId: platformTipsAccount.id, HostCollectiveId: newLedgerHost.id },
+      });
+      expect(slice.map(t => t.kind)).to.deep.equal([TransactionKind.PLATFORM_TIP]);
+    });
+
+    it('flips the PLATFORM_TIP TransactionSettlement from OWED to INVOICED', async () => {
+      const ts = await models.TransactionSettlement.getByTransaction(platformTipCredit);
+      expect(ts.status).to.equal('INVOICED');
+      expect(ts.ExpenseId).to.equal(settlementExpense.id);
+    });
+
+    it('attaches a host-scoped CSV so the vendor-account PLATFORM_TIP rows are included', async () => {
+      const [attachment] = await settlementExpense.getAttachedFiles();
+      expect(attachment).to.have.property('url');
+      // The account-scoped `transactions` report filters CollectiveId IN [host, children] and can
+      // never return the platform-tips account rows; the host-scoped report filters HostCollectiveId.
+      expect(attachment.url).to.have.string('/hostTransactions.csv');
+      const csvUrl = new URL(attachment.url);
+      expect(csvUrl.searchParams.get('kind').split(',')).to.include('PLATFORM_TIP');
+      expect(csvUrl.searchParams.get('add')).to.equal('orderLegacyId');
+    });
+
+    it('matches the new-ledger settlement ledger snapshot', async () => {
+      // Captures the host's platform-tip ledger after settlement, including the currency columns: the
+      // held PLATFORM_TIP credit stays on the host's platform-tips slice (no release transfer), in the
+      // host currency, so a regression that leaked a foreign hostCurrency would change this snapshot.
+      await utils.snapshotLedger(
+        ['kind', 'type', 'isDebt', 'amount', 'currency', 'hostCurrency', 'amountInHostCurrency', 'settlementStatus'],
+        {
+          where: {
+            HostCollectiveId: newLedgerHost.id,
+            kind: [TransactionKind.PLATFORM_TIP],
+          },
+          order: [['id', 'ASC']],
+        },
+      );
+    });
+  });
+
+  describe('NEW_PLATFORM_TIPS_LEDGER host with a tip refunded after it was invoiced', () => {
+    // Full lifecycle: tip B was collected and invoiced last month, then the contribution was
+    // refunded. The refund pair carries a fresh OWED settlement (see createRefundTransaction), and
+    // this month's run must deduct it from the Platform Tips invoice so the host is billed only the
+    // net (held tip A minus refunded tip B).
+    let deductionHost, negativeNetHost, platformTipsAccount, heldTipCredit, refundTipDebit, negativeNetRefundDebit;
+
+    before(async () => {
+      await utils.resetTestDB();
+      await utils.seedDefaultVendors();
+
+      const platformUser = await fakeUser({ id: PlatformConstants.PlatformUserId }, { slug: 'ofitech-admin' });
+      const oc = await fakeHost({
+        id: PlatformConstants.PlatformCollectiveId,
+        slug: randStr('platform-'),
+        CreatedByUserId: platformUser.id,
+      });
+      await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
+      await fakePayoutMethod({
+        CollectiveId: oc.id,
+        type: 'BANK_ACCOUNT',
+        data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
+      });
+
+      await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 2000`);
+      await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 50`);
+
+      const hostAdmin = await fakeUser();
+      deductionHost = await fakeHost({
+        name: 'deduction-host',
+        currency: 'USD',
+        plan: 'grow-plan-2021',
+        admin: hostAdmin,
+        settings: { newPlatformTipsLedger: true },
+      });
+      await fakeConnectedAccount({ CollectiveId: deductionHost.id, service: 'transferwise' });
+      // hostFeePercent 0 keeps the settlement to tips only (no Platform Share item)
+      const collective = await fakeCollective({
+        HostCollectiveId: deductionHost.id,
+        currency: 'USD',
+        hostFeePercent: 0,
+      });
+
+      negativeNetHost = await fakeHost({
+        name: 'negative-net-host',
+        currency: 'USD',
+        plan: 'grow-plan-2021',
+        admin: hostAdmin,
+        settings: { newPlatformTipsLedger: true },
+      });
+      await fakeConnectedAccount({ CollectiveId: negativeNetHost.id, service: 'transferwise' });
+      const negativeNetCollective = await fakeCollective({
+        HostCollectiveId: negativeNetHost.id,
+        currency: 'USD',
+        hostFeePercent: 0,
+      });
+
+      const clock = useFakeTimers({ now: lastMonth.toDate(), toFake: ['Date'] });
+      try {
+        // Tip A ($50): collected last month, still held — will be invoiced this run.
+        const orderA = await fakeOrder({
+          description: 'Contribution with $50 tip, still held',
+          CollectiveId: collective.id,
+          currency: 'USD',
+          status: 'PENDING',
+          platformTipAmount: 5000,
+          totalAmount: 15000,
+        });
+        await orderA.markAsPaid(hostAdmin);
+
+        // Tip B ($20): collected, then invoiced + released by last month's run, then refunded.
+        const orderB = await fakeOrder({
+          description: 'Contribution with $20 tip, invoiced then refunded',
+          CollectiveId: collective.id,
+          currency: 'USD',
+          status: 'PENDING',
+          platformTipAmount: 2000,
+          totalAmount: 12000,
+        });
+        await orderB.markAsPaid(hostAdmin);
+
+        const tipBCredit = await models.Transaction.findOne({
+          where: { OrderId: orderB.id, kind: TransactionKind.PLATFORM_TIP, type: 'CREDIT' },
+        });
+        const tipBSettlement = await models.TransactionSettlement.getByTransaction(tipBCredit);
+        await tipBSettlement.update({ status: 'INVOICED' });
+
+        const contributionBCredit = await models.Transaction.findOne({
+          where: { OrderId: orderB.id, kind: TransactionKind.CONTRIBUTION, type: 'CREDIT' },
+        });
+        await createRefundTransaction(contributionBCredit, 0, null, hostAdmin);
+
+        // Negative-net host: its only activity is a refunded already-invoiced tip ($20), so this
+        // run nets negative and everything must roll forward.
+        const orderC = await fakeOrder({
+          description: 'Contribution with $20 tip, invoiced then refunded (negative-net host)',
+          CollectiveId: negativeNetCollective.id,
+          currency: 'USD',
+          status: 'PENDING',
+          platformTipAmount: 2000,
+          totalAmount: 12000,
+        });
+        await orderC.markAsPaid(hostAdmin);
+        const tipCCredit = await models.Transaction.findOne({
+          where: { OrderId: orderC.id, kind: TransactionKind.PLATFORM_TIP, type: 'CREDIT' },
+        });
+        await (await models.TransactionSettlement.getByTransaction(tipCCredit)).update({ status: 'INVOICED' });
+        const contributionCCredit = await models.Transaction.findOne({
+          where: { OrderId: orderC.id, kind: TransactionKind.CONTRIBUTION, type: 'CREDIT' },
+        });
+        await createRefundTransaction(contributionCCredit, 0, null, hostAdmin);
+      } finally {
+        clock.restore();
+      }
+
+      // This block exercises two hosts, each with its own per-host platform-tips account.
+      platformTipsAccount = await getHostPlatformTipsAccount(deductionHost);
+      const negativeNetPlatformTipsAccount = await getHostPlatformTipsAccount(negativeNetHost);
+
+      heldTipCredit = await models.Transaction.findOne({
+        where: {
+          HostCollectiveId: deductionHost.id,
+          CollectiveId: platformTipsAccount.id,
+          kind: TransactionKind.PLATFORM_TIP,
+          type: 'CREDIT',
+          isRefund: false,
+          RefundTransactionId: null,
+        },
+      });
+      refundTipDebit = await models.Transaction.findOne({
+        where: {
+          HostCollectiveId: deductionHost.id,
+          CollectiveId: platformTipsAccount.id,
+          kind: TransactionKind.PLATFORM_TIP,
+          type: 'DEBIT',
+          isRefund: true,
+        },
+      });
+      expect(refundTipDebit, 'refund should write a PLATFORM_TIP DEBIT on the vendor').to.exist;
+      expect((await models.TransactionSettlement.getByTransaction(refundTipDebit)).status).to.equal('OWED');
+      negativeNetRefundDebit = await models.Transaction.findOne({
+        where: {
+          HostCollectiveId: negativeNetHost.id,
+          CollectiveId: negativeNetPlatformTipsAccount.id,
+          kind: TransactionKind.PLATFORM_TIP,
+          type: 'DEBIT',
+          isRefund: true,
+        },
+      });
+
+      await invoicePlatformFees();
+    });
+
+    after(async () => {
+      await utils.resetTestDB();
+    });
+
+    it('deducts the refunded invoiced tip from the Platform Tips item (billed against platform-tips)', async () => {
+      const expenses = await models.Expense.findAll({
+        where: {
+          CollectiveId: platformTipsAccount.id,
+          HostCollectiveId: deductionHost.id,
+          type: ExpenseType.SETTLEMENT,
+        },
+      });
+      expect(expenses, 'cron should bill one SETTLEMENT expense against platform-tips').to.have.length(1);
+      expect(expenses[0].amount).to.equal(3000); // $50 held - $20 refunded
+      const items = await expenses[0].getItems();
+      const platformTipsItem = items.find(i => i.description === 'Platform Tips');
+      expect(platformTipsItem, 'expense should have a Platform Tips item').to.exist;
+      expect(platformTipsItem.amount).to.equal(3000);
+    });
+
+    it('writes no release transfer (the held tips stay on the slice until the expense is paid)', async () => {
+      // The held credit and the refund deduction remain on the platform-tips slice; they are cleared
+      // by the host-scoped DEBIT posted when the settlement expense is paid, not by a transfer.
+      const slice = await models.Transaction.findAll({
+        where: { HostCollectiveId: deductionHost.id, CollectiveId: platformTipsAccount.id },
+      });
+      expect(slice.every(t => t.kind === TransactionKind.PLATFORM_TIP)).to.be.true;
+    });
+
+    it('flips the held tip and the refund deduction settlements to INVOICED', async () => {
+      expect((await models.TransactionSettlement.getByTransaction(heldTipCredit)).status).to.equal('INVOICED');
+      expect((await models.TransactionSettlement.getByTransaction(refundTipDebit)).status).to.equal('INVOICED');
+    });
+
+    it('rolls everything forward when refund deductions exceed held tips', async () => {
+      // negative-net host's only activity is a refunded already-invoiced tip, so this run nets
+      // negative: no settlement expense is billed against platform-tips for it.
+      const expenses = await models.Expense.findAll({
+        where: {
+          CollectiveId: platformTipsAccount.id,
+          HostCollectiveId: negativeNetHost.id,
+          type: ExpenseType.SETTLEMENT,
+        },
+      });
+      expect(expenses, 'no settlement expense should be billed').to.have.length(0);
+
+      // The deduction stays OWED so it nets against a later run
+      expect((await models.TransactionSettlement.getByTransaction(negativeNetRefundDebit)).status).to.equal('OWED');
+    });
+
+    it('matches the net-positive (deduction) host ledger snapshot', async () => {
+      // Held tips (+), last month's release (-), the post-invoice refund deduction (-) and this
+      // run's net release (-) should all appear, every row in the host currency, and the held tip +
+      // refund deduction settlements flipped to INVOICED.
+      await utils.snapshotLedger(
+        [
+          'kind',
+          'type',
+          'isDebt',
+          'isRefund',
+          'amount',
+          'currency',
+          'hostCurrency',
+          'amountInHostCurrency',
+          'settlementStatus',
+        ],
+        {
+          where: {
+            HostCollectiveId: deductionHost.id,
+            kind: [TransactionKind.PLATFORM_TIP],
+          },
+          order: [['id', 'ASC']],
+        },
+      );
+    });
+
+    it('matches the negative-net (rolled-forward) host ledger snapshot', async () => {
+      // Refund deductions exceed held tips: no new release is written and the refund deduction stays
+      // OWED so it nets against a later run.
+      await utils.snapshotLedger(
+        [
+          'kind',
+          'type',
+          'isDebt',
+          'isRefund',
+          'amount',
+          'currency',
+          'hostCurrency',
+          'amountInHostCurrency',
+          'settlementStatus',
+        ],
+        {
+          where: {
+            HostCollectiveId: negativeNetHost.id,
+            kind: [TransactionKind.PLATFORM_TIP],
+          },
+          order: [['id', 'ASC']],
+        },
+      );
+    });
+  });
+
+  describe('host that opted out of NEW_PLATFORM_TIPS_LEDGER before the settlement run', () => {
+    // The flag only routes tips at collection time; settlement is decided from the vendor ledger.
+    // Tips collected while the flag was on must still be invoiced and released after the host
+    // opts out mid-month — otherwise their settlements stay OWED forever and the vendor slice is
+    // never emptied.
+    let optedOutHost, platformTipsAccount, platformTipCredit;
+
+    before(async () => {
+      await utils.resetTestDB();
+      await utils.seedDefaultVendors();
+
+      const platformUser = await fakeUser({ id: PlatformConstants.PlatformUserId }, { slug: 'ofitech-admin' });
+      const oc = await fakeHost({
+        id: PlatformConstants.PlatformCollectiveId,
+        slug: randStr('platform-'),
+        CreatedByUserId: platformUser.id,
+      });
+      await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
+      await fakePayoutMethod({
+        CollectiveId: oc.id,
+        type: 'BANK_ACCOUNT',
+        data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
+      });
+
+      await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 2000`);
+      await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 50`);
+
+      const hostAdmin = await fakeUser();
+      optedOutHost = await fakeHost({
+        name: 'opted-out-host',
+        currency: 'USD',
+        plan: 'grow-plan-2021',
+        admin: hostAdmin,
+        settings: { newPlatformTipsLedger: true },
+      });
+      await fakeConnectedAccount({ CollectiveId: optedOutHost.id, service: 'transferwise' });
+      const collective = await fakeCollective({
+        HostCollectiveId: optedOutHost.id,
+        currency: 'USD',
+        hostFeePercent: 0,
+      });
+
+      // Collect a $50 tip while the flag is on...
+      const clock = useFakeTimers({ now: lastMonth.toDate(), toFake: ['Date'] });
+      try {
+        const order = await fakeOrder({
+          description: 'Contribution with $50 tip before opting out',
+          CollectiveId: collective.id,
+          currency: 'USD',
+          status: 'PENDING',
+          platformTipAmount: 5000,
+          totalAmount: 15000,
+        });
+        await order.markAsPaid(hostAdmin);
+      } finally {
+        clock.restore();
+      }
+
+      platformTipsAccount = await models.Collective.findOne({ where: { data: { isPlatformTipsAccount: true } } });
+
+      platformTipCredit = await models.Transaction.findOne({
+        where: {
+          HostCollectiveId: optedOutHost.id,
+          CollectiveId: platformTipsAccount.id,
+          kind: TransactionKind.PLATFORM_TIP,
+          type: 'CREDIT',
+        },
+      });
+      expect(platformTipCredit, 'PLATFORM_TIP credit should be held on the vendor').to.exist;
+
+      // ...then opt out before the settlement cron runs
+      await optedOutHost.update({ settings: { ...optedOutHost.settings, newPlatformTipsLedger: false } });
+
+      await invoicePlatformFees();
+    });
+
+    after(async () => {
+      await utils.resetTestDB();
+    });
+
+    it('still invoices the tips collected while the flag was on', async () => {
+      const expenses = await models.Expense.findAll({
+        where: {
+          CollectiveId: platformTipsAccount.id,
+          HostCollectiveId: optedOutHost.id,
+          type: ExpenseType.SETTLEMENT,
+        },
+      });
+      expect(expenses, 'exactly one SETTLEMENT expense billed against platform-tips').to.have.length(1);
+      const items = await expenses[0].getItems();
+      const platformTipsItem = items.find(i => i.description === 'Platform Tips');
+      expect(platformTipsItem, 'expense should have a Platform Tips item').to.exist;
+      expect(platformTipsItem.amount).to.equal(5000);
+      expect((await models.TransactionSettlement.getByTransaction(platformTipCredit)).status).to.equal('INVOICED');
+    });
+  });
+
+  describe('NEW_PLATFORM_TIPS_LEDGER host carrying a pre-conversion legacy refund deduction', () => {
+    // A tip refunded after it was invoiced under the LEGACY flow leaves a negative OWED
+    // PLATFORM_TIP_DEBT row on the host's own collective. New-flow tips are now billed separately
+    // (against the platform-tips account), so the legacy deduction is no longer netted into the same
+    // expense: it stays on the host's legacy bundle and, with no offsetting legacy tips, rolls
+    // forward (stays OWED) while the new-flow tip is billed in full against platform-tips.
+    let mixedHost, platformTipsAccount, legacyRefundDebit, legacyOriginalDebtCredit, heldTipCredit;
+
+    before(async () => {
+      await utils.resetTestDB();
+      await utils.seedDefaultVendors();
+
+      const platformUser = await fakeUser({ id: PlatformConstants.PlatformUserId }, { slug: 'ofitech-admin' });
+      const oc = await fakeHost({
+        id: PlatformConstants.PlatformCollectiveId,
+        slug: randStr('platform-'),
+        CreatedByUserId: platformUser.id,
+      });
+      await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
+      await fakePayoutMethod({
+        CollectiveId: oc.id,
+        type: 'BANK_ACCOUNT',
+        data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
+      });
+
+      await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 2000`);
+      await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 50`);
+
+      const hostAdmin = await fakeUser();
+      mixedHost = await fakeHost({
+        name: 'mixed-legacy-new-host',
+        currency: 'USD',
+        plan: 'grow-plan-2021',
+        admin: hostAdmin,
+        settings: { newPlatformTipsLedger: true },
+      });
+      await fakeConnectedAccount({ CollectiveId: mixedHost.id, service: 'transferwise' });
+      const collective = await fakeCollective({ HostCollectiveId: mixedHost.id, currency: 'USD', hostFeePercent: 0 });
+
+      // Legacy-era $20 tip, invoiced/settled, then refunded — the exact state the conversion
+      // script leaves behind (it skips refunded and non-OWED tips). Original debt: SETTLED.
+      const legacyGroup = fakeUUID('10000001');
+      legacyOriginalDebtCredit = await fakeTransaction({
+        type: 'CREDIT',
+        FromCollectiveId: oc.id,
+        CollectiveId: mixedHost.id,
+        HostCollectiveId: mixedHost.id,
+        amount: 2000,
+        amountInHostCurrency: 2000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        kind: TransactionKind.PLATFORM_TIP_DEBT,
+        createdAt: twoMonthsAgo,
+        isDebt: true,
+        TransactionGroup: legacyGroup,
+      });
+      await models.TransactionSettlement.createForTransaction(legacyOriginalDebtCredit, 'SETTLED');
+      // The refund pair's debt row: negative, OWED — must be deducted from the next invoice.
+      legacyRefundDebit = await fakeTransaction({
+        type: 'DEBIT',
+        FromCollectiveId: oc.id,
+        CollectiveId: mixedHost.id,
+        HostCollectiveId: mixedHost.id,
+        amount: -2000,
+        amountInHostCurrency: -2000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        kind: TransactionKind.PLATFORM_TIP_DEBT,
+        createdAt: lastMonth,
+        isDebt: true,
+        isRefund: true,
+        TransactionGroup: fakeUUID('10000002'),
+      });
+      await models.TransactionSettlement.createForTransaction(legacyRefundDebit);
+
+      // New-flow $50 tip held on the platform-tips account.
+      const clock = useFakeTimers({ now: lastMonth.toDate(), toFake: ['Date'] });
+      try {
+        const order = await fakeOrder({
+          description: 'Contribution with $50 tip on converted host',
+          CollectiveId: collective.id,
+          currency: 'USD',
+          status: 'PENDING',
+          platformTipAmount: 5000,
+          totalAmount: 15000,
+        });
+        await order.markAsPaid(hostAdmin);
+      } finally {
+        clock.restore();
+      }
+
+      platformTipsAccount = await models.Collective.findOne({ where: { data: { isPlatformTipsAccount: true } } });
+
+      heldTipCredit = await models.Transaction.findOne({
+        where: {
+          HostCollectiveId: mixedHost.id,
+          CollectiveId: platformTipsAccount.id,
+          kind: TransactionKind.PLATFORM_TIP,
+          type: 'CREDIT',
+        },
+      });
+      expect(heldTipCredit, 'PLATFORM_TIP credit should be held on the vendor').to.exist;
+
+      await invoicePlatformFees();
+    });
+
+    after(async () => {
+      await utils.resetTestDB();
+    });
+
+    it('bills the new-flow tips against platform-tips and rolls the legacy deduction forward', async () => {
+      const platformTipsExpenses = await models.Expense.findAll({
+        where: { CollectiveId: platformTipsAccount.id, HostCollectiveId: mixedHost.id, type: ExpenseType.SETTLEMENT },
+      });
+      expect(platformTipsExpenses, 'one platform-tips settlement expense').to.have.length(1);
+      const items = await platformTipsExpenses[0].getItems();
+      const platformTipsItem = items.find(i => i.description === 'Platform Tips');
+      expect(platformTipsItem, 'expense should have a Platform Tips item').to.exist;
+      expect(platformTipsItem.amount).to.equal(5000); // the new-flow held tip, billed in full
+
+      // No host-billed settlement expense is created for the negative-only legacy bundle.
+      const hostExpenses = await mixedHost.getExpenses();
+      expect(hostExpenses, 'no host-billed expense for a negative-only legacy bundle').to.have.length(0);
+    });
+
+    it('writes no release transfer (only the held PLATFORM_TIP credit sits on the slice)', async () => {
+      const slice = await models.Transaction.findAll({
+        where: { HostCollectiveId: mixedHost.id, CollectiveId: platformTipsAccount.id },
+      });
+      expect(slice.every(t => t.kind === TransactionKind.PLATFORM_TIP)).to.be.true;
+    });
+
+    it('flips the held new-flow tip to INVOICED and leaves the legacy rows untouched', async () => {
+      expect((await models.TransactionSettlement.getByTransaction(heldTipCredit)).status).to.equal('INVOICED');
+      // The legacy refund deduction has no positive legacy tips to net against this run -> stays OWED.
+      expect((await models.TransactionSettlement.getByTransaction(legacyRefundDebit)).status).to.equal('OWED');
+      expect((await models.TransactionSettlement.getByTransaction(legacyOriginalDebtCredit)).status).to.equal(
+        'SETTLED',
+      );
+    });
+  });
+
+  describe('NEW_PLATFORM_TIPS_LEDGER host with non-USD currency', () => {
+    // A new-ledger PLATFORM_TIP credit lives on the host's ledger, so it is denominated in the
+    // host's currency (not the platform currency). For a EUR host collecting a 300€ tip the credit
+    // is recorded as 300€ directly — no EUR->USD->EUR round trip. The host is therefore billed
+    // exactly what it collected, and the platform-tips account balance for the host nets to zero once
+    // the tip is released at settlement.
+    let eurLedgerHost, platformTipsAccount, platformTipCredit, settlementExpense;
+    const TIP_EUR = 300e2;
+
+    before(async () => {
+      await utils.resetTestDB();
+      await utils.seedDefaultVendors();
+
+      const platformUser = await fakeUser({ id: PlatformConstants.PlatformUserId }, { slug: 'ofitech-admin' });
+      const oc = await fakeHost({
+        id: PlatformConstants.PlatformCollectiveId,
+        slug: randStr('platform-'),
+        CreatedByUserId: platformUser.id,
+      });
+      await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
+      await fakePayoutMethod({
+        CollectiveId: oc.id,
+        type: 'BANK_ACCOUNT',
+        data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
+      });
+
+      await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 3000`);
+      await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 80`);
+
+      const hostAdmin = await fakeUser();
+      eurLedgerHost = await fakeHost({
+        name: 'eur-ledger-host',
+        currency: 'EUR',
+        plan: 'grow-plan-2021',
+        admin: hostAdmin,
+        settings: { newPlatformTipsLedger: true },
+      });
+      await fakeConnectedAccount({ CollectiveId: eurLedgerHost.id, service: 'transferwise' });
+
+      const collective = await fakeCollective({ HostCollectiveId: eurLedgerHost.id, currency: 'EUR' });
+
+      const clock = useFakeTimers({ now: lastMonth.toDate(), toFake: ['Date'] });
+      const order = await fakeOrder({
+        description: 'EUR contribution with 300€ tip on new-ledger host',
+        CollectiveId: collective.id,
+        currency: 'EUR',
+        status: 'PENDING',
+        platformTipAmount: TIP_EUR,
+        totalAmount: 1300e2,
+      });
+      await order.markAsPaid(hostAdmin);
+      clock.restore();
+
+      platformTipsAccount = await models.Collective.findOne({ where: { data: { isPlatformTipsAccount: true } } });
+
+      platformTipCredit = await models.Transaction.findOne({
+        where: {
+          HostCollectiveId: eurLedgerHost.id,
+          CollectiveId: platformTipsAccount.id,
+          kind: TransactionKind.PLATFORM_TIP,
+          type: 'CREDIT',
+        },
+      });
+      // The credit is on the host's ledger (HostCollectiveId = host, not null) and denominated in
+      // the host's currency (EUR), recorded directly with no platform-currency round trip.
+      expect(platformTipCredit.HostCollectiveId).to.equal(eurLedgerHost.id);
+      expect(platformTipCredit.hostCurrency).to.equal('EUR');
+      expect(platformTipCredit.amountInHostCurrency).to.equal(TIP_EUR);
+
+      await invoicePlatformFees();
+
+      const settlementExpenses = await models.Expense.findAll({
+        where: {
+          CollectiveId: platformTipsAccount.id,
+          HostCollectiveId: eurLedgerHost.id,
+          type: ExpenseType.SETTLEMENT,
+        },
+      });
+      expect(settlementExpenses, 'cron should bill one SETTLEMENT expense against platform-tips').to.have.length(1);
+      settlementExpense = settlementExpenses[0];
+      settlementExpense.items = await settlementExpense.getItems();
+    });
+
+    after(async () => {
+      await utils.resetTestDB();
+    });
+
+    it('bills the Platform Tips item for exactly the collected tip, in the host currency', () => {
+      expect(settlementExpense.currency).to.equal('EUR');
+      const platformTipsItem = settlementExpense.items.find(i => i.description === 'Platform Tips');
+      expect(platformTipsItem, 'expense should have a Platform Tips item').to.exist;
+      expect(platformTipsItem.currency).to.equal('EUR');
+      expect(platformTipsItem.amount).to.equal(TIP_EUR); // exactly what was collected — no round trip
+    });
+
+    it('bills against platform-tips in the host currency and writes no release transfer', async () => {
+      expect(settlementExpense.CollectiveId).to.equal(platformTipsAccount.id);
+      expect(settlementExpense.HostCollectiveId).to.equal(eurLedgerHost.id);
+      expect(settlementExpense.currency).to.equal('EUR');
+      expect(settlementExpense.amount).to.equal(TIP_EUR);
+
+      // The held EUR credit stays on the slice (no transfer); it clears when the expense is paid.
+      const slice = await models.Transaction.findAll({
+        where: { CollectiveId: platformTipsAccount.id, HostCollectiveId: eurLedgerHost.id },
+      });
+      expect(slice.map(t => t.kind)).to.deep.equal([TransactionKind.PLATFORM_TIP]);
+      expect(slice[0].hostCurrency).to.equal('EUR');
+      expect(slice[0].amountInHostCurrency).to.equal(TIP_EUR);
+    });
+
+    it('matches the EUR host ledger snapshot (no platform-currency round trip)', async () => {
+      // The platform-tip ledger for a EUR host stays in EUR: the held PLATFORM_TIP credit is recorded
+      // as 300€ directly, with no EUR->USD->EUR detour. This snapshot guards that denomination.
+      await utils.snapshotLedger(
+        ['kind', 'type', 'isDebt', 'amount', 'currency', 'hostCurrency', 'amountInHostCurrency', 'settlementStatus'],
+        {
+          where: {
+            HostCollectiveId: eurLedgerHost.id,
+            kind: [TransactionKind.PLATFORM_TIP],
+          },
+          order: [['id', 'ASC']],
+        },
+      );
+    });
+  });
+
+  describe('NEW_PLATFORM_TIPS_LEDGER host below the settlement threshold', () => {
+    // Regression: when the run is skipped (here because totalAmountChargedInUsd < MIN_AMOUNT_USD),
+    // no settlement expense may be created and the source PLATFORM_TIP TransactionSettlement rows must
+    // stay OWED, so they are simply retried on a later run rather than billed below the threshold.
+    let belowThresholdHost, platformTipsAccount, platformTipCredit;
+    const SMALL_TIP = 300; // $3, well under the $10 minimum
+
+    const platformTipsExpenses = () =>
+      models.Expense.findAll({
+        where: {
+          CollectiveId: platformTipsAccount.id,
+          HostCollectiveId: belowThresholdHost.id,
+          type: ExpenseType.SETTLEMENT,
+        },
+      });
+
+    before(async () => {
+      await utils.resetTestDB();
+      await utils.seedDefaultVendors();
+
+      const platformUser = await fakeUser({ id: PlatformConstants.PlatformUserId }, { slug: 'ofitech-admin' });
+      const oc = await fakeHost({
+        id: PlatformConstants.PlatformCollectiveId,
+        slug: randStr('platform-'),
+        CreatedByUserId: platformUser.id,
+      });
+      await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
+      await fakePayoutMethod({
+        CollectiveId: oc.id,
+        type: 'BANK_ACCOUNT',
+        data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
+      });
+
+      await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 4000`);
+      await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 110`);
+
+      const hostAdmin = await fakeUser();
+      belowThresholdHost = await fakeHost({
+        name: 'below-threshold-ledger-host',
+        currency: 'USD',
+        plan: 'grow-plan-2021',
+        admin: hostAdmin,
+        settings: { newPlatformTipsLedger: true },
+      });
+      await fakeConnectedAccount({ CollectiveId: belowThresholdHost.id, service: 'transferwise' });
+
+      const collective = await fakeCollective({ HostCollectiveId: belowThresholdHost.id, currency: 'USD' });
+
+      const clock = useFakeTimers({ now: lastMonth.toDate(), toFake: ['Date'] });
+      const order = await fakeOrder({
+        description: 'Contribution with a $3 tip on new-ledger host',
+        CollectiveId: collective.id,
+        currency: 'USD',
+        status: 'PENDING',
+        platformTipAmount: SMALL_TIP,
+        totalAmount: 5000,
+      });
+      await order.markAsPaid(hostAdmin);
+      clock.restore();
+
+      platformTipsAccount = await models.Collective.findOne({ where: { data: { isPlatformTipsAccount: true } } });
+
+      platformTipCredit = await models.Transaction.findOne({
+        where: {
+          HostCollectiveId: belowThresholdHost.id,
+          CollectiveId: platformTipsAccount.id,
+          kind: TransactionKind.PLATFORM_TIP,
+          type: 'CREDIT',
+        },
+      });
+      expect(platformTipCredit, 'PLATFORM_TIP credit should be written on the platform-tips account').to.exist;
+    });
+
+    after(async () => {
+      await utils.resetTestDB();
+    });
+
+    it('does not bill an expense and leaves the TransactionSettlement OWED when skipped', async () => {
+      await invoicePlatformFees();
+
+      expect(await platformTipsExpenses(), 'no settlement expense below threshold').to.have.length(0);
+      const ts = await models.TransactionSettlement.getByTransaction(platformTipCredit);
+      expect(ts.status, 'source tip stays OWED so it is retried later').to.equal('OWED');
+    });
+
+    it('is idempotent across repeated skipped runs', async () => {
+      // Repeated below-threshold runs must not bill anything or flip the settlement: the tip simply
+      // keeps rolling forward until it clears the minimum.
+      await invoicePlatformFees();
+      await invoicePlatformFees();
+
+      expect(await platformTipsExpenses(), 'still no expense after repeated skipped runs').to.have.length(0);
+      const ts = await models.TransactionSettlement.getByTransaction(platformTipCredit);
+      expect(ts.status).to.equal('OWED');
+    });
+  });
+
+  describe('settlement guards', () => {
+    let ociHost, ociTipDebtCredit, softDeletedTsHost, fixedFeeOnlyHost;
+
+    before(async () => {
+      await utils.resetTestDB();
+
+      const platformUser = await fakeUser({ id: PlatformConstants.PlatformUserId }, { slug: 'ofitech-admin' });
+      const oc = await fakeHost({
+        id: PlatformConstants.PlatformCollectiveId,
+        slug: randStr('platform-'),
+        CreatedByUserId: platformUser.id,
+      });
+      await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
+      // The cron requires a USD BANK_ACCOUNT payout method on the platform org.
+      await fakePayoutMethod({
+        CollectiveId: oc.id,
+        type: 'BANK_ACCOUNT',
+        data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
+      });
+
+      await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 3000`);
+      await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 70`);
+
+      // 1) OC Inc (the pre-2024 platform account): carries legacy OWED tips but must never be
+      // invoiced — the deleted getPendingPlatformTips used to return 0 for platform accounts.
+      ociHost = await fakeHost({ id: PlatformConstants.OCICollectiveId, name: 'OC Inc', currency: 'USD' });
+      ociTipDebtCredit = await fakeTransaction({
+        type: 'CREDIT',
+        FromCollectiveId: oc.id,
+        CollectiveId: ociHost.id,
+        HostCollectiveId: ociHost.id,
+        amount: 2000,
+        amountInHostCurrency: 2000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        kind: TransactionKind.PLATFORM_TIP_DEBT,
+        createdAt: lastMonth,
+        isDebt: true,
+      });
+      await models.TransactionSettlement.createForTransaction(ociTipDebtCredit);
+
+      // 2) Host with one live and one soft-deleted OWED settlement: only the live one may be billed.
+      softDeletedTsHost = await fakeHost({ name: 'soft-deleted-ts-host', currency: 'USD' });
+      await fakeConnectedAccount({ CollectiveId: softDeletedTsHost.id, service: 'transferwise' });
+      const liveTipDebtCredit = await fakeTransaction({
+        type: 'CREDIT',
+        FromCollectiveId: oc.id,
+        CollectiveId: softDeletedTsHost.id,
+        HostCollectiveId: softDeletedTsHost.id,
+        amount: 2000,
+        amountInHostCurrency: 2000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        kind: TransactionKind.PLATFORM_TIP_DEBT,
+        createdAt: lastMonth,
+        isDebt: true,
+      });
+      await models.TransactionSettlement.createForTransaction(liveTipDebtCredit);
+      const deletedTipDebtCredit = await fakeTransaction({
+        type: 'CREDIT',
+        FromCollectiveId: oc.id,
+        CollectiveId: softDeletedTsHost.id,
+        HostCollectiveId: softDeletedTsHost.id,
+        amount: 1500,
+        amountInHostCurrency: 1500,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        kind: TransactionKind.PLATFORM_TIP_DEBT,
+        createdAt: lastMonth,
+        isDebt: true,
+      });
+      await models.TransactionSettlement.createForTransaction(deletedTipDebtCredit);
+      const tsToDelete = await models.TransactionSettlement.getByTransaction(deletedTipDebtCredit);
+      await tsToDelete.destroy();
+
+      // 3) Host whose settlement expense carries only non-transaction items (Fixed Fee per Hosted
+      // Collective): the CSV attachment must be skipped instead of emitting an empty `kind=` param.
+      fixedFeeOnlyHost = await fakeHost({
+        name: 'fixed-fee-only-host',
+        currency: 'USD',
+        plan: 'grow-plan-2021',
+        data: { plan: { pricePerCollective: 1200 } },
+      });
+      await fakeConnectedAccount({ CollectiveId: fixedFeeOnlyHost.id, service: 'transferwise' });
+      const hostedCollective = await fakeCollective({ HostCollectiveId: fixedFeeOnlyHost.id });
+      // Some activity in the period so the host is picked up, but no OWED debt rows.
+      await fakeTransaction({
+        type: 'CREDIT',
+        kind: TransactionKind.CONTRIBUTION,
+        CollectiveId: hostedCollective.id,
+        HostCollectiveId: fixedFeeOnlyHost.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        createdAt: lastMonth,
+      });
+
+      await invoicePlatformFees();
+    });
+
+    after(async () => {
+      await utils.resetTestDB();
+    });
+
+    it('never invoices OC Inc for its legacy OWED tips', async () => {
+      expect(await ociHost.getExpenses(), 'no settlement expense for OC Inc').to.have.length(0);
+      const ts = await models.TransactionSettlement.getByTransaction(ociTipDebtCredit);
+      expect(ts.status, 'OC Inc legacy tip stays OWED').to.equal('OWED');
+    });
+
+    it('does not bill soft-deleted settlements', async () => {
+      const expenses = await softDeletedTsHost.getExpenses();
+      expect(expenses, 'one settlement expense').to.have.length(1);
+      const items = await expenses[0].getItems();
+      const platformTipsItem = items.find(i => i.description === 'Platform Tips');
+      expect(platformTipsItem, 'expense should have a Platform Tips item').to.exist;
+      expect(platformTipsItem.amount, 'only the live settlement is billed').to.equal(2000);
+    });
+
+    it('skips the CSV attachment when the expense has no transaction-backed items', async () => {
+      const expenses = await fixedFeeOnlyHost.getExpenses();
+      expect(expenses, 'one settlement expense').to.have.length(1);
+      const items = await expenses[0].getItems();
+      expect(items.map(i => i.description)).to.deep.equal(['Fixed Fee per Hosted Collective']);
+      const attachedFiles = await models.ExpenseAttachedFile.findAll({ where: { ExpenseId: expenses[0].id } });
+      expect(attachedFiles, 'no CSV attachment without transactions').to.have.length(0);
     });
   });
 });

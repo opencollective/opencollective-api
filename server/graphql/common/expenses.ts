@@ -3679,6 +3679,10 @@ export const checkHasBalanceToPayExpense = async (
 
   if (expense.feesPayer === 'PAYEE') {
     assert(
+      ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type),
+      'The payee cannot cover the fees on platform settlements',
+    );
+    assert(
       models.PayoutMethod.typeSupportsFeesPayer(payoutMethodType),
       'Putting the payment processor fees on the payee is only supported for bank accounts, manual payouts and stripe at the moment',
     );
