@@ -314,6 +314,7 @@ const isTrustedLinkUrl = (url: string): boolean => {
     /^(.+\.)?meetup\.com$/,
     /^(.+\.)?wikipedia\.com$/,
     /^(.+\.)?youtube\.com$/,
+    /^(.+\.)?youtube-nocookie\.com$/,
     /^(.+\.)?vimeo\.com$/,
     /^(.+\.)?anchor\.fm$/,
     // Trusted organizations
