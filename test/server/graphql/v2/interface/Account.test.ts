@@ -1,7 +1,10 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 
+import OrderStatus from '../../../../../server/constants/order-status';
 import MemberRoles from '../../../../../server/constants/roles';
+import { backfillPaymentIntentForOrderLedger } from '../../../../../server/lib/payment-intents/backfill';
+import models from '../../../../../server/models';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import {
   fakeActiveHost,
@@ -9,6 +12,7 @@ import {
   fakeIncognitoProfile,
   fakeKYCVerification,
   fakeMember,
+  fakeOrder,
   fakeOrganization,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
@@ -247,6 +251,49 @@ describe('server/graphql/v2/interface/Account', () => {
       expect(result.data.account.isIncognito).to.be.true;
       expect(result.data.account.mainProfile).to.exist;
       expect(result.data.account.mainProfile.slug).to.equal(user.collective.slug);
+    });
+  });
+
+  describe('paymentIntents', () => {
+    const query = gql`
+      query AccountPaymentIntents($slug: String!) {
+        account(slug: $slug) {
+          paymentIntents {
+            totalCount
+            nodes {
+              id
+              status
+            }
+          }
+        }
+      }
+    `;
+
+    beforeEach(async () => {
+      await resetTestDB();
+    });
+
+    it('returns payment intents for the account', async () => {
+      const host = await fakeActiveHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const contributor = await fakeUser();
+      const order = await fakeOrder(
+        {
+          status: OrderStatus.PAID,
+          CollectiveId: collective.id,
+          FromCollectiveId: contributor.CollectiveId,
+          CreatedByUserId: contributor.id,
+        },
+        { withTransactions: true },
+      );
+
+      await models.PaymentIntent.destroy({ where: { OrderId: order.id }, force: true });
+      await models.Transaction.update({ PaymentIntentId: null }, { where: { OrderId: order.id } });
+      await backfillPaymentIntentForOrderLedger(order.id);
+
+      const result = await graphqlQueryV2(query, { slug: collective.slug }, contributor);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.paymentIntents.totalCount).to.eq(1);
     });
   });
 });

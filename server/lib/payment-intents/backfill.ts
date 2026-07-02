@@ -236,7 +236,7 @@ export const backfillPaymentIntentForOrderLedger = async (
   await sequelize.transaction(async (sqlTransaction: SequelizeTransaction) => {
     await backfillPaymentIntentFromSource(
       { transaction: primaryTransaction },
-      { trigger: 'ledger', sequelizeTransaction: sqlTransaction },
+      { trigger: 'ledger', sequelizeTransaction: sqlTransaction, createdAt: order.createdAt },
     );
 
     if (isReversed && refundTransaction) {
@@ -282,7 +282,7 @@ const backfillPaymentIntentForExpenseLedger = async (
   await sequelize.transaction(async (sqlTransaction: SequelizeTransaction) => {
     await backfillPaymentIntentFromSource(
       { transaction: primaryTransaction },
-      { trigger: 'ledger', sequelizeTransaction: sqlTransaction },
+      { trigger: 'ledger', sequelizeTransaction: sqlTransaction, createdAt: expense.createdAt },
     );
 
     if (isReversed && refundTransaction) {
@@ -316,7 +316,10 @@ export const backfillPaymentIntentForPendingOrder = async (
   }
 
   await sequelize.transaction(async (sqlTransaction: SequelizeTransaction) => {
-    await backfillPaymentIntentFromSource({ order }, { trigger: 'lifecycle', sequelizeTransaction: sqlTransaction });
+    await backfillPaymentIntentFromSource(
+      { order },
+      { trigger: 'lifecycle', sequelizeTransaction: sqlTransaction, createdAt: order.createdAt },
+    );
   });
 
   return 'processed';
@@ -342,7 +345,10 @@ export const backfillPaymentIntentForPendingExpense = async (
   }
 
   await sequelize.transaction(async (sqlTransaction: SequelizeTransaction) => {
-    await backfillPaymentIntentFromSource({ expense }, { trigger: 'lifecycle', sequelizeTransaction: sqlTransaction });
+    await backfillPaymentIntentFromSource(
+      { expense },
+      { trigger: 'lifecycle', sequelizeTransaction: sqlTransaction, createdAt: expense.createdAt },
+    );
   });
 
   return 'processed';

@@ -1208,6 +1208,61 @@ interface Account {
   ): TransactionGroupCollection!
 
   """
+  Payment intents involving this account
+  """
+  paymentIntents(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 100
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Only return payment intents for this host
+    """
+    host: AccountReferenceInput
+
+    """
+    Filter by direction relative to the account (INCOMING = payee, OUTGOING = payer)
+    """
+    direction: PaymentIntentDirection
+
+    """
+    Include payment intents for child accounts (Events, Projects)
+    """
+    includeChildrenPaymentIntents: Boolean = false
+
+    """
+    Filter payment intents by status
+    """
+    status: [PaymentIntentStatus!]
+
+    """
+    Filter payment intents by type
+    """
+    type: [PaymentIntentType!]
+
+    """
+    Only return payment intents with an effective date after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Only return payment intents with an effective date before this date
+    """
+    dateTo: DateTime
+
+    """
+    Only return payment intents involving this account as the other party
+    """
+    counterparty: AccountReferenceInput
+  ): PaymentIntentCollection!
+
+  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
@@ -4072,6 +4127,61 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     """
     dateTo: DateTime
   ): TransactionGroupCollection!
+
+  """
+  Payment intents involving this account
+  """
+  paymentIntents(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 100
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Only return payment intents for this host
+    """
+    host: AccountReferenceInput
+
+    """
+    Filter by direction relative to the account (INCOMING = payee, OUTGOING = payer)
+    """
+    direction: PaymentIntentDirection
+
+    """
+    Include payment intents for child accounts (Events, Projects)
+    """
+    includeChildrenPaymentIntents: Boolean = false
+
+    """
+    Filter payment intents by status
+    """
+    status: [PaymentIntentStatus!]
+
+    """
+    Filter payment intents by type
+    """
+    type: [PaymentIntentType!]
+
+    """
+    Only return payment intents with an effective date after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Only return payment intents with an effective date before this date
+    """
+    dateTo: DateTime
+
+    """
+    Only return payment intents involving this account as the other party
+    """
+    counterparty: AccountReferenceInput
+  ): PaymentIntentCollection!
 
   """
   EXPERIMENTAL (this may change or be removed)
@@ -7877,6 +7987,97 @@ type TransactionGroup {
 }
 
 """
+A collection of Payment Intents
+"""
+type PaymentIntentCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [PaymentIntent!]!
+}
+
+"""
+A payment intent representing a charge, transfer, or pending payment
+"""
+type PaymentIntent {
+  id: String!
+
+  """
+  The resource public id (ie: pi_xxxxxxxx)
+  """
+  publicId: String!
+  legacyId: Int! @deprecated(reason: "2026-07-02: use publicId")
+  type: PaymentIntentType!
+  status: PaymentIntentStatus!
+  payer: Account
+  payee: Account
+  host: Account
+  description: String
+  createdAt: DateTime!
+  paidAt: DateTime
+  order: Order
+  expense: Expense
+
+  """
+  Transactions linked to this payment intent
+  """
+  transactions: [Transaction!]
+
+  """
+  Intended amount from the linked order or expense
+  """
+  amountPledged: Amount
+
+  """
+  Total amount sent by the payer, computed from linked transactions
+  """
+  amountSent(
+    """
+    When true, excludes fees and taxes from the amount
+    """
+    net: Boolean = false
+  ): Amount
+
+  """
+  Total amount received by the payee, computed from linked transactions
+  """
+  amountReceived(
+    """
+    When true, excludes fees and taxes from the amount
+    """
+    net: Boolean = false
+  ): Amount
+}
+
+enum PaymentIntentType {
+  PlatformBilling
+  PlatformBillingTipSettlement
+  GrantRequest
+  PaymentRequest
+  CardCharge
+  Contribution
+  AddedMoney
+  BalanceTransfer
+  InternalTransfer
+  Other
+}
+
+enum PaymentIntentStatus {
+  PENDING
+  PAID
+  REVERSED
+  ERROR
+}
+
+"""
+Payment intent direction relative to the filtered account (INCOMING = payee, OUTGOING = payer)
+"""
+enum PaymentIntentDirection {
+  INCOMING
+  OUTGOING
+}
+
+"""
 EXPERIMENTAL (this may change or be deleted): Host transaction report
 """
 type TransactionReports {
@@ -11271,6 +11472,61 @@ type Bot implements Account {
   ): TransactionGroupCollection!
 
   """
+  Payment intents involving this account
+  """
+  paymentIntents(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 100
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Only return payment intents for this host
+    """
+    host: AccountReferenceInput
+
+    """
+    Filter by direction relative to the account (INCOMING = payee, OUTGOING = payer)
+    """
+    direction: PaymentIntentDirection
+
+    """
+    Include payment intents for child accounts (Events, Projects)
+    """
+    includeChildrenPaymentIntents: Boolean = false
+
+    """
+    Filter payment intents by status
+    """
+    status: [PaymentIntentStatus!]
+
+    """
+    Filter payment intents by type
+    """
+    type: [PaymentIntentType!]
+
+    """
+    Only return payment intents with an effective date after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Only return payment intents with an effective date before this date
+    """
+    dateTo: DateTime
+
+    """
+    Only return payment intents involving this account as the other party
+    """
+    counterparty: AccountReferenceInput
+  ): PaymentIntentCollection!
+
+  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
@@ -12358,6 +12614,61 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     dateTo: DateTime
   ): TransactionGroupCollection!
+
+  """
+  Payment intents involving this account
+  """
+  paymentIntents(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 100
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Only return payment intents for this host
+    """
+    host: AccountReferenceInput
+
+    """
+    Filter by direction relative to the account (INCOMING = payee, OUTGOING = payer)
+    """
+    direction: PaymentIntentDirection
+
+    """
+    Include payment intents for child accounts (Events, Projects)
+    """
+    includeChildrenPaymentIntents: Boolean = false
+
+    """
+    Filter payment intents by status
+    """
+    status: [PaymentIntentStatus!]
+
+    """
+    Filter payment intents by type
+    """
+    type: [PaymentIntentType!]
+
+    """
+    Only return payment intents with an effective date after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Only return payment intents with an effective date before this date
+    """
+    dateTo: DateTime
+
+    """
+    Only return payment intents involving this account as the other party
+    """
+    counterparty: AccountReferenceInput
+  ): PaymentIntentCollection!
 
   """
   EXPERIMENTAL (this may change or be removed)
@@ -14029,6 +14340,61 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): TransactionGroupCollection!
 
   """
+  Payment intents involving this account
+  """
+  paymentIntents(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 100
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Only return payment intents for this host
+    """
+    host: AccountReferenceInput
+
+    """
+    Filter by direction relative to the account (INCOMING = payee, OUTGOING = payer)
+    """
+    direction: PaymentIntentDirection
+
+    """
+    Include payment intents for child accounts (Events, Projects)
+    """
+    includeChildrenPaymentIntents: Boolean = false
+
+    """
+    Filter payment intents by status
+    """
+    status: [PaymentIntentStatus!]
+
+    """
+    Filter payment intents by type
+    """
+    type: [PaymentIntentType!]
+
+    """
+    Only return payment intents with an effective date after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Only return payment intents with an effective date before this date
+    """
+    dateTo: DateTime
+
+    """
+    Only return payment intents involving this account as the other party
+    """
+    counterparty: AccountReferenceInput
+  ): PaymentIntentCollection!
+
+  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
@@ -15413,6 +15779,61 @@ type Individual implements Account {
     """
     dateTo: DateTime
   ): TransactionGroupCollection!
+
+  """
+  Payment intents involving this account
+  """
+  paymentIntents(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 100
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Only return payment intents for this host
+    """
+    host: AccountReferenceInput
+
+    """
+    Filter by direction relative to the account (INCOMING = payee, OUTGOING = payer)
+    """
+    direction: PaymentIntentDirection
+
+    """
+    Include payment intents for child accounts (Events, Projects)
+    """
+    includeChildrenPaymentIntents: Boolean = false
+
+    """
+    Filter payment intents by status
+    """
+    status: [PaymentIntentStatus!]
+
+    """
+    Filter payment intents by type
+    """
+    type: [PaymentIntentType!]
+
+    """
+    Only return payment intents with an effective date after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Only return payment intents with an effective date before this date
+    """
+    dateTo: DateTime
+
+    """
+    Only return payment intents involving this account as the other party
+    """
+    counterparty: AccountReferenceInput
+  ): PaymentIntentCollection!
 
   """
   EXPERIMENTAL (this may change or be removed)
@@ -16827,6 +17248,61 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     """
     dateTo: DateTime
   ): TransactionGroupCollection!
+
+  """
+  Payment intents involving this account
+  """
+  paymentIntents(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 100
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Only return payment intents for this host
+    """
+    host: AccountReferenceInput
+
+    """
+    Filter by direction relative to the account (INCOMING = payee, OUTGOING = payer)
+    """
+    direction: PaymentIntentDirection
+
+    """
+    Include payment intents for child accounts (Events, Projects)
+    """
+    includeChildrenPaymentIntents: Boolean = false
+
+    """
+    Filter payment intents by status
+    """
+    status: [PaymentIntentStatus!]
+
+    """
+    Filter payment intents by type
+    """
+    type: [PaymentIntentType!]
+
+    """
+    Only return payment intents with an effective date after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Only return payment intents with an effective date before this date
+    """
+    dateTo: DateTime
+
+    """
+    Only return payment intents involving this account as the other party
+    """
+    counterparty: AccountReferenceInput
+  ): PaymentIntentCollection!
 
   """
   EXPERIMENTAL (this may change or be removed)
@@ -18338,6 +18814,61 @@ type Vendor implements Account & AccountWithContributions {
     """
     dateTo: DateTime
   ): TransactionGroupCollection!
+
+  """
+  Payment intents involving this account
+  """
+  paymentIntents(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 100
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Only return payment intents for this host
+    """
+    host: AccountReferenceInput
+
+    """
+    Filter by direction relative to the account (INCOMING = payee, OUTGOING = payer)
+    """
+    direction: PaymentIntentDirection
+
+    """
+    Include payment intents for child accounts (Events, Projects)
+    """
+    includeChildrenPaymentIntents: Boolean = false
+
+    """
+    Filter payment intents by status
+    """
+    status: [PaymentIntentStatus!]
+
+    """
+    Filter payment intents by type
+    """
+    type: [PaymentIntentType!]
+
+    """
+    Only return payment intents with an effective date after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Only return payment intents with an effective date before this date
+    """
+    dateTo: DateTime
+
+    """
+    Only return payment intents involving this account as the other party
+    """
+    counterparty: AccountReferenceInput
+  ): PaymentIntentCollection!
 
   """
   EXPERIMENTAL (this may change or be removed)
@@ -19856,7 +20387,7 @@ type Query {
     Account associated to the transaction group
     """
     account: AccountReferenceInput!
-  ): TransactionGroup
+  ): TransactionGroup @deprecated(reason: "2026-07-02: Please use PaymentIntents query instead")
 
   """
   [!] Warning: this query is currently in beta and the API might change
@@ -20050,6 +20581,66 @@ type Query {
   ): [OffPlatformTransactionsInstitution!]!
   loggedInAccount: Individual
   me: Individual
+
+  """
+  Returns a list of payment intents
+  """
+  paymentIntents(
+    """
+    Filter payment intents involving this account
+    """
+    account: AccountReferenceInput
+
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 100
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Only return payment intents for this host
+    """
+    host: AccountReferenceInput
+
+    """
+    Filter by direction relative to the account (INCOMING = payee, OUTGOING = payer)
+    """
+    direction: PaymentIntentDirection
+
+    """
+    Include payment intents for child accounts (Events, Projects)
+    """
+    includeChildrenPaymentIntents: Boolean = false
+
+    """
+    Filter payment intents by status
+    """
+    status: [PaymentIntentStatus!]
+
+    """
+    Filter payment intents by type
+    """
+    type: [PaymentIntentType!]
+
+    """
+    Only return payment intents with an effective date after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Only return payment intents with an effective date before this date
+    """
+    dateTo: DateTime
+
+    """
+    Only return payment intents involving this account as the other party
+    """
+    counterparty: AccountReferenceInput
+  ): PaymentIntentCollection!
   platformSubscriptionTiers: [PlatformSubscriptionTier]
 }
 
@@ -22692,6 +23283,61 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): TransactionGroupCollection!
 
   """
+  Payment intents involving this account
+  """
+  paymentIntents(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 100
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Only return payment intents for this host
+    """
+    host: AccountReferenceInput
+
+    """
+    Filter by direction relative to the account (INCOMING = payee, OUTGOING = payer)
+    """
+    direction: PaymentIntentDirection
+
+    """
+    Include payment intents for child accounts (Events, Projects)
+    """
+    includeChildrenPaymentIntents: Boolean = false
+
+    """
+    Filter payment intents by status
+    """
+    status: [PaymentIntentStatus!]
+
+    """
+    Filter payment intents by type
+    """
+    type: [PaymentIntentType!]
+
+    """
+    Only return payment intents with an effective date after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Only return payment intents with an effective date before this date
+    """
+    dateTo: DateTime
+
+    """
+    Only return payment intents involving this account as the other party
+    """
+    counterparty: AccountReferenceInput
+  ): PaymentIntentCollection!
+
+  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
@@ -23936,6 +24582,61 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     dateTo: DateTime
   ): TransactionGroupCollection!
+
+  """
+  Payment intents involving this account
+  """
+  paymentIntents(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 100
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Only return payment intents for this host
+    """
+    host: AccountReferenceInput
+
+    """
+    Filter by direction relative to the account (INCOMING = payee, OUTGOING = payer)
+    """
+    direction: PaymentIntentDirection
+
+    """
+    Include payment intents for child accounts (Events, Projects)
+    """
+    includeChildrenPaymentIntents: Boolean = false
+
+    """
+    Filter payment intents by status
+    """
+    status: [PaymentIntentStatus!]
+
+    """
+    Filter payment intents by type
+    """
+    type: [PaymentIntentType!]
+
+    """
+    Only return payment intents with an effective date after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Only return payment intents with an effective date before this date
+    """
+    dateTo: DateTime
+
+    """
+    Only return payment intents involving this account as the other party
+    """
+    counterparty: AccountReferenceInput
+  ): PaymentIntentCollection!
 
   """
   EXPERIMENTAL (this may change or be removed)
