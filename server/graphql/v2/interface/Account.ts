@@ -37,6 +37,7 @@ import { GraphQLKYCVerificationCollection } from '../collection/KYCVerificationC
 import { GraphQLMemberCollection, GraphQLMemberOfCollection } from '../collection/MemberCollection';
 import { GraphQLOAuthApplicationCollection } from '../collection/OAuthApplicationCollection';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
+import { GraphQLPaymentIntentCollection } from '../collection/PaymentIntentCollection';
 import { GraphQLTransactionCollection } from '../collection/TransactionCollection';
 import { GraphQLTransactionGroupCollection } from '../collection/TransactionGroupCollection';
 import { GraphQLUpdateCollection } from '../collection/UpdateCollection';
@@ -102,6 +103,10 @@ import {
   ExpensesCollectionQueryResolver,
 } from '../query/collection/ExpensesCollectionQuery';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
+import {
+  PaymentIntentCollectionArgs,
+  PaymentIntentCollectionResolver,
+} from '../query/collection/PaymentIntentCollectionQuery';
 import {
   TransactionGroupCollectionArgs,
   TransactionGroupCollectionResolver,
@@ -1036,6 +1041,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   transactionGroups: accountTransactionGroups,
+  paymentIntents: accountPaymentIntents,
   transactionReports: {
     type: GraphQLTransactionReports,
     description: 'EXPERIMENTAL (this may change or be removed)',
@@ -1253,6 +1259,17 @@ const accountTransactionGroups = {
   },
   async resolve(collective: Collective, args, req) {
     return TransactionGroupCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
+  },
+};
+
+const accountPaymentIntents = {
+  type: new GraphQLNonNull(GraphQLPaymentIntentCollection),
+  description: 'Payment intents involving this account',
+  args: {
+    ...omit(PaymentIntentCollectionArgs, ['account']),
+  },
+  async resolve(collective: Collective, args, req) {
+    return PaymentIntentCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
   },
 };
 

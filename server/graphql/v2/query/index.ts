@@ -11,6 +11,7 @@ import ExpenseTagStatsCollectionQuery from './collection/ExpenseTagStatsCollecti
 import ExportRequestsCollectionQuery from './collection/ExportRequestsCollectionQuery';
 import HostsCollectionQuery from './collection/HostsCollectionQuery';
 import getOrdersCollectionQuery from './collection/OrdersCollectionQuery';
+import PaymentIntentCollectionQuery from './collection/PaymentIntentCollectionQuery';
 import TagStatsCollectionQuery from './collection/TagStatsCollectionQuery';
 import TransactionGroupCollectionQuery from './collection/TransactionGroupCollectionQuery';
 import TransactionsCollectionQuery from './collection/TransactionsCollectionQuery';
@@ -106,6 +107,7 @@ const query = {
       }
     },
   },
+  paymentIntents: PaymentIntentCollectionQuery,
   platformSubscriptionTiers,
 };
 
