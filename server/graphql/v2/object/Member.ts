@@ -4,7 +4,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { canSeeAllPrivateAccounts } from '../../../lib/private-accounts';
-import { Member } from '../../../models';
+import { Collective, Member } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLMemberRole } from '../enum/MemberRole';
 import { idEncode } from '../identifiers';
@@ -111,16 +111,21 @@ const getMemberFields = () => ({
   },
 });
 
+const canSeeIncognitoMember = (req: express.Request, account: Collective, memberAccount: Collective): boolean => {
+  return (
+    req.remoteUser &&
+    checkScope(req, 'incognito') &&
+    (req.remoteUser.isAdminOfCollective(account) || req.remoteUser.isAdminOfCollective(memberAccount))
+  );
+};
+
 const getMemberAccountResolver = field => async (member: Member, args, req: express.Request) => {
   const memberAccount = member.memberCollective || (await req.loaders.Collective.byId.load(member.MemberCollectiveId));
   const account = member.collective || (await req.loaders.Collective.byId.load(member.CollectiveId));
   const resolvedAccount = field === 'collective' ? account : memberAccount;
   if (!resolvedAccount) {
     return null;
-  } else if (
-    resolvedAccount.isIncognito &&
-    !(req.remoteUser?.isAdmin(resolvedAccount.id) && checkScope(req, 'incognito'))
-  ) {
+  } else if (resolvedAccount.isIncognito && !canSeeIncognitoMember(req, account, memberAccount)) {
     return null;
   } else if (!(await canSeeAllPrivateAccounts(req, [memberAccount, account]))) {
     return null;
