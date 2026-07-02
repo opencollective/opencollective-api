@@ -120,8 +120,8 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         slug: randStr('platform-'),
         data: { canHaveChangelogUpdates: true },
       });
-      opencollective.addUserWithRole(user3, roles.ADMIN);
-      user3.update({ data: { isRoot: true } });
+      await opencollective.addUserWithRole(user3, roles.ADMIN);
+      await user3.update({ data: { isRoot: true } });
       changelogUpdate = {
         title: 'Monthly changelog update',
         html: 'New feature added',

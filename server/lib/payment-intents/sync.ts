@@ -32,6 +32,8 @@ type UpsertPaymentIntentSource = {
 type UpsertPaymentIntentOptions = {
   sequelizeTransaction?: SequelizeTransaction;
   trigger: PaymentIntentSyncTrigger;
+  /** Backfill only: set createdAt to match the source order/expense */
+  createdAt?: Date;
 };
 
 const loadOrderForTransaction = async (
@@ -149,7 +151,7 @@ export const deletePaymentIntentForSource = async (
 
 const _upsertPaymentIntentFor = async (
   source: UpsertPaymentIntentSource,
-  { sequelizeTransaction, trigger }: UpsertPaymentIntentOptions,
+  { sequelizeTransaction, trigger, createdAt }: UpsertPaymentIntentOptions,
 ): Promise<PaymentIntent | null> => {
   if (trigger === 'soft-delete') {
     await deletePaymentIntentForSource(source, sequelizeTransaction);
@@ -255,7 +257,10 @@ const _upsertPaymentIntentFor = async (
     await existing.update(payload, { transaction: sequelizeTransaction });
     paymentIntent = existing;
   } else {
-    paymentIntent = await PaymentIntent.create(payload, { transaction: sequelizeTransaction });
+    paymentIntent = await PaymentIntent.create(
+      { ...payload, ...(createdAt ? { createdAt } : {}) },
+      { transaction: sequelizeTransaction },
+    );
   }
 
   if (primaryTransactionGroup) {
@@ -307,8 +312,10 @@ export const backfillPaymentIntentFromSource = async (
   {
     sequelizeTransaction,
     trigger,
+    createdAt,
   }: {
     sequelizeTransaction?: SequelizeTransaction;
     trigger: BackfillPaymentIntentTrigger;
+    createdAt?: Date;
   },
-): Promise<PaymentIntent | null> => _upsertPaymentIntentFor(source, { sequelizeTransaction, trigger });
+): Promise<PaymentIntent | null> => _upsertPaymentIntentFor(source, { sequelizeTransaction, trigger, createdAt });
