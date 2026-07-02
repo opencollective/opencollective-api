@@ -1,9 +1,10 @@
 import sanitizeHtml from 'sanitize-html';
 
-import { sanitizerOptions as updateSanitizerOptions } from '../../models/Update';
+import { optsSanitizeUpdateHtml, parseServiceLink } from '../sanitize-html';
+import { YOUTUBE_VIDEO_ID_PATTERN } from '../url-utils';
 
 const constructPreviewImageURL = (service: string, id: string) => {
-  if (service === 'youtube' && id.match('[a-zA-Z0-9_-]{11}')) {
+  if (service === 'youtube' && YOUTUBE_VIDEO_ID_PATTERN.test(id)) {
     return `https://img.youtube.com/vi/${id}/0.jpg`;
   } else if (service === 'anchorFm') {
     return `https://opencollective.com/static/images/anchor-fm-logo.png`;
@@ -12,36 +13,11 @@ const constructPreviewImageURL = (service: string, id: string) => {
   }
 };
 
-const parseServiceLink = (videoLink: string) => {
-  const regexps = {
-    youtube: new RegExp(
-      '(?:https?://)?(?:www\\.)?youtu(?:\\.be/|be(-nocookie)?\\.com/\\S*(?:watch|embed|shorts)(?:(?:(?=/[^&\\s?]+(?!\\S))/)|(?:\\S*v=|v/)))([^&\\s?]+)',
-      'i',
-    ),
-    anchorFm: /^(http|https)?:\/\/(www\.)?anchor\.fm\/([^/]+)(\/embed)?(\/episodes\/)?([^/]+)?\/?$/,
-  };
-  for (const service in regexps) {
-    videoLink = videoLink.replace('/?showinfo=0', '');
-    const matches = regexps[service].exec(videoLink);
-    if (matches) {
-      if (service === 'anchorFm') {
-        const podcastName = matches[3];
-        const episodeId = matches[6];
-        const podcastUrl = `${podcastName}/embed`;
-        return { service, id: episodeId ? `${podcastUrl}/episodes/${episodeId}` : podcastUrl };
-      } else {
-        return { service, id: matches[matches.length - 1] };
-      }
-    }
-  }
-  return {};
-};
-
 export const replaceVideosByImagePreviews = (html: string) => {
   const sanitizerOptions = {
-    ...updateSanitizerOptions,
+    ...optsSanitizeUpdateHtml,
     transformTags: {
-      ...updateSanitizerOptions.transformTags,
+      ...optsSanitizeUpdateHtml.transformTags,
       iframe: (tagName, attribs) => {
         if (!attribs.src) {
           return '';

@@ -6,6 +6,7 @@ import {
   generateSummaryForHTML,
   sanitizeHTML,
   stripHTML,
+  YOUTUBE_IFRAME_REFERRER_POLICY,
 } from '../../../server/lib/sanitize-html';
 
 const fullContent = `
@@ -123,8 +124,45 @@ describe('server/lib/sanitize-html', () => {
 
     it('allow videos', () => {
       expect(sanitizeHTML(fullContent, buildSanitizerOptions({ videoIframes: true }))).to.include(
-        '<iframe width="560" height="315" src="https://www.youtube.com/embed/4in0wKB1jRU?start=461" frameborder="0" allow allowfullscreen>',
+        `<iframe width="560" height="315" src="https://www.youtube.com/embed/4in0wKB1jRU?start=461" frameborder="0" allow allowfullscreen referrerpolicy="${YOUTUBE_IFRAME_REFERRER_POLICY}">`,
       );
+    });
+
+    it('adds referrer policy to youtube embeds when missing', () => {
+      const html =
+        '<iframe src="https://www.youtube-nocookie.com/embed/G2IWYXxO324?showinfo=0" width="100%" height="394" frameborder="0" allowfullscreen></iframe>';
+      const sanitized = sanitizeHTML(html, buildSanitizerOptions({ videoIframes: true }));
+
+      expect(sanitized).to.include(`referrerpolicy="${YOUTUBE_IFRAME_REFERRER_POLICY}"`);
+      expect(sanitized).to.include('youtube-nocookie.com/embed/G2IWYXxO324');
+    });
+
+    it('overrides an incorrect youtube iframe referrer policy', () => {
+      const html =
+        '<iframe src="https://www.youtube.com/embed/G2IWYXxO324" referrerpolicy="no-referrer" width="100%" height="394"></iframe>';
+      const sanitized = sanitizeHTML(html, buildSanitizerOptions({ videoIframes: true }));
+
+      expect(sanitized).to.include(`referrerpolicy="${YOUTUBE_IFRAME_REFERRER_POLICY}"`);
+      expect(sanitized).not.to.include('referrerpolicy="no-referrer"');
+    });
+
+    it('does not add referrer policy to non-youtube iframes', () => {
+      const html = '<iframe src="https://player.vimeo.com/video/123456" width="100%" height="394"></iframe>';
+      const sanitized = sanitizeHTML(html, buildSanitizerOptions({ videoIframes: true }));
+
+      expect(sanitized).not.to.include('referrerpolicy');
+    });
+
+    it('strips empty iframes', () => {
+      const options = buildSanitizerOptions({ videoIframes: true });
+      expect(sanitizeHTML('<iframe></iframe>', options)).to.eq('');
+      expect(sanitizeHTML('<iframe href="test"></iframe>', options)).to.eq('');
+    });
+
+    it('strips iframes with unsupported src', () => {
+      const options = buildSanitizerOptions({ videoIframes: true });
+      expect(sanitizeHTML('<iframe src="https://evil.com/embed"></iframe>', options)).to.eq('');
+      expect(sanitizeHTML('<iframe src="not-a-url"></iframe>', options)).to.eq('');
     });
 
     it('redirects unstrusted domains', () => {

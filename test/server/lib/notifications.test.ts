@@ -162,6 +162,17 @@ describe('server/lib/notification', () => {
           expect(sendEmailSpy.firstCall.args[2].update.html).to.equal(modifiedHtml);
         });
 
+        it('are converted to images for youtube-nocookie embed iframes in figure', async () => {
+          const html =
+            '<div>Content before<br /><figure data-trix-content-type="--embed-iframe-video"><iframe src="https://www.youtube-nocookie.com/embed/KLeHuFu_zIM?showinfo=0" width="100%" height="394"></iframe><figcaption></figcaption></figure><br />Content after</div>';
+          activity.data.update = await fakeUpdate({ CollectiveId: collective.id, html });
+          await notifyLib(activity);
+          const modifiedHtml =
+            '<div>Content before<br /><figure data-trix-content-type="--embed-iframe-video"><img src="https://img.youtube.com/vi/KLeHuFu_zIM/0.jpg" alt="youtube content" /><figcaption></figcaption></figure><br />Content after</div>';
+          await utils.waitForCondition(() => sendEmailSpy.callCount === 1);
+          expect(sendEmailSpy.firstCall.args[2].update.html).to.equal(modifiedHtml);
+        });
+
         it('cannot be abused to inject malicious code', async () => {
           const tests = [
             '<div>Test<iframe src="https://www.youtube.com/watch?v=X<script>xxx</script>XX\\"YY<script>xxx</script>Y><</iframe>"\'aYjD<script>xxx</script></aler>yjyQ&ab_channel=NPRMusic"></iframe>',
