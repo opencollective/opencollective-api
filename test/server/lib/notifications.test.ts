@@ -157,7 +157,7 @@ describe('server/lib/notification', () => {
           activity.data.update = await fakeUpdate({ CollectiveId: collective.id, html });
           await notifyLib(activity);
           const modifiedHtml =
-            '<div>Testing valid html content for notification email<img src="https://img.youtube.com/vi/JODaYjDyjyQ/0.jpg" alt="youtube content" /></div>';
+            '<div>Testing valid html content for notification email<a href="https://www.youtube.com/watch?v=JODaYjDyjyQ&amp;ab_channel=NPRMusic"><img src="https://img.youtube.com/vi/JODaYjDyjyQ/0.jpg" alt="youtube content" /></a></div>';
           await utils.waitForCondition(() => sendEmailSpy.callCount === 1);
           expect(sendEmailSpy.firstCall.args[2].update.html).to.equal(modifiedHtml);
         });
@@ -168,7 +168,7 @@ describe('server/lib/notification', () => {
           activity.data.update = await fakeUpdate({ CollectiveId: collective.id, html });
           await notifyLib(activity);
           const modifiedHtml =
-            '<div>Content before<br /><figure data-trix-content-type="--embed-iframe-video"><img src="https://img.youtube.com/vi/KLeHuFu_zIM/0.jpg" alt="youtube content" /><figcaption></figcaption></figure><br />Content after</div>';
+            '<div>Content before<br /><figure data-trix-content-type="--embed-iframe-video"><a href="https://www.youtube-nocookie.com/embed/KLeHuFu_zIM?showinfo=0"><img src="https://img.youtube.com/vi/KLeHuFu_zIM/0.jpg" alt="youtube content" /></a><figcaption></figcaption></figure><br />Content after</div>';
           await utils.waitForCondition(() => sendEmailSpy.callCount === 1);
           expect(sendEmailSpy.firstCall.args[2].update.html).to.equal(modifiedHtml);
         });

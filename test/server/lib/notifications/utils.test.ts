@@ -1,147 +1,185 @@
 import { expect } from 'chai';
+import config from 'config';
 
 import { replaceVideosByImagePreviews } from '../../../../server/lib/notifications/utils';
-
-const youtubePreview = (videoId: string) => `https://img.youtube.com/vi/${videoId}/0.jpg`;
-const anchorPreview = 'https://opencollective.com/static/images/anchor-fm-logo.png';
-
-const iframe = (src: string, attrs = '') => `<iframe src="${src}"${attrs ? ` ${attrs}` : ''}></iframe>`;
-
-const expectYoutubePreview = (html: string, videoId: string) => {
-  expect(replaceVideosByImagePreviews(html)).to.equal(`<img src="${youtubePreview(videoId)}" alt="youtube content" />`);
-};
-
-const expectAnchorPreview = (html: string) => {
-  expect(replaceVideosByImagePreviews(html)).to.equal(`<img src="${anchorPreview}" alt="anchorFm content" />`);
-};
-
-const expectIframeStripped = (html: string, expectedHtml: string) => {
-  expect(replaceVideosByImagePreviews(html)).to.equal(expectedHtml);
-};
 
 describe('server/lib/notifications/utils', () => {
   describe('replaceVideosByImagePreviews', () => {
     describe('YouTube', () => {
       it('converts watch URLs', () => {
-        expectYoutubePreview(iframe('https://www.youtube.com/watch?v=JODaYjDyjyQ&ab_channel=NPRMusic'), 'JODaYjDyjyQ');
+        expect(
+          replaceVideosByImagePreviews(
+            '<iframe src="https://www.youtube.com/watch?v=JODaYjDyjyQ&ab_channel=NPRMusic"></iframe>',
+          ),
+        ).to.equal(
+          '<a href="https://www.youtube.com/watch?v=JODaYjDyjyQ&amp;ab_channel=NPRMusic"><img src="https://img.youtube.com/vi/JODaYjDyjyQ/0.jpg" alt="youtube content" /></a>',
+        );
       });
 
       it('converts youtube-nocookie embed URLs with showinfo query param', () => {
-        expectYoutubePreview(
-          iframe('https://www.youtube-nocookie.com/embed/KLeHuFu_zIM?showinfo=0', 'width="100%" height="394"'),
-          'KLeHuFu_zIM',
+        expect(
+          replaceVideosByImagePreviews(
+            '<iframe src="https://www.youtube-nocookie.com/embed/KLeHuFu_zIM?showinfo=0" width="100%" height="394"></iframe>',
+          ),
+        ).to.equal(
+          '<a href="https://www.youtube-nocookie.com/embed/KLeHuFu_zIM?showinfo=0"><img src="https://img.youtube.com/vi/KLeHuFu_zIM/0.jpg" alt="youtube content" /></a>',
         );
       });
 
       it('converts youtube.com embed URLs', () => {
-        expectYoutubePreview(iframe('https://www.youtube.com/embed/dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
+        expect(
+          replaceVideosByImagePreviews('<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ"></iframe>'),
+        ).to.equal(
+          '<a href="https://www.youtube.com/embed/dQw4w9WgXcQ"><img src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg" alt="youtube content" /></a>',
+        );
       });
 
       it('converts youtu.be URLs', () => {
-        expectYoutubePreview(iframe('https://youtu.be/dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
+        expect(replaceVideosByImagePreviews('<iframe src="https://youtu.be/dQw4w9WgXcQ"></iframe>')).to.equal(
+          '<a href="https://youtu.be/dQw4w9WgXcQ"><img src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg" alt="youtube content" /></a>',
+        );
       });
 
       it('converts shorts URLs', () => {
-        expectYoutubePreview(iframe('https://www.youtube.com/shorts/dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
+        expect(
+          replaceVideosByImagePreviews('<iframe src="https://www.youtube.com/shorts/dQw4w9WgXcQ"></iframe>'),
+        ).to.equal(
+          '<a href="https://www.youtube.com/shorts/dQw4w9WgXcQ"><img src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg" alt="youtube content" /></a>',
+        );
       });
 
       it('converts embed iframes inside a figure', () => {
-        const html =
-          '<div>Content before<br /><figure data-trix-content-type="--embed-iframe-video"><iframe src="https://www.youtube-nocookie.com/embed/KLeHuFu_zIM?showinfo=0" width="100%" height="394"></iframe><figcaption></figcaption></figure><br />Content after</div>';
-        expect(replaceVideosByImagePreviews(html)).to.equal(
-          `<div>Content before<br /><figure data-trix-content-type="--embed-iframe-video"><img src="${youtubePreview('KLeHuFu_zIM')}" alt="youtube content" /><figcaption></figcaption></figure><br />Content after</div>`,
+        expect(
+          replaceVideosByImagePreviews(
+            '<div>Content before<br /><figure data-trix-content-type="--embed-iframe-video"><iframe src="https://www.youtube-nocookie.com/embed/KLeHuFu_zIM?showinfo=0" width="100%" height="394"></iframe><figcaption></figcaption></figure><br />Content after</div>',
+          ),
+        ).to.equal(
+          '<div>Content before<br /><figure data-trix-content-type="--embed-iframe-video"><a href="https://www.youtube-nocookie.com/embed/KLeHuFu_zIM?showinfo=0"><img src="https://img.youtube.com/vi/KLeHuFu_zIM/0.jpg" alt="youtube content" /></a><figcaption></figcaption></figure><br />Content after</div>',
         );
       });
 
       it('strips iframes with invalid video IDs', () => {
-        expectIframeStripped(iframe('https://www.youtube.com/watch?v=tooshort'), '');
-        expectIframeStripped(iframe('https://www.youtube.com/embed/not-valid-id'), '');
+        expect(
+          replaceVideosByImagePreviews('<iframe src="https://www.youtube.com/watch?v=tooshort"></iframe>'),
+        ).to.equal('');
+        expect(
+          replaceVideosByImagePreviews('<iframe src="https://www.youtube.com/embed/not-valid-id"></iframe>'),
+        ).to.equal('');
       });
 
       it('strips iframes with malformed YouTube URLs', () => {
-        expectIframeStripped(iframe('not-a-url'), '');
-        expectIframeStripped(iframe('https://www.vimeo.com/video/123456'), '');
+        expect(replaceVideosByImagePreviews('<iframe src="not-a-url"></iframe>')).to.equal('');
+        expect(replaceVideosByImagePreviews('<iframe src="https://www.vimeo.com/video/123456"></iframe>')).to.equal('');
       });
     });
 
     describe('Anchor.fm', () => {
       it('converts embed URLs with an episode', () => {
-        expectAnchorPreview(iframe('https://anchor.fm/my-podcast/embed/episodes/ep123'));
+        expect(
+          replaceVideosByImagePreviews('<iframe src="https://anchor.fm/my-podcast/embed/episodes/ep123"></iframe>'),
+        ).to.equal(
+          '<a href="https://anchor.fm/my-podcast/embed/episodes/ep123"><img src="https://opencollective.com/static/images/anchor-fm-logo.png" alt="anchorFm content" /></a>',
+        );
       });
 
       it('converts embed URLs without an episode', () => {
-        expectAnchorPreview(iframe('https://anchor.fm/my-podcast/embed'));
+        expect(replaceVideosByImagePreviews('<iframe src="https://anchor.fm/my-podcast/embed"></iframe>')).to.equal(
+          '<a href="https://anchor.fm/my-podcast/embed"><img src="https://opencollective.com/static/images/anchor-fm-logo.png" alt="anchorFm content" /></a>',
+        );
       });
 
       it('converts podcast URLs without an explicit embed path', () => {
-        expectAnchorPreview(iframe('https://anchor.fm/my-podcast'));
+        expect(replaceVideosByImagePreviews('<iframe src="https://anchor.fm/my-podcast"></iframe>')).to.equal(
+          '<a href="https://anchor.fm/my-podcast"><img src="https://opencollective.com/static/images/anchor-fm-logo.png" alt="anchorFm content" /></a>',
+        );
       });
 
       it('accepts www.anchor.fm', () => {
-        expectAnchorPreview(iframe('https://www.anchor.fm/my-podcast/embed/episodes/ep123'));
+        expect(
+          replaceVideosByImagePreviews('<iframe src="https://www.anchor.fm/my-podcast/embed/episodes/ep123"></iframe>'),
+        ).to.equal(
+          '<a href="https://www.anchor.fm/my-podcast/embed/episodes/ep123"><img src="https://opencollective.com/static/images/anchor-fm-logo.png" alt="anchorFm content" /></a>',
+        );
       });
 
       it('rejects non-anchor.fm hostnames even when the path looks valid', () => {
-        expectIframeStripped(iframe('https://evil.com/my-podcast/embed/episodes/ep123'), '');
+        expect(
+          replaceVideosByImagePreviews('<iframe src="https://evil.com/my-podcast/embed/episodes/ep123"></iframe>'),
+        ).to.equal('');
       });
 
       it('rejects anchor.fm URLs with invalid paths', () => {
-        expectIframeStripped(iframe('https://anchor.fm/'), '');
-        expectIframeStripped(iframe('https://anchor.fm/podcast/foo/bar'), '');
+        expect(replaceVideosByImagePreviews('<iframe src="https://anchor.fm/"></iframe>')).to.equal('');
+        expect(replaceVideosByImagePreviews('<iframe src="https://anchor.fm/podcast/foo/bar"></iframe>')).to.equal('');
       });
     });
 
     describe('unsupported or invalid iframes', () => {
       it('strips iframes without a src attribute', () => {
-        expectIframeStripped('<iframe width="100%" height="394"></iframe>', '');
+        expect(replaceVideosByImagePreviews('<iframe width="100%" height="394"></iframe>')).to.equal('');
       });
 
       it('strips Vimeo iframes', () => {
-        expectIframeStripped(iframe('https://player.vimeo.com/video/123456'), '');
+        expect(replaceVideosByImagePreviews('<iframe src="https://player.vimeo.com/video/123456"></iframe>')).to.equal(
+          '',
+        );
       });
 
       it('strips iframes with malicious src values', () => {
-        const maliciousSources = [
-          'https://www.youtube.com/watch?v=X<script>xxx</script>',
-          'https://www.youtube.com/watch?v=xxx<script></script>',
-          'https://www.test.com/watch?v=xxxxxxxxxxx',
-        ];
-
-        for (const src of maliciousSources) {
-          const result = replaceVideosByImagePreviews(iframe(src));
-          expect(result).to.not.contain('<script>');
-          expect(result).to.not.contain('<iframe');
-          expect(result).to.equal('');
-        }
+        expect(
+          replaceVideosByImagePreviews('<iframe src="https://www.youtube.com/watch?v=X<script>xxx</script>"></iframe>'),
+        ).to.equal('');
+        expect(
+          replaceVideosByImagePreviews('<iframe src="https://www.youtube.com/watch?v=xxx<script></script>"></iframe>'),
+        ).to.equal('');
+        expect(
+          replaceVideosByImagePreviews('<iframe src="https://www.test.com/watch?v=xxxxxxxxxxx"></iframe>'),
+        ).to.equal('');
       });
     });
 
     describe('HTML structure', () => {
       it('preserves surrounding HTML when converting a single iframe', () => {
-        const html =
-          '<div>Testing valid html content for notification email<iframe src="https://www.youtube.com/watch?v=JODaYjDyjyQ&ab_channel=NPRMusic"></iframe></div>';
-        expect(replaceVideosByImagePreviews(html)).to.equal(
-          `<div>Testing valid html content for notification email<img src="${youtubePreview('JODaYjDyjyQ')}" alt="youtube content" /></div>`,
+        expect(
+          replaceVideosByImagePreviews(
+            '<div>Testing valid html content for notification email<iframe src="https://www.youtube.com/watch?v=JODaYjDyjyQ&ab_channel=NPRMusic"></iframe></div>',
+          ),
+        ).to.equal(
+          '<div>Testing valid html content for notification email<a href="https://www.youtube.com/watch?v=JODaYjDyjyQ&amp;ab_channel=NPRMusic"><img src="https://img.youtube.com/vi/JODaYjDyjyQ/0.jpg" alt="youtube content" /></a></div>',
         );
       });
 
       it('leaves non-iframe HTML unchanged', () => {
-        const html = '<div>Testing valid html content for notification email</div>';
-        expect(replaceVideosByImagePreviews(html)).to.equal(html);
+        expect(replaceVideosByImagePreviews('<div>Testing valid html content for notification email</div>')).to.equal(
+          '<div>Testing valid html content for notification email</div>',
+        );
       });
 
       it('converts multiple iframes in the same document', () => {
-        const html = `${iframe('https://www.youtube.com/watch?v=JODaYjDyjyQ')}<p>and</p>${iframe('https://anchor.fm/my-podcast/embed')}`;
-        expect(replaceVideosByImagePreviews(html)).to.equal(
-          `<img src="${youtubePreview('JODaYjDyjyQ')}" alt="youtube content" /><p>and</p><img src="${anchorPreview}" alt="anchorFm content" />`,
+        expect(
+          replaceVideosByImagePreviews(
+            '<iframe src="https://www.youtube.com/watch?v=JODaYjDyjyQ"></iframe><p>and</p><iframe src="https://anchor.fm/my-podcast/embed"></iframe>',
+          ),
+        ).to.equal(
+          '<a href="https://www.youtube.com/watch?v=JODaYjDyjyQ"><img src="https://img.youtube.com/vi/JODaYjDyjyQ/0.jpg" alt="youtube content" /></a><p>and</p><a href="https://anchor.fm/my-podcast/embed"><img src="https://opencollective.com/static/images/anchor-fm-logo.png" alt="anchorFm content" /></a>',
         );
       });
 
       it('strips unsupported iframes but converts supported ones in mixed content', () => {
-        const html = `${iframe('https://www.youtube.com/embed/dQw4w9WgXcQ')}<p>middle</p>${iframe('https://player.vimeo.com/video/123456')}`;
-        expect(replaceVideosByImagePreviews(html)).to.equal(
-          `<img src="${youtubePreview('dQw4w9WgXcQ')}" alt="youtube content" /><p>middle</p>`,
+        expect(
+          replaceVideosByImagePreviews(
+            '<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ"></iframe><p>middle</p><iframe src="https://player.vimeo.com/video/123456"></iframe>',
+          ),
+        ).to.equal(
+          '<a href="https://www.youtube.com/embed/dQw4w9WgXcQ"><img src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg" alt="youtube content" /></a><p>middle</p>',
         );
+      });
+
+      it('does not let forged preview-link markers bypass link redirect policy', () => {
+        const maliciousUrl = 'https://malicious-domain.com/phishing';
+        expect(
+          replaceVideosByImagePreviews(`<a href="${maliciousUrl}" data-video-preview-link="true">Click me</a>`),
+        ).to.equal(`<a href="${config.host.website}/redirect?url=${encodeURIComponent(maliciousUrl)}">Click me</a>`);
       });
     });
   });
