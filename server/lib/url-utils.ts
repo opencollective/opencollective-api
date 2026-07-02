@@ -72,6 +72,10 @@ export function prependHttp(url: string, options: { https?: boolean } = {}) {
 
 export const YOUTUBE_VIDEO_ID_PATTERN = /^[a-zA-Z0-9_-]{11}$/;
 
+export const constructYouTubeWatchUrl = (videoId: string): string => {
+  return `https://www.youtube.com/watch?v=${videoId}`;
+};
+
 export const parseYouTubeVideoId = (videoLink: string): string | null => {
   try {
     const cleanLink = videoLink.replace(/\?showinfo=0$/, '');

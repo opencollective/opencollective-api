@@ -12,7 +12,7 @@ describe('server/lib/notifications/utils', () => {
             '<iframe src="https://www.youtube.com/watch?v=JODaYjDyjyQ&ab_channel=NPRMusic"></iframe>',
           ),
         ).to.equal(
-          '<a href="https://www.youtube.com/watch?v=JODaYjDyjyQ&amp;ab_channel=NPRMusic"><img src="https://img.youtube.com/vi/JODaYjDyjyQ/0.jpg" alt="youtube content" /></a>',
+          '<a href="https://www.youtube.com/watch?v=JODaYjDyjyQ"><img src="https://img.youtube.com/vi/JODaYjDyjyQ/0.jpg" alt="youtube content" /></a>',
         );
       });
 
@@ -22,7 +22,7 @@ describe('server/lib/notifications/utils', () => {
             '<iframe src="https://www.youtube-nocookie.com/embed/KLeHuFu_zIM?showinfo=0" width="100%" height="394"></iframe>',
           ),
         ).to.equal(
-          '<a href="https://www.youtube-nocookie.com/embed/KLeHuFu_zIM?showinfo=0"><img src="https://img.youtube.com/vi/KLeHuFu_zIM/0.jpg" alt="youtube content" /></a>',
+          '<a href="https://www.youtube.com/watch?v=KLeHuFu_zIM"><img src="https://img.youtube.com/vi/KLeHuFu_zIM/0.jpg" alt="youtube content" /></a>',
         );
       });
 
@@ -30,13 +30,13 @@ describe('server/lib/notifications/utils', () => {
         expect(
           replaceVideosByImagePreviews('<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ"></iframe>'),
         ).to.equal(
-          '<a href="https://www.youtube.com/embed/dQw4w9WgXcQ"><img src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg" alt="youtube content" /></a>',
+          '<a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"><img src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg" alt="youtube content" /></a>',
         );
       });
 
       it('converts youtu.be URLs', () => {
         expect(replaceVideosByImagePreviews('<iframe src="https://youtu.be/dQw4w9WgXcQ"></iframe>')).to.equal(
-          '<a href="https://youtu.be/dQw4w9WgXcQ"><img src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg" alt="youtube content" /></a>',
+          '<a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"><img src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg" alt="youtube content" /></a>',
         );
       });
 
@@ -44,7 +44,7 @@ describe('server/lib/notifications/utils', () => {
         expect(
           replaceVideosByImagePreviews('<iframe src="https://www.youtube.com/shorts/dQw4w9WgXcQ"></iframe>'),
         ).to.equal(
-          '<a href="https://www.youtube.com/shorts/dQw4w9WgXcQ"><img src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg" alt="youtube content" /></a>',
+          '<a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"><img src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg" alt="youtube content" /></a>',
         );
       });
 
@@ -54,7 +54,7 @@ describe('server/lib/notifications/utils', () => {
             '<div>Content before<br /><figure data-trix-content-type="--embed-iframe-video"><iframe src="https://www.youtube-nocookie.com/embed/KLeHuFu_zIM?showinfo=0" width="100%" height="394"></iframe><figcaption></figcaption></figure><br />Content after</div>',
           ),
         ).to.equal(
-          '<div>Content before<br /><figure data-trix-content-type="--embed-iframe-video"><a href="https://www.youtube-nocookie.com/embed/KLeHuFu_zIM?showinfo=0"><img src="https://img.youtube.com/vi/KLeHuFu_zIM/0.jpg" alt="youtube content" /></a><figcaption></figcaption></figure><br />Content after</div>',
+          '<div>Content before<br /><figure data-trix-content-type="--embed-iframe-video"><a href="https://www.youtube.com/watch?v=KLeHuFu_zIM"><img src="https://img.youtube.com/vi/KLeHuFu_zIM/0.jpg" alt="youtube content" /></a><figcaption></figcaption></figure><br />Content after</div>',
         );
       });
 
@@ -145,7 +145,7 @@ describe('server/lib/notifications/utils', () => {
             '<div>Testing valid html content for notification email<iframe src="https://www.youtube.com/watch?v=JODaYjDyjyQ&ab_channel=NPRMusic"></iframe></div>',
           ),
         ).to.equal(
-          '<div>Testing valid html content for notification email<a href="https://www.youtube.com/watch?v=JODaYjDyjyQ&amp;ab_channel=NPRMusic"><img src="https://img.youtube.com/vi/JODaYjDyjyQ/0.jpg" alt="youtube content" /></a></div>',
+          '<div>Testing valid html content for notification email<a href="https://www.youtube.com/watch?v=JODaYjDyjyQ"><img src="https://img.youtube.com/vi/JODaYjDyjyQ/0.jpg" alt="youtube content" /></a></div>',
         );
       });
 
@@ -171,7 +171,7 @@ describe('server/lib/notifications/utils', () => {
             '<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ"></iframe><p>middle</p><iframe src="https://player.vimeo.com/video/123456"></iframe>',
           ),
         ).to.equal(
-          '<a href="https://www.youtube.com/embed/dQw4w9WgXcQ"><img src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg" alt="youtube content" /></a><p>middle</p>',
+          '<a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"><img src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg" alt="youtube content" /></a><p>middle</p>',
         );
       });
 

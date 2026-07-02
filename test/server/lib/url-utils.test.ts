@@ -1,7 +1,12 @@
 import { expect } from 'chai';
 import config from 'config';
 
-import { getEditRecurringContributionsUrl, parseAnchorFmURL, parseYouTubeVideoId } from '../../../server/lib/url-utils';
+import {
+  constructYouTubeWatchUrl,
+  getEditRecurringContributionsUrl,
+  parseAnchorFmURL,
+  parseYouTubeVideoId,
+} from '../../../server/lib/url-utils';
 import { fakeOrganization, fakeUser } from '../../test-helpers/fake-data';
 
 describe('server/lib/url-utils', () => {
@@ -51,6 +56,12 @@ describe('server/lib/url-utils', () => {
       expect(parseYouTubeVideoId('https://www.youtube.com/watch')).to.be.null;
       expect(parseYouTubeVideoId('https://www.youtube.com/watch?v=too-short')).to.be.null;
       expect(parseYouTubeVideoId('https://www.youtube.com/watch?v=way-too-long-id')).to.be.null;
+    });
+  });
+
+  describe('constructYouTubeWatchUrl', () => {
+    it('builds a canonical youtube.com watch URL from a video ID', () => {
+      expect(constructYouTubeWatchUrl('KLeHuFu_zIM')).to.equal('https://www.youtube.com/watch?v=KLeHuFu_zIM');
     });
   });
 
