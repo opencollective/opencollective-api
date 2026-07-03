@@ -1535,9 +1535,10 @@ describe('cron/monthly/host-settlement', () => {
       await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 3000`);
       await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 70`);
 
-      // 1) OC Inc (the pre-2024 platform account): carries legacy OWED tips but must never be
-      // invoiced — the deleted getPendingPlatformTips used to return 0 for platform accounts.
+      // 1) OC Inc (the pre-2024 platform account): only the current platform accounts are excluded
+      // from settlements, so OC Inc is billed like any other host.
       ociHost = await fakeHost({ id: PlatformConstants.OCICollectiveId, name: 'OC Inc', currency: 'USD' });
+      await fakeConnectedAccount({ CollectiveId: ociHost.id, service: 'transferwise' });
       ociTipDebtCredit = await fakeTransaction({
         type: 'CREDIT',
         FromCollectiveId: oc.id,
@@ -1616,10 +1617,11 @@ describe('cron/monthly/host-settlement', () => {
       await utils.resetTestDB();
     });
 
-    it('never invoices OC Inc for its legacy OWED tips', async () => {
-      expect(await ociHost.getExpenses(), 'no settlement expense for OC Inc').to.have.length(0);
+    it('invoices OC Inc like any other host, only current platform accounts are excluded', async () => {
+      const expenses = await ociHost.getExpenses();
+      expect(expenses, 'one settlement expense for OC Inc').to.have.length(1);
       const ts = await models.TransactionSettlement.getByTransaction(ociTipDebtCredit);
-      expect(ts.status, 'OC Inc legacy tip stays OWED').to.equal('OWED');
+      expect(ts.status, 'OC Inc tip debt is invoiced').to.equal('INVOICED');
     });
 
     it('does not bill soft-deleted settlements', async () => {

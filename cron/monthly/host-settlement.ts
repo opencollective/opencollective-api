@@ -279,7 +279,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       INNER JOIN "Transactions" t ON t."HostCollectiveId" = c.id AND t."deletedAt" IS NULL
       WHERE c."hasMoneyManagement" IS TRUE
       AND t."createdAt" >= :startDate AND t."createdAt" < :endDate
-      AND c.id NOT IN (:ignoreSettlementForIds) -- Make sure we don't invoice OC Inc as reverse settlements are not supported yet
+      AND c.id NOT IN (:ignoreSettlementForIds) -- The platform never invoices its own accounts
       GROUP BY c.id
     `,
     {
@@ -289,10 +289,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       replacements: {
         startDate: startDate,
         endDate: endDate,
-        // Exclude every platform account, including the legacy OC Inc one (8686), which still
-        // carries OWED PLATFORM_TIP_DEBT rows from before the OFiTech migration: invoicing it
-        // would be a reverse settlement (the platform invoicing itself), which is not supported.
-        ignoreSettlementForIds: PlatformConstants.AllPlatformCollectiveIds,
+        ignoreSettlementForIds: PlatformConstants.CurrentPlatformCollectiveIds,
       },
     },
   );
