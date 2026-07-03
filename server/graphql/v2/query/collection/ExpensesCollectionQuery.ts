@@ -866,7 +866,15 @@ export const ExpensesCollectionQueryResolver = async (
     }
 
     // Subquery to retrieve the stored role of the last commenter on this expense
-    const lastCommentRoleSubquery = `(SELECT "mainCommenterRole" FROM "Comments" WHERE "Comments"."deletedAt" IS NULL AND "Comments"."ExpenseId" = "Expense"."id" ORDER BY "createdAt" DESC, "id" DESC LIMIT 1)`;
+    const lastCommentRoleSubquery = `(
+      SELECT "mainCommenterRole"
+      FROM "Comments"
+      WHERE "Comments"."deletedAt" IS NULL
+      AND "Comments"."ExpenseId" = "Expense"."id"
+      AND "Comments"."type" = 'COMMENT' -- Ignore private notes
+      ORDER BY "createdAt" DESC, "id" DESC
+      LIMIT 1
+    )`;
     const conditions = [];
     const roleConditions = {
       HOST_ADMIN: "= 'HOST_ADMIN'",
