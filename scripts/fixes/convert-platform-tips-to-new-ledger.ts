@@ -145,9 +145,12 @@ export const convertPlatformTipsToNewLedger = async ({
     platformTipsLedgerConversion: { convertedAt, host: host.slug, ...detail },
   });
 
-  // Legacy PLATFORM_TIP credits attributed to this host (host carried by a sibling transaction in
-  // the same group). CollectiveId = platform account filters to the legacy routing only, so
-  // already-converted tips are excluded and the script is idempotent.
+  // Legacy PLATFORM_TIP credits attributed to this host. The host is read from the contribution
+  // CREDIT of the same group — the same row `Transaction.fetchHost` uses at tip-creation time.
+  // Other siblings can carry a different host (e.g. a manual contribution's DEBIT carries the
+  // contributor's host), so matching on any sibling would let a run for host B claim host A's tips.
+  // CollectiveId = platform account filters to the legacy routing only, so already-converted tips
+  // are excluded and the script is idempotent.
   const tipCredits = await sequelize.query(
     `
       SELECT DISTINCT pt.id
@@ -155,7 +158,8 @@ export const convertPlatformTipsToNewLedger = async ({
       INNER JOIN "Transactions" sib
         ON sib."TransactionGroup" = pt."TransactionGroup"
        AND sib."HostCollectiveId" = :hostId
-       AND sib."kind" NOT IN ('PLATFORM_TIP', 'PLATFORM_TIP_DEBT')
+       AND sib."kind" = 'CONTRIBUTION'
+       AND sib."type" = 'CREDIT'
        AND sib."deletedAt" IS NULL
       WHERE pt."kind" = 'PLATFORM_TIP'
         AND pt."type" = 'CREDIT'
@@ -209,6 +213,20 @@ export const convertPlatformTipsToNewLedger = async ({
     if (tipCreditCount !== 1 || tipDebitCount !== 1) {
       logger.warn(
         `[${TransactionGroup}] unexpected PLATFORM_TIP shape (${tipCreditCount} credit / ${tipDebitCount} debit row(s)), skipping`,
+      );
+      stats.skipped++;
+      continue;
+    }
+
+    // Cross-check the attribution before mutating: the tip belongs to the host of the contribution
+    // CREDIT (the row Transaction.fetchHost reads). The selection query already pins on it; this
+    // guards against the query and the loop ever diverging.
+    const contributionCredit = await models.Transaction.findOne({
+      where: { TransactionGroup, kind: TransactionKind.CONTRIBUTION, type: 'CREDIT' },
+    });
+    if (contributionCredit?.HostCollectiveId !== host.id) {
+      logger.warn(
+        `[${TransactionGroup}] contribution CREDIT host is #${contributionCredit?.HostCollectiveId ?? 'missing'}, not #${host.id}, skipping`,
       );
       stats.skipped++;
       continue;

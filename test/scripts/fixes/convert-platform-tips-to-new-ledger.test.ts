@@ -262,3 +262,80 @@ describe('scripts/fixes/convert-platform-tips-to-new-ledger (application-fee tip
     expect(stats.converted).to.equal(0);
   });
 });
+
+describe('scripts/fixes/convert-platform-tips-to-new-ledger (cross-host attribution)', () => {
+  let receivingHost, contributorHost;
+
+  const FROM = '2026-01-01';
+  const TO = '2027-01-01';
+
+  before(async () => {
+    await resetTestDB();
+    await seedDefaultVendors();
+
+    const platformUser = await fakeUser({ id: PlatformConstants.PlatformUserId }, { slug: 'ofitech-admin' });
+    const oc = await fakeHost({
+      id: PlatformConstants.PlatformCollectiveId,
+      slug: randStr('platform-'),
+      CreatedByUserId: platformUser.id,
+    });
+    await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
+
+    // Manual contribution from a collective hosted by `contributorHost` to a collective hosted by
+    // `receivingHost`: the contribution DEBIT carries the contributor's host, so the tip's group
+    // contains sibling rows for BOTH hosts. Only the receiving host (the contribution CREDIT's
+    // host, which collected the money) may claim the tip.
+    const hostAdmin = await fakeUser();
+    receivingHost = await fakeHost({ name: 'receiving-host', currency: 'USD', admin: hostAdmin });
+    contributorHost = await fakeHost({ name: 'contributor-host', currency: 'USD' });
+    const collective = await fakeCollective({ HostCollectiveId: receivingHost.id, currency: 'USD' });
+    const contributorCollective = await fakeCollective({ HostCollectiveId: contributorHost.id, currency: 'USD' });
+
+    const order = await fakeOrder({
+      description: 'cross-host contribution with a $100 legacy tip',
+      CollectiveId: collective.id,
+      FromCollectiveId: contributorCollective.id,
+      currency: 'USD',
+      status: OrderStatuses.PENDING,
+      platformTipAmount: 100e2,
+      totalAmount: 1100e2,
+    });
+    await order.markAsPaid(hostAdmin);
+
+    await receivingHost.update({ settings: { newPlatformTipsLedger: true } });
+    await contributorHost.update({ settings: { newPlatformTipsLedger: true } });
+  });
+
+  it("does not let the contributor's host claim the tip", async () => {
+    const stats = await convertPlatformTipsToNewLedger({
+      hostSlug: contributorHost.slug,
+      from: FROM,
+      to: TO,
+      dryRun: false,
+    });
+    expect(stats.converted).to.equal(0);
+
+    // The tip is untouched, still on the platform's legacy books
+    const tipCredit = await models.Transaction.findOne({
+      where: { kind: TransactionKind.PLATFORM_TIP, type: 'CREDIT' },
+    });
+    expect(tipCredit.CollectiveId).to.equal(PlatformConstants.PlatformCollectiveId);
+  });
+
+  it('converts the tip when run for the receiving host', async () => {
+    const stats = await convertPlatformTipsToNewLedger({
+      hostSlug: receivingHost.slug,
+      from: FROM,
+      to: TO,
+      dryRun: false,
+    });
+    expect(stats).to.include({ converted: 1, owed: 1, skipped: 0 });
+
+    const platformTipsAccount = await getHostPlatformTipsAccount(receivingHost);
+    const tipCredit = await models.Transaction.findOne({
+      where: { kind: TransactionKind.PLATFORM_TIP, type: 'CREDIT' },
+    });
+    expect(tipCredit.CollectiveId).to.equal(platformTipsAccount.id);
+    expect(tipCredit.HostCollectiveId).to.equal(receivingHost.id);
+  });
+});
