@@ -124,6 +124,11 @@ const updateFilterConditionsForReadyToPay = async (where, include, host, loaders
 
     const expenseIdsWithoutBalance = expensesWithoutPendingTaxForm
       .filter(expense => {
+        // Platform settlements and platform billing are not paid out of the collective's balance,
+        // so they must not be balance-gated (mirrors the frontend's getDisabledMessage exemption).
+        if ([ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
+          return false;
+        }
         const collectiveBalance = balances[expense.CollectiveId];
         const hasBalance =
           collectiveBalance &&
@@ -1103,10 +1108,10 @@ const fetchExpensesPayees = async (
     );
     replacements.hostId = host.id;
 
-    // Host context: filter on the expense's collective
+    // Host context: filter on the expense's collective.
     if (args.hostContext && args.hostContext !== 'ALL') {
       if (args.hostContext === 'INTERNAL') {
-        // Only the host account and its children (projects/events)
+        // The host account and its children (projects/events)
         expenseConditions.push('(ec."id" = :hostId OR ec."ParentCollectiveId" = :hostId)');
       } else if (args.hostContext === 'HOSTED') {
         // Only hosted accounts, excluding the host account and its children

@@ -93,15 +93,15 @@ export const resetTestDB = async ({ groupedTruncate = true, retries = 5 } = {}) 
 
 export const seedDefaultVendors = async () => {
   return sequelize.query(`
-    INSERT INTO "Collectives" ("type", "slug", "name", "website", "createdAt", "updatedAt")
+    INSERT INTO "Collectives" ("type", "slug", "name", "website", "isActive", "createdAt", "updatedAt")
     VALUES
-      ('VENDOR', 'stripe-payment-processor-vendor', 'Stripe', 'https://stripe.com', NOW(), NOW()),
-      ('VENDOR', 'paypal-payment-processor-vendor', 'PayPal', 'https://paypal.com', NOW(), NOW()),
-      ('VENDOR', 'wise-payment-processor-vendor', 'Wise', 'https://wise.com', NOW(), NOW()),
-      ('VENDOR', 'other-payment-processor-vendor', 'Other Payment Processor', NULL, NOW(), NOW()),
-      ('VENDOR', 'eu-vat-tax-vendor', 'European VAT', NULL, NOW(), NOW()),
-      ('VENDOR', 'nz-gst-tax-vendor', 'New Zealand GST', NULL, NOW(), NOW()),
-      ('VENDOR', 'other-tax-vendor', 'Other Tax', NULL, NOW(), NOW())
+      ('VENDOR', 'stripe-payment-processor-vendor', 'Stripe', 'https://stripe.com', FALSE, NOW(), NOW()),
+      ('VENDOR', 'paypal-payment-processor-vendor', 'PayPal', 'https://paypal.com', FALSE, NOW(), NOW()),
+      ('VENDOR', 'wise-payment-processor-vendor', 'Wise', 'https://wise.com', FALSE, NOW(), NOW()),
+      ('VENDOR', 'other-payment-processor-vendor', 'Other Payment Processor', NULL, FALSE, NOW(), NOW()),
+      ('VENDOR', 'eu-vat-tax-vendor', 'European VAT', NULL, FALSE, NOW(), NOW()),
+      ('VENDOR', 'nz-gst-tax-vendor', 'New Zealand GST', NULL, FALSE, NOW(), NOW()),
+      ('VENDOR', 'other-tax-vendor', 'Other Tax', NULL, FALSE, NOW(), NOW())
     ON CONFLICT DO NOTHING;
   `);
 };

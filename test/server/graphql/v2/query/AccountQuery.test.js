@@ -462,6 +462,14 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         }),
       ]);
       await multiple(fakeCollective, 4, { ParentCollectiveId: collective.id, type: 'PROJECT' });
+      // Internal platform-owned account (e.g. the per-host platform-tips account), created at a date
+      // that would interleave with the events under a plain createdAt sort
+      await fakeCollective({
+        ParentCollectiveId: collective.id,
+        type: 'PLATFORM',
+        createdAt: new Date('2024-02-15'),
+        data: { isPlatformTipsAccount: true },
+      });
       user = await fakeUser();
       await collective.addUserWithRole(user, 'ADMIN');
     });
@@ -469,7 +477,7 @@ describe('server/graphql/v2/query/AccountQuery', () => {
     it('can list all childrens if admin', async () => {
       const result = await graphqlQueryV2(childrenAccounts, { slug: collective.slug }, user);
       result.errors && console.error(result.errors);
-      expect(result).to.have.nested.property('data.account.childrenAccounts.totalCount').eq(7);
+      expect(result).to.have.nested.property('data.account.childrenAccounts.totalCount').eq(8);
     });
 
     it('can filter by account type', async () => {
@@ -571,6 +579,46 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       expect(new Date(nodes[0].createdAt)).to.deep.equal(new Date('2024-03-01'));
       expect(new Date(nodes[1].createdAt)).to.deep.equal(new Date('2024-02-01'));
       expect(new Date(nodes[2].createdAt)).to.deep.equal(new Date('2024-01-01'));
+    });
+
+    it('groups by type when no order specified, with platform accounts last', async () => {
+      const result = await graphqlQueryV2(childrenAccounts, { slug: collective.slug }, user);
+
+      result.errors && console.error(result.errors);
+      const nodes = result.data.account.childrenAccounts.nodes;
+      expect(nodes).to.have.length(8);
+      expect(nodes.map(node => node.type)).to.deep.equal([
+        'PROJECT',
+        'PROJECT',
+        'PROJECT',
+        'PROJECT',
+        'EVENT',
+        'EVENT',
+        'EVENT',
+        'PLATFORM',
+      ]);
+      // createdAt DESC within each group
+      expect(new Date(nodes[4].createdAt)).to.deep.equal(new Date('2024-03-01'));
+      expect(new Date(nodes[5].createdAt)).to.deep.equal(new Date('2024-02-01'));
+      expect(new Date(nodes[6].createdAt)).to.deep.equal(new Date('2024-01-01'));
+    });
+
+    it('honors an explicit order plainly, without grouping by type', async () => {
+      const result = await graphqlQueryV2(
+        childrenAccounts,
+        {
+          slug: collective.slug,
+          orderBy: { field: 'CREATED_AT', direction: 'ASC' },
+        },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      const nodes = result.data.account.childrenAccounts.nodes;
+      expect(nodes).to.have.length(8);
+      // Pure chronological order: the platform account interleaves between the events
+      expect(nodes.slice(0, 4).map(node => node.type)).to.deep.equal(['EVENT', 'EVENT', 'PLATFORM', 'EVENT']);
+      expect(new Date(nodes[2].createdAt)).to.deep.equal(new Date('2024-02-15'));
     });
   });
 

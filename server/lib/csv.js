@@ -16,7 +16,7 @@ export const getTransactionsCsvUrl = (type, collective, options = {}) => {
     url.searchParams.set('kind', kind.join(','));
   }
   if (add) {
-    url.searchParams.set('add', kind.join(','));
+    url.searchParams.set('add', add.join(','));
   }
   if (remove) {
     url.searchParams.set('remove', remove.join(','));
