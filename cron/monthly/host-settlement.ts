@@ -289,9 +289,9 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       replacements: {
         startDate: startDate,
         endDate: endDate,
-        // All platform accounts, including the legacy OC Inc one (8686): the deleted
-        // `getPendingPlatformTips` used to return 0 for platform accounts, guarding OC Inc from
-        // being invoiced for its legacy OWED tips. That guard now lives here.
+        // Exclude every platform account, including the legacy OC Inc one (8686), which still
+        // carries OWED PLATFORM_TIP_DEBT rows from before the OFiTech migration: invoicing it
+        // would be a reverse settlement (the platform invoicing itself), which is not supported.
         ignoreSettlementForIds: PlatformConstants.AllPlatformCollectiveIds,
       },
     },
