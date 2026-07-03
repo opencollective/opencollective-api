@@ -160,6 +160,12 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
           incurredAt,
           currency,
         },
+        bill.crowdfunding.fee > 0 && {
+          description: `Crowdfunding Fee: ${bill.crowdfunding.feePercent}% of $${(bill.crowdfunding.totalAmount / 100).toFixed(2)}`,
+          amount: bill.crowdfunding.fee,
+          incurredAt,
+          currency,
+        },
       ]);
 
       const payoutMethod = await PlatformSubscription.getPreferredPlatformPayout(
