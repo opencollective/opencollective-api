@@ -299,6 +299,11 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Order.toAccount': 'parent-gate',
   'Order.createdByAccount': 'parent-gate',
 
+  // ---- PaymentIntent ----
+  'PaymentIntent.payer': 'entry-gate',
+  'PaymentIntent.payee': 'entry-gate',
+  'PaymentIntent.host': 'parent-gate',
+
   // ---- Transaction interface ----
   'Transaction.host': 'parent-gate',
   'Transaction.account': 'parent-gate',
