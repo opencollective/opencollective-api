@@ -24,7 +24,7 @@ import { resetTestDB, waitForCondition } from '../../utils';
 
 describe('submit-platform-subscription-bills', () => {
   const date = moment.utc('2023-10-09T10:00:00Z');
-  let organizations, shortTrialGraceOrg, sandbox, emailSendMessageSpy;
+  let organizations, shortTrialGraceOrg, tipsOffOrg, sandbox, emailSendMessageSpy;
 
   before(async () => {
     sandbox = sinon.createSandbox();
@@ -97,6 +97,21 @@ describe('submit-platform-subscription-bills', () => {
     );
     await shortTrialSubscription.terminate({ date: moment.utc('2023-10-05T12:00:00Z').toDate(), inclusive: true });
     calculateUtilizationStub.withArgs(shortTrialGraceOrg.id).resolves({ activeCollectives: 0, expensesPaid: 0 });
+
+    // Platform tips disabled: charged a crowdfunding fee on contributions
+    tipsOffOrg = await fakeCollective({ type: CollectiveType.ORGANIZATION, isActive: true });
+    await tipsOffOrg.addUserWithRole(orgAdmin, roles.ADMIN);
+    await PlatformSubscription.createSubscription(
+      tipsOffOrg,
+      moment(date).subtract(2, 'month').toDate(),
+      {
+        ...PlatformSubscriptionTiers[1],
+        pricing: { ...PlatformSubscriptionTiers[1].pricing, platformTips: false },
+      },
+      user,
+    );
+    calculateUtilizationStub.withArgs(tipsOffOrg.id).resolves({ activeCollectives: 0, expensesPaid: 0 });
+    sandbox.stub(PlatformSubscription, 'sumCrowdfundingContributions').resolves(100000);
   });
 
   after(() => {
@@ -129,7 +144,7 @@ describe('submit-platform-subscription-bills', () => {
       order: [['id', 'DESC']],
     });
 
-    expect(expenses).to.have.length(4);
+    expect(expenses).to.have.length(5);
     const expensesTable = expenses.map(e =>
       pick(e.toJSON(), ['id', 'type', 'CollectiveId', 'description', 'amount', 'currency']),
     );
@@ -142,6 +157,21 @@ describe('submit-platform-subscription-bills', () => {
 
     const itemsTable = items.map(i => pick(i.toJSON(), ['ExpenseId', 'description', 'amount', 'currency']));
     expect(itemsTable).to.matchTableSnapshot();
+  });
+
+  it('bills the crowdfunding fee for plans without platform tips', async () => {
+    const expense = await models.Expense.findOne({
+      where: { CollectiveId: tipsOffOrg.id, type: expenseTypes.PLATFORM_BILLING },
+    });
+
+    expect(expense).to.exist;
+    expect(expense.data.bill.crowdfunding).to.deep.equal({ totalAmount: 100000, feePercent: 5, fee: 5000 });
+
+    const items = await models.ExpenseItem.findAll({ where: { ExpenseId: expense.id } });
+    const feeItem = items.find(item => item.description.startsWith('Crowdfunding Fee'));
+    expect(feeItem).to.exist;
+    expect(feeItem.description).to.equal('Crowdfunding Fee: 5% of $1000.00');
+    expect(feeItem.amount).to.equal(5000);
   });
 
   it('should not bill organizations twice', async () => {
@@ -159,7 +189,7 @@ describe('submit-platform-subscription-bills', () => {
       where: { type: ActivityTypes.COLLECTIVE_EXPENSE_CREATED },
     });
 
-    expect(activities).to.have.length(4);
+    expect(activities).to.have.length(5);
     const org2Activity = activities.find(a => a.CollectiveId === organizations[2].id);
     expect(org2Activity.data).to.containSubset({
       expense: { type: expenseTypes.PLATFORM_BILLING, CollectiveId: organizations[2].id, amount: 8000 },
