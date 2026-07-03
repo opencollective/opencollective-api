@@ -846,9 +846,9 @@ const accountFieldsDefinition = () => ({
         type: GraphQLString,
       },
       orderBy: {
-        type: new GraphQLNonNull(GraphQLOrderByInput),
-        defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
-        description: 'Order of the results. Defaults to createdAt DESC.',
+        type: GraphQLOrderByInput,
+        description:
+          'Order of the results. When not provided, children are grouped by type (Collectives/Organizations, then Projects, then Events, then internal Platform accounts) and sorted by createdAt DESC within each group.',
       },
     },
     async resolve(account: Collective, args) {
@@ -879,15 +879,27 @@ const accountFieldsDefinition = () => ({
         };
       }
 
+      // Without an explicit order, group children by type — regular accounts first, then projects,
+      // events and finally internal platform-owned accounts (e.g. the per-host platform-tips account).
       let order: Order = [
-        ['createdAt', args.orderBy.direction],
+        [
+          Sequelize.literal(
+            `CASE "Collective"."type" WHEN 'PROJECT' THEN 1 WHEN 'EVENT' THEN 2 WHEN 'PLATFORM' THEN 3 ELSE 0 END`,
+          ),
+          'ASC',
+        ],
+        ['createdAt', 'DESC'],
         ['id', 'DESC'],
       ];
 
-      if (args.orderBy.field) {
+      if (args.orderBy) {
         switch (args.orderBy.field) {
           case ORDER_BY_PSEUDO_FIELDS.CREATED_AT:
-            break; // Nothing to do, already the default
+            order = [
+              ['createdAt', args.orderBy.direction],
+              ['id', 'DESC'],
+            ];
+            break;
           case ORDER_BY_PSEUDO_FIELDS.STARTS_AT:
             order = [
               ['startsAt', args.orderBy.direction],
@@ -904,10 +916,6 @@ const accountFieldsDefinition = () => ({
             throw new Error(`Ordering by ${args.orderBy.field} is not supported for children accounts`);
         }
       }
-
-      // Keep platform-owned accounts (e.g. the per-host platform-tips account) at the bottom of the
-      // list, regardless of the requested sort — they are internal billing accounts, not regular children.
-      order = [[Sequelize.literal(`CASE WHEN "Collective"."type" = 'PLATFORM' THEN 1 ELSE 0 END`), 'ASC'], ...order];
 
       return {
         nodes: () => models.Collective.findAll({ where, limit: args.limit, offset: args.offset, order }),

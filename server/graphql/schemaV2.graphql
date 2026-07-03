@@ -1101,9 +1101,9 @@ interface Account {
     searchTerm: String
 
     """
-    Order of the results. Defaults to createdAt DESC.
+    Order of the results. When not provided, children are grouped by type (Collectives/Organizations, then Projects, then Events, then internal Platform accounts) and sorted by createdAt DESC within each group.
     """
-    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
+    orderBy: OrderByInput
   ): AccountCollection!
 
   """
@@ -3969,9 +3969,9 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     searchTerm: String
 
     """
-    Order of the results. Defaults to createdAt DESC.
+    Order of the results. When not provided, children are grouped by type (Collectives/Organizations, then Projects, then Events, then internal Platform accounts) and sorted by createdAt DESC within each group.
     """
-    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
+    orderBy: OrderByInput
   ): AccountCollection!
 
   """
@@ -11166,9 +11166,9 @@ type Bot implements Account {
     searchTerm: String
 
     """
-    Order of the results. Defaults to createdAt DESC.
+    Order of the results. When not provided, children are grouped by type (Collectives/Organizations, then Projects, then Events, then internal Platform accounts) and sorted by createdAt DESC within each group.
     """
-    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
+    orderBy: OrderByInput
   ): AccountCollection!
 
   """
@@ -12255,9 +12255,9 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     searchTerm: String
 
     """
-    Order of the results. Defaults to createdAt DESC.
+    Order of the results. When not provided, children are grouped by type (Collectives/Organizations, then Projects, then Events, then internal Platform accounts) and sorted by createdAt DESC within each group.
     """
-    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
+    orderBy: OrderByInput
   ): AccountCollection!
 
   """
@@ -13924,9 +13924,9 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     searchTerm: String
 
     """
-    Order of the results. Defaults to createdAt DESC.
+    Order of the results. When not provided, children are grouped by type (Collectives/Organizations, then Projects, then Events, then internal Platform accounts) and sorted by createdAt DESC within each group.
     """
-    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
+    orderBy: OrderByInput
   ): AccountCollection!
 
   """
@@ -15310,9 +15310,9 @@ type Individual implements Account {
     searchTerm: String
 
     """
-    Order of the results. Defaults to createdAt DESC.
+    Order of the results. When not provided, children are grouped by type (Collectives/Organizations, then Projects, then Events, then internal Platform accounts) and sorted by createdAt DESC within each group.
     """
-    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
+    orderBy: OrderByInput
   ): AccountCollection!
 
   """
@@ -16724,9 +16724,9 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     searchTerm: String
 
     """
-    Order of the results. Defaults to createdAt DESC.
+    Order of the results. When not provided, children are grouped by type (Collectives/Organizations, then Projects, then Events, then internal Platform accounts) and sorted by createdAt DESC within each group.
     """
-    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
+    orderBy: OrderByInput
   ): AccountCollection!
 
   """
@@ -18197,9 +18197,9 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
     searchTerm: String
 
     """
-    Order of the results. Defaults to createdAt DESC.
+    Order of the results. When not provided, children are grouped by type (Collectives/Organizations, then Projects, then Events, then internal Platform accounts) and sorted by createdAt DESC within each group.
     """
-    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
+    orderBy: OrderByInput
   ): AccountCollection!
 
   """
@@ -19395,9 +19395,9 @@ type Vendor implements Account & AccountWithContributions {
     searchTerm: String
 
     """
-    Order of the results. Defaults to createdAt DESC.
+    Order of the results. When not provided, children are grouped by type (Collectives/Organizations, then Projects, then Events, then internal Platform accounts) and sorted by createdAt DESC within each group.
     """
-    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
+    orderBy: OrderByInput
   ): AccountCollection!
 
   """
@@ -23747,9 +23747,9 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     searchTerm: String
 
     """
-    Order of the results. Defaults to createdAt DESC.
+    Order of the results. When not provided, children are grouped by type (Collectives/Organizations, then Projects, then Events, then internal Platform accounts) and sorted by createdAt DESC within each group.
     """
-    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
+    orderBy: OrderByInput
   ): AccountCollection!
 
   """
@@ -24993,9 +24993,9 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     searchTerm: String
 
     """
-    Order of the results. Defaults to createdAt DESC.
+    Order of the results. When not provided, children are grouped by type (Collectives/Organizations, then Projects, then Events, then internal Platform accounts) and sorted by createdAt DESC within each group.
     """
-    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
+    orderBy: OrderByInput
   ): AccountCollection!
 
   """
