@@ -38,7 +38,7 @@ describe('stripe/payment-intent', () => {
           totalAmount: 100e2,
           description: 'Do you even donate, brah?!',
 
-          data: { paymentIntent: { id: randStr('pi_fake') } },
+          data: { stripePaymentIntent: { id: randStr('pi_fake') } },
         });
         const hostId = order.collective.HostCollectiveId;
         await fakeConnectedAccount({
@@ -54,7 +54,7 @@ describe('stripe/payment-intent', () => {
 
         assert.calledWithMatch(
           stripe.paymentIntents.update,
-          order.data.paymentIntent.id,
+          order.data.stripePaymentIntent.id,
           { currency: order.currency, amount: order.totalAmount, description: order.description },
           { stripeAccount: 'testUserName' },
         );
@@ -66,7 +66,7 @@ describe('stripe/payment-intent', () => {
 
         assert.calledWithMatch(
           stripe.paymentIntents.update,
-          order.data.paymentIntent.id,
+          order.data.stripePaymentIntent.id,
           {
             currency: order.currency,
             amount: order.totalAmount,
@@ -77,14 +77,14 @@ describe('stripe/payment-intent', () => {
         );
       });
 
-      it('set order status to NEW and update data.paymentIntent', async () => {
+      it('set order status to NEW and update data.stripePaymentIntent', async () => {
         await paymentIntent.processOrder(order);
 
         await order.reload();
         const orderJSON = order.toJSON();
-        expect(orderJSON).to.have.nested.property('data.paymentIntent');
-        expect(orderJSON).to.have.nested.property('data.paymentIntent.amount');
-        expect(orderJSON).to.have.nested.property('data.paymentIntent.description');
+        expect(orderJSON).to.have.nested.property('data.stripePaymentIntent');
+        expect(orderJSON).to.have.nested.property('data.stripePaymentIntent.amount');
+        expect(orderJSON).to.have.nested.property('data.stripePaymentIntent.description');
         expect(orderJSON).to.have.property('status', OrderStatuses.NEW);
       });
 
@@ -141,7 +141,7 @@ describe('stripe/payment-intent', () => {
 
         await paymentIntent.processOrder(order);
 
-        expect(order.data.paymentIntent).to.eql({ id: paymentIntentId, status: 'processing' });
+        expect(order.data.stripePaymentIntent).to.eql({ id: paymentIntentId, status: 'processing' });
 
         assert.calledWithMatch(
           stripe.paymentIntents.create,
@@ -221,7 +221,7 @@ describe('stripe/payment-intent', () => {
           'Error processing Stripe Payment Intent: Something went wrong with the payment, please contact support@opencollective.com.',
         );
 
-        expect(order.data.paymentIntent).to.eql({ id: paymentIntentId, status: 'requires_action' });
+        expect(order.data.stripePaymentIntent).to.eql({ id: paymentIntentId, status: 'requires_action' });
 
         assert.calledWithMatch(
           stripe.paymentIntents.create,

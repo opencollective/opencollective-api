@@ -39,6 +39,7 @@ declare global {
       method: string;
       baseUrl: string;
       ip: string;
+      mask?: string;
       middlewareTimingTracker?: MiddlewareTimingTracker;
     }
 

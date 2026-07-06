@@ -250,14 +250,11 @@ export async function createOrder(order, req) {
     throw new ValidationFailed('Subscriptions cannot be free');
   }
 
-  if (order.paymentMethod?.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT && order.paymentMethod?.paymentIntentId) {
+  if (order.paymentMethod?.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT && order.paymentMethod?.stripePaymentIntentId) {
+    const stripePaymentIntentId = order.paymentMethod.stripePaymentIntentId;
     const existingOrder = await Order.findOne({
       where: {
-        data: {
-          paymentIntent: {
-            id: order.paymentMethod.paymentIntentId,
-          },
-        },
+        data: { stripePaymentIntent: { id: stripePaymentIntentId } },
       },
     });
 
@@ -510,7 +507,13 @@ export async function createOrder(order, req) {
         isGuest,
         isBalanceTransfer: order.isBalanceTransfer,
         fromAccountInfo: order.fromAccountInfo,
-        paymentIntent: order.paymentMethod?.paymentIntentId ? { id: order.paymentMethod.paymentIntentId } : undefined,
+        ...(order.paymentMethod?.stripePaymentIntentId
+          ? {
+              stripePaymentIntent: {
+                id: order.paymentMethod.stripePaymentIntentId,
+              },
+            }
+          : {}),
         isManualContribution: isManualPayment,
       },
       status: orderStatus,
@@ -674,7 +677,7 @@ export async function confirmOrder(order, remoteUser, guestToken) {
       await processOrder(order);
 
       order.status = status.ACTIVE;
-      order.data = omit(order.data, ['error', 'latestError', 'paymentIntent', 'needsConfirmation']);
+      order.data = omit(order.data, ['error', 'latestError', 'stripePaymentIntent', 'needsConfirmation']);
       order.Subscription = Object.assign(order.Subscription, getNextChargeAndPeriodStartDates('success', order));
       order.Subscription.chargeRetryCount = getChargeRetryCount('success', order);
       if (order.Subscription.chargeNumber !== null) {

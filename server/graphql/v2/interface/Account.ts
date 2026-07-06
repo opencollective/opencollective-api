@@ -846,9 +846,9 @@ const accountFieldsDefinition = () => ({
         type: GraphQLString,
       },
       orderBy: {
-        type: new GraphQLNonNull(GraphQLOrderByInput),
-        defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
-        description: 'Order of the results. Defaults to createdAt DESC.',
+        type: GraphQLOrderByInput,
+        description:
+          'Order of the results. When not provided, children are grouped by type (Collectives/Organizations, then Projects, then Events, then internal Platform accounts) and sorted by createdAt DESC within each group.',
       },
     },
     async resolve(account: Collective, args) {
@@ -879,15 +879,27 @@ const accountFieldsDefinition = () => ({
         };
       }
 
+      // Without an explicit order, group children by type — regular accounts first, then projects,
+      // events and finally internal platform-owned accounts (e.g. the per-host platform-tips account).
       let order: Order = [
-        ['createdAt', args.orderBy.direction],
+        [
+          Sequelize.literal(
+            `CASE "Collective"."type" WHEN 'PROJECT' THEN 1 WHEN 'EVENT' THEN 2 WHEN 'PLATFORM' THEN 3 ELSE 0 END`,
+          ),
+          'ASC',
+        ],
+        ['createdAt', 'DESC'],
         ['id', 'DESC'],
       ];
 
-      if (args.orderBy.field) {
+      if (args.orderBy) {
         switch (args.orderBy.field) {
           case ORDER_BY_PSEUDO_FIELDS.CREATED_AT:
-            break; // Nothing to do, already the default
+            order = [
+              ['createdAt', args.orderBy.direction],
+              ['id', 'DESC'],
+            ];
+            break;
           case ORDER_BY_PSEUDO_FIELDS.STARTS_AT:
             order = [
               ['startsAt', args.orderBy.direction],

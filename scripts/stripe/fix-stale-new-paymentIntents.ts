@@ -27,7 +27,7 @@ async function* staleStripeNewPaymentIntentOrdersPager() {
     where: {
       status: OrderStatuses.NEW,
       data: {
-        paymentIntent: {
+        stripePaymentIntent: {
           id: {
             [Op.ne]: null,
           },

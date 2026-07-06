@@ -47,16 +47,17 @@ const processOrder = async (order: Order): Promise<void> => {
   }
 
   try {
-    let paymentIntent = await stripe.paymentIntents.create(paymentIntentParams, {
+    let stripePaymentIntent = await stripe.paymentIntents.create(paymentIntentParams, {
       stripeAccount: hostStripeAccount.username,
     });
 
+    const paymentIntentSnapshot = { id: stripePaymentIntent.id, status: stripePaymentIntent.status };
     await order.update({
-      data: { ...order.data, paymentIntent: { id: paymentIntent.id, status: paymentIntent.status } },
+      data: { ...order.data, stripePaymentIntent: paymentIntentSnapshot },
     });
 
-    paymentIntent = await stripe.paymentIntents.confirm(
-      paymentIntent.id,
+    stripePaymentIntent = await stripe.paymentIntents.confirm(
+      stripePaymentIntent.id,
       {
         mandate: order.paymentMethod?.data?.stripeMandate?.id,
       },
@@ -67,14 +68,16 @@ const processOrder = async (order: Order): Promise<void> => {
 
     await order.update({
       status: OrderStatuses.PROCESSING,
-      data: { ...order.data, paymentIntent },
+      data: { ...order.data, stripePaymentIntent },
     });
 
-    if (paymentIntent.status === 'processing') {
+    if (stripePaymentIntent.status === 'processing') {
       return;
-    } else if (paymentIntent.status !== 'succeeded') {
+    } else if (stripePaymentIntent.status !== 'succeeded') {
       logger.error('Unknown error with Stripe Payment Intent.');
-      reportMessageToSentry('Unknown error with Stripe Payment Intent', { extra: { paymentIntent } });
+      reportMessageToSentry('Unknown error with Stripe Payment Intent', {
+        extra: { stripePaymentIntent },
+      });
       throw new Error('Something went wrong with the payment, please contact support@opencollective.com.');
     }
   } catch (e) {

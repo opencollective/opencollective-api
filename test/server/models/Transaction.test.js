@@ -2,10 +2,12 @@ import { expect } from 'chai';
 import config from 'config';
 import { createSandbox } from 'sinon';
 
+import { activities } from '../../../server/constants';
 import PlatformConstants from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import * as LibActivities from '../../../server/lib/activities';
-import models from '../../../server/models';
+import { getHostPlatformTipsAccount } from '../../../server/lib/transactions';
+import models, { Op } from '../../../server/models';
 import {
   fakeCollective,
   fakeHost,
@@ -223,6 +225,58 @@ describe('server/models/Transaction', () => {
     expect(createActivityStub.firstCall.args[0].description).to.equal(transaction.description);
   });
 
+  it('createFromContributionPayload() persists a collective.transaction.created activity record', async () => {
+    sandbox.stub(LibActivities, 'shouldGenerateTransactionActivities').returns(true);
+
+    const description = randStr('contribution-');
+    const transactionPayload = {
+      CreatedByUserId: user.id,
+      FromCollectiveId: user.CollectiveId,
+      CollectiveId: collective.id,
+      ...transactionsData[7],
+      description,
+      amountInHostCurrency: transactionsData[7].amount,
+      hostCurrency: transactionsData[7].currency,
+      hostCurrencyFxRate: 1,
+      hostFeeInHostCurrency: 0,
+      platformFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
+      type: 'CREDIT',
+      kind: TransactionKind.CONTRIBUTION,
+    };
+
+    // createFromContributionPayload ultimately calls createDoubleEntry inside a SQL transaction.
+    const creditTransaction = await Transaction.createFromContributionPayload(transactionPayload);
+
+    const transactionsInGroup = await Transaction.findAll({
+      where: { TransactionGroup: creditTransaction.TransactionGroup, kind: TransactionKind.CONTRIBUTION },
+    });
+    expect(transactionsInGroup).to.have.length(2);
+
+    await utils.waitForCondition(async () => {
+      const activityCount = await models.Activity.count({
+        where: {
+          type: activities.COLLECTIVE_TRANSACTION_CREATED,
+          TransactionId: { [Op.in]: transactionsInGroup.map(t => t.id) },
+        },
+      });
+      return activityCount === transactionsInGroup.length;
+    });
+
+    const transactionActivities = await models.Activity.findAll({
+      where: {
+        type: activities.COLLECTIVE_TRANSACTION_CREATED,
+        TransactionId: { [Op.in]: transactionsInGroup.map(t => t.id) },
+      },
+    });
+
+    expect(transactionActivities, 'expected activities to be persisted for each ledger entry').to.have.length(2);
+    const creditActivity = transactionActivities.find(activity => activity.TransactionId === creditTransaction.id);
+    expect(creditActivity).to.exist;
+    expect(creditActivity.CollectiveId).to.equal(collective.id);
+    expect(creditActivity.data.transaction.description).to.equal(description);
+  });
+
   describe('fees on top', () => {
     it('should deduct the platform fee from the main transactions', async () => {
       const transactionPayload = {
@@ -378,6 +432,128 @@ describe('server/models/Transaction', () => {
       expect(donationDebit)
         .to.have.property('amountInHostCurrency')
         .equal(Math.round(-1000 * donationDebit.data.hostToPlatformFxRate));
+    });
+
+    describe('NEW_PLATFORM_TIPS_LEDGER feature', () => {
+      beforeEach(async () => {
+        await host.update({ settings: { ...host.settings, newPlatformTipsLedger: true } });
+      });
+
+      it('PayPal path: routes PLATFORM_TIP to platform-tips account and writes no PLATFORM_TIP_DEBT', async () => {
+        const order = await fakeOrder({
+          CreatedByUserId: user.id,
+          FromCollectiveId: user.CollectiveId,
+          CollectiveId: collective.id,
+        });
+
+        const transactionPayload = {
+          CreatedByUserId: user.id,
+          FromCollectiveId: user.CollectiveId,
+          CollectiveId: collective.id,
+          description: '$100 PayPal donation + $10 tip',
+          amount: 11000,
+          totalAmount: 11000,
+          amountInHostCurrency: 11000,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          hostCurrencyFxRate: 1,
+          hostFeeInHostCurrency: 500,
+          paymentProcessorFeeInHostCurrency: 200,
+          type: 'CREDIT',
+          createdAt: '2015-05-29T07:00:00.000Z',
+          PaymentMethodId: 1,
+          OrderId: order.id,
+          // No isPlatformRevenueDirectlyCollected flag: behaves like PayPal
+          data: { platformTip: 1000 },
+        };
+
+        await Transaction.createFromContributionPayload(transactionPayload);
+
+        const platformTipsAccount = await getHostPlatformTipsAccount(host);
+        const allTransactions = await Transaction.findAll({
+          where: { OrderId: order.id },
+          order: [['id', 'ASC']],
+        });
+        await models.TransactionSettlement.attachStatusesToTransactions(allTransactions);
+        await utils.preloadAssociationsForTransactions(allTransactions, SNAPSHOT_COLUMNS_WITH_DEBT);
+        utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS_WITH_DEBT });
+
+        // PLATFORM_TIP credit is on platform-tips account with HostCollectiveId = host.id
+        const tipCredit = allTransactions.find(t => t.kind === TransactionKind.PLATFORM_TIP && t.type === 'CREDIT');
+        expect(tipCredit, 'PLATFORM_TIP credit').to.exist;
+        expect(tipCredit.CollectiveId).to.equal(platformTipsAccount.id);
+        expect(tipCredit.HostCollectiveId).to.equal(host.id);
+        expect(tipCredit.amount).to.equal(1000);
+
+        // No PLATFORM_TIP_DEBT rows under the new flag
+        const debtRows = allTransactions.filter(t => t.kind === TransactionKind.PLATFORM_TIP_DEBT);
+        expect(debtRows, 'no PLATFORM_TIP_DEBT under new flag').to.have.length(0);
+
+        // No APPLICATION_FEE rows for PayPal path
+        const appFeeRows = allTransactions.filter(t => t.kind === TransactionKind.APPLICATION_FEE);
+        expect(appFeeRows, 'no APPLICATION_FEE for PayPal path').to.have.length(0);
+      });
+
+      it('Stripe app-fee path: writes both PLATFORM_TIP and APPLICATION_FEE pair, no PLATFORM_TIP_DEBT', async () => {
+        const order = await fakeOrder({
+          CreatedByUserId: user.id,
+          FromCollectiveId: user.CollectiveId,
+          CollectiveId: collective.id,
+        });
+
+        const transactionPayload = {
+          CreatedByUserId: user.id,
+          FromCollectiveId: user.CollectiveId,
+          CollectiveId: collective.id,
+          description: '$100 Stripe donation + $10 tip via application fee',
+          amount: 11000,
+          totalAmount: 11000,
+          amountInHostCurrency: 11000,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          hostCurrencyFxRate: 1,
+          hostFeeInHostCurrency: 500,
+          paymentProcessorFeeInHostCurrency: 200,
+          type: 'CREDIT',
+          createdAt: '2015-05-29T07:00:00.000Z',
+          PaymentMethodId: 1,
+          OrderId: order.id,
+          data: { platformTip: 1000, isPlatformRevenueDirectlyCollected: true },
+        };
+
+        await Transaction.createFromContributionPayload(transactionPayload);
+
+        const platformTipsAccount = await getHostPlatformTipsAccount(host);
+        const allTransactions = await Transaction.findAll({
+          where: { OrderId: order.id },
+          order: [['id', 'ASC']],
+        });
+        await models.TransactionSettlement.attachStatusesToTransactions(allTransactions);
+        await utils.preloadAssociationsForTransactions(allTransactions, SNAPSHOT_COLUMNS_WITH_DEBT);
+        utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS_WITH_DEBT });
+
+        // PLATFORM_TIP credit on platform-tips account (host-scoped)
+        const tipCredit = allTransactions.find(t => t.kind === TransactionKind.PLATFORM_TIP && t.type === 'CREDIT');
+        expect(tipCredit, 'PLATFORM_TIP credit').to.exist;
+        expect(tipCredit.CollectiveId).to.equal(platformTipsAccount.id);
+        expect(tipCredit.HostCollectiveId).to.equal(host.id);
+
+        // APPLICATION_FEE: DEBIT on platform-tips account (host-scoped) + CREDIT on OFiTech
+        const appFeeDebit = allTransactions.find(t => t.kind === TransactionKind.APPLICATION_FEE && t.type === 'DEBIT');
+        const appFeeCredit = allTransactions.find(
+          t => t.kind === TransactionKind.APPLICATION_FEE && t.type === 'CREDIT',
+        );
+        expect(appFeeDebit, 'APPLICATION_FEE debit').to.exist;
+        expect(appFeeDebit.CollectiveId).to.equal(platformTipsAccount.id);
+        expect(appFeeDebit.HostCollectiveId).to.equal(host.id);
+        expect(appFeeDebit.amount).to.equal(-1000);
+        expect(appFeeCredit, 'APPLICATION_FEE credit').to.exist;
+        expect(appFeeCredit.CollectiveId).to.equal(inc.id);
+
+        // No PLATFORM_TIP_DEBT rows under the new flag
+        const debtRows = allTransactions.filter(t => t.kind === TransactionKind.PLATFORM_TIP_DEBT);
+        expect(debtRows, 'no PLATFORM_TIP_DEBT under new flag').to.have.length(0);
+      });
     });
 
     it('should not create transactions if platformFee is 0', async () => {

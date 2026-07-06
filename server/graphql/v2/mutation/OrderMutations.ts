@@ -1,4 +1,5 @@
 import config from 'config';
+import type express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import {
   difference,
@@ -77,7 +78,7 @@ import {
 } from '../input/AccountingCategoryInput';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { assertAmountInputCurrency, getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
-import { GraphQLGuestInfoInput } from '../input/GuestInfoInput';
+import { GraphQLGuestInfoInput, GraphQLGuestInfoInputFields } from '../input/GuestInfoInput';
 import {
   GraphQLOrderCreateInput,
   GraphQLPendingOrderCreateInput,
@@ -89,19 +90,21 @@ import {
   GraphQLOrderReferenceInput,
 } from '../input/OrderReferenceInput';
 import { GraphQLOrderUpdateInput } from '../input/OrderUpdateInput';
-import GraphQLPaymentIntentInput from '../input/PaymentIntentInput';
 import { getLegacyPaymentMethodFromPaymentMethodInput } from '../input/PaymentMethodInput';
 import {
   fetchPaymentMethodWithReference,
   GraphQLPaymentMethodReferenceInput,
 } from '../input/PaymentMethodReferenceInput';
+import GraphQLStripePaymentIntentInput, {
+  GraphQLStripePaymentIntentInputFields,
+} from '../input/StripePaymentIntentInput';
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 import { fetchTransactionsImportRowWithReference } from '../input/TransactionsImportRowReferenceInput';
 import { GraphQLAccount } from '../interface/Account';
 import { UncategorizedValue } from '../object/AccountingCategory';
 import { GraphQLOrder } from '../object/Order';
-import GraphQLPaymentIntent from '../object/PaymentIntent';
 import { GraphQLStripeError } from '../object/StripeError';
+import GraphQLStripePaymentIntent from '../object/StripePaymentIntent';
 
 const GraphQLOrderWithPayment = new GraphQLObjectType({
   name: 'OrderWithPayment',
@@ -221,8 +224,8 @@ const orderMutations = {
         paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
       }
 
-      if (order.paymentMethod?.paymentIntentId) {
-        paymentMethod.paymentIntentId = order.paymentMethod?.paymentIntentId;
+      if (order.paymentMethod?.stripePaymentIntentId) {
+        paymentMethod.stripePaymentIntentId = order.paymentMethod.stripePaymentIntentId;
       }
 
       // Ensure amounts are provided with the right currency
@@ -1107,18 +1110,25 @@ const orderMutations = {
       return result;
     },
   },
-  createPaymentIntent: {
-    type: new GraphQLNonNull(GraphQLPaymentIntent),
+  createStripePaymentIntent: {
+    type: new GraphQLNonNull(GraphQLStripePaymentIntent),
     description: 'Creates a Stripe payment intent',
     args: {
-      paymentIntent: {
-        type: new GraphQLNonNull(GraphQLPaymentIntentInput),
+      stripePaymentIntent: {
+        type: new GraphQLNonNull(GraphQLStripePaymentIntentInput),
       },
       guestInfo: {
         type: GraphQLGuestInfoInput,
       },
     },
-    async resolve(_, args, req) {
+    async resolve(
+      _,
+      args: {
+        stripePaymentIntent: GraphQLStripePaymentIntentInputFields;
+        guestInfo?: GraphQLGuestInfoInputFields;
+      },
+      req: express.Request,
+    ) {
       if (!checkScope(req, 'orders')) {
         throw new Unauthorized('The User Token is not allowed for operations in scope "orders".');
       }
@@ -1126,7 +1136,7 @@ const orderMutations = {
         throw new FeatureNotAllowedForUser();
       }
 
-      const paymentIntentInput = args.paymentIntent;
+      const paymentIntentInput = args.stripePaymentIntent;
 
       const toAccount = await fetchAccountWithReference(paymentIntentInput.toAccount, { throwIfMissing: true });
       const hostStripeAccount = await toAccount.getHostStripeAccount();
@@ -1215,7 +1225,7 @@ const orderMutations = {
 
       const totalOrderAmount = getValueInCentsFromAmountInput(paymentIntentInput.amount);
 
-      const currency = paymentIntentInput.currency;
+      const currency = paymentIntentInput.amount.currency;
 
       try {
         let paymentMethodConfiguration = config.stripe.oneTimePaymentMethodConfiguration;
@@ -1225,14 +1235,14 @@ const orderMutations = {
           paymentMethodConfiguration = config.stripe.recurringPaymentMethodConfiguration;
         }
 
-        const paymentIntent = await stripe.paymentIntents.create(
+        const stripePaymentIntent = await stripe.paymentIntents.create(
           {
             /* eslint-disable camelcase */
             payment_method_configuration: paymentMethodConfiguration,
             customer: stripeCustomerId,
             description: `Contribution to ${toAccount.name}`,
             amount: convertToStripeAmount(currency, totalOrderAmount),
-            currency: paymentIntentInput.amount.currency.toLowerCase(),
+            currency: currency.toLowerCase(),
             setup_future_usage: isRecurring ? 'off_session' : undefined,
             automatic_payment_methods: { enabled: true },
             /* eslint-enable camelcase */
@@ -1249,8 +1259,8 @@ const orderMutations = {
         );
 
         return {
-          id: paymentIntent.id,
-          paymentIntentClientSecret: paymentIntent.client_secret,
+          id: stripePaymentIntent.id,
+          paymentIntentClientSecret: stripePaymentIntent.client_secret,
           stripeAccount: hostStripeAccount.username,
           stripeAccountPublishableSecret: hostStripeAccount.data.publishableKey,
         };

@@ -5,6 +5,7 @@ import moment from 'moment';
 import { createSandbox } from 'sinon';
 
 import ActivityTypes from '../../../../../../server/constants/activities';
+import { CollectiveType } from '../../../../../../server/constants/collectives';
 import ExpenseStatuses from '../../../../../../server/constants/expense-status';
 import roles from '../../../../../../server/constants/roles';
 import {
@@ -14,6 +15,7 @@ import {
 import * as libcurrency from '../../../../../../server/lib/currency';
 import { KYCProviderName } from '../../../../../../server/lib/kyc/providers';
 import models from '../../../../../../server/models';
+import { CommentMainRole } from '../../../../../../server/models/Comment';
 import { KYCVerificationStatus } from '../../../../../../server/models/KYCVerification';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../../server/models/PayoutMethod';
@@ -21,6 +23,7 @@ import {
   fakeActiveHost,
   fakeActivity,
   fakeCollective,
+  fakeComment,
   fakeEvent,
   fakeExpense,
   fakeHost,
@@ -468,6 +471,334 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         // payee is non-null; resolver failure nulls the parent expense node
         expect(result.data.expenses.nodes.some(node => node === null)).to.be.true;
       });
+    });
+  });
+
+  describe('lastCommentBy filters', () => {
+    const expensesLastCommentQuery = gql`
+      query ExpensesLastComment(
+        $host: AccountReferenceInput
+        $fromAccount: AccountReferenceInput
+        $lastCommentBy: [LastCommentBy]
+        $searchTerm: String
+      ) {
+        expenses(host: $host, fromAccount: $fromAccount, lastCommentBy: $lastCommentBy, searchTerm: $searchTerm) {
+          totalCount
+          nodes {
+            legacyId
+          }
+        }
+      }
+    `;
+
+    it('NON_FROM_ACCOUNT_ADMIN: returns expenses whose last comment is not authored by an admin of the expense payee', async () => {
+      const payeeAdmin = await fakeUser();
+      const payeeCollective = await fakeCollective({ admin: payeeAdmin });
+      const submitterUser = await fakeUser();
+      const outsider = await fakeUser();
+      const payerCollective = await fakeCollective();
+      await fakeExpense({ items: [] }); // Noise: unrelated expense
+
+      const expenseWithOutsiderReply = await fakeExpense({
+        FromCollectiveId: payeeCollective.id,
+        CollectiveId: payerCollective.id,
+        UserId: submitterUser.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+      await fakeComment({
+        ExpenseId: expenseWithOutsiderReply.id,
+        CollectiveId: payerCollective.id,
+        CreatedByUserId: outsider.id,
+        FromCollectiveId: outsider.CollectiveId,
+        mainCommenterRole: CommentMainRole.PUBLIC,
+      });
+
+      const expenseWithPayeeAdminReply = await fakeExpense({
+        FromCollectiveId: payeeCollective.id,
+        CollectiveId: payerCollective.id,
+        UserId: submitterUser.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+      await fakeComment({
+        ExpenseId: expenseWithPayeeAdminReply.id,
+        CollectiveId: payerCollective.id,
+        CreatedByUserId: payeeAdmin.id,
+        FromCollectiveId: payeeAdmin.CollectiveId,
+        mainCommenterRole: CommentMainRole.FROM_COLLECTIVE_ADMIN,
+      });
+
+      // Expense with no comments - should not appear in the filter
+      await fakeExpense({
+        FromCollectiveId: payeeCollective.id,
+        CollectiveId: payerCollective.id,
+        UserId: submitterUser.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        {
+          fromAccount: { legacyId: payeeCollective.id },
+          lastCommentBy: ['NON_FROM_ACCOUNT_ADMIN'],
+        },
+        payeeAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes.map(n => n.legacyId)).to.deep.eq([expenseWithOutsiderReply.id]);
+    });
+
+    it('NON_FROM_ACCOUNT_ADMIN: returns empty results when caller cannot comment on expenses', async () => {
+      const payeeAdmin = await fakeUser();
+      const payeeCollective = await fakeCollective({ admin: payeeAdmin });
+      const outsider = await fakeUser();
+      const expense = await fakeExpense({
+        FromCollectiveId: payeeCollective.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+
+      await fakeComment({
+        ExpenseId: expense.id,
+        CollectiveId: expense.CollectiveId,
+        CreatedByUserId: outsider.id,
+        FromCollectiveId: outsider.CollectiveId,
+        mainCommenterRole: CommentMainRole.PUBLIC,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        {
+          fromAccount: { legacyId: payeeCollective.id },
+          lastCommentBy: ['NON_FROM_ACCOUNT_ADMIN'],
+        },
+        outsider,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(0);
+      expect(result.data.expenses.nodes).to.deep.eq([]);
+    });
+
+    it('returns empty results when caller is not logged in', async () => {
+      const result = await graphqlQueryV2(expensesLastCommentQuery, {
+        lastCommentBy: ['NON_HOST_ADMIN'],
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(0);
+      expect(result.data.expenses.nodes).to.deep.eq([]);
+    });
+
+    it('NON_HOST_ADMIN: host admin can filter unreplied expenses', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const submitter = await fakeUser();
+      const outsider = await fakeUser();
+
+      const expenseWithOutsiderReply = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: submitter.CollectiveId,
+        UserId: submitter.id,
+        HostCollectiveId: host.id,
+        items: [],
+        status: ExpenseStatuses.APPROVED,
+      });
+      await fakeComment({
+        ExpenseId: expenseWithOutsiderReply.id,
+        CollectiveId: collective.id,
+        CreatedByUserId: outsider.id,
+        FromCollectiveId: outsider.CollectiveId,
+        mainCommenterRole: CommentMainRole.PUBLIC,
+      });
+
+      const expenseWithHostAdminReply = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: submitter.CollectiveId,
+        UserId: submitter.id,
+        HostCollectiveId: host.id,
+        items: [],
+        status: ExpenseStatuses.APPROVED,
+      });
+      await fakeComment({
+        ExpenseId: expenseWithHostAdminReply.id,
+        CollectiveId: collective.id,
+        CreatedByUserId: hostAdmin.id,
+        FromCollectiveId: hostAdmin.CollectiveId,
+        mainCommenterRole: CommentMainRole.HOST_ADMIN,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        { host: { legacyId: host.id }, lastCommentBy: ['NON_HOST_ADMIN'] },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expenseWithOutsiderReply.id);
+    });
+
+    it('expense submitter can filter by lastCommentBy on their own expenses', async () => {
+      const submitter = await fakeUser();
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: submitter.CollectiveId,
+        UserId: submitter.id,
+        HostCollectiveId: host.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+      await fakeComment({
+        ExpenseId: expense.id,
+        CollectiveId: collective.id,
+        CreatedByUserId: hostAdmin.id,
+        FromCollectiveId: hostAdmin.CollectiveId,
+        mainCommenterRole: CommentMainRole.HOST_ADMIN,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        {
+          fromAccount: { legacyId: submitter.CollectiveId },
+          lastCommentBy: ['HOST_ADMIN'],
+        },
+        submitter,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expense.id);
+    });
+
+    it('HOST_ADMIN: remains stable after admin membership is removed (regression for #8801)', async () => {
+      // formerAdmin comments on the expense, then gets removed as host admin
+      const formerAdmin = await fakeUser();
+      // activeAdmin stays as admin and will run the query
+      const activeAdmin = await fakeUser();
+      const host = await fakeHost({ admin: activeAdmin });
+      await fakeMember({ MemberCollectiveId: formerAdmin.CollectiveId, CollectiveId: host.id, role: roles.ADMIN });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const submitter = await fakeUser();
+
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: submitter.CollectiveId,
+        UserId: submitter.id,
+        HostCollectiveId: host.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+
+      // formerAdmin comments - role is captured at creation time
+      await fakeComment({
+        ExpenseId: expense.id,
+        CollectiveId: collective.id,
+        CreatedByUserId: formerAdmin.id,
+        FromCollectiveId: formerAdmin.CollectiveId,
+        mainCommenterRole: CommentMainRole.HOST_ADMIN,
+      });
+
+      // Remove formerAdmin from the host - simulates the bug scenario
+      await models.Member.destroy({
+        where: { MemberCollectiveId: formerAdmin.CollectiveId, CollectiveId: host.id },
+      });
+
+      // activeAdmin queries using the HOST_ADMIN filter
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        { host: { legacyId: host.id }, lastCommentBy: ['HOST_ADMIN'] },
+        activeAdmin,
+      );
+
+      // Even after formerAdmin's membership removal, the stored role keeps the expense in the queue
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expense.id);
+    });
+
+    it('does not fail when combined with searchTerm (duplicate include regression)', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const submitter = await fakeUser();
+      const outsider = await fakeUser();
+
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: submitter.CollectiveId,
+        UserId: submitter.id,
+        HostCollectiveId: host.id,
+        description: 'Unreplied expense for search',
+        items: [],
+        status: ExpenseStatuses.APPROVED,
+      });
+      await fakeComment({
+        ExpenseId: expense.id,
+        CollectiveId: collective.id,
+        CreatedByUserId: outsider.id,
+        FromCollectiveId: outsider.CollectiveId,
+        mainCommenterRole: CommentMainRole.PUBLIC,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        {
+          host: { legacyId: host.id },
+          lastCommentBy: ['NON_HOST_ADMIN'],
+          searchTerm: 'Unreplied',
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expense.id);
+    });
+
+    it('does not fail without host filter for non-root users (duplicate collective include regression)', async () => {
+      const payeeAdmin = await fakeUser();
+      const payeeCollective = await fakeCollective({ admin: payeeAdmin });
+      const submitterUser = await fakeUser();
+      const outsider = await fakeUser();
+      const payerCollective = await fakeCollective();
+
+      const expense = await fakeExpense({
+        FromCollectiveId: payeeCollective.id,
+        CollectiveId: payerCollective.id,
+        UserId: submitterUser.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+      await fakeComment({
+        ExpenseId: expense.id,
+        CollectiveId: payerCollective.id,
+        CreatedByUserId: outsider.id,
+        FromCollectiveId: outsider.CollectiveId,
+        mainCommenterRole: CommentMainRole.PUBLIC,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        {
+          fromAccount: { legacyId: payeeCollective.id },
+          lastCommentBy: ['NON_FROM_ACCOUNT_ADMIN'],
+        },
+        payeeAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expense.id);
     });
   });
 
@@ -1569,10 +1900,12 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       hostChild,
       hostedCollective,
       hostedCollectiveChild,
+      platformTipsAccount,
       expenseOnHost,
       expenseOnHostChild,
       expenseOnHostedCollective,
-      expenseOnHostedCollectiveChild;
+      expenseOnHostedCollectiveChild,
+      expenseOnPlatformTips;
 
     before(async () => {
       // Create a host account with money management
@@ -1622,6 +1955,24 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         status: 'APPROVED',
         description: 'Expense on hosted collective child',
       });
+
+      // Per-host platform-tips account: a hosted child of the host (ParentCollectiveId =
+      // HostCollectiveId = host). Its settlement expense is grouped with the host's own activity
+      // (INTERNAL / Organization), not with hosted collectives (HOSTED), via the normal parent-based
+      // grouping — no special-casing.
+      platformTipsAccount = await fakeCollective({
+        type: CollectiveType.PLATFORM,
+        ParentCollectiveId: host.id,
+        HostCollectiveId: host.id,
+        isActive: true,
+      });
+      expenseOnPlatformTips = await fakeExpense({
+        CollectiveId: platformTipsAccount.id,
+        HostCollectiveId: host.id,
+        type: 'SETTLEMENT',
+        status: 'APPROVED',
+        description: 'Platform tips settlement',
+      });
     });
 
     it('should return all expenses when hostContext is ALL', async () => {
@@ -1650,6 +2001,8 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       const expenseIds = result.data.expenses.nodes.map(node => node.legacyId);
       expect(expenseIds).to.include(expenseOnHost.id);
       expect(expenseIds).to.include(expenseOnHostChild.id);
+      // The platform-owned (platform-tips) settlement is grouped with the Organization
+      expect(expenseIds).to.include(expenseOnPlatformTips.id);
       // Verify hosted collective expenses are NOT included
       expect(expenseIds).to.not.include(expenseOnHostedCollective.id);
       expect(expenseIds).to.not.include(expenseOnHostedCollectiveChild.id);
@@ -1669,6 +2022,8 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       // Verify host/internal expenses are NOT included
       expect(expenseIds).to.not.include(expenseOnHost.id);
       expect(expenseIds).to.not.include(expenseOnHostChild.id);
+      // The platform-owned (platform-tips) settlement is NOT a hosted collective
+      expect(expenseIds).to.not.include(expenseOnPlatformTips.id);
     });
 
     it('should return all host expenses when hostContext is not set (default behavior)', async () => {

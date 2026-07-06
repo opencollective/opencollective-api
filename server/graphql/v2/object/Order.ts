@@ -284,14 +284,14 @@ export const GraphQLOrder = new GraphQLObjectType({
           }
 
           if (pm?.service === PAYMENT_METHOD_SERVICE.STRIPE) {
-            const paymentIntentId = get(order, 'data.paymentIntent.id');
-            if (!paymentIntentId) {
+            const stripePaymentIntentId = get(order, 'data.stripePaymentIntent.id');
+            if (!stripePaymentIntentId) {
               return null;
             }
 
             const stripeAccountId = pm.data?.stripeAccount;
 
-            return getDashboardObjectIdURL(paymentIntentId, stripeAccountId);
+            return getDashboardObjectIdURL(stripePaymentIntentId, stripeAccountId);
           }
 
           return null;

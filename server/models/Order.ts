@@ -109,8 +109,8 @@ class Order extends ModelWithPublicId<
     resumeReason?: string;
     pausedBy?: 'HOST' | 'PLATFORM' | 'USER' | 'COLLECTIVE';
     tax?: OrderTax;
-    paymentIntent?: any;
-    previousPaymentIntents?: any[];
+    stripePaymentIntent?: any;
+    previousStripePaymentIntents?: any[];
     customData?: any;
     needsConfirmation?: boolean;
     paypalStatusChangeNote?: string;

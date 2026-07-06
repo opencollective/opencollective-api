@@ -36,7 +36,7 @@ import { GraphQLTaxInfo } from '../object/TaxInfo';
 
 import { GraphQLAccount } from './Account';
 
-const { EXPENSE, PLATFORM_TIP, HOST_FEE_SHARE } = TransactionKind;
+const { EXPENSE, PLATFORM_TIP, APPLICATION_FEE, HOST_FEE_SHARE } = TransactionKind;
 
 /**
  * @typedef {import("../../../models/PaymentMethod")} PaymentMethod
@@ -571,14 +571,14 @@ export const TransactionFields = () => {
         }
 
         if (pm.service === PAYMENT_METHOD_SERVICE.STRIPE) {
-          const paymentIntentId = get(transaction, 'data.charge.payment_intent');
-          if (!paymentIntentId) {
+          const stripePaymentIntentId = get(transaction, 'data.charge.payment_intent');
+          if (!stripePaymentIntentId) {
             return null;
           }
 
           const stripeAccountId = pm.data?.stripeAccount;
 
-          return getDashboardObjectIdURL(paymentIntentId, stripeAccountId);
+          return getDashboardObjectIdURL(stripePaymentIntentId, stripeAccountId);
         }
 
         return null;
@@ -781,11 +781,33 @@ export const TransactionFields = () => {
             expense = await req.loaders.Expense.byId.load(transaction.ExpenseId);
           }
           return expense?.data?.transactionId;
+        } else if ([PLATFORM_TIP, APPLICATION_FEE].includes(transaction.kind)) {
+          // Platform tips & application fees don't carry a merchant id on their own row; we resolve it
+          // from the related contribution. These kinds straddle two ledgers/accounts, so the value
+          // depends on which row is being read:
+          //  - Platform-account row (lands on OFiTech): for OFiTech accountants, reconcile against the
+          //    platform's own Stripe report via the application fee id (the charge id lives on the host's
+          //    connected account, not the platform's). Covers the legacy/platform-scoped PLATFORM_TIP
+          //    CREDIT and its refund (DEBIT, isRefund), and the APPLICATION_FEE CREDIT to OFiTech. See #10491.
+          //  - Host-scoped row (new ledger, on the host's platform-tips slice): for host accountants,
+          //    reconcile against the host's Stripe/PayPal report via the contribution's merchant id
+          //    (Stripe charge id or PayPal capture/sale id). This is the only row a host has for PayPal tips.
+          const contributionTransaction =
+            await req.loaders.Transaction.relatedContributionTransaction.load(transaction);
+          if (
+            transaction.HostCollectiveId === PlatformConstants.PlatformCollectiveId &&
+            req.remoteUser.hasRole(allowedRoles, PlatformConstants.PlatformCollectiveId) &&
+            contributionTransaction?.data?.isPlatformRevenueDirectlyCollected
+          ) {
+            return get(contributionTransaction, 'data.charge.application_fee');
+          }
+          return contributionTransaction?.merchantId;
         } else if (
-          [PLATFORM_TIP, HOST_FEE_SHARE].includes(transaction.kind) &&
+          transaction.kind === HOST_FEE_SHARE &&
           req.remoteUser.hasRole(allowedRoles, PlatformConstants.PlatformCollectiveId)
         ) {
-          // For Stripe platform tips collected directly, we have to get the merchant ID from the related contribution transaction
+          // For OFiTech accountants: host fee shares collected via Stripe's application fee reconcile
+          // against the platform's own Stripe report by the application fee id. See PR #10491.
           const contributionTransaction =
             await req.loaders.Transaction.relatedContributionTransaction.load(transaction);
           if (contributionTransaction && contributionTransaction.data?.isPlatformRevenueDirectlyCollected) {

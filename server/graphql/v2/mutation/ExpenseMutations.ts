@@ -82,7 +82,7 @@ import {
   GraphQLTransactionsImportRowReferenceInput,
 } from '../input/TransactionsImportRowReferenceInput';
 import { GraphQLExpense } from '../object/Expense';
-import GraphQLPaymentIntent from '../object/PaymentIntent';
+import GraphQLStripePaymentIntent from '../object/StripePaymentIntent';
 
 const populatePayoutMethodId = async (
   payoutMethod: { id?: string | number; legacyId?: number },
@@ -807,7 +807,7 @@ const expenseMutations = {
     },
   },
   createExpenseStripePaymentIntent: {
-    type: new GraphQLNonNull(GraphQLPaymentIntent),
+    type: new GraphQLNonNull(GraphQLStripePaymentIntent),
     description: 'Create a Stripe payment intent',
     args: {
       expense: {
@@ -845,9 +845,10 @@ const expenseMutations = {
 
       const isPlatformHost = payeeHostStripeAccount.username === config.stripe.accountId;
 
-      if (expense.data?.paymentIntent?.id) {
-        const paymentIntent = await stripe.paymentIntents.retrieve(
-          expense.data?.paymentIntent?.id,
+      const storedStripePaymentIntent = expense.data?.stripePaymentIntent;
+      if (storedStripePaymentIntent?.id) {
+        const stripePaymentIntent = await stripe.paymentIntents.retrieve(
+          storedStripePaymentIntent.id,
           !isPlatformHost
             ? {
                 stripeAccount: payeeHostStripeAccount.username,
@@ -856,14 +857,14 @@ const expenseMutations = {
         );
 
         const matchesExpense =
-          paymentIntent.amount === convertToStripeAmount(expense.currency, expense.amount) &&
-          paymentIntent.currency?.toLowerCase() === expense.currency.toLowerCase() &&
-          !['canceled', 'succeeded'].includes(paymentIntent.status);
+          stripePaymentIntent.amount === convertToStripeAmount(expense.currency, expense.amount) &&
+          stripePaymentIntent.currency?.toLowerCase() === expense.currency.toLowerCase() &&
+          !['canceled', 'succeeded'].includes(stripePaymentIntent.status);
 
         if (matchesExpense) {
           return {
-            id: paymentIntent.id,
-            paymentIntentClientSecret: paymentIntent.client_secret,
+            id: stripePaymentIntent.id,
+            paymentIntentClientSecret: stripePaymentIntent.client_secret,
             stripeAccount: payeeHostStripeAccount.username,
             stripeAccountPublishableSecret: payeeHostStripeAccount.data.publishableKey,
           };
@@ -895,7 +896,7 @@ const expenseMutations = {
       try {
         const paymentMethodConfiguration = config.stripe.oneTimePaymentMethodConfiguration;
 
-        const paymentIntent = await stripe.paymentIntents.create(
+        const stripePaymentIntent = await stripe.paymentIntents.create(
           {
             /* eslint-disable camelcase */
             payment_method_configuration: paymentMethodConfiguration,
@@ -922,13 +923,13 @@ const expenseMutations = {
         await expense.update({
           data: {
             ...expense.data,
-            paymentIntent: paymentIntent,
+            stripePaymentIntent: stripePaymentIntent,
           },
         });
 
         return {
-          id: paymentIntent.id,
-          paymentIntentClientSecret: paymentIntent.client_secret,
+          id: stripePaymentIntent.id,
+          paymentIntentClientSecret: stripePaymentIntent.client_secret,
           stripeAccount: payeeHostStripeAccount.username,
           stripeAccountPublishableSecret: payeeHostStripeAccount.data.publishableKey,
         };

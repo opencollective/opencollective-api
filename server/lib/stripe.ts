@@ -68,7 +68,7 @@ export const isTestToken = token => {
 /**
  * Handles the zero-decimal currencies for Stripe; https://stripe.com/docs/currencies#zero-decimal
  */
-export const convertToStripeAmount = (currency, amount) => {
+export const convertToStripeAmount = (currency: string, amount: number) => {
   if (isZeroDecimalCurrency(currency?.toUpperCase())) {
     return Math.floor(amount / 100);
   } else {
@@ -82,7 +82,7 @@ export const convertToStripeAmount = (currency, amount) => {
  *
  * This helper handles this complexity and returns a number that is safe to use in our codebase.
  */
-export const convertFromStripeAmount = (currency, amount) => {
+export const convertFromStripeAmount = (currency: string, amount: number) => {
   if (isZeroDecimalCurrency(currency?.toUpperCase())) {
     return round(amount * 100, -2); // This ensures that the two last digits are always 00.
   } else {

@@ -3303,8 +3303,8 @@ export async function editExpense(
 
     const isChangingPayee =
       expenseData.fromCollective?.id && expenseData.fromCollective.id !== expense.FromCollectiveId;
-    if (cleanExpenseData.data?.paymentIntent && (shouldUpdateStatus || isChangingCurrency || isChangingPayee)) {
-      cleanExpenseData.data = omit(cleanExpenseData.data, ['paymentIntent']);
+    if (cleanExpenseData.data?.stripePaymentIntent && (shouldUpdateStatus || isChangingCurrency || isChangingPayee)) {
+      cleanExpenseData.data = omit(cleanExpenseData.data, ['stripePaymentIntent']);
     }
 
     // Update attached files
@@ -3678,6 +3678,10 @@ export const checkHasBalanceToPayExpense = async (
   const isSameCurrency = expense.currency === expense.collective.currency;
 
   if (expense.feesPayer === 'PAYEE') {
+    assert(
+      ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type),
+      'The payee cannot cover the fees on platform settlements',
+    );
     assert(
       models.PayoutMethod.typeSupportsFeesPayer(payoutMethodType),
       'Putting the payment processor fees on the payee is only supported for bank accounts, manual payouts and stripe at the moment',

@@ -20,12 +20,14 @@ import { TransactionTypes } from '../../constants/transactions';
 import { applyContributionAccountingCategoryRules } from '../../lib/accounting/categorization/contribution-rules';
 import { getFxRate, isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
+import { lockUntilResolved } from '../../lib/mutex';
 import {
   createRefundTransaction,
   createSubscription,
   sendEmailNotifications,
   sendOrderFailedEmail,
 } from '../../lib/payments';
+import { getChargeRetryCount, getNextChargeAndPeriodStartDates, MAX_RETRIES } from '../../lib/recurring-contributions';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount, getDashboardObjectIdURL } from '../../lib/stripe';
 import { createTransactionsFromPaidStripeExpense, getPaymentProcessorFeeVendor } from '../../lib/transactions';
@@ -40,15 +42,21 @@ import * as virtualcard from './virtual-cards';
 
 const debug = debugLib('stripe');
 
+const getWhereStripePaymentIntentId = (id: string) => ({
+  data: { stripePaymentIntent: { id } },
+});
+
 export async function createOrUpdatePaymentMethod(
   PaymentMethodCollectiveId: number,
   CreatedByUserId: number,
   stripeAccount: string,
-  paymentIntent: Stripe.PaymentIntent,
+  stripePaymentIntent: Stripe.PaymentIntent,
   { transaction }: { transaction?: Transaction } = {},
 ): Promise<PaymentMethod> {
   const stripePaymentMethodId =
-    typeof paymentIntent.payment_method === 'string' ? paymentIntent.payment_method : paymentIntent.payment_method?.id;
+    typeof stripePaymentIntent.payment_method === 'string'
+      ? stripePaymentIntent.payment_method
+      : stripePaymentIntent.payment_method?.id;
 
   const isPlatformAccount = stripeAccount === config.stripe.accountId;
   const matchingPaymentMethod = await models.PaymentMethod.findOne({
@@ -74,16 +82,16 @@ export async function createOrUpdatePaymentMethod(
     ? typeof stripePaymentMethod.customer === 'string'
       ? stripePaymentMethod.customer
       : stripePaymentMethod.customer?.id
-    : typeof paymentIntent.customer === 'string'
-      ? paymentIntent.customer
-      : paymentIntent.customer?.id;
+    : typeof stripePaymentIntent.customer === 'string'
+      ? stripePaymentIntent.customer
+      : stripePaymentIntent.customer?.id;
 
   const pm = await createPaymentMethod(
     {
       stripeAccount,
       stripePaymentMethod,
       stripeCustomer,
-      originPaymentIntent: paymentIntent,
+      originPaymentIntent: stripePaymentIntent,
       CollectiveId: PaymentMethodCollectiveId,
       CreatedByUserId: CreatedByUserId,
     },
@@ -96,10 +104,12 @@ export async function createOrUpdatePaymentMethod(
 export async function createOrUpdateOrderStripePaymentMethod(
   order: Order,
   stripeAccount: string,
-  paymentIntent: Stripe.PaymentIntent,
+  stripePaymentIntent: Stripe.PaymentIntent,
 ): Promise<PaymentMethod> {
   const stripePaymentMethodId =
-    typeof paymentIntent.payment_method === 'string' ? paymentIntent.payment_method : paymentIntent.payment_method?.id;
+    typeof stripePaymentIntent.payment_method === 'string'
+      ? stripePaymentIntent.payment_method
+      : stripePaymentIntent.payment_method?.id;
 
   const orderPaymentMethod = await models.PaymentMethod.findByPk(order.PaymentMethodId);
   // order paymentMethod already saved.
@@ -111,7 +121,7 @@ export async function createOrUpdateOrderStripePaymentMethod(
     order.FromCollectiveId,
     order.CreatedByUserId,
     stripeAccount,
-    paymentIntent,
+    stripePaymentIntent,
   );
   await order.update({
     PaymentMethodId: pm.id,
@@ -182,35 +192,38 @@ export const mandateUpdated = async (event: Stripe.Event) => {
   });
 };
 
-export async function paymentIntentSucceeded(event: Stripe.Event) {
-  const paymentIntent = event.data.object as Stripe.PaymentIntent;
+const paymentIntentLockKey = (stripePaymentIntent: Stripe.PaymentIntent) =>
+  `stripe-payment-intent-${stripePaymentIntent.id}`;
 
-  const target = await paymentIntentTarget(paymentIntent);
+export async function stripePaymentIntentSucceeded(event: Stripe.Event) {
+  const stripePaymentIntent = event.data.object as Stripe.PaymentIntent;
 
-  switch (target) {
-    case 'EXPENSE': {
-      return handleExpensePaymentIntentSucceeded(event);
+  return lockUntilResolved(paymentIntentLockKey(stripePaymentIntent), async () => {
+    const target = await paymentIntentTarget(stripePaymentIntent);
+
+    switch (target) {
+      case 'EXPENSE': {
+        return handleExpensePaymentIntentSucceeded(event);
+      }
+      case 'ORDER':
+      default: {
+        return handleOrderPaymentIntentSucceeded(event);
+      }
     }
-    case 'ORDER':
-    default: {
-      return handleOrderPaymentIntentSucceeded(event);
-    }
-  }
+  });
 }
 
 const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   const stripeAccount = event.account ?? config.stripe.accountId;
-  const paymentIntent = event.data.object as Stripe.PaymentIntent;
+  const stripePaymentIntent = event.data.object as Stripe.PaymentIntent;
 
-  let charge = paymentIntent.latest_charge || ((paymentIntent as any).charges?.data?.[0] as Stripe.Charge);
+  let charge = stripePaymentIntent.latest_charge || ((stripePaymentIntent as any).charges?.data?.[0] as Stripe.Charge);
   if (typeof charge === 'string') {
     charge = await stripe.charges.retrieve(charge, { stripeAccount });
   }
 
   const order = await models.Order.findOne({
-    where: {
-      data: { paymentIntent: { id: paymentIntent.id } },
-    },
+    where: getWhereStripePaymentIntentId(stripePaymentIntent.id),
     include: [
       { association: 'collective', required: true },
       { association: 'fromCollective', required: true },
@@ -219,21 +232,24 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   });
 
   if (!order) {
-    logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
+    logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${stripePaymentIntent.id}`);
     return;
   }
 
   const expectedAmount = convertToStripeAmount(order.currency, order.totalAmount);
   const expectedCurrency = order.currency.toLowerCase();
-  if (paymentIntent.amount !== expectedAmount || paymentIntent.currency?.toLowerCase() !== expectedCurrency) {
-    const message = `Stripe Webhook: PaymentIntent ${paymentIntent.id} amount/currency (${paymentIntent.amount} ${paymentIntent.currency}) does not match order ${order.id} (${expectedAmount} ${expectedCurrency})`;
+  if (
+    stripePaymentIntent.amount !== expectedAmount ||
+    stripePaymentIntent.currency?.toLowerCase() !== expectedCurrency
+  ) {
+    const message = `Stripe Webhook: PaymentIntent ${stripePaymentIntent.id} amount/currency (${stripePaymentIntent.amount} ${stripePaymentIntent.currency}) does not match order ${order.id} (${expectedAmount} ${expectedCurrency})`;
     logger.error(message);
     reportMessageToSentry(message, {
       extra: {
-        paymentIntentId: paymentIntent.id,
-        paymentIntentAmount: paymentIntent.amount,
-        paymentIntentCurrency: paymentIntent.currency,
-        paymentIntentStatus: paymentIntent.status,
+        paymentIntentId: stripePaymentIntent.id,
+        paymentIntentAmount: stripePaymentIntent.amount,
+        paymentIntentCurrency: stripePaymentIntent.currency,
+        paymentIntentStatus: stripePaymentIntent.status,
         orderId: order.id,
         expectedAmount,
         expectedCurrency,
@@ -253,7 +269,7 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
     return;
   }
 
-  await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, paymentIntent);
+  await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, stripePaymentIntent);
 
   const wasCancelled = order.status === OrderStatuses.CANCELLED;
   const transaction = await createChargeTransactions(charge, { order });
@@ -267,8 +283,8 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
             : OrderStatuses.ACTIVE,
         processedAt: new Date(),
         data: {
-          ...omit(order.data, 'paymentIntent'),
-          previousPaymentIntents: [...(order.data.previousPaymentIntents ?? []), paymentIntent],
+          ...omit(order.data, ['stripePaymentIntent']),
+          previousStripePaymentIntents: [...(order.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
         },
       }),
     () => order.getOrCreateMembers(),
@@ -286,12 +302,24 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
     sideEffects.push(() => applyContributionAccountingCategoryRules(order));
   } else if (order.SubscriptionId) {
     const subscription = await models.Subscription.findByPk(order.SubscriptionId);
-    sideEffects.push(() => subscription.update({ lastChargedAt: transaction.clearedAt }));
+    order.Subscription = subscription;
+    const chargeRetryCount = getChargeRetryCount('success', order);
+    const { nextPeriodStart, nextChargeDate } = getNextChargeAndPeriodStartDates('success', order);
+
+    sideEffects.push(() =>
+      subscription.update({
+        chargeNumber: subscription.chargeNumber + 1,
+        lastChargedAt: transaction.clearedAt,
+        chargeRetryCount,
+        nextPeriodStart,
+        nextChargeDate,
+      }),
+    );
   } else {
     sideEffects.push(() => applyContributionAccountingCategoryRules(order));
   }
 
-  sendEmailNotifications(order, transaction);
+  sendEmailNotifications(order, transaction, { firstPayment: order.interval && !order.SubscriptionId });
 
   await sideEffects.reduce(async (promise, effect) => {
     await promise;
@@ -301,9 +329,9 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
 
 async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
   const stripeAccount = event.account ?? config.stripe.accountId;
-  const paymentIntent = event.data.object as Stripe.PaymentIntent;
+  const stripePaymentIntent = event.data.object as Stripe.PaymentIntent;
 
-  let charge = paymentIntent.latest_charge;
+  let charge = stripePaymentIntent.latest_charge;
   if (typeof charge === 'string') {
     charge = await stripe.charges.retrieve(charge, { expand: ['balance_transaction'] }, { stripeAccount });
   }
@@ -312,9 +340,7 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
     const expense = await models.Expense.findOne({
       lock: transaction.LOCK.UPDATE,
       transaction,
-      where: {
-        data: { paymentIntent: { id: paymentIntent.id } },
-      },
+      where: getWhereStripePaymentIntentId(stripePaymentIntent.id),
       include: [
         { association: 'collective', required: true },
         {
@@ -331,21 +357,24 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
     });
 
     if (!expense) {
-      logger.debug(`Stripe Webhook: Could not find Expense for Payment Intent ${paymentIntent.id}`);
+      logger.debug(`Stripe Webhook: Could not find Expense for Payment Intent ${stripePaymentIntent.id}`);
       return [expense, false];
     }
 
     const expectedAmount = convertToStripeAmount(expense.currency, expense.amount);
     const expectedCurrency = expense.currency.toLowerCase();
-    if (paymentIntent.amount !== expectedAmount || paymentIntent.currency?.toLowerCase() !== expectedCurrency) {
-      const message = `Stripe Webhook: PaymentIntent ${paymentIntent.id} amount/currency (${paymentIntent.amount} ${paymentIntent.currency}) does not match expense ${expense.id} (${expectedAmount} ${expectedCurrency})`;
+    if (
+      stripePaymentIntent.amount !== expectedAmount ||
+      stripePaymentIntent.currency?.toLowerCase() !== expectedCurrency
+    ) {
+      const message = `Stripe Webhook: PaymentIntent ${stripePaymentIntent.id} amount/currency (${stripePaymentIntent.amount} ${stripePaymentIntent.currency}) does not match expense ${expense.id} (${expectedAmount} ${expectedCurrency})`;
       logger.error(message);
       reportMessageToSentry(message, {
         extra: {
-          paymentIntentId: paymentIntent.id,
-          paymentIntentAmount: paymentIntent.amount,
-          paymentIntentCurrency: paymentIntent.currency,
-          paymentIntentStatus: paymentIntent.status,
+          paymentIntentId: stripePaymentIntent.id,
+          paymentIntentAmount: stripePaymentIntent.amount,
+          paymentIntentCurrency: stripePaymentIntent.currency,
+          paymentIntentStatus: stripePaymentIntent.status,
           expenseId: expense.id,
           expectedAmount,
           expectedCurrency,
@@ -369,7 +398,7 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
       expense.CollectiveId,
       expense.lastEditedById,
       stripeAccount,
-      paymentIntent,
+      stripePaymentIntent,
       { transaction },
     );
 
@@ -377,8 +406,8 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
     await expense.update(
       {
         data: {
-          ...omit(expense.data, 'paymentIntent'),
-          previousPaymentIntents: [...(expense.data.previousPaymentIntents ?? []), paymentIntent],
+          ...omit(expense.data, ['stripePaymentIntent']),
+          previousStripePaymentIntents: [...(expense.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
         },
         PaymentMethodId: pm.id,
         feesPayer: 'PAYEE',
@@ -399,25 +428,25 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
   }
 }
 
-async function paymentIntentTarget(paymentIntent: Stripe.PaymentIntent): Promise<'ORDER' | 'EXPENSE'> {
+async function paymentIntentTarget(stripePaymentIntent: Stripe.PaymentIntent): Promise<'ORDER' | 'EXPENSE'> {
   const result = await sequelize.query<{ target: 'ORDER' | 'EXPENSE' }>(
     `
     (
       SELECT 'ORDER' as "target"
-      FROM "Orders" where "data"#>>'{paymentIntent,id}' = :paymentIntentId
+      FROM "Orders" WHERE "data"#>>'{stripePaymentIntent,id}' = :stripePaymentIntentId
       AND "deletedAt" IS NULL LIMIT 1
     )
     UNION ALL
     (
       SELECT 'EXPENSE' as "target"
-      FROM "Expenses" where "data"#>>'{paymentIntent,id}' = :paymentIntentId
+      FROM "Expenses" WHERE "data"#>>'{stripePaymentIntent,id}' = :stripePaymentIntentId
       AND "deletedAt" IS NULL LIMIT 1
     )
   `,
     {
       type: QueryTypes.SELECT,
       raw: true,
-      replacements: { paymentIntentId: paymentIntent.id },
+      replacements: { stripePaymentIntentId: stripePaymentIntent.id },
     },
   );
 
@@ -428,24 +457,26 @@ async function paymentIntentTarget(paymentIntent: Stripe.PaymentIntent): Promise
   return result[0].target;
 }
 
-export const paymentIntentProcessing = async (event: Stripe.Event) => {
-  const paymentIntent = event.data.object as Stripe.PaymentIntent;
+export const stripePaymentIntentProcessing = async (event: Stripe.Event) => {
+  const stripePaymentIntent = event.data.object as Stripe.PaymentIntent;
 
-  const target = await paymentIntentTarget(paymentIntent);
+  return lockUntilResolved(paymentIntentLockKey(stripePaymentIntent), async () => {
+    const target = await paymentIntentTarget(stripePaymentIntent);
 
-  switch (target) {
-    case 'EXPENSE': {
-      return handleExpensePaymentIntentProcessing(event);
+    switch (target) {
+      case 'EXPENSE': {
+        return handleExpensePaymentIntentProcessing(event);
+      }
+      case 'ORDER':
+      default: {
+        return handleOrderPaymentIntentProcessing(event);
+      }
     }
-    case 'ORDER':
-    default: {
-      return handleOrderPaymentIntentProcessing(event);
-    }
-  }
+  });
 };
 
 async function handleOrderPaymentIntentProcessing(event: Stripe.Event) {
-  const paymentIntent = event.data.object as Stripe.PaymentIntent;
+  const stripePaymentIntent = event.data.object as Stripe.PaymentIntent;
 
   const stripeAccount = event.account ?? config.stripe.accountId;
 
@@ -453,7 +484,7 @@ async function handleOrderPaymentIntentProcessing(event: Stripe.Event) {
     const order = await models.Order.findOne({
       where: {
         status: [OrderStatuses.NEW, OrderStatuses.PROCESSING, OrderStatuses.ERROR, OrderStatuses.ACTIVE],
-        data: { paymentIntent: { id: paymentIntent.id } },
+        ...getWhereStripePaymentIntentId(stripePaymentIntent.id),
       },
       transaction,
       lock: transaction.LOCK.UPDATE,
@@ -465,14 +496,14 @@ async function handleOrderPaymentIntentProcessing(event: Stripe.Event) {
     });
 
     if (!order) {
-      logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
+      logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${stripePaymentIntent.id}`);
       return;
     }
 
     let pm = await models.PaymentMethod.findOne({
       where: {
         data: {
-          stripePaymentMethodId: paymentIntent.payment_method,
+          stripePaymentMethodId: stripePaymentIntent.payment_method,
           stripeAccount,
         },
       },
@@ -480,7 +511,7 @@ async function handleOrderPaymentIntentProcessing(event: Stripe.Event) {
     });
 
     if (!pm) {
-      const stripePaymentMethod = await stripe.paymentMethods.retrieve(paymentIntent.payment_method as string, {
+      const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentIntent.payment_method as string, {
         stripeAccount,
       });
 
@@ -488,16 +519,16 @@ async function handleOrderPaymentIntentProcessing(event: Stripe.Event) {
         ? typeof stripePaymentMethod.customer === 'string'
           ? stripePaymentMethod.customer
           : stripePaymentMethod.customer?.id
-        : typeof paymentIntent.customer === 'string'
-          ? paymentIntent.customer
-          : paymentIntent.customer?.id;
+        : typeof stripePaymentIntent.customer === 'string'
+          ? stripePaymentIntent.customer
+          : stripePaymentIntent.customer?.id;
 
       pm = await createPaymentMethod(
         {
           stripePaymentMethod,
           stripeAccount,
           stripeCustomer,
-          originPaymentIntent: paymentIntent,
+          originPaymentIntent: stripePaymentIntent,
           CollectiveId: order.FromCollectiveId,
           CreatedByUserId: order.CreatedByUserId,
         },
@@ -509,7 +540,7 @@ async function handleOrderPaymentIntentProcessing(event: Stripe.Event) {
       {
         status: OrderStatuses.PROCESSING,
         PaymentMethodId: pm.id,
-        data: { ...order.data, paymentIntent },
+        data: { ...order.data, stripePaymentIntent: stripePaymentIntent },
       },
       { transaction },
     );
@@ -519,15 +550,13 @@ async function handleOrderPaymentIntentProcessing(event: Stripe.Event) {
 }
 
 async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
-  const paymentIntent = event.data.object as Stripe.PaymentIntent;
+  const stripePaymentIntent = event.data.object as Stripe.PaymentIntent;
 
   const stripeAccount = event.account ?? config.stripe.accountId;
 
   await sequelize.transaction(async transaction => {
     const expense = await models.Expense.findOne({
-      where: {
-        data: { paymentIntent: { id: paymentIntent.id } }, // TODO(henrique): add index
-      },
+      where: getWhereStripePaymentIntentId(stripePaymentIntent.id),
       transaction,
       lock: transaction.LOCK.UPDATE,
       include: [
@@ -537,7 +566,7 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
     });
 
     if (!expense) {
-      reportMessageToSentry(`Stripe Webhook: Could not find Expense for Payment Intent ${paymentIntent.id}`, {
+      reportMessageToSentry(`Stripe Webhook: Could not find Expense for Payment Intent ${stripePaymentIntent.id}`, {
         extra: { event },
       });
       return;
@@ -546,7 +575,7 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
     let pm = await models.PaymentMethod.findOne({
       where: {
         data: {
-          stripePaymentMethodId: paymentIntent.payment_method,
+          stripePaymentMethodId: stripePaymentIntent.payment_method,
           stripeAccount,
         },
       },
@@ -554,7 +583,7 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
     });
 
     if (!pm) {
-      const stripePaymentMethod = await stripe.paymentMethods.retrieve(paymentIntent.payment_method as string, {
+      const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentIntent.payment_method as string, {
         stripeAccount,
       });
 
@@ -562,16 +591,16 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
         ? typeof stripePaymentMethod.customer === 'string'
           ? stripePaymentMethod.customer
           : stripePaymentMethod.customer?.id
-        : typeof paymentIntent.customer === 'string'
-          ? paymentIntent.customer
-          : paymentIntent.customer?.id;
+        : typeof stripePaymentIntent.customer === 'string'
+          ? stripePaymentIntent.customer
+          : stripePaymentIntent.customer?.id;
 
       pm = await createPaymentMethod(
         {
           stripePaymentMethod,
           stripeAccount,
           stripeCustomer,
-          originPaymentIntent: paymentIntent,
+          originPaymentIntent: stripePaymentIntent,
           CollectiveId: expense.CollectiveId,
           CreatedByUserId: expense.lastEditedById,
         },
@@ -584,35 +613,35 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
         status: ExpenseStatus.PROCESSING,
         feesPayer: 'PAYEE',
         PaymentMethodId: pm.id,
-        data: { ...expense.data, paymentIntent },
+        data: { ...expense.data, stripePaymentIntent: stripePaymentIntent },
       },
       { transaction },
     );
   });
 }
 
-export async function paymentIntentFailed(event: Stripe.Event) {
-  const paymentIntent = event.data.object as Stripe.PaymentIntent;
+export async function stripePaymentIntentFailed(event: Stripe.Event) {
+  const stripePaymentIntent = event.data.object as Stripe.PaymentIntent;
 
-  const target = await paymentIntentTarget(paymentIntent);
+  return lockUntilResolved(paymentIntentLockKey(stripePaymentIntent), async () => {
+    const target = await paymentIntentTarget(stripePaymentIntent);
 
-  switch (target) {
-    case 'EXPENSE': {
-      return handleExpensePaymentIntentFailed(event);
+    switch (target) {
+      case 'EXPENSE': {
+        return handleExpensePaymentIntentFailed(event);
+      }
+      case 'ORDER':
+      default: {
+        return handleOrderPaymentIntentFailed(event);
+      }
     }
-    case 'ORDER':
-    default: {
-      return handleOrderPaymentIntentFailed(event);
-    }
-  }
+  });
 }
 
 const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
-  const paymentIntent = event.data.object as Stripe.PaymentIntent;
+  const stripePaymentIntent = event.data.object as Stripe.PaymentIntent;
   const order = await models.Order.findOne({
-    where: {
-      data: { paymentIntent: { id: paymentIntent.id } },
-    },
+    where: getWhereStripePaymentIntentId(stripePaymentIntent.id),
     include: [
       { association: 'collective', required: true },
       { association: 'fromCollective', required: true },
@@ -621,31 +650,52 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
   });
 
   if (!order) {
-    logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
+    logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${stripePaymentIntent.id}`);
     return;
   }
 
-  const charge = (paymentIntent as any).charges?.data?.[0] as Stripe.Charge;
-  const reason = paymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
+  const charge = (stripePaymentIntent as any).charges?.data?.[0] as Stripe.Charge;
+  const reason = stripePaymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
   logger.info(`Stripe Webook: Payment Intent failed for Order #${order.id}. Reason: ${reason}`);
 
   const wasCancelled = order.status === OrderStatuses.CANCELLED;
   await order.update({
     status: wasCancelled ? OrderStatuses.CANCELLED : OrderStatuses.ERROR,
-    data: { ...order.data, paymentIntent },
+    data: { ...order.data, stripePaymentIntent: stripePaymentIntent },
   });
 
   const userFriendlyError = userFriendlyErrorMessage({ message: reason }) || UNKNOWN_ERROR_MSG;
+
+  if (order.SubscriptionId) {
+    const subscription = await models.Subscription.findByPk(order.SubscriptionId);
+    order.Subscription = subscription;
+    const chargeRetryCount = getChargeRetryCount('failure', order);
+
+    const exceededAttempts = chargeRetryCount >= MAX_RETRIES;
+
+    if (exceededAttempts) {
+      await subscription.update({
+        isActive: false,
+        deactivatedAt: new Date(),
+      });
+      await order.update({ status: OrderStatuses.CANCELLED });
+    } else {
+      const { nextPeriodStart, nextChargeDate } = getNextChargeAndPeriodStartDates('failure', order);
+      await subscription.update({
+        chargeRetryCount,
+        nextPeriodStart,
+        nextChargeDate,
+      });
+    }
+  }
 
   sendOrderFailedEmail(order, userFriendlyError);
 };
 
 async function handleExpensePaymentIntentFailed(event: Stripe.Event) {
-  const paymentIntent = event.data.object as Stripe.PaymentIntent;
+  const stripePaymentIntent = event.data.object as Stripe.PaymentIntent;
   const expense = await models.Expense.findOne({
-    where: {
-      data: { paymentIntent: { id: paymentIntent.id } },
-    },
+    where: getWhereStripePaymentIntentId(stripePaymentIntent.id),
     include: [
       { association: 'collective', required: true },
       { association: 'fromCollective', required: true },
@@ -653,21 +703,21 @@ async function handleExpensePaymentIntentFailed(event: Stripe.Event) {
   });
 
   if (!expense) {
-    reportMessageToSentry(`Stripe Webhook: Could not find Expense for Payment Intent ${paymentIntent.id}`, {
+    reportMessageToSentry(`Stripe Webhook: Could not find Expense for Payment Intent ${stripePaymentIntent.id}`, {
       extra: { event },
     });
     return;
   }
 
-  const charge = (paymentIntent as any).charges?.data?.[0] as Stripe.Charge;
-  const reason = paymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
+  const charge = (stripePaymentIntent as any).charges?.data?.[0] as Stripe.Charge;
+  const reason = stripePaymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
   logger.info(`Stripe Webook: Payment Intent failed for Expense #${expense.id}. Reason: ${reason}`);
 
   await expense.update({
     status: expense.status === ExpenseStatus.PROCESSING ? ExpenseStatus.ERROR : undefined,
     data: {
-      ...omit(expense.data, 'paymentIntent'),
-      previousPaymentIntents: [...(expense.data.previousPaymentIntents ?? []), paymentIntent],
+      ...omit(expense.data, ['stripePaymentIntent']),
+      previousStripePaymentIntents: [...(expense.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
     },
   });
 }
@@ -1300,11 +1350,11 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
     case 'review.closed':
       return reviewClosed(event);
     case 'payment_intent.succeeded':
-      return paymentIntentSucceeded(event);
+      return stripePaymentIntentSucceeded(event);
     case 'payment_intent.processing':
-      return paymentIntentProcessing(event);
+      return stripePaymentIntentProcessing(event);
     case 'payment_intent.payment_failed':
-      return paymentIntentFailed(event);
+      return stripePaymentIntentFailed(event);
     case 'payment_method.attached':
       return paymentMethodAttached(event);
     case 'mandate.updated':

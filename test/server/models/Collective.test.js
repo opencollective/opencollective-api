@@ -1688,6 +1688,17 @@ describe('server/models/Collective', () => {
     });
   });
 
+  describe('info', () => {
+    it('does not include the raw data JSONB column', async () => {
+      const collective = await fakeCollective({
+        data: { privateInstructions: 'secret', spamReport: { score: 0.1 } },
+      });
+
+      expect(collective.info).to.not.have.property('data');
+      expect(collective.info).to.include.keys('id', 'slug', 'name', 'settings');
+    });
+  });
+
   describe('generateSlug', () => {
     it('returns the base slug when available', async () => {
       const slug = await Collective.generateSlug('completely-unique-test-slug');

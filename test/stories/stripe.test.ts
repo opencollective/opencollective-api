@@ -7,7 +7,7 @@ import { PAYMENT_METHOD_SERVICE } from '../../server/constants/paymentMethods';
 import PlatformConstants from '../../server/constants/platform';
 import stripe from '../../server/lib/stripe';
 import { ConnectedAccount, Order, User } from '../../server/models';
-import { paymentIntentSucceeded } from '../../server/paymentProviders/stripe/webhook';
+import { stripePaymentIntentSucceeded } from '../../server/paymentProviders/stripe/webhook';
 import { fakeActiveHost, fakeCollective, fakeOrganization, fakeUser, randStr } from '../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../utils';
 
@@ -43,7 +43,7 @@ describe('stripe', () => {
         paymentMethod: {
           service: 'STRIPE',
           newType: 'PAYMENT_INTENT',
-          paymentIntentId: randStr('payment-intent-id-'),
+          stripePaymentIntentId: randStr('payment-intent-id-'),
         },
         amount: {
           valueInCents: 5000,
@@ -110,7 +110,7 @@ describe('stripe', () => {
         const stripeChargeId = randStr('stripe-charge-id-');
         const stripePaymentMethodId = randStr('stripe-payment-method-id-');
         const stripeBalanceTransactionId = randStr('stripe-balance-transaction-id-');
-        await paymentIntentSucceeded({
+        await stripePaymentIntentSucceeded({
           account: stripePaymentIntent.stripeAccount,
           data: {
             object: {
@@ -138,6 +138,7 @@ describe('stripe', () => {
 
     it('handles credit card payment successfuly', async () => {
       const result = await makeContribution();
+      result.errors && console.error(result.errors);
       const orderId = result.data.createOrder.order.legacyId;
       const order = await Order.findByPk(orderId);
       expect(order).to.exist;

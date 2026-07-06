@@ -793,6 +793,34 @@ export async function createRefundTransaction(
         refundKind,
       );
 
+      // New platform-tips ledger: there is no per-tip debt — the OWED settlement lives directly
+      // on the PLATFORM_TIP credit. Mark it SETTLED so the settlement cron never invoices the
+      // host for a refunded tip. Legacy groups key their settlement on PLATFORM_TIP_DEBT (handled
+      // below), so this lookup is a no-op for them.
+      const newLedgerTipSettlement = await TransactionSettlement.findOne({
+        transaction: sqlTransaction,
+        where: {
+          TransactionGroup: transaction.TransactionGroup,
+          kind: TransactionKind.PLATFORM_TIP,
+        },
+      });
+      if (newLedgerTipSettlement?.status === TransactionSettlementStatus.OWED) {
+        await newLedgerTipSettlement.update(
+          { status: TransactionSettlementStatus.SETTLED },
+          { transaction: sqlTransaction },
+        );
+      } else if (newLedgerTipSettlement) {
+        // INVOICED/SETTLED: the host was already (or is being) billed for this tip. Mirror the
+        // legacy debt flow below: carry an OWED settlement on the refund pair so the settlement
+        // cron deducts the (negative) refund DEBIT on the platform-tips account from the host's next
+        // Platform Tips invoice.
+        await TransactionSettlement.createForTransaction(
+          platformTipRefundTransaction,
+          TransactionSettlementStatus.OWED,
+          sqlTransaction,
+        );
+      }
+
       // Refund Platform Tip Debt
       // Tips directly collected (and legacy ones) do not have a "debt" transaction associated
       const platformTipDebtTransaction = await transaction.getPlatformTipDebtTransaction(null, { sqlTransaction });
@@ -830,6 +858,35 @@ export async function createRefundTransaction(
           sqlTransaction,
         );
       }
+    }
+
+    // Refund Application Fee (new platform-tips ledger, Stripe direct-collected tips)
+    // Stripe claws the application fee back on refund (`refund_application_fee` in
+    // server/paymentProviders/stripe/common.ts), so the APPLICATION_FEE pair must be reversed too:
+    // otherwise the host's platform-tips slice stays negative and OFiTech keeps revenue that
+    // Stripe actually returned.
+    //
+    // Reverse from the DEBIT side: that is the host-scoped row on the platform-tips account
+    // (CollectiveId = platform-tips, HostCollectiveId = host), so buildRefund preserves HostCollectiveId
+    // via its `pick`, and createDoubleEntry derives only the OFiTech opposite. Reversing from the CREDIT
+    // (on OFiTech) instead would make the platform-tips row the *derived* opposite, re-deriving its
+    // HostCollectiveId from `getHostCollective()` rather than preserving the host scope directly.
+    const applicationFeeTransaction = await transaction.getRelatedTransaction(
+      { type: DEBIT, kind: TransactionKind.APPLICATION_FEE },
+      { sqlTransaction },
+    );
+    if (applicationFeeTransaction && applicationFeeTransaction.id !== transaction.id) {
+      const applicationFeeRefund = buildRefund(applicationFeeTransaction);
+      const applicationFeeRefundTransaction = await Transaction.createDoubleEntry(applicationFeeRefund, {
+        sequelizeTransaction: sqlTransaction,
+      });
+      await associateTransactionRefundId(
+        applicationFeeTransaction,
+        applicationFeeRefundTransaction,
+        sqlTransaction,
+        data,
+        refundKind,
+      );
     }
 
     // Refund Payment Processor Fee
@@ -932,7 +989,11 @@ export async function associateTransactionRefundId(
  *
  */
 
-export const sendEmailNotifications = (order: Order, transaction?: Transaction | void): void => {
+export const sendEmailNotifications = (
+  order: Order,
+  transaction?: Transaction | void,
+  { firstPayment }: { firstPayment?: boolean } = { firstPayment: true },
+): void => {
   debug('sendEmailNotifications');
   if (
     transaction &&
@@ -952,7 +1013,7 @@ export const sendEmailNotifications = (order: Order, transaction?: Transaction |
     // choosing the source as itself. In this case do not send an email.
     order.fromCollective?.id !== order.collective?.id
   ) {
-    recordOrderConfirmation(order, transaction); // async
+    recordOrderConfirmation(order, transaction, { firstPayment }); // async
   } else if (order.status === OrderStatuses.PENDING) {
     sendOrderPendingEmail(order); // This is the one for the Contributor
     sendManualPendingOrderEmail(order); // This is the one for the Host Admins
@@ -1040,7 +1101,7 @@ export const executeOrder = async (
     await order.update({
       status: OrderStatuses.PAID,
       processedAt: order.processedAt || new Date(),
-      data: omit(order.data, ['paymentIntent']),
+      data: omit(order.data, ['stripePaymentIntent']),
     });
 
     await applyContributionAccountingCategoryRules(order);
@@ -1072,7 +1133,9 @@ export const executeOrder = async (
     order.paymentMethod.save();
   }
 
-  sendEmailNotifications(order, transaction);
+  sendEmailNotifications(order, transaction, {
+    firstPayment: true,
+  });
 
   // Register gift card emitter as collective backer too
   if (transaction && transaction.UsingGiftCardFromCollectiveId) {
@@ -1095,7 +1158,11 @@ const validatePayment = (payment): void => {
   }
 };
 
-const recordOrderConfirmation = async (order: Order, transaction: Transaction): Promise<void> => {
+const recordOrderConfirmation = async (
+  order: Order,
+  transaction: Transaction,
+  { firstPayment }: { firstPayment?: boolean } = {},
+): Promise<void> => {
   const attachments = [];
   const { collective, interval, fromCollective, paymentMethod } = order;
   const user = await order.getUserForActivity();
@@ -1136,7 +1203,7 @@ const recordOrderConfirmation = async (order: Order, transaction: Transaction): 
       fromCollective: fromCollective.minimal,
       interval,
       monthlyInterval: interval === 'month',
-      firstPayment: true,
+      firstPayment,
       subscriptionsLink: interval && getEditRecurringContributionsUrl(fromCollective),
       customMessage,
       transactionPdf: false,
@@ -1254,14 +1321,14 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
 export async function getOrderPaymentProcessingUrl(order: Order): Promise<string | null> {
   const pm = order.paymentMethod || (await order.getPaymentMethod());
   if (pm?.service === PAYMENT_METHOD_SERVICE.STRIPE) {
-    const paymentIntentId = get(order, 'data.paymentIntent.id');
-    if (!paymentIntentId) {
+    const stripePaymentIntentId = get(order, 'data.stripePaymentIntent.id');
+    if (!stripePaymentIntentId) {
       return null;
     }
 
     const stripeAccountId = pm.data?.stripeAccount;
 
-    return getDashboardObjectIdURL(paymentIntentId, stripeAccountId);
+    return getDashboardObjectIdURL(stripePaymentIntentId, stripeAccountId);
   }
   return null;
 }

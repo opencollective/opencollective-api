@@ -117,7 +117,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
       it('reuses a stored paymentIntent whose amount and currency still match the order', async () => {
         await order.update({
           data: {
-            paymentIntent: { id: 'pi_stored', amount: 1000, currency: 'usd', status: 'requires_action' },
+            stripePaymentIntent: { id: 'pi_stored', amount: 1000, currency: 'usd', status: 'requires_action' },
           },
         });
         stripe.paymentIntents.confirm.resolves({
@@ -135,7 +135,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
       it('discards a stored paymentIntent whose amount no longer matches the order and creates a fresh one', async () => {
         await order.update({
           data: {
-            paymentIntent: { id: 'pi_stale', amount: 5000, currency: 'usd', status: 'requires_action' },
+            stripePaymentIntent: { id: 'pi_stale', amount: 5000, currency: 'usd', status: 'requires_action' },
           },
         });
 
@@ -152,7 +152,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
       it('discards a stored paymentIntent whose currency no longer matches the order and creates a fresh one', async () => {
         await order.update({
           data: {
-            paymentIntent: { id: 'pi_stale', amount: 1000, currency: 'eur', status: 'requires_action' },
+            stripePaymentIntent: { id: 'pi_stale', amount: 1000, currency: 'eur', status: 'requires_action' },
           },
         });
 

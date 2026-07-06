@@ -25,7 +25,7 @@ export async function chargePlatformBillingExpenseWithStripe(expense: Expense) {
   await expense.update({
     data: {
       ...expense.data,
-      paymentIntent: paymentIntentResult,
+      stripePaymentIntent: paymentIntentResult,
     },
   });
 

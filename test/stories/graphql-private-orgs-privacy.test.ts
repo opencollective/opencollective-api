@@ -191,6 +191,13 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Organization.host': 'parent-gate',
   'Organization.mainProfile': 'parent-gate',
 
+  // ---- Platform nested fields ----
+  'Platform.parentAccount': 'parent-gate',
+  'Platform.duplicatedFromAccount': 'parent-gate',
+  'Platform.host': 'parent-gate',
+  'Platform.parent': 'parent-gate',
+  'Platform.mainProfile': 'parent-gate',
+
   // ---- Vendor nested fields ----
   'Vendor.parentAccount': 'parent-gate',
   'Vendor.duplicatedFromAccount': 'parent-gate',
@@ -291,6 +298,11 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Order.fromAccount': 'entry-gate',
   'Order.toAccount': 'parent-gate',
   'Order.createdByAccount': 'parent-gate',
+
+  // ---- PaymentIntent ----
+  'PaymentIntent.payer': 'entry-gate',
+  'PaymentIntent.payee': 'entry-gate',
+  'PaymentIntent.host': 'parent-gate',
 
   // ---- Transaction interface ----
   'Transaction.host': 'parent-gate',

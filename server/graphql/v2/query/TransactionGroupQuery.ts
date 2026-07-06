@@ -9,6 +9,7 @@ import { GraphQLTransactionGroup } from '../object/TransactionGroup';
 
 const TransactionGroupQuery = {
   type: GraphQLTransactionGroup,
+  deprecationReason: '2026-07-02: Please use PaymentIntents query instead',
   description: '[!] Warning: this query is currently in beta and the API might change',
   args: {
     groupId: {

@@ -4,13 +4,13 @@ import stripe from '../../server/lib/stripe';
 
 const IS_DRY = !!process.env.DRY;
 
-const refund = async (stripeAccount, paymentIntentId) => {
-  const paymentIntent = await stripe.paymentIntents.retrieve(
-    paymentIntentId,
+const refund = async (stripeAccount, stripePaymentIntentId) => {
+  const stripePaymentIntent = await stripe.paymentIntents.retrieve(
+    stripePaymentIntentId,
     { expand: ['latest_charge'] },
     { stripeAccount },
   );
-  const charge = (paymentIntent as any).charges.data[0];
+  const charge = (stripePaymentIntent as any).charges.data[0];
 
   console.log(
     `Amount: ${charge.amount}, livemode: ${charge.livemode}, status: ${charge.status}, refunded: ${charge.refunded}, type: ${charge.payment_method_details.type}`,
@@ -19,14 +19,14 @@ const refund = async (stripeAccount, paymentIntentId) => {
   if (!IS_DRY) {
     const refund = await stripe.refunds.create(
       // eslint-disable-next-line camelcase
-      { payment_intent: paymentIntentId, refund_application_fee: true },
+      { payment_intent: stripePaymentIntentId, refund_application_fee: true },
       { stripeAccount },
     );
 
     if (refund.status === 'succeeded' || refund.status === 'pending') {
-      console.log('Refund succeeded or pending!', paymentIntent);
+      console.log('Refund succeeded or pending!', stripePaymentIntent);
     } else {
-      throw new Error(`Could not refund payment intent ${paymentIntent}`, { cause: refund });
+      throw new Error(`Could not refund payment intent ${stripePaymentIntent}`, { cause: refund });
     }
   }
 };
@@ -45,18 +45,18 @@ const main = async () => {
     console.info('RUNNING IN DRY MODE!');
   }
   const stripeAccount = process.argv[2];
-  const paymentIntentId = process.argv[3];
+  const stripePaymentIntentId = process.argv[3];
 
-  if (!stripeAccount || !paymentIntentId) {
+  if (!stripeAccount || !stripePaymentIntentId) {
     console.log('Usage npm run script scripts/fixes/refund-stripe-paymentIntent.ts stripeAccount paymentIntent');
   } else {
-    console.log(`Refunding payment intent ${paymentIntentId}`);
+    console.log(`Refunding payment intent ${stripePaymentIntentId}`);
 
     try {
-      await refund(stripeAccount, paymentIntentId);
+      await refund(stripeAccount, stripePaymentIntentId);
     } catch (e) {
       if (e?.raw?.code === 'charge_already_refunded') {
-        console.log(`Already refunded ${paymentIntentId}`);
+        console.log(`Already refunded ${stripePaymentIntentId}`);
       } else {
         throw e;
       }
