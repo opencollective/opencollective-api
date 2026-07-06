@@ -126,20 +126,22 @@ type PhaseStats = {
 const DEFAULT_SIZE_THRESHOLD = 10_000;
 
 const COLLECTIVES_WHERE = `
-  data ? 'spamReport'
-  OR data ? 'data'
-  OR octet_length(data::text) > :sizeThreshold
+  octet_length(data::text) > :sizeThreshold AND (
+    data ? 'spamReport'
+    OR data ? 'data'
+  )
 `;
 
 const ACTIVITIES_WHERE = `
-  data->'collective' ? 'data'
-  OR data->'previousData' ? 'data'
-  OR data->'newData' ? 'data'
-  OR data->'host' ? 'data'
-  OR data->'fromCollective' ? 'data'
-  OR data->'toCollective' ? 'data'
-  OR data->'movedFromCollective' ? 'data'
-  OR octet_length(data::text) > :sizeThreshold
+  octet_length(data::text) > :sizeThreshold AND (
+    data->'collective' ? 'data'
+    OR data->'previousData' ? 'data'
+    OR data->'newData' ? 'data'
+    OR data->'host' ? 'data'
+    OR data->'fromCollective' ? 'data'
+    OR data->'toCollective' ? 'data'
+    OR data->'movedFromCollective' ? 'data'
+  )
 `;
 
 const countRemaining = async (
