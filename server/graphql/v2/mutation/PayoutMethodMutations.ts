@@ -91,6 +91,9 @@ const payoutMethodMutations = {
         throw new Forbidden();
       }
 
+      // Enforce 2FA
+      await twoFactorAuthLib.enforceForAccount(req, collective);
+
       return sequelize.transaction(async transaction => {
         if (await payoutMethod.canBeDeleted({ transaction })) {
           await payoutMethod.destroy({ transaction });
