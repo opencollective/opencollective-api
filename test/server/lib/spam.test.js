@@ -3,7 +3,12 @@ import config from 'config';
 import { stub, useFakeTimers } from 'sinon';
 
 import slackLib from '../../../server/lib/slack';
-import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, resolveRedirect } from '../../../server/lib/spam';
+import {
+  collectiveSpamCheck,
+  getSpamReportCollectiveSnapshot,
+  notifyTeamAboutSuspiciousCollective,
+  resolveRedirect,
+} from '../../../server/lib/spam';
 import { fakeCollective } from '../../test-helpers/fake-data';
 
 // To prevent false positives with random values, we initialize all collectives with safe values
@@ -36,7 +41,7 @@ describe('server/lib/spam', () => {
         domains: [],
         bayes: 'ham',
         context: 'test',
-        data: collectiveWithBadDescription.info,
+        data: getSpamReportCollectiveSnapshot(collectiveWithBadDescription),
         date: '2020-01-01T00:00:00.000Z',
       });
 
@@ -52,7 +57,7 @@ describe('server/lib/spam', () => {
         bayes: 'ham',
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
-        data: collectiveWithBadLongDescription.info,
+        data: getSpamReportCollectiveSnapshot(collectiveWithBadLongDescription),
       });
 
       // Website
@@ -64,7 +69,7 @@ describe('server/lib/spam', () => {
         bayes: 'ham',
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
-        data: collectiveWithBadWebsite.info,
+        data: getSpamReportCollectiveSnapshot(collectiveWithBadWebsite),
       });
 
       // Name
@@ -76,7 +81,7 @@ describe('server/lib/spam', () => {
         bayes: 'ham',
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
-        data: collectiveWithBadName.info,
+        data: getSpamReportCollectiveSnapshot(collectiveWithBadName),
       });
     });
 
@@ -93,7 +98,7 @@ describe('server/lib/spam', () => {
         bayes: 'ham',
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
-        data: collectiveWithBlockedWebsite.info,
+        data: getSpamReportCollectiveSnapshot(collectiveWithBlockedWebsite),
       });
     });
 
@@ -110,7 +115,7 @@ describe('server/lib/spam', () => {
         bayes: 'ham',
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
-        data: collective.info,
+        data: getSpamReportCollectiveSnapshot(collective),
       });
     });
 
@@ -127,7 +132,7 @@ describe('server/lib/spam', () => {
         bayes: 'ham',
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
-        data: collective.info,
+        data: getSpamReportCollectiveSnapshot(collective),
       });
     });
   });
