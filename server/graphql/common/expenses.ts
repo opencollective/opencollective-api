@@ -112,22 +112,25 @@ import { checkScope } from './scope-check';
 import { hasProtectedUrlPermission } from './uploaded-file';
 
 const loadHostForExpense = async (req: express.Request, expense: Expense): Promise<Collective | null> => {
+  const loadCollectiveById = (id: number): Promise<Collective | null> =>
+    req.loaders ? req.loaders.Collective.byId.load(id) : Collective.findByPk(id);
+
   if (expense.host) {
     return expense.host;
   } else if (expense.HostCollectiveId) {
-    expense.host = await req.loaders.Collective.byId.load(expense.HostCollectiveId);
+    expense.host = await loadCollectiveById(expense.HostCollectiveId);
     return expense.host;
   } else if (expense.collective?.host) {
     return expense.collective.host;
   } else if (expense.collective) {
     if (expense.collective.HostCollectiveId) {
-      expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
+      expense.collective.host = await loadCollectiveById(expense.collective.HostCollectiveId);
       return expense.collective.host;
     }
   } else {
-    expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+    expense.collective = await loadCollectiveById(expense.CollectiveId);
     if (expense.collective && expense.collective.HostCollectiveId) {
-      expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
+      expense.collective.host = await loadCollectiveById(expense.collective.HostCollectiveId);
       return expense.collective.host;
     }
   }
