@@ -42,6 +42,15 @@ const EDIT_ACCOUNT_TYPE_MUTATION = gql`
   }
 `;
 
+const EDIT_ACCOUNT_FLAGS_MUTATION = gql`
+  mutation EditAccountFlags($account: AccountReferenceInput!, $isBlockedForUnpaidPlatformBilling: Boolean) {
+    editAccountFlags(account: $account, isBlockedForUnpaidPlatformBilling: $isBlockedForUnpaidPlatformBilling) {
+      id
+      isBlockedForUnpaidPlatformBilling
+    }
+  }
+`;
+
 describe('server/graphql/v2/mutation/RootMutations', () => {
   let rootUser;
 
@@ -290,6 +299,71 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       const result = await callEditAccountTypeMutation({ account: { legacyId: user.collective.id } }, rootUser);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('editAccountType does not work on guest profiles');
+    });
+  });
+
+  describe('editAccountFlags - isBlockedForUnpaidPlatformBilling', () => {
+    const callEditAccountFlags = async (variables, user, useValid2FA = true) => {
+      const headers = {};
+      if (useValid2FA) {
+        headers[TwoFactorAuthenticationHeader] = generateValid2FAHeader(rootUser);
+      }
+      return graphqlQueryV2(EDIT_ACCOUNT_FLAGS_MUTATION, variables, user, undefined, headers);
+    };
+
+    it('is rejected for non-root users', async () => {
+      const nonRoot = await fakeUser();
+      const host = await fakeHost();
+      const result = await callEditAccountFlags(
+        { account: { legacyId: host.id }, isBlockedForUnpaidPlatformBilling: true },
+        nonRoot,
+      );
+      expect(result.errors).to.exist;
+    });
+
+    it('lets a root user block and unblock an account', async () => {
+      const host = await fakeHost();
+
+      let result = await callEditAccountFlags(
+        { account: { legacyId: host.id }, isBlockedForUnpaidPlatformBilling: true },
+        rootUser,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccountFlags.isBlockedForUnpaidPlatformBilling).to.be.true;
+      await host.reload();
+      expect(host.data.isBlockedForUnpaidPlatformBilling).to.be.true;
+
+      result = await callEditAccountFlags(
+        { account: { legacyId: host.id }, isBlockedForUnpaidPlatformBilling: false },
+        rootUser,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccountFlags.isBlockedForUnpaidPlatformBilling).to.be.false;
+      await host.reload();
+      expect(host.data.isBlockedForUnpaidPlatformBilling).to.be.false;
+    });
+
+    it('exposes the field to admins only', async () => {
+      const ACCOUNT_QUERY = gql`
+        query Account($slug: String!) {
+          account(slug: $slug) {
+            id
+            isBlockedForUnpaidPlatformBilling
+          }
+        }
+      `;
+      const admin = await fakeUser();
+      const host = await fakeHost({ admin, data: { isBlockedForUnpaidPlatformBilling: true } });
+      await admin.populateRoles();
+
+      const asAdmin = await graphqlQueryV2(ACCOUNT_QUERY, { slug: host.slug }, admin);
+      expect(asAdmin.data.account.isBlockedForUnpaidPlatformBilling).to.be.true;
+
+      const asStranger = await graphqlQueryV2(ACCOUNT_QUERY, { slug: host.slug }, await fakeUser());
+      expect(asStranger.data.account.isBlockedForUnpaidPlatformBilling).to.be.null;
+
+      const asPublic = await graphqlQueryV2(ACCOUNT_QUERY, { slug: host.slug });
+      expect(asPublic.data.account.isBlockedForUnpaidPlatformBilling).to.be.null;
     });
   });
 

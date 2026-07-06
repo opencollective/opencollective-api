@@ -233,6 +233,41 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       await application.reload(); // Load new values that may have changed during the test
     });
 
+    describe('when the host is blocked for unpaid platform billing', () => {
+      let blockedHost, blockedHostAdmin, blockedCollective;
+
+      before(async () => {
+        blockedHostAdmin = await fakeUser();
+        blockedHost = await fakeActiveHost({
+          admin: blockedHostAdmin,
+          hasHosting: true,
+          settings: { apply: true },
+          data: { isBlockedForUnpaidPlatformBilling: true },
+        });
+        blockedCollective = await fakeCollective({
+          HostCollectiveId: blockedHost.id,
+          isActive: false,
+          approvedAt: null,
+        });
+        await fakeHostApplication({
+          CollectiveId: blockedCollective.id,
+          HostCollectiveId: blockedHost.id,
+          status: HostApplicationStatus.PENDING,
+        });
+      });
+
+      ['APPROVE', 'REJECT'].forEach(action => {
+        it(`rejects ${action} with a error`, async () => {
+          const result = await graphqlQueryV2(
+            PROCESS_HOST_APPLICATION_MUTATION,
+            { host: { slug: blockedHost.slug }, account: { slug: blockedCollective.slug }, action },
+            blockedHostAdmin,
+          );
+          expect(result.errors).to.exist;
+        });
+      });
+    });
+
     describe('for all actions', () => {
       it('user must be logged in as a host admin', async () => {
         const randomUser = await fakeUser();

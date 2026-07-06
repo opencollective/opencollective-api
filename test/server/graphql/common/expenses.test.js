@@ -1302,6 +1302,53 @@ describe('server/graphql/common/expenses', () => {
     });
   });
 
+  describe('when the host is blocked for unpaid platform billing', () => {
+    let host, collective, hostAdmin, req, expense;
+
+    before(async () => {
+      host = await fakeHost();
+      collective = await fakeCollective({ HostCollectiveId: host.id });
+      hostAdmin = await fakeUser();
+      await host.addUserWithRole(hostAdmin, 'ADMIN');
+      await hostAdmin.populateRoles();
+      req = makeRequest(hostAdmin);
+      expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED', type: 'INVOICE' });
+    });
+
+    const setBlocked = async isBlocked => {
+      await host.update({ data: { ...host.data, isBlockedForUnpaidPlatformBilling: isBlocked } });
+      expense.host = undefined;
+      expense.collective = await models.Collective.findByPk(collective.id, { include: [{ association: 'host' }] });
+    };
+
+    beforeEach(async () => {
+      await setBlocked(true);
+    });
+
+    afterEach(async () => {
+      await setBlocked(false);
+    });
+
+    it('cannot pay a regular expense', async () => {
+      await expense.update({ type: 'INVOICE' });
+      expect(await canPayExpense(req, expense)).to.be.false;
+      expect(await canMarkAsPaid(req, expense)).to.be.false;
+    });
+
+    it('can still pay settlements and platform bills owed to the platform', async () => {
+      await expense.update({ type: 'SETTLEMENT' });
+      expect(await canPayExpense(req, expense)).to.be.true;
+      await expense.update({ type: 'PLATFORM_BILLING' });
+      expect(await canPayExpense(req, expense)).to.be.true;
+    });
+
+    it('can pay a regular expense once unblocked', async () => {
+      await setBlocked(false);
+      await expense.update({ type: 'INVOICE' });
+      expect(await canPayExpense(req, expense)).to.be.true;
+    });
+  });
+
   describe('canApprove', () => {
     it('only if pending or rejected', async () => {
       const { expense, req } = contexts.normal;
