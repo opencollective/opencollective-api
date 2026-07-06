@@ -207,11 +207,13 @@ export const notifyByEmail = async (activity: Activity) => {
       await notify.collective(activity);
       break;
 
-    case ActivityTypes.COLLECTIVE_UNHOSTED:
+    case ActivityTypes.COLLECTIVE_UNHOSTED: {
+      const host = activity.data.host.id && (await models.Collective.findByPk(activity.data.host.id));
       await notify.collective(activity, {
-        replyTo: activity.data.host.data?.replyToEmail || 'support@opencollective.com',
+        replyTo: host?.data?.replyToEmail || 'support@opencollective.com',
       });
       break;
+    }
 
     case ActivityTypes.OAUTH_APPLICATION_AUTHORIZED:
     case ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED:
@@ -582,24 +584,28 @@ export const notifyByEmail = async (activity: Activity) => {
       await notify.user(activity, { from: config.email.noReply, userId: activity.data.expense.UserId });
       break;
 
-    case ActivityTypes.COLLECTIVE_APPROVED:
+    case ActivityTypes.COLLECTIVE_APPROVED: {
+      const host = activity.data.host.id && (await models.Collective.findByPk(activity.data.host.id));
       await notify.collective(activity, {
         collectiveId: activity.CollectiveId,
-        replyTo: activity.data.host.data?.replyToEmail || undefined,
+        replyTo: host?.data?.replyToEmail || undefined,
       });
       break;
+    }
 
-    case ActivityTypes.COLLECTIVE_REJECTED:
+    case ActivityTypes.COLLECTIVE_REJECTED: {
       // Funds MVP
       if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
         break;
       }
+      const host = activity.data.host.id && (await models.Collective.findByPk(activity.data.host.id));
       await notify.collective(activity, {
         collectiveId: activity.CollectiveId,
         template: 'collective.rejected',
-        replyTo: activity.data.host.data?.replyToEmail || undefined,
+        replyTo: host?.data?.replyToEmail || undefined,
       });
       break;
+    }
 
     case ActivityTypes.HOST_APPLICATION_COMMENT_CREATED: {
       const isCommentFromHostAdmin = await models.Member.findOne({
@@ -613,8 +619,9 @@ export const notifyByEmail = async (activity: Activity) => {
       const isPrivateNote = activity.data.comment.type === CommentType.PRIVATE_NOTE;
 
       if (isCommentFromHostAdmin && !isPrivateNote) {
+        const host = activity.data.host.id && (await models.Collective.findByPk(activity.data.host.id));
         await notify.collective(activity, {
-          replyTo: activity.data.host.data?.replyToEmail || undefined,
+          replyTo: host?.data?.replyToEmail || undefined,
         });
       } else {
         await notify.collective(activity, {

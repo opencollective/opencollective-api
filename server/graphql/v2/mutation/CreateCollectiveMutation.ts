@@ -10,6 +10,7 @@ import { canUseSlug, defaultHostCollective } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
 import { OSCValidator } from '../../../lib/osc-validator';
 import { getPolicy } from '../../../lib/policies';
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import models, { sequelize } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
@@ -38,7 +39,8 @@ async function createCollective(_, args, req) {
   let host, validatedRepositoryInfo;
 
   if (args.host) {
-    host = await fetchAccountWithReference(args.host, { loaders });
+    host = await fetchAccountWithReference(args.host, { loaders, throwIfMissing: true });
+    await assertCanSeeAccount(req, host);
   }
 
   const rateLimitKey = `collective_create_${remoteUser.id}`;
