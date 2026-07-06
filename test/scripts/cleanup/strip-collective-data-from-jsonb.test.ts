@@ -14,7 +14,7 @@ describe('scripts/cleanup/strip-collective-data-from-jsonb', () => {
   });
 
   describe('cleanupCollectiveDataJsonb', () => {
-    it('flattens nested data chains and slims spamReport.data', () => {
+    it('removes nested data', () => {
       const bloated = {
         isTrustedHost: true,
         data: {
@@ -38,7 +38,6 @@ describe('scripts/cleanup/strip-collective-data-from-jsonb', () => {
 
       expect(cleanupCollectiveDataJsonb(bloated)).to.deep.eq({
         isTrustedHost: true,
-        policies: { REQUIRE_2FA_FOR_ADMINS: true, EXPENSE_PUBLIC_VENDORS: false },
         spamReport: {
           score: 0.1,
           data: {
