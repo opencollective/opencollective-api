@@ -2,6 +2,7 @@ import config from 'config';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 import { get, pick } from 'lodash';
+import assert from 'node:assert';
 
 import POLICIES from '../../../constants/policies';
 import roles from '../../../constants/roles';
@@ -88,6 +89,7 @@ async function createCollective(_, args, req) {
     // Trigger Github validation when repository is on github.com
     const repositoryUrl = args.applicationData?.repositoryUrl || args.collective.repositoryUrl;
     if (args.applicationData?.useGithubValidation) {
+      assert(!isPrivate, new ValidationFailed('Cannot create a private collective with Github validation'));
       const githubHandle = github.getGithubHandleFromUrl(repositoryUrl) || args.collective.githubHandle;
       host = await defaultHostCollective('opensource');
 
