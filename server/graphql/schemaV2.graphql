@@ -284,6 +284,11 @@ interface Account {
   isSuspended: Boolean!
 
   """
+  Whether this account has been blocked due to unpaid platform billing.
+  """
+  isBlockedForUnpaidPlatformBilling: Boolean
+
+  """
   Returns whether the account accepts financial contributions.
   """
   isActive: Boolean
@@ -900,7 +905,7 @@ interface Account {
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -3131,6 +3136,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   isSuspended: Boolean!
 
   """
+  Whether this account has been blocked due to unpaid platform billing.
+  """
+  isBlockedForUnpaidPlatformBilling: Boolean
+
+  """
   Returns whether the account accepts financial contributions.
   """
   isActive: Boolean
@@ -3786,7 +3796,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -10331,6 +10341,11 @@ type Bot implements Account {
   isSuspended: Boolean!
 
   """
+  Whether this account has been blocked due to unpaid platform billing.
+  """
+  isBlockedForUnpaidPlatformBilling: Boolean
+
+  """
   Returns whether the account accepts financial contributions.
   """
   isActive: Boolean
@@ -10986,7 +11001,7 @@ type Bot implements Account {
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -11418,6 +11433,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has been blocked due to unpaid platform billing.
+  """
+  isBlockedForUnpaidPlatformBilling: Boolean
 
   """
   Returns whether it's active: can accept financial contributions and pay expenses.
@@ -12075,7 +12095,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -13089,6 +13109,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   isSuspended: Boolean!
 
   """
+  Whether this account has been blocked due to unpaid platform billing.
+  """
+  isBlockedForUnpaidPlatformBilling: Boolean
+
+  """
   Returns whether it's active: can accept financial contributions and pay expenses.
   """
   isActive: Boolean!
@@ -13744,7 +13769,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -14477,6 +14502,11 @@ type Individual implements Account {
   isSuspended: Boolean!
 
   """
+  Whether this account has been blocked due to unpaid platform billing.
+  """
+  isBlockedForUnpaidPlatformBilling: Boolean
+
+  """
   Returns whether the account accepts financial contributions.
   """
   isActive: Boolean
@@ -15132,7 +15162,7 @@ type Individual implements Account {
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -15891,6 +15921,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   isSuspended: Boolean!
 
   """
+  Whether this account has been blocked due to unpaid platform billing.
+  """
+  isBlockedForUnpaidPlatformBilling: Boolean
+
+  """
   Returns whether the account accepts financial contributions.
   """
   isActive: Boolean
@@ -16546,7 +16581,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -17362,6 +17397,11 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   isSuspended: Boolean!
 
   """
+  Whether this account has been blocked due to unpaid platform billing.
+  """
+  isBlockedForUnpaidPlatformBilling: Boolean
+
+  """
   Returns whether it's active: can accept financial contributions and pay expenses.
   """
   isActive: Boolean!
@@ -18017,7 +18057,7 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -18558,6 +18598,11 @@ type Vendor implements Account & AccountWithContributions {
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has been blocked due to unpaid platform billing.
+  """
+  isBlockedForUnpaidPlatformBilling: Boolean
 
   """
   Returns whether the account accepts financial contributions.
@@ -19215,7 +19260,7 @@ type Vendor implements Account & AccountWithContributions {
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -20287,7 +20332,7 @@ type Query {
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -22972,6 +23017,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   isSuspended: Boolean!
 
   """
+  Whether this account has been blocked due to unpaid platform billing.
+  """
+  isBlockedForUnpaidPlatformBilling: Boolean
+
+  """
   Returns whether it's active: can accept financial contributions and pay expenses.
   """
   isActive: Boolean!
@@ -23627,7 +23677,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -24218,6 +24268,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   isSuspended: Boolean!
 
   """
+  Whether this account has been blocked due to unpaid platform billing.
+  """
+  isBlockedForUnpaidPlatformBilling: Boolean
+
+  """
   Returns whether it's active: can accept financial contributions and pay expenses.
   """
   isActive: Boolean!
@@ -24873,7 +24928,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -27591,6 +27646,11 @@ type Mutation {
     Set this to false to disable 2FA. Other values have no effect.
     """
     isTwoFactorAuthEnabled: Boolean
+
+    """
+    Specify whether the account is blocked due to unpaid platform billing
+    """
+    isBlockedForUnpaidPlatformBilling: Boolean
   ): Account!
 
   """
