@@ -51,9 +51,8 @@ async function createCollective(_, args, req) {
   }
 
   const isPrivate = host?.isPrivate ?? false;
-  const slug = isPrivate ? await Collective.generatePrivateSlug() : args.collective.slug.toLowerCase();
-
   const collective: Collective = await sequelize.transaction(async transaction => {
+    const slug = isPrivate ? await Collective.generatePrivateSlug({ transaction }) : args.collective.slug.toLowerCase();
     const collectiveData = {
       ...pick(args.collective, ['name', 'description', 'tags', 'githubHandle', 'repositoryUrl']),
       slug,

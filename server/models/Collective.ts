@@ -475,12 +475,12 @@ class Collective extends ModelWithPublicId<
     });
   };
 
-  static generatePrivateSlug = async () => {
+  static generatePrivateSlug = async ({ transaction }: { transaction: SequelizeTransaction }) => {
     let exists = true;
     let slug: string;
     while (exists) {
       slug = cryptoRandomString({ length: 16, type: 'alphanumeric' });
-      exists = (await Collective.findOne({ where: { slug }, paranoid: false })) !== null;
+      exists = (await Collective.findOne({ where: { slug }, paranoid: false, transaction })) !== null;
     }
     return slug;
   };
