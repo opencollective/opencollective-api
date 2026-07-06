@@ -57,6 +57,7 @@ import { handleExpensePayoutMethodChange } from '../../lib/kyc/expenses/kyc-expe
 import logger from '../../lib/logger';
 import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
 import { createRefundTransaction } from '../../lib/payments';
+import { isBlockedForUnpaidPlatformBilling } from '../../lib/platform-subscriptions';
 import { getPolicy } from '../../lib/policies';
 import { canSeeAllPrivateAccounts } from '../../lib/private-accounts';
 import { reportErrorToSentry } from '../../lib/sentry';
@@ -957,6 +958,13 @@ export const canMarkAsPaid: ExpensePermissionEvaluator = async (
     }
     return false;
   } else {
+    const host = await loadHostForExpense(req, expense);
+    if (
+      isBlockedForUnpaidPlatformBilling(host) &&
+      ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)
+    ) {
+      return false;
+    }
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
   }
 };
