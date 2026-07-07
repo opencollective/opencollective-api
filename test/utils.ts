@@ -842,10 +842,7 @@ export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNock
 
 export const getMockFileUpload = (
   mockFile:
-    | 'images/camera.png'
-    | 'images/empty.jpg'
-    | 'images/corrupt.jpg'
-    | 'files/transactions.csv' = 'images/camera.png',
+    'images/camera.png' | 'images/empty.jpg' | 'images/corrupt.jpg' | 'files/transactions.csv' = 'images/camera.png',
   { simulatedSize }: { simulatedSize?: number } = {},
 ) => {
   const file = new Upload();

@@ -21,12 +21,7 @@ import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
 type RemoveLegacyJsonKeysPhase =
-  | 'backfill-orders'
-  | 'backfill-expenses'
-  | 'remove-legacy-orders'
-  | 'remove-legacy-expenses'
-  | 'drop-indexes'
-  | 'all';
+  'backfill-orders' | 'backfill-expenses' | 'remove-legacy-orders' | 'remove-legacy-expenses' | 'drop-indexes' | 'all';
 
 type TableName = 'Orders' | 'Expenses';
 
