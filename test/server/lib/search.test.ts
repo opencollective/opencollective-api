@@ -14,6 +14,7 @@ import {
   searchCollectivesByEmail,
   searchCollectivesInDB,
 } from '../../../server/lib/sql-search';
+import { getOrCreateHostPlatformTipsAccount } from '../../../server/lib/transactions';
 import { Op } from '../../../server/models';
 import { newUser } from '../../stores';
 import { fakeCollective, fakeHost, fakeUser, randStr } from '../../test-helpers/fake-data';
@@ -384,6 +385,55 @@ describe('server/lib/search', () => {
         expect(collectives[2].id).to.equal(threeCollectives.id);
         expect(collectives[3].id).to.equal(oneCollective.id);
         expect(collectives[4].id).to.equal(zeroCollectives.id);
+      });
+    });
+
+    describe('Accounts hidden from search (hideFromSearch)', () => {
+      let host, hostAdmin, platformTipsAccount;
+
+      before(async () => {
+        await resetTestDB();
+        hostAdmin = await fakeUser();
+        host = await fakeHost({ admin: hostAdmin });
+        platformTipsAccount = await getOrCreateHostPlatformTipsAccount(host);
+        await hostAdmin.populateRoles();
+      });
+
+      it('does not return hidden accounts in public search', async () => {
+        const [results] = await searchCollectivesInDB(publicReq, 'Platform Tips');
+        expect(results.find(c => c.id === platformTipsAccount.id)).to.not.exist;
+      });
+
+      it('does not return hidden accounts in host-scoped search for unrelated users', async () => {
+        const [results] = await searchCollectivesInDB(makeRequest(await fakeUser()), 'Platform Tips', 0, 100, {
+          hostCollectiveIds: [host.id],
+        });
+        expect(results.find(c => c.id === platformTipsAccount.id)).to.not.exist;
+      });
+
+      it('returns hidden accounts in host-scoped search for host admins', async () => {
+        const [results] = await searchCollectivesInDB(makeRequest(hostAdmin), 'Platform Tips', 0, 100, {
+          hostCollectiveIds: [host.id],
+        });
+        expect(results.find(c => c.id === platformTipsAccount.id)).to.exist;
+      });
+
+      it('returns hidden accounts in host-scoped search for root users', async () => {
+        const [results] = await searchCollectivesInDB(publicReq, 'Platform Tips', 0, 100, {
+          hostCollectiveIds: [host.id],
+          isRoot: true,
+        });
+        expect(results.find(c => c.id === platformTipsAccount.id)).to.exist;
+      });
+
+      it('does not return hidden accounts in host-scoped search for admins of another host', async () => {
+        const otherHostAdmin = await fakeUser();
+        await fakeHost({ admin: otherHostAdmin });
+        await otherHostAdmin.populateRoles();
+        const [results] = await searchCollectivesInDB(makeRequest(otherHostAdmin), 'Platform Tips', 0, 100, {
+          hostCollectiveIds: [host.id],
+        });
+        expect(results.find(c => c.id === platformTipsAccount.id)).to.not.exist;
       });
     });
   });
