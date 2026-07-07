@@ -117,7 +117,7 @@ const memberInvitationMutations = {
       // Invite member
       return models.MemberInvitation.invite(account, memberParams, {
         privateNote: privateNote,
-        isNewUser: args.isNewUser,
+        isNewUser: args.isNewUser || memberAccount.data?.requiresProfileCompletion,
       });
     },
   },
