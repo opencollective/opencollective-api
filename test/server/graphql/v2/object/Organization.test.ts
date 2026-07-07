@@ -330,12 +330,7 @@ describe('server/graphql/v2/object/Organization', () => {
       });
 
       type QuerierRole =
-        | 'host-admin'
-        | 'collective-admin'
-        | 'project-only-admin'
-        | 'foreign-host-admin'
-        | 'random-user'
-        | 'anonymous';
+        'host-admin' | 'collective-admin' | 'project-only-admin' | 'foreign-host-admin' | 'random-user' | 'anonymous';
       type VendorScope = 'host' | 'host-child' | 'hosted-collective' | 'hosted-collective-child';
 
       const MATRIX: Array<{
