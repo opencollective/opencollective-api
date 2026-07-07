@@ -122,7 +122,13 @@ export const searchCollectivesByEmail = async (
   const fromAndWhere = `
     FROM "Collectives" c
     INNER JOIN "Users" u ON u."CollectiveId" = c.id
-    WHERE c."isIncognito" = FALSE AND c.type = 'USER' AND u.email = :email`;
+    WHERE c."isIncognito" = FALSE
+    AND c."isPrivate" IS FALSE
+    AND c.type = 'USER'
+    AND u.email = :email
+    AND c."deletedAt" IS NULL
+    AND u."deletedAt" IS NULL
+  `;
 
   const [collectives, countRows] = await Promise.all([
     sequelize.query(

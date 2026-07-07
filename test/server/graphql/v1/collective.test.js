@@ -851,6 +851,35 @@ describe('server/graphql/v1/collective', () => {
         previousData: { tags: ['old tag'] },
         newData: { tags: ['new tag'] },
       });
+      expect(activity.data.previousData).to.not.have.property('data');
+      expect(activity.data.newData).to.not.have.property('data');
+    });
+
+    it('does not store collective.data in COLLECTIVE_EDITED activity when data JSONB changes', async () => {
+      const user = await fakeUser(null, {
+        tags: ['old tag'],
+        data: { privateInstructions: 'secret', nested: { key: 'value' } },
+      });
+      const editCollectiveMutation = gqlV1 /* GraphQL */ `
+        mutation EditCollective($collective: CollectiveInputType!) {
+          editCollective(collective: $collective) {
+            id
+            tags
+          }
+        }
+      `;
+
+      const collective = { id: user.collective.id, tags: ['new tag'] };
+      await utils.graphqlQuery(editCollectiveMutation, { collective }, user);
+
+      const activity = await models.Activity.findOne({
+        where: { UserId: user.id, type: ACTIVITY.COLLECTIVE_EDITED },
+        order: [['id', 'DESC']],
+      });
+
+      expect(activity).to.exist;
+      expect(activity.data.previousData).to.not.have.property('data');
+      expect(activity.data.newData).to.not.have.property('data');
     });
   });
 
