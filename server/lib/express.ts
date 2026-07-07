@@ -17,6 +17,7 @@ import { loadersMiddleware } from '../graphql/loaders';
 import hyperwatch from './hyperwatch';
 import logger from './logger';
 import { HandlerType, reportMessageToSentry } from './sentry';
+import { parseToBoolean } from './utils';
 
 const CANONICAL_HOSTNAME = new URL(config.host.api).hostname;
 
@@ -27,7 +28,7 @@ export default function setupExpress(app: express.Application, redisClient?: Red
 
   // Logs requests received on a non-canonical host (e.g. direct, IP, *.herokuapp.com, etc) to Sentry.
   // Intended as an observability step before blocking such requests.
-  if (['production', 'staging'].includes(config.env)) {
+  if (['production', 'staging'].includes(config.env) && parseToBoolean(process.env.OC_ENABLE_CANONICAL_HOST_CHECK)) {
     app.use((req, res, next) => {
       if (req.hostname !== CANONICAL_HOSTNAME) {
         reportMessageToSentry('Request received on non-canonical host', {
