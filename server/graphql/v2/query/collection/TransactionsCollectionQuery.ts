@@ -727,14 +727,28 @@ export const TransactionsCollectionResolver = async (
       AND ("DebtTransaction".kind)::text = CONCAT(("Transaction"."kind")::text, '_DEBT')
       AND "DebtTransaction"."type" != "Transaction"."type"
       AND "DebtTransaction"."deletedAt" IS NULL`;
+    // New-platform-tips-ledger tips have no *_DEBT companion transaction: the obligation is a
+    // TransactionSettlement row keyed directly on the PLATFORM_TIP itself.
+    const hasSettlementSubquery = `SELECT 1 FROM "TransactionSettlements" as "Settlement"
+      WHERE "Settlement"."TransactionGroup" = "Transaction"."TransactionGroup"
+      AND "Settlement".kind = "Transaction".kind
+      AND "Settlement"."deletedAt" IS NULL`;
     if (args.hasDebt === true) {
       where.push({ kind: [PLATFORM_TIP, HOST_FEE_SHARE] }); // Need to be this kind to have debt
-      where.push(sequelize.literal(`EXISTS (${hasDebtSubquery})`));
+      where.push(
+        sequelize.or(
+          sequelize.literal(`EXISTS (${hasDebtSubquery})`),
+          sequelize.literal(`EXISTS (${hasSettlementSubquery})`),
+        ),
+      );
     } else if (args.hasDebt === false) {
       where.push(
         sequelize.or(
           { kind: { [Op.not]: [PLATFORM_TIP, HOST_FEE_SHARE] } }, // No Debt if not this kind
-          sequelize.literal(`NOT EXISTS (${hasDebtSubquery})`),
+          sequelize.and(
+            sequelize.literal(`NOT EXISTS (${hasDebtSubquery})`),
+            sequelize.literal(`NOT EXISTS (${hasSettlementSubquery})`),
+          ),
         ),
       );
     }

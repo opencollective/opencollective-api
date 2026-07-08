@@ -674,6 +674,16 @@ describe('server/lib/payments', () => {
       // Settlement must be SETTLED so the settlement cron never invoices the host for the refunded tip
       await tipSettlement.reload();
       expect(tipSettlement.status).to.eq('SETTLED');
+
+      // Mirroring the legacy debt flow, the refund pair carries its own SETTLED settlement so
+      // settlement-row-based reports (e.g. the settlement CSV `hasDebt` filter) see the refund
+      // DEBIT next to the original credit and net to zero
+      const refundTipTransactions = refundedTransactions.filter(t => t.kind === TransactionKind.PLATFORM_TIP);
+      const refundSettlement = await models.TransactionSettlement.findOne({
+        where: { TransactionGroup: refundTipTransactions[0].TransactionGroup, kind: TransactionKind.PLATFORM_TIP },
+      });
+      expect(refundSettlement).to.exist;
+      expect(refundSettlement.status).to.eq('SETTLED');
     });
 
     it('carries an OWED settlement on the refund pair when an already-invoiced tip is refunded under the new platform-tips ledger', async () => {

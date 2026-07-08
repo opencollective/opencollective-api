@@ -219,9 +219,8 @@ async function emitSettlementExpense({
   // `transactions` report cannot return them. Use the host-scoped `hostTransactions` report whenever
   // such rows are in the batch — legacy *_DEBT rows carry HostCollectiveId = host too, so nothing is lost.
   if (transactions.length > 0) {
-    const reportType = transactions.some(t => t.kind === TransactionKind.PLATFORM_TIP)
-      ? 'hostTransactions'
-      : 'transactions';
+    const hasNewLedgerTips = transactions.some(t => t.kind === TransactionKind.PLATFORM_TIP);
+    const reportType = hasNewLedgerTips ? 'hostTransactions' : 'transactions';
     const csvUrl = getTransactionsCsvUrl(reportType, host, {
       startDate: moment(min(transactions.map(t => t.createdAt)))
         .startOf('month')
@@ -229,6 +228,10 @@ async function emitSettlementExpense({
       endDate,
       kind: uniq(transactions.map(t => t.kind)),
       add: ['orderLegacyId'],
+      // The kind filter alone would also match Stripe direct-collected tips (offset by an
+      // APPLICATION_FEE, never billed). hasDebt narrows the report to debt-generating tips — the
+      // ones carrying a TransactionSettlement row. Legacy *_DEBT kinds are debts by definition.
+      ...(hasNewLedgerTips ? { hasDebt: true } : null),
     });
     if (csvUrl) {
       await models.ExpenseAttachedFile.create({

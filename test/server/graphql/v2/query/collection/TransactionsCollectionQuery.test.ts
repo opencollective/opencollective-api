@@ -1228,3 +1228,71 @@ describe('Transaction collection visibility for private organizations', () => {
     });
   });
 });
+
+describe('TransactionsCollectionQuery - hasDebt filter', () => {
+  const hasDebtQuery = gql`
+    query TransactionsHasDebt($slug: String!, $hasDebt: Boolean) {
+      transactions(account: { slug: $slug }, hasDebt: $hasDebt) {
+        totalCount
+        nodes {
+          legacyId
+          kind
+        }
+      }
+    }
+  `;
+
+  let account, legacyTipCredit, newLedgerTipCredit, directCollectedTipCredit;
+
+  before(async () => {
+    await resetTestDB();
+    account = await fakeCollective();
+    const base = { CollectiveId: account.id };
+
+    // Legacy tip: the debt is a companion PLATFORM_TIP_DEBT transaction in the same group
+    legacyTipCredit = await fakeTransaction({ ...base, kind: TransactionKind.PLATFORM_TIP, amount: 1000 });
+    await fakeTransaction({
+      ...base,
+      kind: TransactionKind.PLATFORM_TIP_DEBT,
+      amount: -1000,
+      isDebt: true,
+      TransactionGroup: legacyTipCredit.TransactionGroup,
+    });
+
+    // New-platform-tips-ledger tip: no *_DEBT companion, the obligation is a TransactionSettlement
+    // row keyed directly on the PLATFORM_TIP
+    newLedgerTipCredit = await fakeTransaction(
+      { ...base, kind: TransactionKind.PLATFORM_TIP, amount: 2000, isDebt: false },
+      { settlementStatus: 'OWED' },
+    );
+
+    // Stripe direct-collected tip: no debt at all
+    directCollectedTipCredit = await fakeTransaction({ ...base, kind: TransactionKind.PLATFORM_TIP, amount: 3000 });
+
+    // Unrelated kind, never a debt
+    await fakeTransaction({ ...base, kind: TransactionKind.CONTRIBUTION, amount: 5000 });
+  });
+
+  it('hasDebt=true returns both legacy (companion *_DEBT) and new-ledger (settlement row) tips', async () => {
+    const result = await graphqlQueryV2(hasDebtQuery, { slug: account.slug, hasDebt: true });
+    expect(result.errors).to.not.exist;
+    expect(result.data.transactions.nodes.map(n => n.legacyId)).to.eqInAnyOrder([
+      legacyTipCredit.id,
+      newLedgerTipCredit.id,
+    ]);
+  });
+
+  it('hasDebt=false returns direct-collected tips and other kinds', async () => {
+    const result = await graphqlQueryV2(hasDebtQuery, { slug: account.slug, hasDebt: false });
+    expect(result.errors).to.not.exist;
+    const kinds = result.data.transactions.nodes.map(n => n.kind);
+    expect(kinds).to.eqInAnyOrder([TransactionKind.PLATFORM_TIP, TransactionKind.CONTRIBUTION]);
+    expect(result.data.transactions.nodes.map(n => n.legacyId)).to.include(directCollectedTipCredit.id);
+  });
+
+  it('no hasDebt filter returns everything', async () => {
+    const result = await graphqlQueryV2(hasDebtQuery, { slug: account.slug });
+    expect(result.errors).to.not.exist;
+    expect(result.data.transactions.totalCount).to.eq(4);
+  });
+});
