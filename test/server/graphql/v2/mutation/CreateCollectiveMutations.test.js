@@ -307,7 +307,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
       const [, subject, html] = inviteeCall;
       expect(subject).to.equal(`Invitation to join ${newCollectiveData.name} on Open Collective`);
       expect(html).to.include('Sign up and view invitation');
-      expect(html).to.include('/signin?next=/signup/profile?next=%2Fmember-invitations%23invitation-');
+      expect(html).to.include('/signin?next=%2Fsignup%2Fprofile?next=%2Fmember-invitations%23invitation-');
       // The plain "View invitation" CTA must not be rendered for new users
       expect(html).to.not.match(/>\s*View invitation\s*</);
     });
