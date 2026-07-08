@@ -155,6 +155,9 @@ const withScopeFromCaptureErrorParams = (
       scope.setSDKProcessingMetadata({ request: req });
       if (req.remoteUser) {
         scope.setUser(dbUserToSentryUser(req.remoteUser));
+      } else {
+        // eslint-disable-next-line camelcase
+        scope.setUser({ ip_address: req.ip });
       }
     }
 

@@ -538,9 +538,19 @@ export const buildSearchCollectivesQuery = async (
     ${countryCodes ? 'LEFT JOIN "Collectives" parentCollective ON c."ParentCollectiveId" = parentCollective.id' : ''}
     ${needsTransactionStatsJoin ? 'LEFT JOIN "CollectiveTransactionStats" transaction_stats ON transaction_stats."id" = c.id' : ''}`;
 
+  // `hideFromSearch` hides internal accounts (e.g. the per-host platform-tips account) from public
+  // search, but their host's admins must still find them, e.g. in the host ledger's account filter.
+  const hideFromSearchBypassHostIds = (hostCollectiveIds || []).filter(
+    id => args.isRoot || req.remoteUser?.isAdmin(id),
+  );
+  const hideFromSearchCondition =
+    hideFromSearchBypassHostIds.length > 0
+      ? `AND ((c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE OR c."HostCollectiveId" IN (:hideFromSearchBypassHostIds))`
+      : `AND (c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE`;
+
   const whereClause = `
     WHERE c."deletedAt" IS NULL
-    AND (c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE
+    ${hideFromSearchCondition}
     AND c.name NOT IN ('incognito', 'anonymous')
     AND c."isIncognito" = FALSE ${dynamicConditions}
     ${!isEmpty(args.consolidatedBalance) ? `AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${getAmountRangeQuery(args.consolidatedBalance)}` : ''}`;
@@ -557,6 +567,7 @@ export const buildSearchCollectivesQuery = async (
     offset,
     limit,
     hostCollectiveIds,
+    hideFromSearchBypassHostIds,
     parentCollectiveIds,
     isHost,
     currency: args.currency,
