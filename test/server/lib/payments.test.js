@@ -522,6 +522,109 @@ describe('server/lib/payments', () => {
       expect(tipSettlement.status).to.eq('SETTLED');
     });
 
+    it('succeeds refunding a platform tip debt whose settlement row is missing', async () => {
+      // Create Open Collective Inc
+      await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
+      const host = await fakeHost({ name: 'Host' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
+      const contributorUser = await fakeUser(undefined, { name: 'User' });
+      const order = await fakeOrder({
+        status: 'ACTIVE',
+        CollectiveId: collective.id,
+        FromCollectiveId: contributorUser.CollectiveId,
+      });
+      const transaction = await models.Transaction.createFromContributionPayload({
+        CreatedByUserId: contributorUser.id,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        PaymentMethodId: order.PaymentMethodId,
+        type: 'CREDIT',
+        OrderId: order.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        amountInHostCurrency: 5000,
+        hostCurrencyFxRate: 1,
+        hostFeeInHostCurrency: 250,
+        paymentProcessorFeeInHostCurrency: 175,
+        description: 'Monthly subscription to Webpack',
+        data: { charge: { id: 'ch_refunded_charge' }, platformTip: 500 },
+      });
+
+      // Simulate inconsistent data: the debt exists but its settlement row is missing
+      // (see scripts/ledger/create-debts-for-platform-tips.js)
+      const originalTransactions = await order.getTransactions();
+      const tipDebtTransaction = originalTransactions.find(t => t.kind === TransactionKind.PLATFORM_TIP_DEBT);
+      expect(tipDebtTransaction).to.exist;
+      const tipSettlement = await models.TransactionSettlement.getByTransaction(tipDebtTransaction);
+      await tipSettlement.destroy();
+
+      // Refund must not crash on the missing settlement
+      await createRefundTransaction(transaction, 0, null, user);
+
+      const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
+      expect(refundedTransactions.filter(t => t.kind === TransactionKind.PLATFORM_TIP_DEBT)).to.have.lengthOf(2);
+
+      // The debt was never invoiced (no settlement row), so the refund settlement must be
+      // SETTLED: nothing should be deducted from the host's next invoice
+      const refundDebtTransaction = refundedTransactions.find(t => t.kind === TransactionKind.PLATFORM_TIP_DEBT);
+      const refundSettlement = await models.TransactionSettlement.getByTransaction(refundDebtTransaction);
+      expect(refundSettlement).to.exist;
+      expect(refundSettlement.status).to.eq('SETTLED');
+    });
+
+    it('succeeds refunding a host fee share debt whose settlement row is missing', async () => {
+      // Create Open Collective Inc
+      await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
+      const host = await fakeHost({ name: 'Host' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
+      const contributorUser = await fakeUser(undefined, { name: 'User' });
+      const order = await fakeOrder({
+        status: 'ACTIVE',
+        CollectiveId: collective.id,
+        FromCollectiveId: contributorUser.CollectiveId,
+      });
+      const transaction = await models.Transaction.createFromContributionPayload({
+        CreatedByUserId: contributorUser.id,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        PaymentMethodId: order.PaymentMethodId,
+        type: 'CREDIT',
+        OrderId: order.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        amountInHostCurrency: 5000,
+        hostCurrencyFxRate: 1,
+        hostFeeInHostCurrency: 250,
+        paymentProcessorFeeInHostCurrency: 175,
+        description: 'Monthly subscription to Webpack',
+        data: { charge: { id: 'ch_refunded_charge' }, hostFeeSharePercent: 20 },
+      });
+
+      // Simulate inconsistent data: the debt exists but its settlement row is missing
+      const originalTransactions = await order.getTransactions();
+      const hostFeeShareDebtTransaction = originalTransactions.find(
+        t => t.kind === TransactionKind.HOST_FEE_SHARE_DEBT,
+      );
+      expect(hostFeeShareDebtTransaction).to.exist;
+      const hostFeeShareSettlement = await models.TransactionSettlement.getByTransaction(hostFeeShareDebtTransaction);
+      await hostFeeShareSettlement.destroy();
+
+      // Refund must not crash on the missing settlement
+      await createRefundTransaction(transaction, 0, null, user);
+
+      const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
+      expect(refundedTransactions.filter(t => t.kind === TransactionKind.HOST_FEE_SHARE_DEBT)).to.have.lengthOf(2);
+
+      // The debt was never invoiced (no settlement row), so the refund settlement must be
+      // SETTLED: nothing should be deducted from the host's next invoice
+      const refundDebtTransaction = refundedTransactions.find(t => t.kind === TransactionKind.HOST_FEE_SHARE_DEBT);
+      const refundSettlement = await models.TransactionSettlement.getByTransaction(refundDebtTransaction);
+      expect(refundSettlement).to.exist;
+      expect(refundSettlement.status).to.eq('SETTLED');
+    });
+
     it('marks the PLATFORM_TIP settlement as SETTLED when refunding a tip under the new platform-tips ledger', async () => {
       // Create Open Collective Inc
       await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
