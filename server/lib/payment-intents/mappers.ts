@@ -19,7 +19,20 @@ export type PaymentIntentMappingInput = {
   sharedParentCollectiveId?: number | null;
 };
 
-const ORDER_ERROR_STATUSES = new Set<OrderStatus>([OrderStatus.ERROR, OrderStatus.REJECTED, OrderStatus.DISPUTED]);
+const ORDER_ERROR_STATUSES = new Set<OrderStatus>([OrderStatus.ERROR, OrderStatus.DISPUTED]);
+
+const ORDER_CANCELED_STATUSES = new Set<OrderStatus>([
+  OrderStatus.EXPIRED,
+  OrderStatus.CANCELLED,
+  OrderStatus.REJECTED,
+]);
+
+const EXPENSE_CANCELED_STATUSES = new Set<ExpenseStatus>([
+  ExpenseStatus.REJECTED,
+  ExpenseStatus.CANCELED,
+  ExpenseStatus.INVITE_DECLINED,
+  ExpenseStatus.SPAM,
+]);
 
 const isAddedFundOrder = (order?: Order | null): boolean =>
   order?.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
@@ -136,7 +149,15 @@ export const mapPaymentIntentStatus = ({
     return PaymentIntentStatus.PAID;
   }
 
-  if (expense?.status === ExpenseStatus.ERROR || expense?.status === ExpenseStatus.REJECTED) {
+  if (expense?.status && EXPENSE_CANCELED_STATUSES.has(expense.status as ExpenseStatus)) {
+    return PaymentIntentStatus.CANCELED;
+  }
+
+  if (order && !primaryTransactionGroup && ORDER_CANCELED_STATUSES.has(order.status)) {
+    return PaymentIntentStatus.CANCELED;
+  }
+
+  if (expense?.status === ExpenseStatus.ERROR) {
     return PaymentIntentStatus.ERROR;
   }
 
@@ -162,7 +183,11 @@ export const mapPaymentIntentPaidAt = ({
   status: PaymentIntentStatus;
   primaryTransaction?: Transaction | null;
 }): Date | null => {
-  if (status === PaymentIntentStatus.PENDING || status === PaymentIntentStatus.ERROR) {
+  if (
+    status === PaymentIntentStatus.PENDING ||
+    status === PaymentIntentStatus.ERROR ||
+    status === PaymentIntentStatus.CANCELED
+  ) {
     return null;
   }
 

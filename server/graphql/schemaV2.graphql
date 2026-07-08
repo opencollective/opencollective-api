@@ -25745,6 +25745,7 @@ enum PaymentIntentStatus {
   PAID
   REVERSED
   ERROR
+  CANCELED
 }
 
 """
