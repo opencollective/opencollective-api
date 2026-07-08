@@ -1,15 +1,7 @@
 type BatchStatus = 'DENIED' | 'PENDING' | 'PROCESSING' | 'SUCCESS' | 'CANCELED';
 
 type TransactionStatus =
-  | 'SUCCESS'
-  | 'FAILED'
-  | 'PENDING'
-  | 'UNCLAIMED'
-  | 'RETURNED'
-  | 'ONHOLD'
-  | 'BLOCKED'
-  | 'REFUNDED'
-  | 'REVERSED';
+  'SUCCESS' | 'FAILED' | 'PENDING' | 'UNCLAIMED' | 'RETURNED' | 'ONHOLD' | 'BLOCKED' | 'REFUNDED' | 'REVERSED';
 
 export type PayoutRequestBody = {
   sender_batch_header: {

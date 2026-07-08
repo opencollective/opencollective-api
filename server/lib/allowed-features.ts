@@ -102,7 +102,13 @@ const FeaturesAccess: Partial<
     onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS],
   },
   [FEATURE.FUNDS_GRANTS_MANAGEMENT]: {
-    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+    accountTypes: [
+      CollectiveType.ORGANIZATION,
+      CollectiveType.COLLECTIVE,
+      CollectiveType.EVENT,
+      CollectiveType.FUND,
+      CollectiveType.PROJECT,
+    ],
   },
   [FEATURE.TAX_FORMS]: {
     onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
@@ -148,15 +154,6 @@ const FeaturesAccess: Partial<
     ],
   },
   [FEATURE.RECEIVE_EXPENSES]: {
-    accountTypes: [
-      CollectiveType.ORGANIZATION,
-      CollectiveType.COLLECTIVE,
-      CollectiveType.EVENT,
-      CollectiveType.FUND,
-      CollectiveType.PROJECT,
-    ],
-  },
-  [FEATURE.RECEIVE_GRANTS]: {
     accountTypes: [
       CollectiveType.ORGANIZATION,
       CollectiveType.COLLECTIVE,

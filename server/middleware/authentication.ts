@@ -365,8 +365,7 @@ export const authenticateServiceCallback = async (req: Request, res: Response, n
 
     const cacheKey = `${GITHUB_OAUTH_STATE_CACHE_PREFIX}${stateKey}`;
     const storedState = (await sessionCache.consume(cacheKey)) as
-      | { userId: number; context?: string; CollectiveId?: string }
-      | undefined;
+      { userId: number; context?: string; CollectiveId?: string } | undefined;
 
     if (!storedState) {
       return next(new errors.Unauthorized('OAuth state expired or invalid. Please restart the GitHub connect flow.'));

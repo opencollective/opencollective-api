@@ -37,7 +37,5 @@ export interface GraphQLTransactionsCollectionReturnType {
   offset: number;
   kinds?: AnyTransactionKind[] | (() => AnyTransactionKind[]) | (() => Promise<AnyTransactionKind[]>);
   paymentMethodTypes?:
-    | AnyPaymentMethodType[]
-    | (() => AnyPaymentMethodType[])
-    | (() => Promise<AnyPaymentMethodType[]>);
+    AnyPaymentMethodType[] | (() => AnyPaymentMethodType[]) | (() => Promise<AnyPaymentMethodType[]>);
 }

@@ -83,8 +83,7 @@ export type RangeRelationMetricSource<R extends keyof DatabaseWithViews, Row = D
 
 export type MetricSource = RelationMetricSource<never>;
 type RelationMetricSource<R extends keyof DatabaseWithViews> =
-  | DenseRelationMetricSource<R>
-  | RangeRelationMetricSource<R>;
+  DenseRelationMetricSource<R> | RangeRelationMetricSource<R>;
 
 /**
  * Define a metric source backed by a single Postgres relation (table, view, or
