@@ -105,8 +105,7 @@ const resolveWebhookHostnameAddresses = async (hostname: string): Promise<string
 
   if (addresses.length === 0) {
     const rejectedResult = [ipv4Result, ipv6Result].find(result => result.status === 'rejected') as
-      | PromiseRejectedResult
-      | undefined;
+      PromiseRejectedResult | undefined;
     const error = rejectedResult?.reason;
     throw new WebhookUrlNotAllowedError(
       `Webhook URL hostname could not be resolved: ${error?.message || 'unknown error'}`,

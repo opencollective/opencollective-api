@@ -3,15 +3,7 @@ import { GraphQLEnumType, GraphQLEnumValueConfig } from 'graphql';
 import { CollectiveType } from '../../../constants/collectives';
 
 export type GraphQLAccountTypeKeys =
-  | 'BOT'
-  | 'COLLECTIVE'
-  | 'EVENT'
-  | 'FUND'
-  | 'INDIVIDUAL'
-  | 'ORGANIZATION'
-  | 'PLATFORM'
-  | 'PROJECT'
-  | 'VENDOR';
+  'BOT' | 'COLLECTIVE' | 'EVENT' | 'FUND' | 'INDIVIDUAL' | 'ORGANIZATION' | 'PLATFORM' | 'PROJECT' | 'VENDOR';
 
 export const GraphQLAccountType = new GraphQLEnumType({
   name: 'AccountType',
