@@ -138,7 +138,41 @@ describe('server/lib/payment-intents/mappers', () => {
         mapPaymentIntentStatus({
           expense: { status: ExpenseStatus.REJECTED } as any,
         }),
+      ).to.eq(PaymentIntentStatus.CANCELED);
+
+      expect(
+        mapPaymentIntentStatus({
+          order: { status: OrderStatus.CANCELLED } as any,
+          primaryTransactionGroup: null,
+        }),
+      ).to.eq(PaymentIntentStatus.CANCELED);
+
+      expect(
+        mapPaymentIntentStatus({
+          order: { status: OrderStatus.EXPIRED } as any,
+          primaryTransactionGroup: null,
+        }),
+      ).to.eq(PaymentIntentStatus.CANCELED);
+
+      expect(
+        mapPaymentIntentStatus({
+          order: { status: OrderStatus.REJECTED } as any,
+          primaryTransactionGroup: null,
+        }),
+      ).to.eq(PaymentIntentStatus.CANCELED);
+
+      expect(
+        mapPaymentIntentStatus({
+          order: { status: OrderStatus.DISPUTED } as any,
+        }),
       ).to.eq(PaymentIntentStatus.ERROR);
+
+      expect(
+        mapPaymentIntentStatus({
+          order: { status: OrderStatus.CANCELLED } as any,
+          primaryTransactionGroup: 'abc',
+        }),
+      ).to.eq(PaymentIntentStatus.PAID);
 
       expect(
         mapPaymentIntentStatus({
