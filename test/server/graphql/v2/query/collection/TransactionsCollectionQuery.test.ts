@@ -6,6 +6,7 @@ import { roles } from '../../../../../../server/constants';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../../../server/constants/transaction-kind';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../../server/graphql/v2/identifiers';
+import models from '../../../../../../server/models';
 import {
   fakeAccountingCategory,
   fakeActiveHost,
@@ -1242,7 +1243,8 @@ describe('TransactionsCollectionQuery - hasDebt filter', () => {
     }
   `;
 
-  let account, legacyTipCredit, newLedgerTipCredit, directCollectedTipCredit;
+  let account, legacyTipCredit, newLedgerTipCredit, directCollectedTipCredit, paidTipCredit, neverInvoicedTipCredit;
+  let contributionCredit;
 
   before(async () => {
     await resetTestDB();
@@ -1269,30 +1271,52 @@ describe('TransactionsCollectionQuery - hasDebt filter', () => {
     // Stripe direct-collected tip: no debt at all
     directCollectedTipCredit = await fakeTransaction({ ...base, kind: TransactionKind.PLATFORM_TIP, amount: 3000 });
 
+    // New-ledger tip invoiced then paid: settlement is SETTLED but carries the ExpenseId of its
+    // invoice — it generated a bill and must keep matching hasDebt=true (historical CSVs)
+    paidTipCredit = await fakeTransaction(
+      { ...base, kind: TransactionKind.PLATFORM_TIP, amount: 4000, isDebt: false },
+      { settlementStatus: 'SETTLED' },
+    );
+    const settlementExpense = await fakePaidExpense();
+    await models.TransactionSettlement.update(
+      { ExpenseId: settlementExpense.id },
+      { where: { TransactionGroup: paidTipCredit.TransactionGroup } },
+    );
+
+    // New-ledger tip whose settlement was closed without ever being invoiced (e.g. refunded
+    // pre-invoice): SETTLED with no ExpenseId, never generated a bill
+    neverInvoicedTipCredit = await fakeTransaction(
+      { ...base, kind: TransactionKind.PLATFORM_TIP, amount: 6000, isDebt: false },
+      { settlementStatus: 'SETTLED' },
+    );
+
     // Unrelated kind, never a debt
-    await fakeTransaction({ ...base, kind: TransactionKind.CONTRIBUTION, amount: 5000 });
+    contributionCredit = await fakeTransaction({ ...base, kind: TransactionKind.CONTRIBUTION, amount: 5000 });
   });
 
-  it('hasDebt=true returns both legacy (companion *_DEBT) and new-ledger (settlement row) tips', async () => {
+  it('hasDebt=true returns legacy (companion *_DEBT) and new-ledger (settlement row) tips, including paid ones', async () => {
     const result = await graphqlQueryV2(hasDebtQuery, { slug: account.slug, hasDebt: true });
     expect(result.errors).to.not.exist;
     expect(result.data.transactions.nodes.map(n => n.legacyId)).to.eqInAnyOrder([
       legacyTipCredit.id,
       newLedgerTipCredit.id,
+      paidTipCredit.id,
     ]);
   });
 
-  it('hasDebt=false returns direct-collected tips and other kinds', async () => {
+  it('hasDebt=false returns direct-collected and never-invoiced tips and other kinds', async () => {
     const result = await graphqlQueryV2(hasDebtQuery, { slug: account.slug, hasDebt: false });
     expect(result.errors).to.not.exist;
-    const kinds = result.data.transactions.nodes.map(n => n.kind);
-    expect(kinds).to.eqInAnyOrder([TransactionKind.PLATFORM_TIP, TransactionKind.CONTRIBUTION]);
-    expect(result.data.transactions.nodes.map(n => n.legacyId)).to.include(directCollectedTipCredit.id);
+    expect(result.data.transactions.nodes.map(n => n.legacyId)).to.eqInAnyOrder([
+      directCollectedTipCredit.id,
+      neverInvoicedTipCredit.id,
+      contributionCredit.id,
+    ]);
   });
 
   it('no hasDebt filter returns everything', async () => {
     const result = await graphqlQueryV2(hasDebtQuery, { slug: account.slug });
     expect(result.errors).to.not.exist;
-    expect(result.data.transactions.totalCount).to.eq(4);
+    expect(result.data.transactions.totalCount).to.eq(6);
   });
 });
