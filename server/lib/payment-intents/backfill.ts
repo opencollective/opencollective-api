@@ -1,3 +1,4 @@
+import pMap from 'p-map';
 import { Transaction as SequelizeTransaction } from 'sequelize';
 
 import ExpenseStatus from '../../constants/expense-status';
@@ -39,6 +40,8 @@ type BackfillOptions = {
   expenseIds?: number[];
   hostIds?: number[];
   batchSize?: number;
+  /** Number of records processed in parallel within a page. Defaults to 1 (serial). */
+  concurrency?: number;
 };
 
 type BackfillPhaseStats = {
@@ -358,22 +361,31 @@ const processBatch = async <T extends { id: number }>(
   records: T[],
   stats: BackfillPhaseStats,
   handler: (id: number) => Promise<'processed' | 'skipped' | 'dry_run'>,
+  concurrency = 1,
 ): Promise<void> => {
-  for (const record of records) {
-    stats.lastId = record.id;
-    try {
-      const result = await handler(record.id);
-      if (result === 'processed' || result === 'dry_run') {
-        stats.processed++;
-      } else {
-        stats.skipped++;
+  await pMap(
+    records,
+    async record => {
+      try {
+        const result = await handler(record.id);
+        if (result === 'processed' || result === 'dry_run') {
+          stats.processed++;
+        } else {
+          stats.skipped++;
+        }
+      } catch (error) {
+        stats.errors++;
+        stats.errorIds.push(record.id);
+        logger.error(`Backfill error for id ${record.id}:`, error);
+      } finally {
+        // Keep the resume cursor monotonic; records within a page are ascending by id.
+        if (record.id > stats.lastId) {
+          stats.lastId = record.id;
+        }
       }
-    } catch (error) {
-      stats.errors++;
-      stats.errorIds.push(record.id);
-      logger.error(`Backfill error for id ${record.id}:`, error);
-    }
-  }
+    },
+    { concurrency: Number.isFinite(concurrency) && concurrency >= 1 ? Math.floor(concurrency) : 1, stopOnError: false },
+  );
 };
 
 export const backfillLedgerPhase = async (options: BackfillOptions = {}): Promise<BackfillPhaseStats> => {
@@ -409,7 +421,12 @@ export const backfillLedgerPhase = async (options: BackfillOptions = {}): Promis
         break;
       }
 
-      await processBatch(orders, stats, orderId => backfillPaymentIntentForOrderLedger(orderId, options));
+      await processBatch(
+        orders,
+        stats,
+        orderId => backfillPaymentIntentForOrderLedger(orderId, options),
+        options.concurrency,
+      );
       afterId = orders[orders.length - 1].id;
       remaining -= orders.length;
 
@@ -451,7 +468,12 @@ export const backfillLedgerPhase = async (options: BackfillOptions = {}): Promis
         break;
       }
 
-      await processBatch(expenses, stats, expenseId => backfillPaymentIntentForExpenseLedger(expenseId, options));
+      await processBatch(
+        expenses,
+        stats,
+        expenseId => backfillPaymentIntentForExpenseLedger(expenseId, options),
+        options.concurrency,
+      );
       expenseAfterId = expenses[expenses.length - 1].id;
       expenseRemaining -= expenses.length;
 
@@ -496,7 +518,12 @@ const backfillPendingOrdersPhase = async (options: BackfillOptions = {}): Promis
       break;
     }
 
-    await processBatch(orders, stats, orderId => backfillPaymentIntentForPendingOrder(orderId, options));
+    await processBatch(
+      orders,
+      stats,
+      orderId => backfillPaymentIntentForPendingOrder(orderId, options),
+      options.concurrency,
+    );
     afterId = orders[orders.length - 1].id;
     remaining -= orders.length;
 
@@ -542,7 +569,12 @@ const backfillPendingExpensesPhase = async (options: BackfillOptions = {}): Prom
       break;
     }
 
-    await processBatch(expenses, stats, expenseId => backfillPaymentIntentForPendingExpense(expenseId, options));
+    await processBatch(
+      expenses,
+      stats,
+      expenseId => backfillPaymentIntentForPendingExpense(expenseId, options),
+      options.concurrency,
+    );
     afterId = expenses[expenses.length - 1].id;
     remaining -= expenses.length;
 
