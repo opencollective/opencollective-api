@@ -175,12 +175,11 @@ export const GraphQLPaymentIntent = new GraphQLObjectType({
         } else {
           return {
             currency: targetCurrency,
-            value: () =>
-              req.loaders.CurrencyExchangeRate.convert.load({
-                amount: pledgedAmount.value,
-                fromCurrency: pledgedAmount.currency,
-                toCurrency: targetCurrency,
-              }),
+            value: await req.loaders.CurrencyExchangeRate.convert.load({
+              amount: pledgedAmount.value,
+              fromCurrency: pledgedAmount.currency,
+              toCurrency: targetCurrency,
+            }),
           };
         }
       },
@@ -217,12 +216,11 @@ export const GraphQLPaymentIntent = new GraphQLObjectType({
         } else {
           return {
             currency: targetCurrency,
-            value: () =>
-              req.loaders.CurrencyExchangeRate.convert.load({
-                amount: amount.value,
-                fromCurrency: host.currency,
-                toCurrency: targetCurrency,
-              }),
+            value: await req.loaders.CurrencyExchangeRate.convert.load({
+              amount: amount.value,
+              fromCurrency: host.currency,
+              toCurrency: targetCurrency,
+            }),
           };
         }
       },
@@ -259,12 +257,11 @@ export const GraphQLPaymentIntent = new GraphQLObjectType({
         } else {
           return {
             currency: targetCurrency,
-            value: () =>
-              req.loaders.CurrencyExchangeRate.convert.load({
-                amount: amount.value,
-                fromCurrency: host.currency,
-                toCurrency: targetCurrency,
-              }),
+            value: await req.loaders.CurrencyExchangeRate.convert.load({
+              amount: amount.value,
+              fromCurrency: host.currency,
+              toCurrency: targetCurrency,
+            }),
           };
         }
       },
