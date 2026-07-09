@@ -10,6 +10,7 @@ import PaymentIntent from '../../../../models/PaymentIntent';
 import { enforceScope } from '../../../common/scope-check';
 import { ValidationFailed } from '../../../errors';
 import { GraphQLPaymentIntentCollection } from '../../collection/PaymentIntentCollection';
+import GraphQLHostContext from '../../enum/HostContext';
 import { GraphQLPaymentIntentDirection } from '../../enum/PaymentIntentDirection';
 import GraphQLPaymentIntentStatus from '../../enum/PaymentIntentStatus';
 import GraphQLPaymentIntentType from '../../enum/PaymentIntentType';
@@ -22,6 +23,11 @@ const PaymentIntentCollectionArgs = {
   host: {
     type: GraphQLAccountReferenceInput,
     description: 'Only return payment intents for this host',
+  },
+  hostContext: {
+    type: GraphQLHostContext,
+    description:
+      'When `host` is provided, select whether to include ALL payment intents, only those involving the host organization internal accounts (INTERNAL) or only those involving hosted collectives (HOSTED)',
   },
   direction: {
     type: GraphQLPaymentIntentDirection,
@@ -66,6 +72,33 @@ const buildEffectiveDateFilter = (dateFrom?: Date, dateTo?: Date): WhereOptions[
   }
 
   return filters;
+};
+
+/**
+ * Builds a Sequelize where fragment to restrict payment intents to INTERNAL or HOSTED accounts,
+ * based on whether the payer/payee belong to the host organization internal accounts
+ * (the host itself or its direct children) or to hosted collectives.
+ */
+const buildHostContextFilter = (internalAccountIds: number[], hostContext: string): WhereOptions | undefined => {
+  if (hostContext === 'INTERNAL') {
+    return {
+      [Op.or]: [
+        { PayerCollectiveId: { [Op.in]: internalAccountIds } },
+        { PayeeCollectiveId: { [Op.in]: internalAccountIds } },
+      ],
+    };
+  }
+
+  if (hostContext === 'HOSTED') {
+    return {
+      [Op.and]: [
+        { [Op.or]: [{ PayerCollectiveId: { [Op.notIn]: internalAccountIds } }, { PayerCollectiveId: null }] },
+        { [Op.or]: [{ PayeeCollectiveId: { [Op.notIn]: internalAccountIds } }, { PayeeCollectiveId: null }] },
+      ],
+    };
+  }
+
+  return undefined;
 };
 
 const resolveAccountIds = async (
@@ -118,6 +151,15 @@ const PaymentIntentCollectionResolver = async (
 
   if (host) {
     where.push({ HostCollectiveId: host.id });
+
+    if (args.hostContext && args.hostContext !== 'ALL') {
+      const directChildrenIds = await req.loaders.Collective.childrenIds.load(host.id);
+      const internalAccountIds = uniq([host.id, ...directChildrenIds]);
+      const hostContextFilter = buildHostContextFilter(internalAccountIds, args.hostContext);
+      if (hostContextFilter) {
+        where.push(hostContextFilter);
+      }
+    }
   }
 
   if (account) {

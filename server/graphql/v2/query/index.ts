@@ -33,6 +33,7 @@ import MemberInvitationsQuery from './MemberInvitationsQuery';
 import OffPlatformTransactionsInstitutionsQuery from './OffPlatformTransactionsInstitutionsQuery';
 import OrderQuery from './OrderQuery';
 import OrganizationQuery from './OrganizationQuery';
+import PaymentIntentQuery from './PaymentIntentQuery';
 import PaypalPlanQuery from './PaypalPlanQuery';
 import PersonalTokenQuery from './PersonalTokenQuery';
 import platformSubscriptionTiers from './PlatformSubscriptionTiers';
@@ -107,6 +108,7 @@ const query = {
       }
     },
   },
+  paymentIntent: PaymentIntentQuery,
   paymentIntents: PaymentIntentCollectionQuery,
   platformSubscriptionTiers,
 };
