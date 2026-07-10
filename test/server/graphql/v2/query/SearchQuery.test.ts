@@ -271,6 +271,24 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       data: {},
     });
 
+    // ATX Mental Health Fund-style prefix/slug ranking
+    await fakeCollective({
+      name: 'ATX Mental Health Fund',
+      slug: 'atx-mental-health-fund',
+      description:
+        'We are a mutual aid fund that provides direct cash assistance to promote mental healthcare accessibility in Austin, Texas.',
+    });
+    await fakeCollective({
+      name: 'ATC Income Tax',
+      slug: 'atc-income-tax',
+      description: 'ATC Income Tax offers exceptional tax service',
+    });
+    await fakeCollective({
+      name: 'Vitality Health ATX',
+      slug: 'vitality-health-atx',
+      description: 'Vitality Health ATX offers full body detoxification',
+    });
+
     // An expense
     const expense = await fakeExpense({
       CollectiveId: project.id,
@@ -660,6 +678,40 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           expect(queryResult.data.search.results.accounts.collection.nodes[0].slug).to.eq(
             'untrusted-zero-member-match',
           );
+        });
+
+        it('should rank ATX Mental Health Fund above fuzzy ATC matches for short acronym queries', async () => {
+          const queryResult = await callSearchQuery('ATX', { includeAccounts: true });
+          queryResult.errors && console.error(queryResult.errors);
+
+          expect(queryResult.errors).to.be.undefined;
+          expect(queryResult.data.search.results.accounts.collection.totalCount).to.be.gte(2);
+          const [first, second] = queryResult.data.search.results.accounts.collection.nodes;
+          expect(first.slug).to.eq('atx-mental-health-fund');
+          expect(second.slug).to.not.eq('atc-income-tax');
+        });
+
+        it('should rank ATX Mental Health Fund above partial name matches', async () => {
+          const queryResult = await callSearchQuery('atx mental health', { includeAccounts: true });
+          queryResult.errors && console.error(queryResult.errors);
+
+          expect(queryResult.errors).to.be.undefined;
+          expect(queryResult.data.search.results.accounts.collection.totalCount).to.be.gte(2);
+          const [first, second] = queryResult.data.search.results.accounts.collection.nodes;
+          expect(first.slug).to.eq('atx-mental-health-fund');
+          expect(second.slug).to.eq('vitality-health-atx');
+
+          const highlights = queryResult.data.search.results.accounts.highlights;
+          expect(highlights[first.id].fields.name).to.exist;
+        });
+
+        it('should match partial slugified queries against slug prefix', async () => {
+          const queryResult = await callSearchQuery('atx-mental-health', { includeAccounts: true });
+          queryResult.errors && console.error(queryResult.errors);
+
+          expect(queryResult.errors).to.be.undefined;
+          expect(queryResult.data.search.results.accounts.collection.totalCount).to.be.gte(1);
+          expect(queryResult.data.search.results.accounts.collection.nodes[0].slug).to.eq('atx-mental-health-fund');
         });
       });
 

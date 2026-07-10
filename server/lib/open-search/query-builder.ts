@@ -1,4 +1,5 @@
 import { QueryContainer } from '@opensearch-project/opensearch/api/_types/_common.query_dsl.js';
+import slugify from 'limax';
 import { isNil } from 'lodash';
 
 import { OpenSearchModelAdapter } from './adapters/OpenSearchModelAdapter';
@@ -7,8 +8,29 @@ import { OpenSearchIndexName } from './constants';
 const EXACT_SLUG_BOOST = 50;
 const EXACT_KEYWORD_BOOST = 40;
 const PHRASE_MATCH_BOOST = 15;
+export const SLUG_PREFIX_BOOST = 45;
+export const NAME_PREFIX_BOOST = 35;
+
+const SHORT_QUERY_FUZZINESS_MAX_LENGTH = 3;
 
 const isMultiWordQuery = (searchTerm: string) => /\s/.test(searchTerm.trim());
+
+export const shouldUseFuzziness = (searchTerm: string) => searchTerm.trim().length > SHORT_QUERY_FUZZINESS_MAX_LENGTH;
+
+/** Hyphenated queries that mirror stored slugs, not CamelCase names or short acronyms. */
+export const isSlugLikeSearchTerm = (searchTerm: string): boolean => {
+  const trimmed = searchTerm.trim();
+  if (!trimmed || /\s/.test(trimmed) || !trimmed.includes('-')) {
+    return false;
+  }
+
+  const slugified = slugify(trimmed);
+  return slugified === trimmed.toLowerCase();
+};
+
+export const withoutNameKeywordTermClauses = (clauses: QueryContainer[]): QueryContainer[] => {
+  return clauses.filter(clause => !('term' in clause && clause.term?.['name.keyword']));
+};
 
 const getFieldMapping = (adapter: OpenSearchModelAdapter, field: string) => {
   return adapter.mappings.properties?.[field];
@@ -95,13 +117,13 @@ export const buildDefaultTextShouldClauses = (
     }
   }
 
-  // Broad token match fallback (fuzziness only here)
+  // Broad token match fallback (fuzziness only here, disabled for short queries like "ATX")
   clauses.push({
     multi_match: {
       query: searchTerm,
       type: 'best_fields',
       operator: 'or',
-      fuzziness: 'AUTO',
+      ...(shouldUseFuzziness(searchTerm) ? { fuzziness: 'AUTO' } : {}),
       fields: publicFields.map(field => addWeightToField(adapter, field)),
     },
   });
@@ -159,7 +181,7 @@ export const buildPrivateFieldShouldClauses = (
     match: {
       [field]: {
         query: searchTerm,
-        fuzziness: 'AUTO',
+        ...(shouldUseFuzziness(searchTerm) ? { fuzziness: 'AUTO' } : {}),
         boost: weight,
       },
     },

@@ -5,7 +5,10 @@ import { OpenSearchIndexName } from '../../../../server/lib/open-search/constant
 import {
   buildDefaultTextShouldClauses,
   buildPrivateFieldShouldClauses,
+  buildTextShouldClauses,
   buildTrustFunctionScore,
+  isSlugLikeSearchTerm,
+  shouldUseFuzziness,
 } from '../../../../server/lib/open-search/query-builder';
 import { buildQuery } from '../../../../server/lib/open-search/search';
 
@@ -59,6 +62,87 @@ describe('server/lib/open-search/search', () => {
       const phraseClause = clauses.find(clause => 'match_phrase' in clause);
       expect(phraseClause?.match_phrase?.name).to.not.have.property('fuzziness');
     });
+
+    it('does not apply fuzziness on short queries', () => {
+      expect(shouldUseFuzziness('ATX')).to.be.false;
+
+      const adapter = OpenSearchModelsAdapters[OpenSearchIndexName.COLLECTIVES];
+      const clauses = buildDefaultTextShouldClauses(adapter, 'ATX', ['slug', 'name', 'description']);
+      const multiMatch = clauses.find(clause => 'multi_match' in clause);
+
+      expect(multiMatch?.multi_match).to.not.have.property('fuzziness');
+    });
+
+    it('still applies fuzziness on longer queries', () => {
+      expect(shouldUseFuzziness('incredible')).to.be.true;
+
+      const adapter = OpenSearchModelsAdapters[OpenSearchIndexName.COLLECTIVES];
+      const clauses = buildDefaultTextShouldClauses(adapter, 'incredible', ['slug', 'name', 'description']);
+      const multiMatch = clauses.find(clause => 'multi_match' in clause);
+
+      expect(multiMatch?.multi_match?.fuzziness).to.eq('AUTO');
+    });
+  });
+
+  describe('isSlugLikeSearchTerm', () => {
+    it('detects hyphenated slug-shaped queries', () => {
+      expect(isSlugLikeSearchTerm('zslugpriority-xywtest-abcdef')).to.be.true;
+      expect(isSlugLikeSearchTerm('atx-mental-health')).to.be.true;
+    });
+
+    it('does not treat short acronyms as slug-shaped queries', () => {
+      expect(isSlugLikeSearchTerm('ATX')).to.be.false;
+    });
+
+    it('does not treat CamelCase names as slug-shaped queries', () => {
+      expect(isSlugLikeSearchTerm('ExactNameMatchTarget')).to.be.false;
+      expect(isSlugLikeSearchTerm('TrustRankingSharedName')).to.be.false;
+    });
+
+    it('does not treat natural language queries as slug-shaped', () => {
+      expect(isSlugLikeSearchTerm('ATX mental health')).to.be.false;
+    });
+  });
+
+  describe('buildTextShouldClauses for collectives', () => {
+    const adapter = OpenSearchModelsAdapters[OpenSearchIndexName.COLLECTIVES];
+    const publicFields = ['slug', 'name', 'description'];
+
+    it('emits prefix on slug for short acronym queries', () => {
+      const clauses = buildTextShouldClauses(adapter, 'ATX', publicFields);
+      const prefixClause = clauses.find(clause => 'prefix' in clause && clause.prefix?.slug);
+
+      const slugPrefix = prefixClause?.prefix?.slug;
+      expect(typeof slugPrefix === 'object' && slugPrefix !== null && 'value' in slugPrefix && slugPrefix.value).to.eq(
+        'atx',
+      );
+    });
+
+    it('emits prefix on slug for multi-word queries via slugify', () => {
+      const clauses = buildTextShouldClauses(adapter, 'ATX mental health', publicFields);
+      const prefixClause = clauses.find(clause => 'prefix' in clause && clause.prefix?.slug);
+
+      const slugPrefix = prefixClause?.prefix?.slug;
+      expect(typeof slugPrefix === 'object' && slugPrefix !== null && 'value' in slugPrefix && slugPrefix.value).to.eq(
+        'atx-mental-health',
+      );
+    });
+
+    it('emits match_bool_prefix on name', () => {
+      const clauses = buildTextShouldClauses(adapter, 'ATX', publicFields);
+
+      expect(clauses.some(clause => 'match_bool_prefix' in clause && clause.match_bool_prefix?.name)).to.be.true;
+    });
+
+    it('deprioritizes name for hyphenated slug lookups while keeping broad match', () => {
+      const clauses = buildTextShouldClauses(adapter, 'zslugpriority-xywtest-abcdef', publicFields);
+
+      expect(clauses.some(clause => 'match_bool_prefix' in clause)).to.be.false;
+      expect(clauses.some(clause => 'term' in clause && clause.term?.['name.keyword'])).to.be.false;
+      expect(clauses.some(clause => 'term' in clause && clause.term?.slug)).to.be.true;
+      expect(clauses.some(clause => 'prefix' in clause && clause.prefix?.slug)).to.be.true;
+      expect(clauses.some(clause => 'multi_match' in clause)).to.be.true;
+    });
   });
 
   describe('buildQuery', () => {
@@ -93,6 +177,14 @@ describe('server/lib/open-search/search', () => {
             clause.match.reference.fuzziness === 'AUTO',
         ),
       ).to.be.true;
+    });
+
+    it('omits fuzziness on private field matches for short queries', () => {
+      const adapter = OpenSearchModelsAdapters[OpenSearchIndexName.EXPENSES];
+      const clauses = buildPrivateFieldShouldClauses(adapter, 'ATX', 'reference');
+      const matchClause = clauses.find(clause => 'match' in clause && clause.match?.reference);
+
+      expect(matchClause?.match?.reference).to.not.have.property('fuzziness');
     });
   });
 

@@ -1,9 +1,18 @@
+import { QueryContainer } from '@opensearch-project/opensearch/api/_types/_common.query_dsl.js';
 import type { IndexSettings } from '@opensearch-project/opensearch/api/_types/indices._common.js';
+import slugify from 'limax';
 import { omit } from 'lodash';
 
 import models, { Op } from '../../../models';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { OpenSearchIndexName } from '../constants';
+import {
+  buildDefaultTextShouldClauses,
+  isSlugLikeSearchTerm,
+  NAME_PREFIX_BOOST,
+  SLUG_PREFIX_BOOST,
+  withoutNameKeywordTermClauses,
+} from '../query-builder';
 
 import { FindEntriesToIndexOptions, OpenSearchFieldWeight, OpenSearchModelAdapter } from './OpenSearchModelAdapter';
 
@@ -119,6 +128,41 @@ export class OpenSearchCollectivesAdapter implements OpenSearchModelAdapter {
           : null),
       },
     });
+  }
+
+  public getTextQueryClauses(searchTerm: string, publicFields: string[]): QueryContainer[] {
+    const slugLookup = isSlugLikeSearchTerm(searchTerm);
+    const clauses = slugLookup
+      ? withoutNameKeywordTermClauses(buildDefaultTextShouldClauses(this, searchTerm, publicFields))
+      : buildDefaultTextShouldClauses(this, searchTerm, publicFields);
+
+    /* eslint-disable camelcase */
+
+    const slugified = slugify(searchTerm.trim());
+    if (slugified) {
+      clauses.unshift({
+        prefix: {
+          slug: {
+            value: slugified,
+            boost: SLUG_PREFIX_BOOST,
+          },
+        },
+      });
+    }
+
+    if (!slugLookup) {
+      clauses.unshift({
+        match_bool_prefix: {
+          name: {
+            query: searchTerm,
+            boost: NAME_PREFIX_BOOST,
+          },
+        },
+      });
+    }
+
+    /* eslint-enable camelcase */
+    return clauses;
   }
 
   public mapModelInstanceToDocument(
