@@ -34,9 +34,9 @@ export class OpenSearchUpdatesAdapter implements OpenSearchModelAdapter {
   }
 
   public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], OpenSearchFieldWeight>> = {
-    html: 5,
+    html: 3,
     title: 7,
-    slug: 8,
+    slug: 10,
     // Ignored fields
     id: 0,
     CollectiveId: 0,

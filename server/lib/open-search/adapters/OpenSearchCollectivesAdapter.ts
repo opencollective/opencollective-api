@@ -1,18 +1,50 @@
+import type { IndexSettings } from '@opensearch-project/opensearch/api/_types/indices._common.js';
+import { omit } from 'lodash';
+
 import models, { Op } from '../../../models';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { OpenSearchIndexName } from '../constants';
 
 import { FindEntriesToIndexOptions, OpenSearchFieldWeight, OpenSearchModelAdapter } from './OpenSearchModelAdapter';
 
+const DERIVED_INDEX_FIELDS = ['isFirstPartyHost', 'isTrustedHost', 'isVerified'] as const;
+
 export class OpenSearchCollectivesAdapter implements OpenSearchModelAdapter {
   public readonly index = OpenSearchIndexName.COLLECTIVES;
+
+  public readonly settings: IndexSettings = {
+    analysis: {
+      analyzer: {
+        asciifolding: {
+          type: 'custom',
+          tokenizer: 'standard',
+          filter: ['lowercase', 'asciifolding'],
+        },
+        // eslint-disable-next-line camelcase
+        word_delimiter: {
+          type: 'custom',
+          tokenizer: 'standard',
+          filter: ['lowercase', 'asciifolding', 'word_delimiter_graph'],
+        },
+      },
+    },
+  };
+
   public readonly mappings = {
     properties: {
       id: { type: 'keyword' },
       createdAt: { type: 'date' },
       updatedAt: { type: 'date' },
       slug: { type: 'keyword' },
-      name: { type: 'text' },
+      name: {
+        type: 'text',
+        analyzer: 'asciifolding',
+        // eslint-disable-next-line camelcase
+        search_analyzer: 'word_delimiter',
+        fields: {
+          keyword: { type: 'keyword' },
+        },
+      },
       type: { type: 'keyword' },
       legalName: { type: 'text' },
       countryISO: { type: 'keyword' },
@@ -23,6 +55,9 @@ export class OpenSearchCollectivesAdapter implements OpenSearchModelAdapter {
       hasMoneyManagement: { type: 'boolean' },
       deactivatedAt: { type: 'date' },
       tags: { type: 'keyword' },
+      isFirstPartyHost: { type: 'boolean' },
+      isTrustedHost: { type: 'boolean' },
+      isVerified: { type: 'boolean' },
       // Relationships
       HostCollectiveId: { type: 'keyword' },
       ParentCollectiveId: { type: 'keyword' },
@@ -35,7 +70,15 @@ export class OpenSearchCollectivesAdapter implements OpenSearchModelAdapter {
 
   public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], OpenSearchFieldWeight>> = {
     slug: 10,
+    name: 5,
+    description: 2,
+    longDescription: 1,
+    tags: 3,
+    legalName: 4,
+    website: 1,
     // Ignored fields
+    type: 0,
+    countryISO: 0,
     HostCollectiveId: 0,
     ParentCollectiveId: 0,
     hasMoneyManagement: 0,
@@ -44,11 +87,14 @@ export class OpenSearchCollectivesAdapter implements OpenSearchModelAdapter {
     updatedAt: 0,
     deactivatedAt: 0,
     id: 0,
+    isFirstPartyHost: 0,
+    isTrustedHost: 0,
+    isVerified: 0,
   };
 
   public async findEntriesToIndex(options: FindEntriesToIndexOptions = {}) {
     return models.Collective.findAll({
-      attributes: Object.keys(this.mappings.properties),
+      attributes: [...Object.keys(omit(this.mappings.properties, DERIVED_INDEX_FIELDS)), 'data'],
       order: [['id', 'DESC']],
       limit: options.limit,
       offset: options.offset,
@@ -96,6 +142,9 @@ export class OpenSearchCollectivesAdapter implements OpenSearchModelAdapter {
       deactivatedAt: instance.deactivatedAt,
       HostCollectiveId: !instance.isActive ? null : instance.HostCollectiveId,
       ParentCollectiveId: instance.ParentCollectiveId,
+      isFirstPartyHost: Boolean(instance.data?.isFirstPartyHost),
+      isTrustedHost: Boolean(instance.data?.isTrustedHost),
+      isVerified: Boolean(instance.data?.isVerified),
     };
   }
 

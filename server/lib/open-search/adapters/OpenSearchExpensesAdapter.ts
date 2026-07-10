@@ -42,7 +42,7 @@ export class OpenSearchExpensesAdapter implements OpenSearchModelAdapter {
     reference: 9,
     items: 8,
     description: 8,
-    longDescription: 5,
+    longDescription: 2,
     privateMessage: 5,
     invoiceInfo: 5,
     // Ignored fields
