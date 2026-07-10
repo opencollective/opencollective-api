@@ -35,7 +35,13 @@ export class OpenSearchCollectivesAdapter implements OpenSearchModelAdapter {
       id: { type: 'keyword' },
       createdAt: { type: 'date' },
       updatedAt: { type: 'date' },
-      slug: { type: 'keyword' },
+      slug: {
+        type: 'keyword',
+        fields: {
+          // eslint-disable-next-line camelcase
+          text: { type: 'text', analyzer: 'asciifolding', search_analyzer: 'word_delimiter' },
+        },
+      },
       name: {
         type: 'text',
         analyzer: 'asciifolding',

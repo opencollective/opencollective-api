@@ -7,6 +7,7 @@ import { OpenSearchIndexName } from './constants';
 const EXACT_SLUG_BOOST = 50;
 const EXACT_KEYWORD_BOOST = 40;
 const PHRASE_MATCH_BOOST = 15;
+const PHRASE_PREFIX_BOOST = 12;
 
 const isMultiWordQuery = (searchTerm: string) => /\s/.test(searchTerm.trim());
 
@@ -34,6 +35,28 @@ const getKeywordSubfields = (adapter: OpenSearchModelAdapter, publicFields: stri
       return [`${field}.keyword`];
     }
     return [];
+  });
+};
+
+const getKeywordTextSubfields = (adapter: OpenSearchModelAdapter, publicFields: string[]): string[] => {
+  return publicFields.flatMap(field => {
+    const mapping = getFieldMapping(adapter, field);
+    if (mapping?.type === 'keyword' && mapping.fields?.['text']) {
+      return [`${field}.text`];
+    }
+    return [];
+  });
+};
+
+const getMultiMatchFields = (adapter: OpenSearchModelAdapter, publicFields: string[]): string[] => {
+  return publicFields.flatMap(field => {
+    const mapping = getFieldMapping(adapter, field);
+    if (mapping?.type === 'keyword' && mapping.fields?.['text']) {
+      const weight = getFieldWeight(adapter, field);
+      const textField = `${field}.text`;
+      return weight === 1 ? textField : `${textField}^${weight}`;
+    }
+    return addWeightToField(adapter, field);
   });
 };
 
@@ -95,6 +118,56 @@ export const buildDefaultTextShouldClauses = (
     }
   }
 
+  // Token/phrase/prefix match on keyword .text subfields (e.g. slug.text)
+  for (const field of getKeywordTextSubfields(adapter, publicFields)) {
+    const baseField = field.replace(/\.text$/, '');
+    const weight = getFieldWeight(adapter, baseField);
+
+    if (isMultiWordQuery(searchTerm)) {
+      clauses.push({
+        match_phrase: {
+          [field]: {
+            query: searchTerm,
+            boost: PHRASE_MATCH_BOOST * weight,
+          },
+        },
+      });
+    }
+
+    clauses.push({
+      match: {
+        [field]: {
+          query: searchTerm,
+          operator: 'or',
+          boost: weight,
+        },
+      },
+    });
+
+    clauses.push({
+      match_phrase_prefix: {
+        [field]: {
+          query: searchTerm,
+          boost: PHRASE_PREFIX_BOOST * weight,
+        },
+      },
+    });
+  }
+
+  // Prefix match on text fields (e.g. name)
+  for (const field of publicFields) {
+    if (getFieldMapping(adapter, field)?.type === 'text') {
+      clauses.push({
+        match_phrase_prefix: {
+          [field]: {
+            query: searchTerm,
+            boost: PHRASE_PREFIX_BOOST * getFieldWeight(adapter, field),
+          },
+        },
+      });
+    }
+  }
+
   // Broad token match fallback (fuzziness only here)
   clauses.push({
     multi_match: {
@@ -102,7 +175,7 @@ export const buildDefaultTextShouldClauses = (
       type: 'best_fields',
       operator: 'or',
       fuzziness: 'AUTO',
-      fields: publicFields.map(field => addWeightToField(adapter, field)),
+      fields: getMultiMatchFields(adapter, publicFields),
     },
   });
 

@@ -6,7 +6,7 @@ import DataLoader from 'dataloader';
 import { groupBy, pick } from 'lodash';
 
 import { formatIndexNameForOpenSearch } from '../../lib/open-search/common';
-import { OpenSearchIndexName, OpenSearchIndexParams } from '../../lib/open-search/constants';
+import { normalizeSearchScore, OpenSearchIndexName, OpenSearchIndexParams } from '../../lib/open-search/constants';
 import {
   OpenSearchIndexRequest,
   openSearchMultiIndexGlobalSearch,
@@ -153,10 +153,10 @@ export const generateSearchLoaders = req => {
         if (bucket) {
           return {
             count: bucket.doc_count,
-            maxScore: bucket.top_hits_by_index.hits.max_score || 0,
+            maxScore: normalizeSearchScore(request.index, bucket.top_hits_by_index.hits.max_score || 0),
             hits: bucket.top_hits_by_index.hits.hits.map(hit => ({
               indexName: request.index,
-              score: hit._score,
+              score: normalizeSearchScore(request.index, hit._score),
               id: hit._id,
               source: hit._source,
               highlight: hit.highlight,
@@ -166,16 +166,20 @@ export const generateSearchLoaders = req => {
       } else {
         const hits = singleIndexSearchResults.get(request.requestId)?.get(request.index)?.hits;
         if (hits) {
+          const rawMaxScore = (typeof hits.max_score === 'string' ? parseFloat(hits.max_score) : hits.max_score) || 0;
           return {
             count: typeof hits.total === 'number' ? hits.total : hits.total.value,
-            maxScore: (typeof hits.max_score === 'string' ? parseFloat(hits.max_score) : hits.max_score) || 0,
-            hits: hits.hits.map(hit => ({
-              indexName: request.index,
-              score: typeof hit._score === 'string' ? parseFloat(hit._score) : hit._score,
-              id: hit._id,
-              source: hit._source,
-              highlight: hit.highlight,
-            })),
+            maxScore: normalizeSearchScore(request.index, rawMaxScore),
+            hits: hits.hits.map(hit => {
+              const rawScore = typeof hit._score === 'string' ? parseFloat(hit._score) : hit._score;
+              return {
+                indexName: request.index,
+                score: normalizeSearchScore(request.index, rawScore),
+                id: hit._id,
+                source: hit._source,
+                highlight: hit.highlight,
+              };
+            }),
           };
         }
       }

@@ -271,6 +271,28 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       data: {},
     });
 
+    // ATX-style partial slug/name matching
+    await fakeCollective({
+      name: 'ATX Mental Health Fund',
+      slug: 'atx-mental-health-fund',
+      description: 'Mutual aid fund for mental healthcare in Austin, Texas',
+    });
+    await fakeCollective({
+      name: 'ATX',
+      slug: 'atx-only-collective',
+      description: 'Austin collective',
+    });
+    await fakeCollective({
+      name: 'Mental Health Collective',
+      slug: 'mental-health-collective',
+      description: 'General mental health support',
+    });
+    await fakeCollective({
+      name: 'Slug Token Only Collective',
+      slug: 'atx-mental-health-fund-slug-only',
+      description: 'Unrelated description',
+    });
+
     // An expense
     const expense = await fakeExpense({
       CollectiveId: project.id,
@@ -660,6 +682,35 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           expect(queryResult.data.search.results.accounts.collection.nodes[0].slug).to.eq(
             'untrusted-zero-member-match',
           );
+        });
+
+        it('should rank ATX Mental Health Fund first for partial name queries', async () => {
+          for (const searchTerm of ['ATX Mental Health', 'atx mental']) {
+            const queryResult = await callSearchQuery(searchTerm, { includeAccounts: true });
+            queryResult.errors && console.error(queryResult.errors);
+
+            expect(queryResult.errors).to.be.undefined;
+            expect(queryResult.data.search.results.accounts.collection.totalCount).to.be.gte(1);
+            expect(queryResult.data.search.results.accounts.collection.nodes[0].slug).to.eq('atx-mental-health-fund');
+          }
+        });
+
+        it('should return ATX Mental Health Fund for a single-token atx query', async () => {
+          const queryResult = await callSearchQuery('atx', { includeAccounts: true, accountsLimit: 20 });
+          queryResult.errors && console.error(queryResult.errors);
+
+          expect(queryResult.errors).to.be.undefined;
+          const slugs = queryResult.data.search.results.accounts.collection.nodes.map(node => node.slug);
+          expect(slugs).to.include('atx-mental-health-fund');
+        });
+
+        it('should match slug tokens even when the name does not contain them', async () => {
+          const queryResult = await callSearchQuery('atx health', { includeAccounts: true });
+          queryResult.errors && console.error(queryResult.errors);
+
+          expect(queryResult.errors).to.be.undefined;
+          const slugs = queryResult.data.search.results.accounts.collection.nodes.map(node => node.slug);
+          expect(slugs).to.include('atx-mental-health-fund-slug-only');
         });
       });
 

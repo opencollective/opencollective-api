@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import { OpenSearchModelsAdapters } from '../../../../server/lib/open-search/adapters';
-import { OpenSearchIndexName } from '../../../../server/lib/open-search/constants';
+import { normalizeSearchScore, OpenSearchIndexName } from '../../../../server/lib/open-search/constants';
 import {
   buildDefaultTextShouldClauses,
   buildPrivateFieldShouldClauses,
@@ -59,6 +59,36 @@ describe('server/lib/open-search/search', () => {
       const phraseClause = clauses.find(clause => 'match_phrase' in clause);
       expect(phraseClause?.match_phrase?.name).to.not.have.property('fuzziness');
     });
+
+    it('emits slug.text phrase, token, and prefix clauses for collectives', () => {
+      const adapter = OpenSearchModelsAdapters[OpenSearchIndexName.COLLECTIVES];
+      const clauses = buildDefaultTextShouldClauses(adapter, 'atx mental health', ['slug', 'name', 'description']);
+
+      expect(clauses.some(clause => 'match_phrase' in clause && clause.match_phrase?.['slug.text'])).to.be.true;
+      expect(clauses.some(clause => 'match' in clause && clause.match?.['slug.text'])).to.be.true;
+      expect(clauses.some(clause => 'match_phrase_prefix' in clause && clause.match_phrase_prefix?.['slug.text'])).to.be
+        .true;
+      expect(clauses.some(clause => 'match_phrase_prefix' in clause && clause.match_phrase_prefix?.name)).to.be.true;
+
+      const multiMatch = clauses.find(clause => 'multi_match' in clause);
+      expect(multiMatch?.multi_match?.fields).to.include('slug.text^10');
+    });
+
+    it('exposes slug.fields.text as a text sub-field in collectives mapping', () => {
+      const adapter = OpenSearchModelsAdapters[OpenSearchIndexName.COLLECTIVES];
+      expect(adapter.mappings.properties.slug.fields?.text?.type).to.eq('text');
+    });
+
+    it('does not emit clauses for fields excluded from publicFields', () => {
+      const adapter = OpenSearchModelsAdapters[OpenSearchIndexName.COLLECTIVES];
+      const clauses = buildDefaultTextShouldClauses(adapter, 'atx mental health', ['name', 'description']);
+
+      expect(clauses.some(clause => 'term' in clause && clause.term?.slug)).to.be.false;
+      expect(clauses.some(clause => 'match' in clause && clause.match?.['slug.text'])).to.be.false;
+      expect(clauses.some(clause => 'match_phrase_prefix' in clause && clause.match_phrase_prefix?.['slug.text'])).to.be
+        .false;
+      expect(clauses.some(clause => 'match_phrase_prefix' in clause && clause.match_phrase_prefix?.name)).to.be.true;
+    });
   });
 
   describe('buildQuery', () => {
@@ -108,6 +138,17 @@ describe('server/lib/open-search/search', () => {
         { filter: { term: { isTrustedHost: true } }, weight: 2 },
         { filter: { term: { isVerified: true } }, weight: 1.5 },
       ]);
+    });
+  });
+
+  describe('normalizeSearchScore', () => {
+    it('applies a higher multiplier to collectives than other indexes', () => {
+      const rawScore = 1000;
+      expect(normalizeSearchScore(OpenSearchIndexName.COLLECTIVES, rawScore)).to.be.gt(
+        normalizeSearchScore(OpenSearchIndexName.COMMENTS, rawScore),
+      );
+      expect(normalizeSearchScore(OpenSearchIndexName.COLLECTIVES, rawScore)).to.eq(rawScore * 3);
+      expect(normalizeSearchScore(OpenSearchIndexName.EXPENSES, rawScore)).to.eq(rawScore);
     });
   });
 });
