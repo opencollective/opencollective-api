@@ -873,6 +873,8 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
 
             ands.push(eb('Transactions.deletedAt', 'is', null));
             ands.push(eb('Transactions.type', '=', 'CREDIT'));
+            ands.push(eb('Transactions.isRefund', 'is', false));
+            ands.push(eb('Transactions.RefundTransactionId', 'is', null));
             ands.push(eb('Transactions.kind', 'in', [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS]));
 
             return and(ands);
