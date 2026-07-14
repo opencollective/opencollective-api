@@ -1335,6 +1335,18 @@ describe('server/graphql/common/expenses', () => {
       expect(await canMarkAsPaid(req, expense)).to.be.false;
     });
 
+    it('throws when canMarkAsPaid is called with { throw: true }', async () => {
+      await expense.update({ type: 'INVOICE' });
+      let error;
+      try {
+        await canMarkAsPaid(req, expense, { throw: true });
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.exist;
+      expect(error.message).to.include('Host cannot pay expenses');
+    });
+
     it('can still pay settlements and platform bills owed to the platform', async () => {
       await expense.update({ type: 'SETTLEMENT' });
       expect(await canPayExpense(req, expense)).to.be.true;

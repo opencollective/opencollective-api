@@ -312,10 +312,6 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Whether this account is suspended',
   },
-  isBlockedForUnpaidPlatformBilling: {
-    type: GraphQLBoolean,
-    description: 'Whether this account has been blocked due to unpaid platform billing.',
-  },
   isActive: {
     type: GraphQLBoolean,
     description: 'Returns whether the account accepts financial contributions.',
@@ -1365,16 +1361,6 @@ export const AccountFields = {
     description: 'Whether this account is suspended',
     resolve(collective: Collective) {
       return get(collective, `data.isSuspended`) === true;
-    },
-  },
-  isBlockedForUnpaidPlatformBilling: {
-    type: GraphQLBoolean,
-    description: 'Whether this account has been blocked due to unpaid platform billing.',
-    resolve(collective: Collective, _, req: express.Request) {
-      if (!req.remoteUser?.isAdminOfCollective(collective) && !req.remoteUser?.isRoot()) {
-        return null;
-      }
-      return get(collective, `data.isBlockedForUnpaidPlatformBilling`) === true;
     },
   },
   isHost: {

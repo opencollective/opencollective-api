@@ -258,7 +258,9 @@ export const isHostAdmin = async (req: express.Request, expense: Expense): Promi
   }
 
   if (!expense.collective) {
-    expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+    expense.collective = req.loaders
+      ? await req.loaders.Collective.byId.load(expense.CollectiveId)
+      : await Collective.findByPk(expense.CollectiveId);
     if (!expense.collective) {
       return false;
     }
@@ -966,6 +968,9 @@ export const canMarkAsPaid: ExpensePermissionEvaluator = async (
       isBlockedForUnpaidPlatformBilling(host) &&
       ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)
     ) {
+      if (options?.throw) {
+        throw new Forbidden('Host cannot pay expenses', EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET);
+      }
       return false;
     }
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);

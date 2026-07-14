@@ -16,6 +16,7 @@ import {
   fakeExpense,
   fakeHost,
   fakeMember,
+  fakePlatformSubscription,
   fakeRecurringExpense,
   fakeTransaction,
   fakeUser,
@@ -46,7 +47,6 @@ const EDIT_ACCOUNT_FLAGS_MUTATION = gql`
   mutation EditAccountFlags($account: AccountReferenceInput!, $isBlockedForUnpaidPlatformBilling: Boolean) {
     editAccountFlags(account: $account, isBlockedForUnpaidPlatformBilling: $isBlockedForUnpaidPlatformBilling) {
       id
-      isBlockedForUnpaidPlatformBilling
     }
   }
 `;
@@ -329,7 +329,6 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
         rootUser,
       );
       expect(result.errors).to.not.exist;
-      expect(result.data.editAccountFlags.isBlockedForUnpaidPlatformBilling).to.be.true;
       await host.reload();
       expect(host.data.isBlockedForUnpaidPlatformBilling).to.be.true;
 
@@ -338,32 +337,37 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
         rootUser,
       );
       expect(result.errors).to.not.exist;
-      expect(result.data.editAccountFlags.isBlockedForUnpaidPlatformBilling).to.be.false;
       await host.reload();
       expect(host.data.isBlockedForUnpaidPlatformBilling).to.be.false;
     });
 
-    it('exposes the field to admins only', async () => {
+    it('exposes the on-hold status via platformSubscription to admins only', async () => {
       const ACCOUNT_QUERY = gql`
         query Account($slug: String!) {
           account(slug: $slug) {
             id
-            isBlockedForUnpaidPlatformBilling
+            ... on AccountWithPlatformSubscription {
+              platformSubscription {
+                isAccountOnHold
+              }
+            }
           }
         }
       `;
       const admin = await fakeUser();
       const host = await fakeHost({ admin, data: { isBlockedForUnpaidPlatformBilling: true } });
+      await fakePlatformSubscription({ CollectiveId: host.id });
       await admin.populateRoles();
 
       const asAdmin = await graphqlQueryV2(ACCOUNT_QUERY, { slug: host.slug }, admin);
-      expect(asAdmin.data.account.isBlockedForUnpaidPlatformBilling).to.be.true;
+      expect(asAdmin.data.account.platformSubscription.isAccountOnHold).to.be.true;
 
+      // platformSubscription itself is gated to admins/root, so non-admins can't reach the field
       const asStranger = await graphqlQueryV2(ACCOUNT_QUERY, { slug: host.slug }, await fakeUser());
-      expect(asStranger.data.account.isBlockedForUnpaidPlatformBilling).to.be.null;
+      expect(asStranger.data.account.platformSubscription).to.be.null;
 
       const asPublic = await graphqlQueryV2(ACCOUNT_QUERY, { slug: host.slug });
-      expect(asPublic.data.account.isBlockedForUnpaidPlatformBilling).to.be.null;
+      expect(asPublic.data.account.platformSubscription).to.be.null;
     });
   });
 
