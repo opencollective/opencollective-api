@@ -900,7 +900,7 @@ interface Account {
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -3786,7 +3786,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -11290,7 +11290,7 @@ type Bot implements Account {
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -12379,7 +12379,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -14048,7 +14048,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -15436,7 +15436,7 @@ type Individual implements Account {
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -16850,7 +16850,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -18321,7 +18321,7 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -19519,7 +19519,7 @@ type Vendor implements Account & AccountWithContributions {
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -20591,7 +20591,7 @@ type Query {
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -23946,7 +23946,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -25192,7 +25192,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     virtualCards: [VirtualCardReferenceInput]
 
     """
-    Filter expenses by the last user-role who replied to them
+    Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.
     """
     lastCommentBy: [LastCommentBy]
 
@@ -25969,16 +25969,6 @@ enum OffPlatformTransactionsProvider {
 }
 
 """
-A collection of Payment Intents
-"""
-type PaymentIntentCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-  nodes: [PaymentIntent!]!
-}
-
-"""
 A payment intent representing a charge, transfer, or pending payment
 """
 type PaymentIntent {
@@ -26085,6 +26075,16 @@ enum PaymentIntentAccountRole {
   The account that is receiving the money
   """
   PAYEE
+}
+
+"""
+A collection of Payment Intents
+"""
+type PaymentIntentCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [PaymentIntent!]!
 }
 
 """
