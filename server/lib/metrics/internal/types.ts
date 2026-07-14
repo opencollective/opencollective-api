@@ -4,7 +4,11 @@ import type { DatabaseWithViews } from '../../kysely';
 
 type ColumnOf<Row> = keyof Row & string;
 
-type DimensionKind = 'int' | 'string' | 'boolean' | 'enum' | 'date' | 'account';
+type DimensionKind = 'int' | 'string' | 'boolean' | 'enum' | 'enumValues' | 'date' | 'account';
+type ScalarDimensionKind = Exclude<DimensionKind, 'enumValues'>;
+
+/** A declared enum value: a GraphQL-name-safe token + an optional human description (schema docs). */
+export type EnumValueDef = { value: string; description?: string };
 
 export type SqlExpressionFn<R extends keyof DatabaseWithViews> = (
   eb: ExpressionBuilder<DatabaseWithViews, R>,
@@ -15,15 +19,33 @@ export type Measure = RelationMeasure<any>;
 type RelationDimension<R extends keyof DatabaseWithViews, Row = DatabaseWithViews[R]> =
   | {
       name: string;
-      kind: DimensionKind;
+      kind: ScalarDimensionKind;
       column: ColumnOf<Row>;
       nullable?: boolean;
+      description?: string;
     }
   | {
       name: string;
-      kind: DimensionKind;
+      kind: ScalarDimensionKind;
       expression: SqlExpressionFn<R>;
       nullable?: boolean;
+      description?: string;
+    }
+  | {
+      name: string;
+      kind: 'enumValues';
+      column: ColumnOf<Row>;
+      values: ReadonlyArray<EnumValueDef>;
+      nullable?: boolean;
+      description?: string;
+    }
+  | {
+      name: string;
+      kind: 'enumValues';
+      expression: SqlExpressionFn<R>;
+      values: ReadonlyArray<EnumValueDef>;
+      nullable?: boolean;
+      description?: string;
     };
 
 type RelationMeasure<R extends keyof DatabaseWithViews, Row = DatabaseWithViews[R]> =
@@ -61,8 +83,7 @@ export type RangeRelationMetricSource<R extends keyof DatabaseWithViews, Row = D
 
 export type MetricSource = RelationMetricSource<never>;
 type RelationMetricSource<R extends keyof DatabaseWithViews> =
-  | DenseRelationMetricSource<R>
-  | RangeRelationMetricSource<R>;
+  DenseRelationMetricSource<R> | RangeRelationMetricSource<R>;
 
 /**
  * Define a metric source backed by a single Postgres relation (table, view, or

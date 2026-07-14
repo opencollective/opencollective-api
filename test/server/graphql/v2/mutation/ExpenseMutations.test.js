@@ -4585,7 +4585,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'REJECT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.data.processExpense.status).to.eq('REJECTED');
-        await expectPaymentIntentForExpense(expense.id, { status: PaymentIntentStatus.ERROR });
+        await expectPaymentIntentForExpense(expense.id, { status: PaymentIntentStatus.CANCELED });
       });
 
       it('Expense needs to be pending', async () => {

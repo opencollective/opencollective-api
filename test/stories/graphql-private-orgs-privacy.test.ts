@@ -370,6 +370,9 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'HostedCollectivesMembershipMetricsGroup.account': 'parent-gate',
   'HostedCollectivesHostingMetricsGroup.account': 'parent-gate',
   'HostedCollectivesHostingMetricsGroup.parent': 'parent-gate',
+  'HostedCollectivesTransactionSizesMetricsGroup.account': 'parent-gate',
+  'HostedCollectivesTransactionSizesMetricsGroup.parent': 'parent-gate',
+  'HostedCollectivesTransactionSizesMetricsGroup.mainAccount': 'parent-gate',
 };
 
 // ---------------------------------------------------------------------------

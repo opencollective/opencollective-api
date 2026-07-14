@@ -18,7 +18,6 @@ import { Command } from 'commander';
 import { omit, pick } from 'lodash';
 import type { Sequelize } from 'sequelize';
 
-import { mergeDataDeep } from '../../migrations/lib/helpers';
 import logger from '../../server/lib/logger';
 import { getSpamReportCollectiveSnapshot } from '../../server/lib/spam';
 import { sequelize } from '../../server/models';
@@ -57,13 +56,7 @@ export const cleanupCollectiveDataJsonb = (data: Record<string, unknown>): Recor
     return data;
   }
 
-  let result = { ...data };
-
-  if (result.data) {
-    result = mergeDataDeep(result);
-    result = omit(result, 'data') as Record<string, unknown>;
-  }
-
+  const result = omit(data, 'data');
   if (result.spamReport && typeof result.spamReport === 'object') {
     const spamReport = { ...(result.spamReport as Record<string, unknown>) };
     if (spamReport.data) {

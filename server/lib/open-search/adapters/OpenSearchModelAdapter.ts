@@ -1,5 +1,6 @@
 import { TypeMapping } from '@opensearch-project/opensearch/api/_types/_common.mapping.js';
 import { QueryContainer } from '@opensearch-project/opensearch/api/_types/_common.query_dsl.js';
+import { IndexSettings } from '@opensearch-project/opensearch/api/_types/indices._common.js';
 import { ModelStatic } from 'sequelize';
 
 import { ModelType } from '../../../models';
@@ -27,6 +28,7 @@ export type OpenSearchFieldWeight = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 export interface OpenSearchModelAdapter {
   readonly index: OpenSearchIndexName;
   readonly mappings: TypeMapping;
+  readonly settings?: IndexSettings;
   readonly weights: Partial<Record<keyof (typeof this)['mappings']['properties'], OpenSearchFieldWeight>>;
 
   getModel(): ModelStatic<Model>;
@@ -38,6 +40,9 @@ export interface OpenSearchModelAdapter {
   mapModelInstanceToDocument(
     instance: InstanceType<ModelType>,
   ): Record<keyof (typeof this)['mappings']['properties'], unknown>;
+
+  /** Optional override for custom per-index text query clauses */
+  getTextQueryClauses?(searchTerm: string, publicFields: string[]): QueryContainer[];
 
   /** Returns the conditions for the permissions */
   getIndexPermissions(adminOfAccountIds: number[]): OpenSearchModelPermissions;

@@ -247,7 +247,12 @@ const _upsertPaymentIntentFor = async (
     type: mapPaymentIntentType(mappingInput),
     ...parties,
     description: mapPaymentIntentDescription({ order, expense, transaction: primaryTransaction }),
-    paidAt: status === PaymentIntentStatus.PENDING || status === PaymentIntentStatus.ERROR ? null : paidAt,
+    paidAt:
+      status === PaymentIntentStatus.PENDING ||
+      status === PaymentIntentStatus.ERROR ||
+      status === PaymentIntentStatus.CANCELED
+        ? null
+        : paidAt,
     OrderId: order?.id ?? null,
     ExpenseId: expense?.id ?? null,
   };
