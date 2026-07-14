@@ -213,13 +213,63 @@ describe('server/graphql/v2/query/SearchQuery', () => {
     // Hidden account
     await fakeCollective({ name: 'HideMePlease', slug: 'hide-me-please', data: { hideFromSearch: true } });
 
-    // To test slug prioritization over name
-    await fakeCollective({ name: 'a-prioritized-unique-name-or-slug', slug: 'whatever' });
-    await fakeCollective({ name: 'whatever', slug: 'a-prioritized-unique-name-or-slug' });
+    // To test slug prioritization over name (opaque tokens avoid accidental matches from word_delimiter)
+    await fakeCollective({ name: 'zslugpriority-xywtest-abcdef', slug: 'other-slug-priority' });
+    await fakeCollective({ name: 'other-name-priority', slug: 'zslugpriority-xywtest-abcdef' });
 
     // To test name prioritization over description
     await fakeCollective({ name: 'frank zappa', description: 'whatever' });
     await fakeCollective({ name: 'whatever', description: 'the legendary artist frank zappa' });
+
+    // To test phrase match over scattered tokens
+    await fakeCollective({
+      name: 'Bossa Nova Collective',
+      slug: 'bossa-nova-collective-phrase',
+      description: 'A music collective',
+    });
+    await fakeCollective({
+      name: 'Scattered Tokens Collective',
+      slug: 'scattered-tokens-collective',
+      description: 'We love Bossa music and Nova sounds',
+    });
+
+    // To test exact name.keyword over partial name match
+    await fakeCollective({ name: 'ExactNameMatchTarget', slug: 'exact-name-match-target' });
+    await fakeCollective({ name: 'ExactNameMatchTarget Plus Extra', slug: 'exact-name-match-target-plus' });
+
+    // To test trust-based ranking
+    await fakeCollective({
+      name: 'TrustRankingSharedName',
+      slug: 'trust-ranking-untrusted',
+      data: {},
+    });
+    await fakeCollective({
+      name: 'TrustRankingSharedName',
+      slug: 'trust-ranking-trusted',
+      data: { isTrustedHost: true },
+    });
+    await fakeCollective({
+      name: 'TrustTierSharedName',
+      slug: 'trust-tier-verified',
+      data: { isVerified: true },
+    });
+    await fakeCollective({
+      name: 'TrustTierSharedName',
+      slug: 'trust-tier-trusted',
+      data: { isTrustedHost: true },
+    });
+    await fakeCollective({
+      name: 'TrustTierSharedName',
+      slug: 'trust-tier-first-party',
+      data: { isFirstPartyHost: true },
+    });
+
+    // To test untrusted zero-member matches are still returned
+    await fakeCollective({
+      name: 'UntrustedZeroMemberMatch',
+      slug: 'untrusted-zero-member-match',
+      data: {},
+    });
 
     // An expense
     const expense = await fakeExpense({
@@ -443,15 +493,15 @@ describe('server/graphql/v2/query/SearchQuery', () => {
 
           expect(results.accounts.highlights).to.have.property(idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT));
           const hostMatch = results.accounts.highlights[idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT)];
-          expect(hostMatch.score).to.be.within(0.5, 2);
+          expect(hostMatch.score).to.be.gt(0);
           expect(hostMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Host']);
           const collectiveMatch = results.accounts.highlights[idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT)];
-          expect(collectiveMatch.score).to.be.within(0.5, 2);
+          expect(collectiveMatch.score).to.be.gt(0);
           expect(collectiveMatch.fields.name).to.deep.eq([
             '<mark>Incredible</mark> Collective with AUniqueCollectiveName',
           ]);
           const projectMatch = results.accounts.highlights[idEncode(project.id, IDENTIFIER_TYPES.ACCOUNT)];
-          expect(projectMatch.score).to.be.within(0.5, 2);
+          expect(projectMatch.score).to.be.gt(0);
           expect(projectMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Project']);
 
           expect(results.comments).to.be.undefined;
@@ -510,16 +560,16 @@ describe('server/graphql/v2/query/SearchQuery', () => {
         }
       });
 
-      describe('weights', () => {
+      describe('ranking', () => {
         it('should prioritize the slug over the name', async () => {
-          const queryResult = await callSearchQuery('a-prioritized-unique-name-or-slug', { includeAccounts: true });
+          const queryResult = await callSearchQuery('zslugpriority-xywtest-abcdef', { includeAccounts: true });
           queryResult.errors && console.error(queryResult.errors);
 
           expect(queryResult.errors).to.be.undefined;
           expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(2);
           const [first, second] = queryResult.data.search.results.accounts.collection.nodes;
-          expect(first.slug).to.eq('a-prioritized-unique-name-or-slug');
-          expect(second.slug).to.eq('whatever');
+          expect(first.slug).to.eq('zslugpriority-xywtest-abcdef');
+          expect(second.slug).to.eq('other-slug-priority');
 
           const highlights = queryResult.data.search.results.accounts.highlights;
           const firstScore = highlights[first.id].score;
@@ -541,6 +591,75 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           const firstScore = highlights[first.id].score;
           const secondScore = highlights[second.id].score;
           expect(firstScore).to.be.gt(secondScore);
+        });
+
+        it('should prioritize phrase matches over scattered tokens', async () => {
+          const queryResult = await callSearchQuery('Bossa Nova', { includeAccounts: true });
+          queryResult.errors && console.error(queryResult.errors);
+
+          expect(queryResult.errors).to.be.undefined;
+          expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(2);
+          const [first, second] = queryResult.data.search.results.accounts.collection.nodes;
+          expect(first.slug).to.eq('bossa-nova-collective-phrase');
+          expect(second.slug).to.eq('scattered-tokens-collective');
+
+          const highlights = queryResult.data.search.results.accounts.highlights;
+          expect(highlights[first.id].score).to.be.gt(highlights[second.id].score);
+        });
+
+        it('should prioritize exact name matches over partial name matches', async () => {
+          const queryResult = await callSearchQuery('ExactNameMatchTarget', { includeAccounts: true });
+          queryResult.errors && console.error(queryResult.errors);
+
+          expect(queryResult.errors).to.be.undefined;
+          expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(2);
+          const [first, second] = queryResult.data.search.results.accounts.collection.nodes;
+          expect(first.slug).to.eq('exact-name-match-target');
+          expect(second.slug).to.eq('exact-name-match-target-plus');
+
+          const highlights = queryResult.data.search.results.accounts.highlights;
+          expect(highlights[first.id].score).to.be.gt(highlights[second.id].score);
+        });
+
+        it('should rank trusted hosts above untrusted hosts with the same text match', async () => {
+          const queryResult = await callSearchQuery('TrustRankingSharedName', { includeAccounts: true });
+          queryResult.errors && console.error(queryResult.errors);
+
+          expect(queryResult.errors).to.be.undefined;
+          expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(2);
+          const [first, second] = queryResult.data.search.results.accounts.collection.nodes;
+          expect(first.slug).to.eq('trust-ranking-trusted');
+          expect(second.slug).to.eq('trust-ranking-untrusted');
+
+          const highlights = queryResult.data.search.results.accounts.highlights;
+          expect(highlights[first.id].score).to.be.gt(highlights[second.id].score);
+        });
+
+        it('should rank first-party hosts above trusted and verified hosts', async () => {
+          const queryResult = await callSearchQuery('TrustTierSharedName', { includeAccounts: true });
+          queryResult.errors && console.error(queryResult.errors);
+
+          expect(queryResult.errors).to.be.undefined;
+          expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(3);
+          const [first, second, third] = queryResult.data.search.results.accounts.collection.nodes;
+          expect(first.slug).to.eq('trust-tier-first-party');
+          expect(second.slug).to.eq('trust-tier-trusted');
+          expect(third.slug).to.eq('trust-tier-verified');
+
+          const highlights = queryResult.data.search.results.accounts.highlights;
+          expect(highlights[first.id].score).to.be.gt(highlights[second.id].score);
+          expect(highlights[second.id].score).to.be.gt(highlights[third.id].score);
+        });
+
+        it('should still return untrusted zero-member matches', async () => {
+          const queryResult = await callSearchQuery('UntrustedZeroMemberMatch', { includeAccounts: true });
+          queryResult.errors && console.error(queryResult.errors);
+
+          expect(queryResult.errors).to.be.undefined;
+          expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(1);
+          expect(queryResult.data.search.results.accounts.collection.nodes[0].slug).to.eq(
+            'untrusted-zero-member-match',
+          );
         });
       });
 

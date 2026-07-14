@@ -14,6 +14,7 @@ import { OpenSearchModelsAdapters } from './adapters';
 import { getOpenSearchClient } from './client';
 import { formatIndexNameForOpenSearch } from './common';
 import { OpenSearchIndexName, OpenSearchIndexParams } from './constants';
+import { buildPrivateFieldShouldClauses, buildTextShouldClauses, wrapIndexTextQuery } from './query-builder';
 
 /**
  * Enforce some conditions to match only entities that are related to this account or host.
@@ -68,14 +69,6 @@ const isSearchableField = (adapter, field) => {
   return adapter.weights[field] !== 0 && ['keyword', 'text'].includes(adapter.mappings.properties[field].type);
 };
 
-const addWeightToField = (adapter: OpenSearchModelAdapter, field: string): string => {
-  if (adapter.weights[field] === 1 || adapter.weights[field] === undefined) {
-    return field;
-  } else {
-    return `${field}^${adapter.weights[field]}`;
-  }
-};
-
 const getIndexPermissions = (
   adapter: OpenSearchModelAdapter,
   adminOfAccountIds: number[],
@@ -91,7 +84,7 @@ const getIndexPermissions = (
   }
 };
 
-const buildQuery = (
+export const buildQuery = (
   searchTerm: string,
   indexes: OpenSearchIndexRequest[],
   remoteUser: User | null,
@@ -134,45 +127,32 @@ const buildQuery = (
         searchableFields.forEach(field => searchedFields.add(field));
         fetchedIndexes.add(index);
 
-        // Build the query for this index
-        return [
-          // Public fields
-          {
-            bool: {
-              filter: [
-                { term: { _index: formatIndexNameForOpenSearch(index) } },
-                ...(permissions.default === 'PUBLIC' ? [] : [permissions.default]),
-                ...getIndexConditions(index, indexParams),
-              ],
-              minimum_should_match: 1,
-              should: [
-                // Search in all public text fields with fuzzy match
-                {
-                  multi_match: {
-                    query: searchTerm,
-                    type: 'best_fields',
-                    operator: 'or',
-                    fuzziness: 'AUTO',
-                    fields: publicFields.map(field => addWeightToField(adapter, field)),
-                  },
-                },
-                // Search in private fields
-                ...Object.entries(permissions['fields'] || {})
-                  .filter(([, conditions]) => conditions !== 'FORBIDDEN')
-                  .map(([field, conditions]) => {
-                    return {
-                      bool: {
-                        filter: conditions as QueryContainer[],
-                        must: [
-                          { match: { [field]: { query: searchTerm, fuzziness: 'AUTO' } } }, // TODO: Should add field weight here, but it doesn't work with "must" (only "should")
-                        ],
-                      },
-                    } satisfies QueryContainer;
-                  }),
-              ],
-            },
+        const textShouldClauses = buildTextShouldClauses(adapter, searchTerm, publicFields);
+        const privateFieldClauses = Object.entries(permissions['fields'] || {})
+          .filter(([, conditions]) => conditions !== 'FORBIDDEN')
+          .map(([field, conditions]) => {
+            return {
+              bool: {
+                filter: conditions as QueryContainer[],
+                minimum_should_match: 1,
+                should: buildPrivateFieldShouldClauses(adapter, searchTerm, field),
+              },
+            } satisfies QueryContainer;
+          });
+
+        const textQuery = {
+          bool: {
+            filter: [
+              { term: { _index: formatIndexNameForOpenSearch(index) } },
+              ...(permissions.default === 'PUBLIC' ? [] : [permissions.default]),
+              ...getIndexConditions(index, indexParams),
+            ] as QueryContainer[],
+            minimum_should_match: 1,
+            should: [...textShouldClauses, ...privateFieldClauses],
           },
-        ] as QueryContainer[];
+        } satisfies QueryContainer;
+
+        return [wrapIndexTextQuery(index, textQuery)] as QueryContainer[];
       }),
     },
     /* eslint-enable camelcase */

@@ -32,10 +32,10 @@ export class OpenSearchTiersAdapter implements OpenSearchModelAdapter {
   }
 
   public readonly weights: Partial<Record<keyof (typeof this.mappings)['properties'], OpenSearchFieldWeight>> = {
-    description: 5,
+    slug: 10,
     name: 5,
-    longDescription: 5,
-    slug: 7,
+    description: 2,
+    longDescription: 1,
     id: 1,
     // Ignored fields
     CollectiveId: 0,
