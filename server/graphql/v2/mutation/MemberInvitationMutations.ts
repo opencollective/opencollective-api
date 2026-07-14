@@ -8,12 +8,13 @@ import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
+import { stripHTML } from '../../../lib/sanitize-html';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { BadRequest, Forbidden, Unauthorized } from '../../errors';
+import { BadRequest, Forbidden, NotFound, Unauthorized } from '../../errors';
 import { GraphQLMemberRole } from '../enum';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
@@ -24,6 +25,31 @@ import {
 import { GraphQLMemberInvitation } from '../object/MemberInvitation';
 
 const INVITABLE_ROLES = [roles.ADMIN, roles.ACCOUNTANT, roles.COMMUNITY_MANAGER, roles.MEMBER];
+
+/**
+ * Returns true if the remote user is an admin of the fiscal host of `account`,
+ * the collective is actively hosted (approvedAt + isActive), and the collective
+ * currently has zero admin members.  This is the condition that allows a host
+ * admin to manage invitations before any collective admin has accepted.
+ */
+async function isFiscalHostAdminWithNoCollectiveAdmins(
+  req: express.Request,
+  account: InstanceType<typeof models.Collective>,
+): Promise<boolean> {
+  if (!account.approvedAt || !account.isActive || !account.HostCollectiveId) {
+    return false;
+  }
+  if (!req.remoteUser?.isAdmin(account.HostCollectiveId)) {
+    return false;
+  }
+  const adminCount = await models.Member.count({
+    where: {
+      CollectiveId: account.ParentCollectiveId || account.id,
+      role: MemberRoles.ADMIN,
+    },
+  });
+  return adminCount === 0;
+}
 
 const memberInvitationMutations = {
   inviteMember: {
@@ -48,6 +74,16 @@ const memberInvitationMutations = {
       since: {
         type: GraphQLDateTime,
       },
+      privateNote: {
+        type: GraphQLString,
+        description: 'Optional private note included in the invitation email sent to the invitee.',
+      },
+      isNewUser: {
+        type: GraphQLBoolean,
+        description:
+          'When true, the invited user account was just created from the invite form. The invitee will be required to complete their profile before accepting the invitation.',
+        defaultValue: false,
+      },
     },
     async resolve(_, args, req) {
       checkRemoteUserCanUseAccount(req);
@@ -57,7 +93,9 @@ const memberInvitationMutations = {
       memberAccount = await fetchAccountWithReference(memberAccount, { throwIfMissing: true });
       account = await fetchAccountWithReference(account, { throwIfMissing: true });
 
-      if (!req.remoteUser.isAdminOfCollective(account)) {
+      const isCollectiveAdmin = req.remoteUser.isAdminOfCollective(account);
+      const isHostAdminNoAdmins = !isCollectiveAdmin && (await isFiscalHostAdminWithNoCollectiveAdmins(req, account));
+      if (!isCollectiveAdmin && !isHostAdminNoAdmins) {
         throw new Unauthorized('Only admins can send an invitation.');
       } else if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(args.role)) {
         throw new Forbidden('You can only invite accountants, admins, or members.');
@@ -73,8 +111,14 @@ const memberInvitationMutations = {
         CreatedByUserId: req.remoteUser.id,
       };
 
+      // Sanitize private note (strip any HTML, preserve line breaks)
+      const privateNote = args.privateNote ? stripHTML(args.privateNote).trim() : null;
+
       // Invite member
-      return models.MemberInvitation.invite(account, memberParams);
+      return models.MemberInvitation.invite(account, memberParams, {
+        privateNote: privateNote,
+        isNewUser: args.isNewUser || memberAccount.data?.requiresProfileCompletion,
+      });
     },
   },
   inviteMembers: {
@@ -101,7 +145,10 @@ const memberInvitationMutations = {
       if (account.type === CollectiveType.USER) {
         throw new Forbidden('You can only invite admins to an Organization or a Collective.');
       }
-      if (!req.remoteUser.isAdminOfCollective(account)) {
+      if (
+        !req.remoteUser.isAdminOfCollective(account) &&
+        !(await isFiscalHostAdminWithNoCollectiveAdmins(req, account))
+      ) {
         throw new Forbidden('You need to be an Admin of the provided account in order to invite members.');
       }
 
@@ -110,6 +157,7 @@ const memberInvitationMutations = {
       return await processInviteMembersInput(account, args.members, {
         supportedRoles: INVITABLE_ROLES,
         user: req.remoteUser,
+        isPrivate: account.isPrivate,
       });
     },
   },
@@ -144,7 +192,10 @@ const memberInvitationMutations = {
       memberAccount = await fetchAccountWithReference(memberAccount, { throwIfMissing: true });
       account = await fetchAccountWithReference(account, { throwIfMissing: true });
 
-      if (!req.remoteUser.isAdminOfCollective(account)) {
+      if (
+        !req.remoteUser.isAdminOfCollective(account) &&
+        !(await isFiscalHostAdminWithNoCollectiveAdmins(req, account))
+      ) {
         throw new Unauthorized('Only admins can edit members.');
       }
 
@@ -166,6 +217,64 @@ const memberInvitationMutations = {
       });
 
       return invitations[0];
+    },
+  },
+  cancelMemberInvitation: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Cancel a pending member invitation. Scope: "account".',
+    args: {
+      invitation: {
+        type: GraphQLMemberInvitationReferenceInput,
+        description: 'Reference to the invitation to cancel (by id or legacyId)',
+      },
+      memberAccount: {
+        type: GraphQLAccountReferenceInput,
+        description: 'Reference to the invited account. Must be combined with account (and optionally role).',
+      },
+      account: {
+        type: GraphQLAccountReferenceInput,
+        description: 'Reference to the collective the invitation belongs to. Must be combined with memberAccount.',
+      },
+      role: {
+        type: GraphQLMemberRole,
+        description:
+          'Role of the invitation to cancel. Used to disambiguate when combined with account and memberAccount.',
+      },
+    },
+    async resolve(_, args, req) {
+      checkRemoteUserCanUseAccount(req);
+
+      let invitation;
+      let account;
+
+      if (args.invitation) {
+        invitation = await fetchMemberInvitationWithReference(args.invitation, { throwIfMissing: true });
+        account = await invitation.getCollective();
+      } else if (args.account && args.memberAccount) {
+        account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+        const memberAccount = await fetchAccountWithReference(args.memberAccount, { throwIfMissing: true });
+        const where: Record<string, unknown> = { CollectiveId: account.id, MemberCollectiveId: memberAccount.id };
+        if (args.role) {
+          where.role = args.role;
+        }
+        invitation = await models.MemberInvitation.findOne({ where });
+        if (!invitation) {
+          throw new NotFound('MemberInvitation Not Found');
+        }
+      } else {
+        throw new BadRequest('Please provide either an invitation reference or both account and memberAccount.');
+      }
+
+      if (
+        !req.remoteUser.isAdminOfCollective(account) &&
+        !(await isFiscalHostAdminWithNoCollectiveAdmins(req, account))
+      ) {
+        throw new Forbidden('Only admins can cancel an invitation.');
+      }
+
+      await twoFactorAuthLib.enforceForAccount(req, account);
+      await invitation.destroy();
+      return true;
     },
   },
   replyToMemberInvitation: {

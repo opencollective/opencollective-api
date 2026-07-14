@@ -94,7 +94,7 @@ export default {
         return collectiveIds.map(() => false);
       }
 
-      let administratedMembers = [];
+      let administratedMembers: { MemberCollectiveId: number }[] = [];
 
       // Aggregates all the profiles linked to users
       const uniqueCollectiveIds = uniq(collectiveIds.filter(Boolean));
@@ -198,6 +198,8 @@ export default {
    * - the remote user has ADMIN or ACCOUNTANT role on the account itself
    * - the remote user has ADMIN or ACCOUNTANT role on the account's fiscal host
    * - the account is a fiscal host and the remote user has ADMIN or ACCOUNTANT role on any of its hosted accounts
+   * - the remote user has been invited as ADMIN or ACCOUNTANT to the account
+   * - the account IS the remote user itself (i.e. the user is trying to access their own private account)
    */
   canSeePrivateAccount: (req: express.Request): DataLoader<number, boolean> => {
     return new DataLoader(async (collectiveIds: number[]) => {
@@ -223,9 +225,28 @@ export default {
       // Build a set of collective IDs where remoteUser has ADMIN or ACCOUNTANT role
       const privilegedCollectiveIds = remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts);
 
-      // No admin/accountant roles => can only see non-private accounts
-      if (privilegedCollectiveIds.size === 0) {
-        return collectiveIds.map(id => !accountMap.get(id)?.isPrivate);
+      // Check invitations to the private accounts
+      const canSeeAsInvitedMember = new Set<number>();
+      const invitedMembers = await models.MemberInvitation.findAll({
+        attributes: ['CollectiveId'],
+        where: {
+          CollectiveId: privateAccountIds,
+          role: Array.from(MemberRolesForPrivateAccounts),
+          MemberCollectiveId: remoteUser.CollectiveId,
+        },
+        raw: true,
+        group: ['CollectiveId'],
+      });
+
+      for (const row of invitedMembers) {
+        canSeeAsInvitedMember.add(row.CollectiveId);
+      }
+
+      // No admin/accountant roles => can only see non-private accounts. privilegedCollectiveIds normally contains the user's own collective ID.
+      if (privilegedCollectiveIds.size <= 1) {
+        return collectiveIds.map(
+          id => !accountMap.get(id)?.isPrivate || canSeeAsInvitedMember.has(id) || id === remoteUser.CollectiveId,
+        );
       }
 
       // For each private account, check if the user has ADMIN or ACCOUNTANT on the account itself,
@@ -236,7 +257,8 @@ export default {
           return (
             privilegedCollectiveIds.has(id) ||
             (account?.HostCollectiveId && privilegedCollectiveIds.has(account.HostCollectiveId)) ||
-            (account?.ParentCollectiveId && privilegedCollectiveIds.has(account.ParentCollectiveId))
+            (account?.ParentCollectiveId && privilegedCollectiveIds.has(account.ParentCollectiveId)) ||
+            canSeeAsInvitedMember.has(id)
           );
         }),
       );

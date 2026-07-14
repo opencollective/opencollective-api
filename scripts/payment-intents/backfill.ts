@@ -5,8 +5,11 @@
  *   # Dry run (default)
  *   npx ts-node scripts/payment-intents/backfill.ts
  *
- *   # Apply all phases
+ *   # Apply all phases (parallelised — defaults to concurrency 8)
  *   DRY_RUN=false npx ts-node scripts/payment-intents/backfill.ts
+ *
+ *   # Tune parallelism
+ *   DRY_RUN=false npx ts-node scripts/payment-intents/backfill.ts --concurrency 8
  *
  *   # Resume / partial
  *   DRY_RUN=false npx ts-node scripts/payment-intents/backfill.ts --phase ledger --after-id 500000 --limit 10000
@@ -41,6 +44,7 @@ const main = async (): Promise<void> => {
   program
     .option('--limit <n>', 'Max records per phase', parseInt)
     .option('--after-id <n>', 'Resume cursor (id > after-id)', parseInt)
+    .option('--concurrency <n>', 'Records processed in parallel per page', v => parseInt(v, 10), 8)
     .option('--phase <name>', 'ledger | pending-orders | pending-expenses | all', 'all')
     .option('--order-ids <ids>', 'Comma-separated order IDs')
     .option('--expense-ids <ids>', 'Comma-separated expense IDs')
@@ -75,6 +79,7 @@ const main = async (): Promise<void> => {
     dryRun,
     limit: options.limit,
     afterId: options.afterId,
+    concurrency: options.concurrency,
     orderIds: parseList(options.orderIds, true) as number[] | undefined,
     expenseIds: parseList(options.expenseIds, true) as number[] | undefined,
     hostIds,
@@ -90,7 +95,7 @@ if (!module.parent) {
   main()
     .then(() => process.exit())
     .catch(error => {
-      logger.error(error);
+      logger.error(`Backfill failed: ${error?.stack || error?.message || JSON.stringify(error) || error}`);
       process.exit(1);
     });
 }
