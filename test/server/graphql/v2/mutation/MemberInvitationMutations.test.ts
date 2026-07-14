@@ -9,7 +9,13 @@ import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
-import { fakeCollective, fakeMemberInvitation, fakeOrganization, fakeUser } from '../../../../test-helpers/fake-data';
+import {
+  fakeActiveHost,
+  fakeCollective,
+  fakeMemberInvitation,
+  fakeOrganization,
+  fakeUser,
+} from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 let collectiveAdminUser, collective;
@@ -37,6 +43,7 @@ describe('MemberInvitationMutations', () => {
       $role: MemberRole!
       $description: String
       $since: DateTime
+      $privateNote: String
     ) {
       inviteMember(
         memberAccount: $memberAccount
@@ -44,6 +51,7 @@ describe('MemberInvitationMutations', () => {
         role: $role
         description: $description
         since: $since
+        privateNote: $privateNote
       ) {
         id
         role
@@ -87,6 +95,44 @@ describe('MemberInvitationMutations', () => {
       expect(sendEmailSpy.args[0][1]).to.equal('Invitation to join webpack test collective on Open Collective');
     });
 
+    it('attaches a sanitized private note to the invitation email activity', async () => {
+      const randomUserToInvite = await fakeUser();
+      const result = await utils.graphqlQueryV2(
+        inviteMemberMutation,
+        {
+          memberAccount: { id: idEncode(randomUserToInvite.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          role: roles.MEMBER,
+          privateNote: '<script>alert(1)</script>Hi there!\nWelcome aboard.',
+        },
+        collectiveAdminUser,
+      );
+      await utils.waitForCondition(() => sendEmailSpy.callCount);
+
+      expect(result.errors).to.not.exist;
+
+      const emailActivity = await models.Activity.findOne({
+        where: {
+          type: ActivityTypes.COLLECTIVE_MEMBER_INVITED,
+          CollectiveId: collective.id,
+          FromCollectiveId: randomUserToInvite.collective.id,
+        },
+      });
+      expect(emailActivity).to.exist;
+      expect(emailActivity.data.privateNote).to.equal('Hi there!\nWelcome aboard.');
+
+      // Ensure the note is NOT persisted on the MemberInvitation record
+      const invitation = await models.MemberInvitation.findOne({
+        where: { CollectiveId: collective.id, MemberCollectiveId: randomUserToInvite.collective.id },
+      });
+      expect(invitation).to.exist;
+      expect(invitation).to.not.have.property('privateNote');
+      // Ensure the email was actually sent and contains the note
+      expect(sendEmailSpy.callCount).to.equal(1);
+      expect(sendEmailSpy.args[0][2]).to.include('Hi there!');
+      expect(sendEmailSpy.args[0][2]).to.not.include('<script>');
+    });
+
     it('must be authenticated as an admin of the collective', async () => {
       const randomUser = await fakeUser();
       const anotherRandomUser = await fakeUser();
@@ -102,6 +148,53 @@ describe('MemberInvitationMutations', () => {
         randomUser,
       );
       expect(sendEmailSpy.callCount).to.equal(0);
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('Only admins can send an invitation.');
+    });
+
+    it('allows a fiscal host admin to invite a member when the collective has no admins', async () => {
+      const hostAdminUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdminUser });
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, admin: null });
+      // Remove any auto-created admin member so the collective truly has no admins
+      await models.Member.destroy({ where: { CollectiveId: hostedCollective.id, role: roles.ADMIN } });
+      const userToInvite = await fakeUser();
+
+      const result = await utils.graphqlQueryV2(
+        inviteMemberMutation,
+        {
+          memberAccount: { id: idEncode(userToInvite.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(hostedCollective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          description: 'invited by host admin',
+          role: roles.ADMIN,
+          since: new Date('01 January 2022').toISOString(),
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.inviteMember.role).to.equal(roles.ADMIN);
+    });
+
+    it('does not allow a fiscal host admin to invite a member when the collective already has an admin', async () => {
+      const hostAdminUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdminUser });
+      const existingAdminUser = await fakeUser();
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, admin: existingAdminUser });
+      const userToInvite = await fakeUser();
+
+      const result = await utils.graphqlQueryV2(
+        inviteMemberMutation,
+        {
+          memberAccount: { id: idEncode(userToInvite.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(hostedCollective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          description: 'should be blocked',
+          role: roles.ADMIN,
+          since: new Date('01 January 2022').toISOString(),
+        },
+        hostAdminUser,
+      );
+
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal('Only admins can send an invitation.');
     });
@@ -257,6 +350,60 @@ describe('MemberInvitationMutations', () => {
       expect(result.errors[0].message).to.equal('You can only invite admins to an Organization or a Collective.');
     });
 
+    it('allows a fiscal host admin to invite members when the collective has no admins', async () => {
+      const hostAdminUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdminUser });
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, admin: null });
+      await models.Member.destroy({ where: { CollectiveId: hostedCollective.id, role: roles.ADMIN } });
+      const userToInvite = await fakeUser();
+
+      const result = await utils.graphqlQueryV2(
+        inviteMembersMutation,
+        {
+          account: { id: idEncode(hostedCollective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          members: [
+            {
+              memberAccount: { id: idEncode(userToInvite.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+              role: roles.ADMIN,
+              description: 'host-invited admin',
+            },
+          ],
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.inviteMembers).to.have.length(1);
+      expect(result.data.inviteMembers[0].role).to.equal(roles.ADMIN);
+    });
+
+    it('does not allow a fiscal host admin to invite members when the collective already has an admin', async () => {
+      const hostAdminUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdminUser });
+      const existingAdminUser = await fakeUser();
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, admin: existingAdminUser });
+      const userToInvite = await fakeUser();
+
+      const result = await utils.graphqlQueryV2(
+        inviteMembersMutation,
+        {
+          account: { id: idEncode(hostedCollective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          members: [
+            {
+              memberAccount: { id: idEncode(userToInvite.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+              role: roles.ADMIN,
+            },
+          ],
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal(
+        'You need to be an Admin of the provided account in order to invite members.',
+      );
+    });
+
     it('must be authenticated as an admin of the account', async () => {
       const organization = await fakeOrganization({ admin: collectiveAdminUser });
       const randomUser = await fakeUser();
@@ -348,6 +495,34 @@ describe('MemberInvitationMutations', () => {
       expect(sendEmailSpy.args[0][0]).to.equal(newUserEmail);
       sendEmailSpy.resetHistory();
     });
+
+    it('should create a new user with a private profile when inviting via memberInfo to a private collective', async () => {
+      const privateCollective = await fakeCollective({ admin: collectiveAdminUser, isPrivate: true });
+      const newUserEmail = 'private-profile-invitee@oc-example.com';
+
+      const result = await utils.graphqlQueryV2(
+        inviteMembersMutation,
+        {
+          account: { id: idEncode(privateCollective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          members: [
+            {
+              memberInfo: { email: newUserEmail, name: 'Private Profile User' },
+              role: roles.ADMIN,
+              description: 'Admin invited to private collective',
+            },
+          ],
+        },
+        collectiveAdminUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const user = await models.User.findOne({ where: { email: newUserEmail } });
+      expect(user).to.exist;
+      const userCollective = await models.Collective.findByPk(user.CollectiveId);
+      expect(userCollective.isPrivate).to.be.true;
+    });
   });
 
   describe('editMemberInvitation', async () => {
@@ -426,6 +601,57 @@ describe('MemberInvitationMutations', () => {
       }
     });
 
+    it('allows a fiscal host admin to edit an invitation when the collective has no admins', async () => {
+      const hostAdminUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdminUser });
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, admin: null });
+      await models.Member.destroy({ where: { CollectiveId: hostedCollective.id, role: roles.ADMIN } });
+      const pendingInvitation = await fakeMemberInvitation({
+        CollectiveId: hostedCollective.id,
+        role: roles.MEMBER,
+        description: 'original description',
+      });
+
+      const result = await utils.graphqlQueryV2(
+        editMemberInvitationMutation,
+        {
+          memberAccount: { id: idEncode(pendingInvitation.MemberCollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(hostedCollective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          description: 'updated by host admin',
+          role: roles.ADMIN,
+          since: new Date('01 January 2022').toISOString(),
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editMemberInvitation.role).to.equal(roles.ADMIN);
+      expect(result.data.editMemberInvitation.description).to.equal('updated by host admin');
+    });
+
+    it('does not allow a fiscal host admin to edit an invitation when the collective already has an admin', async () => {
+      const hostAdminUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdminUser });
+      const existingAdminUser = await fakeUser();
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, admin: existingAdminUser });
+      const pendingInvitation = await fakeMemberInvitation({ CollectiveId: hostedCollective.id, role: roles.MEMBER });
+
+      const result = await utils.graphqlQueryV2(
+        editMemberInvitationMutation,
+        {
+          memberAccount: { id: idEncode(pendingInvitation.MemberCollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(hostedCollective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          description: 'should be blocked',
+          role: roles.ADMIN,
+          since: new Date('01 January 2022').toISOString(),
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('Only admins can edit members.');
+    });
+
     it('can only update role to accountant, admin or member', async () => {
       const validRoles = [roles.ADMIN, roles.MEMBER, roles.ACCOUNTANT, roles.COMMUNITY_MANAGER];
       for (const role of validRoles) {
@@ -467,6 +693,163 @@ describe('MemberInvitationMutations', () => {
           'You can only edit accountants, admins, members, or community managers.',
         );
       }
+    });
+  });
+
+  describe('cancelMemberInvitation', () => {
+    const cancelByInvitationIdMutation = gql`
+      mutation CancelMemberInvitationById($invitation: MemberInvitationReferenceInput!) {
+        cancelMemberInvitation(invitation: $invitation)
+      }
+    `;
+
+    const cancelByAccountMutation = gql`
+      mutation CancelMemberInvitationByAccount(
+        $account: AccountReferenceInput!
+        $memberAccount: AccountReferenceInput!
+        $role: MemberRole
+      ) {
+        cancelMemberInvitation(account: $account, memberAccount: $memberAccount, role: $role)
+      }
+    `;
+
+    it('allows a collective admin to cancel an invitation by id', async () => {
+      const invitation = await fakeMemberInvitation({ CollectiveId: collective.id, role: roles.MEMBER });
+      const result = await utils.graphqlQueryV2(
+        cancelByInvitationIdMutation,
+        { invitation: { id: idEncode(invitation.id, IDENTIFIER_TYPES.MEMBER_INVITATION) } },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.cancelMemberInvitation).to.equal(true);
+      expect(await models.MemberInvitation.findByPk(invitation.id)).to.be.null;
+    });
+
+    it('allows a collective admin to cancel an invitation by account + memberAccount + role', async () => {
+      const invitedUser = await fakeUser();
+      const invitation = await fakeMemberInvitation({
+        CollectiveId: collective.id,
+        MemberCollectiveId: invitedUser.collective.id,
+        role: roles.MEMBER,
+      });
+      const result = await utils.graphqlQueryV2(
+        cancelByAccountMutation,
+        {
+          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          memberAccount: { id: idEncode(invitedUser.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          role: roles.MEMBER,
+        },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.cancelMemberInvitation).to.equal(true);
+      expect(await models.MemberInvitation.findByPk(invitation.id)).to.be.null;
+    });
+
+    it('allows a collective admin to cancel an invitation by account + memberAccount without role', async () => {
+      const invitedUser = await fakeUser();
+      const invitation = await fakeMemberInvitation({
+        CollectiveId: collective.id,
+        MemberCollectiveId: invitedUser.collective.id,
+        role: roles.ADMIN,
+      });
+      const result = await utils.graphqlQueryV2(
+        cancelByAccountMutation,
+        {
+          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          memberAccount: { id: idEncode(invitedUser.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+        },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.cancelMemberInvitation).to.equal(true);
+      expect(await models.MemberInvitation.findByPk(invitation.id)).to.be.null;
+    });
+
+    it('allows a fiscal host admin to cancel an invitation when the collective has no admins', async () => {
+      const hostAdminUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdminUser });
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, admin: null });
+      await models.Member.destroy({ where: { CollectiveId: hostedCollective.id, role: roles.ADMIN } });
+      const invitedUser = await fakeUser();
+      const invitation = await fakeMemberInvitation({
+        CollectiveId: hostedCollective.id,
+        MemberCollectiveId: invitedUser.collective.id,
+        role: roles.ADMIN,
+      });
+
+      const result = await utils.graphqlQueryV2(
+        cancelByAccountMutation,
+        {
+          account: { id: idEncode(hostedCollective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          memberAccount: { id: idEncode(invitedUser.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          role: roles.ADMIN,
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.cancelMemberInvitation).to.equal(true);
+      expect(await models.MemberInvitation.findByPk(invitation.id)).to.be.null;
+    });
+
+    it('does not allow a fiscal host admin to cancel an invitation when the collective already has an admin', async () => {
+      const hostAdminUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdminUser });
+      const existingAdminUser = await fakeUser();
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, admin: existingAdminUser });
+      const invitation = await fakeMemberInvitation({ CollectiveId: hostedCollective.id, role: roles.ADMIN });
+
+      const result = await utils.graphqlQueryV2(
+        cancelByInvitationIdMutation,
+        { invitation: { id: idEncode(invitation.id, IDENTIFIER_TYPES.MEMBER_INVITATION) } },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('Only admins can cancel an invitation.');
+    });
+
+    it('does not allow a random user to cancel an invitation', async () => {
+      const invitation = await fakeMemberInvitation({ CollectiveId: collective.id, role: roles.MEMBER });
+      const randomUser = await fakeUser();
+
+      const result = await utils.graphqlQueryV2(
+        cancelByInvitationIdMutation,
+        { invitation: { id: idEncode(invitation.id, IDENTIFIER_TYPES.MEMBER_INVITATION) } },
+        randomUser,
+      );
+
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('Only admins can cancel an invitation.');
+    });
+
+    it('requires authentication', async () => {
+      const invitation = await fakeMemberInvitation({ CollectiveId: collective.id, role: roles.MEMBER });
+
+      const result = await utils.graphqlQueryV2(cancelByInvitationIdMutation, {
+        invitation: { id: idEncode(invitation.id, IDENTIFIER_TYPES.MEMBER_INVITATION) },
+      });
+
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].extensions.code).to.equal('Unauthorized');
+    });
+
+    it('returns an error when neither invitation id nor account+memberAccount are provided', async () => {
+      const result = await utils.graphqlQueryV2(
+        gql`
+          mutation CancelMemberInvitationNoArgs {
+            cancelMemberInvitation
+          }
+        `,
+        {},
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.have.length(1);
     });
   });
 

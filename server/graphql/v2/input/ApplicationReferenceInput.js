@@ -31,17 +31,17 @@ export const GraphQLApplicationReferenceInput = new GraphQLInputObjectType({
  *
  * @param {object} input - id of the application
  */
-export const fetchApplicationWithReference = async (input, sequelizeOps = undefined) => {
+export const fetchApplicationWithReference = async (input, sequelizeOps = {}) => {
   let application;
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Application)) {
-    application = await models.Application.findOne({ where: { publicId: input.id } }, sequelizeOps);
+    application = await models.Application.findOne({ ...sequelizeOps, where: { publicId: input.id } });
   } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.APPLICATION);
     application = await models.Application.findByPk(id, sequelizeOps);
   } else if (input.legacyId) {
     application = await models.Application.findByPk(input.legacyId, sequelizeOps);
   } else if (input.clientId) {
-    application = await models.Application.findOne({ where: { clientId: input.clientId } }, sequelizeOps);
+    application = await models.Application.findOne({ ...sequelizeOps, where: { clientId: input.clientId } });
   } else {
     throw new Error('Please provide an id');
   }
