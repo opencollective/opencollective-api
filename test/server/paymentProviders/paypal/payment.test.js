@@ -10,7 +10,14 @@ import { stub } from 'sinon';
 import models from '../../../../server/models';
 import * as paypalPayment from '../../../../server/paymentProviders/paypal/payment';
 // import * as store from '../../../stores';
-import { fakeCollective, fakeHost, fakeOrder, fakePaymentMethod } from '../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeHost,
+  fakeOrder,
+  fakePaymentMethod,
+  fakeTransaction,
+  fakeUser,
+} from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 // const application = utils.data('application');
@@ -161,6 +168,76 @@ describe('server/paymentProviders/paypal/payment', () => {
         mockPaypalOrderDetail({ failOnOrderDetails: true });
         await expect(paypalPayment.processOrder(order)).to.be.rejectedWith('401');
         expect(authorizePaymentNock.isDone()).to.be.false; // Shouldn't call authorize
+      });
+    });
+
+    describe('#refundPaypalCapture', () => {
+      let host, collective, transaction, user;
+      const captureId = 'fake-capture-id';
+      const refundId = 'fake-refund-id';
+
+      before(async () => {
+        const secrets = { clientId: 'my-client-id', clientSecret: 'my-client-secret' };
+        const paypal = await models.ConnectedAccount.create({
+          service: 'paypal',
+          clientId: secrets.clientId,
+          token: secrets.clientSecret,
+        });
+        host = await fakeHost();
+        await host.addConnectedAccount(paypal);
+        collective = await fakeCollective({ HostCollectiveId: host.id });
+      });
+
+      beforeEach(async () => {
+        user = await fakeUser();
+        const order = await fakeOrder({ CollectiveId: collective.id });
+        transaction = await fakeTransaction(
+          {
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            OrderId: order.id,
+            amount: 1000,
+            currency: 'USD',
+            data: { paypalCaptureId: captureId },
+          },
+          { createDoubleEntry: true },
+        );
+
+        nock('https://api.sandbox.paypal.com')
+          .persist()
+          .post('/v1/oauth2/token')
+          .basicAuth({ user: 'my-client-id', pass: 'my-client-secret' })
+          .reply(200, { access_token: 'dat-token' });
+
+        nock('https://api.sandbox.paypal.com')
+          .matchHeader('Authorization', 'Bearer dat-token')
+          .post(`/v2/payments/captures/${captureId}/refund`)
+          .reply(200, { id: refundId, status: 'COMPLETED' });
+
+        nock('https://api.sandbox.paypal.com')
+          .matchHeader('Authorization', 'Bearer dat-token')
+          .get(`/v2/payments/refunds/${refundId}`)
+          .reply(200, {
+            id: refundId,
+            status: 'COMPLETED',
+            seller_payable_breakdown: { paypal_fee: { value: '0.30' } },
+          });
+      });
+
+      afterEach(() => {
+        nock.cleanAll();
+      });
+
+      it('records the refund with the new `refund`/`paypalRefundId` fields and preserves original data', async () => {
+        const refundTransaction = await paypalPayment.refundPaypalCapture(transaction, captureId, user, 'Some reason');
+
+        expect(refundTransaction).to.exist;
+        expect(refundTransaction.data.paypalRefundId).to.equal(refundId);
+        expect(refundTransaction.data.refund).to.deep.include({ id: refundId, status: 'COMPLETED' });
+        expect(refundTransaction.data.paypalResponse).to.not.exist;
+        // Original transaction data (e.g. paypalCaptureId) must be preserved on the refund transaction
+        expect(refundTransaction.data.paypalCaptureId).to.equal(captureId);
+        expect(refundTransaction.data.refundReason).to.equal('Some reason');
       });
     });
   });
