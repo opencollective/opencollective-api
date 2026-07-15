@@ -57,7 +57,14 @@ export async function editPublicMessage(
 export async function processInviteMembersInput(
   collective: Collective,
   inviteMemberInputs: [{ memberAccount?; memberInfo?; role; description?; since? }],
-  options: { skipDefaultAdmin?; transaction?; supportedRoles?: readonly string[]; user? },
+  options: {
+    skipDefaultAdmin?;
+    transaction?;
+    supportedRoles?: readonly string[];
+    user?;
+    privateNote?: string;
+    isPrivate?: boolean;
+  } = {},
 ) {
   if (inviteMemberInputs.length > 30) {
     throw new Error('You exceeded the maximum number of invitations allowed at Collective creation.');
@@ -69,7 +76,8 @@ export async function processInviteMembersInput(
       throw new Forbidden('You can only invite accountants, admins, or members.');
     }
 
-    let memberAccount;
+    let memberAccount,
+      isNewUser = false;
     if (inviteMember.memberAccount) {
       memberAccount = await fetchAccountWithReference(inviteMember.memberAccount, { throwIfMissing: true });
     } else if (inviteMember.memberInfo) {
@@ -87,8 +95,10 @@ export async function processInviteMembersInput(
           email,
           ...pick(inviteMember.memberInfo, ['name']),
           data: { requiresProfileCompletion: true },
+          isPrivate: options.isPrivate,
         };
         user = await models.User.createUserWithCollective(userData, options.transaction);
+        isNewUser = true;
       }
       memberAccount = await models.Collective.findByPk(user.CollectiveId, { transaction: options.transaction });
     } else {
@@ -103,6 +113,8 @@ export async function processInviteMembersInput(
     const invite = await models.MemberInvitation.invite(collective, memberParams, {
       transaction: options.transaction,
       skipDefaultAdmin: options.skipDefaultAdmin,
+      privateNote: options.privateNote,
+      isNewUser,
     });
     returnValue.push(invite);
   }
