@@ -332,7 +332,9 @@ describe('server/graphql/v2/query/SearchQuery', () => {
         amount: 1000,
         HostCollectiveId: host.id,
         description: 'AVeryUniqueTransactionDescription',
-        data: { capture: { id: 'AVeryUniqueTransactionCaptureId' } },
+        data: {
+          paypalCaptureId: 'AVeryUniqueTransactionCaptureId',
+        },
       },
       {
         createDoubleEntry: true,
