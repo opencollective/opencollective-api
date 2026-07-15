@@ -143,6 +143,20 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
       expect(resultAccount.isApproved).to.be.true;
     });
 
+    it('fails when the host is blocked for unpaid platform billing', async () => {
+      await host.addUserWithRole(user, roles.ADMIN);
+      await user.populateRoles();
+      await host.update({ data: { ...host.data, isBlockedForUnpaidPlatformBilling: true } });
+
+      const result = await utils.graphqlQueryV2(
+        createCollectiveMutation,
+        { collective: newCollectiveData, host: { slug: host.slug } },
+        user,
+      );
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('This action is currently unavailable for this host');
+    });
+
     it('collective created with host argument by a user that is a host admin and the host has isPrivate flag set to true', async () => {
       await host.update({ isPrivate: true });
       await host.addUserWithRole(user, roles.ADMIN);
