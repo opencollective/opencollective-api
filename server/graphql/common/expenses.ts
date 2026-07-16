@@ -745,7 +745,9 @@ export const canEditPayee: ExpensePermissionEvaluator = async (req, expense, opt
       return false;
     }
     return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
-  } else if (expense.status === ExpenseStatus.PENDING || expense.status === ExpenseStatus.APPROVED) {
+  } else if (
+    [ExpenseStatus.PENDING, ExpenseStatus.APPROVED, ExpenseStatus.INCOMPLETE].includes(expense.status as ExpenseStatus)
+  ) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
   }
 
