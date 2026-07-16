@@ -56,11 +56,11 @@ const { CONTRIBUTION, EXPENSE, ADDED_FUNDS } = TransactionKind;
 export const MERCHANT_ID_PATHS = {
   [CONTRIBUTION]: [
     'data.charge.id', // stripeId
-    'data.refund.id', // PayPal and Stripe refund ids
     'data.paypalRefundId', // Stores refund and reversal ids
     'data.paypalCaptureId', // Stores capture and sale ID
-    // 'data.capture.id', // onetimePaypalPaymentId
-    // 'data.paypalSale.id', // recurringPaypalPaymentId
+    'data.capture.id', // onetimePaypalPaymentId
+    'data.refund.id', // PayPal and Stripe refund ids
+    'data.paypalSale.id', // recurringPaypalPaymentId
     // 'data.paypalResponse.id', // legacy paypalRefundOrReversalId (kept for historical transactions)
   ],
   [EXPENSE]: [
@@ -2022,18 +2022,8 @@ Transaction.init(
       },
 
       merchantId() {
-        // Refund/reversal transactions should be matched against PayPal's own refund report using the
-        // refund's PayPal id (not the id of the original capture/sale), since that's what shows up
-        // as the merchant/transaction id on PayPal's side for the refund.
-        if (this.isRefund) {
-          const refundMerchantId =
-            get(this, 'data.paypalRefundId') ?? get(this, 'data.refund.id') ?? get(this, 'data.paypalResponse.id');
-          if (refundMerchantId) {
-            return refundMerchantId;
-          }
-        }
-
-        return head(compact(MERCHANT_ID_PATHS[this.kind]?.map(path => get(this, path))));
+        const ids = MERCHANT_ID_PATHS[this.kind]?.map(path => get(this, path));
+        return head(compact(ids));
       },
     },
 

@@ -198,6 +198,7 @@ describe('server/paymentProviders/paypal/payment', () => {
             OrderId: order.id,
             amount: 1000,
             currency: 'USD',
+            kind: 'CONTRIBUTION',
             data: { paypalCaptureId: captureId },
           },
           { createDoubleEntry: true },
@@ -229,7 +230,13 @@ describe('server/paymentProviders/paypal/payment', () => {
       });
 
       it('records the refund with the new `refund`/`paypalRefundId` fields and preserves original data', async () => {
-        const refundTransaction = await paypalPayment.refundPaypalCapture(transaction, captureId, user, 'Some reason');
+        const originalTransaction = await paypalPayment.refundPaypalCapture(
+          transaction,
+          captureId,
+          user,
+          'Some reason',
+        );
+        const refundTransaction = await originalTransaction.getRefundTransaction();
 
         expect(refundTransaction).to.exist;
         expect(refundTransaction.data.paypalRefundId).to.equal(refundId);
@@ -238,6 +245,10 @@ describe('server/paymentProviders/paypal/payment', () => {
         // Original transaction data (e.g. paypalCaptureId) must be preserved on the refund transaction
         expect(refundTransaction.data.paypalCaptureId).to.equal(captureId);
         expect(refundTransaction.data.refundReason).to.equal('Some reason');
+
+        // Guarantee MerchantID is consistent between the original transaction and the refund transaction
+        expect(refundTransaction.merchantId).to.equal(refundId);
+        expect(originalTransaction.merchantId).to.equal(captureId);
       });
     });
   });

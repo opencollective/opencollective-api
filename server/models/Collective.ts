@@ -3460,7 +3460,7 @@ class Collective extends ModelWithPublicId<
     });
   };
 
-  getHostStripeAccount = function () {
+  getHostStripeAccount = function (): Promise<ConnectedAccount> {
     let HostCollectiveId;
     return this.getHostCollectiveId()
       .then(id => {
