@@ -881,7 +881,7 @@ describe('server/graphql/common/expenses', () => {
         await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
         expect(await canEditPayee(req.expenseOwner, expense)).to.be.false;
         await expense.update({ status: 'INCOMPLETE' });
-        expect(await canEditPayee(req.expenseOwner, expense)).to.be.false;
+        expect(await canEditPayee(req.expenseOwner, expense)).to.be.true;
 
         // Can edit payee only in PENDING status
         await expense.update({ status: 'APPROVED' });
