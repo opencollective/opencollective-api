@@ -61,7 +61,7 @@ export const MERCHANT_ID_PATHS = {
     'data.capture.id', // onetimePaypalPaymentId
     'data.refund.id', // PayPal and Stripe refund ids
     'data.paypalSale.id', // recurringPaypalPaymentId
-    // 'data.paypalResponse.id', // legacy paypalRefundOrReversalId (kept for historical transactions)
+    'data.paypalResponse.id', // legacy paypalRefundOrReversalId (kept for historical transactions)
   ],
   [EXPENSE]: [
     'data.transfer.id', // wiseId
