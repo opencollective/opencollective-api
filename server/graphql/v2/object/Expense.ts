@@ -525,6 +525,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
                   ActivityTypes.COLLECTIVE_EXPENSE_KYC_REQUESTED,
                   ActivityTypes.COLLECTIVE_EXPENSE_KYC_VERIFIED,
                   ActivityTypes.COLLECTIVE_EXPENSE_KYC_REVOKED,
+                  ActivityTypes.COLLECTIVE_EXPENSE_PAYMENT_ERROR,
                 ].includes(activity.type),
             );
           }

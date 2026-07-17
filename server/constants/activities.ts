@@ -53,6 +53,13 @@ enum ActivityTypes {
   COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT = 'collective.expense.scheduledForPayment',
   COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT = 'collective.expense.unscheduledForPayment',
   COLLECTIVE_EXPENSE_ERROR = 'collective.expense.error',
+  /**
+   * Similar to `COLLECTIVE_EXPENSE_ERROR`, but for synchronous errors that happen while trying to create a
+   * payment (e.g. Wise transfer creation failures). Unlike `COLLECTIVE_EXPENSE_ERROR`, this activity should
+   * never be exposed publicly nor trigger a notification to the payee: it's only meant to be surfaced to
+   * fiscal host admins.
+   */
+  COLLECTIVE_EXPENSE_PAYMENT_ERROR = 'collective.expense.payment.error',
   COLLECTIVE_EXPENSE_INVITE_DRAFTED = 'collective.expense.invite.drafted',
   COLLECTIVE_EXPENSE_INVITE_DECLINED = 'collective.expense.invite.declined',
   COLLECTIVE_EXPENSE_RECURRING_DRAFTED = 'collective.expense.recurring.drafted',
@@ -273,6 +280,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
     ActivityTypes.COLLECTIVE_EXPENSE_DELETED,
     ActivityTypes.COLLECTIVE_EXPENSE_ERROR,
+    ActivityTypes.COLLECTIVE_EXPENSE_PAYMENT_ERROR,
     ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
     ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,
     ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_SPAM,
