@@ -248,11 +248,36 @@ async function validateTransferRequirements(
   });
 }
 
+/**
+ * Asserts the connected Wise account holds at least `amountNeeded` in `currency`, throwing a
+ * descriptive error otherwise. Used to fail fast with a clear message instead of relying on Wise's
+ * API to reject the funding request for insufficient balance.
+ */
+async function assertHasSufficientWiseBalance(
+  host: Collective,
+  connectedAccount: ConnectedAccount,
+  { currency, amountNeeded }: { currency: string; amountNeeded: number },
+): Promise<void> {
+  const balances = await getAccountBalances(host, { connectedAccount });
+  const balance = balances.find(b => b.currency === currency);
+  assert(balance, `No balance found for currency ${currency}`);
+  const roundedAmountNeeded = round(amountNeeded, 2); // To prevent floating point errors
+  assert(
+    balance.amount.value >= roundedAmountNeeded,
+    `Insufficient balance in ${currency} to cover this expense amount, you need ${roundedAmountNeeded} ${currency} and you currently have ${balance.amount.value} ${balance.amount.currency}. Please add funds to your Wise ${currency} account.`,
+  );
+}
+
 async function createTransfer(
   connectedAccount: ConnectedAccount,
   payoutMethod: PayoutMethod,
   expense: Expense,
-  options?: { token?: string; batchGroupId?: string; details?: transferwise.CreateTransfer['details'] },
+  options?: {
+    token?: string;
+    batchGroupId?: string;
+    details?: transferwise.CreateTransfer['details'];
+    skipBalanceCheck?: boolean;
+  },
 ): Promise<{
   quote: ExpenseDataQuoteV2 | ExpenseDataQuoteV3;
   recipient: RecipientAccount;
@@ -279,6 +304,17 @@ async function createTransfer(
   }
 
   try {
+    if (!options?.skipBalanceCheck) {
+      expense.collective = expense.collective || (await expense.getCollective());
+      expense.host = expense.host || (await expense.collective.getHostCollective());
+      // Make sure the Wise account has the funds before creating anything on Wise's side, so we fail with a
+      // clear message instead of relying on Wise's API to reject the transfer for insufficient balance.
+      await assertHasSufficientWiseBalance(expense.host, connectedAccount, {
+        currency: quote.sourceCurrency,
+        amountNeeded: paymentOption.sourceAmount,
+      });
+    }
+
     const transferOptions: transferwise.CreateTransfer = {
       accountId: recipient.id,
       quoteUuid: quote.id,
@@ -308,7 +344,7 @@ async function createTransfer(
     logger.error(`Wise: Error creating transaction for expense: ${expense.id}`, e);
     await expense.update({ status: status.ERROR });
     const user = await User.findByPk(expense.lastEditedById);
-    await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAYMENT_ERROR, user, {
       error: { message: e.message, details: safeJsonStringify(e) },
       isSystem: true,
     });
@@ -447,6 +483,7 @@ async function scheduleExpenseForPayment(
     batchGroupId: batchGroup.id,
     token,
     details: transferDetails,
+    skipBalanceCheck: true,
   });
 
   batchGroup = await transferwise.getBatchGroup(connectedAccount, batchGroup.id);
