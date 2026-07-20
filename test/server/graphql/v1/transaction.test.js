@@ -7,8 +7,10 @@ import { expect } from 'chai';
 import gqlV1 from 'fake-tag';
 import { describe, it } from 'mocha';
 
+import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import models from '../../../../server/models';
 import * as store from '../../../stores';
+import { fakeCollective, fakePrivateHost, fakeTransaction, fakeUser } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 describe('server/graphql/v1/transaction', () => {
@@ -243,6 +245,92 @@ describe('server/graphql/v1/transaction', () => {
         offset,
       });
       expect(result).to.matchSnapshot();
+    });
+  });
+
+  describe('private organizations visibility', () => {
+    const transactionByIdQuery = gqlV1 /* GraphQL */ `
+      query Transaction($id: Int) {
+        Transaction(id: $id) {
+          id
+          type
+          description
+        }
+      }
+    `;
+
+    const transactionByUuidQuery = gqlV1 /* GraphQL */ `
+      query Transaction($uuid: String) {
+        Transaction(uuid: $uuid) {
+          id
+          type
+          description
+        }
+      }
+    `;
+
+    let privateHost, privateHostAdminUser, privateCollective, privateCollectiveAdminUser, randomUser, transaction;
+
+    before(async () => {
+      privateHostAdminUser = await fakeUser();
+      privateHost = await fakePrivateHost({ admin: privateHostAdminUser.collective });
+      privateCollectiveAdminUser = await fakeUser();
+      privateCollective = await fakeCollective({
+        HostCollectiveId: privateHost.id,
+        isPrivate: true,
+        approvedAt: new Date(),
+        admin: privateCollectiveAdminUser.collective,
+      });
+      randomUser = await fakeUser();
+
+      transaction = await fakeTransaction({
+        CollectiveId: privateCollective.id,
+        HostCollectiveId: privateHost.id,
+        kind: TransactionKind.CONTRIBUTION,
+        amount: 1000,
+        description: 'Transaction to private collective',
+      });
+    });
+
+    const privateTransactionForbiddenMessage =
+      'One or more of the accounts are private. You must be a member to view them.';
+
+    it('is NOT visible to an unauthenticated user (by id)', async () => {
+      const result = await utils.graphqlQuery(transactionByIdQuery, { id: transaction.id });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(privateTransactionForbiddenMessage);
+    });
+
+    it('is NOT visible to an unauthenticated user (by uuid)', async () => {
+      const result = await utils.graphqlQuery(transactionByUuidQuery, { uuid: transaction.uuid });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(privateTransactionForbiddenMessage);
+    });
+
+    it('is NOT visible to a random authenticated user (by id)', async () => {
+      const result = await utils.graphqlQuery(transactionByIdQuery, { id: transaction.id }, randomUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(privateTransactionForbiddenMessage);
+    });
+
+    it('is NOT visible to a random authenticated user (by uuid)', async () => {
+      const result = await utils.graphqlQuery(transactionByUuidQuery, { uuid: transaction.uuid }, randomUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(privateTransactionForbiddenMessage);
+    });
+
+    it('IS visible to an admin of the private collective (by id)', async () => {
+      const result = await utils.graphqlQuery(transactionByIdQuery, { id: transaction.id }, privateCollectiveAdminUser);
+      expect(result.errors).to.not.exist;
+      expect(result.data.Transaction).to.exist;
+      expect(result.data.Transaction.id).to.equal(transaction.id);
+    });
+
+    it('IS visible to an admin of the private host (by uuid)', async () => {
+      const result = await utils.graphqlQuery(transactionByUuidQuery, { uuid: transaction.uuid }, privateHostAdminUser);
+      expect(result.errors).to.not.exist;
+      expect(result.data.Transaction).to.exist;
+      expect(result.data.Transaction.id).to.equal(transaction.id);
     });
   });
 });
