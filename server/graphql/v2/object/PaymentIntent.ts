@@ -189,6 +189,10 @@ export const GraphQLPaymentIntent = new GraphQLObjectType({
       description: 'Total amount sent by the payer, computed from linked transactions',
       args: PaymentIntentAmountArgs,
       async resolve(paymentIntent: PaymentIntent, args, req: express.Request) {
+        if (!paymentIntent.HostCollectiveId) {
+          return null;
+        }
+
         const host = await req.loaders.Collective.byId.load(paymentIntent.HostCollectiveId);
         if (!host) {
           return null;
@@ -230,6 +234,10 @@ export const GraphQLPaymentIntent = new GraphQLObjectType({
       description: 'Total amount received by the payee, computed from linked transactions',
       args: PaymentIntentAmountArgs,
       async resolve(paymentIntent: PaymentIntent, args, req: express.Request) {
+        if (!paymentIntent.HostCollectiveId) {
+          return null;
+        }
+
         const host = await req.loaders.Collective.byId.load(paymentIntent.HostCollectiveId);
         if (!host) {
           return null;
