@@ -58,8 +58,13 @@ const queries = {
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
-    resolve(_, args) {
-      return models.Tier.findByPk(args.id);
+    async resolve(_, args, req) {
+      const tier = await models.Tier.findByPk(args.id);
+      if (tier) {
+        const collective = await req.loaders.Collective.byId.load(tier.CollectiveId);
+        await assertCanSeeAccount(req, collective);
+      }
+      return tier;
     },
   },
 

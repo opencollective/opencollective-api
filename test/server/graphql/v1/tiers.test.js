@@ -6,7 +6,7 @@ import { createSandbox } from 'sinon';
 import { VAT_OPTIONS } from '../../../../server/constants/vat';
 import stripe from '../../../../server/lib/stripe';
 import models from '../../../../server/models';
-import { randStr } from '../../../test-helpers/fake-data';
+import { fakeCollective, fakePrivateHost, fakeTier, fakeUser, randStr } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 describe('server/graphql/v1/tiers', () => {
@@ -134,6 +134,83 @@ describe('server/graphql/v1/tiers', () => {
     sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => Promise.resolve(balanceTransaction));
 
     /* eslint-enable camelcase */
+  });
+
+  describe('fetch a tier directly by id (Tier query)', () => {
+    it('does not allow a random user to fetch a tier belonging to a private organization', async () => {
+      const privateHost = await fakePrivateHost();
+      const privateCollective = await fakeCollective({
+        HostCollectiveId: privateHost.id,
+        isPrivate: true,
+        approvedAt: new Date(),
+      });
+      const privateTier = await fakeTier({ CollectiveId: privateCollective.id });
+      const randomUser = await fakeUser();
+
+      const tierQuery = gqlV1 /* GraphQL */ `
+        query Tier($id: Int!) {
+          Tier(id: $id) {
+            id
+            name
+          }
+        }
+      `;
+
+      const res = await utils.graphqlQuery(tierQuery, { id: privateTier.id }, randomUser);
+      expect(res.errors).to.exist;
+      expect(res.data?.Tier).to.not.exist;
+    });
+
+    it('allows an admin of the private collective to fetch its tier', async () => {
+      const privateHost = await fakePrivateHost();
+      const collectiveAdminUser = await fakeUser();
+      const privateCollective = await fakeCollective({
+        HostCollectiveId: privateHost.id,
+        isPrivate: true,
+        approvedAt: new Date(),
+        admin: collectiveAdminUser.collective,
+      });
+      const privateTier = await fakeTier({ CollectiveId: privateCollective.id });
+
+      const tierQuery = gqlV1 /* GraphQL */ `
+        query Tier($id: Int!) {
+          Tier(id: $id) {
+            id
+            name
+          }
+        }
+      `;
+
+      const res = await utils.graphqlQuery(tierQuery, { id: privateTier.id }, collectiveAdminUser);
+      res.errors && console.error(res.errors[0]);
+      expect(res.errors).to.not.exist;
+      expect(res.data.Tier.id).to.equal(privateTier.id);
+    });
+
+    it('allows an admin of the private host to fetch a tier of a hosted private collective', async () => {
+      const hostAdminUser = await fakeUser();
+      const privateHost = await fakePrivateHost({ admin: hostAdminUser.collective });
+      const privateCollective = await fakeCollective({
+        HostCollectiveId: privateHost.id,
+        isPrivate: true,
+        approvedAt: new Date(),
+      });
+      const privateTier = await fakeTier({ CollectiveId: privateCollective.id });
+
+      const tierQuery = gqlV1 /* GraphQL */ `
+        query Tier($id: Int!) {
+          Tier(id: $id) {
+            id
+            name
+          }
+        }
+      `;
+
+      const res = await utils.graphqlQuery(tierQuery, { id: privateTier.id }, hostAdminUser);
+      res.errors && console.error(res.errors[0]);
+      expect(res.errors).to.not.exist;
+      expect(res.data.Tier.id).to.equal(privateTier.id);
+    });
   });
 
   describe('graphql.tiers.test', () => {
