@@ -74,7 +74,7 @@ describe('/test/stories/transferwise.test.ts', () => {
       CollectiveId: host.id,
       service: 'transferwise',
       token: 'ab530676-ea17-4cd5-9a6d-73605b5dee3b',
-      // refreshToken: '984bd68c-cb65-4046-9649-48ddb8620da1',
+      refreshToken: '984bd68c-cb65-4046-9649-48ddb8620da1',
       data: {
         id: 28891298,
         type: 'BUSINESS',
