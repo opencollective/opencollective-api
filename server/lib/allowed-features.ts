@@ -273,7 +273,7 @@ const checkFeatureAccessParty = (
   });
 };
 
-const loadPLatformSubscription = (collectiveId: number, loaders?: Loaders) => {
+const loadPlatformSubscription = (collectiveId: number, loaders?: Loaders) => {
   if (loaders) {
     return loaders.PlatformSubscription.currentByCollectiveId.load(collectiveId);
   } else {
@@ -408,10 +408,10 @@ export const getFeatureAccess = async (
     }
 
     // Check if the feature is part of the host plan
-    const subscription = await loadPLatformSubscription(collective.id, loaders);
+    const subscription = await loadPlatformSubscription(host.id, loaders);
     if (!subscription || !get(subscription, `plan.features.${feature}`)) {
       return { access: 'DISABLED', reason: 'PRICING' };
-    } else if (featureAccess?.optIn === 'new-pricing' && !hasOptInFlag(collective, feature, featureAccess)) {
+    } else if (featureAccess?.optIn === 'new-pricing' && !hasOptInFlag(host, feature, featureAccess)) {
       return { access: 'DISABLED', reason: 'OPT_IN' };
     }
   }
