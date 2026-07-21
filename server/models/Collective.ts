@@ -229,6 +229,7 @@ type Data = Partial<{
   canBeUsedWithAccountIds?: number[];
   useVendorPolicy?: UseVendorPolicyValue;
   requiresProfileCompletion: boolean;
+  isBlockedForUnpaidPlatformBilling?: boolean;
 }> &
   Record<string, unknown>;
 
