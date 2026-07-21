@@ -11,6 +11,7 @@ import * as currency from '../../../../server/lib/currency';
 import models from '../../../../server/models';
 import * as store from '../../../stores';
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeHost,
   fakeMember,
@@ -1252,6 +1253,309 @@ describe('server/graphql/v1/Collective - private accounts', () => {
       );
       expect(result.errors).to.be.undefined;
       expect(Array.isArray(result.data.allTransactions)).to.be.true;
+    });
+  });
+});
+
+describe('server/graphql/v1/allMembers - private collectives visibility', () => {
+  const allMembersVisibilityQuery = gqlV1 /* GraphQL */ `
+    query AllMembers($collectiveSlug: String, $memberCollectiveSlug: String, $orderBy: String) {
+      allMembers(
+        collectiveSlug: $collectiveSlug
+        memberCollectiveSlug: $memberCollectiveSlug
+        orderBy: $orderBy
+        limit: 100
+        offset: 0
+      ) {
+        id
+        role
+        collective {
+          id
+          slug
+        }
+        member {
+          id
+          slug
+        }
+      }
+    }
+  `;
+
+  // Extracts the slugs of the returned members (the `member` field resolves to the member collective).
+  const getMemberSlugs = result => (result.data.allMembers || []).map(m => m.member?.slug);
+  // Extracts the slugs of the collectives the memberships belong to.
+  const getCollectiveSlugs = result => (result.data.allMembers || []).map(m => m.collective?.slug);
+
+  let rootAdmin, hostAdmin, collectiveAdmin, collectiveAccountant, otherPrivateAdmin, randomUser, publicBacker;
+  let privateOrgAdmin;
+  let privateHost, privateCollective, publicCollective, privateOrg;
+
+  before(async () => {
+    await utils.resetTestDB();
+
+    // --- Users ---
+    rootAdmin = await fakeUser({ data: { isRoot: true } });
+    hostAdmin = await fakeUser();
+    collectiveAdmin = await fakeUser();
+    collectiveAccountant = await fakeUser();
+    otherPrivateAdmin = await fakeUser();
+    randomUser = await fakeUser();
+    publicBacker = await fakeUser();
+    privateOrgAdmin = await fakeUser();
+
+    // Make the root user an admin of the platform collective so `isRoot()` resolves to true.
+    await fakeMember({
+      CollectiveId: 1,
+      MemberCollectiveId: rootAdmin.CollectiveId,
+      role: 'ADMIN',
+      CreatedByUserId: rootAdmin.id,
+    });
+
+    // --- Private host + private collective ---
+    privateHost = await fakeActiveHost({ admin: hostAdmin.collective });
+    privateCollective = await fakeCollective({
+      HostCollectiveId: privateHost.id,
+      isPrivate: true,
+      approvedAt: new Date(),
+      admin: collectiveAdmin.collective,
+    });
+    await fakeMember({
+      CollectiveId: privateCollective.id,
+      MemberCollectiveId: collectiveAccountant.CollectiveId,
+      role: 'ACCOUNTANT',
+    });
+    await fakeMember({
+      CollectiveId: privateCollective.id,
+      MemberCollectiveId: publicBacker.CollectiveId,
+      role: 'BACKER',
+    });
+
+    // A second, unrelated private collective, used to check that access does not leak across accounts.
+    await fakeCollective({ isPrivate: true, admin: otherPrivateAdmin.collective });
+
+    // --- Public collective with a private organization as a backer (exercises the raw-query flow) ---
+    publicCollective = await fakeCollective();
+    privateOrg = await fakeOrganization({ isPrivate: true, admin: privateOrgAdmin.collective });
+    await fakeMember({
+      CollectiveId: publicCollective.id,
+      MemberCollectiveId: privateOrg.id,
+      role: 'BACKER',
+    });
+    await fakeMember({
+      CollectiveId: publicCollective.id,
+      MemberCollectiveId: publicBacker.CollectiveId,
+      role: 'BACKER',
+    });
+  });
+
+  describe('loading members of a private collective (collectiveSlug)', () => {
+    it('returns no members for unauthenticated users', async () => {
+      const result = await utils.graphqlQuery(allMembersVisibilityQuery, { collectiveSlug: privateCollective.slug });
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.allMembers).to.have.length(0);
+    });
+
+    it('returns no members for unrelated authenticated users', async () => {
+      const result = await utils.graphqlQuery(
+        allMembersVisibilityQuery,
+        { collectiveSlug: privateCollective.slug },
+        randomUser,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.allMembers).to.have.length(0);
+    });
+
+    it('returns no members for an admin of a different private collective', async () => {
+      const result = await utils.graphqlQuery(
+        allMembersVisibilityQuery,
+        { collectiveSlug: privateCollective.slug },
+        otherPrivateAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.allMembers).to.have.length(0);
+    });
+
+    it('returns the members for an admin of the collective', async () => {
+      const result = await utils.graphqlQuery(
+        allMembersVisibilityQuery,
+        { collectiveSlug: privateCollective.slug },
+        collectiveAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const slugs = getMemberSlugs(result);
+      expect(slugs).to.have.members([
+        collectiveAdmin.collective.slug,
+        collectiveAccountant.collective.slug,
+        publicBacker.collective.slug,
+      ]);
+    });
+
+    it('returns the members for an accountant of the collective', async () => {
+      const result = await utils.graphqlQuery(
+        allMembersVisibilityQuery,
+        { collectiveSlug: privateCollective.slug },
+        collectiveAccountant,
+      );
+      expect(result.errors).to.not.exist;
+      expect(getMemberSlugs(result)).to.include(collectiveAdmin.collective.slug);
+    });
+
+    it('returns the members for an admin of the fiscal host', async () => {
+      const result = await utils.graphqlQuery(
+        allMembersVisibilityQuery,
+        { collectiveSlug: privateCollective.slug },
+        hostAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      expect(getMemberSlugs(result)).to.include(collectiveAdmin.collective.slug);
+    });
+
+    it('returns the members for root users', async () => {
+      const result = await utils.graphqlQuery(
+        allMembersVisibilityQuery,
+        { collectiveSlug: privateCollective.slug },
+        rootAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      expect(getMemberSlugs(result)).to.include(collectiveAdmin.collective.slug);
+    });
+  });
+
+  describe('loading members ordered by totalDonations (raw query flow)', () => {
+    it('hides private members from unauthenticated users', async () => {
+      const result = await utils.graphqlQuery(allMembersVisibilityQuery, {
+        collectiveSlug: publicCollective.slug,
+        orderBy: 'totalDonations',
+      });
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const slugs = getMemberSlugs(result);
+      expect(slugs).to.include(publicBacker.collective.slug);
+      expect(slugs).to.not.include(privateOrg.slug);
+    });
+
+    it('shows a private member to its own admin', async () => {
+      const result = await utils.graphqlQuery(
+        allMembersVisibilityQuery,
+        { collectiveSlug: publicCollective.slug, orderBy: 'totalDonations' },
+        privateOrgAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      const slugs = getMemberSlugs(result);
+      expect(slugs).to.include(publicBacker.collective.slug);
+      expect(slugs).to.include(privateOrg.slug);
+    });
+
+    it('shows all members to root users', async () => {
+      const result = await utils.graphqlQuery(
+        allMembersVisibilityQuery,
+        { collectiveSlug: publicCollective.slug, orderBy: 'totalDonations' },
+        rootAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      expect(getMemberSlugs(result)).to.include(privateOrg.slug);
+    });
+  });
+
+  describe('loading memberships of a member (memberCollectiveSlug)', () => {
+    it('hides memberships in private collectives from unauthenticated users', async () => {
+      const result = await utils.graphqlQuery(allMembersVisibilityQuery, {
+        memberCollectiveSlug: collectiveAdmin.collective.slug,
+      });
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(getCollectiveSlugs(result)).to.not.include(privateCollective.slug);
+    });
+
+    it('hides memberships in private collectives from unrelated users', async () => {
+      const result = await utils.graphqlQuery(
+        allMembersVisibilityQuery,
+        { memberCollectiveSlug: collectiveAdmin.collective.slug },
+        randomUser,
+      );
+      expect(result.errors).to.not.exist;
+      expect(getCollectiveSlugs(result)).to.not.include(privateCollective.slug);
+    });
+
+    it('shows memberships in private collectives to the member itself', async () => {
+      const result = await utils.graphqlQuery(
+        allMembersVisibilityQuery,
+        { memberCollectiveSlug: collectiveAdmin.collective.slug },
+        collectiveAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(getCollectiveSlugs(result)).to.include(privateCollective.slug);
+    });
+
+    it('shows memberships in private collectives to the fiscal host admin', async () => {
+      const result = await utils.graphqlQuery(
+        allMembersVisibilityQuery,
+        { memberCollectiveSlug: collectiveAdmin.collective.slug },
+        hostAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      expect(getCollectiveSlugs(result)).to.include(privateCollective.slug);
+    });
+
+    it('shows memberships in private collectives to root users', async () => {
+      const result = await utils.graphqlQuery(
+        allMembersVisibilityQuery,
+        { memberCollectiveSlug: collectiveAdmin.collective.slug },
+        rootAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      expect(getCollectiveSlugs(result)).to.include(privateCollective.slug);
+    });
+  });
+
+  describe('loading hosted collectives (includeHostedCollectives)', () => {
+    const allMembersHostedQuery = gqlV1 /* GraphQL */ `
+      query AllMembers($collectiveSlug: String, $type: String) {
+        allMembers(
+          collectiveSlug: $collectiveSlug
+          includeHostedCollectives: true
+          type: $type
+          limit: 100
+          offset: 0
+        ) {
+          id
+          role
+          member {
+            id
+            slug
+          }
+        }
+      }
+    `;
+
+    it('returns the hosted collectives to the host admin', async () => {
+      const result = await utils.graphqlQuery(allMembersHostedQuery, { collectiveSlug: privateHost.slug }, hostAdmin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(getMemberSlugs(result)).to.include(privateCollective.slug);
+    });
+
+    it('still returns the hosted collectives when a type filter is provided', async () => {
+      // Regression test: the `hostedMembers` sub-query must only join the `collective`
+      // association. If it also joined `memberCollective` (the host), a `type` filter would be
+      // applied to the host and wrongly drop every hosted collective.
+      const result = await utils.graphqlQuery(
+        allMembersHostedQuery,
+        { collectiveSlug: privateHost.slug, type: 'USER' },
+        hostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(getMemberSlugs(result)).to.include(privateCollective.slug);
+    });
+
+    it('hides private hosted collectives from unauthorized users', async () => {
+      const result = await utils.graphqlQuery(allMembersHostedQuery, { collectiveSlug: privateHost.slug }, randomUser);
+      expect(result.errors).to.not.exist;
+      expect(getMemberSlugs(result)).to.not.include(privateCollective.slug);
     });
   });
 });

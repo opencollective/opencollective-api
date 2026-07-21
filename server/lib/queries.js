@@ -518,6 +518,34 @@ const getMembersOfCollectiveWithRole = CollectiveIds => {
 };
 
 /**
+ * Builds the SQL condition used to filter out private collectives the current user
+ * cannot see. Mirrors the logic used in the GraphQL V2 `HasMembers` interface:
+ * - Root users can see everything (no condition).
+ * - Users with an ADMIN/ACCOUNTANT role on some collectives can see those private
+ *   collectives (as well as their events/projects and hosted collectives).
+ * - Everyone else can only see public collectives.
+ *
+ * Expects `options.canSeeAllPrivateCollectives` (boolean) and
+ * `options.privateCollectiveAccessIds` (array of collective ids) to be provided by
+ * the caller. The generated SQL references the `:privateCollectiveAccessIds`
+ * replacement when the user has direct access to some private collectives.
+ */
+const getPrivateCollectivesSQLCondition = (options = {}, tableAlias = 'c') => {
+  if (options.canSeeAllPrivateCollectives) {
+    return '';
+  } else if (options.privateCollectiveAccessIds?.length > 0) {
+    return `AND (
+      ${tableAlias}."isPrivate" IS FALSE
+      OR ${tableAlias}.id IN (:privateCollectiveAccessIds)
+      OR ${tableAlias}."ParentCollectiveId" IN (:privateCollectiveAccessIds)
+      OR ${tableAlias}."HostCollectiveId" IN (:privateCollectiveAccessIds)
+    )`;
+  } else {
+    return `AND ${tableAlias}."isPrivate" IS FALSE`;
+  }
+};
+
+/**
  * Returns all the members of a collective with their `totalDonations` and
  * `role` (HOST/ADMIN/BACKER)
  */
@@ -609,6 +637,7 @@ const getMembersWithTotalDonations = (where, options = {}) => {
     LEFT JOIN "Members" member ON c.id = member."${groupBy}"
     LEFT JOIN "Users" u ON c.id = u."CollectiveId"
     WHERE member."${memberCondAttribute}" IN (:collectiveids)
+      ${getPrivateCollectivesSQLCondition(options, 'c')}
     ${roleCond}
     AND member."deletedAt" IS NULL ${untilCondition('member')}
     ${filterByMemberCollectiveType}
@@ -626,6 +655,7 @@ const getMembersWithTotalDonations = (where, options = {}) => {
         offset: options.offset || 0,
         types,
         role: where.role,
+        privateCollectiveAccessIds: options.privateCollectiveAccessIds || [],
       },
       type: QueryTypes.SELECT,
       model: models.Collective,
@@ -673,6 +703,7 @@ const getMembersWithBalance = (where, options = {}) => {
       WHERE
         c.type = 'COLLECTIVE'
         AND c."isActive" IS TRUE
+        ${getPrivateCollectivesSQLCondition(options, 'c')}
         ${whereCondition}
         AND c."deletedAt" IS NULL
         GROUP BY t."CollectiveId"
@@ -700,6 +731,7 @@ const getMembersWithBalance = (where, options = {}) => {
     LEFT JOIN "Members" member ON c.id = member."${groupBy}"
     LEFT JOIN "Users" u ON c.id = u."CollectiveId"
     WHERE member."${memberCondAttribute}" IN (:collectiveids)
+      ${getPrivateCollectivesSQLCondition(options, 'c')}
     ${roleCond}
     ${whereCondition}
     AND member."deletedAt" IS NULL ${untilCondition('member')}
@@ -715,6 +747,7 @@ const getMembersWithBalance = (where, options = {}) => {
     limit: options.limit || 100000, // we should reduce this to 100 by default but right now Webpack depends on it
     offset: options.offset || 0,
     types,
+    privateCollectiveAccessIds: options.privateCollectiveAccessIds || [],
   };
 
   return sequelize.query(
