@@ -195,46 +195,6 @@ const getTotalAnnualBudget = async () => {
     .then(res => Math.round(parseInt(res[0].yearlyIncome, 10)));
 };
 
-/**
- * Returns the top backers (Collectives) in a given time range in given tags
- * E.g. top backers in open source collectives last June
- */
-const getTopBackers = (since, until, tags, limit) => {
-  const sinceClause = since ? `AND t."createdAt" >= '${since.toISOString()}'` : '';
-  const untilClause = until ? `AND t."createdAt" < '${until.toISOString()}'` : '';
-  const tagsClause = tags ? 'AND collective.tags && $tags' : ''; // && operator means "overlaps"
-
-  return sequelize.query(
-    `
-    SELECT
-      MAX(fromCollective.id) as id,
-      MAX(fromCollective.slug) as slug,
-      MAX(fromCollective.name) as name,
-      MAX(fromCollective.website) as "website",
-      MAX(fromCollective."twitterHandle") as "twitterHandle",
-      MAX(fromCollective.image) as "image",
-      SUM("amount") as "totalDonations",
-      MAX(t.currency) as "currency"
-    FROM "Transactions" t
-    LEFT JOIN "Collectives" fromCollective ON fromCollective.id = t."FromCollectiveId"
-    LEFT JOIN "Collectives" collective ON collective.id = t."CollectiveId"
-    WHERE
-      t.type='CREDIT'
-      AND t."deletedAt" IS NULL
-      ${sinceClause}
-      ${untilClause}
-      ${tagsClause}
-    GROUP BY "FromCollectiveId"
-    ORDER BY "totalDonations" DESC
-    LIMIT ${limit}
-    `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
-    {
-      bind: { tags: tags || [] },
-      model: models.Collective,
-    },
-  );
-};
-
 export const usersToNotifyForUpdateSQLQuery = `
   WITH collective AS (
     SELECT c.*
@@ -1028,7 +988,6 @@ const queries = {
   getMembersWithTotalDonations,
   getTaxFormsRequiredForAccounts,
   getTaxFormsRequiredForExpenses,
-  getTopBackers,
   getTopSponsors,
   getTotalAnnualBudget,
   getTotalAnnualBudgetForHost,
