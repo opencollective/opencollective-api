@@ -8,7 +8,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/pay
 import { fetchCollectiveId } from '../../lib/cache';
 import logger from '../../lib/logger';
 import { getConsolidatedInvoicesData } from '../../lib/pdf';
-import { assertCanSeeAccount } from '../../lib/private-accounts';
+import { assertCanSeeAccount, assertCanSeeAllAccounts } from '../../lib/private-accounts';
 import rawQueries from '../../lib/queries';
 import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/sql-search';
 import models, { Op, sequelize } from '../../models';
@@ -58,8 +58,13 @@ const queries = {
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
-    resolve(_, args) {
-      return models.Tier.findByPk(args.id);
+    async resolve(_, args, req) {
+      const tier = await models.Tier.findByPk(args.id);
+      if (tier) {
+        const collective = await req.loaders.Collective.byId.load(tier.CollectiveId);
+        await assertCanSeeAccount(req, collective);
+      }
+      return tier;
     },
   },
 
@@ -176,8 +181,18 @@ const queries = {
         type: GraphQLString,
       },
     },
-    resolve(_, args) {
-      return models.Transaction.findOne({ where: { ...args } });
+    async resolve(_, args, req) {
+      const transaction = await models.Transaction.findOne({ where: { ...args } });
+      if (!transaction) {
+        return null;
+      }
+
+      const collectiveIds = [transaction.FromCollectiveId, transaction.CollectiveId, transaction.HostCollectiveId];
+      const uniqIds = uniq(collectiveIds.filter(Boolean));
+      const collectives = await req.loaders.Collective.byId.loadMany(uniqIds);
+      await assertCanSeeAllAccounts(req, collectives.filter(Boolean));
+
+      return transaction;
     },
   },
 
