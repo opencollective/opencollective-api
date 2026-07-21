@@ -412,15 +412,6 @@ class Collective extends ModelWithPublicId<
     });
   };
 
-  static getTopBackers = async (since, until, tags, limit) => {
-    const backers = await queries.getTopBackers(since || 0, until || new Date(), tags, limit || 5);
-    debug(
-      'getTopBackers',
-      backers.map(b => b.dataValues),
-    );
-    return backers;
-  };
-
   static getHostCollectiveId = async CollectiveId => {
     const res = await Member.findOne({
       attributes: ['MemberCollectiveId'],
@@ -1906,70 +1897,6 @@ class Collective extends ModelWithPublicId<
     return Member.findOne({
       where: { MemberCollectiveId, CollectiveId: this.id },
     }).then(member => member.role);
-  };
-
-  /**
-   * returns the tiers with their users
-   * e.g. collective.tiers = [
-   *  { name: 'core contributor', users: [ {UserObject} ], range: [], ... },
-   *  { name: 'backer', users: [ {UserObject}, {UserObject} ], range: [], ... }
-   * ]
-   */
-  getTiersWithUsers = async function (
-    options = {
-      active: false,
-      attributes: ['id', 'username', 'image', 'firstDonation', 'lastDonation', 'totalDonations', 'website'],
-    },
-  ) {
-    const tiersById = {};
-
-    // Get the list of tiers for the collective (including deleted ones)
-    const tiers = await Tier.findAll({ where: { CollectiveId: this.id }, paranoid: false });
-    for (const tier of tiers) {
-      tiersById[tier.id] = tier;
-    }
-
-    const backerCollectives = <Array<any>>(
-      await queries.getMembersWithTotalDonations({ CollectiveId: this.id, role: 'BACKER' }, options)
-    );
-
-    // Map the users to their respective tier
-    await Promise.all(
-      backerCollectives.map(backerCollective => {
-        const include = options.active ? [{ model: Subscription, attributes: ['isActive'] }] : [];
-        return Order.findOne({
-          attributes: ['TierId'],
-          where: {
-            FromCollectiveId: backerCollective.id,
-            CollectiveId: this.id,
-            TierId: { [Op.ne]: null },
-          },
-          include,
-        }).then(order => {
-          if (!order) {
-            debug('Collective.getTiersWithUsers: no order for a tier for ', {
-              FromCollectiveId: backerCollective.id,
-              CollectiveId: this.id,
-            });
-            return null;
-          }
-          const TierId = order.TierId;
-          tiersById[TierId] = tiersById[TierId] || order.Tier;
-          if (!tiersById[TierId]) {
-            logger.error(">>> Couldn't find a tier with id", order.TierId, 'collective: ', this.slug);
-            tiersById[TierId] = { dataValues: { users: [] } };
-          }
-          tiersById[TierId].dataValues.users = tiersById[TierId].dataValues.users || [];
-          if (options.active) {
-            backerCollective.isActive = order.Subscription.isActive;
-          }
-          debug('adding to tier', TierId, 'backer: ', backerCollective.dataValues.slug);
-          tiersById[TierId].dataValues.users.push(backerCollective.dataValues);
-        });
-      }),
-    );
-
-    return Object.values(tiersById);
   };
 
   /**
@@ -3523,18 +3450,6 @@ class Collective extends ModelWithPublicId<
     }
 
     return connectedAccount;
-  };
-
-  getTopBackers = async function (since, until, limit) {
-    const backers = await queries.getMembersWithTotalDonations(
-      { CollectiveId: this.id, role: 'BACKER' },
-      { since, until, limit },
-    );
-    debug(
-      'getTopBackers',
-      backers.map(b => b.dataValues),
-    );
-    return backers;
   };
 
   getImageUrl = function (args = {}) {

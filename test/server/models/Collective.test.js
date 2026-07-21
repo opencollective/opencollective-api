@@ -1104,31 +1104,6 @@ describe('server/models/Collective', () => {
   });
 
   describe('backers', () => {
-    it('gets the top backers', () => {
-      return Collective.getTopBackers().then(backers => {
-        backers = backers.map(g => g.dataValues);
-        expect(backers.length).to.equal(3);
-        expect(backers[0].totalDonations).to.equal(100000);
-        expect(backers[0]).to.have.property('website');
-      });
-    });
-
-    it('gets the top backers in a given month', () => {
-      return Collective.getTopBackers(new Date('2016-06-01'), new Date('2016-07-01')).then(backers => {
-        backers = backers.map(g => g.dataValues);
-        expect(backers.length).to.equal(2);
-        expect(backers[0].totalDonations).to.equal(50000);
-      });
-    });
-
-    it('gets the top backers in open source', () => {
-      return Collective.getTopBackers(new Date('2016-06-01'), new Date('2016-07-01'), ['open source']).then(backers => {
-        backers = backers.map(g => g.dataValues);
-        expect(backers.length).to.equal(1);
-        expect(backers[0].totalDonations).to.equal(25000);
-      });
-    });
-
     it('gets the latest transactions of a user collective', () => {
       return Collective.findOne({ where: { id: user1.CollectiveId } }).then(userCollective => {
         return userCollective
@@ -1171,45 +1146,6 @@ describe('server/models/Collective', () => {
 
     it('is false for incognito profiles', async () => {
       shouldNotBeUsableAsPayout(await fakeCollective({ type: 'USER', isIncognito: true }));
-    });
-  });
-
-  describe('tiers', () => {
-    before('adding user as backer', () => collective.addUserWithRole(user2, 'BACKER'));
-    before('creating order for backer tier', () =>
-      models.Order.create({
-        CreatedByUserId: user1.id,
-        FromCollectiveId: user1.CollectiveId,
-        CollectiveId: collective.id,
-        TierId: 1,
-      }),
-    );
-
-    before('creating order for sponsor tier', () =>
-      models.Order.create({
-        CreatedByUserId: user2.id,
-        FromCollectiveId: user2.CollectiveId,
-        CollectiveId: collective.id,
-        TierId: 2,
-      }),
-    );
-
-    it('get the tiers with users', done => {
-      collective
-        .getTiersWithUsers()
-        .then(tiers => {
-          expect(tiers).to.have.length(2);
-          const users = tiers[0].getDataValue('users');
-          expect(users).to.not.be.undefined;
-          expect(users).to.have.length(1);
-          const backer = users[0];
-          expect(parseInt(backer.totalDonations, 10)).to.equal(
-            transactions[2].amountInHostCurrency + transactions[3].amountInHostCurrency,
-          );
-          expect(new Date(backer.firstDonation).getTime()).to.equal(new Date(transactions[2].createdAt).getTime());
-          expect(new Date(backer.lastDonation).getTime()).to.equal(new Date(transactions[3].createdAt).getTime());
-        })
-        .finally(done);
     });
   });
 

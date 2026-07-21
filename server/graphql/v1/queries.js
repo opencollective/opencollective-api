@@ -5,6 +5,7 @@ import { isEmail } from 'validator';
 import { roles } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
+import { MemberRolesForPrivateAccounts } from '../../constants/roles';
 import { fetchCollectiveId } from '../../lib/cache';
 import logger from '../../lib/logger';
 import { getConsolidatedInvoicesData } from '../../lib/pdf';
@@ -299,13 +300,48 @@ const queries = {
         where.HostCollectiveId = args.MemberCollectiveId;
       }
 
+      // Preload which private collectives the current user is allowed to see. This mirrors the
+      // logic used in the GraphQL V2 `HasMembers` interface: root users see everything, users
+      // with an ADMIN/ACCOUNTANT role see the related private collectives, everyone else only
+      // sees public collectives.
+      const canSeeAllPrivateCollectives = Boolean(req.remoteUser?.isRoot());
+      const privateCollectiveAccessIds =
+        req.remoteUser && !canSeeAllPrivateCollectives
+          ? Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts))
+          : [];
+
+      // Builds a fresh set of Sequelize conditions restricting private collectives visibility.
+      const getPrivateCollectiveConditions = () => {
+        const conditions = { isPrivate: false };
+        if (canSeeAllPrivateCollectives) {
+          delete conditions.isPrivate;
+        } else if (privateCollectiveAccessIds.length > 0) {
+          delete conditions.isPrivate;
+          conditions[Op.or] = [
+            { isPrivate: false },
+            { id: privateCollectiveAccessIds }, // User is an admin or accountant of the collective
+            { ParentCollectiveId: privateCollectiveAccessIds }, // ...of the collective's parent (events/projects)
+            { HostCollectiveId: privateCollectiveAccessIds }, // ...of the collective's fiscal host
+          ];
+        }
+        return conditions;
+      };
+
       if (['totalDonations', 'balance'].indexOf(args.orderBy) !== -1) {
-        const queryName = args.orderBy === 'totalDonations' ? 'getMembersWithTotalDonations' : 'getMembersWithBalance';
+        // Do not break reference to query object
+        const query =
+          args.orderBy === 'totalDonations'
+            ? rawQueries.getMembersWithTotalDonations
+            : rawQueries.getMembersWithBalance;
         const tiersById = {};
 
-        const options = args.isActive ? { ...args, limit: args.limit * 2 } : args;
+        const options = {
+          ...(args.isActive ? { ...args, limit: args.limit * 2 } : args),
+          canSeeAllPrivateCollectives,
+          privateCollectiveAccessIds,
+        };
 
-        let results = await rawQueries[queryName](where, options);
+        let results = await query(where, options);
 
         if (args.isActive) {
           const TierIds = uniq(results.map(r => r.dataValues.TierId));
@@ -340,25 +376,34 @@ const queries = {
           }),
         );
       } else {
-        const query = { where, include: [] };
+        const includes = {
+          collective: {
+            model: models.Collective,
+            as: 'collective',
+            required: true,
+            where: getPrivateCollectiveConditions(),
+          },
+          memberCollective: {
+            model: models.Collective,
+            as: 'memberCollective',
+            required: true,
+            where: getPrivateCollectiveConditions(),
+          },
+        };
+        const query = { where };
         if (args.TierId) {
           query.where.TierId = args.TierId;
         }
 
         // If we request the data of the member, we do a JOIN query
         // that allows us to sort by Member.member.name
-        const memberCond = {};
+        const memberCond = getPrivateCollectiveConditions();
         if (req.body.query.match(/ member ?\{/) || args.type) {
           if (args.type) {
             const types = args.type.split(',');
             memberCond.type = { [Op.in]: types };
           }
-          query.include.push({
-            model: models.Collective,
-            as: memberTable,
-            required: true,
-            where: memberCond,
-          });
+          includes[memberTable].where = memberCond;
           query.order = [[sequelize.literal(`"${memberTable}".name`), 'ASC']];
         }
         if (args.limit) {
@@ -383,6 +428,7 @@ const queries = {
 
         query.where[attr] = { [Op.in]: collectiveIds };
         query.where.role = { [Op.ne]: 'HOST' };
+        query.include = Object.values(includes);
         const members = await models.Member.findAll(query);
 
         // also fetch the list of collectives that are members of the host
@@ -392,13 +438,10 @@ const queries = {
             role: 'HOST',
           };
           query.order = [[sequelize.literal('collective.name'), 'ASC']];
-          query.include = [
-            {
-              model: models.Collective,
-              as: 'collective',
-              required: true,
-            },
-          ];
+          // Only join the hosted `collective` here (the `memberCollective` is always the host
+          // itself). We still apply the private-collective conditions so private hosted
+          // collectives stay hidden from unauthorized users.
+          query.include = [includes.collective];
           const hostedMembers = await models.Member.findAll(query);
           await Promise.all(
             hostedMembers.map(m => {
