@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { useFakeTimers } from 'sinon';
 
 import { roles } from '../../../../server/constants';
+import PlatformConstants from '../../../../server/constants/platform';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import { canDownloadInvoice, canRefund, canReject } from '../../../../server/graphql/common/transactions';
 import {
@@ -12,7 +13,7 @@ import {
   fakeUser,
   fakeUserToken,
 } from '../../../test-helpers/fake-data';
-import { makeRequest } from '../../../utils';
+import { getOrCreatePlatformAccount, makeRequest } from '../../../utils';
 
 describe('server/graphql/common/transactions', () => {
   let collective,
@@ -24,6 +25,7 @@ describe('server/graphql/common/transactions', () => {
     contributor,
     randomUser,
     transaction,
+    platformTipTransaction,
     refundTransaction,
     manualPaymentTransaction;
 
@@ -59,6 +61,21 @@ describe('server/graphql/common/transactions', () => {
       HostCollectiveId: collective.HostCollectiveId,
       kind: TransactionKind.CONTRIBUTION,
       amount: 100000,
+      OrderId: order.id,
+      PaymentMethodId: creditCard.id,
+    });
+    // Platform tips are collected by, and hosted by, the platform account itself
+    // (see Transaction.createPlatformTipTransactions), not the contribution's host.
+    await getOrCreatePlatformAccount();
+    platformTipTransaction = await fakeTransaction({
+      type: 'CREDIT',
+      description: 'Financial contribution to the Open Collective Platform',
+      CollectiveId: PlatformConstants.PlatformCollectiveId,
+      FromCollectiveId: contributor.CollectiveId,
+      HostCollectiveId: PlatformConstants.PlatformCollectiveId,
+      TransactionGroup: transaction.TransactionGroup,
+      kind: TransactionKind.PLATFORM_TIP,
+      amount: 1000,
       OrderId: order.id,
       PaymentMethodId: creditCard.id,
     });
@@ -223,6 +240,14 @@ describe('server/graphql/common/transactions', () => {
 
       expect(await canDownloadInvoice(transaction, undefined, contributorOAuthReq)).to.be.false;
       expect(await canDownloadInvoice(refundTransaction, undefined, contributorOAuthReq)).to.be.false;
+    });
+
+    it('lets the contributor download platform tip receipts', async () => {
+      // The contributor is the payer of the platform tip, so they can download its receipt.
+      expect(await canDownloadInvoice(platformTipTransaction, undefined, contributorReq)).to.be.true;
+      // The platform tip is hosted by the platform account, not the contribution's fiscal host,
+      // so an admin of that host has no access to the standalone platform tip receipt.
+      expect(await canDownloadInvoice(platformTipTransaction, undefined, hostAdminReq)).to.be.false;
     });
   });
 });
