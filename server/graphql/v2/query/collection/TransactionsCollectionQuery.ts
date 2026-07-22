@@ -727,14 +727,34 @@ export const TransactionsCollectionResolver = async (
       AND ("DebtTransaction".kind)::text = CONCAT(("Transaction"."kind")::text, '_DEBT')
       AND "DebtTransaction"."type" != "Transaction"."type"
       AND "DebtTransaction"."deletedAt" IS NULL`;
+    // New-platform-tips-ledger tips have no *_DEBT companion transaction: the obligation is a
+    // TransactionSettlement row keyed directly on the PLATFORM_TIP itself. Settlements closed
+    // without ever being invoiced (SETTLED with no ExpenseId: tips refunded before invoicing,
+    // self-cancelling rows zeroed out by the settlement cron) don't count — they never generated
+    // a bill, and matching them would let a lone refund DEBIT into a settlement CSV whose original
+    // credit falls outside the report's date range. SETTLED rows WITH an ExpenseId are past
+    // invoices and must keep matching so historical settlement CSVs stay accurate after payment.
+    const hasSettlementSubquery = `SELECT 1 FROM "TransactionSettlements" as "Settlement"
+      WHERE "Settlement"."TransactionGroup" = "Transaction"."TransactionGroup"
+      AND "Settlement".kind = "Transaction".kind
+      AND "Settlement"."deletedAt" IS NULL
+      AND NOT ("Settlement".status = 'SETTLED' AND "Settlement"."ExpenseId" IS NULL)`;
     if (args.hasDebt === true) {
       where.push({ kind: [PLATFORM_TIP, HOST_FEE_SHARE] }); // Need to be this kind to have debt
-      where.push(sequelize.literal(`EXISTS (${hasDebtSubquery})`));
+      where.push(
+        sequelize.or(
+          sequelize.literal(`EXISTS (${hasDebtSubquery})`),
+          sequelize.literal(`EXISTS (${hasSettlementSubquery})`),
+        ),
+      );
     } else if (args.hasDebt === false) {
       where.push(
         sequelize.or(
           { kind: { [Op.not]: [PLATFORM_TIP, HOST_FEE_SHARE] } }, // No Debt if not this kind
-          sequelize.literal(`NOT EXISTS (${hasDebtSubquery})`),
+          sequelize.and(
+            sequelize.literal(`NOT EXISTS (${hasDebtSubquery})`),
+            sequelize.literal(`NOT EXISTS (${hasSettlementSubquery})`),
+          ),
         ),
       );
     }

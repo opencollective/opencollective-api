@@ -4,7 +4,7 @@ import moment from 'moment';
 export const getTransactionsCsvUrl = (type, collective, options = {}) => {
   const url = new URL(`${config.host.rest}/v2/${collective.slug}/${type}.csv`);
 
-  const { startDate, endDate, kind, add, remove, fields } = options;
+  const { startDate, endDate, kind, add, remove, fields, hasDebt } = options;
 
   if (startDate) {
     url.searchParams.set('dateFrom', moment.utc(startDate).toISOString());
@@ -23,6 +23,9 @@ export const getTransactionsCsvUrl = (type, collective, options = {}) => {
   }
   if (fields) {
     url.searchParams.set('fields', fields.join(','));
+  }
+  if (hasDebt !== undefined) {
+    url.searchParams.set('hasDebt', hasDebt ? '1' : '0');
   }
 
   url.searchParams.set('fetchAll', '1');

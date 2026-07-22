@@ -811,6 +811,15 @@ export async function createRefundTransaction(
           { status: TransactionSettlementStatus.SETTLED },
           { transaction: sqlTransaction },
         );
+        // Mirror the legacy debt flow: the refund pair also gets a SETTLED settlement, so anything
+        // that identifies debt-generating tips by their settlement row (e.g. the settlement expense
+        // CSV via the `hasDebt` filter) sees the refund DEBIT next to the original credit and nets
+        // to zero, instead of overstating by the refunded amount.
+        await TransactionSettlement.createForTransaction(
+          platformTipRefundTransaction,
+          TransactionSettlementStatus.SETTLED,
+          sqlTransaction,
+        );
       } else if (newLedgerTipSettlement) {
         // INVOICED/SETTLED: the host was already (or is being) billed for this tip. Mirror the
         // legacy debt flow below: carry an OWED settlement on the refund pair so the settlement

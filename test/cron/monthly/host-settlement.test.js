@@ -469,6 +469,9 @@ describe('cron/monthly/host-settlement', () => {
     expect(attachment.url).to.have.string('.csv');
     // Legacy hosts keep the account-scoped report (all their settled rows live on the host account)
     expect(attachment.url).to.have.string('/transactions.csv');
+    // hasDebt is only meaningful for new-ledger PLATFORM_TIP rows; legacy *_DEBT kinds are debts by
+    // definition and would return nothing with hasDebt=true
+    expect(new URL(attachment.url).searchParams.get('hasDebt')).to.be.null;
   });
 
   it('should include entries from previous months in the CSV url startDate', async () => {
@@ -776,6 +779,9 @@ describe('cron/monthly/host-settlement', () => {
       const csvUrl = new URL(attachment.url);
       expect(csvUrl.searchParams.get('kind').split(',')).to.include('PLATFORM_TIP');
       expect(csvUrl.searchParams.get('add')).to.equal('orderLegacyId');
+      // Without it, the kind filter alone would also pull in Stripe direct-collected tips,
+      // which are offset by an APPLICATION_FEE and never billed
+      expect(csvUrl.searchParams.get('hasDebt')).to.equal('1');
     });
 
     it('matches the new-ledger settlement ledger snapshot', async () => {
