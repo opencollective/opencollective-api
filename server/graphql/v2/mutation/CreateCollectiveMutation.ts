@@ -10,6 +10,7 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import { canUseSlug, defaultHostCollective } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
 import { OSCValidator } from '../../../lib/osc-validator';
+import { isBlockedForUnpaidPlatformBilling } from '../../../lib/platform-subscriptions';
 import { getPolicy } from '../../../lib/policies';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
@@ -18,7 +19,7 @@ import models, { Collective, sequelize } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { RateLimitExceeded, ValidationFailed } from '../../errors';
+import { Forbidden, RateLimitExceeded, ValidationFailed } from '../../errors';
 import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLCollectiveCreateInput } from '../input/CollectiveCreateInput';
@@ -43,6 +44,9 @@ async function createCollective(_, args, req) {
   if (args.host) {
     host = await fetchAccountWithReference(args.host, { loaders, throwIfMissing: true });
     await assertCanSeeAccount(req, host);
+    if (isBlockedForUnpaidPlatformBilling(host)) {
+      throw new Forbidden('This action is currently unavailable for this host');
+    }
   }
 
   const rateLimitKey = `collective_create_${remoteUser.id}`;

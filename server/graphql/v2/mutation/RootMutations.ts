@@ -81,6 +81,10 @@ export default {
         type: GraphQLBoolean,
         description: 'Set this to false to disable 2FA. Other values have no effect.',
       },
+      isBlockedForUnpaidPlatformBilling: {
+        type: GraphQLBoolean,
+        description: 'Specify whether the account is blocked due to unpaid platform billing',
+      },
     },
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanRoot(req);
@@ -98,6 +102,15 @@ export default {
 
       if (!isNil(args.isTrustedHost) && Boolean(args.isTrustedHost) !== Boolean(account.data?.isTrustedHost)) {
         await account.update({ data: { ...account.data, isTrustedHost: args.isTrustedHost } });
+      }
+
+      if (
+        !isNil(args.isBlockedForUnpaidPlatformBilling) &&
+        Boolean(args.isBlockedForUnpaidPlatformBilling) !== Boolean(account.data?.isBlockedForUnpaidPlatformBilling)
+      ) {
+        await account.update({
+          data: { ...account.data, isBlockedForUnpaidPlatformBilling: args.isBlockedForUnpaidPlatformBilling },
+        });
       }
 
       if (args.isTwoFactorAuthEnabled === false) {

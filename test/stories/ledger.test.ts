@@ -5,7 +5,6 @@
 
 import { expect } from 'chai';
 import config from 'config';
-import express from 'express';
 import { set } from 'lodash';
 import moment from 'moment';
 import nock from 'nock';
@@ -32,7 +31,7 @@ import {
   fakePayoutMethod,
   fakeUser,
 } from '../test-helpers/fake-data';
-import { nockFixerRates, resetTestDB, seedDefaultVendors, snapshotLedger } from '../utils';
+import { makeRequest, nockFixerRates, resetTestDB, seedDefaultVendors, snapshotLedger } from '../utils';
 
 const SNAPSHOT_COLUMNS = [
   'kind',
@@ -127,7 +126,7 @@ const executeAllSettlement = async remoteUser => {
   const settlementExpense = await models.Expense.findOne();
   expect(settlementExpense, 'Settlement expense has not been created').to.exist;
   await settlementExpense.update({ status: 'APPROVED' });
-  await payExpense(<express.Request>{ remoteUser }, {
+  await payExpense(makeRequest(remoteUser), {
     id: settlementExpense.id,
     forceManual: true,
     totalAmountPaidInHostCurrency: settlementExpense.amount,
@@ -346,7 +345,7 @@ describe('test/stories/ledger', () => {
         status: 'APPROVED',
       });
 
-      await payExpense({ remoteUser: hostAdmin } as any, {
+      await payExpense(makeRequest(hostAdmin), {
         id: expense.id,
         forceManual: true,
         totalAmountPaidInHostCurrency: 100000 + 500,
@@ -398,7 +397,7 @@ describe('test/stories/ledger', () => {
         status: 'APPROVED',
       });
 
-      await payExpense({ remoteUser: hostAdmin } as any, {
+      await payExpense(makeRequest(hostAdmin), {
         id: expense.id,
         forceManual: true,
         totalAmountPaidInHostCurrency: 100000 + 500,
@@ -412,7 +411,7 @@ describe('test/stories/ledger', () => {
         expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(100000 + 500);
       }
 
-      await markExpenseAsUnpaid({ remoteUser: hostAdmin } as any, expense.id, true);
+      await markExpenseAsUnpaid(makeRequest(hostAdmin), expense.id, true);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
       await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
@@ -708,7 +707,7 @@ describe('test/stories/ledger', () => {
         feesPayer,
       });
 
-      await payExpense({ remoteUser: hostAdmin } as any, {
+      await payExpense(makeRequest(hostAdmin), {
         id: expense.id,
         forceManual: true,
         paymentProcessorFeeInHostCurrency,

@@ -565,6 +565,19 @@ describe('server/lib/allowed-features', () => {
         });
       });
 
+      it('is DISABLED when the host is on hold for unpaid platform billing', async () => {
+        const host = await fakeActiveHost({
+          plan: 'start-plan-2021',
+          hasHosting: true,
+          settings: { apply: true },
+          data: { isBlockedForUnpaidPlatformBilling: true },
+        });
+        expect(await getFeatureAccess(host, FEATURE.RECEIVE_HOST_APPLICATIONS)).to.deep.eq({
+          access: 'DISABLED',
+          reason: 'BLOCKED',
+        });
+      });
+
       describe('with the new pricing', () => {
         it('is AVAILABLE for active hosts if opted in, DISABLED if not, UNSUPPORTED for others', async () => {
           const host = await fakeActiveHost({ hasHosting: true, settings: { apply: true } });

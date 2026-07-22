@@ -229,6 +229,7 @@ type Data = Partial<{
   canBeUsedWithAccountIds?: number[];
   useVendorPolicy?: UseVendorPolicyValue;
   requiresProfileCompletion: boolean;
+  isBlockedForUnpaidPlatformBilling?: boolean;
 }> &
   Record<string, unknown>;
 
@@ -1478,7 +1479,9 @@ class Collective extends ModelWithPublicId<
    * Returns true if Collective is a host account open to applications.
    */
   canApply = function () {
-    return Boolean(this.hasHosting && !this.isPrivate && this.settings?.apply);
+    return Boolean(
+      this.hasHosting && !this.isPrivate && this.settings?.apply && !this.data?.isBlockedForUnpaidPlatformBilling,
+    );
   };
 
   /**
@@ -2438,6 +2441,10 @@ class Collective extends ModelWithPublicId<
 
     if (options?.message && options?.message.length > 3000) {
       throw new Error('The message is too long');
+    }
+
+    if (hostCollective.data?.isBlockedForUnpaidPlatformBilling) {
+      throw new Error('This host is not open to applications');
     }
 
     const member = {

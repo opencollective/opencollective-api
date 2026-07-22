@@ -20,7 +20,7 @@ import {
   fakeTransaction,
   fakeUser,
 } from '../test-helpers/fake-data';
-import { resetTestDB, seedCachedRates, snapshotLedger, useIntegrationTestRecorder } from '../utils';
+import { makeRequest, resetTestDB, seedCachedRates, snapshotLedger, useIntegrationTestRecorder } from '../utils';
 
 /**
  * This integration test is ran against recorded API requests against Wise's sandbox environment.
@@ -185,7 +185,7 @@ describe('/test/stories/transferwise.test.ts', () => {
       description: `Expense in ${expenseCurrency}`,
     });
 
-    await payExpense({ remoteUser: hostAdmin } as any, { id: expense.id });
+    await payExpense(makeRequest(hostAdmin), { id: expense.id });
     await expense.reload();
     expect(expense.status).to.eq(ExpenseStatuses.PROCESSING);
     expect(expense.data.transfer.sourceCurrency).to.eq(host.currency);

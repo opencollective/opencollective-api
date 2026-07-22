@@ -57,6 +57,7 @@ import { handleExpensePayoutMethodChange } from '../../lib/kyc/expenses/kyc-expe
 import logger from '../../lib/logger';
 import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
 import { createRefundTransaction } from '../../lib/payments';
+import { isBlockedForUnpaidPlatformBilling } from '../../lib/platform-subscriptions';
 import { getPolicy } from '../../lib/policies';
 import { canSeeAllPrivateAccounts } from '../../lib/private-accounts';
 import { reportErrorToSentry } from '../../lib/sentry';
@@ -111,22 +112,25 @@ import { checkScope } from './scope-check';
 import { hasProtectedUrlPermission } from './uploaded-file';
 
 const loadHostForExpense = async (req: express.Request, expense: Expense): Promise<Collective | null> => {
+  const loadCollectiveById = (id: number): Promise<Collective | null> =>
+    req.loaders ? req.loaders.Collective.byId.load(id) : Collective.findByPk(id);
+
   if (expense.host) {
     return expense.host;
   } else if (expense.HostCollectiveId) {
-    expense.host = await req.loaders.Collective.byId.load(expense.HostCollectiveId);
+    expense.host = await loadCollectiveById(expense.HostCollectiveId);
     return expense.host;
   } else if (expense.collective?.host) {
     return expense.collective.host;
   } else if (expense.collective) {
     if (expense.collective.HostCollectiveId) {
-      expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
+      expense.collective.host = await loadCollectiveById(expense.collective.HostCollectiveId);
       return expense.collective.host;
     }
   } else {
-    expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+    expense.collective = await loadCollectiveById(expense.CollectiveId);
     if (expense.collective && expense.collective.HostCollectiveId) {
-      expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
+      expense.collective.host = await loadCollectiveById(expense.collective.HostCollectiveId);
       return expense.collective.host;
     }
   }
@@ -254,7 +258,9 @@ export const isHostAdmin = async (req: express.Request, expense: Expense): Promi
   }
 
   if (!expense.collective) {
-    expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+    expense.collective = req.loaders
+      ? await req.loaders.Collective.byId.load(expense.CollectiveId)
+      : await Collective.findByPk(expense.CollectiveId);
     if (!expense.collective) {
       return false;
     }
@@ -959,6 +965,16 @@ export const canMarkAsPaid: ExpensePermissionEvaluator = async (
     }
     return false;
   } else {
+    const host = await loadHostForExpense(req, expense);
+    if (
+      isBlockedForUnpaidPlatformBilling(host) &&
+      ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)
+    ) {
+      if (options?.throw) {
+        throw new Forbidden('Host cannot pay expenses', EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET);
+      }
+      return false;
+    }
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
   }
 };

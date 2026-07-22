@@ -11,6 +11,7 @@ import {
 import { GraphQLDateTime } from 'graphql-scalars';
 import moment from 'moment';
 
+import { isBlockedForUnpaidPlatformBilling } from '../../../lib/platform-subscriptions';
 import { Expense } from '../../../models';
 import { ExpenseType } from '../../../models/Expense';
 import PlatformSubscription, {
@@ -37,6 +38,14 @@ export const GraphQLPlatformSubscription = new GraphQLObjectType({
     },
     isCurrent: {
       type: new GraphQLNonNull(GraphQLBoolean),
+    },
+    isAccountOnHold: {
+      type: GraphQLBoolean,
+      description: 'Whether the subscription account is on hold.',
+      async resolve(subscription: PlatformSubscription, _, req) {
+        const collective = await req.loaders.Collective.byId.load(subscription.CollectiveId);
+        return isBlockedForUnpaidPlatformBilling(collective);
+      },
     },
     plan: { type: new GraphQLNonNull(GraphQLPlatformSubscriptionTier) },
   }),

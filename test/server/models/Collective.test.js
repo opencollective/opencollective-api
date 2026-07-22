@@ -549,6 +549,35 @@ describe('server/models/Collective', () => {
     });
   });
 
+  describe('when blocked for unpaid platform billing', () => {
+    it('canApply() returns false', async () => {
+      const host = await fakeHost({ settings: { apply: true } });
+      expect(host.canApply()).to.be.true;
+      await host.update({ data: { ...host.data, isBlockedForUnpaidPlatformBilling: true } });
+      expect(host.canApply()).to.be.false;
+    });
+
+    it('addHost throws a generic error even when the actor is a host admin', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ settings: { apply: true } });
+      await host.addUserWithRole(hostAdmin, 'ADMIN');
+      await hostAdmin.populateRoles();
+      await host.update({ data: { ...host.data, isBlockedForUnpaidPlatformBilling: true } });
+
+      const applicant = await fakeCollective({ HostCollectiveId: null });
+      let error;
+      try {
+        await applicant.addHost(host, hostAdmin);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.exist;
+      // Generic message — must never disclose the billing reason
+      expect(error.message).to.equal('This host is not open to applications');
+      expect(error.message).to.not.match(/billing|unpaid|blocked/i);
+    });
+  });
+
   describe('hosts', () => {
     let newHost, newCollective;
 

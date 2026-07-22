@@ -8,6 +8,8 @@ import { Forbidden } from '../graphql/errors';
 import { Loaders } from '../graphql/loaders';
 import { Collective, PlatformSubscription } from '../models';
 
+import { isBlockedForUnpaidPlatformBilling } from './platform-subscriptions';
+
 type FEATURE_ACCESS = 'AVAILABLE' | 'DISABLED' | 'UNSUPPORTED';
 enum FEATURE_ACCESS_PARTY {
   EVERYONE = 'EVERYONE',
@@ -46,6 +48,8 @@ const FeaturesAccess: Partial<
       countries?: string[];
       /** If set to true, only public accounts will have access to the feature */
       onlyPublicAccounts?: boolean;
+      /** If set to true, the feature is unavailable while the account is on hold for unpaid platform billing */
+      blockedForUnpaidPlatformBilling?: boolean;
     }
   >
 > = {
@@ -177,6 +181,7 @@ const FeaturesAccess: Partial<
     onlyAllowedFor: FEATURE_ACCESS_PARTY.HOSTS,
     optIn: true,
     flagOverride: 'settings.apply',
+    blockedForUnpaidPlatformBilling: true,
   },
   [FEATURE.RECURRING_CONTRIBUTIONS]: {
     onlyPublicAccounts: true,
@@ -360,6 +365,11 @@ export const getFeatureAccess = async (
     // Account types
     if (featureAccess.accountTypes && !featureAccess.accountTypes.includes(collective.type)) {
       return { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' };
+    }
+
+    // Accounts on hold for unpaid platform billing
+    if (featureAccess.blockedForUnpaidPlatformBilling && isBlockedForUnpaidPlatformBilling(collective)) {
+      return { access: 'DISABLED', reason: 'BLOCKED' };
     }
 
     // Check opt-out flag

@@ -4,6 +4,13 @@ import { ExpenseStatus, ExpenseType } from '../models/Expense';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
 import { chargePlatformBillingExpenseWithStripe } from '../paymentProviders/stripe/platform-billing';
 
+/**
+ * Whether an account (org / fiscal host) has been manually blocked due to unpaid platform billing.
+ */
+export function isBlockedForUnpaidPlatformBilling(account: Collective | null | undefined): boolean {
+  return account?.data?.isBlockedForUnpaidPlatformBilling === true;
+}
+
 export async function getPreferredPlatformPayout(
   organization: Collective,
   platformPayoutMethods: Record<PayoutMethodTypes, PayoutMethod[]>,

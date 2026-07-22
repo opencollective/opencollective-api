@@ -14,6 +14,7 @@ import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/
 import emailLib from '../../../lib/email';
 import * as github from '../../../lib/github';
 import { OSCValidator, ValidatedRepositoryInfo } from '../../../lib/osc-validator';
+import { isBlockedForUnpaidPlatformBilling } from '../../../lib/platform-subscriptions';
 import { getPolicy } from '../../../lib/policies';
 import { stripHTML } from '../../../lib/sanitize-html';
 import { reportErrorToSentry } from '../../../lib/sentry';
@@ -223,6 +224,10 @@ const HostApplicationMutations = {
 
       // Check feature access for RECEIVE_HOST_APPLICATIONS
       await checkFeatureAccess(host, FEATURE.RECEIVE_HOST_APPLICATIONS, { loaders: req.loaders });
+
+      if (['APPROVE', 'REJECT'].includes(args.action) && isBlockedForUnpaidPlatformBilling(host)) {
+        throw new Forbidden('This action is currently unavailable for this host');
+      }
 
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
