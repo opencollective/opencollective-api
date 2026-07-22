@@ -25,7 +25,9 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
     toPick.push('isManualPayout');
   } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_UPDATED) {
     toPick.push('previousData.status', 'expense.status');
-  } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_ERROR) {
+  } else if (
+    [ActivityTypes.COLLECTIVE_EXPENSE_ERROR, ActivityTypes.COLLECTIVE_EXPENSE_PAYMENT_ERROR].includes(activity.type)
+  ) {
     if (activity.CollectiveId) {
       const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
       if (req.remoteUser?.isAdmin(collective.HostCollectiveId)) {

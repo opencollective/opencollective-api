@@ -51,6 +51,7 @@ describe('server/paymentProviders/transferwise/index', () => {
 
   let createQuote,
     cancelBatchGroup,
+    cancelTransfer,
     createRecipientAccount,
     createTransfer,
     fundTransfer,
@@ -92,6 +93,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     });
     createTransfer = sandbox.stub(transferwiseLib, 'createTransfer').resolves({ id: 123 });
     fundTransfer = sandbox.stub(transferwiseLib, 'fundTransfer').resolves({ status: 'COMPLETED' });
+    cancelTransfer = sandbox.stub(transferwiseLib, 'cancelTransfer').resolves();
     sandbox.stub(transferwiseLib, 'getCurrencyPairs').resolves({
       sourceCurrencies: [
         {
@@ -256,6 +258,49 @@ describe('server/paymentProviders/transferwise/index', () => {
       expect(fundTransfer.called).to.be.true;
       expect(data).to.have.nested.property('fund');
     });
+
+    it('should throw before creating anything on Wise if the connected account does not have enough balance', async () => {
+      const lowBalanceExpense = await fakeExpense({
+        payoutMethod: 'transferwise',
+        status: 'PENDING',
+        amount: 10000,
+        CollectiveId: host.id,
+        currency: 'USD',
+        FromCollectiveId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'January Invoice',
+      });
+
+      listBalancesAccount.resolves(
+        ['EUR', 'USD'].map(currency => ({
+          currency,
+          type: 'STANDARD',
+          amount: { value: 50, currency },
+        })),
+      );
+      createTransfer.resetHistory();
+      fundTransfer.resetHistory();
+      cancelTransfer.resetHistory();
+
+      await expect(transferwise.payExpense(connectedAccount, payoutMethod, lowBalanceExpense)).to.be.rejectedWith(
+        'Insufficient balance in USD to cover this expense amount, you need 101.14 USD and you currently have 50 USD. Please add funds to your Wise USD account.',
+      );
+
+      // The balance check happens before we ever call Wise to create or fund the transfer.
+      expect(createTransfer.called).to.be.false;
+      expect(cancelTransfer.called).to.be.false;
+      expect(fundTransfer.called).to.be.false;
+
+      // Restore the default balance used by other tests
+      listBalancesAccount.resolves(
+        ['EUR', 'USD'].map(currency => ({
+          currency,
+          type: 'STANDARD',
+          amount: { value: 1000000, currency },
+        })),
+      );
+    });
   });
 
   describe('scheduleExpenseForPayment', () => {
@@ -293,6 +338,10 @@ describe('server/paymentProviders/transferwise/index', () => {
 
     it('creates a new batchGroup', () => {
       assert.calledOnceWithMatch(createBatchGroup, { id: connectedAccount.id }, { sourceCurrency: host.currency });
+    });
+
+    it('only checks the balance once, skipping the check inside createTransfer', () => {
+      assert.calledOnce(listBalancesAccount);
     });
 
     it('creates a transaction for the expense in the batchGroup ', () => {
