@@ -325,9 +325,10 @@ describe('server/paymentProviders/paypal/webhook', () => {
         },
       );
 
+      const refundId = 'REFUND-002';
       sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
       await callPaymentSaleRefunded(host.id, {
-        resource: { sale_id: saleId, transaction_fee: { value: '0.50' } },
+        resource: { id: refundId, sale_id: saleId, transaction_fee: { value: '0.50' } },
       });
 
       const refundTransaction = await models.Transaction.findOne({
@@ -335,6 +336,10 @@ describe('server/paymentProviders/paypal/webhook', () => {
       });
       expect(refundTransaction).to.exist;
       expect(refundTransaction.data.isRefundedFromPayPal).to.be.true;
+      expect(refundTransaction.data.paypalRefundId).to.equal(refundId);
+      expect(refundTransaction.data.refund).to.exist;
+      // Original transaction data (e.g. paypalCaptureId) is preserved on the refund transaction
+      expect(refundTransaction.data.paypalCaptureId).to.equal(saleId);
     });
   });
 
@@ -467,6 +472,10 @@ describe('server/paymentProviders/paypal/webhook', () => {
       });
       expect(refundTransaction).to.exist;
       expect(refundTransaction.data.isRefundedFromPayPal).to.be.true;
+      expect(refundTransaction.data.paypalRefundId).to.equal(reversalId);
+      expect(refundTransaction.data.refund).to.exist;
+      // Original transaction data (e.g. paypalCaptureId) is preserved on the refund transaction
+      expect(refundTransaction.data.paypalCaptureId).to.equal(captureId);
     });
   });
 
@@ -548,6 +557,10 @@ describe('server/paymentProviders/paypal/webhook', () => {
       });
       expect(refundTransaction).to.exist;
       expect(refundTransaction.data.isRefundedFromPayPal).to.be.true;
+      expect(refundTransaction.data.paypalRefundId).to.equal(saleId);
+      expect(refundTransaction.data.refund).to.exist;
+      // Original transaction data (e.g. paypalCaptureId) is preserved on the refund transaction
+      expect(refundTransaction.data.paypalCaptureId).to.equal(saleId);
     });
   });
 });

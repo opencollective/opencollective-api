@@ -18,7 +18,7 @@ import models from '../../models';
 import Order from '../../models/Order';
 import Transaction from '../../models/Transaction';
 import User from '../../models/User';
-import { PaypalCapture, PaypalSale, PaypalTransaction } from '../../types/paypal';
+import { PaypalCapture, PaypalRefund, PaypalSale, PaypalTransaction } from '../../types/paypal';
 import { BasePaymentProviderService, PaymentProviderServiceWithoutRecurring } from '../types';
 
 import { paypalRequestV2 } from './api';
@@ -236,13 +236,13 @@ export const refundPaypalCapture = async (
     // eslint-disable-next-line camelcase
     const payload = { note_to_payer: truncate(reason, { length: 255 }) || undefined };
     const result = await paypalRequestV2(`payments/captures/${captureId}/refund`, host, 'POST', payload);
-    const refundDetails = await paypalRequestV2(`payments/refunds/${result.id}`, host, 'GET');
-    const rawRefundedPaypalFee = <string>get(refundDetails, 'seller_payable_breakdown.paypal_fee.value', '0.00');
+    const refund = (await paypalRequestV2(`payments/refunds/${result.id}`, host, 'GET')) as PaypalRefund;
+    const rawRefundedPaypalFee = <string>get(refund, 'seller_payable_breakdown.paypal_fee.value', '0.00');
     const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
     return createRefundTransaction(
       transaction,
       refundedPaypalFee,
-      { refundReason: reason, paypalResponse: result },
+      { ...transaction.data, refundReason: reason, refund, paypalRefundId: refund.id as string },
       user,
       null,
       null,
