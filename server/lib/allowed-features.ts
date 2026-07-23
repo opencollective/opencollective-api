@@ -148,6 +148,7 @@ const FeaturesAccess: Partial<
   },
   [FEATURE.PUBLIC_PROFILE]: {
     onlyPublicAccounts: true,
+    flagOverride: 'settings.features.publicProfile',
     accountTypes: [
       CollectiveType.COLLECTIVE,
       CollectiveType.ORGANIZATION,

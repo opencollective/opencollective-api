@@ -676,6 +676,37 @@ describe('server/lib/allowed-features', () => {
       });
     });
 
+    describe('PUBLIC_PROFILE', () => {
+      it('is AVAILABLE for allowed account types, DISABLED if opted out via flagOverride, UNSUPPORTED for others', async () => {
+        const collective = await fakeCollective({ isActive: true });
+        expect(await getFeatureAccess(collective, FEATURE.PUBLIC_PROFILE)).to.deep.eq({
+          access: 'AVAILABLE',
+          reason: null,
+        });
+        const user = await fakeUser({ isActive: true });
+        expect(await getFeatureAccess(user.collective, FEATURE.PUBLIC_PROFILE)).to.deep.eq({
+          access: 'AVAILABLE',
+          reason: null,
+        });
+        const disabled = await fakeCollective({
+          isActive: true,
+          settings: { features: { publicProfile: false } },
+        });
+        expect(await getFeatureAccess(disabled, FEATURE.PUBLIC_PROFILE)).to.deep.eq({
+          access: 'DISABLED',
+          reason: 'BLOCKED',
+        });
+        const enabled = await fakeCollective({
+          isActive: true,
+          settings: { features: { publicProfile: true } },
+        });
+        expect(await getFeatureAccess(enabled, FEATURE.PUBLIC_PROFILE)).to.deep.eq({
+          access: 'AVAILABLE',
+          reason: null,
+        });
+      });
+    });
+
     describe('TEAM', () => {
       it('is AVAILABLE for multi-admin account types, UNSUPPORTED for others', async () => {
         const org = await fakeOrganization();

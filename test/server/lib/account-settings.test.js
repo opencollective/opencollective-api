@@ -4,6 +4,7 @@ import { CollectiveType } from '../../../server/constants/collectives';
 import {
   getSettingsChangeRequirements,
   isCollectivePageBudgetDisableForbidden,
+  isPublicProfileVisibilityChangeForbidden,
   shouldRequireTwoFactorAuthForPayoutSettingsChange,
 } from '../../../server/lib/account-settings';
 
@@ -77,6 +78,44 @@ describe('server/lib/account-settings', () => {
     });
   });
 
+  describe('isPublicProfileVisibilityChangeForbidden', () => {
+    it('allows USER accounts to toggle publicProfile', () => {
+      const oldSettings = {};
+      const newSettings = { features: { publicProfile: false } };
+
+      expect(isPublicProfileVisibilityChangeForbidden(CollectiveType.USER, oldSettings, newSettings)).to.be.false;
+    });
+
+    it('forbids COLLECTIVE accounts from toggling publicProfile', () => {
+      const oldSettings = {};
+      const newSettings = { features: { publicProfile: false } };
+
+      expect(isPublicProfileVisibilityChangeForbidden(CollectiveType.COLLECTIVE, oldSettings, newSettings)).to.be.true;
+    });
+
+    it('forbids ORGANIZATION accounts from toggling publicProfile', () => {
+      const oldSettings = {};
+      const newSettings = { features: { publicProfile: false } };
+
+      expect(isPublicProfileVisibilityChangeForbidden(CollectiveType.ORGANIZATION, oldSettings, newSettings)).to.be
+        .true;
+    });
+
+    it('does not block when publicProfile is unchanged', () => {
+      const oldSettings = { features: { publicProfile: false } };
+      const newSettings = { features: { publicProfile: false } };
+
+      expect(isPublicProfileVisibilityChangeForbidden(CollectiveType.COLLECTIVE, oldSettings, newSettings)).to.be.false;
+    });
+
+    it('does not block unrelated settings changes', () => {
+      const oldSettings = { apply: false };
+      const newSettings = { apply: true };
+
+      expect(isPublicProfileVisibilityChangeForbidden(CollectiveType.COLLECTIVE, oldSettings, newSettings)).to.be.false;
+    });
+  });
+
   describe('getSettingsChangeRequirements', () => {
     it('combines permission and 2FA requirements', () => {
       const oldSettings = {
@@ -138,6 +177,28 @@ describe('server/lib/account-settings', () => {
       expect(
         getSettingsChangeRequirements({ type: CollectiveType.COLLECTIVE }, oldSettings, newSettings),
       ).to.deep.equal({
+        forbidden: false,
+        requireTwoFactorAuth: false,
+      });
+    });
+
+    it('forbids non-USER accounts from toggling publicProfile', () => {
+      const oldSettings = {};
+      const newSettings = { features: { publicProfile: false } };
+
+      expect(
+        getSettingsChangeRequirements({ type: CollectiveType.COLLECTIVE }, oldSettings, newSettings),
+      ).to.deep.equal({
+        forbidden: true,
+        requireTwoFactorAuth: false,
+      });
+    });
+
+    it('allows USER accounts to toggle publicProfile', () => {
+      const oldSettings = {};
+      const newSettings = { features: { publicProfile: false } };
+
+      expect(getSettingsChangeRequirements({ type: CollectiveType.USER }, oldSettings, newSettings)).to.deep.equal({
         forbidden: false,
         requireTwoFactorAuth: false,
       });
