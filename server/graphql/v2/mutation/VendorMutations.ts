@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import slugify from 'limax';
-import { differenceBy, isEmpty, isUndefined, pick, uniq } from 'lodash';
+import { differenceBy, isEmpty, isUndefined, omit, pick, uniq } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../../constants/activities';
@@ -222,6 +222,9 @@ const vendorMutations = {
           number: vendorInfo.taxId,
           type: 'OWN',
         };
+      } else if (vendorInfo?.taxType === null) {
+        vendorData.data.vendorInfo = { ...vendorData.data.vendorInfo, taxId: null, taxType: null };
+        vendorData.settings = omit(vendorData.settings, ['VAT', 'GST', 'EIN']);
       }
 
       const { newData, previousData } = getDiffBetweenInstances(vendorData, vendor);
