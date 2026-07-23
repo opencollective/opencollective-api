@@ -34,6 +34,10 @@ export function getSettingsChangeRequirements(
     requirements.forbidden = true;
   }
 
+  if (isPublicProfileVisibilityChangeForbidden(account.type, oldSettings, newSettings)) {
+    requirements.forbidden = true;
+  }
+
   if (shouldRequireTwoFactorAuthForPayoutSettingsChange(oldSettings, newSettings)) {
     requirements.requireTwoFactorAuth = true;
   }
@@ -55,6 +59,23 @@ export function isCollectivePageBudgetDisableForbidden(
   const oldEnabled = oldBudget?.isEnabled ?? true;
   const newEnabled = newBudget?.isEnabled ?? true;
   return Boolean(oldEnabled && !newEnabled);
+}
+
+/**
+ * Checks if a change to the public profile visibility setting is forbidden.
+ * For now, only USER accounts are allowed to toggle their public profile visibility.
+ */
+export function isPublicProfileVisibilityChangeForbidden(
+  accountType: Collective['type'],
+  oldSettings: Collective['settings'] | null | undefined,
+  newSettings: Collective['settings'] | null | undefined,
+): boolean {
+  const oldPublicProfile = oldSettings?.features?.publicProfile;
+  const newPublicProfile = newSettings?.features?.publicProfile;
+  if (oldPublicProfile === newPublicProfile) {
+    return false; // No change to publicProfile setting
+  }
+  return accountType !== CollectiveType.USER;
 }
 
 export function shouldRequireTwoFactorAuthForPayoutSettingsChange(

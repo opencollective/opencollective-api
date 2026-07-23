@@ -164,6 +164,7 @@ type Settings = {
     paypalDonations?: boolean;
     paypalPayouts?: boolean;
     stripePaymentIntent?: boolean;
+    publicProfile?: boolean;
   };
   transferwise?: {
     ignorePaymentProcessorFees?: boolean;
