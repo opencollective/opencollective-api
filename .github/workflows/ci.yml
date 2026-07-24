@@ -296,7 +296,7 @@ jobs:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
       opensearch:
-        image: opensearchproject/opensearch:3@sha256:123e6591a47b1d54686890551bdb35739c85193ecded381219fc9e059e18128f
+        image: opensearchproject/opensearch:3@sha256:44ba7ea58a319adf61c33ab16873f9ef5dbb30b291a832d375172f0b2d24e3c9
         ports:
           - 9200:9200
         env:
