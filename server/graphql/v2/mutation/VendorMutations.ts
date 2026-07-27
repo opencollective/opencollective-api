@@ -60,7 +60,14 @@ const vendorMutations = {
       if (!canBeUsedWithAccounts.every(acc => acc.id === host.id || acc.HostCollectiveId === host.id)) {
         throw new Unauthorized("You're not authorized to set a vendor visibility for this account");
       }
-
+      const settings =
+        args.vendor.hasPublicProfile !== undefined
+          ? {
+              features: {
+                publicProfile: args.vendor.hasPublicProfile ?? false,
+              },
+            }
+          : null;
       const vendorData = {
         type: CollectiveType.VENDOR,
         slug: `${host.id}-${slugify(args.vendor.name)}-${uuid().substr(0, 8)}`,
@@ -75,7 +82,7 @@ const vendorMutations = {
           canBeUsedWithAccountIds: uniq(canBeUsedWithAccounts.map(acc => acc.id)),
           useVendorPolicy: useVendorPolicy ?? null,
         },
-        settings: {},
+        settings,
       };
 
       if (['EIN', 'VAT', 'GST'].includes(vendorInfo?.taxType)) {
@@ -199,12 +206,19 @@ const vendorMutations = {
           ? avatar?.url
           : vendor.image;
       const backgroundImage = !isUndefined(banner) ? banner?.url : vendor.backgroundImage;
+      const settings =
+        args.vendor.hasPublicProfile !== undefined
+          ? Object.assign({}, vendor.settings, {
+              features: Object.assign({}, vendor.settings?.features, {
+                publicProfile: args.vendor.hasPublicProfile ?? false,
+              }),
+            })
+          : vendor.settings;
       const vendorData = {
         image,
         backgroundImage,
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
         deactivatedAt: args.archive ? new Date() : null,
-        settings: vendor.settings,
         data: {
           ...vendor.data,
           canBeUsedWithAccountIds: isUndefined(canBeUsedWithAccountsArg)
@@ -213,6 +227,7 @@ const vendorMutations = {
           useVendorPolicy: isUndefined(useVendorPolicy) ? (vendor.data?.useVendorPolicy ?? null) : useVendorPolicy,
           vendorInfo: { ...vendor.data?.vendorInfo, ...pick(vendorInfo, VENDOR_INFO_FIELDS) },
         },
+        settings,
       };
 
       if (vendorInfo?.taxType) {

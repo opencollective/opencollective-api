@@ -156,6 +156,7 @@ const FeaturesAccess: Partial<
       CollectiveType.FUND,
       CollectiveType.PROJECT,
       CollectiveType.USER,
+      CollectiveType.VENDOR,
     ],
   },
   [FEATURE.RECEIVE_EXPENSES]: {
