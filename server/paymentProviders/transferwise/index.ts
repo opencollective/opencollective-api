@@ -264,7 +264,10 @@ async function assertHasSufficientWiseBalance(
   const roundedAmountNeeded = round(amountNeeded, 2); // To prevent floating point errors
   assert(
     balance.amount.value >= roundedAmountNeeded,
-    `Insufficient balance in ${currency} to cover this expense amount, you need ${roundedAmountNeeded} ${currency} and you currently have ${balance.amount.value} ${balance.amount.currency}. Please add funds to your Wise ${currency} account.`,
+    new TransferwiseError(
+      `Insufficient balance in ${currency} to cover this expense amount, you need ${roundedAmountNeeded} ${currency} and you currently have ${balance.amount.value} ${balance.amount.currency}. Please add funds to your Wise ${currency} account.`,
+      'INSUFFICIENT_BALANCE',
+    ),
   );
 }
 
@@ -342,7 +345,9 @@ async function createTransfer(
     return { quote, recipient, transfer, paymentOption };
   } catch (e) {
     logger.error(`Wise: Error creating transaction for expense: ${expense.id}`, e);
-    await expense.update({ status: status.ERROR });
+    if (e instanceof TransferwiseError && e.extensions?.code !== 'INSUFFICIENT_BALANCE') {
+      await expense.update({ status: status.ERROR });
+    }
     const user = await User.findByPk(expense.lastEditedById);
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAYMENT_ERROR, user, {
       error: { message: e.message, details: safeJsonStringify(e) },

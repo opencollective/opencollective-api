@@ -287,6 +287,9 @@ describe('server/paymentProviders/transferwise/index', () => {
         'Insufficient balance in USD to cover this expense amount, you need 101.14 USD and you currently have 50 USD. Please add funds to your Wise USD account.',
       );
 
+      await lowBalanceExpense.reload();
+      expect(lowBalanceExpense).to.have.property('status', 'PENDING');
+
       // The balance check happens before we ever call Wise to create or fund the transfer.
       expect(createTransfer.called).to.be.false;
       expect(cancelTransfer.called).to.be.false;
