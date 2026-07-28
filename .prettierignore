@@ -12,3 +12,4 @@ coverage/
 .history
 
 config/collective-spam-bayes.json
+test/stories/transferwise.test.ts.responses.json
