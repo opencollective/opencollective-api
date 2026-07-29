@@ -33,7 +33,7 @@ import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { getOrCreateHostPlatformTipsAccount, getPaymentProcessorFeeVendor, getTaxVendor } from '../lib/transactions';
 import { exportToCSV, parseToBoolean } from '../lib/utils';
-import type { PaypalCapture, PaypalSale, PaypalTransaction } from '../types/paypal';
+import type { PaypalCapture, PaypalRefund, PaypalSale, PaypalTransaction } from '../types/paypal';
 import type { Transfer } from '../types/transferwise';
 
 import Activity from './Activity';
@@ -56,9 +56,12 @@ const { CONTRIBUTION, EXPENSE, ADDED_FUNDS } = TransactionKind;
 export const MERCHANT_ID_PATHS = {
   [CONTRIBUTION]: [
     'data.charge.id', // stripeId
+    'data.paypalRefundId', // Stores refund and reversal ids
+    'data.paypalCaptureId', // Stores capture and sale ID
     'data.capture.id', // onetimePaypalPaymentId
+    'data.refund.id', // PayPal and Stripe refund ids
     'data.paypalSale.id', // recurringPaypalPaymentId
-    'data.paypalResponse.id', // paypalResponseId
+    'data.paypalResponse.id', // legacy paypalRefundOrReversalId (kept for historical transactions)
   ],
   [EXPENSE]: [
     'data.transfer.id', // wiseId
@@ -103,6 +106,7 @@ export type TransactionData = {
   oppositeTransactionHostCurrencyFxRate?: number;
   paymentProcessorFeeMigration?: string;
   paypalCaptureId?: string;
+  paypalRefundId?: string;
   paypalResponse?: Record<string, unknown>;
   paypalSale?: Partial<PaypalSale>;
   paypalTransaction?: Partial<PaypalTransaction>;
@@ -111,7 +115,8 @@ export type TransactionData = {
   platformTipInHostCurrency?: number;
   preMigrationData?: Record<string, unknown>;
   migration?: unknown;
-  refund?: Stripe.Refund;
+  /** Stripe stores its own `Stripe.Refund` object here; PayPal stores a `Partial<PaypalRefund>` object here */
+  refund?: Stripe.Refund | Partial<PaypalRefund>;
   refundedFromDoubleTransactionsScript?: boolean;
   refundReason?: string;
   refundTransactionId?: Transaction['id'];
@@ -2017,7 +2022,8 @@ Transaction.init(
       },
 
       merchantId() {
-        return head(compact(MERCHANT_ID_PATHS[this.kind]?.map(path => get(this, path))));
+        const ids = MERCHANT_ID_PATHS[this.kind]?.map(path => get(this, path));
+        return head(compact(ids));
       },
     },
 

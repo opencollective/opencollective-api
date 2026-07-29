@@ -550,7 +550,6 @@ async function refundPaymentProcessorFee(
           processorFeeTransaction,
           processorFeeRefundTransaction,
           sqlTransaction,
-          null,
           refundKind,
         );
       }
@@ -616,13 +615,7 @@ export async function refundHostFee(
       const hostFeeRefundTransaction = await Transaction.createDoubleEntry(hostFeeRefund, {
         sequelizeTransaction: sqlTransaction,
       });
-      await associateTransactionRefundId(
-        hostFeeTransaction,
-        hostFeeRefundTransaction,
-        sqlTransaction,
-        null,
-        refundKind,
-      );
+      await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, sqlTransaction, refundKind);
 
       // Refund Host Fee Share
       const hostFeeShareTransaction = await transaction.getHostFeeShareTransaction(null, { sqlTransaction });
@@ -635,7 +628,6 @@ export async function refundHostFee(
           hostFeeShareTransaction,
           hostFeeShareRefundTransaction,
           sqlTransaction,
-          null,
           refundKind,
         );
 
@@ -670,7 +662,6 @@ export async function refundHostFee(
             hostFeeShareDebtTransaction,
             hostFeeShareDebtRefundTransaction,
             sqlTransaction,
-            null,
             refundKind,
           );
           await TransactionSettlement.createForTransaction(
@@ -705,7 +696,7 @@ async function refundTax(
       const taxRefundTransaction = await Transaction.createDoubleEntry(taxRefundData, {
         sequelizeTransaction: sqlTransaction,
       });
-      await associateTransactionRefundId(taxTransaction, taxRefundTransaction, sqlTransaction, null, refundKind);
+      await associateTransactionRefundId(taxTransaction, taxRefundTransaction, sqlTransaction, refundKind);
     }
   };
 
@@ -791,7 +782,6 @@ export async function createRefundTransaction(
         platformTipTransaction,
         platformTipRefundTransaction,
         sqlTransaction,
-        data,
         refundKind,
       );
 
@@ -853,7 +843,6 @@ export async function createRefundTransaction(
           platformTipDebtTransaction,
           platformTipDebtRefundTransaction,
           sqlTransaction,
-          data,
           refundKind,
         );
         await TransactionSettlement.createForTransaction(
@@ -888,7 +877,6 @@ export async function createRefundTransaction(
         applicationFeeTransaction,
         applicationFeeRefundTransaction,
         sqlTransaction,
-        data,
         refundKind,
       );
     }
@@ -924,7 +912,7 @@ export async function createRefundTransaction(
       sequelizeTransaction: sqlTransaction,
     });
     await syncPaymentIntentFromRefund(refundTransaction, sqlTransaction);
-    return associateTransactionRefundId(transaction, refundTransaction, sqlTransaction, data, refundKind);
+    return associateTransactionRefundId(transaction, refundTransaction, sqlTransaction, refundKind);
   };
 
   return sqlTransaction ? runInTransaction(sqlTransaction) : sequelize.transaction(runInTransaction);
@@ -934,7 +922,6 @@ export async function associateTransactionRefundId(
   transaction: Transaction,
   refund: Transaction,
   sqlTransaction: SequelizeTransaction,
-  data?: TransactionData,
   refundKind?: RefundKind,
 ): Promise<Transaction> {
   const transactions = await Transaction.findAll({
@@ -952,12 +939,6 @@ export async function associateTransactionRefundId(
   const debit = transactions.find(t => !t.isRefund && t.type === DEBIT);
   const refundCredit = transactions.find(t => t.isRefund && t.type === CREDIT);
   const refundDebit = transactions.find(t => t.isRefund && t.type === DEBIT);
-
-  // After refunding a transaction, in some cases the data may be updated as well (stripe data changes after refunds)
-  if (data && Object.keys(data).length) {
-    debit.data = data;
-    credit.data = data;
-  }
 
   if (refundCredit && debit) {
     debit.RefundTransactionId = refundCredit.id;

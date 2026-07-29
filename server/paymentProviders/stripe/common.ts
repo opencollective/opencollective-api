@@ -1,6 +1,7 @@
 import config from 'config';
 import { get, result, toUpper } from 'lodash';
 import moment from 'moment';
+import assert from 'node:assert';
 import type { CreateOptions } from 'sequelize';
 import Stripe from 'stripe';
 
@@ -55,8 +56,19 @@ export const refundTransaction: BasePaymentProviderService['refundTransaction'] 
     { charge: chargeId, refund_application_fee: hasApplicationFees }, // eslint-disable-line camelcase
     { stripeAccount: hostStripeAccount.username },
   );
+  assert(refund, `Refund for charge ${chargeId} failed for host #${hostStripeAccount.CollectiveId}`);
+
+  // Record the refund reference on the original transaction (and its opposite ledger entry) so that
+  // a concurrent/duplicate refund request is blocked by the guard above while it's still pending on Stripe.
+  // We only add the `refund` key here, we don't touch the rest of the original transaction's data
+  // (e.g. `charge`, `balanceTransaction`), which must keep reflecting the original charge.
+  const oppositeTransaction = await transaction.getOppositeTransaction();
+  await Promise.all(
+    [transaction, oppositeTransaction].filter(Boolean).map(t => t.update({ data: { ...t.data, refund } })),
+  );
 
   const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });
+  assert(charge, `Charge ${chargeId} not found in Stripe for host #${hostStripeAccount.CollectiveId}`);
   const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction as string, {
     stripeAccount: hostStripeAccount.username,
   });
@@ -69,7 +81,8 @@ export const refundTransaction: BasePaymentProviderService['refundTransaction'] 
     {
       ...transaction.data,
       refund,
-      balanceTransaction: refundBalance, // TODO: This is overwriting the original balanceTransaction with the refund balance transaction, which remove important info
+      // This is no longer replicated into the original set of transactions, but we keep it here for backward compatibility with existing transactions
+      balanceTransaction: refundBalance,
       charge,
       refundReason: reason,
     },

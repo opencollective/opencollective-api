@@ -17,7 +17,7 @@ import { validateWebhookEvent, WatchedPaypalWebhookEvent } from '../../lib/paypa
 import { recordOrderProcessed } from '../../lib/recurring-contributions';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import models from '../../models';
-import { PayoutWebhookRequest, PaypalCapture } from '../../types/paypal';
+import { PayoutWebhookRequest, PaypalCapture, PaypalRefund } from '../../types/paypal';
 
 import { paypalRequestV2 } from './api';
 import { findTransactionByPaypalId, recordPaypalCapture, recordPaypalSale } from './payment';
@@ -292,7 +292,7 @@ async function handleSaleRefunded(req: Request): Promise<void> {
     await createRefundTransaction(
       transaction,
       refundedPaypalFee,
-      { paypalResponse: refund, isRefundedFromPayPal: true },
+      { ...transaction.data, refund: refund, isRefundedFromPayPal: true, paypalRefundId: refund.id },
       null,
     );
   });
@@ -334,7 +334,12 @@ async function handleSaleReversed(req: Request): Promise<void> {
       return;
     }
 
-    await createRefundTransaction(transaction, 0, { paypalResponse: sale, isRefundedFromPayPal: true }, null);
+    await createRefundTransaction(
+      transaction,
+      0,
+      { ...transaction.data, refund: sale, isRefundedFromPayPal: true, paypalRefundId: sale.id },
+      null,
+    );
   });
 }
 
@@ -350,7 +355,7 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
 
   // Retrieve the data for this event
   const refund = req.body.resource;
-  const refundDetails = await paypalRequestV2(`payments/refunds/${refund.id}`, host, 'GET');
+  const refundDetails = (await paypalRequestV2(`payments/refunds/${refund.id}`, host, 'GET')) as PaypalRefund;
   const refundLinks = <Record<string, string>[]>refundDetails.links;
   const captureLink = refundLinks.find(l => l.rel === 'up' && l.method === 'GET');
   const capturePath = captureLink.href.replace(/^.+\/v2\//, ''); // https://api.sandbox.paypal.com/v2/payments/captures/... -> payments/captures/...
@@ -399,7 +404,12 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
     // Record the refund transactions
     const rawRefundedPaypalFee = <string>get(refundDetails, 'seller_payable_breakdown.paypal_fee.value', '0.00');
     const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
-    const dataPayload = { paypalResponse: refundDetails, isRefundedFromPayPal: true };
+    const dataPayload = {
+      ...transaction.data,
+      refund: refundDetails,
+      isRefundedFromPayPal: true,
+      paypalRefundId: refundDetails.id,
+    };
     await createRefundTransaction(transaction, refundedPaypalFee, dataPayload, null);
   });
 }
