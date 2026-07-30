@@ -812,10 +812,12 @@ export const generateValid2FAHeader = user => {
 };
 
 export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNocks = x => x) => {
+  console.log(`Using integration test records for ${baseUrl}`);
   if (process.env.RECORD) {
     nock.recorder.rec({
       output_objects: true,
       dont_print: true,
+      enable_reqheaders_recording: true,
     });
   }
   const recordFile = `${testFileName}.responses.json`;
