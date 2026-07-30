@@ -811,8 +811,9 @@ export const generateValid2FAHeader = user => {
   return `totp ${twoFactorAuthenticatorCode}`;
 };
 
-export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNocks = x => x) => {
+export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNocks = x => x, sanitizeNocks = x => x) => {
   if (process.env.RECORD) {
+    console.log(`Recording integration test for ${baseUrl} to ${testFileName}.responses.json`);
     nock.recorder.rec({
       output_objects: true,
       dont_print: true,
@@ -826,13 +827,17 @@ export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNock
     } else {
       nock.cleanAll();
       const nocks = nock.loadDefs(recordFile).map(preProcessNocks);
+      console.log(`Loaded ${nocks.length} nocks from ${recordFile}`);
       nock.define(nocks);
     }
   });
 
   after(() => {
     if (process.env.RECORD) {
-      const nockCalls = nock.recorder.play();
+      let nockCalls = nock.recorder.play();
+      if (sanitizeNocks) {
+        nockCalls = nockCalls.map(sanitizeNocks);
+      }
       fs.writeFileSync(recordFile, JSON.stringify(nockCalls, null, 2));
     }
     nock.cleanAll();

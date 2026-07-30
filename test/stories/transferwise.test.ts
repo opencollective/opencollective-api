@@ -2,7 +2,7 @@
 
 import { expect } from 'chai';
 import config from 'config';
-import { round } from 'lodash';
+import { omit, round } from 'lodash';
 
 import ExpenseStatuses from '../../server/constants/expense-status';
 import { payExpense } from '../../server/graphql/common/expenses';
@@ -36,13 +36,20 @@ const RATES = {
 };
 
 describe('/test/stories/transferwise.test.ts', () => {
-  useIntegrationTestRecorder(config.transferwise.apiUrl, __filename, nock => {
-    // Ignore our randomly generated customerTransactionId
-    if (nock.body?.customerTransactionId) {
-      nock.body.customerTransactionId = /.+/i;
-    }
-    return nock;
-  });
+  useIntegrationTestRecorder(
+    config.transferwise.apiUrl,
+    __filename,
+    nock => {
+      // Ignore our randomly generated customerTransactionId
+      if (nock.body?.customerTransactionId) {
+        nock.body.customerTransactionId = /.+/i;
+      }
+      return nock;
+    },
+    nock => {
+      return omit(nock, ['rawHeaders.date']);
+    },
+  );
 
   before(async () => {
     await resetTestDB();
