@@ -319,8 +319,11 @@ export const getFeatureStatusResolver =
         );
       }
       case FEATURE.PUBLIC_PROFILE: {
+        if (collective.isIncognito) {
+          return FEATURE_STATUS.DISABLED;
+        }
         // For vendors, the PUBLIC_PROFILE is an opt-in feature that needs to be explicitly enabled by fiscal-host admin.
-        if (collective.type === CollectiveType.VENDOR && collective.settings?.features?.publicProfile !== true) {
+        else if (collective.type === CollectiveType.VENDOR && collective.settings?.features?.publicProfile !== true) {
           return FEATURE_STATUS.DISABLED;
         }
         return FEATURE_STATUS.ACTIVE;
