@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import slugify from 'limax';
-import { differenceBy, isEmpty, isUndefined, omit, pick, uniq } from 'lodash';
+import { differenceBy, isEmpty, isEqual, isUndefined, omit, pick, uniq } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../../constants/activities';
@@ -12,6 +12,7 @@ import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/en
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Activity, Collective, LegalDocument, Op, sequelize } from '../../../models';
 import { ExpenseStatus } from '../../../models/Expense';
+import { PayoutMethodTypes, PaypalPayoutMethodData } from '../../../models/PayoutMethod';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -67,7 +68,7 @@ const vendorMutations = {
                 publicProfile: args.vendor.hasPublicProfile ?? false,
               },
             }
-          : null;
+          : {};
       const vendorData = {
         type: CollectiveType.VENDOR,
         slug: `${host.id}-${slugify(args.vendor.name)}-${uuid().substr(0, 8)}`,
@@ -317,15 +318,71 @@ const vendorMutations = {
             payoutMethod.CollectiveId === vendor.id,
             new Unauthorized('Payout method does not belong to this vendor'),
           );
-          await sequelize.transaction(async transaction => {
-            const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true }, transaction });
-            await Promise.all(
-              existingPayoutMethods
-                .filter(pm => pm.id !== payoutMethod.id)
-                .map(pm => pm.update({ isSaved: false }, { transaction })),
-            );
-            await payoutMethod.update({ isSaved: true }, { transaction });
-          });
+
+          // The frontend always re-submits the full payout method (including its `data`), so we need to
+          // detect and persist any changes made to it (e.g. changing the currency), not just the `isSaved` flag.
+          const isExistingPayPalOAuthMethod = Boolean(
+            payoutMethod.type === PayoutMethodTypes.PAYPAL &&
+            (payoutMethod.data as PaypalPayoutMethodData)?.isPayPalOAuth,
+          );
+          const updatedName = !isUndefined(args.vendor.payoutMethod.name)
+            ? args.vendor.payoutMethod.name
+            : payoutMethod.name;
+          const updatedCurrency =
+            args.vendor.payoutMethod.currency || args.vendor.payoutMethod.data?.currency || payoutMethod.currency;
+          const updatedData = {
+            ...payoutMethod.data,
+            ...models.PayoutMethod.filterUserSubmittedData(payoutMethod.type, args.vendor.payoutMethod.data, {
+              isExistingPayPalOAuthMethod,
+            }),
+          };
+          const hasPayoutMethodChanges =
+            !isEqual(updatedData, payoutMethod.data) ||
+            updatedCurrency !== payoutMethod.currency ||
+            updatedName !== payoutMethod.name;
+
+          if (!hasPayoutMethodChanges) {
+            await sequelize.transaction(async transaction => {
+              const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true }, transaction });
+              await Promise.all(
+                existingPayoutMethods
+                  .filter(pm => pm.id !== payoutMethod.id)
+                  .map(pm => pm.update({ isSaved: false }, { transaction })),
+              );
+              await payoutMethod.update({ isSaved: true }, { transaction });
+            });
+          } else if (await payoutMethod.canBeEdited()) {
+            await sequelize.transaction(async transaction => {
+              const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true }, transaction });
+              await Promise.all(
+                existingPayoutMethods
+                  .filter(pm => pm.id !== payoutMethod.id)
+                  .map(pm => pm.update({ isSaved: false }, { transaction })),
+              );
+              payoutMethod = await payoutMethod.update(
+                { name: updatedName, currency: updatedCurrency, data: updatedData, isSaved: true },
+                { transaction },
+              );
+            });
+          } else {
+            // The payout method is already used in non-editable expenses: archive it and create a new one with the updated data
+            payoutMethod = await sequelize.transaction(async transaction => {
+              const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true }, transaction });
+              await Promise.all(existingPayoutMethods.map(pm => pm.update({ isSaved: false }, { transaction })));
+              return models.PayoutMethod.create(
+                {
+                  name: updatedName,
+                  type: payoutMethod.type,
+                  currency: updatedCurrency,
+                  data: updatedData,
+                  isSaved: true,
+                  CollectiveId: vendor.id,
+                  CreatedByUserId: req.remoteUser.id,
+                },
+                { transaction },
+              );
+            });
+          }
         }
 
         // Since vendors can only have a single payout method, we update all expenses to use the new one
