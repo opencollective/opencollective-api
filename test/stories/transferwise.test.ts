@@ -2,7 +2,7 @@
 
 import { expect } from 'chai';
 import config from 'config';
-import { omit, round } from 'lodash';
+import { pick, round } from 'lodash';
 
 import ExpenseStatuses from '../../server/constants/expense-status';
 import { payExpense } from '../../server/graphql/common/expenses';
@@ -47,7 +47,13 @@ describe('/test/stories/transferwise.test.ts', () => {
       return nock;
     },
     nock => {
-      return omit(nock, ['rawHeaders.date']);
+      nock.rawHeaders = pick(nock.rawHeaders, [
+        'content-type',
+        'x-2fa-approval',
+        'x-2fa-approval-result',
+        'content-encoding',
+      ]);
+      return nock;
     },
   );
 
