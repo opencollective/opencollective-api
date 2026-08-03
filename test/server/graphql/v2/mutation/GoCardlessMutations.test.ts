@@ -136,12 +136,7 @@ describe('server/graphql/v2/mutation/GoCardlessMutations', () => {
     );
 
   /** Runs `connectGoCardlessAccount` as `admin` for `host` */
-  const connectAccount = (
-    admin: User,
-    host,
-    requisitionId: string,
-    { headers = {}, jwtPayload = newSession() } = {},
-  ) =>
+  const connectAccount = (admin: User, host, requisitionId: string, { headers = {}, jwtPayload = newSession() } = {}) =>
     graphqlQueryV2(
       CONNECT_GOCARDLESS_ACCOUNT_MUTATION,
       { requisitionId, host: { legacyId: host.id } },
