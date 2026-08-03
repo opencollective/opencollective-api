@@ -465,6 +465,34 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
   },
 });
 
+/**
+ * Builds a fresh set of Sequelize conditions restricting the visibility of private accounts for
+ * the requesting user. This mirrors the logic used by the GraphQL V2 `HasMembers` interface and by
+ * the V1 `allMembers` query: root users see everything, users with an ADMIN/ACCOUNTANT role see the
+ * related private accounts, everyone else only sees public accounts.
+ */
+const getPrivateAccountsVisibilityConditions = req => {
+  if (!req.remoteUser) {
+    return { isPrivate: false };
+  } else if (req.remoteUser.isRoot()) {
+    return {};
+  } else {
+    let conditions = { isPrivate: false };
+    const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
+    if (directAccess.length > 0) {
+      conditions = {
+        [Op.or]: [
+          { isPrivate: false },
+          { id: directAccess }, // User is an admin or accountant of the account
+          { ParentCollectiveId: directAccess }, // ...of the account's parent account (for events/projects)
+          { HostCollectiveId: directAccess, approvedAt: { [Op.ne]: null } }, // ...of the account's fiscal host (must be approved by the host)
+        ],
+      };
+    }
+    return conditions;
+  }
+};
+
 const CollectiveFields = () => {
   return {
     id: {
@@ -894,10 +922,13 @@ const CollectiveFields = () => {
           query.where.role = { [Op.in]: roles };
         }
 
-        let conditionOnMemberCollective;
+        // Never expose private accounts (the member collectives) to users who are not allowed to
+        // see them. Without this, the `slug`/`name` of private organizations backing a public
+        // collective would be returned to anyone, including unauthenticated users.
+        const conditionOnMemberCollective = getPrivateAccountsVisibilityConditions(req);
         if (args.type) {
           const types = args.type.split(',');
-          conditionOnMemberCollective = { type: { [Op.in]: types } };
+          conditionOnMemberCollective.type = { [Op.in]: types };
         }
 
         query.include = [
