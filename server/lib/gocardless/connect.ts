@@ -6,7 +6,7 @@ import moment from 'moment';
 
 import { Service } from '../../constants/connected-account';
 import { Collective, ConnectedAccount, sequelize, TransactionsImport, User } from '../../models';
-import cache from '../cache';
+import cache, { sessionCache } from '../cache';
 import { reportErrorToSentry } from '../sentry';
 
 import { getGoCardlessClient, getOrRefreshGoCardlessToken } from './client';
@@ -87,6 +87,57 @@ export const isGoCardlessSupportedCountry = (country: string): country is (typeo
   return (supportedCountries as readonly string[]).includes(country);
 };
 
+/**
+ * GoCardless requisitions are initiated by an authenticated host admin, but the requisition ID only
+ * comes back to us through a browser redirect (`/services/gocardless/callback`). The requisition ID
+ * alone therefore proves nothing about who initiated the flow: without binding it to its initiator,
+ * any host admin who gets hold of a requisition ID (e.g. from the redirect URL) could bind somebody
+ * else's authorized bank connection to their own host.
+ *
+ * We record the initiator when the link is created, and verify it when the connection is completed.
+ */
+type GoCardlessLinkSession = { CollectiveId: number; UserId: number };
+
+/**
+ * The OAuth-like flow is short-lived (the user goes to their bank and comes back within minutes).
+ */
+const GOCARDLESS_LINK_SESSION_TTL = 60 * 30;
+
+export const getGoCardlessLinkSessionCacheKey = (requisitionId: string): string =>
+  `gocardless:link-session:${requisitionId}`;
+
+const recordGoCardlessLinkSession = async (requisitionId: string, session: GoCardlessLinkSession): Promise<void> => {
+  await sessionCache.set(getGoCardlessLinkSessionCacheKey(requisitionId), session, GOCARDLESS_LINK_SESSION_TTL);
+};
+
+/**
+ * Makes sure `requisitionId` was initiated by `remoteUser` for the account identified by `CollectiveId`.
+ *
+ * This deliberately **fails closed**: a missing session (expired, evicted from the cache, or created
+ * before this check was deployed) is rejected. Accepting unbound requisitions would defeat the control
+ * entirely, since an attacker only has to wait for the entry to expire before claiming a requisition
+ * they did not initiate. Users hitting this simply need to restart the connection flow.
+ */
+const assertGoCardlessRequisitionWasInitiatedBy = async (
+  remoteUser: User,
+  CollectiveId: number,
+  requisitionId: string,
+): Promise<void> => {
+  const session: GoCardlessLinkSession | undefined = await sessionCache.get(
+    getGoCardlessLinkSessionCacheKey(requisitionId),
+  );
+
+  if (!session || session.CollectiveId !== CollectiveId || session.UserId !== remoteUser.id) {
+    throw new Error(
+      'This bank connection request could not be verified. Please restart the connection process from your dashboard.',
+    );
+  }
+};
+
+const clearGoCardlessLinkSession = async (requisitionId: string): Promise<void> => {
+  await sessionCache.delete(getGoCardlessLinkSessionCacheKey(requisitionId));
+};
+
 export const getGoCardlessInstitutions = async (
   country: (typeof supportedCountries)[number],
   options: { forceRefresh?: boolean } = {},
@@ -115,6 +166,8 @@ export const getGoCardlessInstitutions = async (
 };
 
 export const createGoCardlessLink = async (
+  remoteUser: User,
+  host: Collective,
   institutionId: string,
   {
     maxHistoricalDays,
@@ -165,10 +218,16 @@ export const createGoCardlessLink = async (
       }
     }
 
+    // Bind the requisition to whoever initiated it, so that nobody else can claim it when it comes
+    // back from the bank through the redirect. See `assertGoCardlessRequisitionWasInitiatedBy`.
+    await recordGoCardlessLinkSession(requisition.id, { CollectiveId: host.id, UserId: remoteUser.id });
+
     return requisition;
   } catch (error) {
     reportErrorToSentry(error, {
+      user: remoteUser,
       extra: {
+        CollectiveId: host.id,
         institutionId,
         maxHistoricalDays,
         accessValidForDays,
@@ -189,6 +248,9 @@ export const connectGoCardlessAccount = async (
   requisitionId: string,
   { sourceName, name }: { sourceName?: string; name?: string } = {},
 ) => {
+  // Make sure this requisition was initiated by this user, for this host
+  await assertGoCardlessRequisitionWasInitiatedBy(remoteUser, host.id, requisitionId);
+
   const client = getGoCardlessClient();
   await getOrRefreshGoCardlessToken(client);
 
@@ -217,7 +279,7 @@ export const connectGoCardlessAccount = async (
     requisition,
   });
 
-  return sequelize.transaction(async transaction => {
+  const result = await sequelize.transaction(async transaction => {
     const connectedAccount = await ConnectedAccount.create(
       {
         CollectiveId: host.id,
@@ -265,6 +327,10 @@ export const connectGoCardlessAccount = async (
 
     return { connectedAccount, transactionsImport };
   });
+
+  await clearGoCardlessLinkSession(requisitionId);
+
+  return result;
 };
 
 /**
@@ -280,6 +346,11 @@ export const reconnectGoCardlessAccount = async (
   if (connectedAccount.service !== Service.GOCARDLESS) {
     throw new Error('Connected account is not a GoCardless account');
   }
+
+  // Reconnecting also goes through `createGoCardlessLink`, so the same session binding applies. The
+  // exposure is smaller than for `connectGoCardlessAccount` (the requisition must match the existing
+  // institution and at least one of the existing IBANs), but we enforce it consistently.
+  await assertGoCardlessRequisitionWasInitiatedBy(remoteUser, connectedAccount.CollectiveId, requisitionId);
 
   const client = getGoCardlessClient();
   await getOrRefreshGoCardlessToken(client);
@@ -315,7 +386,7 @@ export const reconnectGoCardlessAccount = async (
   });
 
   // Update the connected account with the new requisition data
-  return sequelize.transaction(async transaction => {
+  const result = await sequelize.transaction(async transaction => {
     await connectedAccount.update(
       {
         authorizationExpiresAt,
@@ -346,6 +417,10 @@ export const reconnectGoCardlessAccount = async (
 
     return { connectedAccount, transactionsImport };
   });
+
+  await clearGoCardlessLinkSession(requisitionId);
+
+  return result;
 };
 
 export const disconnectGoCardlessAccount = async (connectedAccount: ConnectedAccount): Promise<void> => {
