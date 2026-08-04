@@ -447,6 +447,46 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       await models.Expense.destroy({ where: { FromCollectiveId: vendor.id }, force: true });
     });
 
+    it('updates the data (e.g. currency) of an existing payout method when its id is provided', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { vendorInfo: vendorData.vendorInfo },
+      });
+      const existingPayoutMethod = await fakePayoutMethod({
+        CollectiveId: vendor.id,
+        type: PayoutMethodTypes.PAYPAL,
+        isSaved: true,
+        data: { email: 'zorg@zorg.com', currency: 'USD' },
+      });
+
+      const newVendorData = {
+        legacyId: vendor.id,
+        payoutMethod: {
+          id: existingPayoutMethod.publicId,
+          type: 'PAYPAL',
+          name: null,
+          data: { email: 'zorg@zorg.com', currency: 'AUD' },
+        },
+      };
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: newVendorData,
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await existingPayoutMethod.reload();
+      expect(existingPayoutMethod.currency).to.equal('AUD');
+      expect((existingPayoutMethod.data as { currency: string }).currency).to.equal('AUD');
+      expect(existingPayoutMethod.isSaved).to.be.true;
+
+      await models.PayoutMethod.destroy({ where: { CollectiveId: vendor.id }, force: true });
+    });
+
     it('blocks payout-method changes when host requires 2FA for admins', async () => {
       const createPayoutMethodMutation = gql`
         mutation CreatePayoutMethod($payoutMethod: PayoutMethodInput!, $account: AccountReferenceInput!) {

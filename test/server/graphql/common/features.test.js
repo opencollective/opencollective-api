@@ -15,6 +15,7 @@ import {
   fakeHost,
   fakeProject,
   fakeUpdate,
+  fakeVendor,
 } from '../../../test-helpers/fake-data';
 
 describe('server/graphql/common/features', () => {
@@ -115,6 +116,38 @@ describe('server/graphql/common/features', () => {
 
         const result = await checkReceiveFinancialContributions(project, req, { ignoreActive: true });
         expect(result).to.equal(FEATURE_STATUS.AVAILABLE);
+      });
+    });
+
+    describe('PUBLIC_PROFILE', () => {
+      it('Returns ACTIVE for a regular (non-vendor) public collective', async () => {
+        const collective = await fakeCollective({ type: 'COLLECTIVE' });
+        const result = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(collective);
+        expect(result).to.eq(FEATURE_STATUS.ACTIVE);
+      });
+
+      it('Returns UNSUPPORTED for a private account', async () => {
+        const collective = await fakeCollective({ type: 'COLLECTIVE', isPrivate: true });
+        const result = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(collective);
+        expect(result).to.eq(FEATURE_STATUS.UNSUPPORTED);
+      });
+
+      it('Returns DISABLED for a vendor when publicProfile is not explicitly enabled', async () => {
+        const vendor = await fakeVendor();
+        const result = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(vendor);
+        expect(result).to.eq(FEATURE_STATUS.DISABLED);
+      });
+
+      it('Returns DISABLED for a vendor when publicProfile is explicitly disabled', async () => {
+        const vendor = await fakeVendor({ settings: { features: { publicProfile: false } } });
+        const result = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(vendor);
+        expect(result).to.eq(FEATURE_STATUS.DISABLED);
+      });
+
+      it('Returns ACTIVE for a vendor when publicProfile is explicitly enabled by the fiscal host admin', async () => {
+        const vendor = await fakeVendor({ settings: { features: { publicProfile: true } } });
+        const result = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(vendor);
+        expect(result).to.eq(FEATURE_STATUS.ACTIVE);
       });
     });
 

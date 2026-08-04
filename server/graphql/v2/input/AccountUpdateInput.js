@@ -53,6 +53,14 @@ export const GraphQLAccountUpdateInput = new GraphQLInputObjectType({
           tos: { type: GraphQLString, description: 'Terms of Service for this account.' },
           VAT: { type: GraphQLJSON },
           GST: { type: GraphQLJSON },
+          features: {
+            type: new GraphQLInputObjectType({
+              name: 'AccountUpdateSettingsFeaturesInput',
+              fields: () => ({
+                publicProfile: { type: GraphQLBoolean },
+              }),
+            }),
+          },
         }),
       }),
       description: 'Settings for the account.',

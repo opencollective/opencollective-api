@@ -1,9 +1,12 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import FEATURE from '../../../constants/feature';
+import FEATURE_STATUS from '../../../constants/feature-status';
 import { getCollectiveAvatarUrl } from '../../../lib/collectivelib';
 import { canSeePrivateAccount } from '../../../lib/private-accounts';
 import Collective from '../../../models/Collective';
+import { getFeatureStatusResolver } from '../../common/features';
 import { GraphQLImageFormat, GraphQLMemberRole } from '../enum';
 import { GraphQLAccount } from '../interface/Account';
 
@@ -120,6 +123,24 @@ export const GraphQLContributor = new GraphQLObjectType({
     publicMessage: {
       type: GraphQLString,
       description: 'A public message from contributors to describe their contributions',
+    },
+    hasPublicProfile: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether this contributor has a public profile that can be linked to',
+      async resolve(contributor, _, req): Promise<boolean> {
+        // Incognito contributors never have a linkable profile
+        if (contributor.isIncognito || !contributor.collectiveSlug) {
+          return false;
+        }
+
+        const collective = await req.loaders.Collective.byId.load(contributor.id);
+        if (!collective) {
+          return false;
+        }
+
+        const status = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(collective, _, req);
+        return status === FEATURE_STATUS.ACTIVE;
+      },
     },
   }),
 });

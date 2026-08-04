@@ -148,6 +148,7 @@ const FeaturesAccess: Partial<
   },
   [FEATURE.PUBLIC_PROFILE]: {
     onlyPublicAccounts: true,
+    flagOverride: 'settings.features.publicProfile',
     accountTypes: [
       CollectiveType.COLLECTIVE,
       CollectiveType.ORGANIZATION,
@@ -155,6 +156,7 @@ const FeaturesAccess: Partial<
       CollectiveType.FUND,
       CollectiveType.PROJECT,
       CollectiveType.USER,
+      CollectiveType.VENDOR,
     ],
   },
   [FEATURE.RECEIVE_EXPENSES]: {

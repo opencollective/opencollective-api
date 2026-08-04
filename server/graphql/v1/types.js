@@ -16,6 +16,7 @@ import { pick } from 'lodash';
 import moment from 'moment';
 
 import FEATURE from '../../constants/feature';
+import FEATURE_STATUS from '../../constants/feature-status';
 import INTERVALS from '../../constants/intervals';
 import { maxInteger } from '../../constants/math';
 import orderStatus from '../../constants/order-status';
@@ -25,6 +26,7 @@ import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { filterContributors } from '../../lib/contributors';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { Op, sequelize } from '../../models';
+import { getFeatureStatusResolver } from '../common/features';
 import { hasSeenLatestChangelogEntry } from '../common/user';
 import { Unauthorized } from '../errors';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
@@ -491,6 +493,24 @@ export const ContributorType = new GraphQLObjectType({
     publicMessage: {
       type: GraphQLString,
       description: 'A public message from contributors to describe their contributions',
+    },
+    hasPublicProfile: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether this contributor has a public profile that can be linked to',
+      async resolve(contributor, _, req) {
+        // Incognito contributors never have a linkable profile
+        if (contributor.isIncognito || !contributor.collectiveSlug) {
+          return false;
+        }
+
+        const collective = await req.loaders.Collective.byId.load(contributor.id);
+        if (!collective) {
+          return false;
+        }
+
+        const status = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(collective, _, req);
+        return status === FEATURE_STATUS.ACTIVE;
+      },
     },
   }),
 });

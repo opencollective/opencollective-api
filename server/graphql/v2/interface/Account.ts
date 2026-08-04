@@ -8,6 +8,7 @@ import { Order, QueryTypes, Sequelize, WhereOptions } from 'sequelize';
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
+import FEATURE_STATUS from '../../../constants/feature-status';
 import PlatformConstants from '../../../constants/platform';
 import { getSupportedExpenseTypes } from '../../../lib/expenses';
 import { canSeeIncognitoProfile } from '../../../lib/incognito';
@@ -22,6 +23,7 @@ import { KYCVerification } from '../../../models/KYCVerification';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { GraphQLCollectiveFeatures } from '../../common/CollectiveFeatures';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { getFeatureStatusResolver } from '../../common/features';
 import {
   checkRemoteUserCanUseAccount,
   checkRemoteUserCanUseKYC,
@@ -311,6 +313,10 @@ const accountFieldsDefinition = () => ({
   isSuspended: {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Whether this account is suspended',
+  },
+  hasPublicProfile: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether this account has a public profile that can be linked to',
   },
   isActive: {
     type: GraphQLBoolean,
@@ -1361,6 +1367,14 @@ export const AccountFields = {
     description: 'Whether this account is suspended',
     resolve(collective: Collective) {
       return get(collective, `data.isSuspended`) === true;
+    },
+  },
+  hasPublicProfile: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether this account has a public profile that can be linked to',
+    async resolve(collective: Collective, _, req) {
+      const status = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(collective, _, req);
+      return status === FEATURE_STATUS.ACTIVE;
     },
   },
   isHost: {

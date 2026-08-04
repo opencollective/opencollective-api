@@ -14,6 +14,7 @@ import { get, has, isNil, isNull, merge, omitBy } from 'lodash';
 
 import { CollectiveType as CollectiveTypeEnum } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
+import FEATURE_STATUS from '../../constants/feature-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import MemberRoles, { MemberRolesForPrivateAccounts } from '../../constants/roles';
 import { hasFeature } from '../../lib/allowed-features';
@@ -27,6 +28,7 @@ import Tier, { AllTierTypes } from '../../models/Tier';
 import { hostResolver } from '../common/collective';
 import { GraphQLCollectiveFeatures } from '../common/CollectiveFeatures';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
+import { getFeatureStatusResolver } from '../common/features';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { GraphQLPolicies } from '../v2/object/Policies';
 import { GraphQLSocialLink } from '../v2/object/SocialLink';
@@ -275,6 +277,10 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       isPrivate: { type: new GraphQLNonNull(GraphQLBoolean) },
       isFrozen: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is frozen' },
       isSuspended: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is suspended' },
+      hasPublicProfile: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Whether this account has a public profile that can be linked to',
+      },
       isGuest: { type: GraphQLBoolean },
       canApply: { type: GraphQLBoolean },
       canContact: { type: new GraphQLNonNull(GraphQLBoolean) },
@@ -826,6 +832,14 @@ const CollectiveFields = () => {
       description: 'Whether this account is suspended',
       resolve(collective) {
         return get(collective, `data.isSuspended`) === true;
+      },
+    },
+    hasPublicProfile: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether this account has a public profile that can be linked to',
+      async resolve(collective, _, req) {
+        const status = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(collective, _, req);
+        return status === FEATURE_STATUS.ACTIVE;
       },
     },
     isArchived: {
