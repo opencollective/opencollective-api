@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import config from 'config';
 import debugLib from 'debug';
-import { compact, get, head, isNil, isNull, isUndefined, omit, pick } from 'lodash';
+import { compact, get, head, isNil, isNull, isUndefined, omit, omitBy, pick } from 'lodash';
 import moment from 'moment';
 import {
   BelongsToGetAssociationMixin,
@@ -2117,18 +2117,25 @@ Transaction.prototype.getRelatedTransaction = function (
   });
 };
 
+/**
+ * Returns all transactions belonging to the same TransactionGroup.
+ * Defaults to filtering out debt transactions.
+ */
 Transaction.prototype.getRelatedTransactions = function (
   options: Pick<Transaction, 'type' | 'kind' | 'isDebt'>,
   { sqlTransaction }: { sqlTransaction?: SequelizeTransaction } = {},
 ): Promise<Transaction[] | null> {
   return Transaction.findAll({
     transaction: sqlTransaction,
-    where: {
-      TransactionGroup: this.TransactionGroup,
-      type: options.type || this.type,
-      kind: options.kind || this.kind,
-      isDebt: options.isDebt || { [Op.not]: true },
-    },
+    where: omitBy(
+      {
+        TransactionGroup: this.TransactionGroup,
+        type: options.type,
+        kind: options.kind,
+        isDebt: options.isDebt || { [Op.not]: true },
+      },
+      isUndefined,
+    ),
   });
 };
 
