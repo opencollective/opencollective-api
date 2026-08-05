@@ -4,6 +4,7 @@ import { pick } from 'lodash';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
 import Stripe from 'stripe';
+import { v4 as uuid } from 'uuid';
 
 import { activities } from '../../../../../server/constants';
 import { SupportedCurrency } from '../../../../../server/constants/currencies';
@@ -17,7 +18,14 @@ import { calcFee, executeOrder } from '../../../../../server/lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../../../../server/lib/stripe';
 import models from '../../../../../server/models';
 import stripeMocks from '../../../../mocks/stripe';
-import { fakeCollective, fakeOrder, fakeTransaction, fakeUser, randStr } from '../../../../test-helpers/fake-data';
+import {
+  fakeActiveHost,
+  fakeCollective,
+  fakeOrder,
+  fakeTransaction,
+  fakeUser,
+  randStr,
+} from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 import { graphqlQueryV2 } from '../../../../utils';
 
@@ -52,6 +60,24 @@ const refundTransactionAsHostMutation = gql`
     }
   }
 `;
+
+const snapshotTransactionsForRefund = async transactions => {
+  const columns = [
+    'type',
+    'kind',
+    'isRefund',
+    'CollectiveId',
+    'FromCollectiveId',
+    'amount',
+    'paymentProcessorFeeInHostCurrency',
+    'platformFeeInHostCurrency',
+    'taxAmount',
+    'netAmountInCollectiveCurrency',
+  ];
+
+  await utils.preloadAssociationsForTransactions(transactions, columns);
+  utils.snapshotTransactions(transactions, { columns });
+};
 
 describe('server/graphql/v2/mutation/TransactionMutations', () => {
   let sandbox,
@@ -392,6 +418,255 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/messageForContributor must be at most 2000 characters/);
     });
+
+    it('regression: refunds a cross-host contribution with platform tip, platform tip debt, host fee and payment processor fee transactions', async () => {
+      const contributor = await fakeUser({ name: 'Contributor' });
+      const giverCollective = contributor.collective;
+      const ofico = await fakeActiveHost({ name: 'OFiCo', currency: 'USD' });
+      const stripeFeesCollective = await fakeCollective({ name: 'Stripe', HostCollectiveId: null });
+      const recipientHost = await fakeActiveHost({ name: 'OSE', currency: 'EUR' });
+      const recipientCollective = await fakeCollective({
+        name: 'Collective',
+        HostCollectiveId: recipientHost.id,
+        currency: 'EUR',
+      });
+
+      const recipientHostAdmin = await fakeUser();
+      await recipientHost.addUserWithRole(recipientHostAdmin, MemberRoles.ADMIN);
+      await recipientHostAdmin.populateRoles();
+
+      const order = await fakeOrder({
+        CreatedByUserId: contributor.id,
+        FromCollectiveId: giverCollective.id,
+        CollectiveId: recipientCollective.id,
+        totalAmount: 110000,
+        currency: 'EUR',
+      });
+
+      const TransactionGroup = uuid();
+      const commonData = { OrderId: order.id, TransactionGroup };
+
+      // DEBIT/CREDIT Platform Tip: giverCollective -> ocInc
+      await fakeTransaction({
+        ...commonData,
+        type: 'DEBIT',
+        kind: TransactionKind.PLATFORM_TIP,
+        description: 'Financial contribution to the Open Collective Platform',
+        amount: -10000,
+        currency: 'EUR',
+        CollectiveId: giverCollective.id,
+        CreatedByUserId: contributor.id,
+        FromCollectiveId: ofico.id,
+        HostCollectiveId: null,
+        hostCurrency: 'USD',
+        hostCurrencyFxRate: 1.141161,
+        amountInHostCurrency: -11412,
+        netAmountInCollectiveCurrency: -10000,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+      });
+      await fakeTransaction({
+        ...commonData,
+        type: 'CREDIT',
+        kind: TransactionKind.PLATFORM_TIP,
+        description: 'Financial contribution to the Open Collective Platform',
+        amount: 10000,
+        currency: 'EUR',
+        CollectiveId: ofico.id,
+        CreatedByUserId: contributor.id,
+        FromCollectiveId: giverCollective.id,
+        HostCollectiveId: ofico.id,
+        hostCurrency: 'USD',
+        hostCurrencyFxRate: 1.141161,
+        amountInHostCurrency: 11412,
+        netAmountInCollectiveCurrency: 10000,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+      });
+
+      // DEBIT/CREDIT Platform Tip Debt: ocInc owes platformCollective
+      await fakeTransaction({
+        ...commonData,
+        type: 'DEBIT',
+        kind: TransactionKind.PLATFORM_TIP_DEBT,
+        isDebt: true,
+        description: 'Platform Tip collected for the Open Collective platform',
+        amount: -10000,
+        currency: 'EUR',
+        CollectiveId: ofico.id,
+        CreatedByUserId: null,
+        FromCollectiveId: recipientHost.id,
+        HostCollectiveId: ofico.id,
+        hostCurrency: 'USD',
+        hostCurrencyFxRate: 1.141161,
+        amountInHostCurrency: -11412,
+        netAmountInCollectiveCurrency: -10000,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+      });
+      await fakeTransaction({
+        ...commonData,
+        type: 'CREDIT',
+        kind: TransactionKind.PLATFORM_TIP_DEBT,
+        isDebt: true,
+        description: 'Platform Tip collected for the Open Collective platform',
+        amount: 10000,
+        currency: 'EUR',
+        CollectiveId: recipientHost.id,
+        CreatedByUserId: null,
+        FromCollectiveId: ofico.id,
+        HostCollectiveId: recipientHost.id,
+        hostCurrency: 'EUR',
+        hostCurrencyFxRate: 1,
+        amountInHostCurrency: 10000,
+        netAmountInCollectiveCurrency: 10000,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+      });
+
+      // DEBIT/CREDIT Host Fee: recipientCollective -> recipientHost
+      await fakeTransaction({
+        ...commonData,
+        type: 'DEBIT',
+        kind: TransactionKind.HOST_FEE,
+        description: 'Host Fee',
+        amount: -8000,
+        currency: 'EUR',
+        CollectiveId: recipientCollective.id,
+        CreatedByUserId: null,
+        FromCollectiveId: recipientHost.id,
+        HostCollectiveId: recipientHost.id,
+        hostCurrency: 'EUR',
+        hostCurrencyFxRate: 1,
+        amountInHostCurrency: -8000,
+        netAmountInCollectiveCurrency: -8000,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+      });
+      await fakeTransaction({
+        ...commonData,
+        type: 'CREDIT',
+        kind: TransactionKind.HOST_FEE,
+        description: 'Host Fee',
+        amount: 8000,
+        currency: 'EUR',
+        CollectiveId: recipientHost.id,
+        CreatedByUserId: null,
+        FromCollectiveId: recipientCollective.id,
+        HostCollectiveId: recipientHost.id,
+        hostCurrency: 'EUR',
+        hostCurrencyFxRate: 1,
+        amountInHostCurrency: 8000,
+        netAmountInCollectiveCurrency: 8000,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+      });
+
+      // DEBIT/CREDIT Payment Processor Fee: recipientCollective -> stripeFeesCollective
+      await fakeTransaction({
+        ...commonData,
+        type: 'DEBIT',
+        kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
+        description: 'Stripe payment processor fee',
+        amount: -3600,
+        currency: 'EUR',
+        CollectiveId: recipientCollective.id,
+        CreatedByUserId: null,
+        FromCollectiveId: stripeFeesCollective.id,
+        HostCollectiveId: recipientHost.id,
+        hostCurrency: 'EUR',
+        hostCurrencyFxRate: 1,
+        amountInHostCurrency: -3600,
+        netAmountInCollectiveCurrency: -3600,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+      });
+      await fakeTransaction({
+        ...commonData,
+        type: 'CREDIT',
+        kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
+        description: 'Stripe payment processor fee',
+        amount: 3600,
+        currency: 'EUR',
+        CollectiveId: stripeFeesCollective.id,
+        CreatedByUserId: null,
+        FromCollectiveId: recipientCollective.id,
+        HostCollectiveId: null,
+        hostCurrency: 'EUR',
+        hostCurrencyFxRate: 1,
+        amountInHostCurrency: 3600,
+        netAmountInCollectiveCurrency: 3600,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+      });
+
+      // DEBIT/CREDIT Contribution: giverCollective -> recipientCollective
+      await fakeTransaction({
+        ...commonData,
+        type: 'DEBIT',
+        kind: TransactionKind.CONTRIBUTION,
+        description: 'Monthly financial contribution to Recipient Collective (Partner)',
+        amount: -100000,
+        currency: 'EUR',
+        CollectiveId: giverCollective.id,
+        CreatedByUserId: contributor.id,
+        FromCollectiveId: recipientCollective.id,
+        HostCollectiveId: null,
+        hostCurrency: 'EUR',
+        hostCurrencyFxRate: 1,
+        amountInHostCurrency: -100000,
+        netAmountInCollectiveCurrency: -100000,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+      });
+      const contributionCredit = await fakeTransaction({
+        ...commonData,
+        type: 'CREDIT',
+        kind: TransactionKind.CONTRIBUTION,
+        description: 'Monthly financial contribution to Recipient Collective (Partner)',
+        amount: 100000,
+        currency: 'EUR',
+        CollectiveId: recipientCollective.id,
+        CreatedByUserId: contributor.id,
+        FromCollectiveId: giverCollective.id,
+        HostCollectiveId: recipientHost.id,
+        hostCurrency: 'EUR',
+        hostCurrencyFxRate: 1,
+        amountInHostCurrency: 100000,
+        netAmountInCollectiveCurrency: 100000,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+      });
+
+      const result = await graphqlQueryV2(
+        refundTransactionMutation,
+        { transaction: { legacyId: contributionCredit.id } },
+        recipientHostAdmin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.refundTransaction.id).to.exist;
+
+      const orderTransactions = await models.Transaction.findAll({
+        where: {
+          OrderId: order.id,
+        },
+        order: [['id', 'ASC']],
+      });
+
+      await snapshotTransactionsForRefund(orderTransactions);
+    });
   });
 
   describe('rejectTransaction', () => {
@@ -592,24 +867,6 @@ describe('refundTransaction legacy tests', () => {
     });
     return { user, host, collective, tier, paymentMethod, order, transaction };
   }
-
-  const snapshotTransactionsForRefund = async transactions => {
-    const columns = [
-      'type',
-      'kind',
-      'isRefund',
-      'CollectiveId',
-      'FromCollectiveId',
-      'amount',
-      'paymentProcessorFeeInHostCurrency',
-      'platformFeeInHostCurrency',
-      'taxAmount',
-      'netAmountInCollectiveCurrency',
-    ];
-
-    await utils.preloadAssociationsForTransactions(transactions, columns);
-    utils.snapshotTransactions(transactions, { columns });
-  };
 
   beforeEach(async () => {
     await utils.resetTestDB();
