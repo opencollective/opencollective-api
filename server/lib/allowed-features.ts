@@ -238,10 +238,20 @@ const FeaturesAccess: Partial<
 } as const;
 
 /**
+ * Features that are not affected by `data.isSuspended` or `FEATURE.ALL` and must be
+ * explicitly disabled (through `data.features.<feature>`) to be blocked.
+ */
+const FEATURES_NOT_AFFECTED_BY_SUSPENSION = [FEATURE.PUBLIC_PROFILE];
+
+/**
  * Returns true if the feature is disabled for the account. This function only checks `collective.data`,
  * use `hasFeature` to properly check a feature activation.
  */
 export const isFeatureBlockedForAccount = (collective: Collective, feature: FEATURE | `${FEATURE}`): boolean => {
+  if (FEATURES_NOT_AFFECTED_BY_SUSPENSION.includes(feature as FEATURE)) {
+    return get(collective, `data.features.${feature}`) === false;
+  }
+
   return (
     get(collective, `data.features.${FEATURE.ALL}`) === false ||
     get(collective, `data.features.${feature}`) === false ||
