@@ -123,7 +123,7 @@ const goCardlessMutations = {
         throw new Forbidden('Off-platform transactions are not enabled for this account');
       }
 
-      await twoFactorAuthLib.enforceForAccount(req, host);
+      await twoFactorAuthLib.enforceForAccount(req, host, { alwaysAskForToken: true });
 
       const rateLimiter = new RateLimit(`connectGoCardlessAccount:${req.remoteUser.id}`, 20, 60 * 60);
       if (!(await rateLimiter.registerCall())) {
