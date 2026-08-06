@@ -29,6 +29,7 @@ import { hostResolver } from '../common/collective';
 import { GraphQLCollectiveFeatures } from '../common/CollectiveFeatures';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
 import { getFeatureStatusResolver } from '../common/features';
+import { checkScope } from '../common/scope-check';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { GraphQLPolicies } from '../v2/object/Policies';
 import { GraphQLSocialLink } from '../v2/object/SocialLink';
@@ -1423,7 +1424,12 @@ const CollectiveFields = () => {
     },
     connectedAccounts: {
       type: new GraphQLList(ConnectedAccountType),
+      description: 'The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".',
       async resolve(collective, args, req) {
+        if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'connectedAccounts')) {
+          return null;
+        }
+
         const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(collective.id);
         return connectedAccounts;
       },
