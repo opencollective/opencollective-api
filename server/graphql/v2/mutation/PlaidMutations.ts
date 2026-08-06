@@ -109,7 +109,7 @@ export const plaidMutations = {
         );
       }
 
-      const params: Parameters<typeof generatePlaidLinkToken>[1] = {
+      const params: Parameters<typeof generatePlaidLinkToken>[2] = {
         products: ['auth', 'transactions'],
         countries: isEmpty(args.countries) ? ['US'] : args.countries,
         locale: args.locale || 'en',
@@ -134,7 +134,7 @@ export const plaidMutations = {
         params.accessToken = connectedAccount.token;
       }
 
-      const tokenData = await generatePlaidLinkToken(req.remoteUser, params);
+      const tokenData = await generatePlaidLinkToken(req.remoteUser, host, params);
 
       return {
         linkToken: tokenData['link_token'],
@@ -151,6 +151,10 @@ export const plaidMutations = {
       publicToken: {
         type: new GraphQLNonNull(GraphQLString),
         description: 'The public token returned by the Plaid Link flow',
+      },
+      linkToken: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: 'The link token returned by `generatePlaidLinkToken`, used to verify the request',
       },
       host: {
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),
@@ -171,6 +175,7 @@ export const plaidMutations = {
         host: AccountReferenceInput;
         transactionImport: GraphQLTransactionsImportReferenceInputFields;
         publicToken: string;
+        linkToken: string;
         sourceName?: string;
         name?: string;
       },
@@ -191,8 +196,8 @@ export const plaidMutations = {
         );
       }
 
-      const accountInfo: Parameters<typeof connectPlaidAccount>[3] = pick(args, ['sourceName', 'name']);
-      return connectPlaidAccount(req.remoteUser, host, args.publicToken, accountInfo);
+      const accountInfo: Parameters<typeof connectPlaidAccount>[4] = pick(args, ['sourceName', 'name']);
+      return connectPlaidAccount(req.remoteUser, host, args.publicToken, args.linkToken, accountInfo);
     },
   },
   syncPlaidAccount: {
