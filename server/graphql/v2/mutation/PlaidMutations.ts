@@ -1,3 +1,4 @@
+import type express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLLocale } from 'graphql-scalars';
 import { isEmpty, pick } from 'lodash';
@@ -92,7 +93,7 @@ export const plaidMutations = {
         description: 'If true, the account selection flow will be enabled. Requires a `transactionImport`.',
       },
     },
-    resolve: async (_, args, req: Express.Request) => {
+    resolve: async (_, args, req: express.Request) => {
       checkRemoteUserCanUseTransactions(req);
 
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
@@ -101,6 +102,8 @@ export const plaidMutations = {
       } else if (!(await hasFeature(host, 'OFF_PLATFORM_TRANSACTIONS', { loaders: req.loaders }))) {
         throw new Forbidden('Off-platform transactions are not enabled for this account');
       }
+
+      await twoFactorAuthLib.enforceForAccount(req, host, { alwaysAskForToken: true });
 
       const rateLimiter = new RateLimit(`generatePlaidLinkToken:${req.remoteUser.id}`, 10, 60);
       if (!(await rateLimiter.registerCall())) {
@@ -187,7 +190,7 @@ export const plaidMutations = {
         throw new Forbidden('You do not have permission to connect a Plaid account');
       }
 
-      await twoFactorAuthLib.enforceForAccount(req, host, { alwaysAskForToken: true });
+      await twoFactorAuthLib.enforceForAccount(req, host);
 
       const rateLimiter = new RateLimit(`connectPlaidAccount:${req.remoteUser.id}`, 20, 60 * 60);
       if (!(await rateLimiter.registerCall())) {

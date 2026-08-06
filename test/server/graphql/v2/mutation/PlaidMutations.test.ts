@@ -8,7 +8,13 @@ import * as PlaidClient from '../../../../../server/lib/plaid/client';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models, { ConnectedAccount } from '../../../../../server/models';
 import { plaidItemPublicTokenExchangeResponse, plaidLinkTokenCreateResponse } from '../../../../mocks/plaid';
-import { fakeActiveHost, fakeCollective, fakePlatformSubscription, fakeUser } from '../../../../test-helpers/fake-data';
+import {
+  fakeActiveHost,
+  fakeCollective,
+  fakePlatformSubscription,
+  fakeUser,
+  randStr,
+} from '../../../../test-helpers/fake-data';
 import { generateValid2FAHeader, graphqlQueryV2 } from '../../../../utils';
 
 describe('server/graphql/v2/mutation/PlaidMutations', () => {
@@ -183,7 +189,75 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
       });
     });
 
-    it('requires 2FA even when the admin has a session that does not have a fresh token', async () => {
+    it('requires 2FA to generate the link token when the admin has it enabled', async () => {
+      const remoteUser = await fakeUser({ data: { isRoot: true } }, {}, { enable2FA: true });
+      const host = await fakeActiveHost({ admin: remoteUser });
+      await platform.addUserWithRole(remoteUser, 'ADMIN');
+      await fakePlatformSubscription({
+        CollectiveId: host.id,
+        plan: { features: { OFF_PLATFORM_TRANSACTIONS: true } },
+      });
+
+      const withoutToken = await graphqlQueryV2(
+        GENERATE_PLAID_LINK_TOKEN_MUTATION,
+        { host: { legacyId: host.id } },
+        remoteUser,
+      );
+      expect(withoutToken.errors).to.exist;
+      expect(withoutToken.errors[0].extensions.code).to.equal('2FA_REQUIRED');
+
+      const withToken = await graphqlQueryV2(
+        GENERATE_PLAID_LINK_TOKEN_MUTATION,
+        { host: { legacyId: host.id } },
+        remoteUser,
+        null,
+        { [TwoFactorAuthenticationHeader]: generateValid2FAHeader(remoteUser) },
+      );
+      withToken.errors && console.error(withToken.errors);
+      expect(withToken.errors).to.not.exist;
+      expect(withToken.data.generatePlaidLinkToken.linkToken).to.exist;
+    });
+
+    it('does not ask for a fresh 2FA token to connect once it was already settled while generating the link', async () => {
+      const remoteUser = await fakeUser({ data: { isRoot: true } }, {}, { enable2FA: true });
+      const host = await fakeActiveHost({ admin: remoteUser });
+      await platform.addUserWithRole(remoteUser, 'ADMIN');
+      await fakePlatformSubscription({
+        CollectiveId: host.id,
+        plan: { features: { OFF_PLATFORM_TRANSACTIONS: true } },
+      });
+
+      const twoFAHeaders = { [TwoFactorAuthenticationHeader]: generateValid2FAHeader(remoteUser) };
+
+      // Same browser session generates the link (presenting a 2FA token)...
+      const linkResult = await graphqlQueryV2(
+        GENERATE_PLAID_LINK_TOKEN_MUTATION,
+        { host: { legacyId: host.id } },
+        remoteUser,
+        null,
+        twoFAHeaders,
+      );
+      linkResult.errors && console.error(linkResult.errors);
+      expect(linkResult.errors).to.not.exist;
+      const linkToken = linkResult.data.generatePlaidLinkToken.linkToken;
+
+      // ...then comes back from the Plaid OAuth redirect and connects without presenting a token again
+      const result = await graphqlQueryV2(
+        CONNECT_PLAID_ACCOUNT_MUTATION,
+        {
+          publicToken: 'public-sandbox-valid',
+          linkToken,
+          host: { legacyId: host.id },
+          sourceName: 'Test Bank',
+          name: 'Test Account',
+        },
+        remoteUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+    });
+
+    it('still requires 2FA to connect when coming back in a session that never validated it', async () => {
       const remoteUser = await fakeUser({ data: { isRoot: true } }, {}, { enable2FA: true });
       const host = await fakeActiveHost({ admin: remoteUser });
       await platform.addUserWithRole(remoteUser, 'ADMIN');
@@ -198,7 +272,7 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
         GENERATE_PLAID_LINK_TOKEN_MUTATION,
         { host: { legacyId: host.id } },
         remoteUser,
-        null,
+        { sessionId: randStr('session-') },
         twoFAHeaders,
       );
       linkResult.errors && console.error(linkResult.errors);
@@ -213,11 +287,19 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
         name: 'Test Account',
       };
 
-      const withoutToken = await graphqlQueryV2(CONNECT_PLAID_ACCOUNT_MUTATION, variables, remoteUser);
+      // Coming back from the bank in a different session that has not validated 2FA yet
+      const connectSession = { sessionId: randStr('session-') };
+      const withoutToken = await graphqlQueryV2(CONNECT_PLAID_ACCOUNT_MUTATION, variables, remoteUser, connectSession);
       expect(withoutToken.errors).to.exist;
       expect(withoutToken.errors[0].extensions.code).to.equal('2FA_REQUIRED');
 
-      const withToken = await graphqlQueryV2(CONNECT_PLAID_ACCOUNT_MUTATION, variables, remoteUser, null, twoFAHeaders);
+      const withToken = await graphqlQueryV2(
+        CONNECT_PLAID_ACCOUNT_MUTATION,
+        variables,
+        remoteUser,
+        connectSession,
+        twoFAHeaders,
+      );
       withToken.errors && console.error(withToken.errors);
       expect(withToken.errors).to.not.exist;
     });
