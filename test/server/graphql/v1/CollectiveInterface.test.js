@@ -5,10 +5,12 @@ import { executeOrder } from '../../../../server/lib/payments';
 import * as store from '../../../stores';
 import {
   fakeCollective,
+  fakeConnectedAccount,
   fakeMember,
   fakeOrganization,
   fakePrivateOrganization,
   fakeUser,
+  fakeUserToken,
 } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
@@ -32,6 +34,20 @@ const collectiveQuery = gqlV1 /* GraphQL */ `
           slug
           name
         }
+      }
+    }
+  }
+`;
+
+const connectedAccountsQuery = gqlV1 /* GraphQL */ `
+  query CollectiveConnectedAccounts($slug: String) {
+    Collective(slug: $slug) {
+      id
+      slug
+      connectedAccounts {
+        id
+        service
+        hash
       }
     }
   }
@@ -121,6 +137,81 @@ describe('server/graphql/v1/CollectiveInterface', () => {
 
       const incognitoMember = collectiveData.members.find(m => m.member.id === incognitoCollective.id);
       expect(incognitoMember.member.slug).to.not.be.null;
+    });
+  });
+
+  describe('connectedAccounts', () => {
+    let publicCollective, collectiveAdmin, nonAdminUser, connectedAccount;
+
+    /** Asserts that the response carries no connected account data at all */
+    const expectNoConnectedAccountsLeak = res => {
+      res.errors && console.error(res.errors[0]);
+      expect(res.errors).to.not.exist;
+      expect(res.data.Collective).to.exist;
+      expect(res.data.Collective.connectedAccounts || []).to.have.length(0);
+    };
+
+    before(async () => {
+      collectiveAdmin = await fakeUser();
+      nonAdminUser = await fakeUser();
+      publicCollective = await fakeCollective({ admin: collectiveAdmin });
+      connectedAccount = await fakeConnectedAccount({
+        CollectiveId: publicCollective.id,
+        service: 'stripe',
+        hash: 'a-secret-hash',
+      });
+    });
+
+    it('does not leak connected accounts to unauthenticated users', async () => {
+      const res = await utils.graphqlQuery(connectedAccountsQuery, { slug: publicCollective.slug });
+      expectNoConnectedAccountsLeak(res);
+    });
+
+    it('does not leak connected accounts to logged-in users who are not admins', async () => {
+      const res = await utils.graphqlQuery(connectedAccountsQuery, { slug: publicCollective.slug }, nonAdminUser);
+      expectNoConnectedAccountsLeak(res);
+    });
+
+    it('returns connected accounts to admins of the collective', async () => {
+      const res = await utils.graphqlQuery(connectedAccountsQuery, { slug: publicCollective.slug }, collectiveAdmin);
+      res.errors && console.error(res.errors[0]);
+      expect(res.errors).to.not.exist;
+      const { connectedAccounts } = res.data.Collective;
+      expect(connectedAccounts).to.have.length(1);
+      expect(connectedAccounts[0].id).to.equal(connectedAccount.id);
+      expect(connectedAccounts[0].service).to.equal('stripe');
+      expect(connectedAccounts[0].hash).to.equal('a-secret-hash');
+    });
+
+    it('does not leak connected accounts to an admin whose OAuth token lacks the connectedAccounts scope', async () => {
+      const userToken = await fakeUserToken({ user: collectiveAdmin, scope: ['account'] });
+      const res = await utils.graphqlQuery(
+        connectedAccountsQuery,
+        { slug: publicCollective.slug },
+        collectiveAdmin,
+        undefined,
+        null,
+        null,
+        userToken,
+      );
+      expectNoConnectedAccountsLeak(res);
+    });
+
+    it('returns connected accounts to an admin whose OAuth token has the connectedAccounts scope', async () => {
+      const userToken = await fakeUserToken({ user: collectiveAdmin, scope: ['connectedAccounts'] });
+      const res = await utils.graphqlQuery(
+        connectedAccountsQuery,
+        { slug: publicCollective.slug },
+        collectiveAdmin,
+        undefined,
+        null,
+        null,
+        userToken,
+      );
+      res.errors && console.error(res.errors[0]);
+      expect(res.errors).to.not.exist;
+      expect(res.data.Collective.connectedAccounts).to.have.length(1);
+      expect(res.data.Collective.connectedAccounts[0].id).to.equal(connectedAccount.id);
     });
   });
 });
