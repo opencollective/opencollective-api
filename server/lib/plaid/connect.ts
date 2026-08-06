@@ -238,9 +238,9 @@ export const connectPlaidAccount = async (
     await refreshPlaidSubAccounts(result.connectedAccount, result.transactionsImport);
   } catch (error) {
     reportErrorToSentry(error, { user: remoteUser, extra: { connectedAccountId: result.connectedAccount.id } });
+  } finally {
+    await clearPlaidLinkSession(linkToken);
   }
-
-  await clearPlaidLinkSession(linkToken);
 
   return result;
 };
