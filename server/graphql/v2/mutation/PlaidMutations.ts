@@ -188,6 +188,8 @@ export const plaidMutations = {
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(host)) {
         throw new Forbidden('You do not have permission to connect a Plaid account');
+      } else if (!(await hasFeature(host, 'OFF_PLATFORM_TRANSACTIONS', { loaders: req.loaders }))) {
+        throw new Forbidden('Off-platform transactions are not enabled for this account');
       }
 
       await twoFactorAuthLib.enforceForAccount(req, host);
