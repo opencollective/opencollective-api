@@ -5,10 +5,11 @@ import sinon from 'sinon';
 
 import PlatformConstants from '../../../../../server/constants/platform';
 import * as PlaidClient from '../../../../../server/lib/plaid/client';
+import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
 import { plaidItemPublicTokenExchangeResponse, plaidLinkTokenCreateResponse } from '../../../../mocks/plaid';
 import { fakeActiveHost, fakeCollective, fakePlatformSubscription, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import { generateValid2FAHeader, graphqlQueryV2 } from '../../../../utils';
 
 describe('server/graphql/v2/mutation/PlaidMutations', () => {
   let platform;
@@ -158,6 +159,29 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
         public_token: 'public-sandbox-valid',
         /* eslint-enable camelcase */
       });
+    });
+
+    it('requires 2FA even when the admin has a session that does not have a fresh token', async () => {
+      const remoteUser = await fakeUser({ data: { isRoot: true } }, {}, { enable2FA: true });
+      const host = await fakeActiveHost({ admin: remoteUser });
+      await platform.addUserWithRole(remoteUser, 'ADMIN');
+
+      const variables = {
+        publicToken: 'public-sandbox-valid',
+        host: { legacyId: host.id },
+        sourceName: 'Test Bank',
+        name: 'Test Account',
+      };
+
+      const withoutToken = await graphqlQueryV2(CONNECT_PLAID_ACCOUNT_MUTATION, variables, remoteUser);
+      expect(withoutToken.errors).to.exist;
+      expect(withoutToken.errors[0].extensions.code).to.equal('2FA_REQUIRED');
+
+      const withToken = await graphqlQueryV2(CONNECT_PLAID_ACCOUNT_MUTATION, variables, remoteUser, null, {
+        [TwoFactorAuthenticationHeader]: generateValid2FAHeader(remoteUser),
+      });
+      withToken.errors && console.error(withToken.errors);
+      expect(withToken.errors).to.not.exist;
     });
   });
 });

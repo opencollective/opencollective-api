@@ -7,6 +7,7 @@ import { hasFeature } from '../../../lib/allowed-features';
 import { connectPlaidAccount, generatePlaidLinkToken, refreshPlaidSubAccounts } from '../../../lib/plaid/connect';
 import { requestPlaidAccountSync } from '../../../lib/plaid/sync';
 import RateLimit from '../../../lib/rate-limit';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { ConnectedAccount, TransactionsImport } from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { Forbidden, RateLimitExceeded } from '../../errors';
@@ -180,6 +181,8 @@ export const plaidMutations = {
       if (!req.remoteUser.isAdminOfCollective(host)) {
         throw new Forbidden('You do not have permission to connect a Plaid account');
       }
+
+      await twoFactorAuthLib.enforceForAccount(req, host, { alwaysAskForToken: true });
 
       const rateLimiter = new RateLimit(`connectPlaidAccount:${req.remoteUser.id}`, 20, 60 * 60);
       if (!(await rateLimiter.registerCall())) {
