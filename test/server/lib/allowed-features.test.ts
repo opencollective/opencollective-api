@@ -2,7 +2,12 @@ import { expect } from 'chai';
 
 import { CollectiveType } from '../../../server/constants/collectives';
 import FEATURE from '../../../server/constants/feature';
-import { checkFeatureAccess, getFeatureAccess, getFeaturesAccessMap } from '../../../server/lib/allowed-features';
+import {
+  checkFeatureAccess,
+  getFeatureAccess,
+  getFeaturesAccessMap,
+  isFeatureBlockedForAccount,
+} from '../../../server/lib/allowed-features';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -20,6 +25,33 @@ describe('server/lib/allowed-features', () => {
 
   before(async () => {
     platform = await getOrCreatePlatformAccount();
+  });
+
+  describe('isFeatureBlockedForAccount', () => {
+    it('blocks a regular feature when suspended, globally blocked, or specifically blocked', async () => {
+      const suspended = { data: { isSuspended: true } } as any;
+      expect(isFeatureBlockedForAccount(suspended, FEATURE.CONVERSATIONS)).to.be.true;
+
+      const globallyBlocked = { data: { features: { ALL: false } } } as any;
+      expect(isFeatureBlockedForAccount(globallyBlocked, FEATURE.CONVERSATIONS)).to.be.true;
+
+      const specificallyBlocked = { data: { features: { [FEATURE.CONVERSATIONS]: false } } } as any;
+      expect(isFeatureBlockedForAccount(specificallyBlocked, FEATURE.CONVERSATIONS)).to.be.true;
+
+      const notBlocked = {} as any;
+      expect(isFeatureBlockedForAccount(notBlocked, FEATURE.CONVERSATIONS)).to.be.false;
+    });
+
+    it('does not block PUBLIC_PROFILE when suspended or globally blocked, only when explicitly disabled', async () => {
+      const suspended = { data: { isSuspended: true } } as any;
+      expect(isFeatureBlockedForAccount(suspended, FEATURE.PUBLIC_PROFILE)).to.be.false;
+
+      const globallyBlocked = { data: { features: { ALL: false } } } as any;
+      expect(isFeatureBlockedForAccount(globallyBlocked, FEATURE.PUBLIC_PROFILE)).to.be.false;
+
+      const explicitlyDisabled = { data: { isSuspended: true, features: { [FEATURE.PUBLIC_PROFILE]: false } } } as any;
+      expect(isFeatureBlockedForAccount(explicitlyDisabled, FEATURE.PUBLIC_PROFILE)).to.be.true;
+    });
   });
 
   // This test case is expected to be the most comprehensive one, covering all the feature flags
@@ -47,6 +79,29 @@ describe('server/lib/allowed-features', () => {
     it('returns DISABLED if feature is specifically blocked', async () => {
       const collective = await fakeCollective({ data: { features: { [FEATURE.CONVERSATIONS]: false } } });
       expect(await getFeatureAccess(collective, FEATURE.CONVERSATIONS)).to.deep.eq({
+        access: 'DISABLED',
+        reason: 'BLOCKED',
+      });
+    });
+
+    it('does not block PUBLIC_PROFILE for suspended accounts or when globally blocked, only when explicitly disabled', async () => {
+      const suspended = await fakeCollective({ isActive: true, data: { isSuspended: true } });
+      expect(await getFeatureAccess(suspended, FEATURE.PUBLIC_PROFILE)).to.deep.eq({
+        access: 'AVAILABLE',
+        reason: null,
+      });
+
+      const globallyBlocked = await fakeCollective({ isActive: true, data: { features: { ALL: false } } });
+      expect(await getFeatureAccess(globallyBlocked, FEATURE.PUBLIC_PROFILE)).to.deep.eq({
+        access: 'AVAILABLE',
+        reason: null,
+      });
+
+      const explicitlyDisabled = await fakeCollective({
+        isActive: true,
+        data: { isSuspended: true, features: { [FEATURE.PUBLIC_PROFILE]: false } },
+      });
+      expect(await getFeatureAccess(explicitlyDisabled, FEATURE.PUBLIC_PROFILE)).to.deep.eq({
         access: 'DISABLED',
         reason: 'BLOCKED',
       });
