@@ -1,3 +1,4 @@
+import type express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLLocale } from 'graphql-scalars';
 import { isEmpty, pick } from 'lodash';
@@ -7,6 +8,7 @@ import { hasFeature } from '../../../lib/allowed-features';
 import { connectPlaidAccount, generatePlaidLinkToken, refreshPlaidSubAccounts } from '../../../lib/plaid/connect';
 import { requestPlaidAccountSync } from '../../../lib/plaid/sync';
 import RateLimit from '../../../lib/rate-limit';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { ConnectedAccount, TransactionsImport } from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { Forbidden, RateLimitExceeded } from '../../errors';
@@ -91,7 +93,7 @@ export const plaidMutations = {
         description: 'If true, the account selection flow will be enabled. Requires a `transactionImport`.',
       },
     },
-    resolve: async (_, args, req: Express.Request) => {
+    resolve: async (_, args, req: express.Request) => {
       checkRemoteUserCanUseTransactions(req);
 
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
@@ -101,6 +103,8 @@ export const plaidMutations = {
         throw new Forbidden('Off-platform transactions are not enabled for this account');
       }
 
+      await twoFactorAuthLib.enforceForAccount(req, host, { alwaysAskForToken: true });
+
       const rateLimiter = new RateLimit(`generatePlaidLinkToken:${req.remoteUser.id}`, 10, 60);
       if (!(await rateLimiter.registerCall())) {
         throw new RateLimitExceeded(
@@ -108,7 +112,7 @@ export const plaidMutations = {
         );
       }
 
-      const params: Parameters<typeof generatePlaidLinkToken>[1] = {
+      const params: Parameters<typeof generatePlaidLinkToken>[2] = {
         products: ['auth', 'transactions'],
         countries: isEmpty(args.countries) ? ['US'] : args.countries,
         locale: args.locale || 'en',
@@ -133,7 +137,7 @@ export const plaidMutations = {
         params.accessToken = connectedAccount.token;
       }
 
-      const tokenData = await generatePlaidLinkToken(req.remoteUser, params);
+      const tokenData = await generatePlaidLinkToken(req.remoteUser, host, params);
 
       return {
         linkToken: tokenData['link_token'],
@@ -150,6 +154,10 @@ export const plaidMutations = {
       publicToken: {
         type: new GraphQLNonNull(GraphQLString),
         description: 'The public token returned by the Plaid Link flow',
+      },
+      linkToken: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: 'The link token returned by `generatePlaidLinkToken`, used to verify the request',
       },
       host: {
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),
@@ -170,6 +178,7 @@ export const plaidMutations = {
         host: AccountReferenceInput;
         transactionImport: GraphQLTransactionsImportReferenceInputFields;
         publicToken: string;
+        linkToken: string;
         sourceName?: string;
         name?: string;
       },
@@ -179,7 +188,11 @@ export const plaidMutations = {
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(host)) {
         throw new Forbidden('You do not have permission to connect a Plaid account');
+      } else if (!(await hasFeature(host, 'OFF_PLATFORM_TRANSACTIONS', { loaders: req.loaders }))) {
+        throw new Forbidden('Off-platform transactions are not enabled for this account');
       }
+
+      await twoFactorAuthLib.enforceForAccount(req, host);
 
       const rateLimiter = new RateLimit(`connectPlaidAccount:${req.remoteUser.id}`, 20, 60 * 60);
       if (!(await rateLimiter.registerCall())) {
@@ -188,8 +201,8 @@ export const plaidMutations = {
         );
       }
 
-      const accountInfo: Parameters<typeof connectPlaidAccount>[3] = pick(args, ['sourceName', 'name']);
-      return connectPlaidAccount(req.remoteUser, host, args.publicToken, accountInfo);
+      const accountInfo: Parameters<typeof connectPlaidAccount>[4] = pick(args, ['sourceName', 'name']);
+      return connectPlaidAccount(req.remoteUser, host, args.publicToken, args.linkToken, accountInfo);
     },
   },
   syncPlaidAccount: {
