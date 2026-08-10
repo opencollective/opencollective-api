@@ -40,6 +40,7 @@ import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import PlatformConstants from '../../constants/platform';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
+import { applyBalanceAccountingCategoryFromConnectedAccount } from '../../lib/accounting/categorization/balance-accounts';
 import { checkFeatureAccess, hasFeature } from '../../lib/allowed-features';
 import cache from '../../lib/cache';
 import {
@@ -103,10 +104,12 @@ import {
   ValidationFailed,
 } from '../errors';
 import { CurrencyExchangeRateSourceTypeEnum } from '../v2/enum/CurrencyExchangeRateSourceType';
+import { fetchAccountingCategoryWithReference } from '../v2/input/AccountingCategoryInput';
 import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 import { AmountInputType, getValueInCentsFromAmountInput } from '../v2/input/AmountInput';
 import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchangeRateInput';
 
+import { checkIsValidBalanceAccountingCategory } from './balance-accounting-categories';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from './context-permissions';
 import { checkScope } from './scope-check';
 import { hasProtectedUrlPermission } from './uploaded-file';
@@ -3822,6 +3825,7 @@ type PayExpenseArgs = {
   transferDetails?: CreateTransfer['details'];
   paymentMethodService?: PAYMENT_METHOD_SERVICE;
   clearedAt?: Date;
+  balanceAccountingCategory?: { id: string };
 };
 
 /**
@@ -3923,10 +3927,22 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
 
     try {
       if (forceManual) {
+        let balanceAccountingCategory = null;
+        if (args.balanceAccountingCategory) {
+          balanceAccountingCategory = await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
+            throwIfMissing: true,
+            loaders: req.loaders,
+          });
+          checkIsValidBalanceAccountingCategory(balanceAccountingCategory, host);
+        }
+
         const paymentMethod = args.paymentMethodService
           ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
           : null;
-        await expense.update({ PaymentMethodId: paymentMethod?.id || null });
+        await expense.update({
+          PaymentMethodId: paymentMethod?.id || null,
+          BalanceAccountingCategoryId: balanceAccountingCategory?.id || null,
+        });
         await createTransactionsForManuallyPaidExpense(
           host,
           expense,
@@ -3954,6 +3970,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
           CreatedByUserId: remoteUser.id,
           fallbackToNonUserAccount: true,
         });
+        await applyBalanceAccountingCategoryFromConnectedAccount(expense, connectedAccount);
 
         const data = await paymentProviders.transferwise.payExpense(
           connectedAccount,
