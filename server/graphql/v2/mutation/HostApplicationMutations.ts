@@ -368,7 +368,8 @@ const approveApplication = async (host: Collective, collective: Collective, req:
       hooks: false,
       transaction,
     });
-    await models.Collective.update(omit(newAccountData, ['isActive']), {
+    // Archived children keep their host link but must stay archived and unapproved (see `checkActiveApprovedAtInconsistency`)
+    await models.Collective.update(omit(newAccountData, ['isActive', 'approvedAt']), {
       where: { ParentCollectiveId: collective.id, deactivatedAt: { [Op.not]: null } },
       hooks: false,
       transaction,

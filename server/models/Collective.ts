@@ -2492,6 +2492,7 @@ class Collective extends ModelWithPublicId<
 
     if (this.ParentCollectiveId && !isNull(this.deactivatedAt)) {
       updatedValues.isActive = false;
+      delete updatedValues.approvedAt;
     }
 
     // events should take the currency of their parent collective, not necessarily the one from their host.
