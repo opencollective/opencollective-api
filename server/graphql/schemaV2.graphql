@@ -284,6 +284,11 @@ interface Account {
   isSuspended: Boolean!
 
   """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
+
+  """
   Returns whether the account accepts financial contributions.
   """
   isActive: Boolean
@@ -2322,6 +2327,11 @@ type Order {
   accountingCategory: AccountingCategory
 
   """
+  The balance/clearing accounting category the funds were received through (only visible to host admins and accountants)
+  """
+  balanceAccountingCategory: AccountingCategory
+
+  """
   The list of activities (ie. approved, edited, etc) for this Order ordered by date ascending
   """
   activities: ActivityCollection!
@@ -2520,6 +2530,11 @@ interface Transaction {
   clearedAt: DateTime
   expense: Expense
   order: Order
+
+  """
+  The balance/clearing accounting category the funds moved through, inherited from the related order or expense (only visible to host admins and accountants)
+  """
+  balanceAccountingCategory: AccountingCategory
   isRefunded: Boolean
   isRefund: Boolean
   isDisputed: Boolean
@@ -2717,6 +2732,11 @@ type Expense {
   The accounting category attached to this expense
   """
   accountingCategory: AccountingCategory
+
+  """
+  The balance/clearing accounting category the expense was paid from
+  """
+  balanceAccountingCategory: AccountingCategory
 
   """
   If available, this field will contain a breakdown of the expense values depending on who edited it
@@ -3129,6 +3149,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether the account accepts financial contributions.
@@ -5013,6 +5038,11 @@ type Contributor {
   A public message from contributors to describe their contributions
   """
   publicMessage: String
+
+  """
+  Whether this contributor has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 }
 
 """
@@ -5990,6 +6020,7 @@ enum ActivityType {
   COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT
   COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT
   COLLECTIVE_EXPENSE_ERROR
+  COLLECTIVE_EXPENSE_PAYMENT_ERROR
   COLLECTIVE_EXPENSE_INVITE_DRAFTED
   COLLECTIVE_EXPENSE_INVITE_DECLINED
   COLLECTIVE_EXPENSE_RECURRING_DRAFTED
@@ -6754,6 +6785,11 @@ type ConnectedAccount {
   authorizationExpiresAt: DateTime
   settings: JSON
   service: ConnectedAccountService!
+
+  """
+  The balance/clearing accounting category used to attribute payments processed through this connected account
+  """
+  balanceAccountingCategory: AccountingCategory
 
   """
   The accounts that are mirroring this connected account
@@ -8035,7 +8071,7 @@ type KYCVerification {
   """
   The user who added this account to the KYC verification list
   """
-  createdByUser: Account
+  createdByUser: Individual
 
   """
   Provider specific data
@@ -9243,6 +9279,8 @@ enum AccountingCategoryKind {
   ADDED_FUNDS
   CONTRIBUTION
   EXPENSE
+  BALANCE_ACCOUNT
+  CLEARING_ACCOUNT
 }
 
 """
@@ -9306,6 +9344,11 @@ type ManualPaymentProvider {
   Bank account details for BANK_TRANSFER type providers
   """
   accountDetails: JSON
+
+  """
+  The balance/clearing accounting category used to attribute payments through this provider
+  """
+  balanceAccountingCategory: AccountingCategory
 
   """
   Whether this provider has been archived
@@ -10640,6 +10683,11 @@ type Bot implements Account {
   isSuspended: Boolean!
 
   """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
+
+  """
   Returns whether the account accepts financial contributions.
   """
   isActive: Boolean
@@ -11727,6 +11775,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether it's active: can accept financial contributions and pay expenses.
@@ -13117,6 +13170,11 @@ type Credit implements Transaction {
   clearedAt: DateTime
   expense: Expense
   order: Order
+
+  """
+  The balance/clearing accounting category the funds moved through, inherited from the related order or expense (only visible to host admins and accountants)
+  """
+  balanceAccountingCategory: AccountingCategory
   isRefunded: Boolean
   isRefund: Boolean
   isDisputed: Boolean
@@ -13269,6 +13327,11 @@ type Debit implements Transaction {
   clearedAt: DateTime
   expense: Expense
   order: Order
+
+  """
+  The balance/clearing accounting category the funds moved through, inherited from the related order or expense (only visible to host admins and accountants)
+  """
+  balanceAccountingCategory: AccountingCategory
   isRefunded: Boolean
   isRefund: Boolean
   isDisputed: Boolean
@@ -13396,6 +13459,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether it's active: can accept financial contributions and pay expenses.
@@ -14784,6 +14852,11 @@ type Individual implements Account {
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether the account accepts financial contributions.
@@ -16198,6 +16271,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether the account accepts financial contributions.
@@ -17671,6 +17749,11 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   isSuspended: Boolean!
 
   """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
+
+  """
   Returns whether it's active: can accept financial contributions and pay expenses.
   """
   isActive: Boolean!
@@ -18867,6 +18950,11 @@ type Vendor implements Account & AccountWithContributions {
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether the account accepts financial contributions.
@@ -22907,6 +22995,7 @@ enum ActivityAndClassesType {
   COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT
   COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT
   COLLECTIVE_EXPENSE_ERROR
+  COLLECTIVE_EXPENSE_PAYMENT_ERROR
   COLLECTIVE_EXPENSE_INVITE_DRAFTED
   COLLECTIVE_EXPENSE_INVITE_DECLINED
   COLLECTIVE_EXPENSE_RECURRING_DRAFTED
@@ -23294,6 +23383,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether it's active: can accept financial contributions and pay expenses.
@@ -24540,6 +24634,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether it's active: can accept financial contributions and pay expenses.
@@ -26562,6 +26661,11 @@ type Mutation {
     accountingCategory: AccountingCategoryReferenceInput
 
     """
+    The balance/clearing accounting category the funds were received through
+    """
+    balanceAccountingCategory: AccountingCategoryReferenceInput
+
+    """
     The transaction import row to associate with this order
     """
     transactionsImportRow: TransactionsImportRowReferenceInput
@@ -26635,6 +26739,11 @@ type Mutation {
     The accounting category of this order
     """
     accountingCategory: AccountingCategoryReferenceInput
+
+    """
+    The balance/clearing accounting category the funds were received through
+    """
+    balanceAccountingCategory: AccountingCategoryReferenceInput
   ): Order!
   createApplication(application: ApplicationCreateInput!): Application
   updateApplication(application: ApplicationUpdateInput!): Application
@@ -26675,6 +26784,21 @@ type Mutation {
     """
     connectedAccount: ConnectedAccountReferenceInput!
   ): ConnectedAccount
+
+  """
+  Set the balance/clearing accounting category used to attribute payments processed through this connected account. Scope: "connectedAccounts".
+  """
+  setConnectedAccountBalanceAccountingCategory(
+    """
+    ConnectedAccount reference containing either id or legacyId
+    """
+    connectedAccount: ConnectedAccountReferenceInput!
+
+    """
+    The balance/clearing accounting category to set. Pass null to unset.
+    """
+    accountingCategory: AccountingCategoryReferenceInput
+  ): ConnectedAccount!
 
   """
   Create a conversation. Scope: "conversations".
@@ -27781,6 +27905,11 @@ type Mutation {
     The public token returned by the Plaid Link flow
     """
     publicToken: String!
+
+    """
+    The link token returned by `generatePlaidLinkToken`, used to verify the request
+    """
+    linkToken: String!
 
     """
     The account to which the Plaid account should be connected
@@ -28970,6 +29099,11 @@ input AccountUpdateSettingsInput {
   tos: String
   VAT: JSON
   GST: JSON
+  features: AccountUpdateSettingsFeaturesInput
+}
+
+input AccountUpdateSettingsFeaturesInput {
+  publicProfile: Boolean
 }
 
 input PoliciesInput {
@@ -29844,6 +29978,11 @@ input ProcessExpensePaymentParams {
   paymentMethodService: PaymentMethodService
 
   """
+  The balance/clearing accounting category the funds were paid from (for manual payments)
+  """
+  balanceAccountingCategory: AccountingCategoryReferenceInput
+
+  """
   Date funds were cleared on the fiscal host bank, Wise, PayPal, Stripe or any other external account holding these funds.
   """
   clearedAt: DateTime
@@ -30135,6 +30274,11 @@ input ManualPaymentProviderCreateInput {
   Bank account details for BANK_TRANSFER type providers
   """
   accountDetails: JSON
+
+  """
+  The balance/clearing accounting category to attribute payments through this provider to
+  """
+  balanceAccountingCategory: AccountingCategoryReferenceInput
 }
 
 input ManualPaymentProviderUpdateInput {
@@ -30157,6 +30301,11 @@ input ManualPaymentProviderUpdateInput {
   Bank account details for BANK_TRANSFER type providers
   """
   accountDetails: JSON
+
+  """
+  The balance/clearing accounting category to attribute payments through this provider to. Pass null to unset.
+  """
+  balanceAccountingCategory: AccountingCategoryReferenceInput
 }
 
 type FollowAccountResult {
@@ -31381,6 +31530,7 @@ input VendorCreateInput {
   imageUrl: String @deprecated(reason: "2024-11-26: Please use image + backgroundImage fields")
   vendorInfo: VendorInfoInput
   payoutMethod: PayoutMethodInput
+  hasPublicProfile: Boolean
 
   """
   Restrict this vendor to specific accounts under the host. If empty/omitted, the vendor can be used with any hosted account.
@@ -31446,6 +31596,7 @@ input VendorEditInput {
   imageUrl: String @deprecated(reason: "2024-11-26: Please use image + backgroundImage fields")
   vendorInfo: VendorInfoInput
   payoutMethod: PayoutMethodInput
+  hasPublicProfile: Boolean
 
   """
   Restrict this vendor to specific accounts under the host. If empty/omitted, the vendor can be used with any hosted account.
