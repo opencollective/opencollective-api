@@ -2,7 +2,6 @@ import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
-import { omit } from 'lodash';
 
 import { activities } from '../../../constants';
 import { CollectiveType } from '../../../constants/collectives';
@@ -368,12 +367,15 @@ const approveApplication = async (host: Collective, collective: Collective, req:
       hooks: false,
       transaction,
     });
-    // Archived children keep their host link but must stay archived and unapproved (see `checkActiveApprovedAtInconsistency`)
-    await models.Collective.update(omit(newAccountData, ['isActive', 'approvedAt']), {
-      where: { ParentCollectiveId: collective.id, deactivatedAt: { [Op.not]: null } },
-      hooks: false,
-      transaction,
-    });
+    // Archived children keep their host link but must stay archived and unapproved (see `checkArchivedActiveChildren`)
+    await models.Collective.update(
+      { ...newAccountData, isActive: false, approvedAt: null },
+      {
+        where: { ParentCollectiveId: collective.id, deactivatedAt: { [Op.not]: null } },
+        hooks: false,
+        transaction,
+      },
+    );
 
     // Convert all active tiers to host currency
     const children = await collective.getChildren({ attributes: ['id'], transaction });

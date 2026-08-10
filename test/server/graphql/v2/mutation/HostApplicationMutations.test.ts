@@ -422,11 +422,12 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         });
 
         // Create an archived project, an archived event, and a non-archived project as children
+        // A stale approvedAt (left over from previous bugs) must be cleared by the approval
         const archivedProject = await fakeProject({
           ParentCollectiveId: collective.id,
           HostCollectiveId: host.id,
           isActive: false,
-          approvedAt: null,
+          approvedAt: new Date(),
           deactivatedAt: new Date(),
         });
         const archivedEvent = await fakeEvent({
