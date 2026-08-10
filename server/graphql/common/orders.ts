@@ -17,6 +17,7 @@ import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 import { getOrderTaxInfoFromTaxInput } from '../v1/mutations/orders';
 import { TaxInput } from '../v2/input/TaxInput';
 
+import { checkIsValidBalanceAccountingCategory } from './balance-accounting-categories';
 import { checkScope } from './scope-check';
 
 type AddFundsInput = {
@@ -33,6 +34,7 @@ type AddFundsInput = {
   invoiceTemplate: string;
   tax: TaxInput;
   accountingCategory?: AccountingCategory;
+  balanceAccountingCategory?: AccountingCategory;
   transactionsImportRow?: TransactionsImportRow;
 };
 
@@ -142,6 +144,8 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     checkCanUseAccountingCategoryForOrder(order.accountingCategory, host, collective);
   }
 
+  checkIsValidBalanceAccountingCategory(order.balanceAccountingCategory, host);
+
   const orderData: Partial<InferCreationAttributes<Order>> = {
     CreatedByUserId: remoteUser.id,
     FromCollectiveId: fromCollective.id,
@@ -152,6 +156,7 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     status: status.NEW,
     TierId: order.tier?.id || null,
     AccountingCategoryId: order.accountingCategory?.id || null,
+    BalanceAccountingCategoryId: order.balanceAccountingCategory?.id || null,
     data: {
       hostFeePercent: order.hostFeePercent,
       paymentProcessorFee: order.paymentProcessorFee,
