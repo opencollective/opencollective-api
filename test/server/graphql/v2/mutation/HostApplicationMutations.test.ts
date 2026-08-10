@@ -426,12 +426,14 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
           ParentCollectiveId: collective.id,
           HostCollectiveId: host.id,
           isActive: false,
+          approvedAt: null,
           deactivatedAt: new Date(),
         });
         const archivedEvent = await fakeEvent({
           ParentCollectiveId: collective.id,
           HostCollectiveId: host.id,
           isActive: false,
+          approvedAt: null,
           deactivatedAt: new Date(),
         });
         const activeProject = await fakeProject({
@@ -468,14 +470,16 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         expect(activeProject.approvedAt).to.not.be.null;
         expect(activeProject.deactivatedAt).to.be.null;
 
-        // The archived children should have their host preserved but remain archived
+        // The archived children should have their host preserved but remain archived and unapproved
         expect(archivedProject.HostCollectiveId).to.equal(host.id);
         expect(archivedProject.isActive).to.be.false;
+        expect(archivedProject.approvedAt).to.be.null;
         expect(archivedProject.deactivatedAt).to.not.be.null;
         expect(Boolean(archivedProject.deactivatedAt && !archivedProject.isActive)).to.be.true;
 
         expect(archivedEvent.HostCollectiveId).to.equal(host.id);
         expect(archivedEvent.isActive).to.be.false;
+        expect(archivedEvent.approvedAt).to.be.null;
         expect(archivedEvent.deactivatedAt).to.not.be.null;
         expect(Boolean(archivedEvent.deactivatedAt && !archivedEvent.isActive)).to.be.true;
 

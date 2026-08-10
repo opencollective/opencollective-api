@@ -864,18 +864,18 @@ describe('server/models/Collective', () => {
       expect(activeProject.approvedAt).to.not.be.null;
       expect(activeProject.deactivatedAt).to.be.null;
 
-      // The archived children should have their host updated but remain archived: deactivatedAt preserved and isActive still false
+      // The archived children should have their host updated but remain archived and unapproved: deactivatedAt preserved, isActive still false and approvedAt still null
       expect(archivedProject.HostCollectiveId).to.equal(host.id);
       expect(archivedProject.deactivatedAt).to.not.be.null;
       expect(archivedProject.isActive).to.be.false;
+      expect(archivedProject.approvedAt).to.be.null;
       expect(Boolean(archivedProject.deactivatedAt && !archivedProject.isActive)).to.be.true;
-      expect(activeProject.approvedAt).to.not.be.null;
 
       expect(archivedEvent.HostCollectiveId).to.equal(host.id);
       expect(archivedEvent.deactivatedAt).to.not.be.null;
       expect(archivedEvent.isActive).to.be.false;
+      expect(archivedEvent.approvedAt).to.be.null;
       expect(Boolean(archivedEvent.deactivatedAt && !archivedEvent.isActive)).to.be.true;
-      expect(activeProject.approvedAt).to.not.be.null;
     });
 
     it('updates hostFeePercent for collective and events when adding or changing host', async () => {
