@@ -30,6 +30,7 @@ import {
   fakeConnectedAccount,
   fakeEvent,
   fakeHost,
+  fakeManualPaymentProvider,
   fakeOrder,
   fakeOrganization,
   fakePaymentMethod,
@@ -3797,6 +3798,29 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         });
         expect(paymentIntent.primaryTransactionGroup).to.exist;
         await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
+      });
+
+      it('should stamp the balance accounting category from the manual payment provider when marked as paid', async () => {
+        const balanceCategory = await fakeAccountingCategory({
+          CollectiveId: collective.HostCollectiveId,
+          kind: 'BALANCE_ACCOUNT',
+        });
+        const provider = await fakeManualPaymentProvider({
+          CollectiveId: collective.HostCollectiveId,
+          data: { BalanceAccountingCategoryId: balanceCategory.id },
+        });
+        await order.update({ ManualPaymentProviderId: provider.id });
+
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          { order: { id: idEncode(order.id, 'order') }, action: 'MARK_AS_PAID' },
+          hostAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await order.reload();
+        expect(order.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
       });
 
       it('should mark as paid and update amount details', async () => {
