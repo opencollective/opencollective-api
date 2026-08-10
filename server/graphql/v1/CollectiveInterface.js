@@ -268,6 +268,8 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         type: GraphQLString,
         description: 'Private instructions related to an event',
       },
+      // This field is still used by contributors-svg worker.
+      githubContributors: { type: new GraphQLNonNull(GraphQLJSON) },
       slug: { type: GraphQLString },
       path: { type: GraphQLString },
       isHost: { type: GraphQLBoolean },
@@ -721,6 +723,13 @@ const CollectiveFields = () => {
       deprecationReason: '2020-10-08: This field is not provided anymore and will return an empty object',
       resolve() {
         return {};
+      },
+    },
+    // This field is still used by contributors-svg worker.
+    githubContributors: {
+      type: new GraphQLNonNull(GraphQLJSON),
+      resolve(collective) {
+        return collective.data?.githubContributors || {};
       },
     },
     privateInstructions: {
