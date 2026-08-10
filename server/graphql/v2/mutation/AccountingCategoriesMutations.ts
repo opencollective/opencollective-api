@@ -4,6 +4,7 @@ import { Transaction } from 'sequelize';
 
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
+import OrderStatuses from '../../../constants/order-status';
 import { normalizeContributionAccountingCategoryRulePredicate } from '../../../lib/accounting/categorization/contribution-rules';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { isUniqueConstraintError, richDiffDBEntries } from '../../../lib/data';
@@ -82,6 +83,12 @@ export default {
             id = idDecode(input.id, 'accounting-category');
           }
 
+          // Expense types are meaningless for balance-sheet categories
+          const isBalanceSheetKind = ['BALANCE_ACCOUNT', 'CLEARING_ACCOUNT'].includes(input.kind);
+          if (isBalanceSheetKind) {
+            input.expensesTypes = null;
+          }
+
           return {
             ...input,
             id,
@@ -105,7 +112,27 @@ export default {
           const existingCategories = await models.AccountingCategory.findAll({
             transaction,
             where: { CollectiveId: account.id },
-            include: [{ association: 'expenses', required: false, attributes: ['id'], where: { status: 'PAID' } }],
+            include: [
+              { association: 'expenses', required: false, attributes: ['id'], where: { status: 'PAID' } },
+              {
+                association: 'orders',
+                required: false,
+                attributes: ['id'],
+                // Orders in these statuses have (or had) ledger entries attached
+                where: {
+                  status: [
+                    OrderStatuses.PAID,
+                    OrderStatuses.ACTIVE,
+                    OrderStatuses.CANCELLED,
+                    OrderStatuses.REFUNDED,
+                    OrderStatuses.DISPUTED,
+                    OrderStatuses.PAUSED,
+                  ],
+                },
+              },
+              { association: 'balanceExpenses', required: false, attributes: ['id'] },
+              { association: 'balanceOrders', required: false, attributes: ['id'] },
+            ],
           });
 
           const diffFn = richDiffDBEntries<AccountingCategory, AccountingCategoryInputWithNormalizedId>;
@@ -120,6 +147,14 @@ export default {
             throw new ValidationFailed(
               'Cannot remove accounting categories that have already been used in paid expenses. Please re-categorize the expenses first.',
             );
+          } else if (toRemove.some(c => c.orders.length)) {
+            throw new ValidationFailed(
+              'Cannot remove accounting categories that have already been used in contributions or added funds. Please re-categorize them first.',
+            );
+          } else if (toRemove.some(c => c.balanceExpenses.length || c.balanceOrders.length)) {
+            throw new ValidationFailed(
+              'Cannot remove accounting categories that are used as balance accounts on existing activity. Please re-categorize it first.',
+            );
           }
 
           // Trigger changes
@@ -128,6 +163,26 @@ export default {
             where: { id: toRemove.map(c => c.id), CollectiveId: account.id },
             transaction,
           });
+
+          // Removed categories may be set as balance-account defaults on payment rails: clear those references
+          if (toRemove.length) {
+            const clearDefaultsQueryOptions = {
+              transaction,
+              replacements: { collectiveId: account.id, removedIds: toRemove.map(c => c.id) },
+            };
+            await sequelize.query(
+              `UPDATE "ConnectedAccounts" SET "data" = "data" - 'BalanceAccountingCategoryId'
+               WHERE "CollectiveId" = :collectiveId AND "deletedAt" IS NULL
+               AND ("data" ->> 'BalanceAccountingCategoryId')::integer IN (:removedIds)`,
+              clearDefaultsQueryOptions,
+            );
+            await sequelize.query(
+              `UPDATE "ManualPaymentProviders" SET "data" = "data" - 'BalanceAccountingCategoryId'
+               WHERE "CollectiveId" = :collectiveId AND "deletedAt" IS NULL
+               AND ("data" ->> 'BalanceAccountingCategoryId')::integer IN (:removedIds)`,
+              clearDefaultsQueryOptions,
+            );
+          }
 
           // Update
           const updated = await Promise.all(
@@ -220,6 +275,15 @@ export default {
           )
             ? await AccountingCategory.findOne({ where: { publicId: rule.accountingCategory.id } }).then(c => c?.id)
             : idDecode(rule.accountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY);
+
+          const accountingCategory = accountingCategoryId && (await AccountingCategory.findByPk(accountingCategoryId));
+          if (!accountingCategory || accountingCategory.CollectiveId !== account.id) {
+            throw new ValidationFailed('This accounting category is not allowed for this host');
+          } else if (accountingCategory.kind && !['CONTRIBUTION', 'ADDED_FUNDS'].includes(accountingCategory.kind)) {
+            throw new ValidationFailed(
+              'Contribution accounting category rules can only target contribution or added funds categories',
+            );
+          }
 
           return {
             id: existingRuleId,

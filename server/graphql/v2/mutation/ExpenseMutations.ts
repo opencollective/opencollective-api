@@ -66,7 +66,10 @@ import { GraphQLExpenseProcessAction } from '../enum/ExpenseProcessAction';
 import { GraphQLFeesPayer } from '../enum/FeesPayer';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { fetchAccountingCategoryWithReference } from '../input/AccountingCategoryInput';
+import {
+  fetchAccountingCategoryWithReference,
+  GraphQLAccountingCategoryReferenceInput,
+} from '../input/AccountingCategoryInput';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLExpenseCreateInput } from '../input/ExpenseCreateInput';
 import { GraphQLExpenseInviteDraftInput } from '../input/ExpenseInviteDraftInput';
@@ -514,6 +517,10 @@ const expenseMutations = {
               type: GraphQLPaymentMethodService,
               description: 'Payment method using for paying the expense',
             },
+            balanceAccountingCategory: {
+              type: GraphQLAccountingCategoryReferenceInput,
+              description: 'The balance/clearing accounting category the funds were paid from (for manual payments)',
+            },
             clearedAt: {
               type: GraphQLDateTime,
               description:
@@ -580,6 +587,7 @@ const expenseMutations = {
             forceManual: args.paymentParams?.forceManual,
             feesPayer: args.paymentParams?.feesPayer,
             paymentMethodService: args.paymentParams?.paymentMethodService,
+            balanceAccountingCategory: args.paymentParams?.balanceAccountingCategory,
             paymentProcessorFeeInHostCurrency: args.paymentParams?.paymentProcessorFeeInHostCurrency,
             totalAmountPaidInHostCurrency: args.paymentParams?.totalAmountPaidInHostCurrency,
             transferDetails: args.paymentParams?.transfer?.details,
