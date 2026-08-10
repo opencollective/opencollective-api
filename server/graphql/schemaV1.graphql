@@ -39,6 +39,7 @@ interface CollectiveInterface {
   Private instructions related to an event
   """
   privateInstructions: String
+  githubContributors: JSON!
   slug: String
   path: String
   isHost: Boolean
@@ -57,6 +58,11 @@ interface CollectiveInterface {
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
   isGuest: Boolean
   canApply: Boolean
   canContact: Boolean!
@@ -511,6 +517,11 @@ type Contributor {
   A public message from contributors to describe their contributions
   """
   publicMessage: String
+
+  """
+  Whether this contributor has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 }
 
 """
@@ -1821,6 +1832,7 @@ type Collective implements CollectiveInterface {
   backgroundImageUrl(height: Int): String
   settings: JSON!
   data: JSON @deprecated(reason: "2020-10-08: This field is not provided anymore and will return an empty object")
+  githubContributors: JSON!
 
   """
   Private instructions related to an event
@@ -1888,6 +1900,11 @@ type Collective implements CollectiveInterface {
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether this collective is archived
@@ -2033,6 +2050,10 @@ type Collective implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """
@@ -2082,6 +2103,7 @@ type Event implements CollectiveInterface {
   backgroundImageUrl(height: Int): String
   settings: JSON!
   data: JSON @deprecated(reason: "2020-10-08: This field is not provided anymore and will return an empty object")
+  githubContributors: JSON!
 
   """
   Private instructions related to an event
@@ -2149,6 +2171,11 @@ type Event implements CollectiveInterface {
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether this collective is archived
@@ -2294,6 +2321,10 @@ type Event implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """
@@ -2343,6 +2374,7 @@ type Fund implements CollectiveInterface {
   backgroundImageUrl(height: Int): String
   settings: JSON!
   data: JSON @deprecated(reason: "2020-10-08: This field is not provided anymore and will return an empty object")
+  githubContributors: JSON!
 
   """
   Private instructions related to an event
@@ -2410,6 +2442,11 @@ type Fund implements CollectiveInterface {
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether this collective is archived
@@ -2555,6 +2592,10 @@ type Fund implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """
@@ -2604,6 +2645,7 @@ type Organization implements CollectiveInterface {
   backgroundImageUrl(height: Int): String
   settings: JSON!
   data: JSON @deprecated(reason: "2020-10-08: This field is not provided anymore and will return an empty object")
+  githubContributors: JSON!
 
   """
   Private instructions related to an event
@@ -2671,6 +2713,11 @@ type Organization implements CollectiveInterface {
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether this collective is archived
@@ -2816,6 +2863,10 @@ type Organization implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """
@@ -2865,6 +2916,7 @@ type Platform implements CollectiveInterface {
   backgroundImageUrl(height: Int): String
   settings: JSON!
   data: JSON @deprecated(reason: "2020-10-08: This field is not provided anymore and will return an empty object")
+  githubContributors: JSON!
 
   """
   Private instructions related to an event
@@ -2932,6 +2984,11 @@ type Platform implements CollectiveInterface {
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether this collective is archived
@@ -3077,6 +3134,10 @@ type Platform implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """
@@ -3126,6 +3187,7 @@ type Project implements CollectiveInterface {
   backgroundImageUrl(height: Int): String
   settings: JSON!
   data: JSON @deprecated(reason: "2020-10-08: This field is not provided anymore and will return an empty object")
+  githubContributors: JSON!
 
   """
   Private instructions related to an event
@@ -3193,6 +3255,11 @@ type Project implements CollectiveInterface {
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether this collective is archived
@@ -3338,6 +3405,10 @@ type Project implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """
@@ -3686,6 +3757,7 @@ type User implements CollectiveInterface {
   backgroundImageUrl(height: Int): String
   settings: JSON!
   data: JSON @deprecated(reason: "2020-10-08: This field is not provided anymore and will return an empty object")
+  githubContributors: JSON!
 
   """
   Private instructions related to an event
@@ -3753,6 +3825,11 @@ type User implements CollectiveInterface {
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether this collective is archived
@@ -3898,6 +3975,10 @@ type User implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """
@@ -3949,6 +4030,7 @@ type Vendor implements CollectiveInterface {
   backgroundImageUrl(height: Int): String
   settings: JSON!
   data: JSON @deprecated(reason: "2020-10-08: This field is not provided anymore and will return an empty object")
+  githubContributors: JSON!
 
   """
   Private instructions related to an event
@@ -4016,6 +4098,11 @@ type Vendor implements CollectiveInterface {
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 
   """
   Returns whether this collective is archived
@@ -4161,6 +4248,10 @@ type Vendor implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """
