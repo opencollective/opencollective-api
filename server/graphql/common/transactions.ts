@@ -219,8 +219,8 @@ export const canDownloadInvoice = async (transaction: Transaction, _: void, req:
 /** Checks if the user can reject this transaction */
 export const canReject = canRefund;
 
-/** Returns the total amount, in cents, that should be refunded from the Collective balance. */
-const getRefundableAmountFromCollective = async (transaction: Transaction) => {
+/** Returns the total amount, in host currency cents, that should be refunded from the Collective balance. */
+export const getRefundableAmountFromCollectiveInHostCurrency = async (transaction: Transaction) => {
   const relatedCreditTransactions = await transaction.getRelatedTransactions({ type: TransactionTypes.CREDIT });
   const contribution = relatedCreditTransactions.find(t =>
     [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS, TransactionKind.BALANCE_TRANSFER].includes(t.kind),
@@ -290,7 +290,7 @@ export async function refundTransaction(
   // Check if the hosted collective has enough funds to refund the transaction
   else {
     const balanceInHostCurrency = await collective.getBalance({ currency: creditTransaction.hostCurrency });
-    const refundableAmountFromCollective = await getRefundableAmountFromCollective(creditTransaction);
+    const refundableAmountFromCollective = await getRefundableAmountFromCollectiveInHostCurrency(creditTransaction);
     if (balanceInHostCurrency < refundableAmountFromCollective) {
       throw new Forbidden('Not enough funds to refund this transaction');
     }

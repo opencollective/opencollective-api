@@ -1,6 +1,7 @@
 import { maxInteger } from '../../constants/math';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
+import { getRefundableAmountFromCollectiveInHostCurrency } from '../../graphql/common/transactions';
 import { getFxRate, roundCentsAmount } from '../../lib/currency';
 import { createRefundTransaction, getHostFee, getHostFeeSharePercent } from '../../lib/payments';
 import { formatCurrency } from '../../lib/utils';
@@ -27,13 +28,14 @@ const paymentMethodProvider: BasePaymentProviderService = {
     const collective = await models.Collective.findByPk(transaction.CollectiveId);
 
     if (!opts?.ignoreBalanceCheck) {
-      const balance = await collective.getBalanceWithBlockedFunds({ currency: transaction.currency });
-      if (balance < transaction.amount) {
+      const balance = await collective.getBalanceWithBlockedFunds({ currency: transaction.hostCurrency });
+      const refundableAmountFromCollective = await getRefundableAmountFromCollectiveInHostCurrency(transaction);
+      if (balance < refundableAmountFromCollective) {
         throw new Error(
           `Not enough funds available (${formatCurrency(
             balance,
-            transaction.currency,
-          )} left) to process this refund (${formatCurrency(transaction.amount, transaction.currency)})`,
+            transaction.hostCurrency,
+          )} left) to process this refund (${formatCurrency(refundableAmountFromCollective, transaction.hostCurrency)})`,
         );
       }
     }
