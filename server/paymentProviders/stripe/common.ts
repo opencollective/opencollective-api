@@ -285,7 +285,8 @@ export async function resolvePaymentMethodForOrder(
       stripeAccount: hostStripeAccount,
     });
 
-    const paymentMethodId = get(customer, 'default_source', get(customer, 'sources.data[0].id'));
+    // `default_source` is not expanded, so it's always a string ID at runtime
+    const paymentMethodId = get(customer, 'default_source', get(customer, 'sources.data[0].id')) as string;
 
     return {
       id: paymentMethodId,
