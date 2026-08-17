@@ -240,6 +240,42 @@ describe('server/models/PlatformSubscriptions', () => {
       ).to.be.rejectedWith(Error);
     });
 
+    it('can create a subscription the same day the previous one was terminated', async () => {
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin });
+      const subscription = await PlatformSubscription.createSubscription(
+        collective,
+        new Date(Date.UTC(2016, 0, 1)),
+        {
+          title: 'A plan',
+        },
+        admin,
+      );
+
+      // Terminate mid-day, like `deactivateMoneyManagement` does
+      await subscription.terminate({ date: new Date(Date.UTC(2016, 0, 5, 13, 59, 46)), inclusive: false });
+
+      // The termination is aligned to the start of the day
+      await subscription.reload();
+      expect(subscription.end.inclusive).to.be.false;
+      expect(moment.utc(subscription.end.value).toISOString()).to.equal('2016-01-05T00:00:00.000Z');
+
+      const newSubscription = await PlatformSubscription.createSubscription(
+        collective,
+        new Date(Date.UTC(2016, 0, 5, 15, 0, 0)),
+        {
+          title: 'A plan',
+        },
+        admin,
+      );
+
+      expect(newSubscription.start.inclusive).to.be.true;
+      expect(moment.utc(newSubscription.start.value).toISOString()).to.equal('2016-01-05T00:00:00.000Z');
+
+      expect(newSubscription.end.inclusive).to.be.true;
+      expect(newSubscription.end.value).to.equal(Infinity);
+    });
+
     it('emits PLATFORM_SUBSCRIPTION_UPDATED activity', async () => {
       const admin = await fakeUser();
       const collective = await fakeCollective({ admin });
@@ -348,6 +384,37 @@ describe('server/models/PlatformSubscriptions', () => {
 
       expect(newSubscription.start.inclusive).to.be.true;
       expect(moment.utc(newSubscription.start.value).toISOString()).to.equal('2016-01-02T00:00:00.000Z');
+
+      expect(newSubscription.end.inclusive).to.be.true;
+      expect(newSubscription.end.value).to.equal(Infinity);
+    });
+
+    it('can replace a subscription the same day the previous one was terminated', async () => {
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin });
+      const subscription = await PlatformSubscription.createSubscription(
+        collective,
+        new Date(Date.UTC(2016, 0, 1)),
+        {
+          title: 'A plan',
+        },
+        admin,
+      );
+
+      // Terminate mid-day, like `deactivateMoneyManagement` does
+      await subscription.terminate({ date: new Date(Date.UTC(2016, 0, 5, 13, 59, 46)), inclusive: false });
+
+      const newSubscription = await PlatformSubscription.replaceCurrentSubscription(
+        collective,
+        new Date(Date.UTC(2016, 0, 5, 15, 0, 0)),
+        {
+          title: 'A new plan',
+        },
+        admin,
+      );
+
+      expect(newSubscription.start.inclusive).to.be.true;
+      expect(moment.utc(newSubscription.start.value).toISOString()).to.equal('2016-01-05T00:00:00.000Z');
 
       expect(newSubscription.end.inclusive).to.be.true;
       expect(newSubscription.end.value).to.equal(Infinity);
