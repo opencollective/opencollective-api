@@ -211,12 +211,12 @@ jobs:
       PG_DATABASE: opencollective_test
     services:
       redis:
-        image: redis@sha256:027002f3d4161eb427643e0cc71023b582fb461c6199e699f46db843f0b39fb1
+        image: redis@sha256:344e3945a0b431c8ff1eecd58c5573538126bd756f02fc7e218ddf1fc2546366
         ports:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.14@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
+        image: postgres:16.14@sha256:95206741a5b214807675e14165369d05b93a9cf692223b616d07cca227e74b0b
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -282,12 +282,12 @@ jobs:
 
     services:
       redis:
-        image: redis@sha256:027002f3d4161eb427643e0cc71023b582fb461c6199e699f46db843f0b39fb1
+        image: redis@sha256:344e3945a0b431c8ff1eecd58c5573538126bd756f02fc7e218ddf1fc2546366
         ports:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.14@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
+        image: postgres:16.14@sha256:95206741a5b214807675e14165369d05b93a9cf692223b616d07cca227e74b0b
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -296,7 +296,7 @@ jobs:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
       opensearch:
-        image: opensearchproject/opensearch:3@sha256:123e6591a47b1d54686890551bdb35739c85193ecded381219fc9e059e18128f
+        image: opensearchproject/opensearch:3@sha256:bcc1797519726ceb6d651d4a3e60b7c30da91793914a8dfe75fd441d4f641509
         ports:
           - 9200:9200
         env:
@@ -362,12 +362,12 @@ jobs:
 
     services:
       redis:
-        image: redis@sha256:027002f3d4161eb427643e0cc71023b582fb461c6199e699f46db843f0b39fb1
+        image: redis@sha256:344e3945a0b431c8ff1eecd58c5573538126bd756f02fc7e218ddf1fc2546366
         ports:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.14@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
+        image: postgres:16.14@sha256:95206741a5b214807675e14165369d05b93a9cf692223b616d07cca227e74b0b
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -409,12 +409,12 @@ jobs:
       ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     services:
       redis:
-        image: redis@sha256:027002f3d4161eb427643e0cc71023b582fb461c6199e699f46db843f0b39fb1
+        image: redis@sha256:344e3945a0b431c8ff1eecd58c5573538126bd756f02fc7e218ddf1fc2546366
         ports:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.14@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
+        image: postgres:16.14@sha256:95206741a5b214807675e14165369d05b93a9cf692223b616d07cca227e74b0b
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
