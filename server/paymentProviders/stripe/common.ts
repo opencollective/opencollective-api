@@ -285,8 +285,13 @@ export async function resolvePaymentMethodForOrder(
       stripeAccount: hostStripeAccount,
     });
 
-    // `default_source` is not expanded, so it's always a string ID at runtime
-    const paymentMethodId = get(customer, 'default_source', get(customer, 'sources.data[0].id')) as string;
+    // `default_source` is not expanded, so it's a string ID at runtime. It can also be null for
+    // legacy customers, in which case we fall back to the first source.
+    const paymentMethodId =
+      (get(customer, 'default_source') as string | null) || (get(customer, 'sources.data[0].id') as string);
+    if (!paymentMethodId) {
+      throw new Error(`No default source found on legacy Stripe customer ${customerId}`);
+    }
 
     return {
       id: paymentMethodId,
