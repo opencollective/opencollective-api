@@ -187,6 +187,7 @@ const loadPaymentIntentTransactionAmountsInHostCurrency = async (
     .where('Transactions.RefundTransactionId', 'is', null)
     .where('Transactions.isRefund', 'is not', true)
     .where('Transactions.PaymentIntentId', 'in', paymentIntentIds)
+    .where('PaymentIntents.id', 'in', paymentIntentIds)
     .where('Transactions.type', '=', type)
     .where(({ eb }) => {
       const paymentIntentCollectiveId =
