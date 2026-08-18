@@ -150,14 +150,11 @@ export const canRefund = async (transaction: Transaction, _: void, req: Express.
     }
   }
 
-  // Only certain transaction kinds can be refunded
+  // Only certain transaction kinds can be refunded. Internal transfers (BALANCE_TRANSFER) are
+  // excluded on purpose: they move money between accounts within the same host and can be
+  // reversed with another internal transfer, but should never show up as a "refund" in the ledger.
   if (
-    ![
-      TransactionKind.ADDED_FUNDS,
-      TransactionKind.BALANCE_TRANSFER,
-      TransactionKind.CONTRIBUTION,
-      TransactionKind.EXPENSE,
-    ].includes(transaction.kind)
+    ![TransactionKind.ADDED_FUNDS, TransactionKind.CONTRIBUTION, TransactionKind.EXPENSE].includes(transaction.kind)
   ) {
     return false;
   }

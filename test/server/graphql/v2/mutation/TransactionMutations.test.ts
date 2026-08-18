@@ -205,6 +205,27 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
       expect(message).to.equal('Cannot refund this transaction');
     });
 
+    it('should error when trying to refund an internal transfer (BALANCE_TRANSFER)', async () => {
+      // Use a dedicated collective/order so this doesn't affect the shared `collective`'s
+      // balance used by the balance-check tests below.
+      const internalTransferCollective = await fakeCollective();
+      const internalTransferOrder = await fakeOrder({ CollectiveId: internalTransferCollective.id });
+      const internalTransferTransaction = await fakeTransaction({
+        CollectiveId: internalTransferCollective.id,
+        HostCollectiveId: internalTransferCollective.HostCollectiveId,
+        type: TransactionTypes.CREDIT,
+        kind: TransactionKind.BALANCE_TRANSFER,
+        OrderId: internalTransferOrder.id,
+      });
+      const result = await graphqlQueryV2(
+        refundTransactionMutation,
+        { transaction: { legacyId: internalTransferTransaction.id } },
+        hostAdminUser,
+      );
+      const [{ message }] = result.errors;
+      expect(message).to.equal('Cannot refund this transaction');
+    });
+
     it('refunds the transaction', async () => {
       const result = await graphqlQueryV2(
         refundTransactionMutation,
