@@ -367,6 +367,18 @@ describe('server/paymentProviders/stripe/common', () => {
       expect(resolvedPM.customer).to.equal('cus_legacycustomer');
     });
 
+    it('throws a clear error when the legacy cloned customer was deleted on Stripe', async () => {
+      await paymentMethod.update({
+        data: { ...paymentMethod.data, customerIdForHost: { acc_host: 'cus_legacycustomer' } },
+      });
+      order.paymentMethod = paymentMethod;
+      sandbox.stub(stripe.customers, 'retrieve').resolves({ id: 'cus_legacycustomer', deleted: true });
+
+      await expect(common.resolvePaymentMethodForOrder('acc_host', order)).to.eventually.be.rejectedWith(
+        'Legacy Stripe customer cus_legacycustomer was deleted on Stripe',
+      );
+    });
+
     it('throws a clear error when the legacy cloned customer has no source at all', async () => {
       await paymentMethod.update({
         data: { ...paymentMethod.data, customerIdForHost: { acc_host: 'cus_legacycustomer' } },
