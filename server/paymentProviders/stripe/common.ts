@@ -284,8 +284,17 @@ export async function resolvePaymentMethodForOrder(
     const customer = await stripe.customers.retrieve(customerId, {
       stripeAccount: hostStripeAccount,
     });
+    if (customer.deleted) {
+      throw new Error(`Legacy Stripe customer ${customerId} was deleted on Stripe`);
+    }
 
-    const paymentMethodId = get(customer, 'default_source', get(customer, 'sources.data[0].id'));
+    // `default_source` is not expanded, so it's a string ID at runtime. It can also be null for
+    // legacy customers, in which case we fall back to the first source.
+    const paymentMethodId =
+      (get(customer, 'default_source') as string | null) || (get(customer, 'sources.data[0].id') as string);
+    if (!paymentMethodId) {
+      throw new Error(`No default source found on legacy Stripe customer ${customerId}`);
+    }
 
     return {
       id: paymentMethodId,

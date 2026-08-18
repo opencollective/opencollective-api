@@ -2452,7 +2452,7 @@ export async function createExpense(
   // Get or create payout method
   const payoutMethod =
     fromCollective.type === CollectiveType.VENDOR
-      ? await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first)
+      ? await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(payoutMethods => first(payoutMethods))
       : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, collective, null);
 
   if (
@@ -3260,7 +3260,9 @@ export async function editExpense(
         expenseData.payoutMethod?.id !== expense.PayoutMethodId)
     ) {
       if (fromCollective.type === CollectiveType.VENDOR) {
-        payoutMethod = await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first);
+        payoutMethod = await fromCollective
+          .getPayoutMethods({ where: { isSaved: true } })
+          .then(payoutMethods => first(payoutMethods));
         assert(payoutMethod, 'The vendor payee must have a saved payout method');
       } else {
         payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, collective, null);

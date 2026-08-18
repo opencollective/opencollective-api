@@ -14,6 +14,7 @@ export default [
   {
     ignores: [
       '**/node_modules/',
+      '**/.claude/',
       '**/seeders/',
       'migrations/archives',
       '**/dist/',
@@ -189,8 +190,7 @@ export default [
         {
           selector:
             "CallExpression[callee.type='MemberExpression'][callee.property.name='only'][callee.object.type='Identifier'][callee.object.name=/^(describe|it|context|specify|suite|test)$/]",
-          message:
-            'Do not commit focused tests (describe.only, it.only, etc.). Remove .only before committing.',
+          message: 'Do not commit focused tests (describe.only, it.only, etc.). Remove .only before committing.',
         },
       ],
       'no-console': 'off',
