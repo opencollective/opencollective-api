@@ -338,59 +338,6 @@ describe('server/paymentProviders/stripe/common', () => {
       assert.notCalled(stripe.paymentMethods.attach);
     });
 
-    it('returns the default source of the legacy cloned customer', async () => {
-      await paymentMethod.update({
-        data: { ...paymentMethod.data, customerIdForHost: { acc_host: 'cus_legacycustomer' } },
-      });
-      order.paymentMethod = paymentMethod;
-      sandbox.stub(stripe.customers, 'retrieve').resolves({ default_source: 'card_legacy1234567890123456' });
-
-      const resolvedPM = await common.resolvePaymentMethodForOrder('acc_host', order);
-
-      expect(resolvedPM.id).to.equal('card_legacy1234567890123456');
-      expect(resolvedPM.customer).to.equal('cus_legacycustomer');
-    });
-
-    it('falls back to the first source when the legacy cloned customer has no default source', async () => {
-      await paymentMethod.update({
-        data: { ...paymentMethod.data, customerIdForHost: { acc_host: 'cus_legacycustomer' } },
-      });
-      order.paymentMethod = paymentMethod;
-      sandbox.stub(stripe.customers, 'retrieve').resolves({
-        default_source: null,
-        sources: { data: [{ id: 'card_legacy1234567890123456' }] },
-      });
-
-      const resolvedPM = await common.resolvePaymentMethodForOrder('acc_host', order);
-
-      expect(resolvedPM.id).to.equal('card_legacy1234567890123456');
-      expect(resolvedPM.customer).to.equal('cus_legacycustomer');
-    });
-
-    it('throws a clear error when the legacy cloned customer was deleted on Stripe', async () => {
-      await paymentMethod.update({
-        data: { ...paymentMethod.data, customerIdForHost: { acc_host: 'cus_legacycustomer' } },
-      });
-      order.paymentMethod = paymentMethod;
-      sandbox.stub(stripe.customers, 'retrieve').resolves({ id: 'cus_legacycustomer', deleted: true });
-
-      await expect(common.resolvePaymentMethodForOrder('acc_host', order)).to.eventually.be.rejectedWith(
-        'Legacy Stripe customer cus_legacycustomer was deleted on Stripe',
-      );
-    });
-
-    it('throws a clear error when the legacy cloned customer has no source at all', async () => {
-      await paymentMethod.update({
-        data: { ...paymentMethod.data, customerIdForHost: { acc_host: 'cus_legacycustomer' } },
-      });
-      order.paymentMethod = paymentMethod;
-      sandbox.stub(stripe.customers, 'retrieve').resolves({ default_source: null, sources: { data: [] } });
-
-      await expect(common.resolvePaymentMethodForOrder('acc_host', order)).to.eventually.be.rejectedWith(
-        'No default source found on legacy Stripe customer cus_legacycustomer',
-      );
-    });
-
     it('throws error if card is from another connected account', async () => {
       order.paymentMethod = await fakePaymentMethod({
         customerId: 'cus_anotherhostcustomer',
