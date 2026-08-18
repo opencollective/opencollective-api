@@ -276,6 +276,43 @@ describe('server/models/PlatformSubscriptions', () => {
       expect(newSubscription.end.value).to.equal(Infinity);
     });
 
+    it('supports repeatedly terminating and re-creating subscriptions the same day', async () => {
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin });
+      const plan = { title: 'A plan' };
+      const firstSubscription = await PlatformSubscription.createSubscription(
+        collective,
+        new Date(Date.UTC(2016, 0, 1)),
+        plan,
+        admin,
+      );
+
+      // First deactivation: the subscription started on a previous day, its period is truncated
+      await firstSubscription.terminate({ date: new Date(Date.UTC(2016, 0, 5, 10, 0, 0)), inclusive: false });
+
+      // Second and third cycles: the subscription started the same day, it is destroyed on termination
+      for (const hour of [11, 13]) {
+        const subscription = await PlatformSubscription.createSubscription(
+          collective,
+          new Date(Date.UTC(2016, 0, 5, hour, 0, 0)),
+          plan,
+          admin,
+        );
+        await subscription.terminate({ date: new Date(Date.UTC(2016, 0, 5, hour + 1, 0, 0)), inclusive: false });
+        await subscription.reload({ paranoid: false });
+        expect(subscription.deletedAt).to.not.be.null;
+      }
+
+      const lastSubscription = await PlatformSubscription.createSubscription(
+        collective,
+        new Date(Date.UTC(2016, 0, 5, 15, 0, 0)),
+        plan,
+        admin,
+      );
+      expect(moment.utc(lastSubscription.start.value).toISOString()).to.equal('2016-01-05T00:00:00.000Z');
+      expect(lastSubscription.end.value).to.equal(Infinity);
+    });
+
     it('emits PLATFORM_SUBSCRIPTION_UPDATED activity', async () => {
       const admin = await fakeUser();
       const collective = await fakeCollective({ admin });
