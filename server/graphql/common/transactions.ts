@@ -13,6 +13,7 @@ import { TransactionTypes } from '../../constants/transactions';
 import { purgeCacheForCollective } from '../../lib/cache';
 import { refundTransaction as refundTransactionPayment } from '../../lib/payments';
 import { getPolicy } from '../../lib/policies';
+import { getRefundableAmountFromCollectiveInHostCurrency } from '../../lib/refunds';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { sequelize } from '../../models';
 import Transaction from '../../models/Transaction';
@@ -215,21 +216,6 @@ export const canDownloadInvoice = async (transaction: Transaction, _: void, req:
 
 /** Checks if the user can reject this transaction */
 export const canReject = canRefund;
-
-/** Returns the total amount, in host currency cents, that should be refunded from the Collective balance. */
-export const getRefundableAmountFromCollectiveInHostCurrency = async (transaction: Transaction) => {
-  const relatedCreditTransactions = await transaction.getRelatedTransactions({ type: TransactionTypes.CREDIT });
-  const contribution = relatedCreditTransactions.find(t =>
-    [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS, TransactionKind.BALANCE_TRANSFER].includes(t.kind),
-  );
-  assert(contribution, 'No contributions found for this transaction');
-  const hostFee = relatedCreditTransactions.find(t => t.kind === TransactionKind.HOST_FEE);
-  const paymentFee = relatedCreditTransactions.find(t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE);
-
-  return (
-    contribution.amountInHostCurrency - (hostFee?.amountInHostCurrency || 0) - (paymentFee?.amountInHostCurrency || 0)
-  );
-};
 
 export async function refundTransaction(
   passedTransaction: Transaction,

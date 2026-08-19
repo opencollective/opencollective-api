@@ -1,9 +1,9 @@
 import { maxInteger } from '../../constants/math';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
-import { getRefundableAmountFromCollectiveInHostCurrency } from '../../graphql/common/transactions';
 import { getFxRate, roundCentsAmount } from '../../lib/currency';
 import { createRefundTransaction, getHostFee, getHostFeeSharePercent } from '../../lib/payments';
+import { getRefundableAmountFromCollectiveInHostCurrency } from '../../lib/refunds';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 import type { BasePaymentProviderService } from '../types';
