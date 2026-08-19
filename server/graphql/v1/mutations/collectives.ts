@@ -545,6 +545,8 @@ export async function archiveCollective(_, args, req) {
     children = await sequelize.query<{ id: number; slug: string }>(
       `UPDATE "Collectives"
     SET "deactivatedAt" = :deactivatedAt,
+    "isActive" = FALSE,
+    "approvedAt" = NULL,
     "data" = JSONB_SET(COALESCE("data", '{}'), '{archivedFromParent}', 'true')
     WHERE "ParentCollectiveId" = :collectiveId
     AND "deletedAt" IS NULL
@@ -574,7 +576,7 @@ export async function archiveCollective(_, args, req) {
   });
 
   // Mark main account as archived
-  await collective.update({ isActive: false, deactivatedAt });
+  await collective.update({ isActive: false, deactivatedAt, approvedAt: null });
 
   await models.Activity.create({
     type: activities.COLLECTIVE_ARCHIVED,

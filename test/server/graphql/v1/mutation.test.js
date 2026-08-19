@@ -345,6 +345,63 @@ describe('server/graphql/v1/mutation', () => {
         expect(parentPendingExpense.data.cancelledWhileArchivedFromCollective).to.be.true;
         expect(parentPendingExpense.data.previousStatus).to.equal('PENDING');
       });
+
+      it('clears approvedAt even when HostCollectiveId is already null', async () => {
+        // Setup: create a collective that was previously hosted but had its host removed
+        const admin = await fakeUser();
+        const hostCollective = await fakeActiveHost();
+        const collective = await fakeCollective({
+          admin,
+          HostCollectiveId: hostCollective.id,
+          isActive: true,
+          approvedAt: new Date('2024-01-01'),
+        });
+
+        // Create children (project and event) that also have the bug state
+        const project = await fakeProject({
+          ParentCollectiveId: collective.id,
+          HostCollectiveId: hostCollective.id,
+          isActive: true,
+          approvedAt: new Date('2024-01-01'),
+        });
+
+        // Simulate a scenario where the host was already cleared (e.g., via rejection or manual update)
+        // but approvedAt was not cleared - this is the bug scenario for both parent and children
+        await collective.update({ HostCollectiveId: null }, { hooks: false });
+        await project.update({ HostCollectiveId: null }, { hooks: false });
+        await collective.reload();
+        await project.reload();
+
+        // Verify the buggy state exists for both parent and child: no host but still has approvedAt
+        expect(collective.HostCollectiveId).to.be.null;
+        expect(collective.approvedAt).to.be.a('date');
+        expect(collective.isActive).to.be.true;
+        expect(project.HostCollectiveId).to.be.null;
+        expect(project.approvedAt).to.be.a('date');
+        expect(project.isActive).to.be.true;
+
+        // Call archiveCollective mutation
+        const response = await utils.graphqlQuery(archiveCollectiveMutation, { id: collective.id }, admin);
+        expect(response.errors).to.not.exist;
+        expect(response.data.archiveCollective.isArchived).to.be.true;
+
+        // Verify the fix: archiving should clear approvedAt even when HostCollectiveId was already null
+        // This should apply to both the parent collective AND its children
+        await collective.reload();
+        await project.reload();
+
+        // Parent collective assertions
+        expect(collective.isActive).to.be.false;
+        expect(collective.deactivatedAt).to.be.a('date');
+        expect(collective.approvedAt).to.be.null; // Key assertion for the bug fix
+        expect(collective.HostCollectiveId).to.be.null;
+
+        // Child project assertions - children should also have approvedAt cleared
+        expect(project.isActive).to.be.false;
+        expect(project.deactivatedAt).to.be.a('date');
+        expect(project.approvedAt).to.be.null; // Key assertion for children bug fix
+        expect(project.HostCollectiveId).to.be.null;
+      });
     });
 
     describe('sensitive settings guards', () => {
