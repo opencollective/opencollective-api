@@ -1,9 +1,12 @@
 import { expect } from 'chai';
-import sinon from 'sinon';
+import sinon, { SinonSandbox, SinonStub } from 'sinon';
 
+import { CollectiveType } from '../../../../server/constants/collectives';
+import { SupportedCurrency } from '../../../../server/constants/currencies';
+import OrderStatuses from '../../../../server/constants/order-status';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
-import * as LibCurrency from '../../../../server/lib/currency';
-import models from '../../../../server/models';
+import * as libcurrency from '../../../../server/lib/currency';
+import models, { Collective, PaymentMethod, User } from '../../../../server/models';
 import hostPaymentProvider from '../../../../server/paymentProviders/opencollective/host';
 import * as store from '../../../stores';
 import * as utils from '../../../utils';
@@ -15,10 +18,13 @@ describe('server/paymentProviders/opencollective/host', () => {
 
   describe('Refunds', () => {
     const HOST_FEE_PERCENT = 10;
-    let user, host, collective, hostPaymentMethod;
+    let user: User, host: Collective, collective: Collective, hostPaymentMethod: PaymentMethod;
 
     /** Create a Host and a hosted Collective. Host uses `hostCurrency`, Collective uses `collectiveCurrency`. */
-    const setupHostAndCollective = async (collectiveCurrency, hostCurrency = 'USD') => {
+    const setupHostAndCollective = async (
+      collectiveCurrency: SupportedCurrency,
+      hostCurrency: SupportedCurrency = 'USD',
+    ) => {
       host = await models.Collective.create({ name: `Host (${hostCurrency})`, currency: hostCurrency, isActive: true });
       user = await models.User.createUserWithCollective({ email: store.randEmail(), name: 'Host Admin' });
       collective = await models.Collective.create({
@@ -27,7 +33,7 @@ describe('server/paymentProviders/opencollective/host', () => {
         HostCollectiveId: host.id,
         isActive: true,
         approvedAt: new Date(),
-        type: 'COLLECTIVE',
+        type: CollectiveType.COLLECTIVE,
         CreatedByUserId: user.id,
         hostFeePercent: HOST_FEE_PERCENT,
       });
@@ -41,23 +47,23 @@ describe('server/paymentProviders/opencollective/host', () => {
         CollectiveId: collective.id,
         totalAmount: amount,
         currency: collective.currency,
-        status: 'PENDING',
+        status: OrderStatuses.PENDING,
         PaymentMethodId: hostPaymentMethod.id,
       });
 
       order.collective = collective;
       order.fromCollective = host;
-      order.createByUser = user;
+      order.createdByUser = user;
       order.paymentMethod = hostPaymentMethod;
       return order;
     };
 
     describe('With a Host in a different currency (split HOST_FEE transactions)', () => {
-      let sandbox;
+      let sandbox: SinonSandbox;
 
       before(async () => {
         sandbox = sinon.createSandbox();
-        sandbox.stub(LibCurrency, 'getFxRate').callsFake((fromCurrency, toCurrency) => {
+        (sandbox.stub(libcurrency, 'getFxRate') as SinonStub).callsFake((fromCurrency: string, toCurrency: string) => {
           if (fromCurrency === toCurrency) {
             return Promise.resolve(1);
           } else if (fromCurrency === 'EUR' && toCurrency === 'USD') {
@@ -80,7 +86,10 @@ describe('server/paymentProviders/opencollective/host', () => {
 
       it('Converts amounts to the Host currency and splits the Host Fee into its own transaction', async () => {
         const order = await createAddedFundsOrder();
-        const transaction = await hostPaymentProvider.processOrder(order, {});
+        const transaction = await hostPaymentProvider.processOrder(order, {} as any);
+        if (!transaction) {
+          throw new Error('Expected transaction to be returned');
+        }
 
         // Main ADDED_FUNDS transaction: kept in the Collective's currency, converted to the Host's currency
         expect(transaction.type).to.equal('CREDIT');
@@ -113,7 +122,10 @@ describe('server/paymentProviders/opencollective/host', () => {
 
       it('Refunds the added funds and the split Host Fee transaction', async () => {
         const order = await createAddedFundsOrder();
-        const transaction = await hostPaymentProvider.processOrder(order, {});
+        const transaction = await hostPaymentProvider.processOrder(order, {} as any);
+        if (!transaction) {
+          throw new Error('Expected transaction to be returned');
+        }
         expect(await collective.getBalance({ currency: 'USD' })).to.equal(4950);
 
         const updatedTransaction = await hostPaymentProvider.refundTransaction(transaction, user);
@@ -144,7 +156,10 @@ describe('server/paymentProviders/opencollective/host', () => {
 
       it('Cannot refund if the Host currency balance is not enough, even with split transactions', async () => {
         const order = await createAddedFundsOrder();
-        const transaction = await hostPaymentProvider.processOrder(order, {});
+        const transaction = await hostPaymentProvider.processOrder(order, {} as any);
+        if (!transaction) {
+          throw new Error('Expected transaction to be returned');
+        }
         expect(await collective.getBalance({ currency: 'USD' })).to.equal(4950);
 
         // Simulate the Collective having spent most of its balance elsewhere (e.g. paying an expense)
@@ -180,7 +195,10 @@ describe('server/paymentProviders/opencollective/host', () => {
 
       it('Splits the Host Fee into its own transaction without any currency conversion', async () => {
         const order = await createAddedFundsOrder();
-        const transaction = await hostPaymentProvider.processOrder(order, {});
+        const transaction = await hostPaymentProvider.processOrder(order, {} as any);
+        if (!transaction) {
+          throw new Error('Expected transaction to be returned');
+        }
 
         // Main ADDED_FUNDS transaction: same currency everywhere, no conversion
         expect(transaction.type).to.equal('CREDIT');
@@ -213,7 +231,10 @@ describe('server/paymentProviders/opencollective/host', () => {
 
       it('Refunds the added funds and the split Host Fee transaction', async () => {
         const order = await createAddedFundsOrder();
-        const transaction = await hostPaymentProvider.processOrder(order, {});
+        const transaction = await hostPaymentProvider.processOrder(order, {} as any);
+        if (!transaction) {
+          throw new Error('Expected transaction to be returned');
+        }
         expect(await collective.getBalance({ currency: 'USD' })).to.equal(4500);
 
         const updatedTransaction = await hostPaymentProvider.refundTransaction(transaction, user);
@@ -244,7 +265,10 @@ describe('server/paymentProviders/opencollective/host', () => {
 
       it('Cannot refund if the balance is not enough, even with split transactions', async () => {
         const order = await createAddedFundsOrder();
-        const transaction = await hostPaymentProvider.processOrder(order, {});
+        const transaction = await hostPaymentProvider.processOrder(order, {} as any);
+        if (!transaction) {
+          throw new Error('Expected transaction to be returned');
+        }
         expect(await collective.getBalance({ currency: 'USD' })).to.equal(4500);
 
         // Simulate the Collective having spent most of its balance elsewhere (e.g. paying an expense)
