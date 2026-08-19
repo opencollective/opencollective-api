@@ -3,48 +3,53 @@ import { uniq } from 'lodash';
 
 import { assertCanSeeAllAccounts } from '../../../lib/private-accounts';
 import models from '../../../models';
-import { enforceScope } from '../../common/scope-check';
+import { defineProtectedField } from '../../common/define-protected-field';
 import { NotFound } from '../../errors';
 import { fetchTransactionWithReference, GraphQLTransactionReferenceInput } from '../input/TransactionReferenceInput';
 import { GraphQLTransaction } from '../interface/Transaction';
 
-const TransactionQuery = {
-  type: GraphQLTransaction,
-  description: 'Fetch a single transaction',
-  args: {
-    id: {
-      type: GraphQLString,
-      description: 'The public id identifying the transaction (ie: rvelja97-pkzqbgq7-bbzyx6wd-50o8n4rm)',
-      deprecationReason: '2024-05-07: Please use the `transaction` field.',
+const TransactionQuery = defineProtectedField(
+  'transaction',
+  {
+    scopes: ['transactions'],
+    requiresAuthentication: false,
+  },
+  {
+    type: GraphQLTransaction,
+    description: 'Fetch a single transaction',
+    args: {
+      id: {
+        type: GraphQLString,
+        description: 'The public id identifying the transaction (ie: rvelja97-pkzqbgq7-bbzyx6wd-50o8n4rm)',
+        deprecationReason: '2024-05-07: Please use the `transaction` field.',
+      },
+      transaction: {
+        type: GraphQLTransactionReferenceInput,
+        description: 'Identifiers to retrieve the transaction.',
+      },
     },
-    transaction: {
-      type: GraphQLTransactionReferenceInput,
-      description: 'Identifiers to retrieve the transaction.',
+    async resolve(_, args, req) {
+      let transaction;
+      if (args.transaction) {
+        transaction = await fetchTransactionWithReference(args.transaction, req);
+      } else if (args.id) {
+        transaction = await models.Transaction.findOne({ where: { uuid: args.id } });
+      } else {
+        throw new Error('Please provide an id');
+      }
+
+      if (!transaction) {
+        throw new NotFound('Transaction Not Found');
+      }
+
+      const collectiveIds = [transaction.FromCollectiveId, transaction.CollectiveId, transaction.HostCollectiveId];
+      const uniqIds = uniq(collectiveIds.filter(Boolean));
+      const collectives = await req.loaders.Collective.byId.loadMany(uniqIds);
+      await assertCanSeeAllAccounts(req, collectives.filter(Boolean));
+
+      return transaction;
     },
   },
-  async resolve(_, args, req) {
-    enforceScope(req, 'transactions');
-
-    let transaction;
-    if (args.transaction) {
-      transaction = await fetchTransactionWithReference(args.transaction, req);
-    } else if (args.id) {
-      transaction = await models.Transaction.findOne({ where: { uuid: args.id } });
-    } else {
-      throw new Error('Please provide an id');
-    }
-
-    if (!transaction) {
-      throw new NotFound('Transaction Not Found');
-    }
-
-    const collectiveIds = [transaction.FromCollectiveId, transaction.CollectiveId, transaction.HostCollectiveId];
-    const uniqIds = uniq(collectiveIds.filter(Boolean));
-    const collectives = await req.loaders.Collective.byId.loadMany(uniqIds);
-    await assertCanSeeAllAccounts(req, collectives.filter(Boolean));
-
-    return transaction;
-  },
-};
+);
 
 export default TransactionQuery;
