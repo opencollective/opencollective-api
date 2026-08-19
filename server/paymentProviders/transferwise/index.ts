@@ -46,6 +46,7 @@ import {
   QuoteV3,
   QuoteV3PaymentOption,
   RecipientAccount,
+  TransactionRequiredFieldsGroup,
   TransactionRequirementsType,
   Transfer,
   Webhook,
@@ -693,6 +694,27 @@ function validatePayoutMethod(connectedAccount: ConnectedAccount, payoutMethod: 
   }
 }
 
+function injectFieldIntoRecipientType(
+  requiredFields: Array<TransactionRequirementsType>,
+  recipientType: string,
+  field: TransactionRequiredFieldsGroup,
+): Array<TransactionRequirementsType> {
+  return requiredFields.map(type => {
+    if (type.type !== recipientType) {
+      return type;
+    }
+    // Avoid injecting the same field twice (e.g. on repeated calls)
+    const alreadyPresent = type.fields?.some(f => f.group?.some(g => g.key === field.key));
+    if (alreadyPresent) {
+      return type;
+    }
+    return {
+      ...type,
+      fields: [...(type.fields || []), { name: field.name, group: [field] }],
+    };
+  });
+}
+
 async function getRequiredBankInformation(
   host: Collective,
   currency: SupportedCurrency,
@@ -752,6 +774,22 @@ async function getRequiredBankInformation(
       });
     });
   });
+
+  // Chinese Alipay requires the recipient's date of birth for identity verification.
+  // Wise doesn't always surface this field, so we inject it proactively.
+  if (Array.isArray(requiredFields)) {
+    requiredFields = injectFieldIntoRecipientType(requiredFields, 'chinese_alipay', {
+      key: 'dateOfBirth',
+      name: 'Date of birth',
+      type: 'date',
+      required: false,
+      example: 'YYYY-MM-DD',
+      minLength: 10,
+      maxLength: 10,
+      validationRegexp: '^\\d{4}-\\d{2}-\\d{2}$',
+      refreshRequirementsOnChange: false,
+    });
+  }
 
   cache.set(cacheKey, requiredFields, 24 * 60 * 60 /* a whole day and we could probably increase */);
   return requiredFields;
