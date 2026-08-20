@@ -733,6 +733,15 @@ const accountMutations = {
             }
             break;
           }
+          case 'isUSEntity': {
+            if (args.account.isUSEntity !== account.data?.isUSEntity) {
+              previousData['data.isUSEntity'] = account.data?.isUSEntity;
+              newData['data.isUSEntity'] = args.account.isUSEntity;
+              account.data = { ...account.data, isUSEntity: args.account.isUSEntity };
+              await account.save();
+            }
+            break;
+          }
           case 'socialLinks': {
             await account.updateSocialLinks(args.account.socialLinks);
             break;
