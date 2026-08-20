@@ -644,6 +644,63 @@ describe('server/paymentProviders/transferwise/index', () => {
         { details: { bankAccount: 'fake' } },
       );
     });
+
+    it('should inject the dateOfBirth field into the chinese_alipay recipient type', async () => {
+      const requiredFields = [
+        {
+          type: 'chinese_alipay',
+          title: 'Alipay',
+          fields: [{ name: 'Alipay details', group: [{ key: 'accountHolderName', name: 'Full name', type: 'text' }] }],
+        },
+        {
+          type: 'aba',
+          title: 'Local bank account',
+          fields: [{ name: 'Bank details', group: [{ key: 'accountNumber', name: 'Account number', type: 'text' }] }],
+        },
+      ];
+      getAccountRequirements.resolves(requiredFields);
+
+      const result = await transferwise.getRequiredBankInformation(host, 'GBP');
+      const alipay = result.find(r => r.type === 'chinese_alipay');
+      const dateOfBirth = alipay.fields.find(f => f.group.some(g => g.key === 'dateOfBirth'));
+
+      expect(dateOfBirth).to.exist;
+      expect(dateOfBirth.group[0]).to.deep.include({
+        key: 'dateOfBirth',
+        name: 'Date of birth',
+        type: 'date',
+        required: true,
+        example: 'YYYY-MM-DD',
+        minLength: 10,
+        maxLength: 10,
+        validationRegexp: '^\\d{4}-\\d{2}-\\d{2}$',
+        refreshRequirementsOnChange: false,
+      });
+
+      // Other recipient types should be left untouched
+      const aba = result.find(r => r.type === 'aba');
+      expect(aba.fields.some(f => f.group.some(g => g.key === 'dateOfBirth'))).to.be.false;
+    });
+
+    it('should not duplicate the dateOfBirth field on repeated calls', async () => {
+      const requiredFields = [
+        {
+          type: 'chinese_alipay',
+          title: 'Alipay',
+          fields: [{ name: 'Alipay details', group: [{ key: 'accountHolderName', name: 'Full name', type: 'text' }] }],
+        },
+      ];
+      getAccountRequirements.resolves(requiredFields);
+
+      const first = await transferwise.getRequiredBankInformation(host, 'BRL');
+      const second = await transferwise.getRequiredBankInformation(host, 'BRL');
+      const count = second
+        .find(r => r.type === 'chinese_alipay')
+        .fields.filter(f => f.group.some(g => g.key === 'dateOfBirth')).length;
+
+      expect(first.find(r => r.type === 'chinese_alipay').fields.length).to.equal(2);
+      expect(count).to.equal(1);
+    });
   });
 
   describe('getAvailableCurrencies', () => {
