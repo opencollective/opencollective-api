@@ -166,7 +166,7 @@
     "eslint-config-opencollective": "^7.1.0",
     "eslint-import-resolver-typescript": "^4.0.0",
     "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-n": "18.1.0",
+    "eslint-plugin-n": "18.3.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-simple-import-sort": "^13.0.0",
     "exif-reader": "^2.0.3",
