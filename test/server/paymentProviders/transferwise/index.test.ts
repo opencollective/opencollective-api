@@ -669,7 +669,7 @@ describe('server/paymentProviders/transferwise/index', () => {
         key: 'dateOfBirth',
         name: 'Date of birth',
         type: 'date',
-        required: false,
+        required: true,
         example: 'YYYY-MM-DD',
         minLength: 10,
         maxLength: 10,
