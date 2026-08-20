@@ -176,6 +176,31 @@ const accountFieldsDefinition = () => ({
       }
     },
   },
+  isUSEntity: {
+    type: GraphQLBoolean,
+    description: 'Whether the account is a US person or entity. Scope: "account".',
+    resolve: async (account: Collective, _, req) => {
+      if (!checkScope(req, 'account')) {
+        return null;
+      }
+      if (
+        !canSeeLegalName(req.remoteUser, account) &&
+        !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
+      ) {
+        return null;
+      } else if (account.isIncognito) {
+        if (!checkScope(req, 'incognito')) {
+          return null;
+        }
+        const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(account.id);
+        if (mainProfile) {
+          return mainProfile.data?.isUSEntity ?? null;
+        }
+      } else {
+        return account.data?.isUSEntity ?? null;
+      }
+    },
+  },
   description: {
     type: GraphQLString,
   },

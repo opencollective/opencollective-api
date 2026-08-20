@@ -2023,4 +2023,77 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       });
     });
   });
+
+  describe('editAccount', () => {
+    const editAccountMutation = gql`
+      mutation EditAccount($account: AccountUpdateInput!) {
+        editAccount(account: $account) {
+          id
+          isUSEntity
+        }
+      }
+    `;
+
+    it('can update isUSEntity', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+
+      expect(collective.data?.isUSEntity).to.be.undefined;
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: true,
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccount.isUSEntity).to.be.true;
+
+      await collective.reload();
+      expect(collective.data.isUSEntity).to.be.true;
+
+      // Update to false
+      const result2 = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: false,
+          },
+        },
+        user,
+      );
+
+      expect(result2.errors).to.not.exist;
+      expect(result2.data.editAccount.isUSEntity).to.be.false;
+
+      await collective.reload();
+      expect(collective.data.isUSEntity).to.be.false;
+    });
+
+    it('must be an admin to update isUSEntity', async () => {
+      const user = await fakeUser();
+      const otherUser = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: true,
+          },
+        },
+        otherUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
+    });
+  });
 });
