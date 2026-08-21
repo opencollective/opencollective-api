@@ -1,12 +1,25 @@
 import graphqlPlugin from '@graphql-eslint/eslint-plugin'; // eslint-disable-line import/no-unresolved
-import openCollectiveConfig from 'eslint-config-opencollective/eslint-node.config.cjs';
 import globals from 'globals';
+import { createRequire } from 'node:module';
 
 import graphqlMutationScopeCheck from './eslint-rules/graphql-mutation-scope-check.js';
 import noMathRoundAmountNames from './eslint-rules/no-math-round-amount-names.js';
 import requirePrivateAccountCheck from './eslint-rules/require-private-account-check.js';
 import sequelizeModelRequirePublicIdPrefix from './eslint-rules/sequelize-model-public-id-prefix.js';
 import sequelizeModelRequireTableName from './eslint-rules/sequelize-model-table-name.js';
+
+// eslint-plugin-n >= 18.2 exports the plugin through the `module.exports` ESM binding, so
+// `require('eslint-plugin-n')` now returns the plugin itself instead of a module namespace.
+// eslint-config-opencollective@7.1.0 still reads `.default` off it and crashes on load, so we
+// re-expose a `.default` alias before loading the shared config.
+// TODO: remove once eslint-config-opencollective is released with the fix.
+const require = createRequire(import.meta.url);
+const nodePlugin = require('eslint-plugin-n');
+if (!nodePlugin.default) {
+  require.cache[require.resolve('eslint-plugin-n')].exports = { ...nodePlugin, default: nodePlugin };
+}
+
+const { default: openCollectiveConfig } = await import('eslint-config-opencollective/eslint-node.config.cjs');
 
 export default [
   ...openCollectiveConfig,
