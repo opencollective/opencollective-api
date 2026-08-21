@@ -16,8 +16,29 @@ export const getTaxFormsS3Bucket = (): string => {
   return get(config, 'taxForms.aws.s3.bucket');
 };
 
-export const amountsRequireTaxForm = (paypalTotal: number, otherTotal: number, year: number): boolean => {
-  if (paypalTotal >= US_TAX_FORM_THRESHOLD_FOR_PAYPAL) {
+export const amountsRequireTaxForm = (
+  paypalTotal: number,
+  otherTotal: number,
+  year: number,
+  options?: {
+    isUSEntity?: boolean;
+    taxFormThresholds?: { US?: number; NON_US?: number };
+    includePayPalExpenses?: boolean;
+  },
+): boolean => {
+  const isUSEntity = options?.isUSEntity;
+  const customThreshold = isUSEntity === false ? options?.taxFormThresholds?.NON_US : options?.taxFormThresholds?.US;
+  // PayPal collects tax forms based on its own thresholds and is responsible for tax reporting
+  // for those payees, so we exclude PayPal expenses by default. Hosts must explicitly opt-in
+  // by setting `includePayPalExpenses: true` on the host's TAX_FORM_THRESHOLDS policy.
+  const effectivePaypalTotal = options?.includePayPalExpenses === true ? paypalTotal : 0;
+
+  if (customThreshold !== undefined && customThreshold !== null) {
+    const total = (effectivePaypalTotal || 0) + (otherTotal || 0);
+    return total >= customThreshold;
+  }
+
+  if (effectivePaypalTotal >= US_TAX_FORM_THRESHOLD_FOR_PAYPAL) {
     return true;
   } else if (year >= 2026) {
     return otherTotal >= US_TAX_FORM_THRESHOLD_POST_2026;

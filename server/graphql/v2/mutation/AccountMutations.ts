@@ -16,6 +16,7 @@ import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import POLICIES from '../../../constants/policies';
 import { assertSettingsChangeAllowed } from '../../../lib/account-settings';
+import { checkFeatureAccess, FEATURE } from '../../../lib/allowed-features';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { duplicateAccount } from '../../../lib/duplicate-account';
@@ -808,6 +809,23 @@ const accountMutations = {
       const forbiddenPolicies = newPoliciesKeys.filter(policy => !canEditPolicy(req.remoteUser, account, policy));
       if (forbiddenPolicies.length > 0) {
         throw new Forbidden(`You are not allowed to edit the following policies: ${forbiddenPolicies.join(', ')}`);
+      }
+
+      if (newPoliciesKeys.includes(POLICIES.TAX_FORM_THRESHOLDS)) {
+        await checkFeatureAccess(account, FEATURE.TAX_FORMS, { loaders: req.loaders });
+        const taxFormThresholds = args.policies[POLICIES.TAX_FORM_THRESHOLDS];
+        if (taxFormThresholds) {
+          if (taxFormThresholds.US !== undefined && taxFormThresholds.US !== null && taxFormThresholds.US < 0) {
+            throw new ValidationFailed('US threshold must be greater than or equal to 0');
+          }
+          if (
+            taxFormThresholds.NON_US !== undefined &&
+            taxFormThresholds.NON_US !== null &&
+            taxFormThresholds.NON_US < 0
+          ) {
+            throw new ValidationFailed('Non-US threshold must be greater than or equal to 0');
+          }
+        }
       }
 
       // Merge submitted policies with existing ones

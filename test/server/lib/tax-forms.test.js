@@ -2,8 +2,14 @@ import { expect } from 'chai';
 import moment from 'moment';
 
 import expenseTypes from '../../../server/constants/expense-type';
-import { US_TAX_FORM_THRESHOLD_POST_2026, US_TAX_FORM_THRESHOLD_PRE_2026 } from '../../../server/constants/tax-form';
+import POLICIES from '../../../server/constants/policies';
+import {
+  US_TAX_FORM_THRESHOLD_FOR_PAYPAL,
+  US_TAX_FORM_THRESHOLD_POST_2026,
+  US_TAX_FORM_THRESHOLD_PRE_2026,
+} from '../../../server/constants/tax-form';
 import SQLQueries from '../../../server/lib/queries';
+import { amountsRequireTaxForm } from '../../../server/lib/tax-forms';
 import models from '../../../server/models';
 import {
   LEGAL_DOCUMENT_REQUEST_STATUS,
@@ -382,18 +388,178 @@ describe('server/lib/tax-forms', () => {
     await LegalDocument.expireOldDocuments();
   });
 
+  describe('amountsRequireTaxForm', () => {
+    it('uses the configured threshold for the matching entity type', () => {
+      expect(
+        amountsRequireTaxForm(0, 100, YEAR, {
+          isUSEntity: true,
+          taxFormThresholds: { US: 100, NON_US: 200 },
+        }),
+      ).to.be.true;
+      expect(
+        amountsRequireTaxForm(0, 199, YEAR, {
+          isUSEntity: false,
+          taxFormThresholds: { US: 100, NON_US: 200 },
+        }),
+      ).to.be.false;
+      expect(
+        amountsRequireTaxForm(0, 200, YEAR, {
+          isUSEntity: false,
+          taxFormThresholds: { US: 100, NON_US: 200 },
+        }),
+      ).to.be.true;
+    });
+
+    it('uses the configured threshold for the combined total and does not apply the PayPal threshold', () => {
+      expect(
+        amountsRequireTaxForm(100000e2, 0, YEAR, {
+          isUSEntity: true,
+          taxFormThresholds: { US: 100000e2 + 1 },
+        }),
+      ).to.be.false;
+      expect(
+        amountsRequireTaxForm(200, 50, YEAR, {
+          isUSEntity: true,
+          taxFormThresholds: { US: 100 },
+        }),
+      ).to.be.false;
+    });
+
+    it('can exclude PayPal expenses from the threshold calculation', () => {
+      expect(
+        amountsRequireTaxForm(100000e2, 0, YEAR, {
+          isUSEntity: true,
+          includePayPalExpenses: false,
+        }),
+      ).to.be.false;
+      expect(
+        amountsRequireTaxForm(100, 100, YEAR, {
+          isUSEntity: true,
+          includePayPalExpenses: false,
+          taxFormThresholds: { US: 100 },
+        }),
+      ).to.be.true;
+      expect(
+        amountsRequireTaxForm(100, 0, YEAR, {
+          isUSEntity: true,
+          includePayPalExpenses: false,
+          taxFormThresholds: { US: 100 },
+        }),
+      ).to.be.false;
+    });
+
+    it('excludes PayPal expenses from the threshold calculation by default', () => {
+      // Without an explicit includePayPalExpenses flag, PayPal expenses should NOT push
+      // an account over the threshold (PayPal handles its own tax form collection/reporting).
+      expect(
+        amountsRequireTaxForm(US_TAX_FORM_THRESHOLD_FOR_PAYPAL, 0, YEAR, {
+          isUSEntity: true,
+        }),
+      ).to.be.false;
+      expect(
+        amountsRequireTaxForm(100000e2, 0, YEAR, {
+          isUSEntity: true,
+          includePayPalExpenses: undefined,
+        }),
+      ).to.be.false;
+      // Non-PayPal expenses alone should still trigger a tax form when over the threshold.
+      expect(
+        amountsRequireTaxForm(0, US_TAX_FORM_THRESHOLD + 1, YEAR, {
+          isUSEntity: true,
+        }),
+      ).to.be.true;
+      // Hosts that want the previous behavior can opt back in with includePayPalExpenses: true.
+      expect(
+        amountsRequireTaxForm(US_TAX_FORM_THRESHOLD_FOR_PAYPAL, 0, YEAR, {
+          isUSEntity: true,
+          includePayPalExpenses: true,
+        }),
+      ).to.be.true;
+    });
+  });
+
   describe('SQLQueries', () => {
+    describe('custom tax form thresholds', () => {
+      it('applies host thresholds to US and non-US accounts and expenses', async () => {
+        const customHost = await fakeHost({
+          data: {
+            policies: {
+              [POLICIES.TAX_FORM_THRESHOLDS]: { US: 100, NON_US: 200, includePayPalExpenses: false },
+            },
+          },
+        });
+        await RequiredLegalDocument.create({
+          HostCollectiveId: customHost.id,
+          documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+        });
+
+        const usAccount = await fakeCollective({
+          HostCollectiveId: null,
+          countryISO: 'US',
+          data: { isUSEntity: true },
+        });
+        const nonUsAccount = await fakeCollective({
+          HostCollectiveId: null,
+          countryISO: 'CA',
+        });
+        const paypalAccount = await fakeCollective({ HostCollectiveId: null, countryISO: 'US' });
+        const hostedCollective = await fakeCollective({ HostCollectiveId: customHost.id });
+        const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+        const paypalPayoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.PAYPAL });
+        const usExpense = await fakeExpense({
+          FromCollectiveId: usAccount.id,
+          CollectiveId: hostedCollective.id,
+          amount: 150,
+          PayoutMethodId: payoutMethod.id,
+        });
+        const nonUsExpense = await fakeExpense({
+          FromCollectiveId: nonUsAccount.id,
+          CollectiveId: hostedCollective.id,
+          amount: 150,
+          PayoutMethodId: payoutMethod.id,
+        });
+        const paypalExpense = await fakeExpense({
+          FromCollectiveId: paypalAccount.id,
+          CollectiveId: hostedCollective.id,
+          amount: 150,
+          PayoutMethodId: paypalPayoutMethod.id,
+        });
+
+        const accounts = await SQLQueries.getTaxFormsRequiredForAccounts({
+          HostCollectiveId: customHost.id,
+          year: YEAR,
+          ignoreReceived: true,
+        });
+        expect(accounts.has(usAccount.id)).to.be.true;
+        expect(accounts.has(nonUsAccount.id)).to.be.false;
+        expect(accounts.has(paypalAccount.id)).to.be.false;
+
+        const expenses = await SQLQueries.getTaxFormsRequiredForExpenses([
+          usExpense.id,
+          nonUsExpense.id,
+          paypalExpense.id,
+        ]);
+        expect(expenses.has(usExpense.id)).to.be.true;
+        expect(expenses.has(nonUsExpense.id)).to.be.false;
+        expect(expenses.has(paypalExpense.id)).to.be.false;
+      });
+    });
+
     describe('getTaxFormsRequiredForAccounts', () => {
       it('returns the right profiles for pending tax forms', async () => {
         const accounts = await SQLQueries.getTaxFormsRequiredForAccounts({ year: YEAR, ignoreReceived: true });
-        expect(accounts.size).to.be.eq(8); // 7 legit + 1 "error" document
+        // PayPal expenses are excluded by default, so accountWithPaypalOverThreshold is no longer required.
+        // Previously: 8 (7 legit + 1 "error" document); now: 7 (6 legit + 1 "error" document).
+        expect(accounts.size).to.be.eq(7);
         expect(accounts.has(organizationWithTaxForm.id)).to.be.true;
         expect(accounts.has(accountWithTaxFormFromLastYear.id)).to.be.false;
         expect(accounts.has(accountWithTaxFormFrom4YearsAgo.id)).to.be.true;
         expect(accounts.has(accountAlreadyNotified.id)).to.be.true;
         expect(accounts.has(hostCollective.id)).to.be.false;
         expect(accounts.has(users[4].CollectiveId)).to.be.false;
-        expect(accounts.has(accountWithPaypalOverThreshold.id)).to.be.true;
+        // PayPal expenses are excluded from the threshold calculation by default
+        // (PayPal handles its own tax form collection and reporting).
+        expect(accounts.has(accountWithPaypalOverThreshold.id)).to.be.false;
         expect(accounts.has(accountWithPaypalBelowThreshold.id)).to.be.false;
         expect(accounts.has(accountWithOnlyADraft.id)).to.be.false;
         expect(accounts.has(accountWithINROverThreshold.id)).to.be.true;
