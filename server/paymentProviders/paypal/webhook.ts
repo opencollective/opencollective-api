@@ -15,6 +15,7 @@ import logger from '../../lib/logger';
 import { createRefundTransaction, pauseOrderInDb } from '../../lib/payments';
 import { validateWebhookEvent, WatchedPaypalWebhookEvent } from '../../lib/paypal';
 import { recordOrderProcessed } from '../../lib/recurring-contributions';
+import { getRouteParam } from '../../lib/request-utils';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import models from '../../models';
 import { PayoutWebhookRequest, PaypalCapture, PaypalRefund } from '../../types/paypal';
@@ -70,7 +71,7 @@ const loadSubscriptionForWebhookEvent = async (
   subscriptionId: string,
   { throwIfMissing = true } = {},
 ) => {
-  const hostId = parseInt(req.params.hostId);
+  const hostId = parseInt(getRouteParam(req, 'hostId'));
   const order = await models.Order.findOne({
     include: [
       { association: 'fromCollective', required: false },
@@ -158,7 +159,7 @@ async function handleSaleCompleted(req: Request): Promise<void> {
 }
 
 async function handleCaptureCompleted(req: Request): Promise<void> {
-  const hostId = parseInt(req.params.hostId);
+  const hostId = parseInt(getRouteParam(req, 'hostId'));
 
   // Retrieve the order for this event
   const capture = req.body.resource;
@@ -345,9 +346,10 @@ async function handleSaleReversed(req: Request): Promise<void> {
 
 async function handleCaptureRefunded(req: Request): Promise<void> {
   // Validate webhook event
-  const host = await models.Collective.findByPk(req.params.hostId);
+  const hostId = getRouteParam(req, 'hostId');
+  const host = await models.Collective.findByPk(hostId);
   if (!host) {
-    throw new Error(`No host found for ID ${req.params.hostId}`);
+    throw new Error(`No host found for ID ${hostId}`);
   }
 
   const paypalAccount = await getPaypalAccount(host);

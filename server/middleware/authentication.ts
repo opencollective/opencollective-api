@@ -17,6 +17,7 @@ import errors from '../lib/errors';
 import logger from '../lib/logger';
 import RateLimit from '../lib/rate-limit';
 import { clearRedirectCookie, setRedirectCookie } from '../lib/redirect-cookie';
+import { getRouteParam } from '../lib/request-utils';
 import { dbUserToSentryUser, reportMessageToSentry } from '../lib/sentry';
 import { getBearerTokenFromCookie, getBearerTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
 import models from '../models';
@@ -285,7 +286,7 @@ export const authenticateService = async (req: Request, res: Response, next: Nex
     return next(new errors.RateLimitExceeded());
   }
 
-  const { service } = req.params;
+  const service = getRouteParam(req, 'service');
   const { context, CollectiveId } = req.query || {};
 
   if (service === 'github') {
@@ -352,7 +353,7 @@ export const authenticateServiceCallback = async (req: Request, res: Response, n
     return next(new errors.RateLimitExceeded());
   }
 
-  const { service } = req.params;
+  const service = getRouteParam(req, 'service');
   if (get(paymentProviders, `${service}.oauth.callback`)) {
     return paymentProviders[service].oauth.callback(req, res, next);
   }
@@ -405,7 +406,7 @@ export const authenticateServiceCallback = async (req: Request, res: Response, n
 };
 
 function getOAuthCallbackUrl(req: Request) {
-  const { service } = req.params;
+  const service = getRouteParam(req, 'service');
   const params = new URLSearchParams(omitBy(pick(req.query, ['context', 'CollectiveId']), isNil));
 
   if (params.toString().length > 0) {
