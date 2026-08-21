@@ -229,7 +229,9 @@ class PlatformSubscription extends Model<
     if (subStart.isSameOrAfter(dayStart)) {
       await this.destroy({ transaction });
     } else {
-      await this.update({ period: [this.start, { value: date, inclusive }] }, { transaction });
+      // Periods are aligned to day boundaries (see `createSubscription`): terminate at the start of
+      // the day so that a subscription created later the same day doesn't overlap this one.
+      await this.update({ period: [this.start, { value: dayStart.toDate(), inclusive }] }, { transaction });
     }
   }
 
@@ -578,7 +580,9 @@ class PlatformSubscription extends Model<
       notify?: boolean;
     },
   ): Promise<PlatformSubscription> {
-    const currentSubscription = await PlatformSubscription.getCurrentSubscription(collective.id);
+    const currentSubscription = await PlatformSubscription.getCurrentSubscription(collective.id, {
+      transaction: opts?.transaction,
+    });
     const newSubscriptionStart = moment.utc(when).startOf('day');
     const previousPlan = currentSubscription?.plan;
 

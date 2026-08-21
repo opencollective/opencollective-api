@@ -1145,7 +1145,8 @@ class Collective extends ModelWithPublicId<
       // Cancel the platform subscription if it exists
       const currentSubscription = await PlatformSubscription.getCurrentSubscription(this.id, { transaction });
       if (currentSubscription) {
-        // Inclusive: false in case they start a new subscription on the same day. This also means we won't bill for the last day.
+        // The subscription is terminated at the start of the day (we don't bill for the deactivation day),
+        // so that a new one can be created if money management is reactivated the same day.
         await currentSubscription.terminate({ inclusive: false, transaction });
       }
     };
