@@ -14,3 +14,15 @@ export const getStringIdentifiersFromRequest = (req: Express.Request) => {
 
   return pickBy({ user, userToken, personalToken, apiKey, ip, graphql }, Boolean);
 };
+
+/**
+ * Returns a route param as a string.
+ *
+ * Express 5 types `req.params` values as `string | string[]` because wildcard params (e.g.
+ * `/files/*path`) capture a list of path segments. All our routes use named params, which are
+ * always plain strings, but array values are joined back into a path just in case.
+ */
+export const getRouteParam = (req: Express.Request, name: string): string => {
+  const value = req.params?.[name];
+  return Array.isArray(value) ? value.join('/') : value;
+};

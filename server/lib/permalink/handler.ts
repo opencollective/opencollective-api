@@ -1,5 +1,7 @@
 import express from 'express';
 
+import { getRouteParam } from '../request-utils';
+
 import { handleNotFound } from './entity-handlers/common';
 import {
   handleAccountingCategory,
@@ -86,7 +88,7 @@ const handlerMap: Record<EntityShortIdPrefix, Handler> = {
 };
 
 export async function handlePermalink(req: express.Request, res: express.Response) {
-  const prefix = getEntityShortIdPrefix(req.params.id);
+  const prefix = getEntityShortIdPrefix(getRouteParam(req, 'id'));
   if (!prefix) {
     return handleNotFound(req, res);
   }

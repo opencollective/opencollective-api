@@ -7,6 +7,7 @@ import { getFileFromS3 } from '../lib/awsS3';
 import { EntityShortIdPrefix, isEntityPublicId } from '../lib/permalink/entity-map';
 import SQLQueries from '../lib/queries';
 import RateLimit from '../lib/rate-limit';
+import { getRouteParam } from '../lib/request-utils';
 import { reportErrorToSentry } from '../lib/sentry';
 import twoFactorAuthLib from '../lib/two-factor-authentication';
 import { LegalDocument, RequiredLegalDocument, User } from '../models';
@@ -61,7 +62,7 @@ export default {
     }
 
     // Parse ID
-    const { id } = req.params;
+    const id = getRouteParam(req, 'id');
 
     let decodedId;
     if (isEntityPublicId(id, EntityShortIdPrefix.LegalDocument)) {

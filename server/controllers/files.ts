@@ -5,6 +5,7 @@ import { hasUploadedFilePermission } from '../graphql/common/uploaded-file';
 import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { getSignedGetURL, parseS3Url } from '../lib/awsS3';
 import { EntityShortIdPrefix, isEntityPublicId } from '../lib/permalink/entity-map';
+import { getRouteParam } from '../lib/request-utils';
 import { Expense, UploadedFile } from '../models';
 
 /**
@@ -22,7 +23,7 @@ export async function getFile(req: Request, res: Response) {
   const isThumbnail = req.query.thumbnail !== undefined;
   const isDownload = req.query.download !== undefined;
 
-  const { uploadedFileId } = req.params;
+  const uploadedFileId = getRouteParam(req, 'uploadedFileId');
   const { expenseId, draftKey } = req.query;
 
   let resolvedExpenseId: number | null = null;
