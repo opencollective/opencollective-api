@@ -769,16 +769,16 @@ describe('cron/monthly/host-settlement', () => {
       expect(ts.ExpenseId).to.equal(settlementExpense.id);
     });
 
-    it('attaches a CSV scoped to the platform-tips account, unfiltered by kind', async () => {
+    it('attaches a CSV of the platform-tips account tips and their application fees', async () => {
       const [attachment] = await settlementExpense.getAttachedFiles();
       expect(attachment).to.have.property('url');
-      // The report is scoped to the account being billed rather than the host: it holds nothing but
-      // tips and their offsets, so every row on it belongs in the settlement CSV.
+      // Scoped to the account being billed rather than the host
       expect(attachment.url).to.have.string(`/${platformTipsAccount.slug}/transactions.csv`);
       const csvUrl = new URL(attachment.url);
-      // No kind filter: the host needs the APPLICATION_FEE debits next to the PLATFORM_TIP credits
-      // to see which tips Stripe already collected and check the rest against the invoiced amount.
-      expect(csvUrl.searchParams.get('kind')).to.be.null;
+      // Both kinds, and only those two: PLATFORM_TIP alone overstates the bill, while the account's
+      // other rows (a previous settlement being paid, its processor fee) are not part of it. Summing
+      // these two over the period gives the amount invoiced.
+      expect(csvUrl.searchParams.get('kind').split(',').sort()).to.deep.equal(['APPLICATION_FEE', 'PLATFORM_TIP']);
       expect(csvUrl.searchParams.get('add')).to.equal('orderLegacyId');
     });
 

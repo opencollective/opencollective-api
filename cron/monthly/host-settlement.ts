@@ -215,11 +215,12 @@ async function emitSettlementExpense({
   });
 
   // Attach CSV (external S3 call, kept out of the DB transaction), scoped to the account being
-  // billed. The host-billed bundle mixes settled rows into the host's general ledger, so it stays
-  // filtered by the kinds actually invoiced. The platform-tips bundle is billed against the host's
-  // platform-tips account, which holds nothing but tips and their offsets, so we report every
-  // transaction on it for the period instead: the host sees each PLATFORM_TIP next to the
-  // APPLICATION_FEE that already collected it via Stripe, and can check the remainder against the
+  // billed. The host-billed bundle mixes settled rows into the host's general ledger, so it is
+  // filtered down to the kinds actually invoiced. The platform-tips bundle is billed against the
+  // host's platform-tips account, where the invoiced amount is the tips collected net of the ones
+  // Stripe already took as an application fee, so it reports both kinds: PLATFORM_TIP alone
+  // overstates the bill, and the account's other rows (the previous settlement being paid, and its
+  // processor fee) are balance movements that are not part of it. The two kinds together sum to the
   // amount invoiced.
   if (transactions.length > 0) {
     const isPlatformTipsAccountBundle = billedCollective.id !== host.id;
@@ -228,7 +229,9 @@ async function emitSettlementExpense({
         .startOf('month')
         .toDate(),
       endDate,
-      ...(isPlatformTipsAccountBundle ? null : { kind: uniq(transactions.map(t => t.kind)) }),
+      kind: isPlatformTipsAccountBundle
+        ? [TransactionKind.PLATFORM_TIP, TransactionKind.APPLICATION_FEE]
+        : uniq(transactions.map(t => t.kind)),
       add: ['orderLegacyId'],
     });
     if (csvUrl) {
