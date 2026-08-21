@@ -3187,6 +3187,148 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.errors[0].message).to.match(/This payment method is not valid for the order host/);
       });
 
+      it('cannot move a hosted collective contributor onto an external payment method', async () => {
+        const contributorAdmin = await fakeUser();
+        const contributorCollective = await fakeCollective({ HostCollectiveId: host.id, admin: contributorAdmin });
+        const hostedOrder = await fakeOrder(
+          {
+            CreatedByUserId: contributorAdmin.id,
+            FromCollectiveId: contributorCollective.id,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+          },
+          { withSubscription: true },
+        );
+        const cardPaymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+          data: { expMonth: 11, expYear: 2030, stripeAccount: 'host_stripe_account' },
+          CollectiveId: contributorCollective.id,
+        });
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(hostedOrder.id, 'order') },
+            paymentMethod: { id: idEncode(cardPaymentMethod.id, 'paymentMethod') },
+          },
+          contributorAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/can only contribute from its own collective balance/);
+      });
+
+      it('cannot move a hosted collective contributor onto a PayPal subscription', async () => {
+        const updateOrderWithPaypalMutation = gql`
+          mutation UpdateOrderWithPaypal($order: OrderReferenceInput!, $paypalSubscriptionId: String) {
+            updateOrder(order: $order, paypalSubscriptionId: $paypalSubscriptionId) {
+              id
+            }
+          }
+        `;
+        const contributorAdmin = await fakeUser();
+        const contributorCollective = await fakeCollective({ HostCollectiveId: host.id, admin: contributorAdmin });
+        const hostedOrder = await fakeOrder(
+          {
+            CreatedByUserId: contributorAdmin.id,
+            FromCollectiveId: contributorCollective.id,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+          },
+          { withSubscription: true },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderWithPaypalMutation,
+          {
+            order: { id: idEncode(hostedOrder.id, 'order') },
+            paypalSubscriptionId: 'I-FAKESUBSCRIPTION',
+          },
+          contributorAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/can only contribute from its collective balance/);
+      });
+
+      it('cannot move a hosted collective contributor onto a different collective balance', async () => {
+        const contributorAdmin = await fakeUser();
+        const contributorCollective = await fakeCollective({ HostCollectiveId: host.id, admin: contributorAdmin });
+        const otherCollective = await fakeCollective({ HostCollectiveId: host.id, admin: contributorAdmin });
+        const hostedOrder = await fakeOrder(
+          {
+            CreatedByUserId: contributorAdmin.id,
+            FromCollectiveId: contributorCollective.id,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+          },
+          { withSubscription: true },
+        );
+        // Balance payment method belonging to another collective the same user admins
+        const otherBalancePaymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+          CollectiveId: otherCollective.id,
+        });
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(hostedOrder.id, 'order') },
+            paymentMethod: { id: idEncode(otherBalancePaymentMethod.id, 'paymentMethod') },
+          },
+          contributorAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/can only contribute from its own collective balance/);
+      });
+
+      it('does not apply detail changes when rejecting a balance-only contributor PayPal switch', async () => {
+        const updateOrderAmountWithPaypalMutation = gql`
+          mutation UpdateOrderAmountWithPaypal(
+            $order: OrderReferenceInput!
+            $amount: AmountInput
+            $paypalSubscriptionId: String
+          ) {
+            updateOrder(order: $order, amount: $amount, paypalSubscriptionId: $paypalSubscriptionId) {
+              id
+            }
+          }
+        `;
+        const contributorAdmin = await fakeUser();
+        const contributorCollective = await fakeCollective({ HostCollectiveId: host.id, admin: contributorAdmin });
+        const hostedOrder = await fakeOrder(
+          {
+            CreatedByUserId: contributorAdmin.id,
+            FromCollectiveId: contributorCollective.id,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+            totalAmount: 5000,
+            currency: 'USD',
+          },
+          { withSubscription: true },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderAmountWithPaypalMutation,
+          {
+            order: { id: idEncode(hostedOrder.id, 'order') },
+            amount: { value: 100, currency: 'USD' }, // $100.00, different from the original $50.00
+            paypalSubscriptionId: 'I-FAKESUBSCRIPTION',
+          },
+          contributorAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/can only contribute from its collective balance/);
+
+        // The amount change must not have been persisted before the validation failed
+        await hostedOrder.reload();
+        expect(hostedOrder.totalAmount).to.equal(5000);
+      });
+
       it('cannot update an order with an amount that does not match the fixed tier', async () => {
         const result = await graphqlQueryV2(
           updateOrderMutation,

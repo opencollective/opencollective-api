@@ -520,6 +520,24 @@ const orderMutations = {
         );
       }
 
+      // Hosted collectives (and their events/projects/funds) can only contribute from their own
+      // collective balance. The contribution flow enforces this at creation time; mirror it here so
+      // the payment-method update path can't be used to move such a contributor onto an external
+      // (Stripe/PayPal) payment method. The PayPal case is validated up-front, before any detail
+      // changes are written, so a rejection can't leave the order partially updated.
+      const balanceOnlyContributorTypes = [
+        CollectiveType.COLLECTIVE,
+        CollectiveType.EVENT,
+        CollectiveType.PROJECT,
+        CollectiveType.FUND,
+      ];
+      const isBalanceOnlyContributor = balanceOnlyContributorTypes.includes(order.fromCollective.type);
+      if (hasPaymentMethodChanged && isBalanceOnlyContributor && args.paypalSubscriptionId) {
+        throw new ValidationFailed(
+          'This account can only contribute from its collective balance and cannot use a PayPal subscription',
+        );
+      }
+
       let previousOrderValues, previousSubscriptionValues;
 
       // Update details (eg. amount, tier)
@@ -569,6 +587,7 @@ const orderMutations = {
         }
 
         const previousOrderStatus = order.status;
+
         if (args.paypalSubscriptionId) {
           // Update from PayPal subscription ID
           try {
@@ -585,6 +604,17 @@ const orderMutations = {
         } else {
           // Update payment method
           const newPaymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod);
+          if (
+            isBalanceOnlyContributor &&
+            !(
+              newPaymentMethod.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+              newPaymentMethod.type === PAYMENT_METHOD_TYPE.COLLECTIVE &&
+              newPaymentMethod.CollectiveId === order.FromCollectiveId
+            )
+          ) {
+            throw new ValidationFailed('This account can only contribute from its own collective balance');
+          }
+
           order = await updatePaymentMethodForSubscription(req.remoteUser, order, newPaymentMethod);
         }
 
