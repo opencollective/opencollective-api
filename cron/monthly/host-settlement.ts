@@ -135,7 +135,7 @@ function isValidHostPayoutMethodType(
 }
 
 /**
- * Create one SETTLEMENT expense from OFiTech against `billedCollectiveId`, attach its items + CSV,
+ * Create one SETTLEMENT expense from OFiTech against `billedCollective`, attach its items + CSV,
  * mark the backing transactions INVOICED, and emit the creation activity. Returns the expense (or
  * null on a dry run).
  *
@@ -146,7 +146,7 @@ function isValidHostPayoutMethodType(
  */
 async function emitSettlementExpense({
   host,
-  billedCollectiveId,
+  billedCollective,
   billedHostId,
   items,
   transactions,
@@ -156,7 +156,7 @@ async function emitSettlementExpense({
   endDate,
 }: {
   host: Collective;
-  billedCollectiveId: number;
+  billedCollective: Collective;
   billedHostId: number;
   items: Array<{ incurredAt: Date; amount: number; currency: SupportedCurrency; description: string }>;
   transactions: Transaction[];
@@ -178,7 +178,7 @@ async function emitSettlementExpense({
     },
     PayoutMethodId: payoutMethod.id,
     amount: totalAmountCharged,
-    CollectiveId: billedCollectiveId,
+    CollectiveId: billedCollective.id,
     currency: host.currency,
     description: `Platform settlement${extraDescription} for ${momentDate.utc().format('MMMM')}`,
     incurredAt: today.toDate(),
@@ -214,20 +214,21 @@ async function emitSettlementExpense({
     return createdExpense;
   });
 
-  // Attach CSV (external S3 call, kept out of the DB transaction). New-ledger PLATFORM_TIP rows live
-  // on the host's platform-tips account (a separate collective), so the host's account-scoped
-  // `transactions` report cannot return them. Use the host-scoped `hostTransactions` report whenever
-  // such rows are in the batch — legacy *_DEBT rows carry HostCollectiveId = host too, so nothing is lost.
+  // Attach CSV (external S3 call, kept out of the DB transaction), scoped to the account being
+  // billed. The host-billed bundle mixes settled rows into the host's general ledger, so it stays
+  // filtered by the kinds actually invoiced. The platform-tips bundle is billed against the host's
+  // platform-tips account, which holds nothing but tips and their offsets, so we report every
+  // transaction on it for the period instead: the host sees each PLATFORM_TIP next to the
+  // APPLICATION_FEE that already collected it via Stripe, and can check the remainder against the
+  // amount invoiced.
   if (transactions.length > 0) {
-    const reportType = transactions.some(t => t.kind === TransactionKind.PLATFORM_TIP)
-      ? 'hostTransactions'
-      : 'transactions';
-    const csvUrl = getTransactionsCsvUrl(reportType, host, {
+    const isPlatformTipsAccountBundle = billedCollective.id !== host.id;
+    const csvUrl = getTransactionsCsvUrl('transactions', billedCollective, {
       startDate: moment(min(transactions.map(t => t.createdAt)))
         .startOf('month')
         .toDate(),
       endDate,
-      kind: uniq(transactions.map(t => t.kind)),
+      ...(isPlatformTipsAccountBundle ? null : { kind: uniq(transactions.map(t => t.kind)) }),
       add: ['orderLegacyId'],
     });
     if (csvUrl) {
@@ -586,7 +587,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 
         const expense = await emitSettlementExpense({
           host,
-          billedCollectiveId: host.id,
+          billedCollective: host,
           billedHostId: host.id,
           items: hostItems,
           transactions,
@@ -627,7 +628,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       } else {
         await emitSettlementExpense({
           host,
-          billedCollectiveId: platformTipsAccount.id,
+          billedCollective: platformTipsAccount,
           billedHostId: host.id,
           items: platformTipsItems,
           transactions: newTipTransactions,
