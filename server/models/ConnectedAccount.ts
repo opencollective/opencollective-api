@@ -94,7 +94,7 @@ ConnectedAccount.init(
     clientId: DataTypes.STRING, // paypal app id
     // either paypal secret OR an accessToken to do requests to the provider on behalf of the user
     token: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
       get() {
         const encrypted = this.getDataValue('token');
         return isNil(encrypted) ? null : crypto.decrypt(encrypted);
@@ -104,7 +104,7 @@ ConnectedAccount.init(
       },
     },
     refreshToken: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
       get() {
         const encrypted = this.getDataValue('refreshToken');
         return isNil(encrypted) ? null : crypto.decrypt(encrypted);
