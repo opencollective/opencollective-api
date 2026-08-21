@@ -233,6 +233,10 @@ async function emitSettlementExpense({
         ? [TransactionKind.PLATFORM_TIP, TransactionKind.APPLICATION_FEE]
         : uniq(transactions.map(t => t.kind)),
       add: ['orderLegacyId'],
+      // Balance is a running balance over the whole account, so on a report filtered to two kinds it
+      // never matches the rows above it. The host-scoped report used until now dropped the column for
+      // the same reason; the account-scoped one includes it by default.
+      ...(isPlatformTipsAccountBundle ? { remove: ['balance'] } : null),
     });
     if (csvUrl) {
       await models.ExpenseAttachedFile.create({

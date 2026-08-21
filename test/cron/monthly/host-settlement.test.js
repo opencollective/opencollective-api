@@ -780,6 +780,8 @@ describe('cron/monthly/host-settlement', () => {
       // these two over the period gives the amount invoiced.
       expect(csvUrl.searchParams.get('kind').split(',').sort()).to.deep.equal(['APPLICATION_FEE', 'PLATFORM_TIP']);
       expect(csvUrl.searchParams.get('add')).to.equal('orderLegacyId');
+      // Balance is a running total over the whole account and never lines up with a two-kind report
+      expect(csvUrl.searchParams.get('remove')).to.equal('balance');
     });
 
     it('matches the new-ledger settlement ledger snapshot', async () => {
