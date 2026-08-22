@@ -599,8 +599,9 @@ describe('test/stories/ledger-legacy', () => {
         where: { ExpenseId: expense.id, kind: TransactionKind.EXPENSE, type: 'DEBIT' },
       });
 
+      // In practice we do not refund expenses, but we want to test the ledger and stats in this case
       const paymentProvider = paymentProviders.opencollective.types.default;
-      await paymentProvider.refundTransaction(expenseTransaction, null);
+      await paymentProvider.refundTransaction(expenseTransaction, null, null, null, { ignoreBalanceCheck: true });
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
       expect(await collective.getBalance()).to.eq(9500);

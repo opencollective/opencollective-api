@@ -25,7 +25,8 @@ describe('server/graphql/common/transactions', () => {
     randomUser,
     transaction,
     refundTransaction,
-    manualPaymentTransaction;
+    manualPaymentTransaction,
+    internalTransferTransaction;
 
   let publicReq,
     randomUserReq,
@@ -90,6 +91,16 @@ describe('server/graphql/common/transactions', () => {
       PaymentMethodId: null,
       amount: 100000,
       kind: TransactionKind.CONTRIBUTION,
+      OrderId: order.id,
+    });
+    internalTransferTransaction = await fakeTransaction({
+      description: 'Internal transfer',
+      FromCollectiveId: contributor.CollectiveId,
+      CollectiveId: collective.id,
+      HostCollectiveId: collective.HostCollectiveId,
+      PaymentMethodId: null,
+      amount: 100000,
+      kind: TransactionKind.BALANCE_TRANSFER,
       OrderId: order.id,
     });
     timer = useFakeTimers({ now: new Date('2020-07-23 0:0').getTime(), toFake: ['Date'] });
@@ -159,6 +170,14 @@ describe('server/graphql/common/transactions', () => {
     it('cannot refund as admin of receiving collective if the transaction is a manual payment', async () => {
       expect(await canRefund(manualPaymentTransaction, undefined, collectiveAdminReq)).to.be.false;
     });
+
+    it('cannot refund internal transfers (BALANCE_TRANSFER), regardless of role', async () => {
+      expect(await canRefund(internalTransferTransaction, undefined, publicReq)).to.be.false;
+      expect(await canRefund(internalTransferTransaction, undefined, randomUserReq)).to.be.false;
+      expect(await canRefund(internalTransferTransaction, undefined, collectiveAdminReq)).to.be.false;
+      expect(await canRefund(internalTransferTransaction, undefined, hostAdminReq)).to.be.false;
+      expect(await canRefund(internalTransferTransaction, undefined, rootAdminReq)).to.be.false;
+    });
   });
 
   describe('canReject', () => {
@@ -189,6 +208,11 @@ describe('server/graphql/common/transactions', () => {
 
     it('cannot Reject as admin of receiving collective if the transaction is a manual payment', async () => {
       expect(await canRefund(manualPaymentTransaction, undefined, collectiveAdminReq)).to.be.false;
+    });
+
+    it('cannot reject internal transfers (BALANCE_TRANSFER), regardless of role', async () => {
+      expect(await canReject(internalTransferTransaction, undefined, hostAdminReq)).to.be.false;
+      expect(await canReject(internalTransferTransaction, undefined, rootAdminReq)).to.be.false;
     });
   });
 
