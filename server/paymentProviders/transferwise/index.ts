@@ -30,6 +30,7 @@ import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import { TransferwiseError } from '../../graphql/errors';
+import { applyBalanceAccountingCategoryFromConnectedAccount } from '../../lib/accounting/categorization/balance-accounts';
 import cache, { sessionCache } from '../../lib/cache';
 import { centsAmountToFloat, getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
@@ -460,6 +461,7 @@ async function scheduleExpenseForPayment(
     CreatedByUserId: remoteUser?.id,
     fallbackToNonUserAccount: true,
   });
+  await applyBalanceAccountingCategoryFromConnectedAccount(expense, connectedAccount);
   const token = await transferwise.getToken(connectedAccount);
   const [wiseBalances, quote] = await Promise.all([
     getAccountBalances(host, { connectedAccount }),

@@ -34,6 +34,7 @@ import {
   type PaymentProviderServiceWithInternalRecurringManagement,
 } from '../paymentProviders/types';
 
+import { applyBalanceAccountingCategory } from './accounting/categorization/balance-accounts';
 import { applyContributionAccountingCategoryRules } from './accounting/categorization/contribution-rules';
 import { notify } from './notifications/email';
 import { syncPaymentIntentFromRefund } from './payment-intents/sync';
@@ -1090,6 +1091,7 @@ export const executeOrder = async (
     });
 
     await applyContributionAccountingCategoryRules(order);
+    await applyBalanceAccountingCategory(order);
 
     // Credit card charges are synchronous. If the transaction is
     // created here it means that the payment went through so it's

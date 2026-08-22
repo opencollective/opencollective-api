@@ -4,11 +4,13 @@ import sinon, { createSandbox } from 'sinon';
 
 import OrderStatuses from '../../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
+import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import * as GoCardlessConnect from '../../../../../server/lib/gocardless/connect';
 import * as paypal from '../../../../../server/lib/paypal';
 import * as PlaidConnect from '../../../../../server/lib/plaid/connect';
 import models from '../../../../../server/models';
 import {
+  fakeAccountingCategory,
   fakeActiveHost,
   fakeCollective,
   fakeConnectedAccount,
@@ -26,6 +28,113 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
   });
 
   afterEach(() => sandbox.restore());
+
+  describe('setConnectedAccountBalanceAccountingCategory', () => {
+    const setBalanceCategoryMutation = gql`
+      mutation SetConnectedAccountBalanceAccountingCategory(
+        $connectedAccount: ConnectedAccountReferenceInput!
+        $accountingCategory: AccountingCategoryReferenceInput
+      ) {
+        setConnectedAccountBalanceAccountingCategory(
+          connectedAccount: $connectedAccount
+          accountingCategory: $accountingCategory
+        ) {
+          id
+          balanceAccountingCategory {
+            id
+            code
+          }
+        }
+      }
+    `;
+
+    it('sets and unsets the category on a supported connected account', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
+      const connectedAccount = await fakeConnectedAccount({ CollectiveId: host.id, service: 'stripe' });
+      const category = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CLEARING_ACCOUNT' });
+
+      const result = await graphqlQueryV2(
+        setBalanceCategoryMutation,
+        {
+          connectedAccount: { legacyId: connectedAccount.id },
+          accountingCategory: { id: idEncode(category.id, 'accounting-category') },
+        },
+        admin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.setConnectedAccountBalanceAccountingCategory.balanceAccountingCategory.code).to.eq(
+        category.code,
+      );
+      await connectedAccount.reload();
+      expect(connectedAccount.data.BalanceAccountingCategoryId).to.eq(category.id);
+
+      // Unset
+      const unsetResult = await graphqlQueryV2(
+        setBalanceCategoryMutation,
+        { connectedAccount: { legacyId: connectedAccount.id }, accountingCategory: null },
+        admin,
+      );
+      expect(unsetResult.errors).to.not.exist;
+      await connectedAccount.reload();
+      expect(connectedAccount.data.BalanceAccountingCategoryId).to.be.null;
+    });
+
+    it('rejects unsupported services, foreign categories, non-balance kinds and non-admins', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
+      const category = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+      const categoryRef = { id: idEncode(category.id, 'accounting-category') };
+
+      // Unsupported service
+      const plaidAccount = await fakeConnectedAccount({ CollectiveId: host.id, service: 'plaid' });
+      const unsupportedResult = await graphqlQueryV2(
+        setBalanceCategoryMutation,
+        { connectedAccount: { legacyId: plaidAccount.id }, accountingCategory: categoryRef },
+        admin,
+      );
+      expect(unsupportedResult.errors[0].message).to.eq(
+        'Balance accounting categories are not supported for plaid connected accounts',
+      );
+
+      const stripeAccount = await fakeConnectedAccount({ CollectiveId: host.id, service: 'stripe' });
+
+      // Foreign category
+      const otherHostCategory = await fakeAccountingCategory({ kind: 'BALANCE_ACCOUNT' });
+      const foreignResult = await graphqlQueryV2(
+        setBalanceCategoryMutation,
+        {
+          connectedAccount: { legacyId: stripeAccount.id },
+          accountingCategory: { id: idEncode(otherHostCategory.id, 'accounting-category') },
+        },
+        admin,
+      );
+      expect(foreignResult.errors[0].message).to.eq('This accounting category is not allowed for this host');
+
+      // Non-balance kind
+      const expenseCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
+      const wrongKindResult = await graphqlQueryV2(
+        setBalanceCategoryMutation,
+        {
+          connectedAccount: { legacyId: stripeAccount.id },
+          accountingCategory: { id: idEncode(expenseCategory.id, 'accounting-category') },
+        },
+        admin,
+      );
+      expect(wrongKindResult.errors[0].message).to.eq('This accounting category is not a balance or clearing account');
+
+      // Non-admin
+      const randomUser = await fakeUser();
+      const nonAdminResult = await graphqlQueryV2(
+        setBalanceCategoryMutation,
+        { connectedAccount: { legacyId: stripeAccount.id }, accountingCategory: categoryRef },
+        randomUser,
+      );
+      expect(nonAdminResult.errors[0].message).to.eq("You don't have permission to edit this collective");
+    });
+  });
 
   describe('createConnectedAccount', () => {
     const createConnectedAccountMutation = gql`

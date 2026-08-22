@@ -1795,6 +1795,28 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq('This accounting category is not allowed for expenses');
       });
 
+      it('fails if the accounting category is a balance or clearing account', async () => {
+        const expense = await fakeExpense({ status: 'APPROVED' });
+        for (const kind of ['BALANCE_ACCOUNT', 'CLEARING_ACCOUNT']) {
+          const accountingCategory = await fakeAccountingCategory({
+            CollectiveId: expense.collective.HostCollectiveId,
+            kind,
+          });
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, 'expense'),
+                accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+              },
+            },
+            expense.User,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq('This accounting category is not allowed for expenses');
+        }
+      });
+
       it('fails if the collective has no host', async () => {
         const collective = await fakeCollective({ HostCollectiveId: null });
         const expense = await fakeExpense({ status: 'APPROVED', CollectiveId: collective.id });
@@ -4700,6 +4722,56 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq(
           'Collective does not have enough funds to cover for the fees of this payment method. Current balance: $10.00, Expense amount: $10.00, Estimated PAYPAL fees: $0.20.',
         );
+      });
+
+      it('Pays the expense manually with a balance accounting category', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 2000 });
+        const balanceCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+        const expenseCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
+
+        // Rejects a category that is not a balance/clearing account
+        const failedResult = await graphqlQueryV2(
+          processExpenseMutation,
+          {
+            expenseId: expense.id,
+            action: 'PAY',
+            paymentParams: {
+              forceManual: true,
+              totalAmountPaidInHostCurrency: 1000,
+              balanceAccountingCategory: { id: idEncode(expenseCategory.id, 'accounting-category') },
+            },
+          },
+          hostAdmin,
+        );
+        expect(failedResult.errors).to.exist;
+        expect(failedResult.errors[0].message).to.eq('This accounting category is not a balance or clearing account');
+
+        // Accepts a balance account and stamps it on the expense
+        const result = await graphqlQueryV2(
+          processExpenseMutation,
+          {
+            expenseId: expense.id,
+            action: 'PAY',
+            paymentParams: {
+              forceManual: true,
+              totalAmountPaidInHostCurrency: 1000,
+              balanceAccountingCategory: { id: idEncode(balanceCategory.id, 'accounting-category') },
+            },
+          },
+          hostAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('PAID');
+        await expense.reload();
+        expect(expense.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
       });
 
       it('Pays the expense manually', async () => {
