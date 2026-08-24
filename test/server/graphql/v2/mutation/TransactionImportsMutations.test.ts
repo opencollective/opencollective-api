@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
-import { PlaidApi } from 'plaid';
+import { AccountSubtype, AccountType, PlaidApi } from 'plaid';
 import sinon from 'sinon';
 
 import { Service } from '../../../../../server/constants/connected-account';
@@ -13,6 +13,7 @@ import * as PlaidClient from '../../../../../server/lib/plaid/client';
 import twoFactorAuthLib from '../../../../../server/lib/two-factor-authentication';
 import models, { ConnectedAccount } from '../../../../../server/models';
 import {
+  fakeAccountingCategory,
   fakeActiveHost,
   fakeCollective,
   fakeConnectedAccount,
@@ -593,6 +594,148 @@ describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('Some rows are not linked');
+    });
+  });
+
+  describe('setTransactionsImportAccountBalanceAccountingCategory', () => {
+    const SET_BALANCE_CATEGORY_MUTATION = gql`
+      mutation SetTransactionsImportAccountBalanceAccountingCategory(
+        $transactionsImport: TransactionsImportReferenceInput!
+        $importedAccountId: NonEmptyString!
+        $accountingCategory: AccountingCategoryReferenceInput
+      ) {
+        setTransactionsImportAccountBalanceAccountingCategory(
+          transactionsImport: $transactionsImport
+          importedAccountId: $importedAccountId
+          accountingCategory: $accountingCategory
+        ) {
+          id
+          institutionAccounts {
+            id
+            balanceAccountingCategory {
+              id
+              code
+            }
+          }
+        }
+      }
+    `;
+
+    const fakePlaidImport = (hostId: number) =>
+      fakeTransactionsImport({
+        CollectiveId: hostId,
+        type: 'PLAID',
+        data: {
+          plaid: {
+            availableAccounts: [
+              {
+                accountId: 'plaid-acc-1',
+                mask: '0444',
+                name: 'Checking',
+                officialName: 'Checking',
+                subtype: AccountSubtype.Checking,
+                type: AccountType.Depository,
+              },
+            ],
+          },
+        },
+      });
+
+    it('sets, exposes and unsets the category on a bank sub-account', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
+      const transactionsImport = await fakePlaidImport(host.id);
+      const category = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT', code: '1051' });
+
+      const result = await graphqlQueryV2(
+        SET_BALANCE_CATEGORY_MUTATION,
+        {
+          transactionsImport: { id: idEncode(transactionsImport.id, 'transactions-import-row') },
+          importedAccountId: 'plaid-acc-1',
+          accountingCategory: { id: idEncode(category.id, 'accounting-category') },
+        },
+        admin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const accounts = result.data.setTransactionsImportAccountBalanceAccountingCategory.institutionAccounts;
+      expect(accounts[0].balanceAccountingCategory.code).to.eq('1051');
+      await transactionsImport.reload();
+      expect(transactionsImport.settings.balanceAccountingCategories).to.deep.eq({ 'plaid-acc-1': category.id });
+
+      // Unset
+      const unsetResult = await graphqlQueryV2(
+        SET_BALANCE_CATEGORY_MUTATION,
+        {
+          transactionsImport: { id: idEncode(transactionsImport.id, 'transactions-import-row') },
+          importedAccountId: 'plaid-acc-1',
+          accountingCategory: null,
+        },
+        admin,
+      );
+      expect(unsetResult.errors).to.not.exist;
+      await transactionsImport.reload();
+      expect(transactionsImport.settings.balanceAccountingCategories).to.deep.eq({});
+    });
+
+    it('rejects invalid categories, unknown accounts and non-admins', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
+      const transactionsImport = await fakePlaidImport(host.id);
+      const category = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+      const importRef = { id: idEncode(transactionsImport.id, 'transactions-import-row') };
+
+      // Wrong kind
+      const expenseCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
+      const wrongKind = await graphqlQueryV2(
+        SET_BALANCE_CATEGORY_MUTATION,
+        {
+          transactionsImport: importRef,
+          importedAccountId: 'plaid-acc-1',
+          accountingCategory: { id: idEncode(expenseCategory.id, 'accounting-category') },
+        },
+        admin,
+      );
+      expect(wrongKind.errors[0].message).to.eq('This accounting category is not a balance or clearing account');
+
+      // Foreign category
+      const foreignCategory = await fakeAccountingCategory({ kind: 'BALANCE_ACCOUNT' });
+      const foreign = await graphqlQueryV2(
+        SET_BALANCE_CATEGORY_MUTATION,
+        {
+          transactionsImport: importRef,
+          importedAccountId: 'plaid-acc-1',
+          accountingCategory: { id: idEncode(foreignCategory.id, 'accounting-category') },
+        },
+        admin,
+      );
+      expect(foreign.errors[0].message).to.eq('This accounting category is not allowed for this host');
+
+      // Unknown account
+      const unknownAccount = await graphqlQueryV2(
+        SET_BALANCE_CATEGORY_MUTATION,
+        {
+          transactionsImport: importRef,
+          importedAccountId: 'nope',
+          accountingCategory: { id: idEncode(category.id, 'accounting-category') },
+        },
+        admin,
+      );
+      expect(unknownAccount.errors[0].message).to.eq('Account nope does not exist on this import');
+
+      // Non-admin
+      const randomUser = await fakeUser();
+      const nonAdmin = await graphqlQueryV2(
+        SET_BALANCE_CATEGORY_MUTATION,
+        {
+          transactionsImport: importRef,
+          importedAccountId: 'plaid-acc-1',
+          accountingCategory: { id: idEncode(category.id, 'accounting-category') },
+        },
+        randomUser,
+      );
+      expect(nonAdmin.errors[0].message).to.eq('You need to be an admin of the account to edit an import');
     });
   });
 });

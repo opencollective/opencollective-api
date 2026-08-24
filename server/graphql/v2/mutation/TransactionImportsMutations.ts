@@ -5,6 +5,7 @@ import { GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
 import { isEmpty, keyBy, mapValues, omit, pick, truncate } from 'lodash';
 
+import { applyBalanceAccountingCategoryFromImportRow } from '../../../lib/accounting/categorization/balance-accounts';
 import { disconnectGoCardlessAccount } from '../../../lib/gocardless/connect';
 import { syncGoCardlessAccount } from '../../../lib/gocardless/sync';
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
@@ -20,6 +21,7 @@ import {
   TransactionsImportRow,
   UploadedFile,
 } from '../../../models';
+import { checkIsValidBalanceAccountingCategory } from '../../common/balance-accounting-categories';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import {
@@ -28,6 +30,10 @@ import {
 } from '../enum/TransactionsImportRowAction';
 import { TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
+import {
+  fetchAccountingCategoryWithReference,
+  GraphQLAccountingCategoryReferenceInput,
+} from '../input/AccountingCategoryInput';
 import {
   fetchAccountsWithReferences,
   fetchAccountWithReference,
@@ -213,6 +219,65 @@ const transactionImportsMutations = {
       return importInstance;
     },
   },
+  setTransactionsImportAccountBalanceAccountingCategory: {
+    type: new GraphQLNonNull(GraphQLTransactionsImport),
+    description:
+      'Set the balance/clearing accounting category used to attribute activity matched from a bank sub-account of this import. Scope: "transactions".',
+    args: {
+      transactionsImport: {
+        type: new GraphQLNonNull(GraphQLTransactionsImportReferenceInput),
+        description: 'Reference to the transactions import',
+      },
+      importedAccountId: {
+        type: new GraphQLNonNull(GraphQLNonEmptyString),
+        description: 'The bank sub-account id, as returned in `institutionAccounts`',
+      },
+      accountingCategory: {
+        type: GraphQLAccountingCategoryReferenceInput,
+        description: 'The balance/clearing accounting category to set. Pass null to unset.',
+      },
+    },
+    resolve: async (_: void, args, req: Request) => {
+      checkRemoteUserCanUseTransactions(req);
+
+      const importInstance = await fetchTransactionsImportWithReference(args.transactionsImport, {
+        throwIfMissing: true,
+        include: [{ association: 'collective' }],
+      });
+
+      if (!req.remoteUser.isAdminOfCollective(importInstance.collective)) {
+        throw new Unauthorized('You need to be an admin of the account to edit an import');
+      }
+
+      const validAccountIds =
+        importInstance.type === 'PLAID'
+          ? (importInstance.data?.plaid?.availableAccounts || []).map(account => account.accountId)
+          : importInstance.type === 'GOCARDLESS'
+            ? (importInstance.data?.gocardless?.accountsMetadata || []).map(account => account.id)
+            : [];
+      if (!validAccountIds.includes(args.importedAccountId)) {
+        throw new ValidationFailed(`Account ${args.importedAccountId} does not exist on this import`);
+      }
+
+      const balanceAccountingCategories = { ...importInstance.settings?.balanceAccountingCategories };
+      if (args.accountingCategory) {
+        const accountingCategory = await fetchAccountingCategoryWithReference(args.accountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        });
+        checkIsValidBalanceAccountingCategory(accountingCategory, importInstance.collective);
+        balanceAccountingCategories[args.importedAccountId] = accountingCategory.id;
+      } else {
+        delete balanceAccountingCategories[args.importedAccountId];
+      }
+
+      await importInstance.update({
+        settings: { ...importInstance.settings, balanceAccountingCategories },
+      });
+
+      return importInstance;
+    },
+  },
   importTransactions: {
     type: new GraphQLNonNull(GraphQLTransactionsImport),
     description: 'Import transactions, manually or from a CSV file',
@@ -349,13 +414,12 @@ const transactionImportsMutations = {
         return { host: null, rows: [] };
       }
 
-      const inputRowIds = await Promise.all(
+      const inputRows = await Promise.all(
         args.rows.map(row =>
-          fetchTransactionsImportRowWithReference({ id: row.id }, { loaders: req.loaders, throwIfMissing: true }).then(
-            row => row.id,
-          ),
+          fetchTransactionsImportRowWithReference({ id: row.id }, { loaders: req.loaders, throwIfMissing: true }),
         ),
       );
+      const inputRowIds = inputRows.map(row => row.id);
       const importMetadata = (await TransactionsImportRow.findAll({
         raw: true,
         attributes: [
@@ -394,6 +458,7 @@ const transactionImportsMutations = {
       const importType = importMetadata[0].type;
       const selectedRowIds = importMetadata[0].rowsIds;
       const hostId = importMetadata[0].CollectiveId;
+      const balanceCategoryStamps: Array<() => Promise<void>> = [];
       await sequelize.transaction(async transaction => {
         // Update rows
         if (args.action === 'UPDATE_ROWS') {
@@ -429,6 +494,7 @@ const transactionImportsMutations = {
 
                 values['OrderId'] = order.id;
                 values['status'] = 'LINKED';
+                balanceCategoryStamps.push(() => applyBalanceAccountingCategoryFromImportRow(order, inputRows[index]));
               } else if (row.expense) {
                 const expense = await fetchExpenseWithReference(row.expense, {
                   loaders: req.loaders,
@@ -449,6 +515,9 @@ const transactionImportsMutations = {
 
                 values['ExpenseId'] = expense.id;
                 values['status'] = 'LINKED';
+                balanceCategoryStamps.push(() =>
+                  applyBalanceAccountingCategoryFromImportRow(expense, inputRows[index]),
+                );
               } else if (row.status) {
                 values['status'] = row.status;
                 where['status'] = { [Op.not]: TransactionsImportRowStatus.LINKED }; // Cannot change the status of a LINKED row

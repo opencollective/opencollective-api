@@ -35,6 +35,8 @@ import {
   fakeOrganization,
   fakePaymentMethod,
   fakeTier,
+  fakeTransactionsImport,
+  fakeTransactionsImportRow,
   fakeUser,
   fakeVendor,
   randStr,
@@ -3821,6 +3823,42 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.errors).to.not.exist;
         await order.reload();
         expect(order.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
+      });
+
+      it('should stamp the balance accounting category from the import row bank sub-account when marked as paid', async () => {
+        const balanceCategory = await fakeAccountingCategory({
+          CollectiveId: collective.HostCollectiveId,
+          kind: 'BALANCE_ACCOUNT',
+        });
+        const transactionsImport = await fakeTransactionsImport({
+          CollectiveId: collective.HostCollectiveId,
+          type: 'PLAID',
+          settings: { balanceAccountingCategories: { 'plaid-acc-1': balanceCategory.id } },
+        });
+        const row = await fakeTransactionsImportRow({
+          TransactionsImportId: transactionsImport.id,
+          accountId: 'plaid-acc-1',
+          status: 'PENDING',
+        });
+
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            order: {
+              id: idEncode(order.id, 'order'),
+              transactionsImportRow: { id: idEncode(row.id, 'transactions-import-row') },
+            },
+            action: 'MARK_AS_PAID',
+          },
+          hostAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await order.reload();
+        expect(order.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
+        await row.reload();
+        expect(row.OrderId).to.eq(order.id);
       });
 
       it('should mark as paid and update amount details', async () => {

@@ -1193,6 +1193,38 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq('You need to be an admin of the collective to import expenses');
       });
 
+      it('stamps the balance accounting category from the row bank sub-account', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const balanceCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+        const transactionsImport = await fakeTransactionsImport({
+          CollectiveId: host.id,
+          type: 'PLAID',
+          settings: { balanceAccountingCategories: { 'plaid-acc-1': balanceCategory.id } },
+        });
+        const transactionsImportRow = await fakeTransactionsImportRow({
+          TransactionsImportId: transactionsImport.id,
+          accountId: 'plaid-acc-1',
+        });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            transactionsImportRow: { id: idEncode(transactionsImportRow.id, 'transactions-import-row') },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        const expense = await models.Expense.findByPk(result.data.createExpense.legacyId);
+        expect(expense.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
+      });
+
       it('marks the expense as paid and create the transactions', async () => {
         const user = await fakeUser();
         const host = await fakeActiveHost({ admin: user });

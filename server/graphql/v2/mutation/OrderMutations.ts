@@ -26,6 +26,7 @@ import { Service } from '../../../constants/connected-account';
 import FEATURE from '../../../constants/feature';
 import OrderStatuses from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { getBalanceAccountingCategoryIdForImportRow } from '../../../lib/accounting/categorization/balance-accounts';
 import { applyContributionAccountingCategoryRules } from '../../../lib/accounting/categorization/contribution-rules';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
@@ -828,6 +829,14 @@ const orderMutations = {
               throw new NotFound('TransactionsImport not found');
             } else if (transactionsImport.CollectiveId !== host.id) {
               throw new ValidationFailed('This import does not belong to the host');
+            }
+
+            // Default the balance accounting category from the bank sub-account the row belongs to
+            if (!order.BalanceAccountingCategoryId) {
+              order.set(
+                'BalanceAccountingCategoryId',
+                getBalanceAccountingCategoryIdForImportRow(transactionsImportRow, transactionsImport),
+              );
             }
           }
 

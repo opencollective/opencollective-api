@@ -40,7 +40,10 @@ import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import PlatformConstants from '../../constants/platform';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
-import { applyBalanceAccountingCategoryFromConnectedAccount } from '../../lib/accounting/categorization/balance-accounts';
+import {
+  applyBalanceAccountingCategoryFromConnectedAccount,
+  getBalanceAccountingCategoryIdForImportRow,
+} from '../../lib/accounting/categorization/balance-accounts';
 import { checkFeatureAccess, hasFeature } from '../../lib/allowed-features';
 import cache from '../../lib/cache';
 import {
@@ -2485,6 +2488,7 @@ export async function createExpense(
   }
 
   // Check Transactions import
+  let balanceAccountingCategoryId: number | null = null;
   if (expenseData.transactionsImportRow) {
     if (!collective.host) {
       throw new ValidationFailed('The collective must have a host to import expenses');
@@ -2500,6 +2504,12 @@ export async function createExpense(
     } else if (transactionsImport.CollectiveId !== collective.host.id) {
       throw new ValidationFailed('This import does not belong to the host');
     }
+
+    // Default the balance accounting category from the bank sub-account the row belongs to
+    balanceAccountingCategoryId = getBalanceAccountingCategoryIdForImportRow(
+      expenseData.transactionsImportRow,
+      transactionsImport,
+    );
   }
 
   // Expense data
@@ -2547,6 +2557,7 @@ export async function createExpense(
         legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
         amount: models.Expense.computeTotalAmountForExpense(itemsData, taxes),
         AccountingCategoryId: expenseData.accountingCategory?.id,
+        BalanceAccountingCategoryId: balanceAccountingCategoryId,
         InvoiceFileId: invoiceFileId,
         data,
       },

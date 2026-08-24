@@ -1,6 +1,13 @@
 import { Service } from '../../../constants/connected-account';
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
-import { ConnectedAccount, Expense, ManualPaymentProvider, Order } from '../../../models';
+import {
+  ConnectedAccount,
+  Expense,
+  ManualPaymentProvider,
+  Order,
+  TransactionsImport,
+  TransactionsImportRow,
+} from '../../../models';
 import logger from '../../logger';
 import { reportErrorToSentry } from '../../sentry';
 
@@ -71,5 +78,48 @@ export async function applyBalanceAccountingCategoryFromConnectedAccount(
   } catch (e) {
     logger.error(`Failed to apply balance accounting category to expense #${expense.id}: ${e.message}`);
     reportErrorToSentry(e, { extra: { ExpenseId: expense.id } });
+  }
+}
+
+/**
+ * Resolves the balance/clearing accounting category configured for the bank sub-account an
+ * import row belongs to (`TransactionsImports.settings.balanceAccountingCategories`).
+ */
+export function getBalanceAccountingCategoryIdForImportRow(
+  row: TransactionsImportRow,
+  transactionsImport: TransactionsImport,
+): number | null {
+  const balanceAccountingCategories = transactionsImport?.settings?.balanceAccountingCategories;
+  return balanceAccountingCategories?.[row.accountId ?? '__default__'] || null;
+}
+
+/**
+ * Stamps the balance accounting category on an order/expense from the bank sub-account of the
+ * import row it was matched with. No-ops if the intent already has one (first hop wins: eg an
+ * expense paid via Wise keeps the Wise clearing account, the bank row is its settlement).
+ */
+export async function applyBalanceAccountingCategoryFromImportRow(
+  intent: Order | Expense,
+  row: TransactionsImportRow,
+  transactionsImport?: TransactionsImport,
+): Promise<void> {
+  try {
+    if (intent.BalanceAccountingCategoryId) {
+      return;
+    }
+
+    transactionsImport = transactionsImport || (await row.getImport());
+    const balanceAccountingCategoryId = getBalanceAccountingCategoryIdForImportRow(row, transactionsImport);
+    if (balanceAccountingCategoryId) {
+      // for typing only, both Order and Expense have the same balance field.
+      if (intent instanceof Order) {
+        await intent.update({ BalanceAccountingCategoryId: balanceAccountingCategoryId });
+      } else {
+        await intent.update({ BalanceAccountingCategoryId: balanceAccountingCategoryId });
+      }
+    }
+  } catch (e) {
+    logger.error(`Failed to apply balance accounting category from import row #${row.id}: ${e.message}`);
+    reportErrorToSentry(e, { extra: { TransactionsImportRowId: row.id } });
   }
 }

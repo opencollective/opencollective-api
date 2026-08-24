@@ -5,6 +5,7 @@ import { InferCreationAttributes } from 'sequelize';
 import { CollectiveType } from '../../constants/collectives';
 import status from '../../constants/order-status';
 import roles from '../../constants/roles';
+import { getBalanceAccountingCategoryIdForImportRow } from '../../lib/accounting/categorization/balance-accounts';
 import { purgeCacheForCollective } from '../../lib/cache';
 import { roundCentsAmount } from '../../lib/currency';
 import { executeOrder } from '../../lib/payments';
@@ -196,6 +197,14 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
       throw new NotFound('TransactionsImport not found');
     } else if (transactionsImport.CollectiveId !== host.id) {
       throw new ValidationFailed('This import does not belong to the host');
+    }
+
+    // Default the balance accounting category from the bank sub-account the row belongs to
+    if (!orderData.BalanceAccountingCategoryId) {
+      orderData.BalanceAccountingCategoryId = getBalanceAccountingCategoryIdForImportRow(
+        order.transactionsImportRow,
+        transactionsImport,
+      );
     }
   }
 

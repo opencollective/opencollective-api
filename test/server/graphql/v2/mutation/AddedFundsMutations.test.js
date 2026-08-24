@@ -22,6 +22,8 @@ import {
   fakePrivateHost,
   fakeProject,
   fakeTier,
+  fakeTransactionsImport,
+  fakeTransactionsImportRow,
   fakeUser,
   fakeUserToken,
   fakeVendor,
@@ -39,6 +41,7 @@ const addFundsMutation = gql`
     $hostFeePercent: Float!
     $accountingCategory: AccountingCategoryReferenceInput
     $balanceAccountingCategory: AccountingCategoryReferenceInput
+    $transactionsImportRow: TransactionsImportRowReferenceInput
     $tier: TierReferenceInput
     $tax: TaxInput
   ) {
@@ -50,6 +53,7 @@ const addFundsMutation = gql`
       hostFeePercent: $hostFeePercent
       accountingCategory: $accountingCategory
       balanceAccountingCategory: $balanceAccountingCategory
+      transactionsImportRow: $transactionsImportRow
       tier: $tier
       tax: $tax
     ) {
@@ -755,6 +759,39 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
         expect(creditTransaction.balanceAccountingCategory.id).to.eq(
           idEncode(balanceCategory.id, 'accounting-category'),
         );
+      });
+
+      it('defaults the balance category from the bank sub-account of a linked import row', async () => {
+        const balanceCategory = await fakeAccountingCategory({
+          CollectiveId: collective.host.id,
+          kind: 'BALANCE_ACCOUNT',
+        });
+        const transactionsImport = await fakeTransactionsImport({
+          CollectiveId: collective.host.id,
+          type: 'PLAID',
+          settings: { balanceAccountingCategories: { 'plaid-acc-1': balanceCategory.id } },
+        });
+        const row = await fakeTransactionsImportRow({
+          TransactionsImportId: transactionsImport.id,
+          accountId: 'plaid-acc-1',
+          status: 'PENDING',
+        });
+
+        const result = await graphqlQueryV2(
+          addFundsMutation,
+          {
+            ...validMutationVariables,
+            account: { legacyId: collective.id },
+            fromAccount: { legacyId: randomUser.CollectiveId },
+            transactionsImportRow: { id: idEncode(row.id, 'transactions-import-row') },
+          },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        const order = await models.Order.findByPk(result.data.addFunds.legacyId);
+        expect(order.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
       });
 
       it('rejects a non balance/clearing category as balanceAccountingCategory', async () => {
