@@ -36,6 +36,31 @@ import { GraphQLLegalDocument } from '../object/LegalDocument';
 
 const debug = debugLib('legalDocuments');
 
+/**
+ * Extract the taxable country from a tax form's untyped form data.
+ * The field used depends on the form type:
+ *  - W9: `location.country` (the US person/entity's address)
+ *  - W8_BEN: `residenceAddress.country` (the beneficial owner's tax residency)
+ *  - W8_BEN_E: `businessCountryOfIncorporationOrOrganization` (the entity's country of incorporation)
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const getTaxableCountryFromFormData = (formData: Record<string, any>): string | null => {
+  if (!formData || typeof formData !== 'object') {
+    return null;
+  }
+
+  const formType = formData.formType;
+  if (formType === 'W9') {
+    return formData.location?.country || null;
+  } else if (formType === 'W8_BEN') {
+    return formData.residenceAddress?.country || null;
+  } else if (formType === 'W8_BEN_E') {
+    return formData.businessCountryOfIncorporationOrOrganization || formData.businessAddress?.country || null;
+  }
+
+  return null;
+};
+
 export const legalDocumentsMutations = {
   submitLegalDocument: {
     type: new GraphQLNonNull(GraphQLLegalDocument),
@@ -128,6 +153,14 @@ export const legalDocumentsMutations = {
           ),
         },
       });
+
+      // Sync the taxable country on the account's data (complements isUSEntity)
+      debug('Sync taxable country on the account');
+      const taxableCountry = getTaxableCountryFromFormData(args.formData);
+      if (taxableCountry && account.data?.taxableCountry !== taxableCountry) {
+        const data = { ...account.data, taxableCountry };
+        await account.update({ data });
+      }
 
       try {
         debug('Create activity');

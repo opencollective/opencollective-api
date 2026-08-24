@@ -1,5 +1,5 @@
 import config from 'config';
-import { get, uniq } from 'lodash';
+import { get, omit, uniq } from 'lodash';
 import moment from 'moment';
 import {
   BelongsToGetAssociationMixin,
@@ -361,6 +361,13 @@ class LegalDocument extends ModelWithPublicId<
     return sequelize.transaction(async transaction => {
       // Mark current tax form as invalid
       await this.update({ requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.INVALID }, { transaction });
+
+      // Clear the taxable country on the account's data, since the previous
+      // form is no longer valid and the user will have to submit a new one.
+      if (this.collective.data?.taxableCountry) {
+        const data = omit(this.collective.data, 'taxableCountry');
+        await this.collective.update({ data }, { transaction });
+      }
 
       // Create a new tax form request
       await LegalDocument.create(

@@ -197,6 +197,88 @@ describe('LegalDocumentsMutations', () => {
       expect(result.data.submitLegalDocument).to.have.property('status', 'RECEIVED');
       expect(result.data.submitLegalDocument).to.have.property('service', 'OPENCOLLECTIVE');
     });
+
+    it('does not set the taxable country when the form data has no country', async () => {
+      await collective.update({ data: {} });
+      await models.LegalDocument.create({
+        CollectiveId: collective.id,
+        documentType: 'US_TAX_FORM',
+        requestStatus: 'REQUESTED',
+        year: new Date().getFullYear(),
+      });
+
+      const result = await graphqlQueryV2(submitLegalDocumentMutation, validParams, collectiveAdmin);
+
+      expect(result.errors).to.not.exist;
+      await collective.reload();
+      expect(collective.data?.taxableCountry).to.be.undefined;
+    });
+
+    it('sets the taxable country on the account from a W9 location', async () => {
+      await models.LegalDocument.create({
+        CollectiveId: collective.id,
+        documentType: 'US_TAX_FORM',
+        requestStatus: 'REQUESTED',
+        year: new Date().getFullYear(),
+      });
+
+      const result = await graphqlQueryV2(
+        submitLegalDocumentMutation,
+        {
+          ...validParams,
+          formData: { formType: 'W9', location: { country: 'US' } },
+        },
+        collectiveAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      await collective.reload();
+      expect(collective.data?.taxableCountry).to.equal('US');
+    });
+
+    it('sets the taxable country on the account from a W8_BEN residence address', async () => {
+      await models.LegalDocument.create({
+        CollectiveId: collective.id,
+        documentType: 'US_TAX_FORM',
+        requestStatus: 'REQUESTED',
+        year: new Date().getFullYear(),
+      });
+
+      const result = await graphqlQueryV2(
+        submitLegalDocumentMutation,
+        {
+          ...validParams,
+          formData: { formType: 'W8_BEN', residenceAddress: { country: 'FR' } },
+        },
+        collectiveAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      await collective.reload();
+      expect(collective.data?.taxableCountry).to.equal('FR');
+    });
+
+    it('sets the taxable country on the account from a W8_BEN_E country of incorporation', async () => {
+      await models.LegalDocument.create({
+        CollectiveId: collective.id,
+        documentType: 'US_TAX_FORM',
+        requestStatus: 'REQUESTED',
+        year: new Date().getFullYear(),
+      });
+
+      const result = await graphqlQueryV2(
+        submitLegalDocumentMutation,
+        {
+          ...validParams,
+          formData: { formType: 'W8_BEN_E', businessCountryOfIncorporationOrOrganization: 'CA' },
+        },
+        collectiveAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      await collective.reload();
+      expect(collective.data?.taxableCountry).to.equal('CA');
+    });
   });
 
   describe('editLegalDocumentStatus', () => {
@@ -333,6 +415,44 @@ describe('LegalDocumentsMutations', () => {
       expect(sendEmailSpy.firstCall.args[0]).to.equal(payee.email);
       expect(sendEmailSpy.firstCall.args[1]).to.equal('Action required: Your tax form has been marked as invalid');
       expect(sendEmailSpy.firstCall.args[2]).to.include('Bad Bad not Good');
+    });
+
+    it('clears the taxable country on the account when marked as invalid', async () => {
+      const payee = await fakeUser();
+      const payoutMethod = await fakePayoutMethod({
+        CollectiveId: payee.CollectiveId,
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+      });
+      const expense = await fakeExpense({
+        type: 'INVOICE',
+        status: 'APPROVED',
+        CollectiveId: host.id,
+        FromCollectiveId: payee.CollectiveId,
+        amount: US_TAX_FORM_THRESHOLD + 100e2,
+        PayoutMethodId: payoutMethod.id,
+      });
+      const payeeCollective = await models.Collective.findByPk(expense.FromCollectiveId);
+      await payeeCollective.update({ data: { ...payeeCollective.data, taxableCountry: 'FR' } });
+      const legalDocument = await fakeLegalDocument({
+        documentType: 'US_TAX_FORM',
+        requestStatus: 'RECEIVED',
+        CollectiveId: expense.FromCollectiveId,
+        year: new Date().getFullYear(),
+      });
+      const result = await graphqlQueryV2(
+        editLegalDocumentStatusMutation,
+        {
+          id: idEncode(legalDocument.id, IDENTIFIER_TYPES.LEGAL_DOCUMENT),
+          host: { id: idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT) },
+          status: 'INVALID',
+          message: 'Bad Bad not Good',
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      await payeeCollective.reload();
+      expect(payeeCollective.data?.taxableCountry).to.be.undefined;
     });
 
     it('accepts publicId when editing a legal document status', async () => {
