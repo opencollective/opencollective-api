@@ -989,7 +989,11 @@ const getTaxFormsRequiredForAccounts = async ({
     AND all_expenses."deletedAt" IS NULL
     ${ifStr(!allTime, `AND EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())) = :year`)}
     ${ifStr(ignoreReceived, `AND ld.id IS NULL`)}
+<<<<<<< HEAD
     GROUP BY account.id, d."documentType", EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())), COALESCE(pm."type"::text, CASE WHEN all_expenses."legacyPayoutMethod" = 'paypal' THEN 'PAYPAL' ELSE 'OTHER' END), account."data", account."countryISO", host."data"
+=======
+    GROUP BY account.id, d."documentType", EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())), COALESCE(pm."type"::text, CASE WHEN all_expenses."legacyPayoutMethod" = 'paypal' THEN 'PAYPAL' ELSE 'OTHER' END), account."data"#>>'{isUSEntity}', account."countryISO", host."data"
+>>>>>>> 93c4956c9 (feat: attribute data.taxableCountry based on submitted tax-form values)
   `,
     {
       raw: true,
