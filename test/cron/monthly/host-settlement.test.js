@@ -467,8 +467,10 @@ describe('cron/monthly/host-settlement', () => {
     const [attachment] = await gphHostSettlementExpense.getAttachedFiles();
     expect(attachment).to.have.property('url');
     expect(attachment.url).to.have.string('.csv');
-    // Legacy hosts keep the account-scoped report (all their settled rows live on the host account)
+    // Legacy hosts are billed against the host account, whose ledger holds everything else they do,
+    // so the report stays filtered down to the kinds actually invoiced
     expect(attachment.url).to.have.string('/transactions.csv');
+    expect(new URL(attachment.url).searchParams.get('kind')).to.exist;
   });
 
   it('should include entries from previous months in the CSV url startDate', async () => {
@@ -767,15 +769,19 @@ describe('cron/monthly/host-settlement', () => {
       expect(ts.ExpenseId).to.equal(settlementExpense.id);
     });
 
-    it('attaches a host-scoped CSV so the vendor-account PLATFORM_TIP rows are included', async () => {
+    it('attaches a CSV of the platform-tips account tips and their application fees', async () => {
       const [attachment] = await settlementExpense.getAttachedFiles();
       expect(attachment).to.have.property('url');
-      // The account-scoped `transactions` report filters CollectiveId IN [host, children] and can
-      // never return the platform-tips account rows; the host-scoped report filters HostCollectiveId.
-      expect(attachment.url).to.have.string('/hostTransactions.csv');
+      // Scoped to the account being billed rather than the host
+      expect(attachment.url).to.have.string(`/${platformTipsAccount.slug}/transactions.csv`);
       const csvUrl = new URL(attachment.url);
-      expect(csvUrl.searchParams.get('kind').split(',')).to.include('PLATFORM_TIP');
+      // Both kinds, and only those two: PLATFORM_TIP alone overstates the bill, while the account's
+      // other rows (a previous settlement being paid, its processor fee) are not part of it. Summing
+      // these two over the period gives the amount invoiced.
+      expect(csvUrl.searchParams.get('kind').split(',').sort()).to.deep.equal(['APPLICATION_FEE', 'PLATFORM_TIP']);
       expect(csvUrl.searchParams.get('add')).to.equal('orderLegacyId');
+      // Balance is a running total over the whole account and never lines up with a two-kind report
+      expect(csvUrl.searchParams.get('remove')).to.equal('balance');
     });
 
     it('matches the new-ledger settlement ledger snapshot', async () => {
