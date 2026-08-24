@@ -9659,6 +9659,11 @@ type TransactionsImportAccount {
   The mask of the account (Plaid only)
   """
   mask: String
+
+  """
+  The balance/clearing accounting category used to attribute activity matched from this bank sub-account (only visible to host admins)
+  """
+  balanceAccountingCategory: AccountingCategory
 }
 
 type TransactionsImportAssignment {
@@ -28310,6 +28315,26 @@ type Mutation {
     Assignments for the import
     """
     assignments: [TransactionsImportAssignmentInput!]
+  ): TransactionsImport!
+
+  """
+  Set the balance/clearing accounting category used to attribute activity matched from a bank sub-account of this import. Scope: "transactions".
+  """
+  setTransactionsImportAccountBalanceAccountingCategory(
+    """
+    Reference to the transactions import
+    """
+    transactionsImport: TransactionsImportReferenceInput!
+
+    """
+    The bank sub-account id, as returned in `institutionAccounts`
+    """
+    importedAccountId: NonEmptyString!
+
+    """
+    The balance/clearing accounting category to set. Pass null to unset.
+    """
+    accountingCategory: AccountingCategoryReferenceInput
   ): TransactionsImport!
 
   """
