@@ -13,6 +13,7 @@ import { TransactionTypes } from '../../constants/transactions';
 import { purgeCacheForCollective } from '../../lib/cache';
 import { refundTransaction as refundTransactionPayment } from '../../lib/payments';
 import { getPolicy } from '../../lib/policies';
+import { getRefundableAmountFromCollectiveInHostCurrency } from '../../lib/refunds';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { sequelize } from '../../models';
 import Transaction from '../../models/Transaction';
@@ -150,14 +151,11 @@ export const canRefund = async (transaction: Transaction, _: void, req: Express.
     }
   }
 
-  // Only certain transaction kinds can be refunded
+  // Only certain transaction kinds can be refunded. Internal transfers (BALANCE_TRANSFER) are
+  // excluded on purpose: they move money between accounts within the same host and can be
+  // reversed with another internal transfer, but should never show up as a "refund" in the ledger.
   if (
-    ![
-      TransactionKind.ADDED_FUNDS,
-      TransactionKind.BALANCE_TRANSFER,
-      TransactionKind.CONTRIBUTION,
-      TransactionKind.EXPENSE,
-    ].includes(transaction.kind)
+    ![TransactionKind.ADDED_FUNDS, TransactionKind.CONTRIBUTION, TransactionKind.EXPENSE].includes(transaction.kind)
   ) {
     return false;
   }
@@ -219,21 +217,6 @@ export const canDownloadInvoice = async (transaction: Transaction, _: void, req:
 /** Checks if the user can reject this transaction */
 export const canReject = canRefund;
 
-/** Returns the total amount, in cents, that should be refunded from the Collective balance. */
-const getRefundableAmountFromCollective = async (transaction: Transaction) => {
-  const relatedCreditTransactions = await transaction.getRelatedTransactions({ type: TransactionTypes.CREDIT });
-  const contribution = relatedCreditTransactions.find(t =>
-    [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS, TransactionKind.BALANCE_TRANSFER].includes(t.kind),
-  );
-  assert(contribution, 'No contributions found for this transaction');
-  const hostFee = relatedCreditTransactions.find(t => t.kind === TransactionKind.HOST_FEE);
-  const paymentFee = relatedCreditTransactions.find(t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE);
-
-  return (
-    contribution.amountInHostCurrency - (hostFee?.amountInHostCurrency || 0) - (paymentFee?.amountInHostCurrency || 0)
-  );
-};
-
 export async function refundTransaction(
   passedTransaction: Transaction,
   req: Express.Request,
@@ -290,7 +273,7 @@ export async function refundTransaction(
   // Check if the hosted collective has enough funds to refund the transaction
   else {
     const balanceInHostCurrency = await collective.getBalance({ currency: creditTransaction.hostCurrency });
-    const refundableAmountFromCollective = await getRefundableAmountFromCollective(creditTransaction);
+    const refundableAmountFromCollective = await getRefundableAmountFromCollectiveInHostCurrency(creditTransaction);
     if (balanceInHostCurrency < refundableAmountFromCollective) {
       throw new Forbidden('Not enough funds to refund this transaction');
     }
