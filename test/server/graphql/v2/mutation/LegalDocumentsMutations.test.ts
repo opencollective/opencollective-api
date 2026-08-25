@@ -453,6 +453,7 @@ describe('LegalDocumentsMutations', () => {
       expect(result.errors).to.not.exist;
       await payeeCollective.reload();
       expect(payeeCollective.data?.taxableCountry).to.be.undefined;
+      await waitForCondition(() => sendEmailSpy.callCount === 1);
     });
 
     it('accepts publicId when editing a legal document status', async () => {
