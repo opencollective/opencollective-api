@@ -543,6 +543,45 @@ describe('server/lib/tax-forms', () => {
         expect(expenses.has(nonUsExpense.id)).to.be.false;
         expect(expenses.has(paypalExpense.id)).to.be.false;
       });
+
+      xit('evaluates totals independently for each host', async () => {
+        const hostData = {
+          policies: {
+            [POLICIES.TAX_FORM_THRESHOLDS]: { US: 100, NON_US: 100, includePayPalExpenses: false },
+          },
+        };
+        const firstHost = await fakeHost({ data: hostData });
+        const secondHost = await fakeHost({ data: hostData });
+        await RequiredLegalDocument.bulkCreate([
+          { HostCollectiveId: firstHost.id, documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM },
+          { HostCollectiveId: secondHost.id, documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM },
+        ]);
+
+        const account = await fakeCollective({ HostCollectiveId: null, countryISO: 'US' });
+        const firstCollective = await fakeCollective({ HostCollectiveId: firstHost.id });
+        const secondCollective = await fakeCollective({ HostCollectiveId: secondHost.id });
+        const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+        const firstExpense = await fakeExpense({
+          FromCollectiveId: account.id,
+          CollectiveId: firstCollective.id,
+          amount: 60,
+          PayoutMethodId: payoutMethod.id,
+        });
+        const secondExpense = await fakeExpense({
+          FromCollectiveId: account.id,
+          CollectiveId: secondCollective.id,
+          amount: 60,
+          PayoutMethodId: payoutMethod.id,
+        });
+        await secondExpense.update({ HostCollectiveId: secondHost.id });
+
+        const accounts = await SQLQueries.getTaxFormsRequiredForAccounts({ year: YEAR, ignoreReceived: true });
+        const expenses = await SQLQueries.getTaxFormsRequiredForExpenses([firstExpense.id]);
+        expect({ account: accounts.has(account.id), expense: expenses.has(firstExpense.id) }).to.deep.equal({
+          account: false,
+          expense: false,
+        });
+      });
     });
 
     describe('getTaxFormsRequiredForAccounts', () => {
