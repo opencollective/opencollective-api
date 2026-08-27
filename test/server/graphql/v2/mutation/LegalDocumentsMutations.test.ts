@@ -480,6 +480,46 @@ describe('LegalDocumentsMutations', () => {
       await waitForCondition(() => sendEmailSpy.callCount === 1);
     });
 
+    it('preserves other account.data keys when clearing the taxable country on invalidation', async () => {
+      const payee = await fakeUser();
+      const payoutMethod = await fakePayoutMethod({
+        CollectiveId: payee.CollectiveId,
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+      });
+      const expense = await fakeExpense({
+        type: 'INVOICE',
+        status: 'APPROVED',
+        CollectiveId: host.id,
+        FromCollectiveId: payee.CollectiveId,
+        amount: US_TAX_FORM_THRESHOLD + 100e2,
+        PayoutMethodId: payoutMethod.id,
+      });
+      const payeeCollective = await models.Collective.findByPk(expense.FromCollectiveId);
+      await payeeCollective.update({ data: { taxableCountry: 'FR', privateInstructions: 'note' } });
+      const legalDocument = await fakeLegalDocument({
+        documentType: 'US_TAX_FORM',
+        requestStatus: 'RECEIVED',
+        CollectiveId: expense.FromCollectiveId,
+        year: new Date().getFullYear(),
+      });
+      const result = await graphqlQueryV2(
+        editLegalDocumentStatusMutation,
+        {
+          id: idEncode(legalDocument.id, IDENTIFIER_TYPES.LEGAL_DOCUMENT),
+          host: { id: idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT) },
+          status: 'INVALID',
+          message: 'Bad Bad not Good',
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      await payeeCollective.reload();
+      expect(payeeCollective.data?.taxableCountry).to.be.undefined;
+      expect(payeeCollective.data?.privateInstructions).to.equal('note');
+      await waitForCondition(() => sendEmailSpy.callCount === 1);
+    });
+
     it('accepts publicId when editing a legal document status', async () => {
       const payee = await fakeUser();
       const payoutMethod = await fakePayoutMethod({

@@ -1,5 +1,5 @@
 import config from 'config';
-import { get, omit, uniq } from 'lodash';
+import { get, uniq } from 'lodash';
 import moment from 'moment';
 import {
   BelongsToGetAssociationMixin,
@@ -8,6 +8,7 @@ import {
   InferCreationAttributes,
   NonAttribute,
   Op,
+  QueryTypes,
 } from 'sequelize';
 
 import { activities } from '../constants';
@@ -364,8 +365,15 @@ class LegalDocument extends ModelWithPublicId<
 
       // Clear the taxable country on the account's data, since the previous
       // form is no longer valid and the user will have to submit a new one.
+      // Use an atomic JSONB `-` (delete key) so we don't clobber a concurrent
+      // writer's changes to other keys in `collective.data` (e.g.
+      // privateInstructions, isUSEntity) by writing back a stale snapshot.
       if (this.collective.data?.taxableCountry) {
-        await this.collective.update({ data: omit(this.collective.data, 'taxableCountry') }, { transaction });
+        await sequelize.query(`UPDATE "Collectives" SET "data" = "data" - 'taxableCountry' WHERE id = :accountId`, {
+          type: QueryTypes.UPDATE,
+          replacements: { accountId: this.CollectiveId },
+          transaction,
+        });
         await this.collective.reload({ transaction });
       }
 
