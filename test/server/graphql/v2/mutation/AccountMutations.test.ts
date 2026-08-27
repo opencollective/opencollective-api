@@ -2179,5 +2179,40 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
     });
+
+    it('creates a COLLECTIVE_EDITED activity when isUSEntity is updated standalone', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+
+      expect(collective.data?.isUSEntity).to.be.undefined;
+
+      // Reset activities for this user so we can count new ones precisely
+      await models.Activity.destroy({ where: { UserId: user.id, type: ACTIVITY.COLLECTIVE_EDITED } });
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: true,
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccount.isUSEntity).to.be.true;
+
+      const activities = await models.Activity.findAll({
+        where: { UserId: user.id, CollectiveId: collective.id, type: ACTIVITY.COLLECTIVE_EDITED },
+      });
+      expect(activities.length).to.equal(1);
+
+      const activity = activities[0];
+      expect(activity.data).to.containSubset({
+        previousData: { 'data.isUSEntity': undefined },
+        newData: { 'data.isUSEntity': true },
+      });
+    });
   });
 });
