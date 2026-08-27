@@ -236,6 +236,30 @@ describe('LegalDocumentsMutations', () => {
       expect(collective.data?.taxableCountry).to.equal('US');
     });
 
+    it('preserves existing account.data keys (e.g. privateInstructions) when syncing the taxable country', async () => {
+      await collective.update({ data: { privateInstructions: 'note' } });
+      await models.LegalDocument.create({
+        CollectiveId: collective.id,
+        documentType: 'US_TAX_FORM',
+        requestStatus: 'REQUESTED',
+        year: new Date().getFullYear(),
+      });
+
+      const result = await graphqlQueryV2(
+        submitLegalDocumentMutation,
+        {
+          ...validParams,
+          formData: { formType: 'W9', location: { country: 'US' } },
+        },
+        collectiveAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      await collective.reload();
+      expect(collective.data?.privateInstructions).to.equal('note');
+      expect(collective.data?.taxableCountry).to.equal('US');
+    });
+
     it('sets the taxable country on the account from a W8_BEN residence address', async () => {
       await models.LegalDocument.create({
         CollectiveId: collective.id,

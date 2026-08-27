@@ -365,8 +365,8 @@ class LegalDocument extends ModelWithPublicId<
       // Clear the taxable country on the account's data, since the previous
       // form is no longer valid and the user will have to submit a new one.
       if (this.collective.data?.taxableCountry) {
-        const data = omit(this.collective.data, 'taxableCountry');
-        await this.collective.update({ data }, { transaction });
+        await this.collective.update({ data: omit(this.collective.data, 'taxableCountry') }, { transaction });
+        await this.collective.reload({ transaction });
       }
 
       // Create a new tax form request

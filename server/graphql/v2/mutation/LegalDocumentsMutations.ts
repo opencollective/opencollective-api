@@ -5,6 +5,7 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
 import { FileUpload } from 'graphql-upload/Upload.js';
+import { QueryTypes } from 'sequelize';
 import { encodeBase64 } from 'tweetnacl-util';
 
 import ActivityTypes from '../../../constants/activities';
@@ -15,7 +16,7 @@ import { getUSTaxFormPdf } from '../../../lib/pdf';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import { encryptAndUploadTaxFormToS3 } from '../../../lib/tax-forms';
-import { Activity, LegalDocument, UploadedFile } from '../../../models';
+import { Activity, LegalDocument, sequelize, UploadedFile } from '../../../models';
 import {
   LEGAL_DOCUMENT_REQUEST_STATUS,
   LEGAL_DOCUMENT_SERVICE,
@@ -154,12 +155,20 @@ export const legalDocumentsMutations = {
         },
       });
 
-      // Sync the taxable country on the account's data (complements isUSEntity)
+      // Sync the taxable country on the account's data (complements isUSEntity).
+      // Use an atomic jsonb_set to avoid clobbering a concurrent writer's changes
+      // to other keys in `account.data` (e.g. privateInstructions, isUSEntity).
       debug('Sync taxable country on the account');
       const taxableCountry = getTaxableCountryFromFormData(args.formData);
       if (taxableCountry && account.data?.taxableCountry !== taxableCountry) {
-        const data = { ...account.data, taxableCountry };
-        await account.update({ data });
+        await sequelize.query(
+          `UPDATE "Collectives" SET "data" = jsonb_set(COALESCE("data", '{}'::jsonb), '{taxableCountry}', to_jsonb(:taxableCountry::text), true) WHERE id = :accountId`,
+          {
+            type: QueryTypes.UPDATE,
+            replacements: { taxableCountry, accountId: account.id },
+          },
+        );
+        await account.reload();
       }
 
       try {
