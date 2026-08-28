@@ -201,6 +201,32 @@ const accountFieldsDefinition = () => ({
       }
     },
   },
+  taxableCountry: {
+    type: GraphQLString,
+    description:
+      'The country the account is taxable in (residence for individuals, incorporation for organizations), set from the US tax form (W-9 / W-8BEN / W-8BEN-E) submitted by the account. Scope: "account".',
+    resolve: async (account: Collective, _, req) => {
+      if (!checkScope(req, 'account')) {
+        return null;
+      }
+      if (
+        !canSeeLegalName(req.remoteUser, account) &&
+        !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
+      ) {
+        return null;
+      } else if (account.isIncognito) {
+        if (!checkScope(req, 'incognito')) {
+          return null;
+        }
+        const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(account.id);
+        if (mainProfile) {
+          return mainProfile.data?.taxableCountry ?? null;
+        }
+      } else {
+        return account.data?.taxableCountry ?? null;
+      }
+    },
+  },
   description: {
     type: GraphQLString,
   },
