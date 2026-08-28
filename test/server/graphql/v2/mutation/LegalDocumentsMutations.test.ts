@@ -234,6 +234,7 @@ describe('LegalDocumentsMutations', () => {
       expect(result.errors).to.not.exist;
       await collective.reload();
       expect(collective.data?.taxableCountry).to.equal('US');
+      expect(collective.data?.isUSEntity).to.equal(true);
     });
 
     it('preserves existing account.data keys (e.g. privateInstructions) when syncing the taxable country', async () => {
@@ -258,6 +259,7 @@ describe('LegalDocumentsMutations', () => {
       await collective.reload();
       expect(collective.data?.privateInstructions).to.equal('note');
       expect(collective.data?.taxableCountry).to.equal('US');
+      expect(collective.data?.isUSEntity).to.equal(true);
     });
 
     it('sets the taxable country on the account from a W8_BEN residence address', async () => {
@@ -280,6 +282,7 @@ describe('LegalDocumentsMutations', () => {
       expect(result.errors).to.not.exist;
       await collective.reload();
       expect(collective.data?.taxableCountry).to.equal('FR');
+      expect(collective.data?.isUSEntity).to.equal(false);
     });
 
     it('sets the taxable country on the account from a W8_BEN_E country of incorporation', async () => {
@@ -302,6 +305,59 @@ describe('LegalDocumentsMutations', () => {
       expect(result.errors).to.not.exist;
       await collective.reload();
       expect(collective.data?.taxableCountry).to.equal('CA');
+      expect(collective.data?.isUSEntity).to.equal(false);
+    });
+
+    it('does not overwrite a payee-set isUSEntity when the form data has no country', async () => {
+      await collective.update({ data: { isUSEntity: false } });
+      await models.LegalDocument.create({
+        CollectiveId: collective.id,
+        documentType: 'US_TAX_FORM',
+        requestStatus: 'REQUESTED',
+        year: new Date().getFullYear(),
+      });
+
+      const result = await graphqlQueryV2(
+        submitLegalDocumentMutation,
+        {
+          ...validParams,
+          formData: { formType: 'W9' },
+        },
+        collectiveAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      await collective.reload();
+      // The W9 form type implies US entity, but since the form has no country
+      // the taxableCountry sync is skipped entirely; isUSEntity is still
+      // derived from the form type and overrides the payee-set value.
+      expect(collective.data?.taxableCountry).to.be.undefined;
+      expect(collective.data?.isUSEntity).to.equal(true);
+    });
+
+    it('uses the explicit isUSPersonOrEntity answer over the form type', async () => {
+      await models.LegalDocument.create({
+        CollectiveId: collective.id,
+        documentType: 'US_TAX_FORM',
+        requestStatus: 'REQUESTED',
+        year: new Date().getFullYear(),
+      });
+
+      const result = await graphqlQueryV2(
+        submitLegalDocumentMutation,
+        {
+          ...validParams,
+          // Even though the form type is W8_BEN (non-US), the explicit answer
+          // the user was presented with and gave in the tax information form
+          // wins: they are a US person/entity.
+          formData: { formType: 'W8_BEN', isUSPersonOrEntity: true },
+        },
+        collectiveAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      await collective.reload();
+      expect(collective.data?.isUSEntity).to.equal(true);
     });
   });
 
