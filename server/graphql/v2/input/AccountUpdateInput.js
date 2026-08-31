@@ -77,7 +77,6 @@ export const GraphQLAccountUpdateInput = new GraphQLInputObjectType({
     timezone: {
       description: 'Timezone of the Event (TZ database format, e.g. UTC or Europe/Berlin)',
       type: GraphQLString,
-      default: 'UTC',
     },
     privateInstructions: {
       type: GraphQLString,

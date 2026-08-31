@@ -1,7 +1,7 @@
 import assert from 'assert';
 
 import type Express from 'express';
-import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { sql } from 'kysely';
 import { isNil } from 'lodash';
 
@@ -18,6 +18,7 @@ import { GraphQLCommunityRelationType } from '../../enum/CommunityRelationType';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
 import { getAmountRangeQuery, GraphQLAmountRangeInput } from '../../input/AmountRangeInput';
 import { GraphQLOrderByInput } from '../../input/OrderByInput';
+import { collectionLimitArg, collectionOffsetArg } from '../../interface/Collection';
 
 const DEFAULT_LIMIT = 100;
 
@@ -255,8 +256,8 @@ const CommunityQuery = {
       type: GraphQLAmountRangeInput,
       description: 'Only return accounts that expended within this amount range',
     },
-    limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: DEFAULT_LIMIT },
-    offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
+    limit: collectionLimitArg(DEFAULT_LIMIT),
+    offset: collectionOffsetArg(0),
   },
   async resolve(_: void, args, req: Express.Request) {
     enforceScope(req, 'host');

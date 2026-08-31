@@ -1504,9 +1504,11 @@ export const GraphQLHost = new GraphQLObjectType({
           };
         },
       },
+      // Host is an Account, and `Account.location` is not deprecated: since graphql@17, an implementing field
+      // can't be deprecated when the interface field isn't, so this one keeps the Organization resolver undeprecated.
+      location: getOrganizationFields().location,
       ...mapValues(
         pick(getOrganizationFields(), [
-          'location',
           'accountingCategories',
           'contributionAccountingCategoryRules',
           'hasMoneyManagement',
