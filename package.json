@@ -167,7 +167,6 @@
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-n": "18.3.0",
-    "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-simple-import-sort": "^14.0.0",
     "exif-reader": "^2.0.3",
     "fake-tag": "^3.0.0",
