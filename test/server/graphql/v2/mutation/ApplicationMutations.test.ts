@@ -1,17 +1,14 @@
 import { expect } from 'chai';
 import config from 'config';
-import crypto from 'crypto-js';
 import gql from 'fake-tag';
 import { times } from 'lodash';
 import { generateSecret, generateSync } from 'otplib';
 
+import { crypto } from '../../../../../server/lib/encryption';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
 import { fakeApplication, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
-
-const SECRET_KEY = config.dbEncryption.secretKey;
-const CIPHER = config.dbEncryption.cipher;
 
 const CREATE_APPLICATION_MUTATION = gql`
   mutation CreateApplication($application: ApplicationCreateInput!) {
@@ -108,7 +105,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
     it('creates an OAUTH application with 2FA enabled', async () => {
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       const twoFactorAuthenticatorCode = generateSync({ secret });
 
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
@@ -139,7 +136,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
     it('invalid 2FA when 2FA enabled and invalid', async () => {
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
 
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const result = await graphqlQueryV2(
@@ -157,7 +154,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
     it('required 2FA when 2FA enabled', async () => {
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const result = await graphqlQueryV2(CREATE_APPLICATION_MUTATION, { application: VALID_APPLICATION_PARAMS }, user);
       expect(result.errors[0].message).to.eq('Two-factor authentication required');
@@ -221,7 +218,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
     it('required 2FA when 2FA enabled and updating redirectUri', async () => {
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const application = await fakeApplication({ type: 'oAuth', user });
 
@@ -241,7 +238,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
     it('invalid 2FA when 2FA enabled and updating redirectUri', async () => {
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const application = await fakeApplication({ type: 'oAuth', user });
 
@@ -263,7 +260,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
     it('updates redirectUri with valid 2FA when 2FA enabled', async () => {
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       const twoFactorAuthenticatorCode = generateSync({ secret });
       const newRedirectUri = 'https://attacker.example/oauth/callback';
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
@@ -299,7 +296,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
     it('updates name and description without 2FA when redirectUri is unchanged', async () => {
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       const twoFactorAuthenticatorCode = generateSync({ secret });
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
 

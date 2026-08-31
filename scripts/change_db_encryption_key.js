@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import config from 'config';
-import cryptojs from 'crypto-js';
 
+import { decryptWithCipher, encryptWithCipher } from '../server/lib/encryption';
 import { sequelize } from '../server/models';
 
 const CIPHER = config.dbEncryption.cipher;
@@ -37,9 +37,8 @@ async function main(args) {
   );
 
   console.info(`Re-encrypting ${accounts.length} ConnectedAccounts...`);
-  const encrypt = message => cryptojs[args.toCipher].encrypt(message, args.newKey).toString();
-  const decrypt = encryptedMessage =>
-    cryptojs[args.fromCipher].decrypt(encryptedMessage, args.oldKey).toString(cryptojs.enc.Utf8);
+  const encrypt = message => encryptWithCipher(message, args.newKey, args.toCipher);
+  const decrypt = encryptedMessage => decryptWithCipher(encryptedMessage, args.oldKey, args.fromCipher);
 
   try {
     await sequelize.transaction(async transaction => {
