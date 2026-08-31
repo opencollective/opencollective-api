@@ -2731,8 +2731,12 @@ export async function submitExpenseDraft(
     isNewExpenseFlow: isNewExpenseFlow === true ? true : undefined,
   };
   if (requestedPayee) {
-    if (!req.remoteUser?.isAdminOfCollective(requestedPayee)) {
-      throw new Forbidden('User needs to be the admin of the payee to submit an expense on their behalf');
+    // Also allow admins of the payee's fiscal host (e.g. a host admin completing a cross-host
+    // draft invite on behalf of one of their hosted collectives)
+    if (!req.remoteUser?.isAdminOfCollectiveOrHost(requestedPayee)) {
+      throw new Forbidden(
+        'User needs to be an admin of the payee (or its fiscal host) to submit an expense on their behalf',
+      );
     }
   } else {
     const { organization: organizationData, ...payee } = args.expense.payee;
