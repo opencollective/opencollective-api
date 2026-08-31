@@ -53,6 +53,7 @@ import {
   isPaypalSubscriptionPaymentMethod,
   updateSubscriptionWithPaypal,
 } from '../../../paymentProviders/paypal/subscription';
+import { checkIsValidBalanceAccountingCategory } from '../../common/balance-accounting-categories';
 import { checkReceiveFinancialContributions } from '../../common/features';
 import * as OrdersLib from '../../common/orders';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
@@ -600,6 +601,42 @@ const orderMutations = {
       }
 
       return order;
+    },
+  },
+  updateOrderBalanceAccountingCategory: {
+    type: new GraphQLNonNull(GraphQLOrder),
+    description: 'Update the balance/clearing accounting category of an order. Scope: "orders".',
+    args: {
+      order: {
+        type: new GraphQLNonNull(GraphQLOrderReferenceInput),
+        description: 'Reference to the Order to update',
+      },
+      accountingCategory: {
+        type: GraphQLAccountingCategoryReferenceInput,
+        description: 'The balance/clearing accounting category to set. Pass null to unset.',
+      },
+    },
+    async resolve(_, args, req) {
+      checkRemoteUserCanUseOrders(req);
+
+      const order = await fetchOrderWithReference(args.order, {
+        throwIfMissing: true,
+        include: [{ association: 'collective', required: true, include: [{ association: 'host', required: true }] }],
+      });
+      if (!req.remoteUser.isAdmin(order.collective.HostCollectiveId)) {
+        throw new Unauthorized('Only host admins can update the balance accounting category of an order');
+      }
+
+      let accountingCategory = null;
+      if (args.accountingCategory) {
+        accountingCategory = await fetchAccountingCategoryWithReference(args.accountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        });
+        checkIsValidBalanceAccountingCategory(accountingCategory, order.collective.host);
+      }
+
+      return order.update({ BalanceAccountingCategoryId: accountingCategory?.id || null });
     },
   },
   updateOrderAccountingCategory: {

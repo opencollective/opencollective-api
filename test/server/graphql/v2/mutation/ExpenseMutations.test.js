@@ -1153,6 +1153,86 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
     });
 
+    describe('updateExpenseBalanceAccountingCategory', () => {
+      const updateBalanceCategoryMutation = gql`
+        mutation UpdateExpenseBalanceAccountingCategory(
+          $expense: ExpenseReferenceInput!
+          $accountingCategory: AccountingCategoryReferenceInput
+        ) {
+          updateExpenseBalanceAccountingCategory(expense: $expense, accountingCategory: $accountingCategory) {
+            id
+            balanceAccountingCategory {
+              id
+              code
+            }
+          }
+        }
+      `;
+
+      it('sets and unsets the category as host admin, rejects collective admins and wrong kinds', async () => {
+        const expense = await fakeExpense({ status: 'PAID' });
+        const hostAdmin = await fakeUser();
+        const collectiveAdmin = await fakeUser();
+        await expense.collective.addUserWithRole(collectiveAdmin, 'ADMIN');
+        await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+        await fakePlatformSubscription({
+          CollectiveId: expense.collective.HostCollectiveId,
+          plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } },
+        });
+        const balanceCategory = await fakeAccountingCategory({
+          CollectiveId: expense.collective.HostCollectiveId,
+          kind: 'BALANCE_ACCOUNT',
+          hostOnly: true,
+        });
+        const expenseCategory = await fakeAccountingCategory({
+          CollectiveId: expense.collective.HostCollectiveId,
+          kind: 'EXPENSE',
+        });
+        const expenseRef = { expense: { legacyId: expense.id } };
+        const categoryRef = { id: idEncode(balanceCategory.id, 'accounting-category') };
+
+        // Collective admin (PAID expense: not even allowed to touch the category)
+        const forbidden = await graphqlQueryV2(
+          updateBalanceCategoryMutation,
+          { ...expenseRef, accountingCategory: categoryRef },
+          collectiveAdmin,
+        );
+        expect(forbidden.errors).to.exist;
+
+        // Wrong kind
+        const wrongKind = await graphqlQueryV2(
+          updateBalanceCategoryMutation,
+          { ...expenseRef, accountingCategory: { id: idEncode(expenseCategory.id, 'accounting-category') } },
+          hostAdmin,
+        );
+        expect(wrongKind.errors[0].message).to.eq('This accounting category is not a balance or clearing account');
+
+        // Set
+        const result = await graphqlQueryV2(
+          updateBalanceCategoryMutation,
+          { ...expenseRef, accountingCategory: categoryRef },
+          hostAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.updateExpenseBalanceAccountingCategory.balanceAccountingCategory.code).to.eq(
+          balanceCategory.code,
+        );
+        await expense.reload();
+        expect(expense.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
+
+        // Unset
+        const unsetResult = await graphqlQueryV2(
+          updateBalanceCategoryMutation,
+          { ...expenseRef, accountingCategory: null },
+          hostAdmin,
+        );
+        expect(unsetResult.errors).to.not.exist;
+        await expense.reload();
+        expect(expense.BalanceAccountingCategoryId).to.be.null;
+      });
+    });
+
     describe('with a balanceAccountingCategory', () => {
       it('stamps the expense when set by a host admin', async () => {
         const user = await fakeUser();

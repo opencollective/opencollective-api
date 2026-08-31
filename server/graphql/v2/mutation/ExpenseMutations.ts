@@ -26,10 +26,12 @@ import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import ExpenseModel, { ExpenseLockableFields } from '../../../models/Expense';
+import { checkIsValidBalanceAccountingCategory } from '../../common/balance-accounting-categories';
 import { createComment } from '../../common/comment';
 import {
   approveExpense,
   canDeleteExpense,
+  canEditExpenseAccountingCategory,
   canEditPaidBy,
   canPayExpense,
   canVerifyDraftExpense,
@@ -407,6 +409,45 @@ const expenseMutations = {
     },
   },
 
+  updateExpenseBalanceAccountingCategory: {
+    type: new GraphQLNonNull(GraphQLExpense),
+    description: 'Update the balance/clearing accounting category of an expense. Scope: "expenses".',
+    args: {
+      expense: {
+        type: new GraphQLNonNull(GraphQLExpenseReferenceInput),
+        description: 'Reference to the expense to update',
+      },
+      accountingCategory: {
+        type: GraphQLAccountingCategoryReferenceInput,
+        description: 'The balance/clearing accounting category to set. Pass null to unset.',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
+      checkRemoteUserCanUseExpenses(req);
+
+      const expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
+      expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+      if (!(await canEditExpenseAccountingCategory(req, expense, { throw: true }))) {
+        throw new Forbidden("You don't have permission to edit the accounting category for this expense");
+      }
+
+      const hostId = expense.HostCollectiveId || expense.collective.HostCollectiveId;
+      const host = hostId && (await req.loaders.Collective.byId.load(hostId));
+      let accountingCategory = null;
+      if (args.accountingCategory) {
+        accountingCategory = await fetchAccountingCategoryWithReference(args.accountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        });
+        checkIsValidBalanceAccountingCategory(accountingCategory, host);
+        if (accountingCategory.hostOnly && !req.remoteUser.isAdmin(host.id)) {
+          throw new Forbidden('This accounting category can only be used by host admins');
+        }
+      }
+
+      return expense.update({ BalanceAccountingCategoryId: accountingCategory?.id || null });
+    },
+  },
   deleteExpense: {
     type: new GraphQLNonNull(GraphQLExpense),
     description: `Delete an expense. Only work if the expense is rejected - please check permissions.canDelete. Scope: "expenses".`,
