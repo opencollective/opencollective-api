@@ -1201,7 +1201,7 @@ export const getOrganizationFields = () => ({
         where.kind = uniq(args.kind);
       }
 
-      if (!req.remoteUser?.isAdmin(host.id)) {
+      if (!req.remoteUser?.hasRole([roles.ADMIN, roles.ACCOUNTANT], host.id)) {
         where.hostOnly = false;
       }
 
