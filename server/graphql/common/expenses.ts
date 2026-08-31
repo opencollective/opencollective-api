@@ -1983,6 +1983,7 @@ type ExpenseData = {
   tax?: ExpenseTaxDefinition[];
   customData: Record<string, unknown>;
   accountingCategory?: AccountingCategory;
+  balanceAccountingCategory?: AccountingCategory;
   transactionsImportRow?: TransactionsImportRow;
   reference?: string;
   isNewExpenseFlow?: boolean;
@@ -2487,8 +2488,16 @@ export async function createExpense(
     }
   }
 
-  // Check Transactions import
   let balanceAccountingCategoryId: number | null = null;
+  if (expenseData.balanceAccountingCategory) {
+    if (!collective.host || !remoteUser.isAdminOfCollective(collective.host)) {
+      throw new Forbidden('Only host admins can set the balance accounting category');
+    }
+    checkIsValidBalanceAccountingCategory(expenseData.balanceAccountingCategory, collective.host);
+    balanceAccountingCategoryId = expenseData.balanceAccountingCategory.id;
+  }
+
+  // Check Transactions import
   if (expenseData.transactionsImportRow) {
     if (!collective.host) {
       throw new ValidationFailed('The collective must have a host to import expenses');
@@ -2505,11 +2514,12 @@ export async function createExpense(
       throw new ValidationFailed('This import does not belong to the host');
     }
 
-    // Default the balance accounting category from the bank sub-account the row belongs to
-    balanceAccountingCategoryId = getBalanceAccountingCategoryIdForImportRow(
-      expenseData.transactionsImportRow,
-      transactionsImport,
-    );
+    if (!balanceAccountingCategoryId) {
+      balanceAccountingCategoryId = getBalanceAccountingCategoryIdForImportRow(
+        expenseData.transactionsImportRow,
+        transactionsImport,
+      );
+    }
   }
 
   // Expense data

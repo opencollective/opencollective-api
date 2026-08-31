@@ -26924,6 +26924,11 @@ type Mutation {
     transactionsImportRow: TransactionsImportRowReferenceInput
 
     """
+    Balance/clearing accounting category to record the expense against. Host admins only; defaults to the matched bank account category when created from an import row
+    """
+    balanceAccountingCategory: AccountingCategoryReferenceInput
+
+    """
     A optional private comment to add to the created expense
     """
     privateComment: String @deprecated(reason: "2025-11-03: This field is no longer used")

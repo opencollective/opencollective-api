@@ -126,6 +126,11 @@ const expenseMutations = {
         type: GraphQLTransactionsImportRowReferenceInput,
         description: 'If the expense was imported, this is the reference to the row',
       },
+      balanceAccountingCategory: {
+        type: GraphQLAccountingCategoryReferenceInput,
+        description:
+          'Balance/clearing accounting category to record the expense against. Host admins only; defaults to the matched bank account category when created from an import row',
+      },
       privateComment: {
         type: GraphQLString,
         description: 'A optional private comment to add to the created expense',
@@ -179,6 +184,12 @@ const expenseMutations = {
             args.transactionsImportRow &&
             (await fetchTransactionsImportRowWithReference(args.transactionsImportRow, {
               throwIfMissing: true,
+            })),
+          balanceAccountingCategory:
+            args.balanceAccountingCategory &&
+            (await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
+              throwIfMissing: true,
+              loaders: req.loaders,
             })),
         },
         {

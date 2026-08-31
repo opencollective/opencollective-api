@@ -11,22 +11,9 @@ import {
 import logger from '../../logger';
 import { reportErrorToSentry } from '../../sentry';
 
-/**
- * Balance/clearing accounting category attribution.
- *
- * Hosts can assign a default balance/clearing accounting category to their payment rails
- * (`data.BalanceAccountingCategoryId` on stripe/paypal/transferwise ConnectedAccounts and on
- * ManualPaymentProviders).
- *
- */
-
-/** Payment method services for which the host connected account can carry a default category */
 const SERVICES_WITH_BALANCE_CATEGORY: string[] = [PAYMENT_METHOD_SERVICE.STRIPE, PAYMENT_METHOD_SERVICE.PAYPAL];
 
-/**
- * Resolves and stamps the balance accounting category on an order, based on the rail it was
- * processed through. No-ops if the order already has one.
- */
+/** Stamps the balance accounting category on an order based on the rail it was processed through */
 export async function applyBalanceAccountingCategory(order: Order): Promise<void> {
   try {
     if (order.BalanceAccountingCategoryId) {
@@ -61,11 +48,7 @@ export async function applyBalanceAccountingCategory(order: Order): Promise<void
   }
 }
 
-/**
- * Sets the balance accounting category on an expense from the connected account used to pay
- * it, at payment initiation time. Leaves the expense untouched when the connected
- * account has no default.
- */
+/** Stamps the balance accounting category on an expense from the connected account used to pay it */
 export async function applyBalanceAccountingCategoryFromConnectedAccount(
   expense: Expense,
   connectedAccount: ConnectedAccount | null,
@@ -81,10 +64,7 @@ export async function applyBalanceAccountingCategoryFromConnectedAccount(
   }
 }
 
-/**
- * Resolves the balance/clearing accounting category configured for the bank sub-account an
- * import row belongs to (`TransactionsImports.settings.balanceAccountingCategories`).
- */
+/** Resolves the category configured for the bank sub-account an import row belongs to */
 export function getBalanceAccountingCategoryIdForImportRow(
   row: TransactionsImportRow,
   transactionsImport: TransactionsImport,
@@ -93,11 +73,7 @@ export function getBalanceAccountingCategoryIdForImportRow(
   return balanceAccountingCategories?.[row.accountId ?? '__default__'] || null;
 }
 
-/**
- * Stamps the balance accounting category on an order/expense from the bank sub-account of the
- * import row it was matched with. No-ops if the intent already has one (first hop wins: eg an
- * expense paid via Wise keeps the Wise clearing account, the bank row is its settlement).
- */
+/** Stamps the category from the matched import row's bank sub-account. First hop wins: an intent that already has one is kept. */
 export async function applyBalanceAccountingCategoryFromImportRow(
   intent: Order | Expense,
   row: TransactionsImportRow,

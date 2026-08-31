@@ -230,8 +230,14 @@ const createExpenseMutation = gql`
     $expense: ExpenseCreateInput!
     $account: AccountReferenceInput!
     $transactionsImportRow: TransactionsImportRowReferenceInput
+    $balanceAccountingCategory: AccountingCategoryReferenceInput
   ) {
-    createExpense(expense: $expense, account: $account, transactionsImportRow: $transactionsImportRow) {
+    createExpense(
+      expense: $expense
+      account: $account
+      transactionsImportRow: $transactionsImportRow
+      balanceAccountingCategory: $balanceAccountingCategory
+    ) {
       ...ExpenseFields
     }
   }
@@ -1144,6 +1150,129 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.createExpense.requiredLegalDocuments).to.be.empty;
         const userLegalDocs = await user.collective.getLegalDocuments();
         expect(userLegalDocs).to.be.empty;
+      });
+    });
+
+    describe('with a balanceAccountingCategory', () => {
+      it('stamps the expense when set by a host admin', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const balanceCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            balanceAccountingCategory: { id: idEncode(balanceCategory.id, 'accounting-category') },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        const expense = await models.Expense.findByPk(result.data.createExpense.legacyId);
+        expect(expense.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
+      });
+
+      it('takes precedence over the import row bank sub-account default', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const rowCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+        const pickedCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CLEARING_ACCOUNT' });
+        const transactionsImport = await fakeTransactionsImport({
+          CollectiveId: host.id,
+          type: 'PLAID',
+          settings: { balanceAccountingCategories: { 'plaid-acc-1': rowCategory.id } },
+        });
+        const transactionsImportRow = await fakeTransactionsImportRow({
+          TransactionsImportId: transactionsImport.id,
+          accountId: 'plaid-acc-1',
+        });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            transactionsImportRow: { id: idEncode(transactionsImportRow.id, 'transactions-import-row') },
+            balanceAccountingCategory: { id: idEncode(pickedCategory.id, 'accounting-category') },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        const expense = await models.Expense.findByPk(result.data.createExpense.legacyId);
+        expect(expense.BalanceAccountingCategoryId).to.eq(pickedCategory.id);
+      });
+
+      it('is rejected if the user is not an admin of the host', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: user });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const balanceCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            balanceAccountingCategory: { id: idEncode(balanceCategory.id, 'accounting-category') },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Only host admins can set the balance accounting category');
+      });
+
+      it('is rejected if the category is not a balance or clearing account', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const expenseCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            balanceAccountingCategory: { id: idEncode(expenseCategory.id, 'accounting-category') },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('This accounting category is not a balance or clearing account');
+      });
+
+      it('is rejected if the category belongs to another host', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user });
+        const otherHost = await fakeHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const balanceCategory = await fakeAccountingCategory({ CollectiveId: otherHost.id, kind: 'BALANCE_ACCOUNT' });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            balanceAccountingCategory: { id: idEncode(balanceCategory.id, 'accounting-category') },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('This accounting category is not allowed for this host');
       });
     });
 
