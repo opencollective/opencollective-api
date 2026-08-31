@@ -46,7 +46,7 @@
     "@octokit/auth-oauth-app": "9.0.4",
     "@octokit/rest": "22.0.1",
     "@opencollective/taxes": "5.5.0",
-    "@opensearch-project/opensearch": "3.5.0",
+    "@opensearch-project/opensearch": "3.6.0",
     "@opentelemetry/context-async-hooks": "2.10.0",
     "@opentelemetry/core": "2.10.0",
     "@opentelemetry/instrumentation": "0.221.0",
