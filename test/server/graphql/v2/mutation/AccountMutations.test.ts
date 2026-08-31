@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import config from 'config';
-import crypto from 'crypto-js';
 import gql from 'fake-tag';
 import { generateSecret, generateSync } from 'otplib';
 import { createSandbox } from 'sinon';
@@ -14,6 +13,7 @@ import POLICIES from '../../../../../server/constants/policies';
 import MemberRoles from '../../../../../server/constants/roles';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
+import { crypto } from '../../../../../server/lib/encryption';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import * as yubikeyOtp from '../../../../../server/lib/two-factor-authentication/yubikey-otp';
 import models from '../../../../../server/models';
@@ -32,9 +32,6 @@ import {
   randStr,
 } from '../../../../test-helpers/fake-data';
 import { getOrCreatePlatformAccount, graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
-
-const SECRET_KEY = config.dbEncryption.secretKey;
-const CIPHER = config.dbEncryption.cipher;
 
 const editSettingsMutation = gql`
   mutation EditSettings($account: AccountReferenceInput!, $key: AccountSettingsKey!, $value: JSON!) {
@@ -1956,7 +1953,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
     it('enforces 2FA when enabled on account', async () => {
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
 
       const collective = await fakeCollective({ admin: user, HostCollectiveId: null });

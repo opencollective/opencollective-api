@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import config from 'config';
-import crypto from 'crypto-js';
 import gql from 'fake-tag';
 import { cloneDeep, defaultsDeep, omit, pick, sumBy } from 'lodash';
 import moment from 'moment';
@@ -24,6 +23,7 @@ import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/ide
 import * as LibCurrency from '../../../../../server/lib/currency';
 import { getFxRate } from '../../../../../server/lib/currency';
 import emailLib from '../../../../../server/lib/email';
+import { crypto } from '../../../../../server/lib/encryption';
 import * as kycExpensesCheck from '../../../../../server/lib/kyc/expenses/kyc-expenses-check';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import stripe from '../../../../../server/lib/stripe';
@@ -83,9 +83,6 @@ import {
   waitForCondition,
   waitForEmail,
 } from '../../../../utils';
-
-const SECRET_KEY = config.dbEncryption.secretKey;
-const CIPHER = config.dbEncryption.cipher;
 
 const YEAR = moment().year();
 const US_TAX_FORM_THRESHOLD = YEAR >= 2026 ? US_TAX_FORM_THRESHOLD_POST_2026 : US_TAX_FORM_THRESHOLD_PRE_2026;
@@ -6273,7 +6270,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
     it('Pays multiple expenses - 2FA is asked for the first time and after the limit is exceeded', async () => {
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       await UserTwoFactorMethod.create({
         UserId: hostAdmin.id,
         method: TwoFactorMethod.TOTP,
@@ -6343,7 +6340,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
 
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       await UserTwoFactorMethod.create({
         UserId: hostAdmin.id,
         method: TwoFactorMethod.TOTP,
