@@ -1,6 +1,4 @@
 import { expect } from 'chai';
-import config from 'config';
-import crypto from 'crypto-js';
 import moment from 'moment';
 import { generateSecret, generateSync } from 'otplib';
 import sinon from 'sinon';
@@ -10,6 +8,7 @@ import ActivityTypes from '../../../server/constants/activities';
 import app from '../../../server/index';
 import * as auth from '../../../server/lib/auth';
 import emailLib, { getTemplateAttributes } from '../../../server/lib/email';
+import { crypto } from '../../../server/lib/encryption';
 import models from '../../../server/models';
 import { fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
@@ -18,8 +17,6 @@ import * as utils from '../../utils';
  * Variables.
  */
 const application = utils.data('application');
-const SECRET_KEY = config.dbEncryption.secretKey;
-const CIPHER = config.dbEncryption.cipher;
 
 /**
  * Tests.
@@ -119,7 +116,7 @@ describe('server/routes/users', () => {
 
     it('should respond with 2FA token if the user has 2FA enabled on account', async () => {
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       const user = await fakeUser({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
       const currentToken = user.jwt({ scope: 'login' });
 
@@ -220,7 +217,7 @@ describe('server/routes/users', () => {
     it('should reject 2FA if invalid TOTP code is received', async () => {
       // Given a user and an authentication token and a TOTP
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       const user = await fakeUser({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
       const currentToken = user.jwt({ scope: 'twofactorauth' });
       const twoFactorAuthenticatorCode = '123456';
@@ -240,7 +237,7 @@ describe('server/routes/users', () => {
     it('should validate 2FA if correct TOTP code is received', async () => {
       // Given a user and an authentication token and a TOTP
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       const user = await fakeUser({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
       const currentToken = user.jwt({ scope: 'twofactorauth' });
       const twoFactorAuthenticatorCode = generateSync({ secret });
