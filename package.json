@@ -47,6 +47,10 @@
     "@octokit/rest": "22.0.1",
     "@opencollective/taxes": "5.5.0",
     "@opensearch-project/opensearch": "3.5.0",
+    "@opentelemetry/api": "1.9.0",
+    "@opentelemetry/core": "2.10.0",
+    "@opentelemetry/instrumentation": "0.221.0",
+    "@opentelemetry/sdk-trace-base": "2.10.0",
     "@paypal/payouts-sdk": "1.1.1",
     "@peculiar/asn1-schema": "2.9.0",
     "@peculiar/asn1-x509": "2.9.0",
@@ -295,6 +299,10 @@
       "mocha"
     ],
     "ignores": [
+      "@opentelemetry/api",
+      "@opentelemetry/core",
+      "@opentelemetry/instrumentation",
+      "@opentelemetry/sdk-trace-base",
       "eslint-import-resolver-typescript",
       "mocha-junit-reporter",
       "typescript-eslint",
