@@ -2738,6 +2738,71 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.editExpense.attachedFiles[0].url).to.eql(expenseAttachedFile.url);
       });
 
+      it('allows an admin of the payee host to submit a DRAFT with the draft key (cross-host)', async () => {
+        const hostAdmin = await fakeUser();
+        const payeeHost = await fakeHost({ admin: hostAdmin });
+        const payeeCollective = await fakeCollective({ HostCollectiveId: payeeHost.id });
+        const payerCollective = await fakeCollective();
+        const expense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: ExpenseTypes.INVOICE,
+          CollectiveId: payerCollective.id,
+          data: {
+            draftKey: 'fake-key',
+            payee: { id: payeeCollective.id, slug: payeeCollective.slug, name: payeeCollective.name },
+          },
+        });
+
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          description: 'Completed by an admin of the payee host',
+          payee: { legacyId: payeeCollective.id },
+          payoutMethod: { type: 'OTHER', data: { content: 'Bank transfer to the host', currency: 'USD' } },
+        };
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: updatedExpenseData, draftKey: 'fake-key' },
+          hostAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.equal(payeeCollective.id);
+        expect(result.data.editExpense.description).to.equal(updatedExpenseData.description);
+        await expense.reload();
+        expect(expense.status).to.equal(expenseStatus.PENDING);
+      });
+
+      it('rejects a DRAFT submission on behalf of a payee the user does not administer, even with the draft key', async () => {
+        const randomUser = await fakeUser();
+        const payeeHost = await fakeHost();
+        const payeeCollective = await fakeCollective({ HostCollectiveId: payeeHost.id });
+        const payerCollective = await fakeCollective();
+        const expense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: ExpenseTypes.INVOICE,
+          CollectiveId: payerCollective.id,
+          data: {
+            draftKey: 'fake-key',
+            payee: { id: payeeCollective.id, slug: payeeCollective.slug, name: payeeCollective.name },
+          },
+        });
+
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          description: 'Completed by a random user',
+          payee: { legacyId: payeeCollective.id },
+        };
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: updatedExpenseData, draftKey: 'fake-key' },
+          randomUser,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/admin of the payee/);
+      });
+
       it('allows a new user/organization to submit the DRAFT if the draft key is provided', async () => {
         const submitter = await fakeUser();
         const expenseAttachedFile = await fakeUploadedFile({
