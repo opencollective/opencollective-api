@@ -103,8 +103,13 @@ const getCipherConfig = (cipher: string): CipherConfig => {
  * OpenSSL's `EVP_BytesToKey` key derivation function (MD5, 1 iteration), used to turn a
  * passphrase + salt into the key and IV of the cipher.
  *
- * /!\ This KDF is weak by modern standards, we only implement it to stay compatible with the
- * data that is already encrypted in the database.
+ * /!\ This KDF is weak by modern standards: MD5 with a single iteration offers close to no
+ * resistance against brute-forcing the passphrase. It is *not* a new weakness though: crypto-js
+ * ran this exact derivation internally for every `encrypt`/`decrypt` call, so this is the format
+ * every encrypted column in the database is already stored with. It cannot be changed without
+ * re-encrypting all of that data (see `scripts/change_db_encryption_key.js`), which is out of
+ * scope for the crypto-js removal. Moving to a modern KDF + authenticated cipher should be done
+ * as a follow-up, along with the migration of the existing rows.
  */
 const deriveKeyAndIV = (secretKey: string, salt: Buffer, keyLength: number, ivLength: number) => {
   const secretKeyBuffer = Buffer.from(secretKey, 'utf8');
@@ -112,6 +117,7 @@ const deriveKeyAndIV = (secretKey: string, salt: Buffer, keyLength: number, ivLe
   let block = Buffer.alloc(0);
   let derivedLength = 0;
   while (derivedLength < keyLength + ivLength) {
+    // codeql[js/weak-cryptographic-algorithm] MD5 is mandated by the OpenSSL "enc" format we must stay compatible with
     block = createHash('md5')
       .update(Buffer.concat([block, secretKeyBuffer, salt]))
       .digest();
