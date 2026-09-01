@@ -4,6 +4,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../serv
 import {
   applyBalanceAccountingCategory,
   applyBalanceAccountingCategoryFromConnectedAccount,
+  getSuggestedBalanceAccountingCategoryIds,
 } from '../../../../../server/lib/accounting/categorization/balance-accounts';
 import {
   fakeAccountingCategory,
@@ -14,6 +15,7 @@ import {
   fakeManualPaymentProvider,
   fakeOrder,
   fakePaymentMethod,
+  fakeTransactionsImport,
 } from '../../../../test-helpers/fake-data';
 
 describe('server/lib/accounting/categorization/balance-accounts', () => {
@@ -128,6 +130,43 @@ describe('server/lib/accounting/categorization/balance-accounts', () => {
 
       await applyBalanceAccountingCategoryFromConnectedAccount(expense, connectedAccount);
       expect(expense.BalanceAccountingCategoryId).to.eq(category.id);
+    });
+  });
+
+  describe('getSuggestedBalanceAccountingCategoryIds', () => {
+    it('suggests from the order rail and the bank accounts assigned to the collective', async () => {
+      const host = await fakeActiveHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const railCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CLEARING_ACCOUNT' });
+      const bankCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+      const otherBankCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+
+      await fakeConnectedAccount({
+        CollectiveId: host.id,
+        service: 'stripe',
+        data: { BalanceAccountingCategoryId: railCategory.id },
+      });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
+      const order = await fakeOrder({ CollectiveId: collective.id, PaymentMethodId: paymentMethod.id });
+
+      await fakeTransactionsImport({
+        CollectiveId: host.id,
+        type: 'PLAID',
+        settings: {
+          assignments: { 'plaid-acc-1': [collective.id], 'plaid-acc-2': [collective.id + 1] },
+          balanceAccountingCategories: { 'plaid-acc-1': bankCategory.id, 'plaid-acc-2': otherBankCategory.id },
+        },
+      });
+
+      const suggestions = await getSuggestedBalanceAccountingCategoryIds({ host, collective, order });
+      expect(suggestions).to.have.members([railCategory.id, bankCategory.id]);
+      expect(suggestions).to.not.include(otherBankCategory.id);
+
+      // No context, no suggestions
+      expect(await getSuggestedBalanceAccountingCategoryIds({ host })).to.deep.eq([]);
     });
   });
 });

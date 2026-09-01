@@ -17,6 +17,7 @@ import POLICIES, { UseVendorPolicyValue } from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
+import { getSuggestedBalanceAccountingCategoryIds } from '../../../lib/accounting/categorization/balance-accounts';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { getKysely, kyselyToSequelizeModels } from '../../../lib/kysely';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
@@ -58,7 +59,9 @@ import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../input/ChronologicalOrderInput';
+import { fetchExpenseWithReference, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput';
 import { GraphQLOrderByInput } from '../input/OrderByInput';
+import { fetchOrderWithReference, GraphQLOrderReferenceInput } from '../input/OrderReferenceInput';
 import { GraphQLTransactionsImportRowOrderInput } from '../input/TransactionsImportRowOrderInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
@@ -68,7 +71,7 @@ import {
 } from '../interface/AccountWithPlatformSubscription';
 import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
 
-import { GraphQLContributionAccountingCategoryRule } from './AccountingCategory';
+import { GraphQLAccountingCategory, GraphQLContributionAccountingCategoryRule } from './AccountingCategory';
 import { GraphQLContributionStats } from './ContributionStats';
 import { GraphQLExpenseStats } from './ExpenseStats';
 import { GraphQLHost } from './Host';
@@ -1222,6 +1225,57 @@ export const getOrganizationFields = () => ({
         limit: categories.length,
         offset: 0,
       };
+    },
+  },
+  suggestedBalanceAccountingCategories: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLAccountingCategory))),
+    description:
+      'Suggested balance/clearing accounting categories for a context: the rail the money moved through, then the bank accounts assigned to the account. Only computed for host admins and accountants.',
+    args: {
+      account: {
+        type: GraphQLAccountReferenceInput,
+        description: 'Suggest from the bank accounts assigned to this account',
+      },
+      order: {
+        type: GraphQLOrderReferenceInput,
+        description: 'Suggest from the payment rail of this order',
+      },
+      expense: {
+        type: GraphQLExpenseReferenceInput,
+        description: 'Suggest from the payout rail of this expense',
+      },
+    },
+    async resolve(host, args, req) {
+      if (!req.remoteUser?.hasRole([roles.ADMIN, roles.ACCOUNTANT], host.id)) {
+        return [];
+      }
+
+      const collective = args.account
+        ? await fetchAccountWithReference(args.account, { loaders: req.loaders })
+        : null;
+      let order = args.order ? await fetchOrderWithReference(args.order) : null;
+      let expense = args.expense ? await fetchExpenseWithReference(args.expense, { loaders: req.loaders }) : null;
+
+      // Ignore intents that are not under this host
+      if (order) {
+        const orderCollective = await req.loaders.Collective.byId.load(order.CollectiveId);
+        if (orderCollective?.HostCollectiveId !== host.id) {
+          order = null;
+        }
+      }
+      if (expense) {
+        const expenseCollective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+        if ((expense.HostCollectiveId || expenseCollective?.HostCollectiveId) !== host.id) {
+          expense = null;
+        }
+      }
+      if (collective && collective.HostCollectiveId !== host.id && collective.id !== host.id) {
+        return [];
+      }
+
+      const ids = await getSuggestedBalanceAccountingCategoryIds({ host, collective, order, expense });
+      const categories = await Promise.all(ids.map(id => req.loaders.AccountingCategory.byId.load(id)));
+      return categories.filter(Boolean);
     },
   },
   contributionAccountingCategoryRules: {

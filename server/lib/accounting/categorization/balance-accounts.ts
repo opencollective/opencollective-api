@@ -1,5 +1,8 @@
+import { uniq } from 'lodash';
+
 import { Service } from '../../../constants/connected-account';
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
+import type { Collective } from '../../../models';
 import {
   ConnectedAccount,
   Expense,
@@ -62,6 +65,73 @@ export async function applyBalanceAccountingCategoryFromConnectedAccount(
     logger.error(`Failed to apply balance accounting category to expense #${expense.id}: ${e.message}`);
     reportErrorToSentry(e, { extra: { ExpenseId: expense.id } });
   }
+}
+
+/** Suggests categories for a manual pick: the rail the money moved through first, then bank accounts assigned to the collective. Never throws. */
+export async function getSuggestedBalanceAccountingCategoryIds({
+  host,
+  collective,
+  order,
+  expense,
+}: {
+  host: Collective;
+  collective?: Collective | null;
+  order?: Order | null;
+  expense?: Expense | null;
+}): Promise<number[]> {
+  const suggestions: number[] = [];
+  try {
+    if (order) {
+      if (order.ManualPaymentProviderId) {
+        const manualPaymentProvider = await ManualPaymentProvider.findByPk(order.ManualPaymentProviderId);
+        suggestions.push(manualPaymentProvider?.data?.BalanceAccountingCategoryId);
+      } else {
+        const paymentMethod = order.paymentMethod || (order.PaymentMethodId ? await order.getPaymentMethod() : null);
+        if (paymentMethod?.service && SERVICES_WITH_BALANCE_CATEGORY.includes(paymentMethod.service)) {
+          const connectedAccount = await host.getAccountForPaymentProvider(
+            paymentMethod.service as unknown as Service,
+            { throwIfMissing: false },
+          );
+          suggestions.push(connectedAccount?.data?.BalanceAccountingCategoryId);
+        }
+      }
+    }
+
+    if (expense) {
+      const payoutMethod = await expense.getPayoutMethod();
+      const service =
+        payoutMethod?.type === 'BANK_ACCOUNT'
+          ? Service.TRANSFERWISE
+          : payoutMethod?.type === 'PAYPAL'
+            ? Service.PAYPAL
+            : null;
+      if (service) {
+        const connectedAccount = await host.getAccountForPaymentProvider(service, { throwIfMissing: false });
+        suggestions.push(connectedAccount?.data?.BalanceAccountingCategoryId);
+      }
+    }
+
+    if (collective) {
+      const imports = await TransactionsImport.findAll({
+        where: { CollectiveId: host.id, type: ['PLAID', 'GOCARDLESS'] },
+      });
+      for (const transactionsImport of imports) {
+        const balanceAccountingCategories = transactionsImport.settings?.balanceAccountingCategories || {};
+        const assignments = transactionsImport.settings?.assignments || {};
+        for (const [accountId, categoryId] of Object.entries(balanceAccountingCategories)) {
+          const assignedCollectiveIds = assignments[accountId] || assignments['__default__'] || [];
+          if (categoryId && assignedCollectiveIds.includes(collective.id)) {
+            suggestions.push(categoryId);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    logger.error(`Failed to suggest balance accounting categories for host #${host?.id}: ${e.message}`);
+    reportErrorToSentry(e, { extra: { HostCollectiveId: host?.id } });
+  }
+
+  return uniq(suggestions.filter(Boolean));
 }
 
 /** Resolves the category configured for the bank sub-account an import row belongs to */

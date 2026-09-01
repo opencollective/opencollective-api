@@ -2048,7 +2048,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       // Wrong kind
       const wrongKind = await graphqlQueryV2(
         updateOrderBalanceAccountingCategoryMutation,
-        { order: { legacyId: order.id }, accountingCategory: { id: idEncode(expenseCategory.id, 'accounting-category') } },
+        {
+          order: { legacyId: order.id },
+          accountingCategory: { id: idEncode(expenseCategory.id, 'accounting-category') },
+        },
         hostAdmin,
       );
       expect(wrongKind.errors[0].message).to.equal('This accounting category is not a balance or clearing account');
