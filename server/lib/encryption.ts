@@ -117,7 +117,10 @@ const deriveKeyAndIV = (secretKey: string, salt: Buffer, keyLength: number, ivLe
   let block = Buffer.alloc(0);
   let derivedLength = 0;
   while (derivedLength < keyLength + ivLength) {
-    // codeql[js/weak-cryptographic-algorithm] MD5 is mandated by the OpenSSL "enc" format we must stay compatible with
+    // CodeQL flags this line (js/weak-cryptographic-algorithm). MD5 is not a choice here, it is
+    // what the OpenSSL "enc" format mandates (see the warning above), so the alert has to be
+    // dismissed as an accepted risk from the security tab: inline suppression comments are not
+    // honored by GitHub code scanning.
     block = createHash('md5')
       .update(Buffer.concat([block, secretKeyBuffer, salt]))
       .digest();
