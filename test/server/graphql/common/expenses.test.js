@@ -1532,6 +1532,52 @@ describe('server/graphql/common/expenses', () => {
         );
         expect(await canApprove(req.collectiveAdmin, newExpense)).to.be.false;
       });
+
+      it('by collective uses the stricter collective threshold when host policy applies', async () => {
+        const { req, collective } = contexts.normal;
+        await collective.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true, amountInCents: 10e2 },
+        });
+        collective.host = await collective.host.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
+            enabled: true,
+            amountInCents: 20e2,
+            appliesToHostedCollectives: true,
+            appliesToSingleAdminCollectives: true,
+          },
+        });
+        newExpense.collective = collective;
+
+        expect(await getApolloErrorCode(canApprove(req.collectiveAdmin, newExpense, { throw: true }))).to.be.equal(
+          EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+        );
+        expect(await canApprove(req.collectiveAdmin, newExpense)).to.be.false;
+      });
+
+      it('by a host admin author uses only the applicable host policy', async () => {
+        const { req, collective } = contexts.normal;
+        await collective.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true, amountInCents: 0 },
+        });
+        newExpense.collective = await collective.reload();
+        await newExpense.update({ UserId: req.hostAdmin.remoteUser.id });
+
+        expect(await canApprove(req.hostAdmin, newExpense)).to.be.true;
+
+        newExpense.collective.host = await collective.host.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
+            enabled: true,
+            amountInCents: 10e2,
+            appliesToHostedCollectives: true,
+            appliesToSingleAdminCollectives: true,
+          },
+        });
+
+        expect(await getApolloErrorCode(canApprove(req.hostAdmin, newExpense, { throw: true }))).to.be.equal(
+          EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+        );
+        expect(await canApprove(req.hostAdmin, newExpense)).to.be.false;
+      });
     });
 
     describe('manually created virtual card charges', () => {
