@@ -1250,9 +1250,7 @@ export const getOrganizationFields = () => ({
         return [];
       }
 
-      const collective = args.account
-        ? await fetchAccountWithReference(args.account, { loaders: req.loaders })
-        : null;
+      const collective = args.account ? await fetchAccountWithReference(args.account, { loaders: req.loaders }) : null;
       let order = args.order ? await fetchOrderWithReference(args.order) : null;
       let expense = args.expense ? await fetchExpenseWithReference(args.expense, { loaders: req.loaders }) : null;
 
