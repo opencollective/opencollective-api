@@ -5080,6 +5080,58 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
       });
 
+      it('Keeps an existing balance accounting category when paying without one', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const balanceCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+          BalanceAccountingCategoryId: balanceCategory.id,
+        });
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 2000 });
+
+        const result = await graphqlQueryV2(
+          processExpenseMutation,
+          { expenseId: expense.id, action: 'PAY', paymentParams: { balanceAccountingCategory: null } },
+          hostAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await expense.reload();
+        expect(expense.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
+      });
+
+      it('Pays an OTHER-payout expense with a balance accounting category without forceManual', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 2000 });
+        const balanceCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+
+        const result = await graphqlQueryV2(
+          processExpenseMutation,
+          {
+            expenseId: expense.id,
+            action: 'PAY',
+            paymentParams: {
+              balanceAccountingCategory: { id: idEncode(balanceCategory.id, 'accounting-category') },
+            },
+          },
+          hostAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('PAID');
+        await expense.reload();
+        expect(expense.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
+      });
+
       it('Pays the expense manually', async () => {
         const amount = 1000;
         const paymentProcessorFee = 100;

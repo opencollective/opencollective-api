@@ -3964,23 +3964,23 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
     }
 
+    let balanceAccountingCategory = null;
+    if (args.balanceAccountingCategory) {
+      balanceAccountingCategory = await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
+        throwIfMissing: true,
+        loaders: req.loaders,
+      });
+      checkIsValidBalanceAccountingCategory(balanceAccountingCategory, host);
+    }
+
     try {
       if (forceManual) {
-        let balanceAccountingCategory = null;
-        if (args.balanceAccountingCategory) {
-          balanceAccountingCategory = await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
-            throwIfMissing: true,
-            loaders: req.loaders,
-          });
-          checkIsValidBalanceAccountingCategory(balanceAccountingCategory, host);
-        }
-
         const paymentMethod = args.paymentMethodService
           ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
           : null;
         await expense.update({
           PaymentMethodId: paymentMethod?.id || null,
-          BalanceAccountingCategoryId: balanceAccountingCategory?.id || null,
+          ...(balanceAccountingCategory ? { BalanceAccountingCategoryId: balanceAccountingCategory.id } : {}),
         });
         await createTransactionsForManuallyPaidExpense(
           host,
@@ -4047,7 +4047,10 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
         const paymentMethod = args.paymentMethodService
           ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
           : null;
-        await expense.update({ PaymentMethodId: paymentMethod?.id || null });
+        await expense.update({
+          PaymentMethodId: paymentMethod?.id || null,
+          ...(balanceAccountingCategory ? { BalanceAccountingCategoryId: balanceAccountingCategory.id } : {}),
+        });
 
         // Hotfix for missing payment processor fees with manual payouts; we should consolidate this with the
         // `forceManual` flag case above, as they end up doing the same thing.
