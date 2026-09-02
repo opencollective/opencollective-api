@@ -1026,29 +1026,41 @@ export const canApprove: ExpensePermissionEvaluator = async (
     }
 
     const currency = expense.collective.host?.currency || expense.collective.currency;
+    const requesterIsHostAdmin = await isHostAdmin(req, expense);
     const hostPolicy = await getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
     const collectivePolicy = await getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
 
-    let policy = collectivePolicy;
-    if (hostPolicy.enabled && hostPolicy.appliesToHostedCollectives) {
-      policy = hostPolicy;
+    const hostPolicyApplies = hostPolicy.enabled && hostPolicy.appliesToHostedCollectives;
+    const collectivePolicyApplies =
+      collectivePolicy.enabled && (!hostPolicyApplies || hostPolicy.amountInCents >= collectivePolicy.amountInCents);
+    const expenseAuthor = req.remoteUser.id === expense.UserId;
 
-      if (!hostPolicy.appliesToSingleAdminCollectives) {
-        const collectiveAdminCount = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
-        if (collectiveAdminCount === 1) {
-          policy = collectivePolicy;
-        }
-      }
-    }
+    // Fiscal Host admins are exclusively subject to the applicable Fiscal Host policy.
+    const hostAdminCannotApprove =
+      requesterIsHostAdmin && expenseAuthor && hostPolicyApplies && expense.amount >= hostPolicy.amountInCents;
+    // Collective admins are subject to the applicable Fiscal Host and/or Collective policy.
+    // When both policies apply, the stricter policy has the lower amount threshold.
+    const collectiveAdminCannotApprove =
+      !requesterIsHostAdmin &&
+      expenseAuthor &&
+      ((collectivePolicyApplies && expense.amount >= collectivePolicy.amountInCents) ||
+        (hostPolicyApplies &&
+          (hostPolicy.appliesToSingleAdminCollectives ||
+            (await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id)) > 1) &&
+          expense.amount >= hostPolicy.amountInCents));
+    const authorCannotApprove = hostAdminCannotApprove || collectiveAdminCannotApprove;
 
-    if (policy.enabled && expense.amount >= policy.amountInCents && req.remoteUser.id === expense.UserId) {
+    if (authorCannotApprove) {
+      const amountInCents =
+        hostAdminCannotApprove || !collectivePolicyApplies ? hostPolicy.amountInCents : collectivePolicy.amountInCents;
+
       if (options?.throw) {
         throw new Forbidden(
           'User cannot approve their own expenses',
           EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
           {
             reasonDetails: {
-              amount: policy.amountInCents / 100,
+              amount: amountInCents / 100,
               currency,
             },
           },
@@ -2755,8 +2767,12 @@ export async function submitExpenseDraft(
     isNewExpenseFlow: isNewExpenseFlow === true ? true : undefined,
   };
   if (requestedPayee) {
-    if (!req.remoteUser?.isAdminOfCollective(requestedPayee)) {
-      throw new Forbidden('User needs to be the admin of the payee to submit an expense on their behalf');
+    // Also allow admins of the payee's fiscal host (e.g. a host admin completing a cross-host
+    // draft invite on behalf of one of their hosted collectives)
+    if (!req.remoteUser?.isAdminOfCollectiveOrHost(requestedPayee)) {
+      throw new Forbidden(
+        'User needs to be an admin of the payee (or its fiscal host) to submit an expense on their behalf',
+      );
     }
   } else {
     const { organization: organizationData, ...payee } = args.expense.payee;

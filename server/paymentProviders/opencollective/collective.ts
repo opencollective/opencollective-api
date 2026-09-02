@@ -2,6 +2,7 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate, roundCentsAmount } from '../../lib/currency';
 import { createRefundTransaction, getHostFee, getHostFeeSharePercent, getPlatformTip } from '../../lib/payments';
+import { getRefundableAmountFromCollectiveInHostCurrency } from '../../lib/refunds';
 import { formatCurrency } from '../../lib/utils';
 import models, { type PaymentMethod } from '../../models';
 import type { BasePaymentProviderService } from '../types';
@@ -131,13 +132,14 @@ const paymentMethodProvider: BasePaymentProviderService = {
     }
 
     if (!opts?.ignoreBalanceCheck) {
-      const balance = await collective.getBalanceWithBlockedFunds();
-      if (balance < transaction.amount) {
+      const balance = await collective.getBalanceWithBlockedFunds({ currency: transaction.hostCurrency });
+      const refundableAmountFromCollective = await getRefundableAmountFromCollectiveInHostCurrency(transaction);
+      if (balance < refundableAmountFromCollective) {
         throw new Error(
           `Not enough funds available (${formatCurrency(
             balance,
-            collective.currency,
-          )} left) to process this refund (${formatCurrency(transaction.amount, transaction.currency)})`,
+            transaction.hostCurrency,
+          )} left) to process this refund (${formatCurrency(refundableAmountFromCollective, transaction.hostCurrency)})`,
         );
       }
     }
