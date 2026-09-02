@@ -51,14 +51,14 @@ export async function applyBalanceAccountingCategory(order: Order): Promise<void
   }
 }
 
-/** Stamps the balance accounting category on an expense from the connected account used to pay it */
+/** Stamps the balance accounting category on an expense from the connected account used to pay it. No-ops if the expense already has one. */
 export async function applyBalanceAccountingCategoryFromConnectedAccount(
   expense: Expense,
   connectedAccount: ConnectedAccount | null,
 ): Promise<void> {
   try {
     const balanceAccountingCategoryId = connectedAccount?.data?.BalanceAccountingCategoryId;
-    if (balanceAccountingCategoryId && expense.BalanceAccountingCategoryId !== balanceAccountingCategoryId) {
+    if (balanceAccountingCategoryId && !expense.BalanceAccountingCategoryId) {
       await expense.update({ BalanceAccountingCategoryId: balanceAccountingCategoryId });
     }
   } catch (e) {

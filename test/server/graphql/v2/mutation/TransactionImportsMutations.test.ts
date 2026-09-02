@@ -230,6 +230,58 @@ describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
       expect(result.data.editTransactionsImport.source).to.equal('New Source 2');
     });
 
+    it('stamps the balance accounting category when linking rows to orders and expenses', async () => {
+      const remoteUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: remoteUser });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const category = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+      const transactionsImport = await fakeTransactionsImport({
+        CollectiveId: host.id,
+        type: 'PLAID',
+        settings: { balanceAccountingCategories: { 'plaid-acc-1': category.id } },
+      });
+      const orderRow = await fakeTransactionsImportRow({
+        TransactionsImportId: transactionsImport.id,
+        accountId: 'plaid-acc-1',
+      });
+      const expenseRow = await fakeTransactionsImportRow({
+        TransactionsImportId: transactionsImport.id,
+        accountId: 'plaid-acc-1',
+      });
+      const order = await fakeOrder({ CollectiveId: collective.id, status: OrderStatuses.PAID });
+      const expense = await fakeExpense({ CollectiveId: collective.id });
+
+      const result = await graphqlQueryV2(
+        gql`
+          mutation UpdateTransactionsImportRows(
+            $rows: [TransactionsImportRowUpdateInput!]!
+            $action: TransactionsImportRowAction!
+          ) {
+            updateTransactionsImportRows(rows: $rows, action: $action) {
+              rows {
+                id
+                status
+              }
+            }
+          }
+        `,
+        {
+          action: 'UPDATE_ROWS',
+          rows: [
+            { id: idEncode(orderRow.id, 'transactions-import-row'), order: { legacyId: order.id } },
+            { id: idEncode(expenseRow.id, 'transactions-import-row'), expense: { legacyId: expense.id } },
+          ],
+        },
+        remoteUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      await Promise.all([order.reload(), expense.reload()]);
+      expect(order.BalanceAccountingCategoryId).to.eq(category.id);
+      expect(expense.BalanceAccountingCategoryId).to.eq(category.id);
+    });
+
     it('can associate an expense to multiple import rows', async () => {
       const remoteUser = await fakeUser();
       const host = await fakeActiveHost({ admin: remoteUser });

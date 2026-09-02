@@ -607,6 +607,8 @@ const transactionImportsMutations = {
         );
       });
 
+      await Promise.all(balanceCategoryStamps.map(stamp => stamp()));
+
       return {
         host: () => req.loaders.Collective.byId.load(hostId),
         rows: () => TransactionsImportRow.findAll({ where: { id: { [Op.in]: selectedRowIds } } }),

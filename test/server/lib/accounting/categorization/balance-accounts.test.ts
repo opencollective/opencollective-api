@@ -97,7 +97,7 @@ describe('server/lib/accounting/categorization/balance-accounts', () => {
   });
 
   describe('applyBalanceAccountingCategoryFromConnectedAccount (expenses)', () => {
-    it('stamps and re-stamps from the connected account default', async () => {
+    it('stamps from the connected account default without overwriting an existing category', async () => {
       const host = await fakeActiveHost();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
       const firstCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
@@ -112,10 +112,10 @@ describe('server/lib/accounting/categorization/balance-accounts', () => {
       await applyBalanceAccountingCategoryFromConnectedAccount(expense, connectedAccount);
       expect(expense.BalanceAccountingCategoryId).to.eq(firstCategory.id);
 
-      // Re-initiation with a different default re-stamps
+      // A pre-existing category (eg. manually picked) is kept, even when the default differs
       await connectedAccount.update({ data: { BalanceAccountingCategoryId: secondCategory.id } });
       await applyBalanceAccountingCategoryFromConnectedAccount(expense, connectedAccount);
-      expect(expense.BalanceAccountingCategoryId).to.eq(secondCategory.id);
+      expect(expense.BalanceAccountingCategoryId).to.eq(firstCategory.id);
     });
 
     it('leaves the expense untouched when the connected account has no default', async () => {
