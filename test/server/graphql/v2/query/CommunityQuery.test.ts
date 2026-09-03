@@ -607,6 +607,7 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
         FromCollectiveId: contributorWithOrderAndExpense.CollectiveId,
         CollectiveId: snapshotCollective.id,
         HostCollectiveId: snapshotHost.id,
+        UserId: contributorWithOrderAndExpense.id,
       });
       await fakeActivity({
         type: 'collective.expense.paid',
@@ -673,6 +674,7 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
         FromCollectiveId: hostContributorWithOrderAndExpense.CollectiveId,
         CollectiveId: snapshotHost.id,
         HostCollectiveId: snapshotHost.id,
+        UserId: hostContributorWithOrderAndExpense.id,
       });
       await fakeActivity({
         type: 'collective.expense.paid',
