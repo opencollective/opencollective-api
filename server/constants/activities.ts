@@ -209,6 +209,13 @@ enum ActivityTypes {
   KYC_VERIFIED = 'kyc.verified',
 }
 
+/** Activities recorded on the applicant collective that the host must also be notified about. */
+export const HostApplicationActivities = [
+  ActivityTypes.COLLECTIVE_APPLY,
+  ActivityTypes.COLLECTIVE_APPROVED,
+  ActivityTypes.COLLECTIVE_REJECTED,
+];
+
 /** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */
 export const TransactionalActivities = [
   ActivityTypes.USER_NEW_TOKEN,
