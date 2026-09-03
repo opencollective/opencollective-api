@@ -22,7 +22,7 @@ export async function getFile(req: Request, res: Response) {
   const isThumbnail = req.query.thumbnail !== undefined;
   const isDownload = req.query.download !== undefined;
 
-  const { uploadedFileId } = req.params;
+  const uploadedFileId = req.params.uploadedFileId as string;
   const { expenseId, draftKey } = req.query;
 
   let resolvedExpenseId: number | null = null;

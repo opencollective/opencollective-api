@@ -35,7 +35,6 @@ declare global {
       personalToken?: PersonalToken;
       loaders: Loaders;
       rawBody?: string;
-      params: Record<string, string>;
       method: string;
       baseUrl: string;
       ip: string;

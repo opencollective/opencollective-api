@@ -285,7 +285,7 @@ export const authenticateService = async (req: Request, res: Response, next: Nex
     return next(new errors.RateLimitExceeded());
   }
 
-  const { service } = req.params;
+  const service = req.params.service as string;
   const { context, CollectiveId } = req.query || {};
 
   if (service === 'github') {
@@ -352,7 +352,7 @@ export const authenticateServiceCallback = async (req: Request, res: Response, n
     return next(new errors.RateLimitExceeded());
   }
 
-  const { service } = req.params;
+  const service = req.params.service as string;
   if (get(paymentProviders, `${service}.oauth.callback`)) {
     return paymentProviders[service].oauth.callback(req, res, next);
   }

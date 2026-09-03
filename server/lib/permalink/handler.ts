@@ -86,7 +86,7 @@ const handlerMap: Record<EntityShortIdPrefix, Handler> = {
 };
 
 export async function handlePermalink(req: express.Request, res: express.Response) {
-  const prefix = getEntityShortIdPrefix(req.params.id);
+  const prefix = getEntityShortIdPrefix(req.params.id as string);
   if (!prefix) {
     return handleNotFound(req, res);
   }

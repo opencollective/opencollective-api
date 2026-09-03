@@ -70,7 +70,7 @@ const loadSubscriptionForWebhookEvent = async (
   subscriptionId: string,
   { throwIfMissing = true } = {},
 ) => {
-  const hostId = parseInt(req.params.hostId);
+  const hostId = parseInt(req.params.hostId as string);
   const order = await models.Order.findOne({
     include: [
       { association: 'fromCollective', required: false },
@@ -158,7 +158,7 @@ async function handleSaleCompleted(req: Request): Promise<void> {
 }
 
 async function handleCaptureCompleted(req: Request): Promise<void> {
-  const hostId = parseInt(req.params.hostId);
+  const hostId = parseInt(req.params.hostId as string);
 
   // Retrieve the order for this event
   const capture = req.body.resource;
@@ -345,7 +345,7 @@ async function handleSaleReversed(req: Request): Promise<void> {
 
 async function handleCaptureRefunded(req: Request): Promise<void> {
   // Validate webhook event
-  const host = await models.Collective.findByPk(req.params.hostId);
+  const host = await models.Collective.findByPk(req.params.hostId as string);
   if (!host) {
     throw new Error(`No host found for ID ${req.params.hostId}`);
   }

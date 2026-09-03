@@ -61,7 +61,7 @@ export default {
     }
 
     // Parse ID
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     let decodedId;
     if (isEntityPublicId(id, EntityShortIdPrefix.LegalDocument)) {
