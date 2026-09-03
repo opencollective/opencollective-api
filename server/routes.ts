@@ -21,6 +21,7 @@ import * as transferwise from './controllers/transferwise';
 import * as users from './controllers/users';
 import { paypalWebhook, plaidWebhook, stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
 import { getGraphqlCacheProperties } from './graphql/cache';
+import { IGNORED_GRAPHQL_ERROR_CODES } from './graphql/errors';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import { apolloSlowRequestCachePlugin, apolloSlowResolverDebugPlugin, apolloStudioUsagePlugin } from './lib/apollo';
@@ -281,6 +282,10 @@ export default async (app: express.Application) => {
     csrfPrevention: { requestHeaders: ['Authorization'] },
     // https://www.apollographql.com/docs/apollo-server/api/apollo-server#formaterror
     formatError: (formattedError, error) => {
+      if (IGNORED_GRAPHQL_ERROR_CODES.includes(formattedError.extensions?.code)) {
+        return formattedError;
+      }
+
       logger.error(`GraphQL error: ${formattedError.message}`);
       const extra = pick(formattedError, ['locations', 'path']);
       if (Object.keys(extra).length) {
