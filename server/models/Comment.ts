@@ -68,7 +68,7 @@ class Comment extends ModelWithPublicId<
   declare public conversation?: NonAttribute<Conversation>;
   declare public commentUpdate?: NonAttribute<Update>;
 
-  // Returns the User model of the User that created this Update
+  // Returns the User model of the User that created this Comment
   getUser = function () {
     return User.findByPk(this.CreatedByUserId);
   };
