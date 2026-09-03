@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import config from 'config';
 
-import { activities, channels } from '../../constants';
+import { channels } from '../../constants';
 import ActivityTypes from '../../constants/activities';
 import { Activity, Notification } from '../../models';
 import logger from '../logger';
@@ -16,6 +16,12 @@ import {
 } from '../webhooks';
 
 import { notifyByEmail } from './email';
+
+const HOST_APPLICATION_ACTIVITIES = [
+  ActivityTypes.COLLECTIVE_APPLY,
+  ActivityTypes.COLLECTIVE_APPROVED,
+  ActivityTypes.COLLECTIVE_REJECTED,
+];
 
 const shouldSkipActivity = (activity: Activity) => {
   if (activity.type === ActivityTypes.COLLECTIVE_TRANSACTION_CREATED) {
@@ -84,9 +90,10 @@ const dispatch = async (
       return;
     }
 
-    // Some activities involve multiple collectives (eg. collective applying to a host)
+    // Some activities involve multiple collectives (eg. collective applying to a host). Host application
+    // activities are all recorded on the applicant, so the host has to be notified explicitly.
     const collectiveIdsToNotify = [activity.CollectiveId];
-    if (activity.type === activities.COLLECTIVE_APPLY) {
+    if (HOST_APPLICATION_ACTIVITIES.includes(activity.type) && activity.data?.host?.id) {
       collectiveIdsToNotify.push(activity.data.host.id);
     }
 
