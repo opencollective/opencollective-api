@@ -1,3 +1,5 @@
+import { noop } from 'lodash';
+
 let trackingEnabled = false;
 const pendingDispatches = new Set<Promise<void>>();
 
@@ -33,4 +35,12 @@ export const waitAllActivityDispatches = async (): Promise<void> => {
   while (pendingDispatches.size > 0) {
     await Promise.allSettled([...pendingDispatches]);
   }
+};
+
+/**
+ * Track a fire-and-forget promise (e.g. emails sent after an order is processed) so that tests can wait for it
+ * with `waitAllActivityDispatches`. The original promise's rejection behavior is left untouched.
+ */
+export const trackBackgroundWork = (promise: Promise<unknown>): void => {
+  trackActivityDispatch(promise.then(noop, noop));
 };

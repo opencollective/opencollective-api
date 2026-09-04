@@ -26,12 +26,17 @@ const createDeferred = <T = void>(): Deferred<T> => {
 };
 
 describe('server/lib/notifications/activity-dispatch-tracker', () => {
+  // Tracking is enabled globally by the test setup; these tests control it explicitly
+  beforeEach(() => {
+    disableActivityDispatchTracking();
+  });
+
   afterEach(() => {
     disableActivityDispatchTracking();
   });
 
   describe('isActivityDispatchTrackingEnabled', () => {
-    it('returns false when tracking has not been enabled', () => {
+    it('returns false when tracking is disabled', () => {
       expect(isActivityDispatchTrackingEnabled()).to.be.false;
     });
 

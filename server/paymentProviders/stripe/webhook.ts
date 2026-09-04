@@ -21,6 +21,7 @@ import { applyContributionAccountingCategoryRules } from '../../lib/accounting/c
 import { getFxRate, isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { lockUntilResolved } from '../../lib/mutex';
+import { trackBackgroundWork } from '../../lib/notifications/activity-dispatch-tracker';
 import {
   createRefundTransaction,
   createSubscription,
@@ -689,7 +690,7 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
     }
   }
 
-  sendOrderFailedEmail(order, userFriendlyError);
+  trackBackgroundWork(sendOrderFailedEmail(order, userFriendlyError));
 };
 
 async function handleExpensePaymentIntentFailed(event: Stripe.Event) {
