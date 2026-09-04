@@ -25,6 +25,10 @@ import schemaV2 from '../server/graphql/v2/schema';
 import cache, { sessionCache } from '../server/lib/cache';
 import { crypto } from '../server/lib/encryption';
 import logger from '../server/lib/logger';
+import {
+  enableActivityDispatchTracking,
+  waitAllActivityDispatches,
+} from '../server/lib/notifications/activity-dispatch-tracker';
 /* Server code being used */
 import stripe, { convertToStripeAmount } from '../server/lib/stripe';
 import { formatCurrency } from '../server/lib/utils';
@@ -49,8 +53,24 @@ export const resetCaches = async () => {
   await sessionCache.clear();
 };
 
+const waitAllActivityDispatchesWithTimeout = async (timeoutMs = 10000) => {
+  // Tests may disable tracking (e.g. to test the tracker itself); make sure it is always back on
+  enableActivityDispatchTracking();
+  let timer: NodeJS.Timeout;
+  const timeout = new Promise<'timeout'>(resolve => {
+    timer = setTimeout(() => resolve('timeout'), timeoutMs);
+  });
+  const result = await Promise.race([waitAllActivityDispatches(), timeout]).finally(() => clearTimeout(timer));
+  if (result === 'timeout') {
+    logger.warn(`Activity dispatches still pending after ${timeoutMs}ms, resetting the DB anyway`);
+  }
+};
+
 export const resetTestDB = async ({ groupedTruncate = true, retries = 5 } = {}) => {
   const resetFn = async () => {
+    // Activities dispatch notifications in the background (see Activity afterCreate hook). Wait for them to settle
+    // before truncating, otherwise their inserts deadlock with the TRUNCATE below.
+    await waitAllActivityDispatchesWithTimeout();
     // Using a manual query rather than `await sequelize.truncate({ cascade: true,  restartIdentity: true });`
     // for performance reasons: https://github.com/sequelize/sequelize/issues/15865
     const tableNames = values(sequelize.models).map(m => `"${m.tableName}"`);

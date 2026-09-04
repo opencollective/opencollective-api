@@ -35,6 +35,7 @@ import {
 } from '../paymentProviders/types';
 
 import { applyContributionAccountingCategoryRules } from './accounting/categorization/contribution-rules';
+import { trackBackgroundWork } from './notifications/activity-dispatch-tracker';
 import { notify } from './notifications/email';
 import { syncPaymentIntentFromRefund } from './payment-intents/sync';
 import { getFxRate, roundCentsAmount } from './currency';
@@ -998,12 +999,12 @@ export const sendEmailNotifications = (
     // choosing the source as itself. In this case do not send an email.
     order.fromCollective?.id !== order.collective?.id
   ) {
-    recordOrderConfirmation(order, transaction, { firstPayment }); // async
+    trackBackgroundWork(recordOrderConfirmation(order, transaction, { firstPayment }));
   } else if (order.status === OrderStatuses.PENDING) {
-    sendOrderPendingEmail(order); // This is the one for the Contributor
-    sendManualPendingOrderEmail(order); // This is the one for the Host Admins
+    trackBackgroundWork(sendOrderPendingEmail(order)); // This is the one for the Contributor
+    trackBackgroundWork(sendManualPendingOrderEmail(order)); // This is the one for the Host Admins
   } else if (order.status === OrderStatuses.PROCESSING) {
-    sendOrderProcessingEmail(order);
+    trackBackgroundWork(sendOrderProcessingEmail(order));
   }
 };
 
