@@ -179,4 +179,48 @@ describe('server/lib/transferwise', () => {
       });
     });
   });
+
+  describe('getToken', () => {
+    beforeEach(() => nock.cleanAll());
+    afterEach(() => nock.cleanAll());
+
+    it('should disconnect the account when the OAuth refresh fails with invalid_grant', async () => {
+      // Mirrors Sentry issue OC-API-13D (connectedAccountId 147044): Wise's OAuth token
+      // endpoint answers 400 with an OAuth-style error payload that has no `errorCode`.
+      const connectedAccount = await fakeConnectedAccount({
+        service: 'transferwise',
+        token: 'stale-access-token',
+        refreshToken: '23e25d6964...', // matches the refresh_token prefix reported by Wise
+        // eslint-disable-next-line camelcase
+        data: { created_at: new Date(Date.now() - 60 * 60 * 1000), expires_in: 100 }, // expired -> triggers refresh
+      });
+
+      nock('https://api.wise-sandbox.com').post('/oauth/token').reply(400, {
+        error: 'invalid_grant',
+        // eslint-disable-next-line camelcase
+        error_description: 'Invalid refresh token (refreshAccessToken - not found refresh_token): 23e25d6964',
+      });
+
+      const destroySpy = sandbox.spy(connectedAccount, 'destroy');
+
+      let error;
+      try {
+        await transferwise.getToken(connectedAccount);
+      } catch (e) {
+        error = e;
+      }
+
+      // The refresh failed, so getToken must reject.
+      expect(error).to.exist;
+
+      // The Wise OAuth error must be surfaced with its code so the account can be disabled.
+      // BUG: parseError() only maps `errorCode`/422 responses, so this is
+      // 'transferwise.error.default' and the disconnect logic in refreshAndUpdateToken() never runs.
+      expect(error.extensions.code).to.equal('invalid_grant');
+
+      // The stale token should be disabled by destroying the connected account.
+      // BUG: never happens - the account keeps failing on every request (OC-API-13D).
+      expect(destroySpy.called).to.be.true;
+    });
+  });
 });

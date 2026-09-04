@@ -85,6 +85,9 @@ const parseError = (
     message = error.response.data.errors.map(e => e.message).join(' ');
   } else if (error.response?.data?.error) {
     message = error.response.data.error_description || error.response.data.errorMessage || error.response.data.error;
+    // OAuth-style errors (e.g. Wise's `/oauth/token` endpoint) expose the error code directly
+    // in `error` (e.g. `invalid_grant`, `invalid_token`). Map it so callers can react to it.
+    code = error.response.data.error;
   }
   if (error.response?.status === 422) {
     message =
