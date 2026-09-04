@@ -132,7 +132,12 @@ const ActivitiesCollectionQuery = {
         throw new Error('Cannot retrieve children accounts activity for more than 100 accounts at the same time');
       }
 
-      const allowedAccounts = isRoot ? accounts : accounts.filter(a => req.remoteUser.isAdminOfCollectiveOrHost(a));
+      const allowedAccounts =
+        isRoot ||
+        // It is fine to load host/account related activities. Adding the double check to avoid accidents in the future.
+        (host && req.remoteUser.isAdminOfCollectiveOrHost(host))
+          ? accounts
+          : accounts.filter(a => req.remoteUser.isAdminOfCollectiveOrHost(a));
       for (const account of allowedAccounts) {
         // Include all activities related to the account itself
         if (!args.excludeParentAccount) {

@@ -1,5 +1,4 @@
 import { GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
 import { compact, flatten, uniq, values } from 'lodash';
 import moment from 'moment';
 import type { Sequelize } from 'sequelize';
@@ -187,18 +186,6 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
             timeUnit: 'YEAR',
             nodes,
           };
-        },
-      },
-      lastInteractionAt: {
-        type: GraphQLDateTime,
-        resolve(account) {
-          return account?.dataValues?.lastInteractionAt;
-        },
-      },
-      firstInteractionAt: {
-        type: GraphQLDateTime,
-        resolve(account) {
-          return account?.dataValues?.firstInteractionAt;
         },
       },
       activities: {

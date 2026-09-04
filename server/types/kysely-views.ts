@@ -10,8 +10,6 @@ export interface AdminCommunityActivitySummaryRow {
   FromCollectiveId?: number;
   activities?: Record<string, unknown> | unknown[];
   relations?: Record<string, unknown> | unknown[];
-  lastInteractionAt?: string;
-  firstInteractionAt?: string;
 }
 
 export interface AdminCommunityHostTransactionSummaryRow {
@@ -174,7 +172,6 @@ export interface HostedCollectivesHostingPeriodsRow {
   HostCollectiveId?: number;
   ParentCollectiveId?: number;
   collectiveType?: string;
-  isArchived?: boolean;
   startDate?: string;
   endDate?: string;
 }

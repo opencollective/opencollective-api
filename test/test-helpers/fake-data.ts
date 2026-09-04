@@ -255,9 +255,9 @@ export const fakeActiveHost = async (hostData: Parameters<typeof fakeCollective>
     slug: randStr('host-'),
     HostCollectiveId: null,
     hasMoneyManagement: true,
+    hasHosting: true,
     isActive: true,
     approvedAt: new Date(),
-    hasHosting: true,
     ...hostData,
   });
 

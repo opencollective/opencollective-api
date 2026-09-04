@@ -16,8 +16,6 @@ type AdminCommunityActivitySummaryRow = {
   FromCollectiveId: number;
   activities: string[];
   relations: string[];
-  lastInteractionAt: Date;
-  firstInteractionAt: Date;
 };
 
 export default {
@@ -322,7 +320,7 @@ export default {
               fc.*,
               JSONB_OBJECT_AGG(cas."CollectiveId", cas."relations") FILTER (WHERE c."type" IN ('COLLECTIVE', 'FUND', 'PROJECT', 'EVENT')) AS "associatedCollectives",
               JSONB_OBJECT_AGG(cas."CollectiveId", cas."relations") FILTER (WHERE c."type" = 'ORGANIZATION') AS "associatedOrganizations",
-              cas."HostCollectiveId" AS "contextualHostCollectiveId", MAX(cas."lastInteractionAt") as "lastInteractionAt", MIN(cas."firstInteractionAt") as "firstInteractionAt"
+              cas."HostCollectiveId" AS "contextualHostCollectiveId"
             FROM
               "AdminCommunityActivitySummary" cas
               INNER JOIN "Collectives" fc ON fc.id = cas."FromCollectiveId"
