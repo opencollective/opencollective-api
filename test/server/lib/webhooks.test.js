@@ -235,6 +235,41 @@ describe('server/lib/webhooks', () => {
       expect(sanitized.data.collective).to.not.exist;
     });
 
+    it('Sanitizes COLLECTIVE_REJECTED, without leaking the reviewer email', () => {
+      const sanitized = sanitizeActivityForWebhookPayload({
+        type: activities.COLLECTIVE_REJECTED,
+        data: {
+          collective: { id: 42, slug: 'babel' },
+          host: { id: 43, slug: 'europe' },
+          rejectionReason: 'Out of scope',
+          user: { email: 'admin@opencollective.com' },
+        },
+      });
+
+      expect(sanitized.data.collective.id).to.eq(42);
+      expect(sanitized.data.host.id).to.eq(43);
+      expect(sanitized.data.rejectionReason).to.eq('Out of scope');
+      expect(sanitized.data.user).to.not.exist;
+    });
+
+    it('Sanitizes COLLECTIVE_APPLY, without leaking the applicant email', () => {
+      const sanitized = sanitizeActivityForWebhookPayload({
+        type: activities.COLLECTIVE_APPLY,
+        data: {
+          collective: { id: 42, slug: 'babel' },
+          host: { id: 43, slug: 'europe' },
+          user: { email: 'applicant@opencollective.com' },
+          application: { message: 'Please host us' },
+        },
+      });
+
+      expect(sanitized.data.collective.slug).to.eq('babel');
+      expect(sanitized.data.host.slug).to.eq('europe');
+      expect(sanitized.data.user).to.not.exist;
+      expect(sanitized.data.application).to.not.exist;
+      expect(sanitized.data.rejectionReason).to.not.exist;
+    });
+
     it('Sanitizes COLLECTIVE_EXPENSE_CREATED', () => {
       const sanitized = sanitizeActivityForWebhookPayload({
         type: activities.COLLECTIVE_EXPENSE_CREATED,
