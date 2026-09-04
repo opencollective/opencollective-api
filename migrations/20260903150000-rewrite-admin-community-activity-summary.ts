@@ -43,6 +43,7 @@ const optimizedViewQuery = `
         LEFT JOIN "Expenses" e ON a."ExpenseId" = e.id
         LEFT JOIN "Collectives" fc ON a."FromCollectiveId" = fc.id
       WHERE h."deletedAt" IS NULL
+        AND h."hasMoneyManagement"
         AND a."HostCollectiveId" IS NOT NULL
         AND a.type IN (
           'collective.expense.approved', 'collective.expense.rejected',

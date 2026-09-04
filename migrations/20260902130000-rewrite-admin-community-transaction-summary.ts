@@ -137,7 +137,7 @@ const optimizedSummaryQuery = `
         COALESCE(COUNT(t.id) FILTER (WHERE (((t.type) = 'CREDIT') AND t."isRefund")), (0)) AS "refundDebitCount"
       FROM
         "Transactions" t
-        INNER JOIN "Collectives" h ON t."HostCollectiveId" = h.id AND h."deletedAt" IS NULL AND h."hasHosting" IS TRUE
+        INNER JOIN "Collectives" h ON t."HostCollectiveId" = h.id AND h."deletedAt" IS NULL AND h."hasMoneyManagement" IS TRUE
         INNER JOIN "Collectives" c ON t."FromCollectiveId" = c.id AND c."deletedAt" IS NULL
       WHERE t."deletedAt" IS NULL
         AND t."hostCurrency" = h.currency
