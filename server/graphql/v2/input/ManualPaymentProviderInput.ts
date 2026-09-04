@@ -49,6 +49,11 @@ export const GraphQLManualPaymentProviderCreateInput = new GraphQLInputObjectTyp
       type: GraphQLJSON,
       description: 'Bank account details for BANK_TRANSFER type providers',
     },
+    referenceTemplate: {
+      type: GraphQLString,
+      description:
+        'Plain-text template for the payment reference (e.g. {contributionId}). Variables: amount, collective, OrderId, contributionId, account. Do not use {reference} here.',
+    },
   }),
 });
 
@@ -73,6 +78,11 @@ export const GraphQLManualPaymentProviderUpdateInput = new GraphQLInputObjectTyp
     accountDetails: {
       type: GraphQLJSON,
       description: 'Bank account details for BANK_TRANSFER type providers',
+    },
+    referenceTemplate: {
+      type: GraphQLString,
+      description:
+        'Plain-text template for the payment reference (e.g. {contributionId}). Variables: amount, collective, OrderId, contributionId, account. Do not use {reference} here.',
     },
   }),
 });
