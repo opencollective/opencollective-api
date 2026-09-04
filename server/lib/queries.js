@@ -765,20 +765,55 @@ const getTotalNumberOfDonors = () => {
  * @argument {Object[]} results - The results of a tax form query.
  */
 const getTaxFormsOverTheLimit = (results, idKey, year = undefined) => {
-  // Group results in a map like Map<idKey, { paypalTotal, otherTotal }>
+  // Group results in a map like Map<idKey, { paypalTotal, otherTotal, year, isUSEntity, taxFormThresholds, includePayPalExpenses }>
   const groupedResults = new Map();
   for (const result of results) {
-    const groupResult = groupedResults.get(result[idKey]) || { paypalTotal: 0, otherTotal: 0, year: undefined };
+    const groupResult = groupedResults.get(result[idKey]) || {
+      paypalTotal: 0,
+      otherTotal: 0,
+      year: undefined,
+      isUSEntity: undefined,
+      taxFormThresholds: undefined,
+      includePayPalExpenses: undefined,
+    };
     const totalKey = result.payoutMethodType === PayoutMethodTypes.PAYPAL ? 'paypalTotal' : 'otherTotal';
     groupResult[totalKey] += result.total;
     groupResult.year = result.year;
+
+    if (result.isUSEntity !== undefined && result.isUSEntity !== null) {
+      groupResult.isUSEntity = Boolean(result.isUSEntity);
+    } else if (result.countryISO) {
+      groupResult.isUSEntity = result.countryISO === 'US';
+    }
+
+    if (result.taxFormThresholds) {
+      try {
+        groupResult.taxFormThresholds =
+          typeof result.taxFormThresholds === 'string'
+            ? JSON.parse(result.taxFormThresholds)
+            : result.taxFormThresholds;
+      } catch {
+        // ignore JSON parse error
+      }
+    }
+
+    if (result.includePayPalExpenses !== undefined && result.includePayPalExpenses !== null) {
+      groupResult.includePayPalExpenses = Boolean(result.includePayPalExpenses);
+    }
+
     groupedResults.set(result[idKey], groupResult);
   }
 
   // Filter entries in the map to return a set with only the IDs that require a tax form (over the limits)
   const resultSet = new Set();
   groupedResults.forEach((groupResult, id) => {
-    if (amountsRequireTaxForm(groupResult.paypalTotal, groupResult.otherTotal, year || groupResult.year)) {
+    if (
+      amountsRequireTaxForm(groupResult.paypalTotal, groupResult.otherTotal, year || groupResult.year, {
+        isUSEntity: groupResult.isUSEntity,
+        taxFormThresholds: groupResult.taxFormThresholds,
+        includePayPalExpenses: groupResult.includePayPalExpenses,
+      })
+    ) {
       resultSet.add(id);
     }
   });
@@ -795,8 +830,12 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     SELECT
       analyzed_expenses."FromCollectiveId",
       analyzed_expenses.id as "expenseId",
-      COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
+      COALESCE(pm."type"::text, CASE WHEN all_expenses."legacyPayoutMethod" = 'paypal' THEN 'PAYPAL' ELSE 'OTHER' END) AS "payoutMethodType",
       EXTRACT('year' FROM NOW()) AS "year",
+      (from_collective."data"#>>'{isUSEntity}')::boolean AS "isUSEntity",
+      from_collective."countryISO" AS "countryISO",
+      host."data"#>>'{policies,TAX_FORM_THRESHOLDS}' AS "taxFormThresholds",
+      (host."data"#>>'{policies,TAX_FORM_THRESHOLDS,includePayPalExpenses}')::boolean AS "includePayPalExpenses",
       SUM(all_expenses."amount" * (
         CASE
           WHEN all_expenses."currency" = host.currency THEN 1
@@ -850,7 +889,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     AND all_expenses."deletedAt" IS NULL
     AND date_trunc('year', COALESCE(all_expenses."paidAt", NOW())) = date_trunc('year', NOW())
     AND ld.id IS NULL -- Ignore documents that have already been received
-    GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType", COALESCE(pm."type", 'OTHER')
+    GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType", COALESCE(pm."type"::text, CASE WHEN all_expenses."legacyPayoutMethod" = 'paypal' THEN 'PAYPAL' ELSE 'OTHER' END), from_collective."data", from_collective."countryISO", host."data"
   `,
     {
       type: QueryTypes.SELECT,
@@ -895,8 +934,12 @@ const getTaxFormsRequiredForAccounts = async ({
     `
     SELECT
       account.id as "collectiveId",
-      COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
+      COALESCE(pm."type"::text, CASE WHEN all_expenses."legacyPayoutMethod" = 'paypal' THEN 'PAYPAL' ELSE 'OTHER' END) AS "payoutMethodType",
       EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())) AS "year",
+      (account."data"#>>'{isUSEntity}')::boolean AS "isUSEntity",
+      account."countryISO" AS "countryISO",
+      host."data"#>>'{policies,TAX_FORM_THRESHOLDS}' AS "taxFormThresholds",
+      (host."data"#>>'{policies,TAX_FORM_THRESHOLDS,includePayPalExpenses}')::boolean AS "includePayPalExpenses",
       SUM(all_expenses."amount" * (
         CASE
           WHEN all_expenses."currency" = host.currency THEN 1
@@ -946,7 +989,7 @@ const getTaxFormsRequiredForAccounts = async ({
     AND all_expenses."deletedAt" IS NULL
     ${ifStr(!allTime, `AND EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())) = :year`)}
     ${ifStr(ignoreReceived, `AND ld.id IS NULL`)}
-    GROUP BY account.id, d."documentType", EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())), COALESCE(pm."type", 'OTHER')
+    GROUP BY account.id, d."documentType", EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())), COALESCE(pm."type"::text, CASE WHEN all_expenses."legacyPayoutMethod" = 'paypal' THEN 'PAYPAL' ELSE 'OTHER' END), account."data", account."countryISO", host."data"
   `,
     {
       raw: true,

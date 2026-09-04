@@ -57,6 +57,11 @@ interface CollectiveInterface {
   Whether this account is suspended
   """
   isSuspended: Boolean!
+
+  """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
   isGuest: Boolean
   canApply: Boolean
   canContact: Boolean!
@@ -511,6 +516,11 @@ type Contributor {
   A public message from contributors to describe their contributions
   """
   publicMessage: String
+
+  """
+  Whether this contributor has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
 }
 
 """
@@ -901,6 +911,11 @@ type Policies {
   Contribution threshold to enforce contributor info. This resolver can be called from the collective or the host, when resolved through the collective the thresholds are returned in the collective currency
   """
   CONTRIBUTOR_INFO_THRESHOLDS: CONTRIBUTOR_INFO_THRESHOLDS
+
+  """
+  Tax form thresholds for US and non-US entities in cents (0 means always collect)
+  """
+  TAX_FORM_THRESHOLDS: TAX_FORM_THRESHOLDS
 }
 
 type EXPENSE_POLICIES {
@@ -1716,6 +1731,23 @@ type CONTRIBUTOR_INFO_THRESHOLDS {
   address: Int
 }
 
+type TAX_FORM_THRESHOLDS {
+  """
+  Threshold in cents for US entities (0 means always collect)
+  """
+  US: Int
+
+  """
+  Threshold in cents for non-US entities (0 means always collect)
+  """
+  NON_US: Int
+
+  """
+  Whether expenses paid through PayPal are included in threshold calculations
+  """
+  includePayPalExpenses: Boolean
+}
+
 """
 The results from searching for collectives with pagination info
 """
@@ -1890,6 +1922,11 @@ type Collective implements CollectiveInterface {
   isSuspended: Boolean!
 
   """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
+
+  """
   Returns whether this collective is archived
   """
   isArchived: Boolean
@@ -2033,6 +2070,10 @@ type Collective implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """
@@ -2151,6 +2192,11 @@ type Event implements CollectiveInterface {
   isSuspended: Boolean!
 
   """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
+
+  """
   Returns whether this collective is archived
   """
   isArchived: Boolean
@@ -2294,6 +2340,10 @@ type Event implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """
@@ -2412,6 +2462,11 @@ type Fund implements CollectiveInterface {
   isSuspended: Boolean!
 
   """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
+
+  """
   Returns whether this collective is archived
   """
   isArchived: Boolean
@@ -2555,6 +2610,10 @@ type Fund implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """
@@ -2673,6 +2732,11 @@ type Organization implements CollectiveInterface {
   isSuspended: Boolean!
 
   """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
+
+  """
   Returns whether this collective is archived
   """
   isArchived: Boolean
@@ -2816,6 +2880,10 @@ type Organization implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """
@@ -2934,6 +3002,11 @@ type Platform implements CollectiveInterface {
   isSuspended: Boolean!
 
   """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
+
+  """
   Returns whether this collective is archived
   """
   isArchived: Boolean
@@ -3077,6 +3150,10 @@ type Platform implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """
@@ -3195,6 +3272,11 @@ type Project implements CollectiveInterface {
   isSuspended: Boolean!
 
   """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
+
+  """
   Returns whether this collective is archived
   """
   isArchived: Boolean
@@ -3338,6 +3420,10 @@ type Project implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """
@@ -3755,6 +3841,11 @@ type User implements CollectiveInterface {
   isSuspended: Boolean!
 
   """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
+
+  """
   Returns whether this collective is archived
   """
   isArchived: Boolean
@@ -3898,6 +3989,10 @@ type User implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """
@@ -4018,6 +4113,11 @@ type Vendor implements CollectiveInterface {
   isSuspended: Boolean!
 
   """
+  Whether this account has a public profile that can be linked to
+  """
+  hasPublicProfile: Boolean!
+
+  """
   Returns whether this collective is archived
   """
   isArchived: Boolean
@@ -4161,6 +4261,10 @@ type Vendor implements CollectiveInterface {
     """
     isConfirmed: Boolean
   ): PaginatedPaymentMethod
+
+  """
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
+  """
   connectedAccounts: [ConnectedAccountType]
 
   """

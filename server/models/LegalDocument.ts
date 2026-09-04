@@ -8,6 +8,7 @@ import {
   InferCreationAttributes,
   NonAttribute,
   Op,
+  QueryTypes,
 } from 'sequelize';
 
 import { activities } from '../constants';
@@ -361,6 +362,20 @@ class LegalDocument extends ModelWithPublicId<
     return sequelize.transaction(async transaction => {
       // Mark current tax form as invalid
       await this.update({ requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.INVALID }, { transaction });
+
+      // Clear the taxable country on the account's data, since the previous
+      // form is no longer valid and the user will have to submit a new one.
+      // Use an atomic JSONB `-` (delete key) so we don't clobber a concurrent
+      // writer's changes to other keys in `collective.data` (e.g.
+      // privateInstructions, isUSEntity) by writing back a stale snapshot.
+      if (this.collective.data?.taxableCountry) {
+        await sequelize.query(`UPDATE "Collectives" SET "data" = "data" - 'taxableCountry' WHERE id = :accountId`, {
+          type: QueryTypes.UPDATE,
+          replacements: { accountId: this.CollectiveId },
+          transaction,
+        });
+        await this.collective.reload({ transaction });
+      }
 
       // Create a new tax form request
       await LegalDocument.create(
