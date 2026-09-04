@@ -6,6 +6,7 @@ import {
   getPendingActivityDispatches,
   isActivityDispatchTrackingEnabled,
   trackActivityDispatch,
+  trackBackgroundWork,
   waitAllActivityDispatches,
 } from '../../../../server/lib/notifications/activity-dispatch-tracker';
 
@@ -257,5 +258,51 @@ describe('server/lib/notifications/activity-dispatch-tracker', () => {
       expect(settled).to.deep.equal(['first', 'second']);
       expect(getPendingActivityDispatches().size).to.equal(0);
     });
+  });
+});
+
+describe('server/lib/notifications/activity-dispatch-tracker > trackBackgroundWork', () => {
+  // Tracking is enabled globally by the test setup; these tests control it explicitly
+  beforeEach(() => {
+    disableActivityDispatchTracking();
+  });
+
+  afterEach(() => {
+    disableActivityDispatchTracking();
+  });
+
+  const captureUnhandledRejection = (): Promise<unknown> =>
+    new Promise(resolve => process.once('unhandledRejection', resolve));
+
+  it('tracks the promise while it is in flight when tracking is enabled', async () => {
+    const deferred = createDeferred();
+    enableActivityDispatchTracking();
+    trackBackgroundWork(deferred.promise);
+
+    expect(getPendingActivityDispatches().has(deferred.promise)).to.be.true;
+
+    deferred.resolve();
+    await waitAllActivityDispatches();
+
+    expect(getPendingActivityDispatches().has(deferred.promise)).to.be.false;
+  });
+
+  it('does not swallow rejections when tracking is disabled', async () => {
+    const error = new Error('email failed');
+    const unhandled = captureUnhandledRejection();
+    trackBackgroundWork(Promise.reject(error));
+
+    expect(await unhandled).to.equal(error);
+  });
+
+  it('does not swallow rejections when tracking is enabled', async () => {
+    const error = new Error('email failed');
+    enableActivityDispatchTracking();
+    const unhandled = captureUnhandledRejection();
+    trackBackgroundWork(Promise.reject(error));
+
+    expect(await unhandled).to.equal(error);
+    await waitAllActivityDispatches();
+    expect(getPendingActivityDispatches().size).to.equal(0);
   });
 });
