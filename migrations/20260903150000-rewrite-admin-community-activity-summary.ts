@@ -39,7 +39,7 @@ const optimizedViewQuery = `
         a."CollectiveId", a.type, e.type AS "expenseType"
       FROM
         "Activities" a
-        INNER JOIN "Collectives" h ON a."CollectiveId" = h.id
+        INNER JOIN "Collectives" h ON a."HostCollectiveId" = h.id
         LEFT JOIN "Expenses" e ON a."ExpenseId" = e.id
         LEFT JOIN "Collectives" fc ON a."FromCollectiveId" = fc.id
       WHERE h."deletedAt" IS NULL
