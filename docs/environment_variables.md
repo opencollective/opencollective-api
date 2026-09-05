@@ -126,7 +126,7 @@
 | HYPERWATCH_USERNAME                           | .hyperwatch.username                                   | Hyperwatch username                                                                |
 | HYPERWATCH_SECRET                             | .hyperwatch.secret                                     | Hyperwatch secret                                                                  |
 | DB_ENCRYPTION_SECRET_KEY                      | .dbEncryption.secretKey                                | Database encryption secret key                                                     |
-| DB_ENCRYPTION_CIPHER                          | .dbEncryption.cipher                                   | Database encryption cipher                                                         |
+| DB_ENCRYPTION_CIPHER                          | .dbEncryption.cipher                                   | Database encryption cipher (`AES`, `DES` or `TripleDES`)                           |
 | FETCH_TRANSACTIONS_RECEIPTS                   | .pdfService.fetchTransactionsReceipts                  | Fetch transactions receipts                                                        |
 | FETCH_COLLECTIVE_TRANSACTIONS_CSV             | .restService.fetchCollectiveTransactionsCsv            | Fetch collective transactions CSV                                                  |
 | FETCH_HOST_TRANSACTIONS_CSV                   | .restService.fetchHostTransactionsCsv                  | Fetch host transactions CSV                                                        |

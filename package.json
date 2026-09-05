@@ -67,7 +67,6 @@
     "connect-redis": "9.0.0",
     "cookie-parser": "1.4.7",
     "cors": "2.8.6",
-    "crypto-js": "4.2.0",
     "crypto-random-string": "3.3.1",
     "csv-parse": "7.0.2",
     "dataloader": "2.2.3",
