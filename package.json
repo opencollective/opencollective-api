@@ -167,7 +167,6 @@
     "lint-staged": "^17.0.0",
     "markdown-table": "^2.0.0",
     "mocha": "^12.0.0",
-    "mocha-junit-reporter": "^2.2.1",
     "nock": "14.0.17",
     "node-mocks-http": "^1.16.1",
     "nodemon": "^3.0.2",
@@ -240,7 +239,7 @@
     "start:e2e:server": "node ./dist/e2e.js",
     "test:watch": "NODE_ENV=test TZ=UTC mocha --watch --extension hbs,js,ts,cjs,mjs",
     "test": "NODE_ENV=test TZ=UTC mocha",
-    "test:coverage": "NODE_ENV=test TZ=UTC nyc --all mocha -- --reporter mocha-junit-reporter --reporter spec",
+    "test:coverage": "NODE_ENV=test TZ=UTC nyc --all -- mocha --reporter ./test/reporters/spec-and-junit.cjs",
     "test:update": "CHAI_JEST_SNAPSHOT_UPDATE_ALL=true npm run test",
     "test:clean-db-snapshots": "rm -rf test/dbdumps/snapshots/*",
     "test:update-db-snapshots": "npm run test:clean-db-snapshots && UPDATE_DB_SNAPSHOTS=true npm run test $(grep -rH 'getOrCreateDBSnapshot' --include='*.test.js' --include='*.test.ts' . | cut -d ':' -f 1 | uniq)",
@@ -295,7 +294,6 @@
     ],
     "ignores": [
       "eslint-import-resolver-typescript",
-      "mocha-junit-reporter",
       "typescript-eslint",
       "@sentry/cli"
     ]
