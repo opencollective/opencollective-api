@@ -12,6 +12,7 @@ services:
           memory: '${POSTGRES_MEMORY_LIMIT:-4gb}'
     volumes:
       - opencollective-postgres-data:/var/lib/postgresql/data
+    command: ["postgres", "-c", "max_connections=500"]
 
 volumes:
   opencollective-postgres-data:

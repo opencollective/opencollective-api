@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 import { get } from 'lodash';
 
 import ActivityTypes from '../../../../../server/constants/activities';
+import OrderStatuses from '../../../../../server/constants/order-status';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import {
   ContributionAccountingCategoryRuleOperator,
@@ -14,7 +15,10 @@ import { AccountingCategoryRule } from '../../../../../server/models/AccountingC
 import {
   fakeAccountingCategory,
   fakeActiveHost,
+  fakeConnectedAccount,
   fakeExpense,
+  fakeManualPaymentProvider,
+  fakeOrder,
   fakeUser,
   fakeUserToken,
   randStr,
@@ -182,6 +186,112 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
       expect(result.errors[0].message).to.equal(
         'Cannot remove accounting categories that have already been used in paid expenses. Please re-categorize the expenses first.',
       );
+    });
+
+    it('fails if trying to remove a category that has orders attached', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ plan: 'start-plan-2021', admin });
+      const category = await fakeAccountingCategory({ CollectiveId: host.id });
+      await fakeOrder({ CollectiveId: host.id, AccountingCategoryId: category.id, status: OrderStatuses.PAID });
+      const result = await graphqlQueryV2(
+        editAccountingCategoriesMutation,
+        { account: { legacyId: host.id }, categories: [] },
+        admin,
+      );
+
+      expect(result.errors[0].message).to.equal(
+        'Cannot remove accounting categories that have already been used in contributions or added funds. Please re-categorize them first.',
+      );
+    });
+
+    it('fails if trying to remove a category used as a balance account on activity', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ plan: 'start-plan-2021', admin });
+      const category = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+      await fakeOrder({ CollectiveId: host.id, BalanceAccountingCategoryId: category.id, status: OrderStatuses.NEW });
+      const result = await graphqlQueryV2(
+        editAccountingCategoriesMutation,
+        { account: { legacyId: host.id }, categories: [] },
+        admin,
+      );
+
+      expect(result.errors[0].message).to.equal(
+        'Cannot remove accounting categories that are used as balance accounts on existing activity. Please re-categorize it first.',
+      );
+    });
+
+    it('clears balance-account defaults on payment rails when removing a category', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ plan: 'start-plan-2021', admin });
+      const category = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CLEARING_ACCOUNT' });
+      const connectedAccount = await fakeConnectedAccount({
+        CollectiveId: host.id,
+        service: 'stripe',
+        data: { BalanceAccountingCategoryId: category.id, otherKey: 'preserved' },
+      });
+      const provider = await fakeManualPaymentProvider({
+        CollectiveId: host.id,
+        data: { BalanceAccountingCategoryId: category.id },
+      });
+
+      const result = await graphqlQueryV2(
+        editAccountingCategoriesMutation,
+        { account: { legacyId: host.id }, categories: [] },
+        admin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      await connectedAccount.reload();
+      await provider.reload();
+      expect(connectedAccount.data.BalanceAccountingCategoryId).to.be.undefined;
+      expect(connectedAccount.data.otherKey).to.eq('preserved');
+      expect(provider.data.BalanceAccountingCategoryId).to.be.undefined;
+    });
+
+    it('can remove a category that only has unpaid orders attached', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ plan: 'start-plan-2021', admin });
+      const category = await fakeAccountingCategory({ CollectiveId: host.id });
+      await fakeOrder({ CollectiveId: host.id, AccountingCategoryId: category.id, status: OrderStatuses.NEW });
+      const result = await graphqlQueryV2(
+        editAccountingCategoriesMutation,
+        { account: { legacyId: host.id }, categories: [] },
+        admin,
+      );
+
+      expect(result.errors).to.not.exist;
+    });
+
+    it('creates balance and clearing account categories, stripping expense types', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ plan: 'start-plan-2021', admin });
+      const result = await graphqlQueryV2(
+        editAccountingCategoriesMutation,
+        {
+          account: { legacyId: host.id },
+          categories: [
+            fakeValidCategoryInput({ code: '1051', name: 'Mercury Checking', kind: 'BALANCE_ACCOUNT' }),
+            fakeValidCategoryInput({
+              code: '1030',
+              name: 'Stripe Clearing',
+              kind: 'CLEARING_ACCOUNT',
+              expensesTypes: ['INVOICE'],
+            }),
+          ],
+        },
+        admin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const categories = await models.AccountingCategory.findAll({
+        where: { CollectiveId: host.id },
+        order: [['code', 'ASC']],
+      });
+      expect(categories).to.have.length(2);
+      expect(categories[0]).to.deep.include({ code: '1030', kind: 'CLEARING_ACCOUNT', expensesTypes: null });
+      expect(categories[1]).to.deep.include({ code: '1051', kind: 'BALANCE_ACCOUNT', expensesTypes: null });
     });
 
     it('fails if the expenses types are not valid', async () => {
@@ -371,6 +481,63 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
       expect(result.errors[0].message).to.equal(
         'Contribution accounting category rules can only be set at the host level',
       );
+    });
+
+    it('fails if the target category belongs to another host', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({
+        data: { features: { [FEATURE.ACCOUNTING_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        admin,
+      });
+      const otherHostCategory = await fakeAccountingCategory();
+      const result = await graphqlQueryV2(
+        updateContributionAccountingCategoryRulesMutation,
+        {
+          account: { legacyId: host.id },
+          rules: [
+            {
+              accountingCategory: { id: idEncode(otherHostCategory.id, 'accounting-category') },
+              name: 'Rule',
+              enabled: true,
+              predicates: [{ subject: 'description', operator: 'contains', value: 'foo' }],
+            },
+          ],
+        },
+        admin,
+      );
+
+      expect(result.errors[0].message).to.equal('This accounting category is not allowed for this host');
+    });
+
+    it('fails if the target category is a balance or clearing account', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({
+        data: { features: { [FEATURE.ACCOUNTING_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        admin,
+      });
+
+      for (const kind of ['BALANCE_ACCOUNT', 'CLEARING_ACCOUNT'] as const) {
+        const category = await fakeAccountingCategory({ CollectiveId: host.id, kind });
+        const result = await graphqlQueryV2(
+          updateContributionAccountingCategoryRulesMutation,
+          {
+            account: { legacyId: host.id },
+            rules: [
+              {
+                accountingCategory: { id: idEncode(category.id, 'accounting-category') },
+                name: 'Rule',
+                enabled: true,
+                predicates: [{ subject: 'description', operator: 'contains', value: 'foo' }],
+              },
+            ],
+          },
+          admin,
+        );
+
+        expect(result.errors[0].message).to.equal(
+          'Contribution accounting category rules can only target contribution or added funds categories',
+        );
+      }
     });
 
     it('updates contribution accounting category rules successfully', async () => {

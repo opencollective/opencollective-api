@@ -12,8 +12,13 @@ import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import type { ConnectedAccount as ConnectedAccountModel } from '../../../models';
 import models from '../../../models';
+import { checkIsValidBalanceAccountingCategory } from '../../common/balance-accounting-categories';
 import { checkRemoteUserCanUseConnectedAccounts } from '../../common/scope-check';
 import { Forbidden, Unauthorized, ValidationFailed } from '../../errors';
+import {
+  fetchAccountingCategoryWithReference,
+  GraphQLAccountingCategoryReferenceInput,
+} from '../input/AccountingCategoryInput';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLConnectedAccountCreateInput } from '../input/ConnectedAccountCreateInput';
 import {
@@ -144,6 +149,54 @@ const connectedAccountMutations = {
       await connectedAccount.destroy();
 
       return connectedAccount;
+    },
+  },
+  setConnectedAccountBalanceAccountingCategory: {
+    type: new GraphQLNonNull(GraphQLConnectedAccount),
+    description:
+      'Set the balance/clearing accounting category used to attribute payments processed through this connected account. Scope: "connectedAccounts".',
+    args: {
+      connectedAccount: {
+        type: new GraphQLNonNull(GraphQLConnectedAccountReferenceInput),
+        description: 'ConnectedAccount reference containing either id or legacyId',
+      },
+      accountingCategory: {
+        type: GraphQLAccountingCategoryReferenceInput,
+        description: 'The balance/clearing accounting category to set. Pass null to unset.',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<ConnectedAccountModel> {
+      checkRemoteUserCanUseConnectedAccounts(req);
+
+      const connectedAccount = await fetchConnectedAccountWithReference(args.connectedAccount, {
+        throwIfMissing: true,
+      });
+
+      const collective = await req.loaders.Collective.byId.load(connectedAccount.CollectiveId);
+      if (!req.remoteUser.isAdminOfCollective(collective)) {
+        throw new Unauthorized("You don't have permission to edit this collective");
+      }
+
+      const supportedServices: string[] = [Service.STRIPE, Service.PAYPAL, Service.TRANSFERWISE];
+      if (!supportedServices.includes(connectedAccount.service)) {
+        throw new ValidationFailed(
+          `Balance accounting categories are not supported for ${connectedAccount.service} connected accounts`,
+        );
+      }
+
+      let accountingCategoryId = null;
+      if (args.accountingCategory) {
+        const accountingCategory = await fetchAccountingCategoryWithReference(args.accountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        });
+        checkIsValidBalanceAccountingCategory(accountingCategory, collective);
+        accountingCategoryId = accountingCategory.id;
+      }
+
+      return connectedAccount.update({
+        data: { ...connectedAccount.data, BalanceAccountingCategoryId: accountingCategoryId },
+      });
     },
   },
 };

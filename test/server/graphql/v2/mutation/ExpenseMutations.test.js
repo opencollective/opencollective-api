@@ -230,8 +230,14 @@ const createExpenseMutation = gql`
     $expense: ExpenseCreateInput!
     $account: AccountReferenceInput!
     $transactionsImportRow: TransactionsImportRowReferenceInput
+    $balanceAccountingCategory: AccountingCategoryReferenceInput
   ) {
-    createExpense(expense: $expense, account: $account, transactionsImportRow: $transactionsImportRow) {
+    createExpense(
+      expense: $expense
+      account: $account
+      transactionsImportRow: $transactionsImportRow
+      balanceAccountingCategory: $balanceAccountingCategory
+    ) {
       ...ExpenseFields
     }
   }
@@ -1147,6 +1153,209 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
     });
 
+    describe('updateExpenseBalanceAccountingCategory', () => {
+      const updateBalanceCategoryMutation = gql`
+        mutation UpdateExpenseBalanceAccountingCategory(
+          $expense: ExpenseReferenceInput!
+          $accountingCategory: AccountingCategoryReferenceInput
+        ) {
+          updateExpenseBalanceAccountingCategory(expense: $expense, accountingCategory: $accountingCategory) {
+            id
+            balanceAccountingCategory {
+              id
+              code
+            }
+          }
+        }
+      `;
+
+      it('sets and unsets the category as host admin, rejects collective admins and wrong kinds', async () => {
+        const expense = await fakeExpense({ status: 'PAID' });
+        const hostAdmin = await fakeUser();
+        const collectiveAdmin = await fakeUser();
+        await expense.collective.addUserWithRole(collectiveAdmin, 'ADMIN');
+        await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+        await fakePlatformSubscription({
+          CollectiveId: expense.collective.HostCollectiveId,
+          plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } },
+        });
+        const balanceCategory = await fakeAccountingCategory({
+          CollectiveId: expense.collective.HostCollectiveId,
+          kind: 'BALANCE_ACCOUNT',
+          hostOnly: true,
+        });
+        const expenseCategory = await fakeAccountingCategory({
+          CollectiveId: expense.collective.HostCollectiveId,
+          kind: 'EXPENSE',
+        });
+        const expenseRef = { expense: { legacyId: expense.id } };
+        const categoryRef = { id: idEncode(balanceCategory.id, 'accounting-category') };
+
+        // Collective admin (PAID expense: not even allowed to touch the category)
+        const forbidden = await graphqlQueryV2(
+          updateBalanceCategoryMutation,
+          { ...expenseRef, accountingCategory: categoryRef },
+          collectiveAdmin,
+        );
+        expect(forbidden.errors).to.exist;
+
+        // Wrong kind
+        const wrongKind = await graphqlQueryV2(
+          updateBalanceCategoryMutation,
+          { ...expenseRef, accountingCategory: { id: idEncode(expenseCategory.id, 'accounting-category') } },
+          hostAdmin,
+        );
+        expect(wrongKind.errors[0].message).to.eq('This accounting category is not a balance or clearing account');
+
+        // Set
+        const result = await graphqlQueryV2(
+          updateBalanceCategoryMutation,
+          { ...expenseRef, accountingCategory: categoryRef },
+          hostAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.updateExpenseBalanceAccountingCategory.balanceAccountingCategory.code).to.eq(
+          balanceCategory.code,
+        );
+        await expense.reload();
+        expect(expense.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
+
+        // Unset
+        const unsetResult = await graphqlQueryV2(
+          updateBalanceCategoryMutation,
+          { ...expenseRef, accountingCategory: null },
+          hostAdmin,
+        );
+        expect(unsetResult.errors).to.not.exist;
+        await expense.reload();
+        expect(expense.BalanceAccountingCategoryId).to.be.null;
+      });
+    });
+
+    describe('with a balanceAccountingCategory', () => {
+      it('stamps the expense when set by a host admin', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const balanceCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            balanceAccountingCategory: { id: idEncode(balanceCategory.id, 'accounting-category') },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        const expense = await models.Expense.findByPk(result.data.createExpense.legacyId);
+        expect(expense.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
+      });
+
+      it('takes precedence over the import row bank sub-account default', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const rowCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+        const pickedCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CLEARING_ACCOUNT' });
+        const transactionsImport = await fakeTransactionsImport({
+          CollectiveId: host.id,
+          type: 'PLAID',
+          settings: { balanceAccountingCategories: { 'plaid-acc-1': rowCategory.id } },
+        });
+        const transactionsImportRow = await fakeTransactionsImportRow({
+          TransactionsImportId: transactionsImport.id,
+          accountId: 'plaid-acc-1',
+        });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            transactionsImportRow: { id: idEncode(transactionsImportRow.id, 'transactions-import-row') },
+            balanceAccountingCategory: { id: idEncode(pickedCategory.id, 'accounting-category') },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        const expense = await models.Expense.findByPk(result.data.createExpense.legacyId);
+        expect(expense.BalanceAccountingCategoryId).to.eq(pickedCategory.id);
+      });
+
+      it('is rejected if the user is not an admin of the host', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: user });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const balanceCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            balanceAccountingCategory: { id: idEncode(balanceCategory.id, 'accounting-category') },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Only host admins can set the balance accounting category');
+      });
+
+      it('is rejected if the category is not a balance or clearing account', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const expenseCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            balanceAccountingCategory: { id: idEncode(expenseCategory.id, 'accounting-category') },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('This accounting category is not a balance or clearing account');
+      });
+
+      it('is rejected if the category belongs to another host', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user });
+        const otherHost = await fakeHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const balanceCategory = await fakeAccountingCategory({ CollectiveId: otherHost.id, kind: 'BALANCE_ACCOUNT' });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            balanceAccountingCategory: { id: idEncode(balanceCategory.id, 'accounting-category') },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('This accounting category is not allowed for this host');
+      });
+    });
+
     describe('with a transactionsImportRow', () => {
       it('must belong to the same host', async () => {
         const user = await fakeUser();
@@ -1191,6 +1400,38 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq('You need to be an admin of the collective to import expenses');
+      });
+
+      it('stamps the balance accounting category from the row bank sub-account', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+        const balanceCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+        const transactionsImport = await fakeTransactionsImport({
+          CollectiveId: host.id,
+          type: 'PLAID',
+          settings: { balanceAccountingCategories: { 'plaid-acc-1': balanceCategory.id } },
+        });
+        const transactionsImportRow = await fakeTransactionsImportRow({
+          TransactionsImportId: transactionsImport.id,
+          accountId: 'plaid-acc-1',
+        });
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            transactionsImportRow: { id: idEncode(transactionsImportRow.id, 'transactions-import-row') },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        const expense = await models.Expense.findByPk(result.data.createExpense.legacyId);
+        expect(expense.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
       });
 
       it('marks the expense as paid and create the transactions', async () => {
@@ -1793,6 +2034,28 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         );
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq('This accounting category is not allowed for expenses');
+      });
+
+      it('fails if the accounting category is a balance or clearing account', async () => {
+        const expense = await fakeExpense({ status: 'APPROVED' });
+        for (const kind of ['BALANCE_ACCOUNT', 'CLEARING_ACCOUNT']) {
+          const accountingCategory = await fakeAccountingCategory({
+            CollectiveId: expense.collective.HostCollectiveId,
+            kind,
+          });
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, 'expense'),
+                accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+              },
+            },
+            expense.User,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq('This accounting category is not allowed for expenses');
+        }
       });
 
       it('fails if the collective has no host', async () => {
@@ -4765,6 +5028,108 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq(
           'Collective does not have enough funds to cover for the fees of this payment method. Current balance: $10.00, Expense amount: $10.00, Estimated PAYPAL fees: $0.20.',
         );
+      });
+
+      it('Pays the expense manually with a balance accounting category', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 2000 });
+        const balanceCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+        const expenseCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
+
+        // Rejects a category that is not a balance/clearing account
+        const failedResult = await graphqlQueryV2(
+          processExpenseMutation,
+          {
+            expenseId: expense.id,
+            action: 'PAY',
+            paymentParams: {
+              forceManual: true,
+              totalAmountPaidInHostCurrency: 1000,
+              balanceAccountingCategory: { id: idEncode(expenseCategory.id, 'accounting-category') },
+            },
+          },
+          hostAdmin,
+        );
+        expect(failedResult.errors).to.exist;
+        expect(failedResult.errors[0].message).to.eq('This accounting category is not a balance or clearing account');
+
+        // Accepts a balance account and stamps it on the expense
+        const result = await graphqlQueryV2(
+          processExpenseMutation,
+          {
+            expenseId: expense.id,
+            action: 'PAY',
+            paymentParams: {
+              forceManual: true,
+              totalAmountPaidInHostCurrency: 1000,
+              balanceAccountingCategory: { id: idEncode(balanceCategory.id, 'accounting-category') },
+            },
+          },
+          hostAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('PAID');
+        await expense.reload();
+        expect(expense.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
+      });
+
+      it('Keeps an existing balance accounting category when paying without one', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const balanceCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+          BalanceAccountingCategoryId: balanceCategory.id,
+        });
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 2000 });
+
+        const result = await graphqlQueryV2(
+          processExpenseMutation,
+          { expenseId: expense.id, action: 'PAY', paymentParams: { balanceAccountingCategory: null } },
+          hostAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await expense.reload();
+        expect(expense.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
+      });
+
+      it('Pays an OTHER-payout expense with a balance accounting category without forceManual', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 2000 });
+        const balanceCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+
+        const result = await graphqlQueryV2(
+          processExpenseMutation,
+          {
+            expenseId: expense.id,
+            action: 'PAY',
+            paymentParams: {
+              balanceAccountingCategory: { id: idEncode(balanceCategory.id, 'accounting-category') },
+            },
+          },
+          hostAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('PAID');
+        await expense.reload();
+        expect(expense.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
       });
 
       it('Pays the expense manually', async () => {

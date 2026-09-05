@@ -22,6 +22,8 @@ import {
   fakePrivateHost,
   fakeProject,
   fakeTier,
+  fakeTransactionsImport,
+  fakeTransactionsImportRow,
   fakeUser,
   fakeUserToken,
   fakeVendor,
@@ -38,6 +40,8 @@ const addFundsMutation = gql`
     $description: String!
     $hostFeePercent: Float!
     $accountingCategory: AccountingCategoryReferenceInput
+    $balanceAccountingCategory: AccountingCategoryReferenceInput
+    $transactionsImportRow: TransactionsImportRowReferenceInput
     $tier: TierReferenceInput
     $tax: TaxInput
   ) {
@@ -48,6 +52,8 @@ const addFundsMutation = gql`
       description: $description
       hostFeePercent: $hostFeePercent
       accountingCategory: $accountingCategory
+      balanceAccountingCategory: $balanceAccountingCategory
+      transactionsImportRow: $transactionsImportRow
       tier: $tier
       tax: $tax
     ) {
@@ -87,6 +93,9 @@ const addFundsMutation = gql`
         taxAmount {
           valueInCents
           currency
+        }
+        balanceAccountingCategory {
+          id
         }
       }
       description
@@ -719,6 +728,111 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
         expect(result.errors[0].message).to.eq(
           'This accounting category is not allowed for contributions and added funds',
         );
+      });
+
+      it('attributes added funds to a balance accounting category', async () => {
+        const balanceCategory = await fakeAccountingCategory({
+          CollectiveId: collective.host.id,
+          kind: 'BALANCE_ACCOUNT',
+          name: 'Mercury Checking',
+        });
+        const result = await graphqlQueryV2(
+          addFundsMutation,
+          {
+            ...validMutationVariables,
+            account: { legacyId: collective.id },
+            fromAccount: { legacyId: randomUser.CollectiveId },
+            balanceAccountingCategory: { id: idEncode(balanceCategory.id, 'accounting-category') },
+          },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        const order = await models.Order.findByPk(result.data.addFunds.legacyId);
+        expect(order.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
+
+        const creditTransaction = result.data.addFunds.transactions.find(
+          t => t.kind === 'ADDED_FUNDS' && t.type === 'CREDIT',
+        );
+        expect(creditTransaction.balanceAccountingCategory).to.exist;
+        expect(creditTransaction.balanceAccountingCategory.id).to.eq(
+          idEncode(balanceCategory.id, 'accounting-category'),
+        );
+      });
+
+      it('defaults the balance category from the bank sub-account of a linked import row', async () => {
+        const balanceCategory = await fakeAccountingCategory({
+          CollectiveId: collective.host.id,
+          kind: 'BALANCE_ACCOUNT',
+        });
+        const transactionsImport = await fakeTransactionsImport({
+          CollectiveId: collective.host.id,
+          type: 'PLAID',
+          settings: { balanceAccountingCategories: { 'plaid-acc-1': balanceCategory.id } },
+        });
+        const row = await fakeTransactionsImportRow({
+          TransactionsImportId: transactionsImport.id,
+          accountId: 'plaid-acc-1',
+          status: 'PENDING',
+        });
+
+        const result = await graphqlQueryV2(
+          addFundsMutation,
+          {
+            ...validMutationVariables,
+            account: { legacyId: collective.id },
+            fromAccount: { legacyId: randomUser.CollectiveId },
+            transactionsImportRow: { id: idEncode(row.id, 'transactions-import-row') },
+          },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        const order = await models.Order.findByPk(result.data.addFunds.legacyId);
+        expect(order.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
+      });
+
+      it('rejects a non balance/clearing category as balanceAccountingCategory', async () => {
+        const expenseCategory = await fakeAccountingCategory({ CollectiveId: collective.host.id, kind: 'EXPENSE' });
+        const result = await graphqlQueryV2(
+          addFundsMutation,
+          {
+            ...validMutationVariables,
+            account: { legacyId: collective.id },
+            fromAccount: { legacyId: randomUser.CollectiveId },
+            balanceAccountingCategory: { id: idEncode(expenseCategory.id, 'accounting-category') },
+          },
+          hostAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('This accounting category is not a balance or clearing account');
+      });
+
+      it('rejects balance and clearing account categories', async () => {
+        for (const kind of ['BALANCE_ACCOUNT', 'CLEARING_ACCOUNT']) {
+          const accountingCategory = await fakeAccountingCategory({
+            kind,
+            CollectiveId: collective.host.id,
+          });
+          const result = await graphqlQueryV2(
+            addFundsMutation,
+            {
+              ...validMutationVariables,
+              account: { legacyId: collective.id },
+              fromAccount: { legacyId: randomUser.CollectiveId },
+              accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+            },
+            hostAdmin,
+          );
+
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq(
+            'This accounting category is not allowed for contributions and added funds',
+          );
+        }
       });
     });
   });
