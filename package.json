@@ -186,7 +186,7 @@
   "scripts": {
     "build": "npm run build:clean && npm run build:updates && npm run build:server",
     "build:clean": "rm -rf dist && mkdir dist",
-    "build:server": "babel server --copy-files --source-maps true --extensions .js,.ts -d ./dist",
+    "build:server": "babel server --copy-files --source-maps true --extensions .js,.ts --ignore \"**/*.d.ts\" -d ./dist",
     "build:updates": "npm --prefix node_modules/cloudflare-ip run update-list",
     "clean": "npm run build:clean && npm run test:clean",
     "commit": "git-cz",
