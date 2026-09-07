@@ -1,11 +1,11 @@
 let trackingEnabled = false;
-const pendingDispatches = new Set<Promise<void>>();
+const pendingDispatches = new Set<Promise<unknown>>();
 
 export const isActivityDispatchTrackingEnabled = (): boolean => {
   return trackingEnabled;
 };
 
-export const getPendingActivityDispatches = (): Set<Promise<void>> => {
+export const getPendingActivityDispatches = (): Set<Promise<unknown>> => {
   return pendingDispatches;
 };
 
@@ -18,7 +18,7 @@ export const disableActivityDispatchTracking = (): void => {
   pendingDispatches.clear();
 };
 
-export const trackActivityDispatch = (promise: Promise<void>): void => {
+export const trackActivityDispatch = (promise: Promise<unknown>): void => {
   if (!trackingEnabled) {
     return;
   }
@@ -33,4 +33,17 @@ export const waitAllActivityDispatches = async (): Promise<void> => {
   while (pendingDispatches.size > 0) {
     await Promise.allSettled([...pendingDispatches]);
   }
+};
+
+/**
+ * Track a fire-and-forget promise (e.g. emails sent after an order is processed) so that tests can wait for it
+ * with `waitAllActivityDispatches`.
+ *
+ * No rejection handler is attached to `promise`: when tracking is disabled (production) nothing touches it, and
+ * when tracking is enabled the only handler is the `finally` bookkeeping, whose derived promise rejects with the
+ * same reason. Either way a failure still surfaces through the process-level `unhandledRejection` handler
+ * (see `server/lib/sentry`) exactly as it did before being tracked.
+ */
+export const trackBackgroundWork = (promise: Promise<unknown>): void => {
+  trackActivityDispatch(promise);
 };
