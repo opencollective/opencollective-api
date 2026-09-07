@@ -24,11 +24,6 @@
     "url": "https://github.com/opencollective/opencollective-api.git"
   },
   "main": "server/index.js",
-  "config": {
-    "commitizen": {
-      "path": "./node_modules/cz-conventional-changelog"
-    }
-  },
   "dependencies": {
     "@apollo/server": "5.5.1",
     "@as-integrations/express5": "1.1.2",
