@@ -293,7 +293,8 @@
       "eslint-import-resolver-typescript",
       "mocha-junit-reporter",
       "typescript-eslint",
-      "@sentry/cli"
+      "@sentry/cli",
+      "cz-conventional-changelog"
     ]
   }
 }
