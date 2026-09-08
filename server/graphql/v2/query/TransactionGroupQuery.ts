@@ -4,6 +4,7 @@ import { roundCentsAmount } from '../../../lib/currency';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import { getTransactionKindPriorityCase } from '../../../lib/transactions/kind-priority';
 import { sequelize, Transaction } from '../../../models';
+import { enforceScope } from '../../common/scope-check';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLTransactionGroup } from '../object/TransactionGroup';
 
@@ -22,6 +23,8 @@ const TransactionGroupQuery = {
     },
   },
   async resolve(_, args, req) {
+    enforceScope(req, 'transactions');
+
     if (!args.account) {
       throw new Error('You need to provide an account argument');
     }
