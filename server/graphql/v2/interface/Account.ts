@@ -991,7 +991,7 @@ const accountFieldsDefinition = () => ({
       },
       limit: {
         type: GraphQLInt,
-        default: 20,
+        default: { value: 20 },
         description: 'Number of activities to retrieve',
       },
       classes: {
