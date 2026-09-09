@@ -183,8 +183,8 @@ class MemberInvitation extends ModelWithPublicId<
       });
       const inviteeCollective = await Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
       const alreadyRequiresCompletion = Boolean(inviteeCollective?.data?.requiresProfileCompletion);
-      const hasLoggedIn = Boolean(inviteeUser?.lastLoginAt);
-      treatAsNewUser = alreadyRequiresCompletion || !hasLoggedIn;
+      const hasNeverSignedIn = Boolean(inviteeUser) && !inviteeUser.lastLoginAt;
+      treatAsNewUser = alreadyRequiresCompletion || hasNeverSignedIn;
 
       if (treatAsNewUser && inviteeCollective && !alreadyRequiresCompletion) {
         const newData = { ...inviteeCollective.data, requiresProfileCompletion: true };
