@@ -82,6 +82,42 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
       expect(connectedAccount.data.BalanceAccountingCategoryId).to.be.null;
     });
 
+    it('keeps the category in sync across all wise connected accounts', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
+      const firstWise = await fakeConnectedAccount({ CollectiveId: host.id, service: 'transferwise' });
+      const secondWise = await fakeConnectedAccount({ CollectiveId: host.id, service: 'transferwise' });
+      const otherHostWise = await fakeConnectedAccount({ service: 'transferwise' });
+      const category = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CLEARING_ACCOUNT' });
+
+      const result = await graphqlQueryV2(
+        setBalanceCategoryMutation,
+        {
+          connectedAccount: { legacyId: firstWise.id },
+          accountingCategory: { id: idEncode(category.id, 'accounting-category') },
+        },
+        admin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      await Promise.all([firstWise.reload(), secondWise.reload(), otherHostWise.reload()]);
+      expect(firstWise.data.BalanceAccountingCategoryId).to.eq(category.id);
+      expect(secondWise.data.BalanceAccountingCategoryId).to.eq(category.id);
+      expect(otherHostWise.data?.BalanceAccountingCategoryId).to.not.exist;
+
+      // Unset propagates too
+      const unsetResult = await graphqlQueryV2(
+        setBalanceCategoryMutation,
+        { connectedAccount: { legacyId: secondWise.id }, accountingCategory: null },
+        admin,
+      );
+      expect(unsetResult.errors).to.not.exist;
+      await Promise.all([firstWise.reload(), secondWise.reload()]);
+      expect(firstWise.data.BalanceAccountingCategoryId).to.be.null;
+      expect(secondWise.data.BalanceAccountingCategoryId).to.be.null;
+    });
+
     it('rejects unsupported services, foreign categories, non-balance kinds and non-admins', async () => {
       const admin = await fakeUser();
       const host = await fakeActiveHost({ admin });

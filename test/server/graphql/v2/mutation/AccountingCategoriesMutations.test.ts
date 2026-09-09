@@ -204,6 +204,64 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
       );
     });
 
+    it('prevents changing a category between P&L and balance/clearing kinds', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ plan: 'start-plan-2021', admin });
+      const expenseCategory = await fakeAccountingCategory({ CollectiveId: host.id, code: '6010', kind: 'EXPENSE' });
+      const balanceCategory = await fakeAccountingCategory({
+        CollectiveId: host.id,
+        code: '1051',
+        kind: 'BALANCE_ACCOUNT',
+      });
+      const getInput = (category, kind) => ({
+        id: idEncode(category.id, 'accounting-category'),
+        code: category.code,
+        name: category.name,
+        kind,
+      });
+
+      // P&L -> balance
+      const toBalance = await graphqlQueryV2(
+        editAccountingCategoriesMutation,
+        {
+          account: { legacyId: host.id },
+          categories: [getInput(expenseCategory, 'CLEARING_ACCOUNT'), getInput(balanceCategory, 'BALANCE_ACCOUNT')],
+        },
+        admin,
+      );
+      expect(toBalance.errors[0].message).to.equal(
+        'Cannot change an accounting category between profit & loss and balance/clearing kinds. Please create a new category instead.',
+      );
+
+      // Balance -> P&L
+      const toPnl = await graphqlQueryV2(
+        editAccountingCategoriesMutation,
+        {
+          account: { legacyId: host.id },
+          categories: [getInput(expenseCategory, 'EXPENSE'), getInput(balanceCategory, 'EXPENSE')],
+        },
+        admin,
+      );
+      expect(toPnl.errors[0].message).to.equal(
+        'Cannot change an accounting category between profit & loss and balance/clearing kinds. Please create a new category instead.',
+      );
+
+      // Within-family changes are still allowed
+      const withinFamilies = await graphqlQueryV2(
+        editAccountingCategoriesMutation,
+        {
+          account: { legacyId: host.id },
+          categories: [getInput(expenseCategory, 'CONTRIBUTION'), getInput(balanceCategory, 'CLEARING_ACCOUNT')],
+        },
+        admin,
+      );
+      withinFamilies.errors && console.error(withinFamilies.errors);
+      expect(withinFamilies.errors).to.not.exist;
+      await Promise.all([expenseCategory.reload(), balanceCategory.reload()]);
+      expect(expenseCategory.kind).to.equal('CONTRIBUTION');
+      expect(balanceCategory.kind).to.equal('CLEARING_ACCOUNT');
+    });
+
     it('fails if trying to remove a category used as a balance account on activity', async () => {
       const admin = await fakeUser();
       const host = await fakeActiveHost({ plan: 'start-plan-2021', admin });

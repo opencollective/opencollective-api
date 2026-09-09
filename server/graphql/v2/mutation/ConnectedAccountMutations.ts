@@ -194,6 +194,18 @@ const connectedAccountMutations = {
         accountingCategoryId = accountingCategory.id;
       }
 
+      if (connectedAccount.service === Service.TRANSFERWISE) {
+        const wiseAccounts = await models.ConnectedAccount.findAll({
+          where: { service: Service.TRANSFERWISE, CollectiveId: connectedAccount.CollectiveId },
+        });
+        await Promise.all(
+          wiseAccounts.map(wiseAccount =>
+            wiseAccount.update({ data: { ...wiseAccount.data, BalanceAccountingCategoryId: accountingCategoryId } }),
+          ),
+        );
+        return connectedAccount.reload();
+      }
+
       return connectedAccount.update({
         data: { ...connectedAccount.data, BalanceAccountingCategoryId: accountingCategoryId },
       });

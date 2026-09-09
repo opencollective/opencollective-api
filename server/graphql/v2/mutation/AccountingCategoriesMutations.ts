@@ -157,6 +157,16 @@ export default {
             );
           }
 
+          const balanceSheetKinds: string[] = ['BALANCE_ACCOUNT', 'CLEARING_ACCOUNT'];
+          const isCrossingKindFamily = ({ model, newValues }) =>
+            'kind' in newValues &&
+            balanceSheetKinds.includes(model.kind) !== balanceSheetKinds.includes(newValues.kind);
+          if (toUpdate.some(isCrossingKindFamily)) {
+            throw new ValidationFailed(
+              'Cannot change an accounting category between profit & loss and balance/clearing kinds. Please create a new category instead.',
+            );
+          }
+
           // Trigger changes
           // Remove - must always be first to avoid unique constraint errors on `code`
           await models.AccountingCategory.destroy({
