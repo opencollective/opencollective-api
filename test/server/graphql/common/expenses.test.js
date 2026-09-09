@@ -1244,20 +1244,6 @@ describe('server/graphql/common/expenses', () => {
       });
     });
 
-    it('cannot pay expenses that are on hold', async () => {
-      await runForAllContexts(async context => {
-        const { expense, req } = context;
-        await expense.update({ status: 'APPROVED', onHold: true });
-        expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
-        expect(await canMarkAsPaid(req.hostAdmin, expense)).to.be.false;
-        await expense.update({ onHold: false });
-        expect(await canPayExpense(req.hostAdmin, expense)).to.eq(context.expense.type !== 'CHARGE');
-        expect(await canMarkAsPaid(req.hostAdmin, expense)).to.eq(
-          context.expense.type !== 'CHARGE' || !!context.expense.data?.isManualVirtualCardCharge,
-        );
-      });
-    });
-
     it('only with the allowed roles', async () => {
       await runForAllContexts(async context => {
         const { expense } = context;

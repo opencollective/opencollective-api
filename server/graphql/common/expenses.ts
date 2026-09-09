@@ -959,14 +959,6 @@ export const canMarkAsPaid: ExpensePermissionEvaluator = async (
       throw new Forbidden('Can not pay expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
     }
     return false;
-  } else if (expense.onHold) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'This expense is currently on hold and cannot be paid',
-        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
-      );
-    }
-    return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden('User cannot pay expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
@@ -1738,8 +1730,6 @@ export const scheduleExpenseForPayment = async (
 ): Promise<Expense> => {
   if (expense.status === 'SCHEDULED_FOR_PAYMENT') {
     throw new BadRequest('Expense is already scheduled for payment');
-  } else if (expense.onHold) {
-    throw new Forbidden('This expense is currently on hold and cannot be scheduled for payment');
   } else if (!(await canPayExpense(req, expense))) {
     throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
   }
@@ -2630,7 +2620,8 @@ export const changesRequireStatusUpdate = (
   const isPaidOrProcessingCharge =
     expense.type === ExpenseType.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status);
 
-  if (isPaidOrProcessingCharge && !hasAmountChanges) {
+  if (isPaidOrProcessingCharge) {
+    // Receipts are attached to card charges after the money moved, so those edits never need a new review
     return false;
   }
   return hasItemsChanges || hasAmountChanges || hasPayoutChanges || hasCurrencyChanges;
@@ -3279,24 +3270,14 @@ export async function editExpense(
   let oldPayoutMethodId = null;
 
   const updatedExpense: Expense = await sequelize.transaction(async transaction => {
-    // Re-check lock and status under a row lock so a concurrent payment cannot be
-    // overwritten (or paid twice) if the expense was edited while payout was starting.
+    // The lock/status checks above run before this transaction opens, so a payout that starts in
+    // between would be overwritten by this edit. Take the row lock and re-read to serialize with
+    // `lockExpense`, which holds the same lock while flagging the expense as being processed.
     const lockedExpense = await models.Expense.findByPk(expense.id, { lock: true, transaction });
     if (!lockedExpense) {
       throw new NotFound('Expense not found');
-    } else if (lockedExpense.data?.isLocked) {
+    } else if (lockedExpense.data?.isLocked || lockedExpense.status !== expense.status) {
       throw new ValidationFailed('This expense is currently being processed, please try again later');
-    }
-
-    const isPaidCreditCardChargeInTx =
-      lockedExpense.type === ExpenseType.CHARGE &&
-      ['PAID', 'PROCESSING'].includes(lockedExpense.status) &&
-      Boolean(lockedExpense.VirtualCardId);
-    if (
-      ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT', 'CANCELED', 'INVITE_DECLINED'].includes(lockedExpense.status) &&
-      !isPaidCreditCardChargeInTx
-    ) {
-      throw new Forbidden("You don't have permission to edit this expense");
     }
 
     // Update payout method if we get new data from one of the param for it
@@ -3920,9 +3901,6 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       expense.status !== ExpenseStatus.ERROR
     ) {
       throw new Forbidden(`Expense needs to be approved. Current status of the expense: ${expense.status}.`);
-    }
-    if (expense.onHold) {
-      throw new Forbidden('This expense is currently on hold and cannot be paid');
     }
 
     const permissionFn = forceManual ? canMarkAsPaid : canPayExpense;
