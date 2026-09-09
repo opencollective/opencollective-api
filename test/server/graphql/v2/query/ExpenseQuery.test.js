@@ -10,6 +10,7 @@ import {
   fakeExpense,
   fakePayoutMethod,
   fakeUser,
+  fakeVirtualCard,
 } from '../../../../test-helpers/fake-data';
 import { expectNoErrorsFromResult, graphqlQueryV2, resetTestDB, traverse } from '../../../../utils';
 
@@ -213,6 +214,55 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       expect(resultAsCollectiveAdmin.data.expense.taxes[0].idNumber).to.equal(SECRET_TAX_ID);
       expect(resultAsHostAdmin.data.expense.taxes[0].idNumber).to.equal(SECRET_TAX_ID);
       expect(resultAsHostAccountant.data.expense.taxes[0].idNumber).to.equal(SECRET_TAX_ID);
+    });
+
+    it('can only see virtual card if host or collective admin', async () => {
+      const virtualCard = await fakeVirtualCard({
+        CollectiveId: expense.CollectiveId,
+        HostCollectiveId: expense.collective.HostCollectiveId,
+        name: 'Team Card',
+        last4: '1234',
+      });
+      const chargeExpense = await fakeExpense({
+        type: 'CHARGE',
+        FromCollectiveId: ownerUser.collective.id,
+        CollectiveId: expense.CollectiveId,
+        VirtualCardId: virtualCard.id,
+      });
+
+      const virtualCardQuery = gql`
+        query ExpenseVirtualCard($id: Int!) {
+          expense(expense: { legacyId: $id }) {
+            id
+            virtualCard {
+              id
+              name
+              last4
+            }
+          }
+        }
+      `;
+
+      const queryParams = { id: chargeExpense.id };
+      const resultUnauthenticated = await graphqlQueryV2(virtualCardQuery, queryParams);
+      const resultAsOwner = await graphqlQueryV2(virtualCardQuery, queryParams, ownerUser);
+      const resultAsCollectiveAdmin = await graphqlQueryV2(virtualCardQuery, queryParams, collectiveAdminUser);
+      const resultAsHostAdmin = await graphqlQueryV2(virtualCardQuery, queryParams, hostAdminUser);
+      const resultAsRandomUser = await graphqlQueryV2(virtualCardQuery, queryParams, randomUser);
+
+      expect(resultUnauthenticated.data.expense.virtualCard).to.be.null;
+      expect(resultAsRandomUser.data.expense.virtualCard).to.be.null;
+      expect(resultAsOwner.data.expense.virtualCard).to.be.null;
+      expect(resultAsCollectiveAdmin.data.expense.virtualCard).to.deep.equal({
+        id: virtualCard.id,
+        name: 'Team Card',
+        last4: '1234',
+      });
+      expect(resultAsHostAdmin.data.expense.virtualCard).to.deep.equal({
+        id: virtualCard.id,
+        name: 'Team Card',
+        last4: '1234',
+      });
     });
 
     it('can only see payee legalName if self or host admin', async () => {

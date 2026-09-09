@@ -16,7 +16,10 @@ import { GraphQLHost } from './Host';
 import { GraphQLIndividual } from './Individual';
 import { GraphQLVirtualCardRequest } from './VirtualCardRequest';
 
-const canSeeVirtualCardPrivateInfo = async (req: Express.Request, virtualCard: VirtualCard): Promise<boolean> => {
+export const canSeeVirtualCardPrivateInfo = async (
+  req: Express.Request,
+  virtualCard: VirtualCard,
+): Promise<boolean> => {
   if (!virtualCard || !req.remoteUser || !checkScope(req, 'virtualCards')) {
     return false;
   } else if (req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {

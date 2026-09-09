@@ -174,6 +174,16 @@ describe('cron/daily/pause-virtual-cards-after-period-of-inactivity', () => {
       await vc.reload();
       expect(vc.data.status, `Card ${vc.name} should be INACTIVE`).to.eql(VirtualCardStatus.INACTIVE);
     }
+
+    const inactivityActivity = await Activity.findOne({
+      where: { type: ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED_DUE_TO_INACTIVITY },
+    });
+    expect(inactivityActivity).to.exist;
+    expect(inactivityActivity.data.virtualCard).to.have.property('id');
+    expect(inactivityActivity.data.virtualCard).to.have.property('last4');
+    expect(inactivityActivity.data.virtualCard).to.not.have.property('privateData');
+    expect(inactivityActivity.data.virtualCard).to.not.have.property('cardNumber');
+    expect(inactivityActivity.data.virtualCard).to.not.have.property('cvv');
   });
 
   it('does not pause vc if it was resumed within the period of inactivity', async () => {

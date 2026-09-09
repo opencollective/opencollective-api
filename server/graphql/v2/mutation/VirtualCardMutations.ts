@@ -532,7 +532,7 @@ const virtualCardMutations = {
 
       const card = await virtualCard.pause({ pauseReason: 'MANUAL' });
       const data = {
-        virtualCard,
+        virtualCard: card.info,
         host: virtualCard.host.info,
         collective: virtualCard.collective.info,
       };
@@ -588,7 +588,7 @@ const virtualCardMutations = {
         HostCollectiveId: virtualCard.host.id,
         UserId: req.remoteUser.id,
         data: {
-          virtualCard: resumedVirtualCard,
+          virtualCard: resumedVirtualCard.info,
           host: resumedVirtualCard.host.info,
           collective: resumedVirtualCard.collective.info,
         },
