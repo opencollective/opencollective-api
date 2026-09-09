@@ -50,6 +50,10 @@ export const resetCaches = async () => {
 };
 
 export const resetTestDB = async ({ groupedTruncate = true, retries = 5 } = {}) => {
+  // Truncating with RESTART IDENTITY makes ids start over, so entries keyed by id (2FA sessions,
+  // collective caches...) would otherwise be applied to unrelated records created by the next file.
+  await resetCaches();
+
   const resetFn = async () => {
     // Using a manual query rather than `await sequelize.truncate({ cascade: true,  restartIdentity: true });`
     // for performance reasons: https://github.com/sequelize/sequelize/issues/15865
