@@ -102,6 +102,11 @@ class MemberInvitation extends ModelWithPublicId<
       throw new Error('Individual accounts do not support members');
     }
 
+    const inviteeCollective = await Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
+    if (!inviteeCollective || inviteeCollective.type !== CollectiveType.USER) {
+      throw new Error('Invitee does not exists');
+    }
+
     // Ensure the user is not already a member
     const existingMember = await Member.findOne({
       where: {
@@ -167,8 +172,6 @@ class MemberInvitation extends ModelWithPublicId<
       include: [{ association: 'collective' }],
       ...sequelizeParams,
     });
-
-    const inviteeCollective = await Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
 
     await invitation.sendEmail(createdByUser, skipDefaultAdmin, sequelizeParams, privateNote, {
       isNewUser: inviteeCollective.data?.requiresProfileCompletion === true,
