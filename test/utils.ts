@@ -50,9 +50,11 @@ export const resetCaches = async () => {
 };
 
 export const resetTestDB = async ({ groupedTruncate = true, retries = 5 } = {}) => {
-  // Truncating with RESTART IDENTITY makes ids start over, so entries keyed by id (2FA sessions,
-  // collective caches...) would otherwise be applied to unrelated records created by the next file.
-  await resetCaches();
+  // Truncating with RESTART IDENTITY makes ids start over, so a 2FA session stored as
+  // `2fa:${userId}:${sessionId}` would otherwise satisfy the 2FA check for whichever unrelated
+  // user reuses that id next. Only the session cache is cleared: the default one holds things
+  // like FX rates that tests deliberately share.
+  await sessionCache.clear();
 
   const resetFn = async () => {
     // Using a manual query rather than `await sequelize.truncate({ cascade: true,  restartIdentity: true });`
