@@ -130,6 +130,8 @@ describe('server/controllers/users', () => {
       expect(user.collective.settings || {}).to.not.have.property('disableGrants');
     });
   });
+
+  describe('signup', () => {
     it('should create a new user, create a session information about the OTP and send OTP through email', async () => {
       sandbox.stub(emailLib, 'send').resolves();
       const email = randEmail();
