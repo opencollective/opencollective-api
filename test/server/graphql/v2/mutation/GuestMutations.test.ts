@@ -80,6 +80,16 @@ describe('server/graphql/v2/mutation/GuestMutations', () => {
       expect(decodedJwt.sessionId).to.be.a('string').with.length.greaterThan(0);
     });
 
+    it('does not touch lastLoginAt, which would invalidate pending magic links', async () => {
+      const lastLoginAt = new Date('2020-01-01T00:00:00Z');
+      const user = await fakeUser({ confirmedAt: null, emailConfirmationToken: randStr(), lastLoginAt });
+      const response = await callConfirmGuestAccount(user.email, user.emailConfirmationToken);
+      expect(response.errors).to.not.exist;
+
+      await user.reload();
+      expect(user.lastLoginAt.getTime()).to.eq(lastLoginAt.getTime());
+    });
+
     it('confirmGuestAccount rate limited on IP', async () => {
       sandbox.stub(config, 'limits').value({ confirmGuestAccountPerMinutePerIp: 0 });
       const user = await fakeUser({ confirmedAt: null, emailConfirmationToken: randStr() });
