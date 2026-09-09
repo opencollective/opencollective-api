@@ -636,7 +636,7 @@ export const refreshToken = async (req: express.Request, res: express.Response, 
     const errorMessage = `Cannot use this token on this route (scope: ${
       req.jwtPayload?.scope || 'unknown'
     }, expected: session)`;
-    next(new BadRequest(errorMessage));
+    next(new Unauthorized(errorMessage));
     return;
   }
 

@@ -201,7 +201,7 @@ describe('server/routes/users', () => {
 
       const response = await request(expressApp).post(updateTokenUrl).set('Authorization', `Bearer ${unscopeToken}`);
 
-      expect(response.statusCode).to.equal(400);
+      expect(response.statusCode).to.equal(401);
       expect(response.body.error.message).to.include('expected: session');
     });
   });
