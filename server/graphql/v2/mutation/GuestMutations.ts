@@ -63,8 +63,6 @@ const guestMutations = {
       );
 
       const accessToken = await user.generateSessionToken({
-        createActivity: true,
-        updateLastLoginAt: true,
         req,
       });
       return { account: collective, accessToken };

@@ -26,7 +26,6 @@ import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import { apolloSlowRequestCachePlugin, apolloSlowResolverDebugPlugin, apolloStudioUsagePlugin } from './lib/apollo';
 import cache from './lib/cache';
-import { timingSafeEqualString } from './lib/encryption';
 import errors from './lib/errors';
 import expressLimiter from './lib/express-limiter';
 import logger from './lib/logger';
@@ -123,7 +122,7 @@ export default async (app: express.Application) => {
       whitelist: function (req: express.Request) {
         const apiKey = req.query.api_key || req.body?.api_key;
         // No limit with internal API Key
-        return typeof apiKey === 'string' && timingSafeEqualString(apiKey, config.keys.opencollective.apiKey);
+        return apiKey === config.keys.opencollective.apiKey;
       },
       onRateLimited: function (req: express.Request, res: express.Response) {
         let message;

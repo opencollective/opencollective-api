@@ -13,7 +13,6 @@ import { v4 as uuid } from 'uuid';
 import * as connectedAccounts from '../controllers/connectedAccounts';
 import { verifyJwt } from '../lib/auth';
 import { sessionCache } from '../lib/cache';
-import { timingSafeEqualString } from '../lib/encryption';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
 import RateLimit from '../lib/rate-limit';
@@ -533,7 +532,7 @@ export function authorizeClient(req: Request, res: Response, next: NextFunction)
   const query = req.query || {};
   const body = req.body || {};
   const apiKey = req.get('Api-Key') || query.apiKey || query.api_key || body.api_key;
-  if (typeof apiKey === 'string' && timingSafeEqualString(apiKey, config.keys.opencollective.apiKey)) {
+  if (apiKey === config.keys.opencollective.apiKey) {
     debug('Valid API key');
     next();
   } else if (apiKey) {

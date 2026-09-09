@@ -58,16 +58,17 @@ const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;
 
 /**
- * Compare secrets in constant time. Length differences are not leaked via
- * `crypto.timingSafeEqual` because both sides are hashed first.
+ * Compare secrets in constant time. Both sides are hashed first so that
+ * `crypto.timingSafeEqual` never sees inputs of different lengths, which would
+ * make it throw and leak the length of the expected secret.
  */
 export function timingSafeEqualString(a: string | null | undefined, b: string | null | undefined): boolean {
   if (typeof a !== 'string' || typeof b !== 'string') {
     return false;
   }
 
-  const left = createHash('sha256').update(a).digest();
-  const right = createHash('sha256').update(b).digest();
+  const left = createHash('sha512').update(a).digest();
+  const right = createHash('sha512').update(b).digest();
   return timingSafeEqual(left, right);
 }
 
