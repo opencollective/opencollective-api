@@ -632,7 +632,22 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     const cleanUserData = pick(userData, ['email', 'newsletterOptIn']);
     const user = await User.create(cleanUserData, sequelizeParams);
 
-    user.collective = await user.createCollective(userData, transaction);
+    // Only pass profile fields — never privilege flags (hasMoneyManagement, hasHosting,
+    // hostFeePercent, data, settings) from caller-controlled payloads such as sign-in.
+    const collectiveData = pick(userData, [
+      'name',
+      'legalName',
+      'image',
+      'description',
+      'longDescription',
+      'website',
+      'twitterHandle',
+      'githubHandle',
+      'repositoryUrl',
+      'currency',
+      'location',
+    ]);
+    user.collective = await user.createCollective(collectiveData, transaction);
 
     if (userData.location) {
       await user.collective.setLocation(userData.location, transaction);

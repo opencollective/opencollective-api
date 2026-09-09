@@ -64,6 +64,23 @@ describe('server/models/User', () => {
         expect(user.collective.slug).to.equal('hen3-bang4-de-yong4-hu4-awesome');
       });
     });
+
+    it('ignores privilege flags from caller-controlled payloads', async () => {
+      const user = await User.createUserWithCollective({
+        email: randEmail('user@domain.com'),
+        name: 'Regular User',
+        hasMoneyManagement: true,
+        hasHosting: true,
+        hostFeePercent: 0,
+        data: { isRoot: true, requiresVerification: false },
+        settings: { disableGrants: true },
+      });
+
+      expect(user.collective.hasMoneyManagement).to.equal(false);
+      expect(user.collective.hasHosting).to.not.equal(true);
+      expect(user.collective.data).to.not.have.property('isRoot');
+      expect(user.collective.settings || {}).to.not.have.property('disableGrants');
+    });
   });
 
   /**

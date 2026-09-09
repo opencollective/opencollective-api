@@ -2,7 +2,7 @@
 import bcrypt from 'bcrypt';
 import config from 'config';
 import type express from 'express';
-import { omit } from 'lodash';
+import { omit, pick } from 'lodash';
 
 import { activities } from '../constants';
 import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
@@ -91,7 +91,9 @@ export const signin = async (req: express.Request, res: express.Response, next: 
       });
       return;
     } else if (!user && createProfile) {
-      user = await models.User.createUserWithCollective(req.body.user);
+      user = await models.User.createUserWithCollective(
+        pick(req.body.user, ['email', 'name', 'legalName', 'newsletterOptIn']),
+      );
     } else if (!user.CollectiveId || user.data?.requiresVerification === true) {
       res.status(403).send({
         errorCode: 'EMAIL_AWAITING_VERIFICATION',
@@ -630,8 +632,10 @@ export const refreshToken = async (req: express.Request, res: express.Response, 
     return;
   }
 
-  if (req.jwtPayload?.scope && req.jwtPayload?.scope !== 'session') {
-    const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload?.scope}, expected: session)`;
+  if (req.jwtPayload?.scope !== 'session') {
+    const errorMessage = `Cannot use this token on this route (scope: ${
+      req.jwtPayload?.scope || 'unknown'
+    }, expected: session)`;
     next(new BadRequest(errorMessage));
     return;
   }

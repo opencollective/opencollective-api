@@ -26,6 +26,7 @@ import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import { apolloSlowRequestCachePlugin, apolloSlowResolverDebugPlugin, apolloStudioUsagePlugin } from './lib/apollo';
 import cache from './lib/cache';
+import { timingSafeEqualString } from './lib/encryption';
 import errors from './lib/errors';
 import expressLimiter from './lib/express-limiter';
 import logger from './lib/logger';
@@ -122,7 +123,7 @@ export default async (app: express.Application) => {
       whitelist: function (req: express.Request) {
         const apiKey = req.query.api_key || req.body?.api_key;
         // No limit with internal API Key
-        return apiKey === config.keys.opencollective.apiKey;
+        return typeof apiKey === 'string' && timingSafeEqualString(apiKey, config.keys.opencollective.apiKey);
       },
       onRateLimited: function (req: express.Request, res: express.Response) {
         let message;
@@ -390,25 +391,35 @@ export default async (app: express.Application) => {
   /**
    * Separate route for uploading images to S3
    */
-  app.post('/images', upload.single('file'), uploadImage);
+  app.post('/images', authentication.rejectOAuthAndPersonalTokenAuth, upload.single('file'), uploadImage);
 
   // backward compatibility
-  app.get('/connected-accounts/:service', noCache, (req, res, next) => {
+  app.get('/connected-accounts/:service', noCache, authentication.rejectOAuthAndPersonalTokenAuth, (req, res, next) => {
     if (!oauthServiceAllowlist.has(req.params.service)) {
       return next(new errors.NotFound('Service not supported'));
     }
     return authentication.authenticateService(req, res, next);
   });
-  app.get('/connected-accounts/:service/oauthUrl', noCache, (req, res, next) => {
-    if (!oauthServiceAllowlist.has(req.params.service)) {
-      return next(new errors.NotFound('Service not supported'));
-    }
-    return authentication.authenticateService(req, res, next);
-  });
+  app.get(
+    '/connected-accounts/:service/oauthUrl',
+    noCache,
+    authentication.rejectOAuthAndPersonalTokenAuth,
+    (req, res, next) => {
+      if (!oauthServiceAllowlist.has(req.params.service)) {
+        return next(new errors.NotFound('Service not supported'));
+      }
+      return authentication.authenticateService(req, res, next);
+    },
+  );
   app.get('/connected-accounts/:service/verify', noCache, connectedAccounts.verify);
 
   /* TransferWise OTT Request Endpoint */
-  app.post('/services/transferwise/pay-batch', noCache, transferwise.payBatch);
+  app.post(
+    '/services/transferwise/pay-batch',
+    noCache,
+    authentication.rejectOAuthAndPersonalTokenAuth,
+    transferwise.payBatch,
+  );
 
   /**
    * External services

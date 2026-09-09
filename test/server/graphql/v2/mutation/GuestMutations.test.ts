@@ -75,6 +75,8 @@ describe('server/graphql/v2/mutation/GuestMutations', () => {
 
       const decodedJwt = verifyJwt(accessToken);
       expect(decodedJwt.sub).to.eq(user.id.toString());
+      expect(decodedJwt.scope).to.eq('session');
+      expect(decodedJwt.sessionId).to.be.a('string').with.length.greaterThan(0);
     });
 
     it('confirmGuestAccount rate limited on IP', async () => {
