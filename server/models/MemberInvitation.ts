@@ -170,17 +170,31 @@ class MemberInvitation extends ModelWithPublicId<
       ...sequelizeParams,
     });
 
-    // If this is a freshly-created user account, flag their collective so they're prompted
-    // to complete their profile before they can accept the invitation. Mirrors the signup flow.
+    // `isNewUser` is supplied by callers (including a client-controlled GraphQL argument).
+    // Only flag accounts that have never signed in, or that already require profile completion.
+    // Otherwise an admin of any collective could invite an established user with isNewUser=true
+    // and force requiresProfileCompletion — which used to rewrite their public slug on the next
+    // profile edit (generateSlug treats the current slug as taken and appends a random suffix).
+    let treatAsNewUser = false;
     if (isNewUser) {
+      const inviteeUser = await User.findOne({
+        where: { CollectiveId: memberParams.MemberCollectiveId },
+        ...sequelizeParams,
+      });
       const inviteeCollective = await Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
-      if (inviteeCollective) {
+      const alreadyRequiresCompletion = Boolean(inviteeCollective?.data?.requiresProfileCompletion);
+      const hasLoggedIn = Boolean(inviteeUser?.lastLoginAt);
+      treatAsNewUser = alreadyRequiresCompletion || !hasLoggedIn;
+
+      if (treatAsNewUser && inviteeCollective && !alreadyRequiresCompletion) {
         const newData = { ...inviteeCollective.data, requiresProfileCompletion: true };
         await inviteeCollective.update({ data: newData }, sequelizeParams);
       }
     }
 
-    await invitation.sendEmail(createdByUser, skipDefaultAdmin, sequelizeParams, privateNote, { isNewUser });
+    await invitation.sendEmail(createdByUser, skipDefaultAdmin, sequelizeParams, privateNote, {
+      isNewUser: treatAsNewUser,
+    });
     return invitation;
   }
 }

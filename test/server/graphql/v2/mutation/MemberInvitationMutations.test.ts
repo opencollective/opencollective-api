@@ -44,6 +44,7 @@ describe('MemberInvitationMutations', () => {
       $description: String
       $since: DateTime
       $privateNote: String
+      $isNewUser: Boolean
     ) {
       inviteMember(
         memberAccount: $memberAccount
@@ -52,6 +53,7 @@ describe('MemberInvitationMutations', () => {
         description: $description
         since: $since
         privateNote: $privateNote
+        isNewUser: $isNewUser
       ) {
         id
         role
@@ -243,6 +245,71 @@ describe('MemberInvitationMutations', () => {
         expect(result.errors).to.have.length(1);
         expect(result.errors[0].message).to.equal('You can only invite accountants, admins, or members.');
       }
+    });
+
+    it('does not let isNewUser flag an established (already signed-in) user for profile completion', async () => {
+      const establishedUser = await fakeUser({ lastLoginAt: new Date() });
+      const originalSlug = establishedUser.collective.slug;
+
+      const result = await utils.graphqlQueryV2(
+        inviteMemberMutation,
+        {
+          memberAccount: { id: idEncode(establishedUser.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          role: roles.MEMBER,
+          isNewUser: true,
+        },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+
+      await establishedUser.collective.reload();
+      expect(establishedUser.collective.data?.requiresProfileCompletion).to.not.equal(true);
+      expect(establishedUser.collective.slug).to.equal(originalSlug);
+
+      const emailActivity = await models.Activity.findOne({
+        where: {
+          type: ActivityTypes.COLLECTIVE_MEMBER_INVITED,
+          CollectiveId: collective.id,
+          FromCollectiveId: establishedUser.collective.id,
+        },
+        order: [['id', 'DESC']],
+      });
+      expect(emailActivity).to.exist;
+      expect(emailActivity.data.isNewUser).to.equal(false);
+    });
+
+    it('still flags a never-signed-in invitee when isNewUser is true (invite-form flow)', async () => {
+      const newInvitee = await fakeUser(); // lastLoginAt is unset
+      expect(newInvitee.lastLoginAt).to.not.exist;
+
+      const result = await utils.graphqlQueryV2(
+        inviteMemberMutation,
+        {
+          memberAccount: { id: idEncode(newInvitee.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          role: roles.MEMBER,
+          isNewUser: true,
+        },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+
+      await newInvitee.collective.reload();
+      expect(newInvitee.collective.data?.requiresProfileCompletion).to.equal(true);
+
+      const emailActivity = await models.Activity.findOne({
+        where: {
+          type: ActivityTypes.COLLECTIVE_MEMBER_INVITED,
+          CollectiveId: collective.id,
+          FromCollectiveId: newInvitee.collective.id,
+        },
+        order: [['id', 'DESC']],
+      });
+      expect(emailActivity).to.exist;
+      expect(emailActivity.data.isNewUser).to.equal(true);
     });
 
     it('can only add with a user account', async () => {

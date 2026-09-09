@@ -742,10 +742,14 @@ const accountMutations = {
 
       if (account.data?.requiresProfileCompletion === true) {
         updateParams.data = Object.assign({}, account.data, updateParams.data, { requiresProfileCompletion: false });
-        // Update slug if either the name is updated or if this is a previous guest account that already had a name
+        // Only auto-rewrite placeholder slugs (guest-* / user-*). `!updateParams.slug` used to
+        // match every established profile, and generateSlug() then treated the current slug as
+        // taken and assigned a random suffix — a public URL takeover if an invitation had
+        // incorrectly set requiresProfileCompletion on an existing user.
         if (
           (updateParams.name || ![DEFAULT_GUEST_NAME, 'Incognito'].includes(account.name)) &&
-          (!updateParams.slug || account.slug.startsWith('guest-') || account.slug.startsWith('user-'))
+          !updateParams.slug &&
+          (account.slug.startsWith('guest-') || account.slug.startsWith('user-'))
         ) {
           updateParams.slug = await Collective.generateSlug((updateParams.name as string) || account.name);
           previousData.slug = account.slug;

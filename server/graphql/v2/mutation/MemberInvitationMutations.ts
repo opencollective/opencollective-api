@@ -81,7 +81,9 @@ const memberInvitationMutations = {
       isNewUser: {
         type: GraphQLBoolean,
         description:
-          'When true, the invited user account was just created from the invite form. The invitee will be required to complete their profile before accepting the invitation.',
+          'When true, the invited user account was just created from the invite form. Ignored if the invitee has already signed in. The invitee will be required to complete their profile before accepting the invitation.',
+        deprecationReason:
+          '2026-09-09: Untrusted client input. The server only flags accounts that have never signed in (or already require profile completion).',
         defaultValue: false,
       },
     },

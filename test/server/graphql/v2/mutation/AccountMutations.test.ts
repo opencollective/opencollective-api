@@ -12,7 +12,7 @@ import OrderStatuses from '../../../../../server/constants/order-status';
 import { PlatformSubscriptionTiers } from '../../../../../server/constants/plans';
 import POLICIES from '../../../../../server/constants/policies';
 import MemberRoles from '../../../../../server/constants/roles';
-import { idEncode } from '../../../../../server/graphql/v2/identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import * as yubikeyOtp from '../../../../../server/lib/two-factor-authentication/yubikey-otp';
@@ -41,6 +41,16 @@ const editSettingsMutation = gql`
     editAccountSetting(account: $account, key: $key, value: $value) {
       id
       settings
+    }
+  }
+`;
+
+const editAccountMutation = gql`
+  mutation EditAccount($account: AccountUpdateInput!) {
+    editAccount(account: $account) {
+      id
+      slug
+      description
     }
   }
 `;
@@ -386,6 +396,57 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors[0].message).to.match(
         /Enter a valid URL. The URL should have the format https:\/\/example.com\/…/,
       );
+    });
+  });
+
+  describe('editAccount', () => {
+    it('does not rewrite an established public slug when requiresProfileCompletion is set', async () => {
+      const user = await fakeUser(null, { slug: randStr('ada-lovelace-'), data: { requiresProfileCompletion: true } });
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(user.collective.id, IDENTIFIER_TYPES.ACCOUNT),
+            description: 'Completing my profile',
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccount.slug).to.equal(user.collective.slug);
+      expect(result.data.editAccount.description).to.equal('Completing my profile');
+
+      await user.collective.reload();
+      expect(user.collective.data?.requiresProfileCompletion).to.not.equal(true);
+    });
+
+    it('still rewrites placeholder guest-/user- slugs when completing a profile', async () => {
+      const user = await fakeUser(null, {
+        name: 'Brand New Person',
+        slug: `guest-${randStr('slug')}`,
+        data: { requiresProfileCompletion: true },
+      });
+      const previousSlug = user.collective.slug;
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(user.collective.id, IDENTIFIER_TYPES.ACCOUNT),
+            description: 'Hello world',
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccount.slug).to.not.equal(previousSlug);
+      expect(result.data.editAccount.slug).to.match(/^brand-new-person/);
+
+      await user.collective.reload();
+      expect(user.collective.data?.requiresProfileCompletion).to.not.equal(true);
     });
   });
 
