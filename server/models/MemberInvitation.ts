@@ -85,12 +85,10 @@ class MemberInvitation extends ModelWithPublicId<
       transaction,
       skipDefaultAdmin,
       privateNote,
-      isNewUser,
     }: {
       transaction?: Transaction;
       skipDefaultAdmin?: boolean;
       privateNote?: string;
-      isNewUser?: boolean;
     } = {},
   ) {
     const sequelizeParams = transaction ? { transaction } : undefined;
@@ -170,17 +168,11 @@ class MemberInvitation extends ModelWithPublicId<
       ...sequelizeParams,
     });
 
-    // If this is a freshly-created user account, flag their collective so they're prompted
-    // to complete their profile before they can accept the invitation. Mirrors the signup flow.
-    if (isNewUser) {
-      const inviteeCollective = await Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
-      if (inviteeCollective) {
-        const newData = { ...inviteeCollective.data, requiresProfileCompletion: true };
-        await inviteeCollective.update({ data: newData }, sequelizeParams);
-      }
-    }
+    const inviteeCollective = await Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
 
-    await invitation.sendEmail(createdByUser, skipDefaultAdmin, sequelizeParams, privateNote, { isNewUser });
+    await invitation.sendEmail(createdByUser, skipDefaultAdmin, sequelizeParams, privateNote, {
+      isNewUser: inviteeCollective.data?.requiresProfileCompletion === true,
+    });
     return invitation;
   }
 }
