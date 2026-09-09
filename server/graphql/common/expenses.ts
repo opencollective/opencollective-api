@@ -2616,13 +2616,15 @@ export const changesRequireStatusUpdate = (
 ): boolean => {
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
+  const hasCurrencyChanges = Boolean(newExpenseData.currency && newExpenseData.currency !== expense.currency);
   const isPaidOrProcessingCharge =
     expense.type === ExpenseType.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status);
 
-  if (isPaidOrProcessingCharge && !hasAmountChanges) {
+  if (isPaidOrProcessingCharge) {
+    // Receipts are attached to card charges after the money moved, so those edits never need a new review
     return false;
   }
-  return hasItemsChanges || hasAmountChanges || hasPayoutChanges;
+  return hasItemsChanges || hasAmountChanges || hasPayoutChanges || hasCurrencyChanges;
 };
 
 /** Returns infos about the changes made to items */
@@ -3268,6 +3270,16 @@ export async function editExpense(
   let oldPayoutMethodId = null;
 
   const updatedExpense: Expense = await sequelize.transaction(async transaction => {
+    // The lock/status checks above run before this transaction opens, so a payout that starts in
+    // between would be overwritten by this edit. Take the row lock and re-read to serialize with
+    // `lockExpense`, which holds the same lock while flagging the expense as being processed.
+    const lockedExpense = await models.Expense.findByPk(expense.id, { lock: true, transaction });
+    if (!lockedExpense) {
+      throw new NotFound('Expense not found');
+    } else if (lockedExpense.data?.isLocked || lockedExpense.status !== expense.status) {
+      throw new ValidationFailed('This expense is currently being processed, please try again later');
+    }
+
     // Update payout method if we get new data from one of the param for it
     if (
       !isPaidCreditCardCharge &&
@@ -3335,7 +3347,14 @@ export async function editExpense(
     hasPayoutMethodChanges = PayoutMethodId !== expense.PayoutMethodId;
     newPayoutMethodId = PayoutMethodId;
     oldPayoutMethodId = expense.PayoutMethodId;
-    const shouldUpdateStatus = changesRequireStatusUpdate(expense, expenseData, hasItemChanges, hasPayoutMethodChanges);
+    const newAmount = models.Expense.computeTotalAmountForExpense(expense.items, taxes);
+    const expenseDataForStatusUpdate = { ...expenseData, amount: newAmount };
+    const shouldUpdateStatus = changesRequireStatusUpdate(
+      expense,
+      expenseDataForStatusUpdate,
+      hasItemChanges,
+      hasPayoutMethodChanges,
+    );
 
     const isChangingPayee =
       expenseData.fromCollective?.id && expenseData.fromCollective.id !== expense.FromCollectiveId;
@@ -3382,14 +3401,14 @@ export async function editExpense(
     let status = expense.status;
     if (status === 'INCOMPLETE') {
       // When dealing with expenses marked as INCOMPLETE, only return to PENDING if the expense change requires Collective review
-      status = changesRequireStatusUpdate(expense, expenseData, hasItemChanges) ? 'PENDING' : 'APPROVED';
+      status = changesRequireStatusUpdate(expense, expenseDataForStatusUpdate, hasItemChanges) ? 'PENDING' : 'APPROVED';
     } else if (shouldUpdateStatus) {
       status = 'PENDING';
     }
 
     const updatedExpenseProps = {
       ...cleanExpenseData,
-      amount: models.Expense.computeTotalAmountForExpense(expense.items, taxes), // We've reloaded the items above
+      amount: newAmount, // We've reloaded the items above
       lastEditedById: remoteUser.id,
       incurredAt: expenseData.incurredAt || min(expense.items.map(item => item.incurredAt)) || new Date(),
       status,

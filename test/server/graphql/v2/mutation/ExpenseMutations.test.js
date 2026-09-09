@@ -32,7 +32,7 @@ import {
   TwoFactorMethod,
 } from '../../../../../server/lib/two-factor-authentication/lib';
 import { sleep } from '../../../../../server/lib/utils';
-import models, { Expense, UploadedFile } from '../../../../../server/models';
+import models, { Expense, sequelize, UploadedFile } from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import UserTwoFactorMethod from '../../../../../server/models/UserTwoFactorMethod';
@@ -1669,6 +1669,49 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.editExpense.status).to.equal('APPROVED');
         expect(result.data.editExpense.amount).to.equal(expense.amount);
       });
+
+      it('Tax => should change status and amount', async () => {
+        const collective = await fakeCollective({
+          currency: 'EUR',
+          settings: { VAT: { type: 'OWN', idNumber: 'XXXXXX' } },
+        });
+        const expense = await fakeExpense({
+          type: expenseTypes.INVOICE,
+          status: 'APPROVED',
+          amount: 10000,
+          items: [],
+          CollectiveId: collective.id,
+          currency: 'EUR',
+        });
+        await fakeExpenseItem({ ExpenseId: expense.id, amount: 10000 });
+
+        const newExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          tax: [{ type: 'VAT', rate: 0.21 }],
+        };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('PENDING');
+        expect(result.data.editExpense.amount).to.equal(12100);
+      });
+
+      it('Currency => should change status', async () => {
+        const host = await fakeActiveHost({ currency: 'USD' });
+        const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+        const expense = await fakeExpense({
+          status: 'APPROVED',
+          CollectiveId: collective.id,
+          currency: 'USD',
+        });
+        const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), currency: 'EUR' };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('PENDING');
+        await expense.reload();
+        expect(expense.currency).to.equal('EUR');
+      });
     });
 
     describe('clears stored Stripe paymentIntent when payment-relevant fields change', () => {
@@ -2183,6 +2226,40 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq("You don't have permission to edit this expense");
+    });
+
+    it('cannot edit an expense that is being paid', async () => {
+      const expense = await fakeExpense({ status: 'APPROVED', data: { isLocked: true } });
+      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
+      const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('This expense is currently being processed, please try again later');
+    });
+
+    it('cannot edit an expense when a payout starts right after the lock check', async () => {
+      const expense = await fakeExpense({ status: 'APPROVED' });
+      const initialDescription = expense.description;
+
+      // Reproduce what `lockExpense` does when a payout starts: take the row lock and flag the
+      // expense, but only after `editExpense` has already read it and seen no lock.
+      const payoutTransaction = await sequelize.transaction();
+      await models.Expense.findByPk(expense.id, { lock: true, transaction: payoutTransaction });
+      await models.Expense.update(
+        { data: { ...expense.data, isLocked: true } },
+        { where: { id: expense.id }, transaction: payoutTransaction },
+      );
+
+      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
+      const resultPromise = graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      await sleep(2000); // Give the edit time to pass its checks and block on the row lock
+      await payoutTransaction.commit();
+
+      const result = await resultPromise;
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('This expense is currently being processed, please try again later');
+
+      await expense.reload();
+      expect(expense.description).to.eq(initialDescription);
     });
 
     it(`fails if it's not an allowed expense type`, async () => {
