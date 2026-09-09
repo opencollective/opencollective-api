@@ -7,6 +7,7 @@ import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-
 import models from '../../../../../server/models';
 import { ManualPaymentProviderTypes } from '../../../../../server/models/ManualPaymentProvider';
 import {
+  fakeAccountingCategory,
   fakeActiveHost,
   fakeCollective,
   fakeManualPaymentProvider,
@@ -28,6 +29,10 @@ const CREATE_MANUAL_PAYMENT_PROVIDER_MUTATION = gql`
       icon
       accountDetails
       isArchived
+      balanceAccountingCategory {
+        id
+        code
+      }
     }
   }
 `;
@@ -45,6 +50,10 @@ const UPDATE_MANUAL_PAYMENT_PROVIDER_MUTATION = gql`
       icon
       accountDetails
       isArchived
+      balanceAccountingCategory {
+        id
+        code
+      }
     }
   }
 `;
@@ -254,6 +263,73 @@ describe('server/graphql/v2/mutation/ManualPaymentProviderMutations', () => {
       expect(providers[0].order).to.equal(1);
       expect(providers[1].name).to.equal('Provider 2');
       expect(providers[1].order).to.equal(2);
+    });
+  });
+
+  describe('balanceAccountingCategory', () => {
+    it('can be set at creation and updated/unset later', async () => {
+      const balanceCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+      const createResult = await graphqlQueryV2(
+        CREATE_MANUAL_PAYMENT_PROVIDER_MUTATION,
+        {
+          host: { legacyId: host.id },
+          manualPaymentProvider: {
+            type: 'BANK_TRANSFER',
+            name: 'Chase Bank',
+            instructions: '<p>Wire us</p>',
+            balanceAccountingCategory: { id: idEncode(balanceCategory.id, 'accounting-category') },
+          },
+        },
+        hostAdmin,
+      );
+
+      createResult.errors && console.error(createResult.errors);
+      expect(createResult.errors).to.not.exist;
+      expect(createResult.data.createManualPaymentProvider.balanceAccountingCategory.code).to.eq(balanceCategory.code);
+
+      // Unset
+      const providerId = createResult.data.createManualPaymentProvider.id;
+      const unsetResult = await graphqlQueryV2(
+        UPDATE_MANUAL_PAYMENT_PROVIDER_MUTATION,
+        { manualPaymentProvider: { id: providerId }, input: { balanceAccountingCategory: null } },
+        hostAdmin,
+      );
+      unsetResult.errors && console.error(unsetResult.errors);
+      expect(unsetResult.errors).to.not.exist;
+      expect(unsetResult.data.updateManualPaymentProvider.balanceAccountingCategory).to.be.null;
+
+      // Set again through update
+      const setResult = await graphqlQueryV2(
+        UPDATE_MANUAL_PAYMENT_PROVIDER_MUTATION,
+        {
+          manualPaymentProvider: { id: providerId },
+          input: { balanceAccountingCategory: { id: idEncode(balanceCategory.id, 'accounting-category') } },
+        },
+        hostAdmin,
+      );
+      setResult.errors && console.error(setResult.errors);
+      expect(setResult.errors).to.not.exist;
+      expect(setResult.data.updateManualPaymentProvider.balanceAccountingCategory.code).to.eq(balanceCategory.code);
+    });
+
+    it('rejects categories that are not balance/clearing accounts', async () => {
+      const expenseCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
+      const result = await graphqlQueryV2(
+        CREATE_MANUAL_PAYMENT_PROVIDER_MUTATION,
+        {
+          host: { legacyId: host.id },
+          manualPaymentProvider: {
+            type: 'BANK_TRANSFER',
+            name: 'Chase Bank',
+            instructions: '<p>Wire us</p>',
+            balanceAccountingCategory: { id: idEncode(expenseCategory.id, 'accounting-category') },
+          },
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('This accounting category is not a balance or clearing account');
     });
   });
 

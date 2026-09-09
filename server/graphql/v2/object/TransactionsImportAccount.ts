@@ -1,6 +1,8 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
+import { GraphQLAccountingCategory } from './AccountingCategory';
+
 export const GraphQLTransactionsImportAccount = new GraphQLObjectType({
   name: 'TransactionsImportAccount',
   description: 'An account available in a transactions import (Plaid or GoCardless)',
@@ -25,6 +27,17 @@ export const GraphQLTransactionsImportAccount = new GraphQLObjectType({
     mask: {
       type: GraphQLString,
       description: 'The mask of the account (Plaid only)',
+    },
+    balanceAccountingCategory: {
+      type: GraphQLAccountingCategory,
+      description:
+        'The balance/clearing accounting category used to attribute activity matched from this bank sub-account (only visible to host admins)',
+      resolve: (account, _, req) => {
+        if (!account.BalanceAccountingCategoryId || !req.remoteUser?.isAdmin(account.CollectiveId)) {
+          return null;
+        }
+        return req.loaders.AccountingCategory.byId.load(account.BalanceAccountingCategoryId);
+      },
     },
   }),
 });

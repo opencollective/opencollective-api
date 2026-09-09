@@ -148,10 +148,12 @@ class Order extends ModelWithPublicId<
   declare platformTipAmount: number;
   declare platformTipEligible: boolean;
   declare AccountingCategoryId?: number;
+  declare BalanceAccountingCategoryId?: number;
   declare ManualPaymentProviderId?: number;
 
   // Order belongsTo AccountingCategory via AccountingCategory['id']
   declare accountingCategory?: AccountingCategory;
+  declare balanceAccountingCategory?: AccountingCategory;
   declare getAccountingCategory: BelongsToGetAssociationMixin<AccountingCategory>;
   declare setAccountingCategory: BelongsToSetAssociationMixin<AccountingCategory, AccountingCategory['id']>;
   declare createAccountingCategory: BelongsToCreateAssociationMixin<AccountingCategory>;
@@ -649,6 +651,14 @@ Order.init(
     },
 
     AccountingCategoryId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'AccountingCategories' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+
+    BalanceAccountingCategoryId: {
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'AccountingCategories' },
       onDelete: 'SET NULL',

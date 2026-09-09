@@ -7,6 +7,7 @@ import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import FEATURE from '../../constants/feature';
+import { applyBalanceAccountingCategoryFromConnectedAccount } from '../../lib/accounting/categorization/balance-accounts';
 import { floatAmountToCents, getFxRate, roundCentsAmount } from '../../lib/currency';
 import logger from '../../lib/logger';
 import * as paypal from '../../lib/paypal';
@@ -49,6 +50,9 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
   }
 
   const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
+  await Promise.all(
+    expenses.map(expense => applyBalanceAccountingCategoryFromConnectedAccount(expense, connectedAccount)),
+  );
 
   const getExpenseItem = expense => ({
     note: getPayoutItemNote(expense),

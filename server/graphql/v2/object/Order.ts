@@ -393,6 +393,21 @@ export const GraphQLOrder = new GraphQLObjectType({
           }
         },
       },
+      balanceAccountingCategory: {
+        type: GraphQLAccountingCategory,
+        description:
+          'The balance/clearing accounting category the funds were received through (only visible to host admins and accountants)',
+        async resolve(order, _, { loaders, remoteUser }) {
+          if (!order.BalanceAccountingCategoryId) {
+            return null;
+          }
+          const collective = order.collective || (await loaders.Collective.byId.load(order.CollectiveId));
+          if (remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], collective?.HostCollectiveId)) {
+            return loaders.AccountingCategory.byId.load(order.BalanceAccountingCategoryId);
+          }
+          return null;
+        },
+      },
       activities: {
         // We're not paginating yet, but already using the collection type to introduce it without breaking changes in the future
         type: new GraphQLNonNull(GraphQLActivityCollection),

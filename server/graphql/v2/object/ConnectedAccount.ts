@@ -9,6 +9,8 @@ import { GraphQLConnectedAccountService } from '../enum/ConnectedAccountService'
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 
+import { GraphQLAccountingCategory } from './AccountingCategory';
+
 export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, Express.Request>({
   name: 'ConnectedAccount',
   description: 'This represents a Connected Account',
@@ -64,6 +66,19 @@ export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, E
       },
     },
     service: { type: new GraphQLNonNull(GraphQLConnectedAccountService) },
+    balanceAccountingCategory: {
+      type: GraphQLAccountingCategory,
+      description:
+        'The balance/clearing accounting category used to attribute payments processed through this connected account',
+      async resolve(connectedAccount, _, req) {
+        if (!connectedAccount.data?.BalanceAccountingCategoryId) {
+          return null;
+        } else if (!req.remoteUser?.isAdmin(connectedAccount.CollectiveId)) {
+          return null;
+        }
+        return req.loaders.AccountingCategory.byId.load(connectedAccount.data.BalanceAccountingCategoryId);
+      },
+    },
     accountsMirrored: {
       type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
       description: 'The accounts that are mirroring this connected account',

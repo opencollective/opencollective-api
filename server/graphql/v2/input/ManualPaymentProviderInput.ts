@@ -10,6 +10,8 @@ import { NotFound } from '../../errors';
 import { GraphQLManualPaymentProviderType } from '../enum/ManualPaymentProviderType';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
+import { GraphQLAccountingCategoryReferenceInput } from './AccountingCategoryInput';
+
 /**
  * Input type for referencing an existing ManualPaymentProvider
  */
@@ -49,6 +51,10 @@ export const GraphQLManualPaymentProviderCreateInput = new GraphQLInputObjectTyp
       type: GraphQLJSON,
       description: 'Bank account details for BANK_TRANSFER type providers',
     },
+    balanceAccountingCategory: {
+      type: GraphQLAccountingCategoryReferenceInput,
+      description: 'The balance/clearing accounting category to attribute payments through this provider to',
+    },
   }),
 });
 
@@ -73,6 +79,11 @@ export const GraphQLManualPaymentProviderUpdateInput = new GraphQLInputObjectTyp
     accountDetails: {
       type: GraphQLJSON,
       description: 'Bank account details for BANK_TRANSFER type providers',
+    },
+    balanceAccountingCategory: {
+      type: GraphQLAccountingCategoryReferenceInput,
+      description:
+        'The balance/clearing accounting category to attribute payments through this provider to. Pass null to unset.',
     },
   }),
 });

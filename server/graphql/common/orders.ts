@@ -5,6 +5,7 @@ import { InferCreationAttributes } from 'sequelize';
 import { CollectiveType } from '../../constants/collectives';
 import status from '../../constants/order-status';
 import roles from '../../constants/roles';
+import { getBalanceAccountingCategoryIdForImportRow } from '../../lib/accounting/categorization/balance-accounts';
 import { purgeCacheForCollective } from '../../lib/cache';
 import { roundCentsAmount } from '../../lib/currency';
 import { executeOrder } from '../../lib/payments';
@@ -17,6 +18,7 @@ import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 import { getOrderTaxInfoFromTaxInput } from '../v1/mutations/orders';
 import { TaxInput } from '../v2/input/TaxInput';
 
+import { checkIsValidBalanceAccountingCategory } from './balance-accounting-categories';
 import { checkScope } from './scope-check';
 
 type AddFundsInput = {
@@ -33,6 +35,7 @@ type AddFundsInput = {
   invoiceTemplate: string;
   tax: TaxInput;
   accountingCategory?: AccountingCategory;
+  balanceAccountingCategory?: AccountingCategory;
   transactionsImportRow?: TransactionsImportRow;
 };
 
@@ -142,6 +145,8 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     checkCanUseAccountingCategoryForOrder(order.accountingCategory, host, collective);
   }
 
+  checkIsValidBalanceAccountingCategory(order.balanceAccountingCategory, host);
+
   const orderData: Partial<InferCreationAttributes<Order>> = {
     CreatedByUserId: remoteUser.id,
     FromCollectiveId: fromCollective.id,
@@ -152,6 +157,7 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     status: status.NEW,
     TierId: order.tier?.id || null,
     AccountingCategoryId: order.accountingCategory?.id || null,
+    BalanceAccountingCategoryId: order.balanceAccountingCategory?.id || null,
     data: {
       hostFeePercent: order.hostFeePercent,
       paymentProcessorFee: order.paymentProcessorFee,
@@ -191,6 +197,14 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
       throw new NotFound('TransactionsImport not found');
     } else if (transactionsImport.CollectiveId !== host.id) {
       throw new ValidationFailed('This import does not belong to the host');
+    }
+
+    // Default the balance accounting category from the bank sub-account the row belongs to
+    if (!orderData.BalanceAccountingCategoryId) {
+      orderData.BalanceAccountingCategoryId = getBalanceAccountingCategoryIdForImportRow(
+        order.transactionsImportRow,
+        transactionsImport,
+      );
     }
   }
 

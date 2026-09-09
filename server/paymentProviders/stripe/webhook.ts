@@ -17,6 +17,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } fro
 import { RefundKind } from '../../constants/refund-kind';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
+import { applyBalanceAccountingCategory } from '../../lib/accounting/categorization/balance-accounts';
 import { applyContributionAccountingCategoryRules } from '../../lib/accounting/categorization/contribution-rules';
 import { getFxRate, isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
@@ -318,6 +319,8 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   } else {
     sideEffects.push(() => applyContributionAccountingCategoryRules(order));
   }
+
+  sideEffects.push(() => applyBalanceAccountingCategory(order));
 
   sendEmailNotifications(order, transaction, { firstPayment: order.interval && !order.SubscriptionId });
 
