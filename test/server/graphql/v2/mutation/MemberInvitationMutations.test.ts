@@ -264,6 +264,7 @@ describe('MemberInvitationMutations', () => {
 
       expect(result.errors).to.not.exist;
 
+      await utils.waitForCondition(() => sendEmailSpy.callCount);
       await establishedUser.collective.reload();
       expect(establishedUser.collective.data?.requiresProfileCompletion).to.not.equal(true);
       expect(establishedUser.collective.slug).to.equal(originalSlug);
@@ -297,6 +298,7 @@ describe('MemberInvitationMutations', () => {
 
       expect(result.errors).to.not.exist;
 
+      await utils.waitForCondition(() => sendEmailSpy.callCount);
       await newInvitee.collective.reload();
       expect(newInvitee.collective.data?.requiresProfileCompletion).to.equal(true);
 
