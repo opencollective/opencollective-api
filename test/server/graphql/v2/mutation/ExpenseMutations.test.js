@@ -1669,6 +1669,49 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.editExpense.status).to.equal('APPROVED');
         expect(result.data.editExpense.amount).to.equal(expense.amount);
       });
+
+      it('Tax => should change status and amount', async () => {
+        const collective = await fakeCollective({
+          currency: 'EUR',
+          settings: { VAT: { type: 'OWN', idNumber: 'XXXXXX' } },
+        });
+        const expense = await fakeExpense({
+          type: expenseTypes.INVOICE,
+          status: 'APPROVED',
+          amount: 10000,
+          items: [],
+          CollectiveId: collective.id,
+          currency: 'EUR',
+        });
+        await fakeExpenseItem({ ExpenseId: expense.id, amount: 10000 });
+
+        const newExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          tax: [{ type: 'VAT', rate: 0.21 }],
+        };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('PENDING');
+        expect(result.data.editExpense.amount).to.equal(12100);
+      });
+
+      it('Currency => should change status', async () => {
+        const host = await fakeActiveHost({ currency: 'USD' });
+        const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+        const expense = await fakeExpense({
+          status: 'APPROVED',
+          CollectiveId: collective.id,
+          currency: 'USD',
+        });
+        const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), currency: 'EUR' };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('PENDING');
+        await expense.reload();
+        expect(expense.currency).to.equal('EUR');
+      });
     });
 
     describe('clears stored Stripe paymentIntent when payment-relevant fields change', () => {
@@ -2183,6 +2226,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq("You don't have permission to edit this expense");
+    });
+
+    it('cannot edit an expense that is being paid', async () => {
+      const expense = await fakeExpense({ status: 'APPROVED', data: { isLocked: true } });
+      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
+      const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('This expense is currently being processed, please try again later');
     });
 
     it(`fails if it's not an allowed expense type`, async () => {
@@ -4732,6 +4783,22 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         }
       });
 
+      it('Fails if expense is on hold', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          onHold: true,
+          PayoutMethodId: payoutMethod.id,
+        });
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount });
+        const mutationParams = { expenseId: expense.id, action: 'PAY' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('This expense is currently on hold and cannot be paid');
+      });
+
       it('Fails if balance is too low', async () => {
         const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
         const expense = await fakeExpense({
@@ -6039,6 +6106,16 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq("You're authenticated but you can't schedule this expense for payment");
+      });
+
+      it('Fails if expense is on hold', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED', onHold: true });
+        const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq(
+          'This expense is currently on hold and cannot be scheduled for payment',
+        );
       });
 
       it('Schedules the expense for payment', async () => {

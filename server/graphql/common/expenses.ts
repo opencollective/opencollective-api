@@ -959,6 +959,14 @@ export const canMarkAsPaid: ExpensePermissionEvaluator = async (
       throw new Forbidden('Can not pay expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
     }
     return false;
+  } else if (expense.onHold) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'This expense is currently on hold and cannot be paid',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
+    return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden('User cannot pay expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
@@ -1730,6 +1738,8 @@ export const scheduleExpenseForPayment = async (
 ): Promise<Expense> => {
   if (expense.status === 'SCHEDULED_FOR_PAYMENT') {
     throw new BadRequest('Expense is already scheduled for payment');
+  } else if (expense.onHold) {
+    throw new Forbidden('This expense is currently on hold and cannot be scheduled for payment');
   } else if (!(await canPayExpense(req, expense))) {
     throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
   }
@@ -2616,13 +2626,14 @@ export const changesRequireStatusUpdate = (
 ): boolean => {
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
+  const hasCurrencyChanges = Boolean(newExpenseData.currency && newExpenseData.currency !== expense.currency);
   const isPaidOrProcessingCharge =
     expense.type === ExpenseType.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status);
 
   if (isPaidOrProcessingCharge && !hasAmountChanges) {
     return false;
   }
-  return hasItemsChanges || hasAmountChanges || hasPayoutChanges;
+  return hasItemsChanges || hasAmountChanges || hasPayoutChanges || hasCurrencyChanges;
 };
 
 /** Returns infos about the changes made to items */
@@ -3268,6 +3279,26 @@ export async function editExpense(
   let oldPayoutMethodId = null;
 
   const updatedExpense: Expense = await sequelize.transaction(async transaction => {
+    // Re-check lock and status under a row lock so a concurrent payment cannot be
+    // overwritten (or paid twice) if the expense was edited while payout was starting.
+    const lockedExpense = await models.Expense.findByPk(expense.id, { lock: true, transaction });
+    if (!lockedExpense) {
+      throw new NotFound('Expense not found');
+    } else if (lockedExpense.data?.isLocked) {
+      throw new ValidationFailed('This expense is currently being processed, please try again later');
+    }
+
+    const isPaidCreditCardChargeInTx =
+      lockedExpense.type === ExpenseType.CHARGE &&
+      ['PAID', 'PROCESSING'].includes(lockedExpense.status) &&
+      Boolean(lockedExpense.VirtualCardId);
+    if (
+      ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT', 'CANCELED', 'INVITE_DECLINED'].includes(lockedExpense.status) &&
+      !isPaidCreditCardChargeInTx
+    ) {
+      throw new Forbidden("You don't have permission to edit this expense");
+    }
+
     // Update payout method if we get new data from one of the param for it
     if (
       !isPaidCreditCardCharge &&
@@ -3335,7 +3366,14 @@ export async function editExpense(
     hasPayoutMethodChanges = PayoutMethodId !== expense.PayoutMethodId;
     newPayoutMethodId = PayoutMethodId;
     oldPayoutMethodId = expense.PayoutMethodId;
-    const shouldUpdateStatus = changesRequireStatusUpdate(expense, expenseData, hasItemChanges, hasPayoutMethodChanges);
+    const newAmount = models.Expense.computeTotalAmountForExpense(expense.items, taxes);
+    const expenseDataForStatusUpdate = { ...expenseData, amount: newAmount };
+    const shouldUpdateStatus = changesRequireStatusUpdate(
+      expense,
+      expenseDataForStatusUpdate,
+      hasItemChanges,
+      hasPayoutMethodChanges,
+    );
 
     const isChangingPayee =
       expenseData.fromCollective?.id && expenseData.fromCollective.id !== expense.FromCollectiveId;
@@ -3382,14 +3420,14 @@ export async function editExpense(
     let status = expense.status;
     if (status === 'INCOMPLETE') {
       // When dealing with expenses marked as INCOMPLETE, only return to PENDING if the expense change requires Collective review
-      status = changesRequireStatusUpdate(expense, expenseData, hasItemChanges) ? 'PENDING' : 'APPROVED';
+      status = changesRequireStatusUpdate(expense, expenseDataForStatusUpdate, hasItemChanges) ? 'PENDING' : 'APPROVED';
     } else if (shouldUpdateStatus) {
       status = 'PENDING';
     }
 
     const updatedExpenseProps = {
       ...cleanExpenseData,
-      amount: models.Expense.computeTotalAmountForExpense(expense.items, taxes), // We've reloaded the items above
+      amount: newAmount, // We've reloaded the items above
       lastEditedById: remoteUser.id,
       incurredAt: expenseData.incurredAt || min(expense.items.map(item => item.incurredAt)) || new Date(),
       status,
@@ -3882,6 +3920,9 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       expense.status !== ExpenseStatus.ERROR
     ) {
       throw new Forbidden(`Expense needs to be approved. Current status of the expense: ${expense.status}.`);
+    }
+    if (expense.onHold) {
+      throw new Forbidden('This expense is currently on hold and cannot be paid');
     }
 
     const permissionFn = forceManual ? canMarkAsPaid : canPayExpense;
