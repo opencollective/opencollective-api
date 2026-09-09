@@ -74,9 +74,12 @@ describe('server/models/Order', () => {
       const lockSpy = sandbox.spy(order, 'lock');
 
       let firstCallResult, secondCallResult;
+      let onFirstCallLocked;
+      const firstCallLocked = new Promise(resolve => (onFirstCallLocked = resolve));
       const firstCall = order.lock(
         () =>
           new Promise(resolve => {
+            onFirstCallLocked();
             setTimeout(() => {
               resolve();
               firstCallResult = 1;
@@ -84,6 +87,11 @@ describe('server/models/Order', () => {
           }),
       );
       expect(firstCallResult).to.be.undefined;
+
+      // Both calls compete for the same lock, and only the second one is allowed to retry. Wait
+      // for the first one to hold the lock, otherwise the second can win the race and the first
+      // fails outright.
+      await firstCallLocked;
 
       const secondCall = order.lock(
         () => {
