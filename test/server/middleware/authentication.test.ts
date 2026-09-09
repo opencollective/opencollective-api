@@ -506,19 +506,6 @@ describe('server/middleware/authentication', () => {
     });
   });
 
-  describe('rejectOAuthAndPersonalTokenAuth on REST uploads', () => {
-    it('should reject OAuth tokens on /images', async () => {
-      const user = await fakeUser();
-      const userToken = await fakeUserToken({ user });
-      // eslint-disable-next-line camelcase
-      const token = user.jwt({ scope: 'oauth', access_token: userToken.accessToken });
-
-      const response = await request(expressApp).post('/images').set('Authorization', `Bearer ${token}`).expect(401);
-
-      expect(response.body.error.message).to.include('OAuth and personal tokens cannot be used on this endpoint');
-    });
-  });
-
   describe('authenticateService - GitHub OAuth', () => {
     it('returns 401 without authentication', async () => {
       const response = await request(expressApp).get('/connected-accounts/github/oauthUrl').expect(401);

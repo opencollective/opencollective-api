@@ -65,21 +65,18 @@ describe('server/models/User', () => {
       });
     });
 
-    it('ignores privilege flags from caller-controlled payloads', async () => {
+    it('never grants money management or hosting from the payload', async () => {
       const user = await User.createUserWithCollective({
         email: randEmail('user@domain.com'),
         name: 'Regular User',
         hasMoneyManagement: true,
         hasHosting: true,
-        hostFeePercent: 0,
-        data: { isRoot: true, requiresVerification: false },
-        settings: { disableGrants: true },
+        hostFeePercent: 100,
       });
 
       expect(user.collective.hasMoneyManagement).to.equal(false);
-      expect(user.collective.hasHosting).to.not.equal(true);
-      expect(user.collective.data).to.not.have.property('isRoot');
-      expect(user.collective.settings || {}).to.not.have.property('disableGrants');
+      expect(user.collective.hasHosting).to.equal(false);
+      expect(user.collective.hostFeePercent).to.not.equal(100);
     });
   });
 

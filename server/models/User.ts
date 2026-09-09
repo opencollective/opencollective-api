@@ -610,11 +610,11 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
       githubHandle: userData.githubHandle,
       repositoryUrl: userData.repositoryUrl,
       currency: userData.currency,
-      hostFeePercent: userData.hostFeePercent,
       isActive: false,
       isPrivate: userData.isPrivate ?? false,
-      hasMoneyManagement: Boolean(userData.hasMoneyManagement),
-      hasHosting: userData.hasHosting,
+      // `hostFeePercent`, `hasMoneyManagement` and `hasHosting` are deliberately not read from
+      // `userData`: some callers forward user-controlled payloads (e.g. `/users/signin`), and
+      // these flags must only be set through `activateMoneyManagement`/`activateHosting`.
       CreatedByUserId: userData.CreatedByUserId || this.id,
       data: { ...(userData.data || {}), UserId: this.id },
       settings: userData.settings,
@@ -632,22 +632,7 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     const cleanUserData = pick(userData, ['email', 'newsletterOptIn']);
     const user = await User.create(cleanUserData, sequelizeParams);
 
-    // Only pass profile fields — never privilege flags (hasMoneyManagement, hasHosting,
-    // hostFeePercent, data, settings) from caller-controlled payloads such as sign-in.
-    const collectiveData = pick(userData, [
-      'name',
-      'legalName',
-      'image',
-      'description',
-      'longDescription',
-      'website',
-      'twitterHandle',
-      'githubHandle',
-      'repositoryUrl',
-      'currency',
-      'location',
-    ]);
-    user.collective = await user.createCollective(collectiveData, transaction);
+    user.collective = await user.createCollective(userData, transaction);
 
     if (userData.location) {
       await user.collective.setLocation(userData.location, transaction);

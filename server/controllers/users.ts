@@ -91,8 +91,10 @@ export const signin = async (req: express.Request, res: express.Response, next: 
       });
       return;
     } else if (!user && createProfile) {
+      // `req.body.user` is unauthenticated input: only forward profile fields so it cannot
+      // seed the collective with `data`, `settings`, `isPrivate` or `CreatedByUserId`.
       user = await models.User.createUserWithCollective(
-        pick(req.body.user, ['email', 'name', 'legalName', 'newsletterOptIn']),
+        pick(req.body.user, ['email', 'name', 'legalName', 'newsletterOptIn', 'location']),
       );
     } else if (!user.CollectiveId || user.data?.requiresVerification === true) {
       res.status(403).send({

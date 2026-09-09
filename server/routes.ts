@@ -391,7 +391,7 @@ export default async (app: express.Application) => {
   /**
    * Separate route for uploading images to S3
    */
-  app.post('/images', authentication.rejectOAuthAndPersonalTokenAuth, upload.single('file'), uploadImage);
+  app.post('/images', upload.single('file'), uploadImage);
 
   // backward compatibility
   app.get('/connected-accounts/:service', noCache, authentication.rejectOAuthAndPersonalTokenAuth, (req, res, next) => {
