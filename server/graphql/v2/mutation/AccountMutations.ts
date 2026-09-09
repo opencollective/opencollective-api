@@ -745,7 +745,8 @@ const accountMutations = {
         // Update slug if either the name is updated or if this is a previous guest account that already had a name
         if (
           (updateParams.name || ![DEFAULT_GUEST_NAME, 'Incognito'].includes(account.name)) &&
-          (!updateParams.slug || account.slug.startsWith('guest-') || account.slug.startsWith('user-'))
+          !updateParams.slug &&
+          (account.slug.startsWith('guest-') || account.slug.startsWith('user-'))
         ) {
           updateParams.slug = await Collective.generateSlug((updateParams.name as string) || account.name);
           previousData.slug = account.slug;
