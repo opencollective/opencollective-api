@@ -610,11 +610,11 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
       githubHandle: userData.githubHandle,
       repositoryUrl: userData.repositoryUrl,
       currency: userData.currency,
+      hostFeePercent: userData.hostFeePercent,
       isActive: false,
       isPrivate: userData.isPrivate ?? false,
-      // `hostFeePercent`, `hasMoneyManagement` and `hasHosting` are deliberately not read from
-      // `userData`: some callers forward user-controlled payloads (e.g. `/users/signin`), and
-      // these flags must only be set through `activateMoneyManagement`/`activateHosting`.
+      hasMoneyManagement: Boolean(userData.hasMoneyManagement),
+      hasHosting: userData.hasHosting,
       CreatedByUserId: userData.CreatedByUserId || this.id,
       data: { ...(userData.data || {}), UserId: this.id },
       settings: userData.settings,

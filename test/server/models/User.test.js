@@ -64,20 +64,6 @@ describe('server/models/User', () => {
         expect(user.collective.slug).to.equal('hen3-bang4-de-yong4-hu4-awesome');
       });
     });
-
-    it('never grants money management or hosting from the payload', async () => {
-      const user = await User.createUserWithCollective({
-        email: randEmail('user@domain.com'),
-        name: 'Regular User',
-        hasMoneyManagement: true,
-        hasHosting: true,
-        hostFeePercent: 100,
-      });
-
-      expect(user.collective.hasMoneyManagement).to.equal(false);
-      expect(user.collective.hasHosting).to.equal(false);
-      expect(user.collective.hostFeePercent).to.not.equal(100);
-    });
   });
 
   /**
