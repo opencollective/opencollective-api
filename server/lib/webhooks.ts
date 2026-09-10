@@ -7,7 +7,7 @@ import ipaddr from 'ipaddr.js';
 import { pick } from 'lodash';
 import isIP from 'validator/lib/isIP';
 
-import { activities } from '../constants';
+import activities, { HostApplicationActivities } from '../constants/activities';
 import { RateLimitExceeded } from '../graphql/errors';
 import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { Activity } from '../models';
@@ -372,6 +372,15 @@ export const sanitizeActivityForWebhookPayload = (activity: Activity) => {
     cleanActivity.data.fromCollective = getCollectiveInfo(activity.data.fromCollective);
     if (activity.data.order?.TierId) {
       cleanActivity.data.tier = getTierInfo({ id: activity.data.order.TierId });
+    }
+  } else if (HostApplicationActivities.includes(type)) {
+    // Never expose `data.user`: it holds the email of the admin who applied/reviewed
+    cleanActivity.data = {
+      collective: getCollectiveInfo(activity.data.collective),
+      host: getCollectiveInfo(activity.data.host),
+    };
+    if (type === activities.COLLECTIVE_REJECTED) {
+      cleanActivity.data.rejectionReason = activity.data.rejectionReason ?? null;
     }
   } else if (
     [activities.SUBSCRIPTION_CANCELED, activities.SUBSCRIPTION_PAUSED, activities.SUBSCRIPTION_RESUMED].includes(type)
