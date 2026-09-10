@@ -178,7 +178,7 @@
     "sinon-chai": "^3.7.0",
     "supertest": "^7.0.0",
     "ts-unused-exports": "^11.0.1",
-    "typescript": "npm:typescript@~6.0.3",
+    "typescript": "npm:typescript@~7.0.0",
     "typescript-7": "npm:typescript@rc",
     "typescript-eslint": "^8.68.0",
     "ws": "^8.18.3"
