@@ -60,7 +60,7 @@
     "bcrypt": "6.0.0",
     "blurhash": "2.0.5",
     "cheerio": "^1.1.2",
-    "cloudflare": "6.5.0",
+    "cloudflare": "7.1.0",
     "cloudflare-ip": "0.0.7",
     "commander": "15.0.0",
     "config": "5.0.1",
