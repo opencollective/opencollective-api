@@ -1,13 +1,9 @@
 import { expect } from 'chai';
-import config from 'config';
-import crypto from 'crypto-js';
 import { generateSecret, generateSync } from 'otplib';
 
+import { crypto } from '../../../../server/lib/encryption';
 import totpProvider from '../../../../server/lib/two-factor-authentication/totp';
 import { fakeUser } from '../../../test-helpers/fake-data';
-
-const SECRET_KEY = config.dbEncryption.secretKey;
-const CIPHER = config.dbEncryption.cipher;
 
 describe('lib/two-factor-authentication', () => {
   describe('totp', () => {
@@ -23,7 +19,7 @@ describe('lib/two-factor-authentication', () => {
 
     it('fails if user token is incorrect', async () => {
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
 
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const token = {};
@@ -36,7 +32,7 @@ describe('lib/two-factor-authentication', () => {
 
     it('succeeds if user token is correct', async () => {
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
 
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
 

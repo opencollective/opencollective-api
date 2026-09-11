@@ -1,5 +1,6 @@
+import { createCipheriv, createDecipheriv, createHash, randomBytes as cryptoRandomBytes } from 'crypto';
+
 import config from 'config';
-import cryptojs from 'crypto-js';
 import { randomBytes, secretbox as _secretbox } from 'tweetnacl';
 import { decodeBase64, encodeBase64, encodeUTF8 } from 'tweetnacl-util';
 
@@ -56,20 +57,131 @@ export const secretbox = {
 const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;
 
+type CipherConfig = {
+  /** The NodeJS cipher algorithm to use */
+  algorithm: string;
+  /** The key length (in bytes) derived from the secret key */
+  keyLength: number;
+  /** The initialization vector length (in bytes) derived from the secret key */
+  ivLength: number;
+  /** An optional transformation to apply to the derived key before passing it to NodeJS */
+  expandKey?: (key: Buffer) => Buffer;
+};
+
+/**
+ * The ciphers we support for DB encryption, mapped to their NodeJS counterparts. The key/IV
+ * lengths must match the ones used by the OpenSSL "enc" format, since that's the format the
+ * data has historically been stored with.
+ */
+const SUPPORTED_CIPHERS: Record<string, CipherConfig> = {
+  AES: { algorithm: 'aes-256-cbc', keyLength: 32, ivLength: 16 },
+  // NodeJS doesn't expose single-DES anymore (it lives in OpenSSL's legacy provider), but
+  // 3DES with the same key repeated three times is equivalent to it (EDE: encrypt-decrypt-encrypt).
+  DES: {
+    algorithm: 'des-ede3-cbc',
+    keyLength: 8,
+    ivLength: 8,
+    expandKey: key => Buffer.concat([key, key, key]),
+  },
+  TripleDES: { algorithm: 'des-ede3-cbc', keyLength: 24, ivLength: 8 },
+};
+
+/** The `Salted__` magic bytes prefixing OpenSSL-encrypted payloads, followed by the 8 bytes salt */
+const OPENSSL_SALT_HEADER = Buffer.from('Salted__', 'utf8');
+const OPENSSL_SALT_LENGTH = 8;
+
+const getCipherConfig = (cipher: string): CipherConfig => {
+  const cipherConfig = SUPPORTED_CIPHERS[cipher];
+  if (!cipherConfig) {
+    throw new Error(`Unsupported cipher: ${cipher}. Supported ciphers: ${Object.keys(SUPPORTED_CIPHERS).join(', ')}`);
+  }
+
+  return cipherConfig;
+};
+
+/**
+ * OpenSSL's `EVP_BytesToKey` key derivation function (MD5, 1 iteration), used to turn a
+ * passphrase + salt into the key and IV of the cipher.
+ *
+ * /!\ This KDF is weak by modern standards: MD5 with a single iteration offers close to no
+ * resistance against brute-forcing the passphrase. It is *not* a new weakness though: crypto-js
+ * ran this exact derivation internally for every `encrypt`/`decrypt` call, so this is the format
+ * every encrypted column in the database is already stored with. It cannot be changed without
+ * re-encrypting all of that data (see `scripts/change_db_encryption_key.js`), which is out of
+ * scope for the crypto-js removal. Moving to a modern KDF + authenticated cipher should be done
+ * as a follow-up, along with the migration of the existing rows.
+ */
+const deriveKeyAndIV = (secretKey: string, salt: Buffer, keyLength: number, ivLength: number) => {
+  const secretKeyBuffer = Buffer.from(secretKey, 'utf8');
+  const blocks: Buffer[] = [];
+  let block = Buffer.alloc(0);
+  let derivedLength = 0;
+  while (derivedLength < keyLength + ivLength) {
+    // CodeQL flags this line (js/weak-cryptographic-algorithm). MD5 is not a choice here, it is
+    // what the OpenSSL "enc" format mandates (see the warning above), so the alert has to be
+    // dismissed as an accepted risk from the security tab: inline suppression comments are not
+    // honored by GitHub code scanning.
+    block = createHash('md5')
+      .update(Buffer.concat([block, secretKeyBuffer, salt]))
+      .digest();
+    blocks.push(block);
+    derivedLength += block.length;
+  }
+
+  const derived = Buffer.concat(blocks, keyLength + ivLength);
+  return { key: derived.subarray(0, keyLength), iv: derived.subarray(keyLength, keyLength + ivLength) };
+};
+
+/**
+ * Encrypts a message with the given secret key & cipher, using the OpenSSL "enc" format
+ * (`Salted__` + salt + ciphertext, base64-encoded).
+ */
+export const encryptWithCipher = (message: string, secretKey: string, cipher: string): string => {
+  const { algorithm, keyLength, ivLength, expandKey } = getCipherConfig(cipher);
+  const salt = cryptoRandomBytes(OPENSSL_SALT_LENGTH);
+  const { key, iv } = deriveKeyAndIV(secretKey, salt, keyLength, ivLength);
+  const cipheriv = createCipheriv(algorithm, expandKey ? expandKey(key) : key, iv);
+  const encrypted = Buffer.concat([cipheriv.update(message, 'utf8'), cipheriv.final()]);
+  return Buffer.concat([OPENSSL_SALT_HEADER, salt, encrypted]).toString('base64');
+};
+
+/**
+ * Decrypts a message produced by `encryptWithCipher` (or by the legacy crypto-js implementation,
+ * which used the same OpenSSL "enc" format).
+ */
+export const decryptWithCipher = (encryptedMessage: string, secretKey: string, cipher: string): string => {
+  // crypto-js used to return an empty string for empty payloads, some columns may still hold those
+  if (!encryptedMessage) {
+    return '';
+  }
+
+  const { algorithm, keyLength, ivLength, expandKey } = getCipherConfig(cipher);
+  const payload = Buffer.from(encryptedMessage, 'base64');
+  const headerLength = OPENSSL_SALT_HEADER.length + OPENSSL_SALT_LENGTH;
+  if (payload.length < headerLength || !payload.subarray(0, OPENSSL_SALT_HEADER.length).equals(OPENSSL_SALT_HEADER)) {
+    throw new Error('Could not decrypt message: invalid payload');
+  }
+
+  const salt = payload.subarray(OPENSSL_SALT_HEADER.length, headerLength);
+  const { key, iv } = deriveKeyAndIV(secretKey, salt, keyLength, ivLength);
+  const decipheriv = createDecipheriv(algorithm, expandKey ? expandKey(key) : key, iv);
+  return Buffer.concat([decipheriv.update(payload.subarray(headerLength)), decipheriv.final()]).toString('utf8');
+};
+
 /**
  * SecretKey based authentication.
  * Used for DB encryption of tokens.
  */
 export const crypto = {
   hash(s: string): string {
-    return cryptojs.SHA256(s).toString();
+    return createHash('sha256').update(s, 'utf8').digest('hex');
   },
 
   encrypt(message: string): string {
-    return cryptojs[CIPHER].encrypt(message, SECRET_KEY).toString();
+    return encryptWithCipher(message, SECRET_KEY, CIPHER);
   },
 
   decrypt(encryptedMessage: string): string {
-    return cryptojs[CIPHER].decrypt(encryptedMessage, SECRET_KEY).toString(cryptojs.enc.Utf8);
+    return decryptWithCipher(encryptedMessage, SECRET_KEY, CIPHER);
   },
 };
