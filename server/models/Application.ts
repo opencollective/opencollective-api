@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 
-import { isNil, merge } from 'lodash';
+import { isNil } from 'lodash';
 import type {
   Association,
   BelongsToGetAssociationMixin,
@@ -168,22 +168,19 @@ Application.init(
     sequelize,
     modelName: 'Application',
     paranoid: true,
+    hooks: {
+      // Credentials are always generated server-side, whatever the caller passes in
+      beforeCreate(application) {
+        if (application.type === 'apiKey') {
+          application.apiKey = randomBytes(20).toString('hex');
+        }
+        if (application.type === 'oAuth') {
+          application.clientId = randomBytes(10).toString('hex'); // Will be 20 length in ascii
+          application.clientSecret = randomBytes(20).toString('hex'); // Will be 40 length in ascii
+        }
+      },
+    },
   },
 );
-
-Application.create = (props?): Promise<ReturnType<typeof Application.create>> => {
-  if (props.type === 'apiKey') {
-    props = merge(props, {
-      apiKey: randomBytes(20).toString('hex'),
-    });
-  }
-  if (props.type === 'oAuth') {
-    props = merge(props, {
-      clientId: randomBytes(10).toString('hex'), // Will be 20 length in ascii
-      clientSecret: randomBytes(20).toString('hex'), // Will be 40 length in ascii
-    });
-  }
-  return Application.build(props).save();
-};
 
 export default Application;
