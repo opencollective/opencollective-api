@@ -95,6 +95,42 @@ describe('server/controllers/users', () => {
     return response;
   };
 
+  describe('signin', () => {
+    it('does not honor privilege flags in the user payload (security regression)', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+      const request = httpMocks.createRequest({
+        method: 'POST',
+        url: `/users/signin`,
+        body: {
+          user: {
+            email,
+            hasMoneyManagement: true,
+            hasHosting: true,
+            data: { isRoot: true },
+            settings: { disableGrants: true },
+          },
+        },
+        ip: randIPV4(),
+      });
+      request.loaders = generateLoaders({});
+      const response = httpMocks.createResponse();
+
+      await signin(request, response, () => {});
+      expect(response._getStatusCode()).to.eql(200);
+
+      const user = await models.User.findOne({
+        where: { email },
+        include: [{ model: models.Collective, as: 'collective' }],
+      });
+      expect(user).to.exist;
+      expect(user.collective.hasMoneyManagement).to.equal(false);
+      expect(user.collective.hasHosting).to.equal(false);
+      expect(user.collective.data).to.not.have.property('isRoot');
+      expect(user.collective.settings || {}).to.not.have.property('disableGrants');
+    });
+  });
+
   describe('signup', () => {
     it('should create a new user, create a session information about the OTP and send OTP through email', async () => {
       sandbox.stub(emailLib, 'send').resolves();

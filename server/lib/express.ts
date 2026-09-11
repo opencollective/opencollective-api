@@ -114,6 +114,7 @@ export default function setupExpress(app: express.Application, redisClient?: Red
         cookie: {
           maxAge: 24 * 60 * 60 * 1000, // 1 day
           httpOnly: true,
+          sameSite: 'lax',
           secure: config.env === 'production' || config.env === 'staging',
         },
       }),
