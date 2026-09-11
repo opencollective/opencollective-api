@@ -39,6 +39,9 @@ jobs:
           node-version-file: 'package.json'
           cache: 'npm'
 
+      - name: Enable npm 12
+        run: npm install -g npm@12.0.2
+
       - name: Restore node_modules
         uses: actions/cache@v6
         id: api-node-modules
@@ -66,6 +69,9 @@ jobs:
           node-version-file: 'package.json'
           cache: 'npm'
 
+      - name: Enable npm 12
+        run: npm install -g npm@12.0.2
+
       - name: Restore node_modules
         uses: actions/cache@v6
         id: api-node-modules
@@ -92,6 +98,9 @@ jobs:
         with:
           node-version-file: 'package.json'
           cache: 'npm'
+
+      - name: Enable npm 12
+        run: npm install -g npm@12.0.2
 
       - name: Restore node_modules
         uses: actions/cache@v6
@@ -121,6 +130,9 @@ jobs:
           node-version-file: 'package.json'
           cache: 'npm'
 
+      - name: Enable npm 12
+        run: npm install -g npm@12.0.2
+
       - name: Restore node_modules
         uses: actions/cache@v6
         id: api-node-modules
@@ -148,6 +160,9 @@ jobs:
         with:
           node-version-file: 'package.json'
           cache: 'npm'
+
+      - name: Enable npm 12
+        run: npm install -g npm@12.0.2
 
       - name: Restore node_modules
         uses: actions/cache@v6
@@ -182,6 +197,9 @@ jobs:
         with:
           node-version-file: 'package.json'
           cache: 'npm'
+
+      - name: Enable npm 12
+        run: npm install -g npm@12.0.2
 
       - name: Restore node_modules
         uses: actions/cache@v6
@@ -244,6 +262,9 @@ jobs:
         with:
           node-version-file: 'package.json'
           cache: 'npm'
+
+      - name: Enable npm 12
+        run: npm install -g npm@12.0.2
 
       - name: Restore node_modules
         uses: actions/cache@v6
@@ -328,6 +349,9 @@ jobs:
           node-version-file: 'package.json'
           cache: 'npm'
 
+      - name: Enable npm 12
+        run: npm install -g npm@12.0.2
+
       - name: Restore node_modules
         uses: actions/cache@v6
         id: api-node-modules
@@ -385,6 +409,9 @@ jobs:
         with:
           node-version-file: 'package.json'
           cache: 'npm'
+
+      - name: Enable npm 12
+        run: npm install -g npm@12.0.2
 
       - name: Restore node_modules
         uses: actions/cache@v6
