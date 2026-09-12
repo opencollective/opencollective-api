@@ -26,7 +26,7 @@ const processVirtualCard = async (expenses: Array<Expense>) => {
       ...e.info,
       url: `${config.host.website}/${collective.slug}/expenses/${e.id}?edit=1`,
     })),
-    virtualCard,
+    virtualCard: virtualCard.info,
     host: host.info,
     collective: collective.info,
     daysLeft: 31 - maxDaysPending,
