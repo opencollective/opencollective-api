@@ -8001,8 +8001,6 @@ type CommunityStats {
     """
     type: CommunityTransactionType!
   ): TimeSeriesAmount!
-  lastInteractionAt: DateTime
-  firstInteractionAt: DateTime
   activities(
     """
     The number of results to fetch (default 10, max 1000)
@@ -27359,11 +27357,6 @@ type Mutation {
     Optional private note included in the invitation email sent to the invitee.
     """
     privateNote: String
-
-    """
-    When true, the invited user account was just created from the invite form. The invitee will be required to complete their profile before accepting the invitation.
-    """
-    isNewUser: Boolean = false
   ): MemberInvitation!
 
   """
