@@ -231,7 +231,6 @@
     "prettier": "prettier \"**/*.@(js|ts|json|md)\"",
     "prettier:check": "npm run prettier -- --check",
     "prettier:write": "npm run prettier -- --write",
-    "s3": "./scripts/dev/run-docker.sh compose -f docker-compose/uploads.yml up",
     "script": "babel-node --extensions .js,.ts $1",
     "search": "./scripts/dev/run-docker-compose.sh -f docker-compose/search.yml up",
     "sequelize": "babel-node --extensions .js,.ts -- ./node_modules/.bin/sequelize --config config/sequelize-cli.js",
@@ -257,7 +256,8 @@
     "type:check": "tsc -p tsconfig.json",
     "prepare": "husky",
     "lint-staged": "lint-staged",
-    "heroku-postbuild": "npm run build && ./scripts/upload-sourcemaps.sh"
+    "heroku-postbuild": "npm run build && ./scripts/upload-sourcemaps.sh",
+    "uploads": "./scripts/dev/run-docker.sh compose -f docker-compose/uploads.yml up"
   },
   "engines": {
     "node": "24.x",
