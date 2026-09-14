@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import config from 'config';
+import { isNil } from 'lodash';
 
 import { decryptWithCipher, encryptWithCipher } from '../server/lib/encryption';
 import { sequelize } from '../server/models';
@@ -37,8 +38,12 @@ async function main(args) {
   );
 
   console.info(`Re-encrypting ${accounts.length} ConnectedAccounts...`);
-  const encrypt = message => encryptWithCipher(message, args.newKey, args.toCipher);
-  const decrypt = encryptedMessage => decryptWithCipher(encryptedMessage, args.oldKey, args.fromCipher);
+  // `refreshToken` is nullable, and the ConnectedAccount model stores NULL rather than an encrypted
+  // empty string for missing values (`value ? crypto.encrypt(value) : null`). We update with raw SQL
+  // here, which bypasses those accessors, so the same semantics have to be preserved by hand.
+  const encrypt = message => (message ? encryptWithCipher(message, args.newKey, args.toCipher) : null);
+  const decrypt = encryptedMessage =>
+    isNil(encryptedMessage) ? null : decryptWithCipher(encryptedMessage, args.oldKey, args.fromCipher);
 
   try {
     await sequelize.transaction(async transaction => {
