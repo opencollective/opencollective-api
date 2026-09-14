@@ -1,20 +1,19 @@
 services:
-  minio:
-    image: docker.io/minio/minio:latest
+  rustfs:
+    image: docker.io/rustfs/rustfs:1.0.0-rc.6
     ports:
       - 9000:9000
       - 9001:9001
     environment:
-      MINIO_ROOT_USER: user
-      MINIO_ROOT_PASSWORD: password
+      RUSTFS_ACCESS_KEY: user
+      RUSTFS_SECRET_KEY: password
     deploy:
       resources:
         limits:
-          cpus: '${MINIO_CPU_LIMIT:-0.25}'
-          memory: '${MINIO_MEMORY_LIMIT:-2gb}'
+          cpus: '${RUSTFS_CPU_LIMIT:-0.25}'
+          memory: '${RUSTFS_MEMORY_LIMIT:-2gb}'
     volumes:
-      - minio:/data
-    command: server /data --console-address :9001
+      - rustfs:/data
 
 volumes:
-  minio:
+  rustfs:
