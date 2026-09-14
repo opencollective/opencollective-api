@@ -66,16 +66,14 @@ jobs:
           - 5432:5432
         # needed because the postgres container does not provide a healthcheck
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-      minio:
-        image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+      rustfs:
+        image: rustfs/rustfs:1.0.0-rc.6@sha256:97171b3d72cd47dc81000f92ea84de25608bfc35a94c965501afaeb5d99f6035
         ports:
           - 9000:9000
-        command: server /data
-        options: --name=minio --health-cmd "curl http://localhost:9000/minio/health/live"
+        options: --name=rustfs --health-cmd "curl -f http://localhost:9000/health"
         env:
-          MINIO_ROOT_USER: user
-          MINIO_ROOT_PASSWORD: password
-          MINIO_BROWSER: 'off'
+          RUSTFS_ACCESS_KEY: user
+          RUSTFS_SECRET_KEY: password
 
     steps:
       # man-db trigger on apt install is taking some time
@@ -100,12 +98,14 @@ jobs:
           wget https://github.com/stripe/stripe-cli/releases/download/v1.13.9/stripe_1.13.9_linux_x86_64.tar.gz -O /tmp/stripe_1.13.9_linux_x86_64.tar.gz
           sudo tar xzvf /tmp/stripe_1.13.9_linux_x86_64.tar.gz -C /bin/
 
-      - name: Setup minio bucket
+      - name: Setup S3 bucket
+        env:
+          AWS_ACCESS_KEY_ID: user
+          AWS_SECRET_ACCESS_KEY: password
+          AWS_DEFAULT_REGION: us-east-1
         run: |
-          wget https://dl.min.io/client/mc/release/linux-amd64/mc
-          chmod +x ./mc
-          ./mc alias set minio http://127.0.0.1:9000 user password
-          ./mc mb --ignore-existing minio/opencollective-e2e
+          aws --endpoint-url http://127.0.0.1:9000 s3api head-bucket --bucket opencollective-e2e 2>/dev/null ||
+            aws --endpoint-url http://127.0.0.1:9000 s3api create-bucket --bucket opencollective-e2e
 
       - name: Checkout
         uses: actions/checkout@v7
