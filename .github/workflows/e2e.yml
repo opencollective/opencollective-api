@@ -101,11 +101,14 @@ jobs:
           sudo tar xzvf /tmp/stripe_1.13.9_linux_x86_64.tar.gz -C /bin/
 
       - name: Setup minio bucket
+        # dl.min.io no longer serves the mc binary (HTTP 410); the AWS CLI preinstalled on the runner works against MinIO
+        env:
+          AWS_ACCESS_KEY_ID: user
+          AWS_SECRET_ACCESS_KEY: password
+          AWS_DEFAULT_REGION: us-east-1
         run: |
-          wget https://dl.min.io/client/mc/release/linux-amd64/mc
-          chmod +x ./mc
-          ./mc alias set minio http://127.0.0.1:9000 user password
-          ./mc mb --ignore-existing minio/opencollective-e2e
+          aws --endpoint-url http://127.0.0.1:9000 s3api head-bucket --bucket opencollective-e2e 2>/dev/null ||
+            aws --endpoint-url http://127.0.0.1:9000 s3api create-bucket --bucket opencollective-e2e
 
       - name: Checkout
         uses: actions/checkout@v7
