@@ -228,7 +228,7 @@ jobs:
         image: rustfs/rustfs:1.0.0-rc.6@sha256:97171b3d72cd47dc81000f92ea84de25608bfc35a94c965501afaeb5d99f6035
         ports:
           - 9000:9000
-        options: --name=rustfs --health-cmd "curl -f http://localhost:9000/health"
+        options: --name=rustfs --health-cmd "curl -f http://localhost:9000/health/ready"
         env:
           RUSTFS_ACCESS_KEY: user
           RUSTFS_SECRET_KEY: password
@@ -310,7 +310,7 @@ jobs:
         image: rustfs/rustfs:1.0.0-rc.6@sha256:97171b3d72cd47dc81000f92ea84de25608bfc35a94c965501afaeb5d99f6035
         ports:
           - 9000:9000
-        options: --name=rustfs --health-cmd "curl -f http://localhost:9000/health"
+        options: --name=rustfs --health-cmd "curl -f http://localhost:9000/health/ready"
         env:
           RUSTFS_ACCESS_KEY: user
           RUSTFS_SECRET_KEY: password
