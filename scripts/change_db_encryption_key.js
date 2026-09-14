@@ -65,6 +65,7 @@ async function main(args) {
   } catch (e) {
     console.error('Oops, something went wrong and I rolled back the transaction.');
     console.error(e);
+    process.exit(1);
   }
   console.log('Done!');
   process.exit(0);

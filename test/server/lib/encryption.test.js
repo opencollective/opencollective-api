@@ -59,6 +59,20 @@ describe('server/lib/encryption', () => {
         expect(() => crypto.decrypt('not-encrypted')).to.throw('Could not decrypt message: invalid payload');
       });
 
+      it('throws when the payload is not canonical base64', () => {
+        // Buffer.from ignores characters that are not valid base64, so without an explicit check
+        // these would all decrypt as if the payload had never been corrupted.
+        const encrypted = crypto.encrypt('A simple message');
+        for (const corrupted of [
+          `${encrypted}!!!`,
+          `${encrypted}\n`,
+          `${encrypted} `,
+          `${encrypted.slice(0, 20)}!${encrypted.slice(20)}`,
+        ]) {
+          expect(() => crypto.decrypt(corrupted)).to.throw('Could not decrypt message: invalid payload');
+        }
+      });
+
       it('returns an empty string for empty payloads', () => {
         expect(crypto.decrypt('')).to.eq('');
         expect(crypto.decrypt(null)).to.eq('');

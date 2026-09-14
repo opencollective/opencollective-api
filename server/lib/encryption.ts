@@ -157,6 +157,12 @@ export const decryptWithCipher = (encryptedMessage: string, secretKey: string, c
 
   const { algorithm, keyLength, ivLength, expandKey } = getCipherConfig(cipher);
   const payload = Buffer.from(encryptedMessage, 'base64');
+  // Buffer.from silently drops characters that are not valid base64, so a corrupted payload would
+  // otherwise decrypt as if nothing was wrong. Re-encoding tells us whether anything was dropped.
+  if (payload.toString('base64') !== encryptedMessage) {
+    throw new Error('Could not decrypt message: invalid payload');
+  }
+
   const headerLength = OPENSSL_SALT_HEADER.length + OPENSSL_SALT_LENGTH;
   if (payload.length < headerLength || !payload.subarray(0, OPENSSL_SALT_HEADER.length).equals(OPENSSL_SALT_HEADER)) {
     throw new Error('Could not decrypt message: invalid payload');
