@@ -59,7 +59,7 @@ const CIPHER = config.dbEncryption.cipher;
 
 type CipherConfig = {
   /** The NodeJS cipher algorithm to use */
-  algorithm: string;
+  algorithm: 'aes-256-cbc' | 'des-ede3-cbc';
   /** The key length (in bytes) derived from the secret key */
   keyLength: number;
   /** The initialization vector length (in bytes) derived from the secret key */
