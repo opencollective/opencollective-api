@@ -48,3 +48,6 @@ scripts/dev/bin
 
 # Sentry Config File
 .sentryclirc
+
+**/security-poc/
+**/security-review/
