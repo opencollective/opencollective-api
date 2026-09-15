@@ -137,6 +137,8 @@ class Order extends ModelWithPublicId<
     platformTip?: number;
     fromAccountInfo?: Record<string, unknown>; // TODO: type me
     reqIp?: string;
+    reqMask?: string;
+    ordersLimitKeys?: string[];
     lockedAt?: Date;
     valuesByRole?: OrderDataValuesByRole;
     previousStatus?: OrderStatus;

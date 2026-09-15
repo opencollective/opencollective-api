@@ -4,6 +4,7 @@ import { get } from 'lodash';
 import validator from 'validator';
 
 import { BadRequest } from '../../graphql/errors';
+import type { Order } from '../../models';
 import cache from '../cache';
 import { md5, sleep } from '../utils';
 
@@ -15,7 +16,7 @@ const getOrdersLimit = (
   order: {
     collective: { id: number };
     fromCollective?: { id: number };
-    user: { email: string };
+    user?: { email: string };
     guestInfo?: unknown;
   },
   reqIp: string,
@@ -87,7 +88,7 @@ export const checkOrdersLimit = async (
   order: {
     collective: { id: number };
     fromCollective?: { id: number };
-    user: { email: string };
+    user?: { email: string };
     guestInfo?: unknown;
   },
   reqIp,
@@ -121,6 +122,11 @@ export const checkOrdersLimit = async (
       }
     }
   }
+};
+
+/** Keys consumed by `checkOrdersLimit`, persisted on Payment Intent orders so the webhook can release them */
+export const getOrdersLimitKeys = (...args: Parameters<typeof getOrdersLimit>): string[] => {
+  return getOrdersLimit(...args).map(limit => limit.key);
 };
 
 export const checkGuestContribution = async (
@@ -161,8 +167,13 @@ export const checkGuestContribution = async (
 
 export const cleanOrdersLimit = async (order, reqIp, reqMask) => {
   const limits = getOrdersLimit(order, reqIp, reqMask);
+  await Promise.all(limits.map(limit => cache.delete(limit.key)));
+};
 
-  for (const limit of limits) {
-    cache.delete(limit.key);
+/** For orders confirmed asynchronously (Payment Intents): releases the keys persisted at creation time */
+export const cleanOrdersLimitForOrder = async (order: Order): Promise<void> => {
+  const keys = order.data?.ordersLimitKeys;
+  if (keys?.length && !config.limits.skipCleanOrdersLimitSlugs?.includes(order.collective?.slug)) {
+    await cache.delete(keys);
   }
 };
