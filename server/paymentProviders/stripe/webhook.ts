@@ -29,6 +29,7 @@ import {
   sendOrderFailedEmail,
 } from '../../lib/payments';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates, MAX_RETRIES } from '../../lib/recurring-contributions';
+import { cleanOrdersLimitForOrder } from '../../lib/security/limit';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount, getDashboardObjectIdURL } from '../../lib/stripe';
 import { createTransactionsFromPaidStripeExpense, getPaymentProcessorFeeVendor } from '../../lib/transactions';
@@ -275,6 +276,8 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   const wasCancelled = order.status === OrderStatuses.CANCELLED;
   const transaction = await createChargeTransactions(charge, { order });
   const sideEffects: (() => Promise<unknown>)[] = [
+    // Payment is in the ledger: release the orders limit first, so it can't stay locked if a later effect fails
+    () => (order.SubscriptionId ? Promise.resolve() : cleanOrdersLimitForOrder(order)),
     () =>
       order.update({
         status: wasCancelled
