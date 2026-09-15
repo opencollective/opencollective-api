@@ -15,10 +15,10 @@ import { GraphQLPaymentIntentDirection } from '../../enum/PaymentIntentDirection
 import GraphQLPaymentIntentStatus from '../../enum/PaymentIntentStatus';
 import GraphQLPaymentIntentType from '../../enum/PaymentIntentType';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
-import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import { CollectionArgs, collectionLimitArg, CollectionReturnType } from '../../interface/Collection';
 
 const PaymentIntentCollectionArgs = {
-  limit: { ...CollectionArgs.limit, defaultValue: 100 },
+  limit: collectionLimitArg(100),
   offset: CollectionArgs.offset,
   host: {
     type: GraphQLAccountReferenceInput,

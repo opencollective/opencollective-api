@@ -256,7 +256,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       );
 
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.match(/Variable "\$key" got invalid value "anInvalidKey\!"/);
+      expect(result.errors[0].message).to.match(/Variable "\$key" has invalid value.*anInvalidKey!/);
     });
 
     it('can set nested values', async () => {
