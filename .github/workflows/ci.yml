@@ -259,7 +259,7 @@ jobs:
       - run: npm run test:coverage -- --ignore "test/server/graphql/**"
 
       - name: Report coverage
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7
+        uses: codecov/codecov-action@0b35c9ecc4f0529d0eb674914510c22f85b196b4 # v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: Unit
@@ -341,7 +341,7 @@ jobs:
 
       - name: Report coverage
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7
+        uses: codecov/codecov-action@0b35c9ecc4f0529d0eb674914510c22f85b196b4 # v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: GraphQL
@@ -398,6 +398,15 @@ jobs:
   graphql-inspector:
     name: GraphQL Inspector
     runs-on: ubuntu-latest
+    # The action publishes its results as check runs (with annotations) and reads PR labels for the
+    # approve-label override. Workflows triggered by Dependabot get a read-only GITHUB_TOKEN by
+    # default, so the write scope must be requested explicitly. This job never installs or runs
+    # code from the PR (it only diffs the committed schema files), so the token is only ever
+    # handled by the SHA-pinned action below.
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: read
     services:
       redis:
         image: redis@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5

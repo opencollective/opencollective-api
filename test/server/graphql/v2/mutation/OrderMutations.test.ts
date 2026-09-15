@@ -20,6 +20,7 @@ import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/p
 import * as OrderSecurityLib from '../../../../../server/lib/security/order';
 import stripe from '../../../../../server/lib/stripe';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
+import { md5 } from '../../../../../server/lib/utils';
 import models from '../../../../../server/models';
 import * as StripeCommon from '../../../../../server/paymentProviders/stripe/common';
 import { randEmail, stripeConnectedAccount } from '../../../../stores';
@@ -705,6 +706,34 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           const fromCollective = await models.Collective.findByPk(order.fromAccount.legacyId);
           expect(fromCollective.legalName).to.eq('Real name');
+        });
+
+        it('Persists the orders limit keys on Payment Intent orders, for the webhook to release them', async () => {
+          const paymentIntentsUpdateStub = sandbox
+            .stub(stripe.paymentIntents, 'update')
+            .callsFake((id, intent) => Promise.resolve({ id, ...intent }));
+          const customersCreateStub = sandbox.stub(stripe.customers, 'create').resolves({ id: 'cus_fake' });
+          try {
+            const orderData = {
+              ...validOrderParams,
+              fromAccount: null,
+              guestInfo: { email: randEmail() },
+              paymentMethod: { service: 'STRIPE', type: 'PAYMENT_INTENT', stripePaymentIntentId: randStr('pi_') },
+            };
+            const result = await callCreateOrder({ order: orderData });
+            result.errors && console.error(result.errors);
+            expect(result.errors).to.not.exist;
+
+            const order = await models.Order.findByPk(result.data.createOrder.order.legacyId);
+            expect(order.status).to.eq('NEW');
+            expect(order.data.ordersLimitKeys).to.deep.eq([
+              `order_limit_on_ip_${md5('127.0.0.1')}`,
+              `order_limit_to_account_${toCollective.id}`,
+            ]);
+          } finally {
+            paymentIntentsUpdateStub.restore();
+            customersCreateStub.restore();
+          }
         });
 
         it('Works with an email that already exists (unverified)', async () => {
