@@ -1508,6 +1508,7 @@ export const GraphQLHost = new GraphQLObjectType({
         pick(getOrganizationFields(), [
           'location',
           'accountingCategories',
+          'suggestedBalanceAccountingCategories',
           'contributionAccountingCategoryRules',
           'hasMoneyManagement',
           'supportedPayoutMethods',

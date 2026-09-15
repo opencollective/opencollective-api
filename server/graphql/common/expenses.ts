@@ -40,6 +40,10 @@ import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import PlatformConstants from '../../constants/platform';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
+import {
+  applyBalanceAccountingCategoryFromConnectedAccount,
+  getBalanceAccountingCategoryIdForImportRow,
+} from '../../lib/accounting/categorization/balance-accounts';
 import { checkFeatureAccess, hasFeature } from '../../lib/allowed-features';
 import cache from '../../lib/cache';
 import {
@@ -103,10 +107,12 @@ import {
   ValidationFailed,
 } from '../errors';
 import { CurrencyExchangeRateSourceTypeEnum } from '../v2/enum/CurrencyExchangeRateSourceType';
+import { fetchAccountingCategoryWithReference } from '../v2/input/AccountingCategoryInput';
 import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 import { AmountInputType, getValueInCentsFromAmountInput } from '../v2/input/AmountInput';
 import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchangeRateInput';
 
+import { checkIsValidBalanceAccountingCategory } from './balance-accounting-categories';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from './context-permissions';
 import { checkScope } from './scope-check';
 import { hasProtectedUrlPermission } from './uploaded-file';
@@ -1989,6 +1995,7 @@ type ExpenseData = {
   tax?: ExpenseTaxDefinition[];
   customData: Record<string, unknown>;
   accountingCategory?: AccountingCategory;
+  balanceAccountingCategory?: AccountingCategory;
   transactionsImportRow?: TransactionsImportRow;
   reference?: string;
   isNewExpenseFlow?: boolean;
@@ -2493,6 +2500,15 @@ export async function createExpense(
     }
   }
 
+  let balanceAccountingCategoryId: number | null = null;
+  if (expenseData.balanceAccountingCategory) {
+    if (!collective.host || !remoteUser.isAdminOfCollective(collective.host)) {
+      throw new Forbidden('Only host admins can set the balance accounting category');
+    }
+    checkIsValidBalanceAccountingCategory(expenseData.balanceAccountingCategory, collective.host);
+    balanceAccountingCategoryId = expenseData.balanceAccountingCategory.id;
+  }
+
   // Check Transactions import
   if (expenseData.transactionsImportRow) {
     if (!collective.host) {
@@ -2508,6 +2524,13 @@ export async function createExpense(
       throw new NotFound('TransactionsImport not found');
     } else if (transactionsImport.CollectiveId !== collective.host.id) {
       throw new ValidationFailed('This import does not belong to the host');
+    }
+
+    if (!balanceAccountingCategoryId) {
+      balanceAccountingCategoryId = getBalanceAccountingCategoryIdForImportRow(
+        expenseData.transactionsImportRow,
+        transactionsImport,
+      );
     }
   }
 
@@ -2556,6 +2579,7 @@ export async function createExpense(
         legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
         amount: models.Expense.computeTotalAmountForExpense(itemsData, taxes),
         AccountingCategoryId: expenseData.accountingCategory?.id,
+        BalanceAccountingCategoryId: balanceAccountingCategoryId,
         InvoiceFileId: invoiceFileId,
         data,
       },
@@ -2616,13 +2640,15 @@ export const changesRequireStatusUpdate = (
 ): boolean => {
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
+  const hasCurrencyChanges = Boolean(newExpenseData.currency && newExpenseData.currency !== expense.currency);
   const isPaidOrProcessingCharge =
     expense.type === ExpenseType.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status);
 
-  if (isPaidOrProcessingCharge && !hasAmountChanges) {
+  if (isPaidOrProcessingCharge) {
+    // Receipts are attached to card charges after the money moved, so those edits never need a new review
     return false;
   }
-  return hasItemsChanges || hasAmountChanges || hasPayoutChanges;
+  return hasItemsChanges || hasAmountChanges || hasPayoutChanges || hasCurrencyChanges;
 };
 
 /** Returns infos about the changes made to items */
@@ -3268,6 +3294,16 @@ export async function editExpense(
   let oldPayoutMethodId = null;
 
   const updatedExpense: Expense = await sequelize.transaction(async transaction => {
+    // The lock/status checks above run before this transaction opens, so a payout that starts in
+    // between would be overwritten by this edit. Take the row lock and re-read to serialize with
+    // `lockExpense`, which holds the same lock while flagging the expense as being processed.
+    const lockedExpense = await models.Expense.findByPk(expense.id, { lock: true, transaction });
+    if (!lockedExpense) {
+      throw new NotFound('Expense not found');
+    } else if (lockedExpense.data?.isLocked || lockedExpense.status !== expense.status) {
+      throw new ValidationFailed('This expense is currently being processed, please try again later');
+    }
+
     // Update payout method if we get new data from one of the param for it
     if (
       !isPaidCreditCardCharge &&
@@ -3335,7 +3371,14 @@ export async function editExpense(
     hasPayoutMethodChanges = PayoutMethodId !== expense.PayoutMethodId;
     newPayoutMethodId = PayoutMethodId;
     oldPayoutMethodId = expense.PayoutMethodId;
-    const shouldUpdateStatus = changesRequireStatusUpdate(expense, expenseData, hasItemChanges, hasPayoutMethodChanges);
+    const newAmount = models.Expense.computeTotalAmountForExpense(expense.items, taxes);
+    const expenseDataForStatusUpdate = { ...expenseData, amount: newAmount };
+    const shouldUpdateStatus = changesRequireStatusUpdate(
+      expense,
+      expenseDataForStatusUpdate,
+      hasItemChanges,
+      hasPayoutMethodChanges,
+    );
 
     const isChangingPayee =
       expenseData.fromCollective?.id && expenseData.fromCollective.id !== expense.FromCollectiveId;
@@ -3382,14 +3425,14 @@ export async function editExpense(
     let status = expense.status;
     if (status === 'INCOMPLETE') {
       // When dealing with expenses marked as INCOMPLETE, only return to PENDING if the expense change requires Collective review
-      status = changesRequireStatusUpdate(expense, expenseData, hasItemChanges) ? 'PENDING' : 'APPROVED';
+      status = changesRequireStatusUpdate(expense, expenseDataForStatusUpdate, hasItemChanges) ? 'PENDING' : 'APPROVED';
     } else if (shouldUpdateStatus) {
       status = 'PENDING';
     }
 
     const updatedExpenseProps = {
       ...cleanExpenseData,
-      amount: models.Expense.computeTotalAmountForExpense(expense.items, taxes), // We've reloaded the items above
+      amount: newAmount, // We've reloaded the items above
       lastEditedById: remoteUser.id,
       incurredAt: expenseData.incurredAt || min(expense.items.map(item => item.incurredAt)) || new Date(),
       status,
@@ -3840,6 +3883,7 @@ type PayExpenseArgs = {
   transferDetails?: CreateTransfer['details'];
   paymentMethodService?: PAYMENT_METHOD_SERVICE;
   clearedAt?: Date;
+  balanceAccountingCategory?: { id: string };
 };
 
 /**
@@ -3939,12 +3983,24 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
     }
 
+    let balanceAccountingCategory = null;
+    if (args.balanceAccountingCategory) {
+      balanceAccountingCategory = await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
+        throwIfMissing: true,
+        loaders: req.loaders,
+      });
+      checkIsValidBalanceAccountingCategory(balanceAccountingCategory, host);
+    }
+
     try {
       if (forceManual) {
         const paymentMethod = args.paymentMethodService
           ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
           : null;
-        await expense.update({ PaymentMethodId: paymentMethod?.id || null });
+        await expense.update({
+          PaymentMethodId: paymentMethod?.id || null,
+          ...(balanceAccountingCategory ? { BalanceAccountingCategoryId: balanceAccountingCategory.id } : {}),
+        });
         await createTransactionsForManuallyPaidExpense(
           host,
           expense,
@@ -3972,6 +4028,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
           CreatedByUserId: remoteUser.id,
           fallbackToNonUserAccount: true,
         });
+        await applyBalanceAccountingCategoryFromConnectedAccount(expense, connectedAccount);
 
         const data = await paymentProviders.transferwise.payExpense(
           connectedAccount,
@@ -4009,7 +4066,10 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
         const paymentMethod = args.paymentMethodService
           ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
           : null;
-        await expense.update({ PaymentMethodId: paymentMethod?.id || null });
+        await expense.update({
+          PaymentMethodId: paymentMethod?.id || null,
+          ...(balanceAccountingCategory ? { BalanceAccountingCategoryId: balanceAccountingCategory.id } : {}),
+        });
 
         // Hotfix for missing payment processor fees with manual payouts; we should consolidate this with the
         // `forceManual` flag case above, as they end up doing the same thing.

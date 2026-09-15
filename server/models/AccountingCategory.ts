@@ -33,11 +33,20 @@ type AccountingCategoryEditActivityData = {
   edited?: Array<{ previousData: Partial<AccountingCategory>; newData: Partial<AccountingCategory> }>;
 };
 
-/** Accounting category kind is a subset of transaction kinds */
-export const AccountingCategoryKindList: readonly (TransactionKind | `${TransactionKind}`)[] = [
+export enum BalanceSheetAccountingCategoryKind {
+  BALANCE_ACCOUNT = 'BALANCE_ACCOUNT',
+  CLEARING_ACCOUNT = 'CLEARING_ACCOUNT',
+}
+
+/** Accounting category kind is a subset of transaction kinds, plus balance-sheet account kinds */
+export const AccountingCategoryKindList: readonly (
+  TransactionKind | `${TransactionKind}` | BalanceSheetAccountingCategoryKind | `${BalanceSheetAccountingCategoryKind}`
+)[] = [
   TransactionKind.ADDED_FUNDS,
   TransactionKind.CONTRIBUTION,
   TransactionKind.EXPENSE,
+  BalanceSheetAccountingCategoryKind.BALANCE_ACCOUNT,
+  BalanceSheetAccountingCategoryKind.CLEARING_ACCOUNT,
 ] as const;
 
 export type AccountingCategoryKind = (typeof AccountingCategoryKindList)[number];
@@ -80,6 +89,8 @@ class AccountingCategory extends ModelWithPublicId<
   declare collective?: Collective;
   declare expenses?: Expense[];
   declare orders?: Order[];
+  declare balanceExpenses?: Expense[];
+  declare balanceOrders?: Order[];
 
   // Static methods
   public static async createEditActivity(

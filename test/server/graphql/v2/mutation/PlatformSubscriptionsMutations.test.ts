@@ -134,6 +134,26 @@ describe('server/graphql/v2/mutation/PlatformSubscriptionsMutations', () => {
       expect(res.errors[0].message).to.eql('User cannot update subscription');
     });
 
+    it('requires 2FA when an admin with 2FA configured changes the plan', async () => {
+      const adminUser = await fakeUser({}, {}, { enable2FA: true });
+      const col = await fakeCollective({
+        admin: adminUser,
+        data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+      });
+
+      const res = await graphqlQueryV2(
+        updateAccountPlatformSubscriptionMutation,
+        {
+          account: { slug: col.slug },
+          planId: 'basic-5',
+        },
+        adminUser,
+      );
+
+      expect(res.errors).to.not.be.empty;
+      expect(res.errors[0].message).to.eql('Two-factor authentication required');
+    });
+
     it('must be valid plan id', async () => {
       const colUser = await fakeUser();
       const col = await fakeCollective({

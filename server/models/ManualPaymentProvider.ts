@@ -18,6 +18,7 @@ import { Order } from '.';
 
 export type ManualPaymentProviderData = {
   accountDetails?: RecipientAccount | Record<string, unknown>;
+  BalanceAccountingCategoryId?: number | null;
 };
 
 /**

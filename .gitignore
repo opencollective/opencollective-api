@@ -52,6 +52,7 @@ scripts/dev/bin
 .codegraph
 
 # Security audit artifacts
-**/security-poc
-**/security-pocs
+**/security-poc/
+**/security-pocs/
+**/security-review/
 **/test/poc

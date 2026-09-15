@@ -12,6 +12,7 @@ import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { findLast, pick, round, takeRightWhile, toString, uniq } from 'lodash';
 import { WhereOptions } from 'sequelize';
 
+import { roles } from '../../../constants';
 import ActivityTypes from '../../../constants/activities';
 import { Service } from '../../../constants/connected-account';
 import expenseStatus from '../../../constants/expense-status';
@@ -238,6 +239,20 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
           if (expense.AccountingCategoryId) {
             return req.loaders.AccountingCategory.byId.load(expense.AccountingCategoryId);
           }
+        },
+      },
+      balanceAccountingCategory: {
+        type: GraphQLAccountingCategory,
+        description: 'The balance/clearing accounting category the expense was paid from',
+        async resolve(expense, _, req) {
+          if (!expense.BalanceAccountingCategoryId) {
+            return null;
+          }
+          const collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
+          if (req.remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], collective?.HostCollectiveId)) {
+            return req.loaders.AccountingCategory.byId.load(expense.BalanceAccountingCategoryId);
+          }
+          return null;
         },
       },
       valuesByRole: {

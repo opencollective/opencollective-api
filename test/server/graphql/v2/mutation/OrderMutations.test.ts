@@ -20,6 +20,7 @@ import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/p
 import * as OrderSecurityLib from '../../../../../server/lib/security/order';
 import stripe from '../../../../../server/lib/stripe';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
+import { md5 } from '../../../../../server/lib/utils';
 import models from '../../../../../server/models';
 import * as StripeCommon from '../../../../../server/paymentProviders/stripe/common';
 import { randEmail, stripeConnectedAccount } from '../../../../stores';
@@ -30,10 +31,13 @@ import {
   fakeConnectedAccount,
   fakeEvent,
   fakeHost,
+  fakeManualPaymentProvider,
   fakeOrder,
   fakeOrganization,
   fakePaymentMethod,
   fakeTier,
+  fakeTransactionsImport,
+  fakeTransactionsImportRow,
   fakeUser,
   fakeVendor,
   randStr,
@@ -226,6 +230,22 @@ const updateOrderMutation = gql`
       }
       paymentMethod {
         id
+      }
+    }
+  }
+`;
+
+const updateOrderBalanceAccountingCategoryMutation = gql`
+  mutation UpdateOrderBalanceAccountingCategory(
+    $order: OrderReferenceInput!
+    $accountingCategory: AccountingCategoryReferenceInput
+  ) {
+    updateOrderBalanceAccountingCategory(order: $order, accountingCategory: $accountingCategory) {
+      id
+      balanceAccountingCategory {
+        id
+        code
+        name
       }
     }
   }
@@ -686,6 +706,34 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           const fromCollective = await models.Collective.findByPk(order.fromAccount.legacyId);
           expect(fromCollective.legalName).to.eq('Real name');
+        });
+
+        it('Persists the orders limit keys on Payment Intent orders, for the webhook to release them', async () => {
+          const paymentIntentsUpdateStub = sandbox
+            .stub(stripe.paymentIntents, 'update')
+            .callsFake((id, intent) => Promise.resolve({ id, ...intent }));
+          const customersCreateStub = sandbox.stub(stripe.customers, 'create').resolves({ id: 'cus_fake' });
+          try {
+            const orderData = {
+              ...validOrderParams,
+              fromAccount: null,
+              guestInfo: { email: randEmail() },
+              paymentMethod: { service: 'STRIPE', type: 'PAYMENT_INTENT', stripePaymentIntentId: randStr('pi_') },
+            };
+            const result = await callCreateOrder({ order: orderData });
+            result.errors && console.error(result.errors);
+            expect(result.errors).to.not.exist;
+
+            const order = await models.Order.findByPk(result.data.createOrder.order.legacyId);
+            expect(order.status).to.eq('NEW');
+            expect(order.data.ordersLimitKeys).to.deep.eq([
+              `order_limit_on_ip_${md5('127.0.0.1')}`,
+              `order_limit_to_account_${toCollective.id}`,
+            ]);
+          } finally {
+            paymentIntentsUpdateStub.restore();
+            customersCreateStub.restore();
+          }
         });
 
         it('Works with an email that already exists (unverified)', async () => {
@@ -2002,6 +2050,64 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         const order = await models.Order.findByPk(result.data.createPendingOrder.legacyId);
         expect(order.data.valuesByRole.hostAdmin.accountingCategory.code).to.equal(validAccountingCategory.code);
       });
+    });
+  });
+
+  describe('updateOrderBalanceAccountingCategory', () => {
+    it('sets and unsets the category as host admin, rejects others and wrong kinds', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const order = await fakeOrder({ CollectiveId: collective.id });
+      const balanceCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+      const expenseCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
+      const categoryRef = { id: idEncode(balanceCategory.id, 'accounting-category') };
+
+      // Non-host admin
+      const randomUser = await fakeUser();
+      const forbidden = await graphqlQueryV2(
+        updateOrderBalanceAccountingCategoryMutation,
+        { order: { legacyId: order.id }, accountingCategory: categoryRef },
+        randomUser,
+      );
+      expect(forbidden.errors[0].message).to.equal(
+        'Only host admins can update the balance accounting category of an order',
+      );
+
+      // Wrong kind
+      const wrongKind = await graphqlQueryV2(
+        updateOrderBalanceAccountingCategoryMutation,
+        {
+          order: { legacyId: order.id },
+          accountingCategory: { id: idEncode(expenseCategory.id, 'accounting-category') },
+        },
+        hostAdmin,
+      );
+      expect(wrongKind.errors[0].message).to.equal('This accounting category is not a balance or clearing account');
+
+      // Set
+      const result = await graphqlQueryV2(
+        updateOrderBalanceAccountingCategoryMutation,
+        { order: { legacyId: order.id }, accountingCategory: categoryRef },
+        hostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.updateOrderBalanceAccountingCategory.balanceAccountingCategory.code).to.equal(
+        balanceCategory.code,
+      );
+      await order.reload();
+      expect(order.BalanceAccountingCategoryId).to.equal(balanceCategory.id);
+
+      // Unset
+      const unsetResult = await graphqlQueryV2(
+        updateOrderBalanceAccountingCategoryMutation,
+        { order: { legacyId: order.id }, accountingCategory: null },
+        hostAdmin,
+      );
+      expect(unsetResult.errors).to.not.exist;
+      await order.reload();
+      expect(order.BalanceAccountingCategoryId).to.be.null;
     });
   });
 
@@ -3797,6 +3903,65 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         });
         expect(paymentIntent.primaryTransactionGroup).to.exist;
         await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
+      });
+
+      it('should stamp the balance accounting category from the manual payment provider when marked as paid', async () => {
+        const balanceCategory = await fakeAccountingCategory({
+          CollectiveId: collective.HostCollectiveId,
+          kind: 'BALANCE_ACCOUNT',
+        });
+        const provider = await fakeManualPaymentProvider({
+          CollectiveId: collective.HostCollectiveId,
+          data: { BalanceAccountingCategoryId: balanceCategory.id },
+        });
+        await order.update({ ManualPaymentProviderId: provider.id });
+
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          { order: { id: idEncode(order.id, 'order') }, action: 'MARK_AS_PAID' },
+          hostAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await order.reload();
+        expect(order.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
+      });
+
+      it('should stamp the balance accounting category from the import row bank sub-account when marked as paid', async () => {
+        const balanceCategory = await fakeAccountingCategory({
+          CollectiveId: collective.HostCollectiveId,
+          kind: 'BALANCE_ACCOUNT',
+        });
+        const transactionsImport = await fakeTransactionsImport({
+          CollectiveId: collective.HostCollectiveId,
+          type: 'PLAID',
+          settings: { balanceAccountingCategories: { 'plaid-acc-1': balanceCategory.id } },
+        });
+        const row = await fakeTransactionsImportRow({
+          TransactionsImportId: transactionsImport.id,
+          accountId: 'plaid-acc-1',
+          status: 'PENDING',
+        });
+
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            order: {
+              id: idEncode(order.id, 'order'),
+              transactionsImportRow: { id: idEncode(row.id, 'transactions-import-row') },
+            },
+            action: 'MARK_AS_PAID',
+          },
+          hostAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await order.reload();
+        expect(order.BalanceAccountingCategoryId).to.eq(balanceCategory.id);
+        await row.reload();
+        expect(row.OrderId).to.eq(order.id);
       });
 
       it('should mark as paid and update amount details', async () => {

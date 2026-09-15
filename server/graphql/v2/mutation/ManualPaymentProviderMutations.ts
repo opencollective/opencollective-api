@@ -8,9 +8,11 @@ import sequelize from '../../../lib/sequelize';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Activity } from '../../../models';
 import ManualPaymentProviderModel, { ManualPaymentProviderData } from '../../../models/ManualPaymentProvider';
+import { checkIsValidBalanceAccountingCategory } from '../../common/balance-accounting-categories';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { Forbidden, Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLManualPaymentProviderType } from '../enum/ManualPaymentProviderType';
+import { fetchAccountingCategoryWithReference } from '../input/AccountingCategoryInput';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import {
   fetchManualPaymentProviderWithReference,
@@ -50,6 +52,14 @@ const manualPaymentProviderMutations = {
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, host);
 
+      const balanceAccountingCategory =
+        args.manualPaymentProvider.balanceAccountingCategory &&
+        (await fetchAccountingCategoryWithReference(args.manualPaymentProvider.balanceAccountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        }));
+      checkIsValidBalanceAccountingCategory(balanceAccountingCategory, host);
+
       // Get max order to place new provider at the end
       return sequelize.transaction(async (transaction: Transaction) => {
         const maxOrder: number | null = await models.ManualPaymentProvider.max('order', {
@@ -59,6 +69,9 @@ const manualPaymentProviderMutations = {
         const data: ManualPaymentProviderData = {};
         if (args.manualPaymentProvider.accountDetails) {
           data.accountDetails = args.manualPaymentProvider.accountDetails;
+        }
+        if (balanceAccountingCategory) {
+          data.BalanceAccountingCategoryId = balanceAccountingCategory.id;
         }
 
         const provider = await models.ManualPaymentProvider.create(
@@ -122,6 +135,20 @@ const manualPaymentProviderMutations = {
 
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, host);
+
+      let balanceAccountingCategoryId: number | null | undefined;
+      if (args.input.balanceAccountingCategory === null) {
+        balanceAccountingCategoryId = null;
+      } else if (args.input.balanceAccountingCategory) {
+        const balanceAccountingCategory = await fetchAccountingCategoryWithReference(
+          args.input.balanceAccountingCategory,
+          { throwIfMissing: true, loaders: req.loaders },
+        );
+        checkIsValidBalanceAccountingCategory(balanceAccountingCategory, host);
+        balanceAccountingCategoryId = balanceAccountingCategory.id;
+      }
+
+      const hasDataChanges = !isUndefined(args.input.accountDetails) || !isUndefined(balanceAccountingCategoryId);
       const previousData = provider.activity();
       const updatedProvider = await provider.update(
         omitBy(
@@ -129,12 +156,20 @@ const manualPaymentProviderMutations = {
             name: args.input.name,
             instructions: args.input.instructions,
             icon: args.input.icon,
-            data: isUndefined(args.input.accountDetails)
+            data: !hasDataChanges
               ? undefined
-              : {
-                  ...(provider.data || {}),
-                  accountDetails: args.input.accountDetails,
-                },
+              : omitBy(
+                  {
+                    ...(provider.data || {}),
+                    accountDetails: isUndefined(args.input.accountDetails)
+                      ? provider.data?.accountDetails
+                      : args.input.accountDetails,
+                    BalanceAccountingCategoryId: isUndefined(balanceAccountingCategoryId)
+                      ? provider.data?.BalanceAccountingCategoryId
+                      : balanceAccountingCategoryId,
+                  },
+                  isUndefined,
+                ),
           },
           isUndefined,
         ),
