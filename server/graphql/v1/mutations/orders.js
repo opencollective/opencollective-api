@@ -26,7 +26,12 @@ import {
   processOrder,
 } from '../../../lib/payments';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
-import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
+import {
+  checkGuestContribution,
+  checkManualOrdersLimit,
+  checkOrdersLimit,
+  cleanOrdersLimit,
+} from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
@@ -264,6 +269,9 @@ export async function createOrder(order, req) {
   }
 
   await checkOrdersLimit(order, reqIp, reqMask);
+  if (order.paymentMethod?.type === PAYMENT_METHOD_TYPE.MANUAL) {
+    await checkManualOrdersLimit(remoteUser, reqIp);
+  }
   await orderFraudProtection(req, order).catch(error => {
     reportErrorToSentry(error, { transactionName: 'orderFraudProtection', user: req.remoteUser });
     throw new ValidationFailed(

@@ -166,6 +166,10 @@
       "perMask": "ORDERS_LIMIT_MASK",
       "forCollective": "ORDERS_LIMIT_COLLECTIVE"
     },
+    "manualOrdersPerHour": {
+      "perUser": "MANUAL_ORDERS_LIMIT_USER",
+      "perIp": "MANUAL_ORDERS_LIMIT_IP"
+    },
     "skipCleanOrdersLimitSlugs": "ORDERS_LIMIT_SKIP_CLEAN_SLUGS",
     "enabledMasks": "ORDERS_LIMIT_ENABLED_MASKS",
     "userSignUpPerHour": "LIMIT_USER_SIGNUP_PER_HOUR",

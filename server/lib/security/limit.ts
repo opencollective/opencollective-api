@@ -123,6 +123,35 @@ export const checkOrdersLimit = async (
   }
 };
 
+/**
+ * Manual contributions don't go through a payment processor, so they can be created in bulk for free.
+ * Unlike `checkOrdersLimit`, this one is never released on success: it throttles the volume itself.
+ */
+export const checkManualOrdersLimit = async (remoteUser: { id: number } | null, reqIp: string) => {
+  if (['ci', 'test', 'e2e'].includes(config.env)) {
+    return;
+  }
+
+  const ordersLimits = config.limits.manualOrdersPerHour;
+  const limits = [];
+  if (remoteUser) {
+    limits.push({ key: `manual_order_limit_on_user_${remoteUser.id}`, value: ordersLimits.perUser });
+  }
+  if (reqIp) {
+    limits.push({ key: `manual_order_limit_on_ip_${md5(reqIp)}`, value: ordersLimits.perIp });
+  }
+
+  for (const limit of limits) {
+    const count = (await cache.get(limit.key)) || 0;
+    debug(`${count} manual orders for limit '${limit.key}'`);
+    cache.set(limit.key, count + 1, ONE_HOUR_IN_SECONDS);
+    if (count >= limit.value) {
+      debug(`Manual orders limit reached for limit '${limit.key}'`);
+      throw new Error('Too many contributions in the last hour, please try again later.');
+    }
+  }
+};
+
 export const checkGuestContribution = async (
   order: {
     guestInfo?: {
