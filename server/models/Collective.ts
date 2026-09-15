@@ -231,6 +231,8 @@ type Data = Partial<{
   useVendorPolicy?: UseVendorPolicyValue;
   requiresProfileCompletion: boolean;
   isBlockedForUnpaidPlatformBilling?: boolean;
+  isUSEntity?: boolean;
+  taxableCountry?: string;
 }> &
   Record<string, unknown>;
 

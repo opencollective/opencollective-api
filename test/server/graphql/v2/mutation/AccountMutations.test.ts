@@ -25,13 +25,20 @@ import {
   fakeLocation,
   fakeMember,
   fakeOrder,
+  fakePlatformSubscription,
   fakeProject,
   fakeTier,
   fakeUser,
   fakeUserTwoFactorMethod,
   randStr,
 } from '../../../../test-helpers/fake-data';
-import { getOrCreatePlatformAccount, graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
+import {
+  getOrCreatePlatformAccount,
+  graphqlQueryV2,
+  resetCaches,
+  resetTestDB,
+  waitForCondition,
+} from '../../../../utils';
 
 const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;
@@ -1251,6 +1258,81 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         },
       });
     });
+
+    describe('TAX_FORM_THRESHOLDS policy', () => {
+      const setTaxFormThresholdsMutation = gql`
+        mutation SetPolicies($account: AccountReferenceInput!, $policies: PoliciesInput!) {
+          setPolicies(account: $account, policies: $policies) {
+            id
+            policies {
+              TAX_FORM_THRESHOLDS {
+                US
+                NON_US
+                includePayPalExpenses
+              }
+            }
+          }
+        }
+      `;
+
+      it('should fail if host does not have access to TAX_FORMS feature', async () => {
+        const otherHost = await fakeActiveHost({ admin: hostAdminUser, countryISO: 'FR' });
+        const mutationParams = {
+          account: { legacyId: otherHost.id },
+          policies: { [POLICIES.TAX_FORM_THRESHOLDS]: { US: 0, NON_US: 50000 } },
+        };
+        const result = await graphqlQueryV2(setTaxFormThresholdsMutation, mutationParams, hostAdminUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('This feature is not supported for your account');
+      });
+
+      it('should fail if threshold is negative', async () => {
+        const usHost = await fakeActiveHost({
+          admin: hostAdminUser,
+          countryISO: 'US',
+        });
+        await fakePlatformSubscription({
+          CollectiveId: usHost.id,
+          plan: { features: { [FEATURE.TAX_FORMS]: true } },
+        });
+        const mutationParams = {
+          account: { legacyId: usHost.id },
+          policies: { [POLICIES.TAX_FORM_THRESHOLDS]: { US: -100 } },
+        };
+        const result = await graphqlQueryV2(setTaxFormThresholdsMutation, mutationParams, hostAdminUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('US threshold must be greater than or equal to 0');
+      });
+
+      it('should succeed for host with TAX_FORMS feature', async () => {
+        const usHost = await fakeActiveHost({
+          admin: hostAdminUser,
+          countryISO: 'US',
+        });
+        await fakePlatformSubscription({
+          CollectiveId: usHost.id,
+          plan: { features: { [FEATURE.TAX_FORMS]: true } },
+        });
+        const mutationParams = {
+          account: { legacyId: usHost.id },
+          policies: { [POLICIES.TAX_FORM_THRESHOLDS]: { US: 0, NON_US: 100000, includePayPalExpenses: false } },
+        };
+        const result = await graphqlQueryV2(setTaxFormThresholdsMutation, mutationParams, hostAdminUser);
+        expect(result.errors).to.not.exist;
+        expect(result.data.setPolicies.policies.TAX_FORM_THRESHOLDS).to.deep.equal({
+          US: 0,
+          NON_US: 100000,
+          includePayPalExpenses: false,
+        });
+
+        await usHost.reload();
+        expect(usHost.data.policies.TAX_FORM_THRESHOLDS).to.deep.equal({
+          US: 0,
+          NON_US: 100000,
+          includePayPalExpenses: false,
+        });
+      });
+    });
   });
 
   describe('sendMessage', () => {
@@ -1267,6 +1349,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     let sandbox, sendEmailSpy, collectiveWithContact, collectiveWithoutContact;
 
     before(async () => {
+      await resetCaches();
       sandbox = createSandbox();
       collectiveWithContact = await fakeCollective({
         name: 'Test Collective',
@@ -1299,6 +1382,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         randomUser,
       );
 
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.sendMessage.success).to.equal(true);
 
@@ -2020,6 +2104,114 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         expect(subscription.plan.id).to.equal(PlatformSubscriptionTiers[0].id);
         // Since the subscription starts today, it is immediately provisioned
         expect(subscription.featureProvisioningStatus).to.equal('PROVISIONED');
+      });
+    });
+  });
+
+  describe('editAccount', () => {
+    const editAccountMutation = gql`
+      mutation EditAccount($account: AccountUpdateInput!) {
+        editAccount(account: $account) {
+          id
+          isUSEntity
+        }
+      }
+    `;
+
+    it('can update isUSEntity', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+
+      expect(collective.data?.isUSEntity).to.be.undefined;
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: true,
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccount.isUSEntity).to.be.true;
+
+      await collective.reload();
+      expect(collective.data.isUSEntity).to.be.true;
+
+      // Update to false
+      const result2 = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: false,
+          },
+        },
+        user,
+      );
+
+      expect(result2.errors).to.not.exist;
+      expect(result2.data.editAccount.isUSEntity).to.be.false;
+
+      await collective.reload();
+      expect(collective.data.isUSEntity).to.be.false;
+    });
+
+    it('must be an admin to update isUSEntity', async () => {
+      const user = await fakeUser();
+      const otherUser = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: true,
+          },
+        },
+        otherUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
+    });
+
+    it('creates a COLLECTIVE_EDITED activity when isUSEntity is updated standalone', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+
+      expect(collective.data?.isUSEntity).to.be.undefined;
+
+      // Reset activities for this user so we can count new ones precisely
+      await models.Activity.destroy({ where: { UserId: user.id, type: ACTIVITY.COLLECTIVE_EDITED } });
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: true,
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccount.isUSEntity).to.be.true;
+
+      const activities = await models.Activity.findAll({
+        where: { UserId: user.id, CollectiveId: collective.id, type: ACTIVITY.COLLECTIVE_EDITED },
+      });
+      expect(activities.length).to.equal(1);
+
+      const activity = activities[0];
+      expect(activity.data).to.containSubset({
+        previousData: { 'data.isUSEntity': undefined },
+        newData: { 'data.isUSEntity': true },
       });
     });
   });

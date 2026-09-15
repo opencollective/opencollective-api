@@ -5,6 +5,7 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
 import { FileUpload } from 'graphql-upload/Upload.js';
+import { QueryTypes } from 'sequelize';
 import { encodeBase64 } from 'tweetnacl-util';
 
 import ActivityTypes from '../../../constants/activities';
@@ -15,7 +16,7 @@ import { getUSTaxFormPdf } from '../../../lib/pdf';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import { encryptAndUploadTaxFormToS3 } from '../../../lib/tax-forms';
-import { Activity, LegalDocument, UploadedFile } from '../../../models';
+import { Activity, LegalDocument, sequelize, UploadedFile } from '../../../models';
 import {
   LEGAL_DOCUMENT_REQUEST_STATUS,
   LEGAL_DOCUMENT_SERVICE,
@@ -35,6 +36,59 @@ import {
 import { GraphQLLegalDocument } from '../object/LegalDocument';
 
 const debug = debugLib('legalDocuments');
+
+/**
+ * Extract the taxable country from a tax form's untyped form data.
+ * The field used depends on the form type:
+ *  - W9: `location.country` (the US person/entity's address)
+ *  - W8_BEN: `residenceAddress.country` (the beneficial owner's tax residency)
+ *  - W8_BEN_E: `businessCountryOfIncorporationOrOrganization` (the entity's country of incorporation)
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const getTaxableCountryFromFormData = (formData: Record<string, any>): string | null => {
+  if (!formData || typeof formData !== 'object') {
+    return null;
+  }
+
+  const formType = formData.formType;
+  if (formType === 'W9') {
+    return formData.location?.country || null;
+  } else if (formType === 'W8_BEN') {
+    return formData.residenceAddress?.country || null;
+  } else if (formType === 'W8_BEN_E') {
+    return formData.businessCountryOfIncorporationOrOrganization || formData.businessAddress?.country || null;
+  }
+
+  return null;
+};
+
+/**
+ * Extract the US-entity status from a tax form's untyped form data.
+ * The explicit `isUSPersonOrEntity` answer from the tax information form
+ * is authoritative when present (the user can override the value the form
+ * type implies). Otherwise the form type itself is used: the W-9 is the US
+ * tax form (the filer is a US person or entity), while the W-8BEN /
+ * W-8BEN-E are for non-US individuals / entities.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const getIsUSEntityFromFormData = (formData: Record<string, any>): boolean | null => {
+  if (!formData || typeof formData !== 'object') {
+    return null;
+  }
+
+  if (typeof formData.isUSPersonOrEntity === 'boolean') {
+    return formData.isUSPersonOrEntity;
+  }
+
+  const formType = formData.formType;
+  if (formType === 'W9') {
+    return true;
+  } else if (formType === 'W8_BEN' || formType === 'W8_BEN_E') {
+    return false;
+  }
+
+  return null;
+};
 
 export const legalDocumentsMutations = {
   submitLegalDocument: {
@@ -128,6 +182,37 @@ export const legalDocumentsMutations = {
           ),
         },
       });
+
+      // Sync the taxable country and the US-entity status on the account's data.
+      // The US-entity status is derived from the form type (W-9 = US person/entity,
+      // W-8BEN / W-8BEN-E = non-US): the submitted form is the source of truth.
+      // Unlike `taxableCountry`, `isUSEntity` is NOT cleared when the form is
+      // invalidated (it stays sticky, see P1 #6 decision in PLAN.md).
+      // Use atomic jsonb_set to avoid clobbering a concurrent writer's changes
+      // to other keys in `account.data` (e.g. privateInstructions).
+      debug('Sync taxable country and US-entity status on the account');
+      const taxableCountry = getTaxableCountryFromFormData(args.formData);
+      const isUSEntity = getIsUSEntityFromFormData(args.formData);
+      const taxableCountryChanged = Boolean(taxableCountry) && account.data?.taxableCountry !== taxableCountry;
+      const isUSEntityChanged = isUSEntity !== null && account.data?.isUSEntity !== isUSEntity;
+
+      if (taxableCountryChanged || isUSEntityChanged) {
+        let dataUpdate = `COALESCE("data", '{}'::jsonb)`;
+        const replacements: Record<string, unknown> = { accountId: account.id };
+        if (taxableCountryChanged) {
+          dataUpdate = `jsonb_set(${dataUpdate}, '{taxableCountry}', to_jsonb(:taxableCountry::text), true)`;
+          replacements.taxableCountry = taxableCountry;
+        }
+        if (isUSEntityChanged) {
+          dataUpdate = `jsonb_set(${dataUpdate}, '{isUSEntity}', to_jsonb(:isUSEntity::boolean), true)`;
+          replacements.isUSEntity = isUSEntity;
+        }
+        await sequelize.query(`UPDATE "Collectives" SET "data" = ${dataUpdate} WHERE id = :accountId`, {
+          type: QueryTypes.UPDATE,
+          replacements,
+        });
+        await account.reload();
+      }
 
       try {
         debug('Create activity');

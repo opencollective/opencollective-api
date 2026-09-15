@@ -181,5 +181,24 @@ export const GraphQLPolicies = new GraphQLObjectType({
         return mapValues(thresholds, threshold => (isNil(threshold) ? null : Math.round(threshold * fxRate)));
       },
     },
+    [POLICIES.TAX_FORM_THRESHOLDS]: {
+      type: new GraphQLObjectType({
+        name: POLICIES.TAX_FORM_THRESHOLDS,
+        fields: () => ({
+          US: { type: GraphQLInt, description: 'Threshold in cents for US entities (0 means always collect)' },
+          NON_US: { type: GraphQLInt, description: 'Threshold in cents for non-US entities (0 means always collect)' },
+          includePayPalExpenses: {
+            type: GraphQLBoolean,
+            description: 'Whether expenses paid through PayPal are included in threshold calculations',
+          },
+        }),
+      }),
+      description: 'Tax form thresholds for US and non-US entities in cents (0 means always collect)',
+      async resolve(account, _, req) {
+        if (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'account')) {
+          return await getPolicy(account, POLICIES.TAX_FORM_THRESHOLDS);
+        }
+      },
+    },
   }),
 });
