@@ -63,4 +63,29 @@ quLDCejRhHBkI/i5vZXyk4MqC5q4COJlxKU=
       auth.verifyJwt(maliciousToken);
     }).to.throw('invalid algorithm');
   });
+
+  it('should set auth cookies with SameSite=Lax', () => {
+    const token = auth.createJwt('subject', { scope: 'session' }, 60);
+    const cookies = {};
+    const res = {
+      cookie(name, value, options) {
+        cookies[name] = { value, options };
+      },
+    };
+
+    auth.setAuthCookie(res, token);
+
+    expect(cookies.accessTokenPayload.options).to.include({
+      httpOnly: false,
+      secure: true,
+      sameSite: 'lax',
+      path: '/',
+    });
+    expect(cookies.accessTokenSignature.options).to.include({
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      path: '/',
+    });
+  });
 });

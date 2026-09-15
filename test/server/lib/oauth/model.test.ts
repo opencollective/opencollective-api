@@ -122,6 +122,11 @@ describe('server/lib/oauth/model', () => {
     it('throws if the client does not exist', async () => {
       await expect(OAuthModel.getClient('not-a-client', 'not-a-secret')).to.be.rejectedWith(InvalidClientError);
     });
+
+    it('throws if the client secret does not match', async () => {
+      const application = await fakeApplication();
+      await expect(OAuthModel.getClient(application.clientId, 'wrong-secret')).to.be.rejectedWith(InvalidClientError);
+    });
   });
 
   describe('saveToken', () => {

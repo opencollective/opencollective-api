@@ -192,6 +192,18 @@ describe('server/routes/users', () => {
       // And then the token should have a long expiration
       expect(moment(parsedToken.exp).diff(parsedToken.iat)).to.equal(auth.TOKEN_EXPIRATION_SESSION);
     });
+
+    it('should reject tokens without an explicit session scope (security regression)', async () => {
+      const user = await fakeUser({ email: 'test@mctesterson.com' });
+      // PDF / guest tokens historically omitted `scope`, which defaulted to a full session
+      // and could be exchanged here for a 30-day session.
+      const unscopeToken = user.jwt({}, auth.TOKEN_EXPIRATION_PDF);
+
+      const response = await request(expressApp).post(updateTokenUrl).set('Authorization', `Bearer ${unscopeToken}`);
+
+      expect(response.statusCode).to.equal(401);
+      expect(response.body.error.message).to.include('expected: session');
+    });
   });
 
   /**

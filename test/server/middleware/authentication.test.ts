@@ -336,6 +336,7 @@ describe('server/middleware/authentication', () => {
 
       expect(response.body.error).to.exist;
       expect(response.body.error.message).to.include('Invalid Personal Token');
+      expect(response.body.error.message).to.not.include('invalid-token');
     });
 
     it('should require user to be admin of the collective', async () => {
@@ -422,6 +423,7 @@ describe('server/middleware/authentication', () => {
       // Invalid API key should be rejected, but checkPersonalToken runs first
       // so it might try to validate as personal token first
       expect(response.body.error.message).to.match(/Invalid (API key|Personal Token)/);
+      expect(response.body.error.message).to.not.include('invalid-key');
     });
 
     it('should allow requests with valid Personal Token (bypasses API key)', async () => {
@@ -475,6 +477,32 @@ describe('server/middleware/authentication', () => {
 
       expect(response.body.error).to.exist;
       expect(response.body.error.message).to.include('Please provide a single CollectiveId');
+    });
+
+    it('should reject OAuth tokens (security regression)', async () => {
+      const user = await fakeUser();
+      const userToken = await fakeUserToken({ user });
+      // eslint-disable-next-line camelcase
+      const token = user.jwt({ scope: 'oauth', access_token: userToken.accessToken });
+
+      const response = await request(expressApp)
+        .get(`/connected-accounts/github/oauthUrl?CollectiveId=${user.CollectiveId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(401);
+
+      expect(response.body.error.message).to.include('OAuth and personal tokens cannot be used on this endpoint');
+    });
+
+    it('should reject personal tokens (security regression)', async () => {
+      const user = await fakeUser();
+      const personalToken = await fakePersonalToken({ user });
+
+      const response = await request(expressApp)
+        .get(`/connected-accounts/github/oauthUrl?CollectiveId=${user.CollectiveId}`)
+        .set('Personal-Token', personalToken.token)
+        .expect(401);
+
+      expect(response.body.error.message).to.include('OAuth and personal tokens cannot be used on this endpoint');
     });
   });
 

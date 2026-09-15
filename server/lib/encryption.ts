@@ -1,5 +1,6 @@
 import config from 'config';
 import cryptojs from 'crypto-js';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { randomBytes, secretbox as _secretbox } from 'tweetnacl';
 import { decodeBase64, encodeBase64, encodeUTF8 } from 'tweetnacl-util';
 
@@ -55,6 +56,21 @@ export const secretbox = {
 
 const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;
+
+/**
+ * Compare secrets in constant time. Both sides are hashed first so that
+ * `crypto.timingSafeEqual` never sees inputs of different lengths, which would
+ * make it throw and leak the length of the expected secret.
+ */
+export function timingSafeEqualString(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') {
+    return false;
+  }
+
+  const left = createHash('sha512').update(a).digest();
+  const right = createHash('sha512').update(b).digest();
+  return timingSafeEqual(left, right);
+}
 
 /**
  * SecretKey based authentication.
