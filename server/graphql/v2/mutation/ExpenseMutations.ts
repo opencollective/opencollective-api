@@ -42,6 +42,7 @@ import {
   editExpense,
   editExpenseDraft,
   holdExpense,
+  isPlatformExpense,
   markAsPaidWithStripe,
   markExpenseAsIncomplete,
   markExpenseAsSpam,
@@ -593,8 +594,13 @@ const expenseMutations = {
 
       // Enforce 2FA for processing expenses, except for `PAY` action which handles it internally (with rolling limit)
       if (!['PAY', 'SCHEDULE_FOR_PAYMENT'].includes(args.action)) {
-        const accountsFor2FA = [expense.collective.host, expense.collective].filter(Boolean);
-        await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
+        const accountsFor2FA = [expense.collective.host, expense.collective];
+        // Platform expenses are processed by admins of the platform account (the payee), not of the billed account
+        if (isPlatformExpense(expense)) {
+          expense.fromCollective = expense.fromCollective || (await expense.getFromCollective());
+          accountsFor2FA.push(expense.fromCollective);
+        }
+        await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA.filter(Boolean));
       }
 
       switch (args.action) {

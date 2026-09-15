@@ -73,6 +73,7 @@ import {
   expectTransactionsLinkedToPaymentIntent,
 } from '../../../../test-helpers/payment-intent';
 import {
+  getOrCreatePlatformAccount,
   graphqlQueryV2,
   makeRequest,
   preloadAssociationsForTransactions,
@@ -980,7 +981,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
           const mutationParams = { expense: expenseData, account: { legacyId: usdCollective.id } };
           const result = await graphqlQueryV2(createExpenseMutation, mutationParams, user);
-          result.errors && console.error(result.errors);
           expect(result.errors).to.not.exist;
 
           const expense = result.data.createExpense;
@@ -4925,6 +4925,58 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.data.processExpense.status).to.eq('APPROVED');
+      });
+
+      describe('platform billing', () => {
+        let platform, platformAdmin, expense;
+
+        before(async () => {
+          platform = await getOrCreatePlatformAccount();
+          platformAdmin = await fakeUser();
+          await platform.addUserWithRole(platformAdmin, 'ADMIN');
+          await platformAdmin.populateRoles();
+        });
+
+        beforeEach(async () => {
+          expense = await fakeExpense({
+            type: 'PLATFORM_BILLING',
+            status: 'PENDING',
+            CollectiveId: host.id,
+            FromCollectiveId: platform.id,
+          });
+        });
+
+        it('cannot be approved by the billed host admin', async () => {
+          const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
+          const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].extensions.code).to.equal('MINIMAL_CONDITION_NOT_MET');
+        });
+
+        it('can be approved by a platform admin', async () => {
+          const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
+          const result = await graphqlQueryV2(processExpenseMutation, mutationParams, platformAdmin);
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.processExpense.status).to.eq('APPROVED');
+        });
+
+        it('asks the platform admin for 2FA when enabled', async () => {
+          const platformAdminWith2FA = await fakeUser();
+          await platform.addUserWithRole(platformAdminWith2FA, 'ADMIN');
+          await platformAdminWith2FA.populateRoles();
+          await UserTwoFactorMethod.create({
+            UserId: platformAdminWith2FA.id,
+            method: TwoFactorMethod.TOTP,
+            name: 'TOTP',
+            data: { secret: crypto[CIPHER].encrypt(generateSecret({ length: 64 }), SECRET_KEY).toString() },
+          });
+
+          const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
+          const result = await graphqlQueryV2(processExpenseMutation, mutationParams, platformAdminWith2FA);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].extensions.code).to.equal('2FA_REQUIRED');
+        });
       });
     });
 
