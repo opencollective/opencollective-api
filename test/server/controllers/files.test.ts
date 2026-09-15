@@ -4,6 +4,7 @@ import httpMocks from 'node-mocks-http';
 import sinon from 'sinon';
 
 import { expenseStatus } from '../../../server/constants';
+import MemberRoles from '../../../server/constants/roles';
 import * as FilesController from '../../../server/controllers/files';
 import { generateLoaders } from '../../../server/graphql/loaders';
 import { idEncode, IDENTIFIER_TYPES } from '../../../server/graphql/v2/identifiers';
@@ -15,6 +16,8 @@ import {
   fakeExpense,
   fakeExpenseAttachedFile,
   fakeExpenseItem,
+  fakeExportRequest,
+  fakeMember,
   fakePayoutMethod,
   fakeUploadedFile,
   fakeUser,
@@ -386,6 +389,70 @@ describe('server/controllers/files', () => {
         expect(collectiveAdminWithExpenseIdResponse._getStatusCode()).to.eql(307);
         expect(collectiveAdminWithExpenseIdResponse._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
       });
+    });
+  });
+
+  describe('TRANSACTIONS_CSV_EXPORT files', () => {
+    let exportAdmin: User;
+    let exportAccountant: User;
+    let exportRandomUser: User;
+    let exportCollective: Collective;
+    let exportUploadedFile: UploadedFile;
+
+    before(async () => {
+      exportAdmin = await fakeUser();
+      exportAccountant = await fakeUser();
+      exportRandomUser = await fakeUser();
+      exportCollective = await fakeCollective({ admin: exportAdmin });
+      await fakeMember({
+        CollectiveId: exportCollective.id,
+        MemberCollectiveId: exportAccountant.CollectiveId,
+        role: MemberRoles.ACCOUNTANT,
+      });
+      exportUploadedFile = await fakeUploadedFile({
+        kind: 'TRANSACTIONS_CSV_EXPORT',
+        CreatedByUserId: exportAdmin.id,
+      });
+      await fakeExportRequest({
+        CollectiveId: exportCollective.id,
+        CreatedByUserId: exportAdmin.id,
+        UploadedFileId: exportUploadedFile.id,
+      });
+
+      await exportAdmin.populateRoles();
+      await exportAccountant.populateRoles();
+    });
+
+    it('should return 403 if not logged in', async () => {
+      const response = await makeRequest(exportUploadedFile.id);
+
+      expect(response._getStatusCode()).to.eql(403);
+    });
+
+    it('should return 403 for a user without a role on the collective', async () => {
+      const response = await makeRequest(exportUploadedFile.id, exportRandomUser);
+
+      expect(response._getStatusCode()).to.eql(403);
+    });
+
+    it('should redirect to the export file for an admin of the collective', async () => {
+      const actualUrl = exportUploadedFile.getDataValue('url');
+      sandbox.stub(awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
+
+      const response = await makeRequest(exportUploadedFile.id, exportAdmin);
+
+      expect(response._getStatusCode()).to.eql(307);
+      expect(response._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
+    });
+
+    it('should redirect to the export file for an accountant of the collective', async () => {
+      const actualUrl = exportUploadedFile.getDataValue('url');
+      sandbox.stub(awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
+
+      const response = await makeRequest(exportUploadedFile.id, exportAccountant);
+
+      expect(response._getStatusCode()).to.eql(307);
+      expect(response._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
     });
   });
 });

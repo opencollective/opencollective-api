@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import sinon from 'sinon';
 
+import MemberRoles from '../../../../../server/constants/roles';
 import * as awsS3 from '../../../../../server/lib/awsS3';
 import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import { ExportRequestStatus, ExportRequestTypes } from '../../../../../server/models/ExportRequest';
@@ -9,6 +10,7 @@ import UploadedFile from '../../../../../server/models/UploadedFile';
 import {
   fakeCollective,
   fakeExportRequest,
+  fakeMember,
   fakeUploadedFile,
   fakeUser,
   fakeUserToken,
@@ -96,6 +98,34 @@ describe('server/graphql/v2/mutation/ExportRequestMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('You do not have permission');
+    });
+
+    it('allows an accountant of the account to create an export request', async () => {
+      const adminUser = await fakeUser();
+      const accountantUser = await fakeUser();
+      const collective = await fakeCollective({ admin: adminUser });
+      await fakeMember({
+        CollectiveId: collective.id,
+        MemberCollectiveId: accountantUser.CollectiveId,
+        role: MemberRoles.ACCOUNTANT,
+      });
+
+      const result = await graphqlQueryV2(
+        createExportRequestMutation,
+        {
+          exportRequest: {
+            account: { legacyId: collective.id },
+            name: 'Accountant Export',
+            type: 'TRANSACTIONS',
+          },
+        },
+        accountantUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.createExportRequest.id).to.exist;
+      expect(result.data.createExportRequest.name).to.eq('Accountant Export');
+      expect(result.data.createExportRequest.account.legacyId).to.eq(collective.id);
     });
 
     it('creates an export request and returns parameters', async () => {
@@ -240,6 +270,36 @@ describe('server/graphql/v2/mutation/ExportRequestMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('You do not have permission');
+    });
+
+    it('allows an accountant of the account to rename an export request', async () => {
+      const adminUser = await fakeUser();
+      const accountantUser = await fakeUser();
+      const collective = await fakeCollective({ admin: adminUser });
+      await fakeMember({
+        CollectiveId: collective.id,
+        MemberCollectiveId: accountantUser.CollectiveId,
+        role: MemberRoles.ACCOUNTANT,
+      });
+      const exportRequest = await fakeExportRequest({
+        CollectiveId: collective.id,
+        CreatedByUserId: adminUser.id,
+        name: 'Original Name',
+        type: ExportRequestTypes.TRANSACTIONS,
+      });
+
+      const result = await graphqlQueryV2(
+        editExportRequestMutation,
+        {
+          exportRequest: { legacyId: exportRequest.id },
+          name: 'Renamed by Accountant',
+        },
+        accountantUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editExportRequest.legacyId).to.eq(exportRequest.id);
+      expect(result.data.editExportRequest.name).to.eq('Renamed by Accountant');
     });
 
     it('returns not found for non-existent export request', async () => {
