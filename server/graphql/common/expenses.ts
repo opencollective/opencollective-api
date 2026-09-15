@@ -83,7 +83,7 @@ import Expense, {
   ExpenseType,
 } from '../../models/Expense';
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
-import ExpenseItem, { sanitizeExpenseItemDescription } from '../../models/ExpenseItem';
+import ExpenseItem, { ExpenseItemsDiff, sanitizeExpenseItemDescription } from '../../models/ExpenseItem';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import User from '../../models/User';
 import paymentProviders from '../../paymentProviders';
@@ -244,6 +244,11 @@ const isPlatformAdmin = async (req: express.Request): Promise<boolean> => {
   }
 
   return req.remoteUser.isAdminOfPlatform();
+};
+
+/** Platform invoices (subscription bills, host settlements). The billed host must not mutate amount or approve. */
+const isPlatformGeneratedExpense = (expense: Expense): boolean => {
+  return [ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type);
 };
 
 const isCollectiveAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
@@ -617,7 +622,8 @@ export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, exp
 // Write permissions
 
 /**
- * Only the author or an admin of the collective or collective.host can edit an expense when it hasn't been paid yet
+ * Only the author or an admin of the collective or collective.host can edit an expense when it hasn't been paid yet.
+ * @deprecated Use the granular permissions instead.
  */
 export const canEditExpense: ExpensePermissionEvaluator = async (
   req: express.Request,
@@ -658,6 +664,8 @@ export const canEditTitle: ExpensePermissionEvaluator = async (req, expense, opt
       throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (isPlatformGeneratedExpense(expense)) {
+    return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
   } else if (expense.status === ExpenseStatus.DRAFT) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.PENDING) {
@@ -796,6 +804,10 @@ export const canEditPayoutMethod: ExpensePermissionEvaluator = async (req, expen
   return false;
 };
 
+/**
+ * Whether the current user can edit expense items (and thus the amount).
+ * Platform-generated invoices (PLATFORM_BILLING, SETTLEMENT) can only be edited by platform admins.
+ */
 export const canEditItems: ExpensePermissionEvaluator = async (req, expense, options) => {
   if (!validateExpenseScope(req, options)) {
     return false;
@@ -804,6 +816,21 @@ export const canEditItems: ExpensePermissionEvaluator = async (req, expense, opt
       throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (isPlatformGeneratedExpense(expense)) {
+    if (
+      ![ExpenseStatus.PROCESSING, ExpenseStatus.SCHEDULED_FOR_PAYMENT, ExpenseStatus.PAID].includes(
+        expense.status as ExpenseStatus,
+      )
+    ) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'Can not edit expense items in current status',
+          EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+        );
+      }
+      return false;
+    }
+    return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
   } else if (expense.status === ExpenseStatus.DRAFT) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.PENDING) {
@@ -986,7 +1013,8 @@ export const canMarkAsPaid: ExpensePermissionEvaluator = async (
 };
 
 /**
- * Returns true if expense can be approved by user
+ * Returns true if expense can be approved by user.
+ * Platform-generated invoices (PLATFORM_BILLING, SETTLEMENT) can only be approved by platform admins.
  */
 export const canApprove: ExpensePermissionEvaluator = async (
   req: express.Request,
@@ -1017,6 +1045,8 @@ export const canApprove: ExpensePermissionEvaluator = async (
       throw new Forbidden('User cannot approve expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (isPlatformGeneratedExpense(expense)) {
+    return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
   } else {
     expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
 
@@ -2631,6 +2661,11 @@ export async function createExpense(
   return expense;
 }
 
+const isPaidVirtualCardCharge = (expense: Expense): boolean =>
+  expense.type === ExpenseType.CHARGE &&
+  ['PAID', 'PROCESSING'].includes(expense.status) &&
+  Boolean(expense.VirtualCardId);
+
 /** Returns true if the expense should by put back to PENDING after this update */
 export const changesRequireStatusUpdate = (
   expense: Expense,
@@ -2655,7 +2690,7 @@ export const changesRequireStatusUpdate = (
 export const getItemsChanges = async (
   existingItems: ExpenseItem[],
   items: ExpenseData['items'],
-): Promise<[boolean, [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]]]> => {
+): Promise<[boolean, ExpenseItemsDiff]> => {
   if (items) {
     const itemsDiff = models.ExpenseItem.diffDBEntries(existingItems, items);
     const hasItemChanges = flatten(<unknown[]>itemsDiff).length > 0;
@@ -3101,6 +3136,159 @@ const editOnlyTagsAndAccountingCategory = async (
   return updatedExpense;
 };
 
+// ---- Edit change detection ----
+
+const hasAttachedFilesChanges = (expense: Expense, expenseData: ExpenseData): boolean => {
+  if (isUndefined(expenseData.attachedFiles)) {
+    return false;
+  }
+
+  try {
+    const [toCreate, toRemove, toUpdate] = models.ExpenseAttachedFile.diffDBEntries(
+      expense.attachedFiles || [],
+      expenseData.attachedFiles,
+    );
+    return toCreate.length + toRemove.length + toUpdate.length > 0;
+  } catch {
+    return true;
+  }
+};
+
+const haveItemAmountsChanged = (existingItems: ExpenseItem[], updatedItems: Partial<ExpenseItem>[]): boolean => {
+  const existingById = new Map(existingItems.map(item => [item.id, item]));
+  return updatedItems.some(item => {
+    if (isNil(item.amount)) {
+      return false;
+    }
+    if (!item.id) {
+      return item.amount !== 0;
+    }
+    const existing = existingById.get(item.id);
+    return Boolean(existing) && existing.amount !== item.amount;
+  });
+};
+
+const hasItemFieldChanges = (expense: Expense, itemsDiff: ExpenseItemsDiff, field: 'url' | 'description'): boolean => {
+  const [itemsToCreate, , itemsToUpdate] = itemsDiff;
+  return (
+    itemsToCreate.some(item => Boolean(item[field])) ||
+    itemsToUpdate.some(item => {
+      const existing = expense.items.find(existingItem => existingItem.id === item.id);
+      return existing && !isUndefined(item[field]) && existing[field] !== item[field];
+    })
+  );
+};
+
+type ExpenseEditChanges = {
+  items: boolean; // any item create/remove/update (from itemsDiff)
+  itemAmounts: boolean; // an individual item amount changed
+  itemDescriptions: boolean; // item.description changed
+  itemUrls: boolean; // item.url changed (receipt)
+  amount: boolean; // total (items+tax), tax definition, or currency changed
+  attachments: boolean; // attachedFiles diff or invoiceFile provided
+  title: boolean; // expense description
+  type: boolean;
+  payee: boolean; // fromCollective changed to a non-vendor
+  payoutMethod: boolean; // new inline method or different id
+};
+
+const getExpenseEditChanges = (
+  expense: Expense,
+  expenseData: ExpenseData,
+  {
+    updatedItems,
+    itemsDiff,
+    taxes,
+  }: {
+    updatedItems: Partial<ExpenseItem>[];
+    itemsDiff: ExpenseItemsDiff;
+    taxes: ExpenseTaxDefinition[];
+  },
+): ExpenseEditChanges => {
+  const newAmount = models.Expense.computeTotalAmountForExpense(updatedItems, taxes);
+  const hasAmountChanges = Number.isFinite(newAmount) && newAmount !== expense.amount;
+  const hasTaxChanges = !isUndefined(expenseData.tax) && !isEqual(expense.data?.taxes || [], taxes || []);
+  const isChangingCurrency = Boolean(expenseData.currency && expenseData.currency !== expense.currency);
+
+  return {
+    items: itemsDiff.some(list => list.length > 0),
+    itemAmounts: haveItemAmountsChanged(expense.items, updatedItems),
+    itemDescriptions: hasItemFieldChanges(expense, itemsDiff, 'description'),
+    itemUrls: hasItemFieldChanges(expense, itemsDiff, 'url'),
+    amount: hasAmountChanges || isChangingCurrency || hasTaxChanges,
+    attachments: hasAttachedFilesChanges(expense, expenseData) || !isUndefined(expenseData.invoiceFile),
+    title: isValueChanging(expense, expenseData, 'description'),
+    type: isValueChanging(expense, expenseData, 'type'),
+    // Host/collective admins can still reassign the payee to a vendor; `checkFromCollective` enforces that separately.
+    payee: Boolean(
+      expenseData.fromCollective?.id &&
+      expenseData.fromCollective.id !== expense.fromCollective.id &&
+      expenseData.fromCollective.type !== CollectiveType.VENDOR,
+    ),
+    payoutMethod: Boolean(
+      expenseData.payoutMethod !== undefined &&
+      (!expenseData.payoutMethod?.id || expenseData.payoutMethod.id !== expense.PayoutMethodId),
+    ),
+  };
+};
+
+/**
+ * Enforce field-level edit helpers when the payload actually changes those fields.
+ * `canEditExpense` is the coarse gate; these checks match the GraphQL permission fields
+ * the UI already uses (especially `canEditItems` for amount).
+ */
+const assertRegularExpenseEditPermissions = async (
+  req: express.Request,
+  expense: Expense,
+  changes: ExpenseEditChanges,
+): Promise<void> => {
+  if (changes.items || changes.amount || changes.attachments) {
+    await canEditItems(req, expense, { throw: true });
+  }
+  if (changes.title) {
+    await canEditTitle(req, expense, { throw: true });
+  }
+  if (changes.type) {
+    await canEditType(req, expense, { throw: true });
+  }
+  if (changes.payee) {
+    await canEditPayee(req, expense, { throw: true });
+  }
+  if (changes.payoutMethod) {
+    await canEditPayoutMethod(req, expense, { throw: true });
+  }
+};
+
+const assertPaidChargeEditPermissions = async (
+  req: express.Request,
+  expense: Expense,
+  changes: ExpenseEditChanges,
+): Promise<void> => {
+  if (changes.amount || changes.itemAmounts) {
+    throw new Forbidden('Cannot change the amount of a paid card charge');
+  }
+  if (changes.itemDescriptions) {
+    await canEditItemDescription(req, expense, { throw: true });
+  }
+  // Anything else touching items/files on a posted charge is treated as attaching receipts
+  const isAttachingReceipts = changes.itemUrls || changes.attachments || (changes.items && !changes.itemDescriptions);
+  if (isAttachingReceipts) {
+    await canAttachReceipts(req, expense, { throw: true });
+  }
+};
+
+const assertExpenseFieldEditPermissions = async (
+  req: express.Request,
+  expense: Expense,
+  changes: ExpenseEditChanges,
+): Promise<void> => {
+  if (isPaidVirtualCardCharge(expense)) {
+    await assertPaidChargeEditPermissions(req, expense, changes);
+  } else {
+    await assertRegularExpenseEditPermissions(req, expense, changes);
+  }
+};
+
 export async function editExpense(
   req: express.Request,
   expenseData: ExpenseData,
@@ -3148,10 +3336,7 @@ export async function editExpense(
   const { collective } = expense;
   const { host } = collective;
   const expenseType = expenseData.type || expense.type;
-  const isPaidCreditCardCharge =
-    expense.type === ExpenseType.CHARGE &&
-    ['PAID', 'PROCESSING'].includes(expense.status) &&
-    Boolean(expense.VirtualCardId);
+  const isPaidCreditCardCharge = isPaidVirtualCardCharge(expense);
 
   // Check category only if it's changing
   if (expenseData.accountingCategory) {
@@ -3209,8 +3394,18 @@ export async function editExpense(
   const taxes = expenseData.tax || (expense.data?.taxes as ExpenseTaxDefinition[]) || [];
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
 
-  if (!options?.skipPermissionCheck && !(await canEditExpense(req, expense))) {
-    throw new Forbidden("You don't have permission to edit this expense");
+  if (!options?.skipPermissionCheck) {
+    // Legacy permission check
+    if (!(await canEditExpense(req, expense))) {
+      throw new Forbidden("You don't have permission to edit this expense");
+    }
+
+    const changes = getExpenseEditChanges(expense, expenseData, {
+      updatedItems: updatedItemsData,
+      itemsDiff,
+      taxes,
+    });
+    await assertExpenseFieldEditPermissions(req, expense, changes);
   }
 
   if (isPaidCreditCardCharge && !hasItemChanges) {
