@@ -398,6 +398,12 @@ jobs:
   graphql-inspector:
     name: GraphQL Inspector
     runs-on: ubuntu-latest
+    # The action creates check runs and PR annotations. Workflows triggered by Dependabot get a
+    # read-only GITHUB_TOKEN by default, so these scopes must be requested explicitly.
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
     services:
       redis:
         image: redis@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5
