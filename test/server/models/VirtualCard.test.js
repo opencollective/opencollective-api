@@ -35,4 +35,30 @@ describe('server/models/VirtualCard', () => {
       expect(missing).to.have.length(0);
     });
   });
+
+  describe('info', () => {
+    it('returns a public snapshot without private card details', async () => {
+      const virtualCard = await fakeVirtualCard({
+        name: 'Ops card',
+        last4: '4242',
+        privateData: { cardNumber: '4111111111114242', cvv: 'FAKESECRET_q3r4s5t6u7v8w9x0y1z2' },
+      });
+
+      expect(virtualCard.get('privateData')).to.deep.equal({
+        cardNumber: '4111111111114242',
+        cvv: 'FAKESECRET_q3r4s5t6u7v8w9x0y1z2',
+      });
+      expect(virtualCard.info).to.include({
+        id: virtualCard.id,
+        publicId: virtualCard.publicId,
+        name: 'Ops card',
+        last4: '4242',
+        CollectiveId: virtualCard.CollectiveId,
+        HostCollectiveId: virtualCard.HostCollectiveId,
+      });
+      expect(virtualCard.info).to.not.have.property('privateData');
+      expect(virtualCard.info).to.not.have.property('cardNumber');
+      expect(virtualCard.info).to.not.have.property('cvv');
+    });
+  });
 });

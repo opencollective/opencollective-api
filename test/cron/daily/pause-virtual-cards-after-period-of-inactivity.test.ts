@@ -38,6 +38,7 @@ describe('cron/daily/pause-virtual-cards-after-period-of-inactivity', () => {
         CollectiveId: HostCollectiveId,
         createdAt: cardCreatedAt,
         name,
+        privateData: { cardNumber: '4111111111114242', cvv: 'FAKESECRET_q3r4s5t6u7v8w9x0y1z2' },
       });
 
       if (expenseCreatedAt) {

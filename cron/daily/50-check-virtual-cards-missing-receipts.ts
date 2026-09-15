@@ -63,7 +63,7 @@ const processVirtualCard = async (expenses: Array<Expense>) => {
   }
 };
 
-const run = async () => {
+export const run = async () => {
   const expenses = await models.Expense.findPendingCardCharges({
     include: [
       { model: models.VirtualCard, as: 'virtualCard', required: true },

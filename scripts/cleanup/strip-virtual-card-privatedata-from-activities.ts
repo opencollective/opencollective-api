@@ -17,8 +17,6 @@ import logger from '../../server/lib/logger';
 import { parseToBoolean } from '../../server/lib/utils';
 import { sequelize } from '../../server/models';
 
-const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : true;
-
 const COUNT_QUERY = `
   SELECT COUNT(*)::int AS count
   FROM "Activities"
@@ -27,11 +25,13 @@ const COUNT_QUERY = `
 
 const UPDATE_QUERY = `
   UPDATE "Activities"
-  SET data = jsonb_set(data, '{virtualCard}', data->'virtualCard' - 'privateData')
+  SET data = data #- '{virtualCard,privateData}'::text[]
   WHERE data->'virtualCard' ? 'privateData'
 `;
 
-async function run() {
+export async function run({
+  dryRun = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : true,
+}: { dryRun?: boolean } = {}) {
   const countRows = await sequelize.query<{ count: number }>(COUNT_QUERY, { type: QueryTypes.SELECT });
   const count = countRows[0]?.count ?? 0;
 
@@ -41,7 +41,7 @@ async function run() {
     return;
   }
 
-  if (DRY_RUN) {
+  if (dryRun) {
     logger.info('DRY_RUN=true — no rows updated. Set DRY_RUN=false to apply.');
     return;
   }
