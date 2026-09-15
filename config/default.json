@@ -68,6 +68,10 @@
       "perMask": 5,
       "forCollective": 10
     },
+    "manualOrdersPerHour": {
+      "perUser": 10,
+      "perIp": 10
+    },
     "giftCards": {
       "maxPerDay": 100
     },

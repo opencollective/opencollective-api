@@ -28,6 +28,7 @@ import {
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import {
   checkGuestContribution,
+  checkManualOrdersLimit,
   checkOrdersLimit,
   cleanOrdersLimit,
   getOrdersLimitKeys,
@@ -269,6 +270,9 @@ export async function createOrder(order, req) {
   }
 
   await checkOrdersLimit(order, reqIp, reqMask);
+  if (order.paymentMethod?.type === PAYMENT_METHOD_TYPE.MANUAL) {
+    await checkManualOrdersLimit(remoteUser, reqIp);
+  }
   // Persisted on the order so the Stripe webhook can release them for Payment Intent orders, which are confirmed
   // asynchronously (other payment methods are released by `cleanOrdersLimit` below, once the order is processed)
   const ordersLimitKeys = getOrdersLimitKeys(order, reqIp, reqMask);

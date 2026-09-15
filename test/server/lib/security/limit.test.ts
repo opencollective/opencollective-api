@@ -4,6 +4,7 @@ import { createSandbox } from 'sinon';
 
 import cache from '../../../../server/lib/cache';
 import {
+  checkManualOrdersLimit,
   checkOrdersLimit,
   cleanOrdersLimit,
   cleanOrdersLimitForOrder,
@@ -50,6 +51,27 @@ describe('lib/security/limit', () => {
       await checkOrdersLimit(guestOrder, ip, null);
       await cleanOrdersLimit(guestOrder, ip, null);
       await checkOrdersLimit(guestOrder, ip, null); // Doesn't throw
+    });
+  });
+
+  describe('checkManualOrdersLimit', () => {
+    beforeEach(() => {
+      sandbox.stub(config.limits, 'manualOrdersPerHour').value({ perUser: 2, perIp: 3 });
+    });
+
+    it('limits manual orders per user', async () => {
+      const user = { id: 42 };
+      await checkManualOrdersLimit(user, '1.1.1.1');
+      await checkManualOrdersLimit(user, '1.1.1.2');
+      await expect(checkManualOrdersLimit(user, '1.1.1.3')).to.be.rejectedWith('Too many contributions');
+    });
+
+    it('limits manual orders per IP for guests', async () => {
+      await checkManualOrdersLimit(null, ip);
+      await checkManualOrdersLimit(null, ip);
+      await checkManualOrdersLimit(null, ip);
+      await expect(checkManualOrdersLimit(null, ip)).to.be.rejectedWith('Too many contributions');
+      await checkManualOrdersLimit(null, '1.1.1.2'); // Other IPs are not affected
     });
   });
 
