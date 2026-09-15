@@ -818,7 +818,7 @@ export const canEditItems: ExpensePermissionEvaluator = async (req, expense, opt
     return false;
   } else if (isPlatformGeneratedExpense(expense)) {
     if (
-      ![ExpenseStatus.PROCESSING, ExpenseStatus.SCHEDULED_FOR_PAYMENT, ExpenseStatus.PAID].includes(
+      [ExpenseStatus.PROCESSING, ExpenseStatus.SCHEDULED_FOR_PAYMENT, ExpenseStatus.PAID].includes(
         expense.status as ExpenseStatus,
       )
     ) {
