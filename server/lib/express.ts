@@ -1,4 +1,3 @@
-import cloudflareIps from 'cloudflare-ip/ips.json';
 import config from 'config';
 import { RedisStore } from 'connect-redis';
 import cookieParser from 'cookie-parser';
@@ -14,6 +13,7 @@ import { RedisClientType } from 'redis';
 import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import { loadersMiddleware } from '../graphql/loaders';
 
+import cloudflareIps from './cloudflare-ips.json';
 import hyperwatch from './hyperwatch';
 import logger from './logger';
 import { HandlerType, reportMessageToSentry } from './sentry';

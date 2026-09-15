@@ -61,7 +61,6 @@
     "blurhash": "2.0.5",
     "cheerio": "^1.1.2",
     "cloudflare": "7.1.0",
-    "cloudflare-ip": "0.0.7",
     "commander": "15.0.0",
     "config": "5.0.1",
     "connect-redis": "10.0.0",
@@ -183,10 +182,10 @@
     "ws": "^8.18.3"
   },
   "scripts": {
-    "build": "npm run build:clean && npm run build:updates && npm run build:server",
+    "build": "npm run build:clean && npm run build:server && npm run build:updates",
     "build:clean": "rm -rf dist && mkdir dist",
     "build:server": "babel server --copy-files --source-maps true --extensions .js,.ts --ignore \"**/*.d.ts\" -d ./dist",
-    "build:updates": "npm --prefix node_modules/cloudflare-ip run update-list",
+    "build:updates": "babel-node --extensions .js,.ts scripts/update-cloudflare-ips.ts dist/lib/cloudflare-ips.json",
     "clean": "npm run build:clean && npm run test:clean",
     "commit": "git-cz",
     "compile:email": "babel-node --extensions .js,.ts scripts/compile-email.js",
