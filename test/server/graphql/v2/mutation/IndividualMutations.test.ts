@@ -1,7 +1,6 @@
 import bcrypt from 'bcrypt';
 import { expect } from 'chai';
 import config from 'config';
-import crypto from 'crypto-js';
 import gql from 'fake-tag';
 import jwt from 'jsonwebtoken';
 import { generateSecret } from 'otplib';
@@ -10,6 +9,7 @@ import request from 'supertest';
 
 import roles from '../../../../../server/constants/roles';
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import { crypto } from '../../../../../server/lib/encryption';
 import models from '../../../../../server/models';
 import {
   fakeApplication,
@@ -21,9 +21,6 @@ import {
 } from '../../../../test-helpers/fake-data';
 import { startTestServer, stopTestServer } from '../../../../test-helpers/server';
 import { graphqlQueryV2 } from '../../../../utils';
-
-const SECRET_KEY = config.dbEncryption.secretKey;
-const CIPHER = config.dbEncryption.cipher;
 
 describe('server/graphql/v2/mutation/IndividualMutations', () => {
   describe('setPassword', () => {
@@ -90,7 +87,7 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
 
     it('should enforce 2FA if enabled on the account', async () => {
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken, passwordHash: null });
       const result = await graphqlQueryV2(setPasswordMutation, { password: 'newPassword' }, user);
       expect(result.errors).to.exist;
