@@ -366,32 +366,53 @@ describe('server/graphql/common/expenses', () => {
       await runForAllContexts(async context => {
         const { expense, req } = context;
         const isVirtualCard = expense.type === 'CHARGE';
+        // Platform expenses (settlements, platform bills) can only be edited by platform admins
+        const editor = ['SETTLEMENT', 'PLATFORM_BILLING'].includes(expense.type) ? req.platformAdmin : req.hostAdmin;
         await expense.update({ status: 'PENDING' });
-        expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        expect(await canEditExpense(editor, expense)).to.be.true;
         await expense.update({ status: 'APPROVED' });
-        expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        expect(await canEditExpense(editor, expense)).to.be.true;
         await expense.update({ status: 'ERROR' });
-        expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        expect(await canEditExpense(editor, expense)).to.be.true;
         await expense.update({ status: 'REJECTED' });
-        expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        expect(await canEditExpense(editor, expense)).to.be.true;
         await expense.update({ status: 'PROCESSING' });
 
         // Can still edit processing/paid expenses if it's a virtual card
         if (isVirtualCard) {
-          expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+          expect(await canEditExpense(editor, expense)).to.be.true;
           await expense.update({ status: 'PAID' });
-          expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+          expect(await canEditExpense(editor, expense)).to.be.true;
         } else {
-          expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+          expect(await canEditExpense(editor, expense)).to.be.false;
           await expense.update({ status: 'PAID' });
-          expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+          expect(await canEditExpense(editor, expense)).to.be.false;
         }
 
         await expense.update({ status: 'DRAFT' });
-        expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        expect(await canEditExpense(editor, expense)).to.be.true;
         await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
-        expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+        expect(await canEditExpense(editor, expense)).to.be.false;
       });
+    });
+
+    it('only platform admins can edit settlements and platform bills', async () => {
+      for (const context of [contexts.settlement, contexts.platformBilling]) {
+        for (const status of ['PENDING', 'APPROVED', 'ERROR', 'REJECTED']) {
+          await context.expense.update({ status });
+          expect(await checkAllPermissions(canEditExpense, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: false,
+            collectiveAccountant: false,
+            hostAdmin: false,
+            hostAccountant: false,
+            expenseOwner: false,
+            limitedHostAdmin: false,
+            platformAdmin: true,
+          });
+        }
+      }
     });
 
     it('can edit virtual card charges', async () => {
@@ -412,6 +433,10 @@ describe('server/graphql/common/expenses', () => {
     it('can edit expense if user is the draft payee', async () => {
       await runForAllContexts(async context => {
         const { expense } = context;
+        if (['SETTLEMENT', 'PLATFORM_BILLING'].includes(expense.type)) {
+          return; // Platform expenses are never drafts
+        }
+
         const expensePayee = await fakeUser();
         await expensePayee.populateRoles();
         await expense.update({ status: 'DRAFT', data: { payee: { id: expensePayee.collective.id } } });
@@ -1404,16 +1429,19 @@ describe('server/graphql/common/expenses', () => {
       await runForAllContexts(async context => {
         const { expense } = context;
         await expense.update({ status: 'PENDING' });
+        const isPlatformBilling = expense.type === 'PLATFORM_BILLING';
         expect(await checkAllPermissions(canApprove, context)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: context.expense.type !== 'CHARGE',
-          hostAdmin: context.expense.type !== 'CHARGE' || Boolean(context.expense.data?.isManualVirtualCardCharge),
+          collectiveAdmin: !['CHARGE', 'PLATFORM_BILLING'].includes(expense.type),
+          hostAdmin:
+            !['CHARGE', 'PLATFORM_BILLING'].includes(expense.type) ||
+            Boolean(context.expense.data?.isManualVirtualCardCharge),
           expenseOwner: false,
           limitedHostAdmin: false,
           collectiveAccountant: false,
           hostAccountant: false,
-          platformAdmin: false,
+          platformAdmin: isPlatformBilling,
         });
       });
     });
