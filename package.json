@@ -93,7 +93,7 @@
     "ics": "3.12.0",
     "ipaddr.js": "^2.0.0",
     "jsonwebtoken": "9.0.3",
-    "juice": "12.1.2",
+    "juice": "12.1.3",
     "kysely": "0.29.5",
     "kysely-sequelize": "^0.2.0",
     "lib-address": "0.7.0",
