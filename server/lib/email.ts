@@ -3,8 +3,7 @@ import debugLib from 'debug';
 import { htmlToText } from 'html-to-text';
 import juice from 'juice';
 import { cloneDeep, get, includes, isArray, merge, pick } from 'lodash';
-import nodemailer from 'nodemailer';
-import SMTPTransport from 'nodemailer/lib/smtp-transport';
+import nodemailer, { type SendMailOptions, type SMTPSentMessageInfo } from 'nodemailer';
 
 import { activities } from '../constants';
 import { EmailTheme } from '../constants/email-theme';
@@ -20,7 +19,7 @@ const debug = debugLib('email');
 const isDev = config.env === 'development';
 
 type SendMessageOptions = Pick<
-  nodemailer.SendMailOptions,
+  SendMailOptions,
   'from' | 'cc' | 'to' | 'bcc' | 'subject' | 'text' | 'html' | 'headers' | 'attachments'
 > & {
   tag?;
@@ -127,7 +126,7 @@ const sendMessage = (
   subject: string,
   html: string,
   options: SendMessageOptions = {},
-): Promise<SMTPTransport.SentMessageInfo | void> => {
+): Promise<SMTPSentMessageInfo | void> => {
   if (!isArray(recipients)) {
     recipients = [recipients];
   }
