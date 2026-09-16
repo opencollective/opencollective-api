@@ -4,6 +4,9 @@ outputs:
   runner:
     description: Runner name from label, or empty to use the job default
     value: ${{ steps.select.outputs.runner }}
+  runs-on-spec:
+    description: JSON runs-on object/array for self-hosted routing, or empty
+    value: ${{ steps.select.outputs.runs-on-spec }}
 runs:
   using: composite
   steps:
@@ -11,12 +14,22 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
+        RUNNER_GROUP: ${{ env.RUNNER_GROUP }}
       run: |
         runner=""
+        runs_on_spec=""
         if [ "${{ github.event_name }}" = "pull_request" ]; then
           # Event payload labels are frozen at trigger time; re-runs and label-only
           # updates do not refresh them. Fetch current labels from the API instead.
           runner=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${{ github.event.pull_request.number }}/labels" \
             --jq '[.[] | select(.name | startswith("runner-")) | .name | sub("^runner-"; "")] | first // empty')
         fi
+        if [ -n "$runner" ]; then
+          if [ -n "${RUNNER_GROUP:-}" ]; then
+            runs_on_spec=$(jq -cn --arg g "$RUNNER_GROUP" --arg l "$runner" '{group: $g, labels: $l}')
+          else
+            runs_on_spec=$(jq -cn --arg l "$runner" '["self-hosted", $l]')
+          fi
+        fi
         echo "runner=${runner}" >> "$GITHUB_OUTPUT"
+        echo "runs-on-spec=${runs_on_spec}" >> "$GITHUB_OUTPUT"

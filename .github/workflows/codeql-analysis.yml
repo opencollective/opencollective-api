@@ -6,6 +6,9 @@ on:
       - main
   pull_request:
 
+env:
+  SELF_HOSTED_RUNNER_GROUP: ${{ vars.SELF_HOSTED_RUNNER_GROUP || 'Default' }}
+
 jobs:
   select-runner:
     runs-on: ubuntu-latest
@@ -14,15 +17,18 @@ jobs:
       pull-requests: read
     outputs:
       runner: ${{ steps.select.outputs.runner }}
+      runs-on-spec: ${{ steps.select.outputs.runs-on-spec }}
     steps:
       - uses: actions/checkout@v7
       - id: select
         uses: ./.github/actions/select-runner
+        env:
+          RUNNER_GROUP: ${{ env.SELF_HOSTED_RUNNER_GROUP }}
 
   analyze:
     name: Analyze
     needs: select-runner
-    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-latest' }}
+    runs-on: ${{ needs.select-runner.outputs.runs-on-spec != '' && fromJSON(needs.select-runner.outputs.runs-on-spec) || 'ubuntu-latest' }}
 
     steps:
       - name: Checkout repository
