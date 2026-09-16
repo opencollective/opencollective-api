@@ -20,17 +20,6 @@ For the long run, we suggest to integrate these tools in your favorite code edit
 - check [Prettier Editor Integration](https://prettier.io/docs/en/editors.html)
 - check [ESLint Editor Integrations](https://eslint.org/docs/user-guide/integrations)
 
-## Commit convention
-
-Your commit messages should conform to the [Conventional Commits](https://www.conventionalcommits.org/) specification.
-
-To help you follow this convention, this project is using [commitizen](https://github.com/commitizen/cz-cli). To use it:
-
-1. run `git add` first to add your changes to Git staging area
-2. use `npm run commit` to commit
-
-Note: it's not mandatory to always commit with this tool (we don't), but it's great to get introduced to the commit conventions.
-
 ## Git guidelines
 
 We do aim having a clean Git history! When submitting a Pull Request, make sure:
