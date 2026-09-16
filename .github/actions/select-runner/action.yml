@@ -1,8 +1,8 @@
 name: Select runner
-description: Resolve runner name from PR labels matching runner-{name}
+description: Route jobs to self-hosted runners when the PR has a runner-* label matching a worker label
 outputs:
   runner:
-    description: Runner name from label, or empty to use the job default
+    description: Worker label from the PR (e.g. runner-betree), or empty to use the job default
     value: ${{ steps.select.outputs.runner }}
   runs-on-spec:
     description: JSON runs-on object/array for self-hosted routing, or empty
@@ -31,8 +31,9 @@ runs:
         if [ -n "$pr_number" ]; then
           # Event payload labels are frozen at trigger time; re-runs and label-only
           # updates do not refresh them. Fetch current labels from the API instead.
+          # PR label runner-betree matches a worker with the same runner-betree label.
           runner=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${pr_number}/labels" \
-            --jq '[.[] | select(.name | startswith("runner-")) | .name | sub("^runner-"; "")] | first // empty')
+            --jq '[.[] | select(.name | startswith("runner-")) | .name] | first // empty')
         fi
 
         if [ -n "$runner" ]; then

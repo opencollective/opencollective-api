@@ -23,7 +23,7 @@ env:
   AWS_S3_ENDPOINT: http://localhost:9000
   AWS_S3_SSL_ENABLED: false
   AWS_S3_FORCE_PATH_STYLE: true
-  # Org runner group for PR labels matching runner-* (override with repo/org variable)
+  # Org runner group when the PR has a runner-* label (override with repo/org variable)
   SELF_HOSTED_RUNNER_GROUP: ${{ vars.SELF_HOSTED_RUNNER_GROUP || 'Default' }}
 
 jobs:
