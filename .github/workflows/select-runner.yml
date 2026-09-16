@@ -21,5 +21,5 @@ jobs:
           label=$(gh pr view "$REF" --repo "$GITHUB_REPOSITORY" --json labels \
             --jq '[.labels[].name | select(startswith("runner-"))][0] // empty' 2>/dev/null || true)
           if [ -n "$label" ]; then
-            echo "runs-on=$(jq -cn --arg l "$label" '{group:"Default",labels:$l}')" >> "$GITHUB_OUTPUT"
+            echo "runs-on=$(jq -cn --arg l "$label" '["self-hosted", $l]')" >> "$GITHUB_OUTPUT"
           fi
