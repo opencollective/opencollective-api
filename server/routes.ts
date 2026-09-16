@@ -7,7 +7,7 @@ import { ApolloArmor } from '@escape.tech/graphql-armor';
 import config from 'config';
 import type express from 'express';
 import { print as convertASTToString } from 'graphql';
-import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.js';
+import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.mjs';
 import { get, pick } from 'lodash';
 import multer from 'multer';
 

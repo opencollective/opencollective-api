@@ -10,7 +10,7 @@ import config from 'config';
 import debug from 'debug';
 import { Request } from 'express';
 import { graphql } from 'graphql';
-import Upload from 'graphql-upload/Upload.js';
+import Upload from 'graphql-upload/Upload.mjs';
 import { cloneDeep, get, groupBy, isArray, omit, values } from 'lodash';
 import markdownTable from 'markdown-table';
 import nock from 'nock';
