@@ -18,12 +18,23 @@ runs:
       run: |
         runner=""
         runs_on_spec=""
+        pr_number=""
+
         if [ "${{ github.event_name }}" = "pull_request" ]; then
+          pr_number="${{ github.event.pull_request.number }}"
+        elif [ "${{ github.event_name }}" = "push" ]; then
+          # Workflows like E2E only trigger on push; resolve labels from the open PR on this branch.
+          pr_number=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "${{ github.ref_name }}" --state open \
+            --json number --jq '.[0].number // empty')
+        fi
+
+        if [ -n "$pr_number" ]; then
           # Event payload labels are frozen at trigger time; re-runs and label-only
           # updates do not refresh them. Fetch current labels from the API instead.
-          runner=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${{ github.event.pull_request.number }}/labels" \
+          runner=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${pr_number}/labels" \
             --jq '[.[] | select(.name | startswith("runner-")) | .name | sub("^runner-"; "")] | first // empty')
         fi
+
         if [ -n "$runner" ]; then
           if [ -n "${RUNNER_GROUP:-}" ]; then
             runs_on_spec=$(jq -cn --arg g "$RUNNER_GROUP" --arg l "$runner" '{group: $g, labels: $l}')
@@ -31,5 +42,6 @@ runs:
             runs_on_spec=$(jq -cn --arg l "$runner" '["self-hosted", $l]')
           fi
         fi
+
         echo "runner=${runner}" >> "$GITHUB_OUTPUT"
         echo "runs-on-spec=${runs_on_spec}" >> "$GITHUB_OUTPUT"
