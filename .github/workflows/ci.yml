@@ -40,7 +40,7 @@ jobs:
           cache: 'npm'
 
       - name: Enable npm 12
-        run: npm install -g npm@12.0.2
+        run: npm install -g npm@12
 
       - name: Restore node_modules
         uses: actions/cache@v6
@@ -70,7 +70,7 @@ jobs:
           cache: 'npm'
 
       - name: Enable npm 12
-        run: npm install -g npm@12.0.2
+        run: npm install -g npm@12
 
       - name: Restore node_modules
         uses: actions/cache@v6
@@ -100,7 +100,7 @@ jobs:
           cache: 'npm'
 
       - name: Enable npm 12
-        run: npm install -g npm@12.0.2
+        run: npm install -g npm@12
 
       - name: Restore node_modules
         uses: actions/cache@v6
@@ -131,7 +131,7 @@ jobs:
           cache: 'npm'
 
       - name: Enable npm 12
-        run: npm install -g npm@12.0.2
+        run: npm install -g npm@12
 
       - name: Restore node_modules
         uses: actions/cache@v6
@@ -162,7 +162,7 @@ jobs:
           cache: 'npm'
 
       - name: Enable npm 12
-        run: npm install -g npm@12.0.2
+        run: npm install -g npm@12
 
       - name: Restore node_modules
         uses: actions/cache@v6
@@ -199,7 +199,7 @@ jobs:
           cache: 'npm'
 
       - name: Enable npm 12
-        run: npm install -g npm@12.0.2
+        run: npm install -g npm@12
 
       - name: Restore node_modules
         uses: actions/cache@v6
@@ -262,7 +262,7 @@ jobs:
           cache: 'npm'
 
       - name: Enable npm 12
-        run: npm install -g npm@12.0.2
+        run: npm install -g npm@12
 
       - name: Restore node_modules
         uses: actions/cache@v6
@@ -346,7 +346,7 @@ jobs:
           cache: 'npm'
 
       - name: Enable npm 12
-        run: npm install -g npm@12.0.2
+        run: npm install -g npm@12
 
       - name: Restore node_modules
         uses: actions/cache@v6
@@ -407,7 +407,7 @@ jobs:
           cache: 'npm'
 
       - name: Enable npm 12
-        run: npm install -g npm@12.0.2
+        run: npm install -g npm@12
 
       - name: Restore node_modules
         uses: actions/cache@v6
