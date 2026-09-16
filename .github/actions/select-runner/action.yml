@@ -1,0 +1,19 @@
+name: Select runner
+description: Resolve runner name from PR labels matching runner-{name}
+outputs:
+  runner:
+    description: Runner name from label, or empty to use the job default
+    value: ${{ steps.select.outputs.runner }}
+runs:
+  using: composite
+  steps:
+    - id: select
+      shell: bash
+      env:
+        PR_LABELS: ${{ github.event_name == 'pull_request' && toJson(github.event.pull_request.labels) || '[]' }}
+      run: |
+        runner=""
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          runner=$(echo "$PR_LABELS" | jq -r '[.[] | select(.name | startswith("runner-")) | .name | sub("^runner-"; "")] | first // empty')
+        fi
+        echo "runner=${runner}" >> "$GITHUB_OUTPUT"

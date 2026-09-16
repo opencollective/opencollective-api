@@ -42,8 +42,18 @@ env:
   STRIPE_WEBHOOK_SIGNING_SECRET: ${{ secrets.STRIPE_WEBHOOK_SIGNING_SECRET }}
 
 jobs:
+  select-runner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      runner: ${{ steps.select.outputs.runner }}
+    steps:
+      - id: select
+        uses: ./.github/actions/select-runner
+
   e2e:
-    runs-on: ubuntu-24.04
+    needs: select-runner
+    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 30
 
     strategy:

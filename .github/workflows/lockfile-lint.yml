@@ -10,8 +10,18 @@ on:
       - reopened
 
 jobs:
-  lockfile-lint:
+  select-runner:
     runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      runner: ${{ steps.select.outputs.runner }}
+    steps:
+      - id: select
+        uses: ./.github/actions/select-runner
+
+  lockfile-lint:
+    needs: select-runner
+    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 5
 
     steps:
