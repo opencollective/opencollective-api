@@ -57,6 +57,18 @@ async function getPaymentMethodForTransaction(transaction, req) {
   }
 }
 
+/**
+ * Whether the user can see the private profile details (legal name, location, ...) of the
+ * accounts involved in a transaction. Host admins and accountants are allowed, matching the
+ * behaviour of `Order.fromAccount`.
+ */
+const canSeeTransactionCounterpartyPrivateDetails = (remoteUser, hostCollectiveId) => {
+  if (!remoteUser || !hostCollectiveId) {
+    return false;
+  }
+  return remoteUser.isAdmin(hostCollectiveId) || remoteUser.hasRole(roles.ACCOUNTANT, hostCollectiveId);
+};
+
 const GraphQLTransactionPermissions = new GraphQLObjectType({
   name: 'TransactionPermissions',
   description: 'Fields for the user permissions on an transaction',
@@ -626,7 +638,7 @@ export const TransactionFields = () => {
       type: GraphQLAccount,
       description: 'The account on the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)',
       resolve(transaction, _, req) {
-        if (req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
+        if (canSeeTransactionCounterpartyPrivateDetails(req.remoteUser, transaction.HostCollectiveId)) {
           allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, transaction.CollectiveId);
           allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, transaction.CollectiveId);
         }
@@ -638,7 +650,7 @@ export const TransactionFields = () => {
       type: GraphQLAccount,
       description: 'The account on the opposite side of the transaction (CREDIT -> sender, DEBIT -> recipient)',
       resolve(transaction, _, req) {
-        if (req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
+        if (canSeeTransactionCounterpartyPrivateDetails(req.remoteUser, transaction.HostCollectiveId)) {
           allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, transaction.FromCollectiveId);
           allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, transaction.FromCollectiveId);
         }

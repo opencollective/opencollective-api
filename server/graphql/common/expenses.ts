@@ -286,10 +286,14 @@ export const isHostAdmin = async (req: express.Request, expense: Expense): Promi
 };
 
 const isAdminOrAccountantOfHostWhoPaidExpense = async (req: express.Request, expense: Expense): Promise<boolean> => {
-  if (!req.remoteUser) {
+  if (!req.remoteUser || !expense.HostCollectiveId) {
     return false;
   }
-  return expense.HostCollectiveId && req.remoteUser.isAdmin(expense.HostCollectiveId);
+
+  return (
+    req.remoteUser.isAdmin(expense.HostCollectiveId) ||
+    req.remoteUser.hasRole(roles.ACCOUNTANT, expense.HostCollectiveId)
+  );
 };
 
 const isAdminOfCollectiveWithPermissivePayoutMethodPermissions = async (
@@ -591,7 +595,8 @@ export const canSeeExpenseTransactionImportRow: ExpensePermissionEvaluator = asy
   if (!validateExpenseScope(req)) {
     return false;
   } else {
-    return isHostAdmin(req, expense);
+    // Mirrors canSeeOrderTransactionImportRow: host admins and accountants can see import rows.
+    return (await isHostAdmin(req, expense)) || (await isHostAccountant(req, expense));
   }
 };
 
