@@ -23,28 +23,16 @@ env:
   AWS_S3_ENDPOINT: http://localhost:9000
   AWS_S3_SSL_ENABLED: false
   AWS_S3_FORCE_PATH_STYLE: true
-  # Org runner group when the PR has a runner-* label (override with repo/org variable)
-  SELF_HOSTED_RUNNER_GROUP: ${{ vars.SELF_HOSTED_RUNNER_GROUP || 'Default' }}
 
 jobs:
   select-runner:
-    runs-on: ubuntu-latest
-    timeout-minutes: 1
+    uses: ./.github/workflows/select-runner.yml
     permissions:
       pull-requests: read
-    outputs:
-      runner: ${{ steps.select.outputs.runner }}
-      runs-on-spec: ${{ steps.select.outputs.runs-on-spec }}
-    steps:
-      - uses: actions/checkout@v7
-      - id: select
-        uses: ./.github/actions/select-runner
-        env:
-          RUNNER_GROUP: ${{ env.SELF_HOSTED_RUNNER_GROUP }}
 
   lint:
     needs: select-runner
-    runs-on: ${{ needs.select-runner.outputs.runs-on-spec != '' && fromJSON(needs.select-runner.outputs.runs-on-spec) || 'ubuntu-latest' }}
+    runs-on: ${{ fromJSON(needs.select-runner.outputs.runs-on || '"ubuntu-latest"') }}
     timeout-minutes: 15
 
     steps:
@@ -75,7 +63,7 @@ jobs:
 
   prettier:
     needs: select-runner
-    runs-on: ${{ needs.select-runner.outputs.runs-on-spec != '' && fromJSON(needs.select-runner.outputs.runs-on-spec) || 'ubuntu-latest' }}
+    runs-on: ${{ fromJSON(needs.select-runner.outputs.runs-on || '"ubuntu-latest"') }}
     timeout-minutes: 15
 
     steps:
@@ -106,7 +94,7 @@ jobs:
 
   typescript:
     needs: select-runner
-    runs-on: ${{ needs.select-runner.outputs.runs-on-spec != '' && fromJSON(needs.select-runner.outputs.runs-on-spec) || 'ubuntu-latest' }}
+    runs-on: ${{ fromJSON(needs.select-runner.outputs.runs-on || '"ubuntu-latest"') }}
     timeout-minutes: 15
 
     steps:
@@ -137,7 +125,7 @@ jobs:
 
   depcheck:
     needs: select-runner
-    runs-on: ${{ needs.select-runner.outputs.runs-on-spec != '' && fromJSON(needs.select-runner.outputs.runs-on-spec) || 'ubuntu-latest' }}
+    runs-on: ${{ fromJSON(needs.select-runner.outputs.runs-on || '"ubuntu-latest"') }}
 
     timeout-minutes: 15
 
@@ -169,7 +157,7 @@ jobs:
 
   ts-unused-exports:
     needs: select-runner
-    runs-on: ${{ needs.select-runner.outputs.runs-on-spec != '' && fromJSON(needs.select-runner.outputs.runs-on-spec) || 'ubuntu-latest' }}
+    runs-on: ${{ fromJSON(needs.select-runner.outputs.runs-on || '"ubuntu-latest"') }}
 
     timeout-minutes: 15
 
@@ -208,7 +196,7 @@ jobs:
 
   build:
     needs: select-runner
-    runs-on: ${{ needs.select-runner.outputs.runs-on-spec != '' && fromJSON(needs.select-runner.outputs.runs-on-spec) || 'ubuntu-latest' }}
+    runs-on: ${{ fromJSON(needs.select-runner.outputs.runs-on || '"ubuntu-latest"') }}
     timeout-minutes: 15
 
     steps:
@@ -246,7 +234,7 @@ jobs:
 
   test:
     needs: select-runner
-    runs-on: ${{ needs.select-runner.outputs.runs-on-spec != '' && fromJSON(needs.select-runner.outputs.runs-on-spec) || 'ubuntu-24.04' }}
+    runs-on: ${{ fromJSON(needs.select-runner.outputs.runs-on || '"ubuntu-24.04"') }}
 
     timeout-minutes: 30
     env:
@@ -318,7 +306,7 @@ jobs:
 
   test-graphql:
     needs: select-runner
-    runs-on: ${{ needs.select-runner.outputs.runs-on-spec != '' && fromJSON(needs.select-runner.outputs.runs-on-spec) || 'ubuntu-24.04' }}
+    runs-on: ${{ fromJSON(needs.select-runner.outputs.runs-on || '"ubuntu-24.04"') }}
     timeout-minutes: 30
 
     env:
@@ -403,7 +391,7 @@ jobs:
 
   schema-update:
     needs: select-runner
-    runs-on: ${{ needs.select-runner.outputs.runs-on-spec != '' && fromJSON(needs.select-runner.outputs.runs-on-spec) || 'ubuntu-latest' }}
+    runs-on: ${{ fromJSON(needs.select-runner.outputs.runs-on || '"ubuntu-latest"') }}
     timeout-minutes: 30
 
     services:
@@ -451,7 +439,7 @@ jobs:
   graphql-inspector:
     name: GraphQL Inspector
     needs: select-runner
-    runs-on: ${{ needs.select-runner.outputs.runs-on-spec != '' && fromJSON(needs.select-runner.outputs.runs-on-spec) || 'ubuntu-latest' }}
+    runs-on: ${{ fromJSON(needs.select-runner.outputs.runs-on || '"ubuntu-latest"') }}
     # The action publishes its results as check runs (with annotations) and reads PR labels for the
     # approve-label override. Workflows triggered by Dependabot get a read-only GITHUB_TOKEN by
     # default, so the write scope must be requested explicitly. This job never installs or runs

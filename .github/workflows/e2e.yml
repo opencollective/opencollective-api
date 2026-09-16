@@ -40,27 +40,16 @@ env:
   TERM: xterm
   STRIPE_WEBHOOK_KEY: ${{ secrets.STRIPE_WEBHOOK_KEY }}
   STRIPE_WEBHOOK_SIGNING_SECRET: ${{ secrets.STRIPE_WEBHOOK_SIGNING_SECRET }}
-  SELF_HOSTED_RUNNER_GROUP: ${{ vars.SELF_HOSTED_RUNNER_GROUP || 'Default' }}
 
 jobs:
   select-runner:
-    runs-on: ubuntu-latest
-    timeout-minutes: 1
+    uses: ./.github/workflows/select-runner.yml
     permissions:
       pull-requests: read
-    outputs:
-      runner: ${{ steps.select.outputs.runner }}
-      runs-on-spec: ${{ steps.select.outputs.runs-on-spec }}
-    steps:
-      - uses: actions/checkout@v7
-      - id: select
-        uses: ./.github/actions/select-runner
-        env:
-          RUNNER_GROUP: ${{ env.SELF_HOSTED_RUNNER_GROUP }}
 
   e2e:
     needs: select-runner
-    runs-on: ${{ needs.select-runner.outputs.runs-on-spec != '' && fromJSON(needs.select-runner.outputs.runs-on-spec) || 'ubuntu-24.04' }}
+    runs-on: ${{ fromJSON(needs.select-runner.outputs.runs-on || '"ubuntu-24.04"') }}
     timeout-minutes: 30
 
     strategy:
