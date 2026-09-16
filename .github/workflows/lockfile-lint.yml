@@ -16,6 +16,7 @@ jobs:
     outputs:
       runner: ${{ steps.select.outputs.runner }}
     steps:
+      - uses: actions/checkout@v7
       - id: select
         uses: ./.github/actions/select-runner
 
