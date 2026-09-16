@@ -13,6 +13,8 @@ jobs:
   select-runner:
     runs-on: ubuntu-latest
     timeout-minutes: 1
+    permissions:
+      pull-requests: read
     outputs:
       runner: ${{ steps.select.outputs.runner }}
     steps:

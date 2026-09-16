@@ -10,10 +10,13 @@ runs:
     - id: select
       shell: bash
       env:
-        PR_LABELS: ${{ github.event_name == 'pull_request' && toJson(github.event.pull_request.labels) || '[]' }}
+        GH_TOKEN: ${{ github.token }}
       run: |
         runner=""
         if [ "${{ github.event_name }}" = "pull_request" ]; then
-          runner=$(echo "$PR_LABELS" | jq -r '[.[] | select(.name | startswith("runner-")) | .name | sub("^runner-"; "")] | first // empty')
+          # Event payload labels are frozen at trigger time; re-runs and label-only
+          # updates do not refresh them. Fetch current labels from the API instead.
+          runner=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${{ github.event.pull_request.number }}/labels" \
+            --jq '[.[] | select(.name | startswith("runner-")) | .name | sub("^runner-"; "")] | first // empty')
         fi
         echo "runner=${runner}" >> "$GITHUB_OUTPUT"
