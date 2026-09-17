@@ -11,6 +11,7 @@ import {
   InferCreationAttributes,
   Transaction as SequelizeTransaction,
 } from 'sequelize';
+import Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
@@ -30,7 +31,6 @@ import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
-import type { Stripe } from '../lib/stripe-types';
 import { getOrCreateHostPlatformTipsAccount, getPaymentProcessorFeeVendor, getTaxVendor } from '../lib/transactions';
 import { exportToCSV, parseToBoolean } from '../lib/utils';
 import type { PaypalCapture, PaypalRefund, PaypalSale, PaypalTransaction } from '../types/paypal';
