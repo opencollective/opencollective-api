@@ -86,7 +86,7 @@ describe('/test/stories/transferwise.test.ts', () => {
     await fakeConnectedAccount({
       CollectiveId: host.id,
       service: 'transferwise',
-      token: 'ab530676-ea17-4cd5-9a6d-73605b5dee3b',
+      token: 'd89885e9-edc3-4352-a492-dd73eaf6fa75',
       data: {
         id: 28891298,
         type: 'BUSINESS',
