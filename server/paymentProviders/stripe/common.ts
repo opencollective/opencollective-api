@@ -3,6 +3,7 @@ import { get, result, toUpper } from 'lodash';
 import moment from 'moment';
 import assert from 'node:assert';
 import type { CreateOptions } from 'sequelize';
+import Stripe from 'stripe';
 
 import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
@@ -20,7 +21,6 @@ import {
 } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
-import type { Stripe } from '../../lib/stripe-types';
 import models, { Collective, ConnectedAccount } from '../../models';
 import Order from '../../models/Order';
 import PaymentMethod from '../../models/PaymentMethod';

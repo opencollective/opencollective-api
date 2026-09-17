@@ -1,12 +1,12 @@
 /* eslint-disable camelcase */
 import { omit } from 'lodash';
+import type Stripe from 'stripe';
 
 import OrderStatuses from '../../constants/order-status';
 import models from '../../models';
 import { getPaymentIntentCharge } from '../../paymentProviders/stripe/common';
 import { stripePaymentIntentFailed, stripePaymentIntentSucceeded } from '../../paymentProviders/stripe/webhook';
 import stripe from '../stripe';
-import type { Stripe } from '../stripe-types';
 
 /** Builds the minimal `Stripe.Event` wrapper needed to re-run a payment intent webhook handler locally */
 const buildPaymentIntentEvent = <T extends Stripe.PaymentIntentSucceededEvent | Stripe.PaymentIntentPaymentFailedEvent>(
