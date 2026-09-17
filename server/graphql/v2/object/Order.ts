@@ -188,6 +188,7 @@ export const GraphQLOrder = new GraphQLObjectType({
           const hostCollectiveId = collective?.HostCollectiveId;
           if (req.remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId)) {
             allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, order.FromCollectiveId);
+            allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, order.FromCollectiveId);
           }
 
           // Orders are guarded above, but we still add this layer of protection just in case
@@ -444,13 +445,14 @@ export const GraphQLOrder = new GraphQLObjectType({
             loaders.Collective.byId.load(order.CollectiveId),
           ]);
 
-          if (
-            !remoteUser ||
-            !(remoteUser.isAdminOfCollective(collective) || remoteUser.isAdminOfCollective(fromCollective))
-          ) {
-            return null;
-          } else {
+          const canSeeCustomData =
+            remoteUser &&
+            (remoteUser.isAdminOfCollective(collective) || remoteUser.isAdminOfCollective(fromCollective));
+
+          if (canSeeCustomData) {
             return order.data?.customData || {};
+          } else {
+            return null;
           }
         },
       },

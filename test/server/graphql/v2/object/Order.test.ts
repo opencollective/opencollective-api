@@ -7,6 +7,7 @@ import {
   fakeActiveHost,
   fakeCollective,
   fakeIncognitoProfile,
+  fakeLocation,
   fakeMember,
   fakeOrder,
   fakePrivateOrganization,
@@ -182,6 +183,10 @@ describe('server/graphql/v2/object/Order', () => {
           fromAccount {
             id
             legalName
+            location {
+              address
+              country
+            }
           }
         }
       }
@@ -229,6 +234,20 @@ describe('server/graphql/v2/object/Order', () => {
       expect(result.data.order.fromAccount.legalName).to.eq('Secret Legal Name');
     });
 
+    it('host accountant can see the location of the fromAccount', async () => {
+      const contributor = await fakeUser();
+      await fakeLocation({ CollectiveId: contributor.collective.id });
+      const orderWithLocation = await fakeOrder({
+        CollectiveId: collective.id,
+        FromCollectiveId: contributor.collective.id,
+      });
+
+      const result = await graphqlQueryV2(fromAccountQuery, { legacyId: orderWithLocation.id }, hostAccountantUser);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.order.fromAccount.location.address).to.be.a('string');
+    });
+
     it('unrelated user cannot see legalName of the fromAccount', async () => {
       const result = await graphqlQueryV2(fromAccountQuery, { legacyId: order.id }, unrelatedUser);
       result.errors && console.error(result.errors);
@@ -261,6 +280,42 @@ describe('server/graphql/v2/object/Order', () => {
       expect(result.errors.some(error => error.message === 'This account is private. You must be a member to view it.'))
         .to.be.true;
       expect(result.data.order.fromAccount).to.be.null;
+    });
+  });
+
+  describe('customData', () => {
+    const customDataQuery = gql`
+      query Order($legacyId: Int!) {
+        order(order: { legacyId: $legacyId }) {
+          id
+          customData
+        }
+      }
+    `;
+
+    it('admin can see customData', async () => {
+      const collective = await fakeCollective();
+      const admin = await fakeUser();
+      await fakeMember({
+        CollectiveId: collective.id,
+        MemberCollectiveId: admin.CollectiveId,
+        role: roles.ADMIN,
+      });
+      const order = await fakeOrder({ CollectiveId: collective.id, data: { customData: { foo: 'bar' } } });
+
+      const result = await graphqlQueryV2(customDataQuery, { legacyId: order.id }, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.order.customData).to.deep.eq({ foo: 'bar' });
+    });
+
+    it('unrelated user cannot see customData', async () => {
+      const order = await fakeOrder({ data: { customData: { foo: 'bar' } } });
+      const randomUser = await fakeUser();
+
+      const result = await graphqlQueryV2(customDataQuery, { legacyId: order.id }, randomUser);
+      expect(result.errors).to.not.exist;
+      expect(result.data.order.customData).to.be.null;
     });
   });
 });
