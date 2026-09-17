@@ -255,6 +255,21 @@ describe('server/graphql/common/expenses', () => {
     return promises;
   };
 
+  const isPlatformGeneratedContext = context => ['settlement', 'platformBilling'].includes(context.name);
+
+  /** Billed host / submitter cannot mutate platform invoices; only a platform admin can. */
+  const platformGeneratedMutationPermissions = {
+    public: false,
+    randomUser: false,
+    collectiveAdmin: false,
+    collectiveAccountant: false,
+    hostAdmin: false,
+    hostAccountant: false,
+    expenseOwner: false,
+    limitedHostAdmin: false,
+    platformAdmin: true,
+  };
+
   describe('canSeeExpenseAttachments', () => {
     describe('can see only with the allowed roles or host admin', () => {
       runEachForAllContexts(key => {
@@ -366,14 +381,22 @@ describe('server/graphql/common/expenses', () => {
       await runForAllContexts(async context => {
         const { expense, req } = context;
         const isVirtualCard = expense.type === 'CHARGE';
+        const isPlatformGenerated = isPlatformGeneratedContext(context);
+        const editorReq = isPlatformGenerated ? req.platformAdmin : req.hostAdmin;
         await expense.update({ status: 'PENDING' });
-        expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        expect(await canEditExpense(editorReq, expense)).to.be.true;
+        if (isPlatformGenerated) {
+          expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+        }
         await expense.update({ status: 'APPROVED' });
-        expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        expect(await canEditExpense(editorReq, expense)).to.be.true;
+        if (isPlatformGenerated) {
+          expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+        }
         await expense.update({ status: 'ERROR' });
-        expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        expect(await canEditExpense(editorReq, expense)).to.be.true;
         await expense.update({ status: 'REJECTED' });
-        expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        expect(await canEditExpense(editorReq, expense)).to.be.true;
         await expense.update({ status: 'PROCESSING' });
 
         // Can still edit processing/paid expenses if it's a virtual card
@@ -382,15 +405,18 @@ describe('server/graphql/common/expenses', () => {
           await expense.update({ status: 'PAID' });
           expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
         } else {
-          expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+          expect(await canEditExpense(editorReq, expense)).to.be.false;
           await expense.update({ status: 'PAID' });
-          expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+          expect(await canEditExpense(editorReq, expense)).to.be.false;
         }
 
         await expense.update({ status: 'DRAFT' });
-        expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        expect(await canEditExpense(editorReq, expense)).to.be.true;
+        if (isPlatformGenerated) {
+          expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+        }
         await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
-        expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+        expect(await canEditExpense(editorReq, expense)).to.be.false;
       });
     });
 
@@ -415,7 +441,12 @@ describe('server/graphql/common/expenses', () => {
         const expensePayee = await fakeUser();
         await expensePayee.populateRoles();
         await expense.update({ status: 'DRAFT', data: { payee: { id: expensePayee.collective.id } } });
-        expect(await canEditExpense(makeRequest(expensePayee), expense)).to.be.true;
+        if (isPlatformGeneratedContext(context)) {
+          expect(await canEditExpense(makeRequest(expensePayee), expense)).to.be.false;
+          expect(await canEditExpense(context.req.platformAdmin, expense)).to.be.true;
+        } else {
+          expect(await canEditExpense(makeRequest(expensePayee), expense)).to.be.true;
+        }
       });
     });
 
@@ -518,22 +549,28 @@ describe('server/graphql/common/expenses', () => {
     it('only if expense is in PENDING, APPROVED, or INCOMPLETE status', async () => {
       await runForAllContexts(async context => {
         const { expense, req } = context;
+        const isPlatformGenerated = isPlatformGeneratedContext(context);
+        const editorReq = isPlatformGenerated ? req.platformAdmin : req.expenseOwner;
 
         // Expense owner can edit title only in specific statuses
         await expense.update({ status: 'PAID' });
-        expect(await canEditTitle(req.expenseOwner, expense)).to.be.false;
+        expect(await canEditTitle(editorReq, expense)).to.be.false;
         await expense.update({ status: 'PROCESSING' });
-        expect(await canEditTitle(req.expenseOwner, expense)).to.be.false;
+        expect(await canEditTitle(editorReq, expense)).to.be.false;
         await expense.update({ status: 'REJECTED' });
-        expect(await canEditTitle(req.expenseOwner, expense)).to.be.false;
+        expect(await canEditTitle(editorReq, expense)).to.be.false;
         await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
-        expect(await canEditTitle(req.expenseOwner, expense)).to.be.false;
+        expect(await canEditTitle(editorReq, expense)).to.be.false;
 
         // Expense owner can edit in allowed statuses
         await expense.update({ status: 'PENDING' });
-        expect(await canEditTitle(req.expenseOwner, expense)).to.be.true;
+        expect(await canEditTitle(editorReq, expense)).to.be.true;
         await expense.update({ status: 'INCOMPLETE' });
-        expect(await canEditTitle(req.expenseOwner, expense)).to.be.true;
+        expect(await canEditTitle(editorReq, expense)).to.be.true;
+        if (isPlatformGenerated) {
+          expect(await canEditTitle(req.expenseOwner, expense)).to.be.false;
+          expect(await canEditTitle(req.hostAdmin, expense)).to.be.false;
+        }
       });
     });
 
@@ -541,17 +578,21 @@ describe('server/graphql/common/expenses', () => {
       await runForAllContexts(async context => {
         const { expense } = context;
         await expense.update({ status: 'PENDING' });
-        expect(await checkAllPermissions(canEditTitle, context)).to.deep.equal({
-          public: false,
-          randomUser: false,
-          collectiveAdmin: true,
-          collectiveAccountant: false,
-          hostAdmin: context.isSelfHosted,
-          hostAccountant: false,
-          expenseOwner: true,
-          limitedHostAdmin: false,
-          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
-        });
+        expect(await checkAllPermissions(canEditTitle, context)).to.deep.equal(
+          isPlatformGeneratedContext(context)
+            ? platformGeneratedMutationPermissions
+            : {
+                public: false,
+                randomUser: false,
+                collectiveAdmin: true,
+                collectiveAccountant: false,
+                hostAdmin: context.isSelfHosted,
+                hostAccountant: false,
+                expenseOwner: true,
+                limitedHostAdmin: false,
+                platformAdmin: false,
+              },
+        );
       });
     });
 
@@ -559,17 +600,21 @@ describe('server/graphql/common/expenses', () => {
       await runForAllContexts(async context => {
         const { expense } = context;
         await expense.update({ status: 'APPROVED' });
-        expect(await checkAllPermissions(canEditTitle, context)).to.deep.equal({
-          public: false,
-          randomUser: false,
-          collectiveAdmin: true,
-          collectiveAccountant: false,
-          hostAdmin: true,
-          hostAccountant: false,
-          expenseOwner: true,
-          limitedHostAdmin: false,
-          platformAdmin: ['SETTLEMENT', 'PLATFORM_BILLING'].includes(context.expense.type),
-        });
+        expect(await checkAllPermissions(canEditTitle, context)).to.deep.equal(
+          isPlatformGeneratedContext(context)
+            ? platformGeneratedMutationPermissions
+            : {
+                public: false,
+                randomUser: false,
+                collectiveAdmin: true,
+                collectiveAccountant: false,
+                hostAdmin: true,
+                hostAccountant: false,
+                expenseOwner: true,
+                limitedHostAdmin: false,
+                platformAdmin: false,
+              },
+        );
       });
     });
 
@@ -577,17 +622,21 @@ describe('server/graphql/common/expenses', () => {
       await runForAllContexts(async context => {
         const { expense } = context;
         await expense.update({ status: 'INCOMPLETE' });
-        expect(await checkAllPermissions(canEditTitle, context)).to.deep.equal({
-          public: false,
-          randomUser: false,
-          collectiveAdmin: true,
-          collectiveAccountant: false,
-          hostAdmin: true,
-          hostAccountant: false,
-          expenseOwner: true,
-          limitedHostAdmin: false,
-          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
-        });
+        expect(await checkAllPermissions(canEditTitle, context)).to.deep.equal(
+          isPlatformGeneratedContext(context)
+            ? platformGeneratedMutationPermissions
+            : {
+                public: false,
+                randomUser: false,
+                collectiveAdmin: true,
+                collectiveAccountant: false,
+                hostAdmin: true,
+                hostAccountant: false,
+                expenseOwner: true,
+                limitedHostAdmin: false,
+                platformAdmin: false,
+              },
+        );
       });
     });
   });
@@ -960,27 +1009,34 @@ describe('server/graphql/common/expenses', () => {
     it('only if expense is in PENDING, APPROVED, or INCOMPLETE status', async () => {
       await runForAllContexts(async context => {
         const { expense, req } = context;
+        const isPlatformGenerated = isPlatformGeneratedContext(context);
+        const editorReq = isPlatformGenerated ? req.platformAdmin : req.expenseOwner;
 
         // Cannot edit items in disallowed statuses
         await expense.update({ status: 'PAID' });
-        expect(await canEditItems(req.expenseOwner, expense)).to.be.false;
+        expect(await canEditItems(editorReq, expense)).to.be.false;
         await expense.update({ status: 'PROCESSING' });
-        expect(await canEditItems(req.expenseOwner, expense)).to.be.false;
+        expect(await canEditItems(editorReq, expense)).to.be.false;
         await expense.update({ status: 'REJECTED' });
-        expect(await canEditItems(req.expenseOwner, expense)).to.be.false;
+        expect(await canEditItems(editorReq, expense)).to.be.false;
         await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
-        expect(await canEditItems(req.expenseOwner, expense)).to.be.false;
+        expect(await canEditItems(editorReq, expense)).to.be.false;
 
         // Owner can edit items in PENDING, APPROVED or INCOMPLETE statuses
         await expense.update({ status: 'PENDING' });
-        expect(await canEditItems(req.expenseOwner, expense)).to.be.true;
+        expect(await canEditItems(editorReq, expense)).to.be.true;
         await expense.update({ status: 'INCOMPLETE' });
-        expect(await canEditItems(req.expenseOwner, expense)).to.be.true;
+        expect(await canEditItems(editorReq, expense)).to.be.true;
         await expense.update({ status: 'APPROVED' });
-        expect(await canEditItems(req.expenseOwner, expense)).to.be.true;
+        expect(await canEditItems(editorReq, expense)).to.be.true;
 
-        // But host admin can
-        expect(await canEditItems(req.hostAdmin, expense)).to.be.true;
+        if (isPlatformGenerated) {
+          expect(await canEditItems(req.expenseOwner, expense)).to.be.false;
+          expect(await canEditItems(req.hostAdmin, expense)).to.be.false;
+          expect(await canEditItems(req.collectiveAdmin, expense)).to.be.false;
+        } else {
+          expect(await canEditItems(req.hostAdmin, expense)).to.be.true;
+        }
       });
     });
 
@@ -989,17 +1045,21 @@ describe('server/graphql/common/expenses', () => {
         const { expense } = context;
         await expense.update({ status: 'PENDING' });
 
-        expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
-          public: false,
-          randomUser: false,
-          collectiveAdmin: true,
-          collectiveAccountant: false,
-          hostAdmin: context.isSelfHosted,
-          hostAccountant: false,
-          expenseOwner: true,
-          limitedHostAdmin: false,
-          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
-        });
+        expect(await checkAllPermissions(canEditItems, context)).to.deep.equal(
+          isPlatformGeneratedContext(context)
+            ? platformGeneratedMutationPermissions
+            : {
+                public: false,
+                randomUser: false,
+                collectiveAdmin: true,
+                collectiveAccountant: false,
+                hostAdmin: context.isSelfHosted,
+                hostAccountant: false,
+                expenseOwner: true,
+                limitedHostAdmin: false,
+                platformAdmin: false,
+              },
+        );
       });
     });
 
@@ -1007,17 +1067,21 @@ describe('server/graphql/common/expenses', () => {
       await runForAllContexts(async context => {
         const { expense } = context;
         await expense.update({ status: 'APPROVED' });
-        expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
-          public: false,
-          randomUser: false,
-          collectiveAdmin: context.isSelfHosted,
-          collectiveAccountant: false,
-          hostAdmin: true,
-          hostAccountant: false,
-          expenseOwner: true,
-          limitedHostAdmin: false,
-          platformAdmin: ['SETTLEMENT', 'PLATFORM_BILLING'].includes(expense.type),
-        });
+        expect(await checkAllPermissions(canEditItems, context)).to.deep.equal(
+          isPlatformGeneratedContext(context)
+            ? platformGeneratedMutationPermissions
+            : {
+                public: false,
+                randomUser: false,
+                collectiveAdmin: context.isSelfHosted,
+                collectiveAccountant: false,
+                hostAdmin: true,
+                hostAccountant: false,
+                expenseOwner: true,
+                limitedHostAdmin: false,
+                platformAdmin: false,
+              },
+        );
       });
     });
 
@@ -1026,17 +1090,21 @@ describe('server/graphql/common/expenses', () => {
         const { expense } = context;
         await expense.update({ status: 'INCOMPLETE' });
 
-        expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
-          public: false,
-          randomUser: false,
-          collectiveAdmin: context.isSelfHosted,
-          collectiveAccountant: false,
-          hostAdmin: true,
-          hostAccountant: false,
-          expenseOwner: true,
-          limitedHostAdmin: false,
-          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
-        });
+        expect(await checkAllPermissions(canEditItems, context)).to.deep.equal(
+          isPlatformGeneratedContext(context)
+            ? platformGeneratedMutationPermissions
+            : {
+                public: false,
+                randomUser: false,
+                collectiveAdmin: context.isSelfHosted,
+                collectiveAccountant: false,
+                hostAdmin: true,
+                hostAccountant: false,
+                expenseOwner: true,
+                limitedHostAdmin: false,
+                platformAdmin: false,
+              },
+        );
       });
     });
   });
@@ -1377,9 +1445,7 @@ describe('server/graphql/common/expenses', () => {
       await expense.update({ status: 'REJECTED' });
       expect(await canApprove(req.hostAdmin, expense)).to.be.true;
     });
-    it('lets the host admin approve a settlement billed against the per-host platform-tips account', async () => {
-      // The per-host platform-tips account is a hosted child of the host (ParentCollectiveId =
-      // HostCollectiveId = host), so the host admin is recognized as its host admin normally.
+    it('does not let the billed host approve a settlement, including against a per-host platform-tips account', async () => {
       const hostAdmin = await fakeUser();
       const host = await fakeHost();
       await host.addUserWithRole(hostAdmin, 'ADMIN');
@@ -1398,23 +1464,50 @@ describe('server/graphql/common/expenses', () => {
         status: 'PENDING',
       });
 
-      expect(await canApprove(makeRequest(hostAdmin), expense)).to.be.true;
+      expect(await canApprove(makeRequest(hostAdmin), expense)).to.be.false;
+    });
+    it('lets a platform admin approve a settlement billed against the per-host platform-tips account', async () => {
+      const platform = await getOrCreatePlatformAccount();
+      const platformAdmin = await fakeUser();
+      await platform.addUserWithRole(platformAdmin, 'ADMIN');
+      await platformAdmin.populateRoles();
+
+      const host = await fakeHost();
+      const platformAccount = await fakeCollective({
+        type: 'PLATFORM',
+        ParentCollectiveId: host.id,
+        HostCollectiveId: host.id,
+        isActive: true,
+      });
+      const expense = await fakeExpense({
+        CollectiveId: platformAccount.id,
+        HostCollectiveId: host.id,
+        type: 'SETTLEMENT',
+        status: 'PENDING',
+      });
+
+      expect(await canApprove(makeRequest(platformAdmin), expense)).to.be.true;
     });
     it('only with the allowed roles', async () => {
       await runForAllContexts(async context => {
         const { expense } = context;
         await expense.update({ status: 'PENDING' });
-        expect(await checkAllPermissions(canApprove, context)).to.deep.equal({
-          public: false,
-          randomUser: false,
-          collectiveAdmin: context.expense.type !== 'CHARGE',
-          hostAdmin: context.expense.type !== 'CHARGE' || Boolean(context.expense.data?.isManualVirtualCardCharge),
-          expenseOwner: false,
-          limitedHostAdmin: false,
-          collectiveAccountant: false,
-          hostAccountant: false,
-          platformAdmin: false,
-        });
+        expect(await checkAllPermissions(canApprove, context)).to.deep.equal(
+          isPlatformGeneratedContext(context)
+            ? platformGeneratedMutationPermissions
+            : {
+                public: false,
+                randomUser: false,
+                collectiveAdmin: context.expense.type !== 'CHARGE',
+                hostAdmin:
+                  context.expense.type !== 'CHARGE' || Boolean(context.expense.data?.isManualVirtualCardCharge),
+                expenseOwner: false,
+                limitedHostAdmin: false,
+                collectiveAccountant: false,
+                hostAccountant: false,
+                platformAdmin: false,
+              },
+        );
       });
     });
 
@@ -1663,6 +1756,151 @@ describe('server/graphql/common/expenses', () => {
           ),
         ).to.be.false;
       });
+    });
+  });
+
+  describe('platform-generated expenses (PLATFORM_BILLING, SETTLEMENT)', () => {
+    const types = ['PLATFORM_BILLING', 'SETTLEMENT'];
+
+    types.forEach(type => {
+      describe(type, () => {
+        const getContext = () => (type === 'PLATFORM_BILLING' ? contexts.platformBilling : contexts.settlement);
+
+        ['PENDING', 'APPROVED', 'INCOMPLETE', 'DRAFT'].forEach(status => {
+          it(`lets only the platform admin edit the expense in ${status}`, async () => {
+            const { expense } = getContext();
+            await expense.update({ status });
+            expect(await checkAllPermissions(canEditExpense, getContext())).to.deep.equal(
+              platformGeneratedMutationPermissions,
+            );
+          });
+
+          it(`lets only the platform admin edit items in ${status}`, async () => {
+            const { expense } = getContext();
+            await expense.update({ status });
+            expect(await checkAllPermissions(canEditItems, getContext())).to.deep.equal(
+              platformGeneratedMutationPermissions,
+            );
+          });
+
+          it(`lets only the platform admin edit the title in ${status}`, async () => {
+            const { expense } = getContext();
+            await expense.update({ status });
+            expect(await checkAllPermissions(canEditTitle, getContext())).to.deep.equal(
+              platformGeneratedMutationPermissions,
+            );
+          });
+        });
+
+        ['PENDING', 'REJECTED', 'INCOMPLETE'].forEach(status => {
+          it(`lets only the platform admin approve in ${status}`, async () => {
+            const { expense } = getContext();
+            await expense.update({ status });
+            expect(await checkAllPermissions(canApprove, getContext())).to.deep.equal(
+              platformGeneratedMutationPermissions,
+            );
+          });
+        });
+
+        it('does not let the billed host edit or approve after changing status to PENDING (the production attack)', async () => {
+          const { expense, req } = getContext();
+          await expense.update({ status: 'APPROVED' });
+          expect(await canEditItems(req.hostAdmin, expense)).to.be.false;
+          expect(await canEditItems(req.collectiveAdmin, expense)).to.be.false;
+          expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+          expect(await canEditExpense(req.collectiveAdmin, expense)).to.be.false;
+
+          await expense.update({ status: 'PENDING' });
+          expect(await canApprove(req.hostAdmin, expense)).to.be.false;
+          expect(await canApprove(req.collectiveAdmin, expense)).to.be.false;
+          expect(await canApprove(req.platformAdmin, expense)).to.be.true;
+        });
+
+        it('throws MINIMAL_CONDITION_NOT_MET when the billed host tries to edit or approve', async () => {
+          const { expense, req } = getContext();
+          await expense.update({ status: 'APPROVED' });
+          expect(await getApolloErrorCode(canEditExpense(req.hostAdmin, expense, { throw: true }))).to.equal(
+            EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+          );
+          expect(await getApolloErrorCode(canEditItems(req.hostAdmin, expense, { throw: true }))).to.equal(
+            EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+          );
+          expect(await getApolloErrorCode(canEditTitle(req.collectiveAdmin, expense, { throw: true }))).to.equal(
+            EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+          );
+
+          await expense.update({ status: 'PENDING' });
+          expect(await getApolloErrorCode(canApprove(req.hostAdmin, expense, { throw: true }))).to.equal(
+            EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+          );
+          expect(await getApolloErrorCode(canApprove(req.collectiveAdmin, expense, { throw: true }))).to.equal(
+            EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+          );
+        });
+
+        it('still forbids platform admins from editing paid or processing expenses', async () => {
+          const { expense, req } = getContext();
+          await expense.update({ status: 'PAID' });
+          expect(await canEditExpense(req.platformAdmin, expense)).to.be.false;
+          expect(await canEditItems(req.platformAdmin, expense)).to.be.false;
+          expect(await getApolloErrorCode(canEditExpense(req.platformAdmin, expense, { throw: true }))).to.equal(
+            EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+          );
+
+          await expense.update({ status: 'PROCESSING' });
+          expect(await canEditExpense(req.platformAdmin, expense)).to.be.false;
+          await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
+          expect(await canEditExpense(req.platformAdmin, expense)).to.be.false;
+        });
+
+        it('does not let the billed host approve an already-approved expense', async () => {
+          const { expense, req } = getContext();
+          await expense.update({ status: 'APPROVED' });
+          expect(await canApprove(req.hostAdmin, expense)).to.be.false;
+          expect(await canApprove(req.platformAdmin, expense)).to.be.false;
+          expect(await getApolloErrorCode(canApprove(req.platformAdmin, expense, { throw: true }))).to.equal(
+            EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+          );
+        });
+      });
+    });
+
+    it('does not let a self-hosted billed admin edit items or approve', async () => {
+      const platform = await getOrCreatePlatformAccount();
+      const platformAdmin = await fakeUser();
+      await platform.addUserWithRole(platformAdmin, 'ADMIN');
+      await platformAdmin.populateRoles();
+
+      const billedAdmin = await fakeUser();
+      const billedHost = await fakeCollective({
+        hasMoneyManagement: true,
+        isActive: true,
+        HostCollectiveId: null,
+        admin: billedAdmin.collective,
+      });
+      await billedHost.update({ HostCollectiveId: billedHost.id });
+      await billedAdmin.populateRoles();
+
+      const expense = await fakeExpense({
+        type: 'PLATFORM_BILLING',
+        status: 'APPROVED',
+        CollectiveId: billedHost.id,
+        FromCollectiveId: platform.id,
+        amount: 170323,
+      });
+
+      const billedReq = makeRequest(billedAdmin);
+      const platformReq = makeRequest(platformAdmin);
+
+      expect(await canEditExpense(billedReq, expense)).to.be.false;
+      expect(await canEditItems(billedReq, expense)).to.be.false;
+      expect(await canEditTitle(billedReq, expense)).to.be.false;
+      expect(await canApprove(billedReq, expense)).to.be.false;
+
+      await expense.update({ status: 'PENDING' });
+      expect(await canApprove(billedReq, expense)).to.be.false;
+      expect(await canApprove(platformReq, expense)).to.be.true;
+      expect(await canEditItems(platformReq, expense)).to.be.true;
     });
   });
 
