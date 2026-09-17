@@ -18,6 +18,7 @@ import { reportErrorToSentry } from '../../lib/sentry';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import { getQuote, getTransfer, verifyEvent } from '../../lib/transferwise';
 import { parseToBoolean } from '../../lib/utils';
+import { wiseIdsEqual } from '../../lib/wise-id';
 import models from '../../models';
 import {
   ExpenseDataQuoteV3,
@@ -227,7 +228,9 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
 
     const refundedAmount = event.data.resource.refund_amount;
     const sourceAmount = expense.data.transfer.sourceValue;
-    const relatedTransferTransactions = expense.Transactions.filter(t => t.data?.transfer?.id === transferId);
+    const relatedTransferTransactions = expense.Transactions.filter(t =>
+      wiseIdsEqual(t.data?.transfer?.id, transferId),
+    );
     const hasTransactions = relatedTransferTransactions.some(t => t.kind === TransactionKind.EXPENSE);
 
     if (hasTransactions) {

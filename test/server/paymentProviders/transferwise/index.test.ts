@@ -195,7 +195,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     let quote;
     before(async () => {
       getExchangeRates.resolves([{ source: host.currency, target: 'EUR', rate: 0.9044 }]);
-      quote = await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, 123);
+      quote = await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, '123');
     });
 
     it('should calculate targetAmount based on expense amount and rate', () => {
@@ -211,13 +211,13 @@ describe('server/paymentProviders/transferwise/index', () => {
 
     it('should use existing quote if available', async () => {
       createQuote.resetHistory();
-      await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, 123);
+      await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, '123');
       expect(createQuote.callCount).to.be.equal(0);
     });
 
     it('should create a new quote if targetAccount changes', async () => {
       createQuote.resetHistory();
-      await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, 91828971);
+      await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, '91828971');
       expect(createQuote.callCount).to.be.equal(1);
     });
   });
@@ -576,6 +576,29 @@ describe('server/paymentProviders/transferwise/index', () => {
         Error,
         `Expense ${expiredExpense.id} quote expired. Unschedule expense and try again`,
       );
+    });
+
+    it('matches batch transfers across mixed legacy numeric/string transfer ids', async () => {
+      // Expense stores the legacy numeric id, batch group returns it as a string.
+      await expense.update({
+        status: 'APPROVED',
+        data: {
+          ...expense.data,
+          transfer: { id: 800 },
+          batchGroup: { id: batchGroupId },
+          quote: { expirationTime: moment().add(20, 'minutes') },
+        },
+      });
+      getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: ['800'], status: 'NEW' });
+      fundBatchGroup.resolves({ status: 403, headers: { 'x-2fa-approval': ottToken } });
+
+      const response = await transferwise.payExpensesBatchGroup({
+        host,
+        expenses: [expense],
+        remoteUser: hostAdmin,
+      });
+
+      expect(response).to.have.nested.property('headers.x-2fa-approval', ottToken);
     });
 
     it('should fail if any expense is not in the batchGroup', async () => {

@@ -20,7 +20,6 @@ import {
   set,
   split,
   toLower,
-  toNumber,
 } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
@@ -37,6 +36,14 @@ import logger from '../../lib/logger';
 import { safeJsonStringify } from '../../lib/safe-json-stringify';
 import * as transferwise from '../../lib/transferwise';
 import { parseToBoolean } from '../../lib/utils';
+import {
+  legacyNumericWiseId,
+  normalizeWiseId,
+  normalizeWiseIdList,
+  type WiseId,
+  wiseIdListIncludes,
+  wiseIdsEqual,
+} from '../../lib/wise-id';
 import { Collective, ConnectedAccount, Expense, Op, PayoutMethod, sequelize, User } from '../../models';
 import {
   BalanceV4,
@@ -68,16 +75,18 @@ const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blocke
 const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurrenciesForNonProfits);
 const recipientTypesBlockedForBusinessProfiles = splitCSV(config.transferwise.recipientTypesBlockedForBusinessProfiles);
 
-async function populateProfileId(connectedAccount: ConnectedAccount, profileId: number): Promise<void> {
+async function populateProfileId(connectedAccount: ConnectedAccount, profileId: WiseId): Promise<void> {
   if (!connectedAccount.data?.id) {
     const profiles = await transferwise.getProfiles(connectedAccount);
     const personalProfile = profiles.find(p => p.type === 'PERSONAL');
-    const businessProfile = profiles.find(p => p.id === profileId);
+    const businessProfile = profiles.find(p => wiseIdsEqual(p.id, profileId));
     if (businessProfile) {
+      // Historical hashes were computed from numeric IDs; keep using the legacy numeric
+      // representation so existing connected accounts keep being found.
       const hash = hashObject({
-        profileId: businessProfile.id,
+        profileId: legacyNumericWiseId(businessProfile.id),
         service: PROVIDER_NAME,
-        userId: personalProfile.userId,
+        userId: legacyNumericWiseId(personalProfile.userId),
       });
       const isOwner = businessProfile.type === 'BUSINESS' && businessProfile.companyRole === 'OWNER';
       await connectedAccount.update({
@@ -121,7 +130,7 @@ async function quoteExpense(
   connectedAccount: ConnectedAccount,
   payoutMethod: PayoutMethod,
   expense: Expense,
-  targetAccount?: number,
+  targetAccount?: WiseId,
   transferNature?: string,
 ): Promise<ExpenseDataQuoteV3 | ExpenseDataQuoteV2> {
   const existingQuote = expense.data?.quote;
@@ -135,8 +144,8 @@ async function quoteExpense(
     existingQuote['paymentOption'].disabled === false &&
     // Make sure this is not a temporoary quote and it points to the correct Target Account
     'targetAccount' in existingQuote &&
-    existingQuote.targetAccount === expense.data.recipient?.id &&
-    (targetAccount === undefined || existingQuote.targetAccount === targetAccount) &&
+    wiseIdsEqual(existingQuote.targetAccount, expense.data.recipient?.id) &&
+    (targetAccount === undefined || wiseIdsEqual(existingQuote.targetAccount, targetAccount)) &&
     // We can not reuse quotes if a Transfer was already created
     !expense.data.transfer &&
     moment.utc().subtract(60, 'seconds').isBefore(existingQuote['expirationTime']);
@@ -149,7 +158,7 @@ async function quoteExpense(
   expense.host = expense.host || (await expense.collective.getHostCollective());
   const targetCurrency = payoutMethod.data.currency;
   const quoteParams = {
-    profileId: connectedAccount.data.id,
+    profileId: normalizeWiseId(connectedAccount.data.id),
     // Attention: sourceCurrency must always be the host currency, we count with this when persisting the Processor Payment Fee
     sourceCurrency: expense.host.currency,
     targetCurrency,
@@ -495,7 +504,10 @@ async function scheduleExpenseForPayment(
   });
 
   batchGroup = await transferwise.getBatchGroup(connectedAccount, batchGroup.id);
-  assert(batchGroup.transferIds.includes(transfer.id), new Error('Failed to add transfer to existing batch group'));
+  assert(
+    wiseIdListIncludes(batchGroup.transferIds, transfer.id),
+    new Error('Failed to add transfer to existing batch group'),
+  );
   await expense.reload();
   await expense.update({ data: { ...expense.data, batchGroup } });
   await updateBatchGroup(batchGroup);
@@ -579,8 +591,8 @@ async function payExpensesBatchGroup({
     }
     // If it is new, check if the expenses match the batch group and mark it as completed
     else if (batchGroup.status === 'NEW') {
-      const expenseTransferIds = expenses.map(e => e.data.transfer.id);
-      if (difference(batchGroup.transferIds, expenseTransferIds).length > 0) {
+      const expenseTransferIds = normalizeWiseIdList(expenses.map(e => e.data.transfer.id));
+      if (difference(normalizeWiseIdList(batchGroup.transferIds), expenseTransferIds).length > 0) {
         throw new Error(`Expenses requested do not match the transfers added to batch group ${batchGroup.id}`);
       }
       expenses.forEach(expense => {
@@ -592,7 +604,7 @@ async function payExpensesBatchGroup({
         if (moment().isSameOrAfter(expense.data.quote.expirationTime)) {
           throw new Error(`Expense ${expense.id} quote expired. Unschedule expense and try again`);
         }
-        if (!batchGroup.transferIds.includes(expense.data.transfer.id)) {
+        if (!wiseIdListIncludes(batchGroup.transferIds, expense.data.transfer.id)) {
           throw new Error(`Batch group ${batchGroup.id} does not include expense ${expense.id}`);
         }
       });
@@ -821,7 +833,7 @@ async function connectTransferwiseAccount({
   CreatedByUserId,
 }: {
   code: string;
-  profileId: number | string;
+  profileId: string | number | bigint;
   CollectiveId: number;
   CreatedByUserId: number;
 }): Promise<ConnectedAccount> {
@@ -837,9 +849,14 @@ async function connectTransferwiseAccount({
   });
   const profiles = await transferwise.getProfiles(newConnectedAccount);
   const personalProfile = profiles.find(p => p.type === 'PERSONAL');
-  const profile = profiles.find(p => p.id === toNumber(profileId));
+  const profile = profiles.find(p => wiseIdsEqual(p.id, profileId));
   assert(profile, `Could not find Wise profile with id ${profileId}`);
-  const hash = hashObject({ profileId: profile.id, service: PROVIDER_NAME, userId: personalProfile.userId });
+  // Keep legacy numeric hashes so previously connected accounts are not duplicated.
+  const hash = hashObject({
+    profileId: legacyNumericWiseId(profile.id),
+    service: PROVIDER_NAME,
+    userId: legacyNumericWiseId(personalProfile.userId),
+  });
 
   const collective = await Collective.findByPk(CollectiveId);
   assert(collective, `Could not find Collective #${CollectiveId}`);
@@ -874,9 +891,9 @@ async function connectTransferwiseAccount({
     );
 
     const mirrorHash = hashObject({
-      profileId: profile.id,
+      profileId: legacyNumericWiseId(profile.id),
       service: 'transferwise',
-      userId: profile.userId,
+      userId: legacyNumericWiseId(profile.userId),
       MirrorConnectedAccountId: connectedAccountToMirror.id,
     });
     const existingMirror = await ConnectedAccount.findOne({

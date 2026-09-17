@@ -165,4 +165,17 @@ describe('server/controllers/transferwise', () => {
     expect(expense).to.have.property('status', expenseStatus.PROCESSING);
     expect(expense).to.have.nested.property('data.batchGroup.status', 'COMPLETED');
   });
+
+  it('should keep an Int64-maximum transfer id unchanged when marking an expense as processing', async () => {
+    const MAX_INT64 = '9223372036854775807';
+    const hash = randStr('hash');
+    req.headers['x-2fa-approval'] = hash;
+    await expense.update({ data: { ...expense.data, transfer: { id: MAX_INT64 }, quote } });
+
+    await transferwiseController.payBatch(req, res);
+
+    await expense.reload();
+    expect(expense).to.have.property('status', expenseStatus.PROCESSING);
+    expect(expense).to.have.nested.property('data.transfer.id', MAX_INT64);
+  });
 });
