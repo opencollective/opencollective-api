@@ -7,6 +7,7 @@ import { sessionCache } from '../../../../../server/lib/cache';
 import * as transferwiseLib from '../../../../../server/lib/transferwise';
 import twoFactorAuthLib from '../../../../../server/lib/two-factor-authentication';
 import models from '../../../../../server/models';
+import { hashObject } from '../../../../../server/paymentProviders/utils';
 import { fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
@@ -37,6 +38,7 @@ describe('server/graphql/v2/mutation/TransferwiseMutations', () => {
 
   let user, host, otherUser;
   let getOrRefreshTokenStub;
+  let getProfilesStub;
   let enforceForAccountStub;
 
   before(async () => {
@@ -58,7 +60,7 @@ describe('server/graphql/v2/mutation/TransferwiseMutations', () => {
       created_at: moment().unix(),
       /* eslint-enable camelcase */
     } as any);
-    sandbox.stub(transferwiseLib, 'getProfiles').resolves([personalProfile, businessProfile] as any);
+    getProfilesStub = sandbox.stub(transferwiseLib, 'getProfiles').resolves([personalProfile, businessProfile] as any);
     enforceForAccountStub = sandbox.stub(twoFactorAuthLib, 'enforceForAccount').resolves();
   });
 
@@ -243,6 +245,45 @@ describe('server/graphql/v2/mutation/TransferwiseMutations', () => {
       // The OAuth state must be consumed so it cannot be replayed
       const cachedState = await sessionCache.get(`transferwise_oauth_${state}`);
       expect(cachedState).to.not.exist;
+    });
+
+    it('preserves a profileId above Number.MAX_SAFE_INTEGER and does not create a duplicate account', async () => {
+      const bigPersonalProfile = { id: '9007199254740992', type: 'PERSONAL', userId: '9007199254740992' };
+      const bigBusinessProfile = {
+        id: '9007199254740993',
+        type: 'BUSINESS',
+        companyRole: 'OWNER',
+        userId: '9007199254740992',
+      };
+      getProfilesStub.resolves([bigPersonalProfile, bigBusinessProfile] as any);
+
+      // Use a dedicated host so the account connected by other tests doesn't conflict
+      const bigHost = await fakeCollective({ admin: user, currency: 'EUR' });
+
+      const connect = async (state: string) => {
+        await setOAuthState(state, { CollectiveId: bigHost.id, UserId: user.id });
+        const result = await graphqlQueryV2(
+          CONNECT_TRANSFERWISE_ACCOUNT_MUTATION,
+          { code: 'oauth-code', profileId: bigBusinessProfile.id, state },
+          user,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+      };
+
+      await connect('state-big-profile-1');
+      await connect('state-big-profile-2');
+
+      // The exact identifier must be persisted as a string, without rounding
+      const connectedAccounts = await models.ConnectedAccount.findAll({
+        where: { service: 'transferwise', CollectiveId: bigHost.id },
+      });
+      expect(connectedAccounts).to.have.length(1);
+      expect(connectedAccounts[0].data.id).to.equal('9007199254740993');
+      // Historical hashes were derived from numeric IDs; the account must keep being found through it.
+      expect(connectedAccounts[0].hash).to.equal(
+        hashObject({ profileId: 9007199254740992, service: 'transferwise', userId: 9007199254740992 }),
+      );
     });
 
     it('throws if the requested profile cannot be found on Wise', async () => {
