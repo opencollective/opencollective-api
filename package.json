@@ -24,11 +24,6 @@
     "url": "https://github.com/opencollective/opencollective-api.git"
   },
   "main": "server/index.js",
-  "config": {
-    "commitizen": {
-      "path": "./node_modules/cz-conventional-changelog"
-    }
-  },
   "dependencies": {
     "@apollo/server": "5.5.1",
     "@as-integrations/express5": "1.1.2",
@@ -148,8 +143,6 @@
     "chai-jest-snapshot": "^2.0.0",
     "chai-sorted": "^0.2.0",
     "chokidar": "^4.0.1",
-    "commitizen": "^4.3.2",
-    "cz-conventional-changelog": "^3.3.0",
     "eslint": "^10.9.1",
     "eslint-config-opencollective": "^7.1.1",
     "eslint-import-resolver-typescript": "^4.4.5",
@@ -185,7 +178,6 @@
     "build:server": "babel server --copy-files --source-maps true --extensions .js,.ts --ignore \"**/*.d.ts\" -d ./dist",
     "build:updates": "babel-node --extensions .js,.ts scripts/update-cloudflare-ips.ts dist/lib/cloudflare-ips.json",
     "clean": "npm run build:clean && npm run test:clean",
-    "commit": "git-cz",
     "compile:email": "babel-node --extensions .js,.ts scripts/compile-email.js",
     "compile:email:watch": "./scripts/watch_email_template.sh",
     "cron:10mn": "./scripts/cron.sh 10mn",
@@ -284,7 +276,6 @@
     "specials": [
       "babel",
       "bin",
-      "commitizen",
       "eslint",
       "husky",
       "lint-staged",
