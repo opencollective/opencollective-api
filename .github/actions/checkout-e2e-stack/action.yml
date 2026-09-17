@@ -1,0 +1,129 @@
+name: Checkout E2E stack
+description: Checkout frontend (matching branch or pinned ref), images, and PDF for API E2E
+inputs:
+  frontend-ref:
+    description: Pin frontend checkout to this SHA or ref. If empty, resolve a matching branch then main.
+    required: false
+    default: ''
+  images-ref:
+    description: Pin images checkout to this SHA or ref. If empty, use the default branch.
+    required: false
+    default: ''
+  pdf-ref:
+    description: Pin PDF checkout to this SHA or ref. If empty, use the default branch.
+    required: false
+    default: ''
+  github-token:
+    description: Token used to resolve the frontend ref and check out stack repositories
+    required: false
+    default: ${{ github.token }}
+outputs:
+  frontend-ref:
+    description: Resolved frontend commit SHA
+    value: ${{ steps.record-refs.outputs.frontend-ref }}
+  images-ref:
+    description: Resolved images commit SHA
+    value: ${{ steps.record-refs.outputs.images-ref }}
+  pdf-ref:
+    description: Resolved PDF commit SHA
+    value: ${{ steps.record-refs.outputs.pdf-ref }}
+runs:
+  using: composite
+  steps:
+    - name: Resolve frontend ref
+      id: resolve-frontend-ref
+      shell: bash
+      env:
+        FRONTEND_REF_INPUT: ${{ inputs.frontend-ref }}
+      run: |
+        set -euo pipefail
+        if [ -n "${FRONTEND_REF_INPUT}" ]; then
+          echo "frontend-ref=${FRONTEND_REF_INPUT}" >> "${GITHUB_OUTPUT}"
+          echo "Using pinned frontend ref ${FRONTEND_REF_INPUT}"
+          exit 0
+        fi
+
+        BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+        REPO_URL="https://github.com/opencollective/opencollective-frontend.git"
+
+        # Do not add another Authorization extraheader: actions/checkout already
+        # sets one on the runner, and a second header makes GitHub return 400.
+        resolve() {
+          git ls-remote --heads "${REPO_URL}" "refs/heads/${1}" \
+            | awk -v ref="refs/heads/${1}" '$2 == ref { print $1 }'
+        }
+
+        SHA="$(resolve "${BRANCH}")"
+        if [ -z "${SHA}" ] && [ "${BRANCH}" != "main" ]; then
+          echo "No matching frontend branch '${BRANCH}', falling back to main"
+          SHA="$(resolve main)"
+        fi
+        if [ -z "${SHA}" ]; then
+          echo "Failed to resolve opencollective-frontend ref" >&2
+          exit 1
+        fi
+
+        echo "frontend-ref=${SHA}" >> "${GITHUB_OUTPUT}"
+        echo "Resolved frontend ref ${SHA}"
+
+    - name: Checkout (frontend)
+      uses: actions/checkout@v7
+      with:
+        repository: opencollective/opencollective-frontend
+        path: opencollective-frontend
+        ref: ${{ steps.resolve-frontend-ref.outputs.frontend-ref }}
+        token: ${{ inputs.github-token }}
+        persist-credentials: false
+
+    - name: Checkout (images)
+      if: ${{ inputs.images-ref == '' }}
+      uses: actions/checkout@v7
+      with:
+        repository: opencollective/opencollective-images
+        path: opencollective-images
+        token: ${{ inputs.github-token }}
+        persist-credentials: false
+
+    - name: Checkout (images - pinned)
+      if: ${{ inputs.images-ref != '' }}
+      uses: actions/checkout@v7
+      with:
+        repository: opencollective/opencollective-images
+        path: opencollective-images
+        ref: ${{ inputs.images-ref }}
+        token: ${{ inputs.github-token }}
+        persist-credentials: false
+
+    - name: Checkout (PDF)
+      if: ${{ inputs.pdf-ref == '' }}
+      uses: actions/checkout@v7
+      with:
+        repository: opencollective/opencollective-pdf
+        path: opencollective-pdf
+        token: ${{ inputs.github-token }}
+        persist-credentials: false
+
+    - name: Checkout (PDF - pinned)
+      if: ${{ inputs.pdf-ref != '' }}
+      uses: actions/checkout@v7
+      with:
+        repository: opencollective/opencollective-pdf
+        path: opencollective-pdf
+        ref: ${{ inputs.pdf-ref }}
+        token: ${{ inputs.github-token }}
+        persist-credentials: false
+
+    - name: Record stack refs
+      id: record-refs
+      shell: bash
+      run: |
+        set -euo pipefail
+        FRONTEND_SHA="$(git -C opencollective-frontend rev-parse HEAD)"
+        IMAGES_SHA="$(git -C opencollective-images rev-parse HEAD)"
+        PDF_SHA="$(git -C opencollective-pdf rev-parse HEAD)"
+        echo "frontend-ref=${FRONTEND_SHA}" >> "${GITHUB_OUTPUT}"
+        echo "images-ref=${IMAGES_SHA}" >> "${GITHUB_OUTPUT}"
+        echo "pdf-ref=${PDF_SHA}" >> "${GITHUB_OUTPUT}"
+        echo "frontend ${FRONTEND_SHA}"
+        echo "images ${IMAGES_SHA}"
+        echo "PDF ${PDF_SHA}"

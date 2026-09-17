@@ -51,3 +51,8 @@ scripts/dev/bin
 
 **/security-poc/
 **/security-review/
+
+# Tool caches
+.eslintcache
+.prettiercache
+tsconfig.tsbuildinfo
