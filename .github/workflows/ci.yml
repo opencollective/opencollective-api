@@ -1,5 +1,9 @@
 name: CI
 
+# Security: Do not replace `pull_request` with `pull_request_target` to expose secrets or
+# GITHUB_TOKEN write access to PR code. pull_request_target runs untrusted fork PR code with
+# base-branch privileges.
+
 on:
   push:
     branches:
@@ -9,6 +13,10 @@ on:
       - opened
       - synchronize
       - reopened
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   TZ: UTC
@@ -26,186 +34,123 @@ env:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup node
-        uses: actions/setup-node@v7
+      - name: Setup project
+        uses: ./.github/actions/setup-project
         with:
-          node-version-file: 'package.json'
-          cache: 'npm'
+          CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
-      - name: Restore node_modules
+      - name: Restore ESLint cache
         uses: actions/cache@v6
-        id: api-node-modules
         with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+          path: .eslintcache
+          key: ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-eslint-${{ hashFiles('eslint.config.mjs', 'package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-eslint-${{ hashFiles('eslint.config.mjs', 'package-lock.json') }}-
 
       - run: npm run lint:check
 
   prettier:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup node
-        uses: actions/setup-node@v7
+      - name: Setup project
+        uses: ./.github/actions/setup-project
         with:
-          node-version-file: 'package.json'
-          cache: 'npm'
+          CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
-      - name: Restore node_modules
+      - name: Restore Prettier cache
         uses: actions/cache@v6
-        id: api-node-modules
         with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+          path: .prettiercache
+          key: ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-prettier-${{ hashFiles('.prettierrc', 'package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-prettier-${{ hashFiles('.prettierrc', 'package-lock.json') }}-
 
       - run: npm run prettier:check
 
   typescript:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup node
-        uses: actions/setup-node@v7
+      - name: Setup project
+        uses: ./.github/actions/setup-project
         with:
-          node-version-file: 'package.json'
-          cache: 'npm'
+          CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
-      - name: Restore node_modules
+      - name: Restore TypeScript incremental cache
         uses: actions/cache@v6
-        id: api-node-modules
         with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+          path: tsconfig.tsbuildinfo
+          key: ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-tsc-${{ hashFiles('tsconfig.json', 'package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-tsc-${{ hashFiles('tsconfig.json', 'package-lock.json') }}-
 
       - run: npm run type:check
 
   depcheck:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup node
-        uses: actions/setup-node@v7
+      - name: Setup project
+        uses: ./.github/actions/setup-project
         with:
-          node-version-file: 'package.json'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v6
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+          CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
       - run: npm run depcheck
 
   ts-unused-exports:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup node
-        uses: actions/setup-node@v7
+      - name: Setup project
+        uses: ./.github/actions/setup-project
         with:
-          node-version-file: 'package.json'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v6
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
-
-      - name: Cache build
-        uses: actions/cache@v6
-        with:
-          path: dist
-          key: ${{ runner.os }}-api-build-${{ github.sha }}
+          CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
       - name: Check unused exports
         run: npm run ts-unused-exports
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup node
-        uses: actions/setup-node@v7
+      - name: Setup project
+        uses: ./.github/actions/setup-project
         with:
-          node-version-file: 'package.json'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v6
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
-
-      - name: Cache build
-        uses: actions/cache@v6
-        with:
-          path: dist
-          key: ${{ runner.os }}-api-build-${{ github.sha }}
+          CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
       - name: Build
         run: npm run build
 
   test:
     runs-on: ubuntu-26.04
-
     timeout-minutes: 30
     env:
       PG_DATABASE: opencollective_test
@@ -223,7 +168,7 @@ jobs:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        options: --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 5
       rustfs:
         image: rustfs/rustfs:1.0.0-rc.6@sha256:97171b3d72cd47dc81000f92ea84de25608bfc35a94c965501afaeb5d99f6035
         ports:
@@ -237,22 +182,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup node
-        uses: actions/setup-node@v7
+      - name: Setup project
+        uses: ./.github/actions/setup-project
         with:
-          node-version-file: 'package.json'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v6
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Install dependencies+
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+          CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
       # The ubuntu-26.04 image ships PostgreSQL 18 client tools, whose pg_restore emits
       # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Install the 16 client from PGDG.
@@ -264,9 +197,16 @@ jobs:
 
       - run: npm run db:restore:test
 
-      - run: npm run test:coverage -- --ignore "test/server/graphql/**"
+      - name: Test
+        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+        run: npm run test:ci -- --ignore "test/server/graphql/**"
+
+      - name: Test with coverage
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: npm run test:coverage -- --ignore "test/server/graphql/**"
 
       - name: Report coverage
+        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -300,7 +240,7 @@ jobs:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        options: --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 5
       opensearch:
         image: opensearchproject/opensearch:3@sha256:fafe3fc3587088674669235575aa166228c48bdb940294a8cdbbc1da75236a40
         ports:
@@ -326,22 +266,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup node
-        uses: actions/setup-node@v7
+      - name: Setup project
+        uses: ./.github/actions/setup-project
         with:
-          node-version-file: 'package.json'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v6
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+          CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
       # The ubuntu-26.04 image ships PostgreSQL 18 client tools, whose pg_restore emits
       # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Install the 16 client from PGDG.
@@ -353,10 +281,16 @@ jobs:
 
       - run: npm run db:restore:test
 
-      - run: npm run test:coverage test/server/graphql
+      - name: Test
+        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+        run: npm run test:ci test/server/graphql
+
+      - name: Test with coverage
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: npm run test:coverage test/server/graphql
 
       - name: Report coverage
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -369,7 +303,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
   schema-update:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     services:
@@ -386,34 +320,23 @@ jobs:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        options: --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 5
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup node
-        uses: actions/setup-node@v7
+      - name: Setup project
+        uses: ./.github/actions/setup-project
         with:
-          node-version-file: 'package.json'
-          cache: 'npm'
+          CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
-      - name: Restore node_modules
-        uses: actions/cache@v6
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
       - name: Generate & check schemas
         run: ./scripts/check-schemas.sh
 
   graphql-inspector:
     name: GraphQL Inspector
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # The action publishes its results as check runs (with annotations) and reads PR labels for the
     # approve-label override. Workflows triggered by Dependabot get a read-only GITHUB_TOKEN by
     # default, so the write scope must be requested explicitly. This job never installs or runs
@@ -423,21 +346,6 @@ jobs:
       contents: read
       checks: write
       pull-requests: read
-    services:
-      redis:
-        image: redis@sha256:8a1efc5f479551822b47424ccae982026b633f28818eab0387348120a61e10e2
-        ports:
-          - 6379:6379
-        options: --entrypoint redis-server
-      postgres:
-        image: postgres:16.15@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_DB: postgres
-          POSTGRES_HOST_AUTH_METHOD: trust
-        ports:
-          - 5432:5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v7
