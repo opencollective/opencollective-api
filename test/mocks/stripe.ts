@@ -1,4 +1,4 @@
-import type { Stripe } from '../../server/lib/stripe-types';
+import Stripe from 'stripe';
 
 export default {
   accounts: {

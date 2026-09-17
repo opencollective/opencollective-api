@@ -3,6 +3,7 @@ import assert from 'assert';
 import { get, groupBy, memoize, round, set, sumBy, truncate, uniq } from 'lodash';
 import moment from 'moment';
 import { Order, Transaction as SequelizeTransaction } from 'sequelize';
+import Stripe from 'stripe';
 
 import { CollectiveType } from '../constants/collectives';
 import { SupportedCurrency } from '../constants/currencies';
@@ -22,7 +23,6 @@ import Transaction, { TransactionData } from '../models/Transaction';
 
 import { getFxRate, roundCentsAmount } from './currency';
 import { calcFee } from './payments';
-import type { Stripe } from './stripe-types';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 const { ADDED_FUNDS, CONTRIBUTION, EXPENSE } = TransactionKind;

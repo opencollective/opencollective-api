@@ -5,7 +5,7 @@ import { Request } from 'express';
 import { get, omit } from 'lodash';
 import moment from 'moment';
 import { Op, QueryTypes, Transaction } from 'sequelize';
-import type { Stripe } from '../../lib/stripe-types';
+import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../constants/activities';
