@@ -660,6 +660,11 @@ export const parseSearchTerm = (
       type: 'number';
       term: number;
       isFloat?: boolean;
+      /**
+       * Original decimal text. `term` is coerced through `parseFloat`, which rounds integers above
+       * `Number.MAX_SAFE_INTEGER`; JSONB data fields must be compared using the exact digits.
+       */
+      text: string;
     }
   | {
       type: 'publicId';
@@ -680,7 +685,7 @@ export const parseSearchTerm = (
     // Searching for integer IDs (e.g. `#123`)
     return { type: 'id', term: parseInt(searchTerm.replace(/^#/, '')) };
   } else if (searchTerm.match(/^\d+\.?\d*$/)) {
-    return { type: 'number', term: parseFloat(searchTerm), isFloat: searchTerm.includes('.') };
+    return { type: 'number', term: parseFloat(searchTerm), isFloat: searchTerm.includes('.'), text: searchTerm };
   } else if (isAnyEntityPublicId(searchTerm)) {
     return { type: 'publicId', term: searchTerm, prefix: getEntityShortIdPrefix(searchTerm) };
   } else {
@@ -783,7 +788,10 @@ export const buildSearchConditions = (
       (parsedTerm.type === 'number' && !parsedTerm.isFloat) ||
       parsedTerm.type === 'publicId')
   ) {
-    conditions.push(...dataFields.map(field => ({ [field]: toString(parsedTerm.term) })));
+    // For numeric terms, compare the original decimal text rather than the `parseFloat`-rounded
+    // value: Wise/external identifiers may exceed `Number.MAX_SAFE_INTEGER`.
+    const dataTerm = parsedTerm.type === 'number' ? parsedTerm.text : toString(parsedTerm.term);
+    conditions.push(...dataFields.map(field => ({ [field]: dataTerm })));
   }
 
   // Conditions for numbers (ID, amount)
@@ -894,7 +902,10 @@ export const buildKyselySearchConditions =
         ((parsedTerm.type === 'text' && parsedTerm.words === 1) ||
           (parsedTerm.type === 'number' && !parsedTerm.isFloat))
       ) {
-        dataFields.forEach(field => conditions.push(eb(field, '=', toString(parsedTerm.term))));
+        // For numeric terms, compare the original decimal text rather than the `parseFloat`-rounded
+        // value: Wise/external identifiers may exceed `Number.MAX_SAFE_INTEGER`.
+        const dataTerm = parsedTerm.type === 'number' ? parsedTerm.text : toString(parsedTerm.term);
+        dataFields.forEach(field => conditions.push(eb(field, '=', dataTerm)));
       }
 
       // Bare numbers (not #id): match integer id columns and/or amount columns (stored in cents).

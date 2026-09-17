@@ -458,9 +458,19 @@ describe('server/lib/search', () => {
     });
 
     it('detects numbers', () => {
-      expect(parseSearchTerm('42')).to.deep.equal({ type: 'number', term: 42, isFloat: false });
-      expect(parseSearchTerm('42.')).to.deep.equal({ type: 'number', term: 42, isFloat: true });
-      expect(parseSearchTerm('42.64')).to.deep.equal({ type: 'number', term: 42.64, isFloat: true });
+      expect(parseSearchTerm('42')).to.deep.equal({ type: 'number', term: 42, isFloat: false, text: '42' });
+      expect(parseSearchTerm('42.')).to.deep.equal({ type: 'number', term: 42, isFloat: true, text: '42.' });
+      expect(parseSearchTerm('42.64')).to.deep.equal({ type: 'number', term: 42.64, isFloat: true, text: '42.64' });
+    });
+
+    it('preserves the exact decimal text for integers above Number.MAX_SAFE_INTEGER', () => {
+      const parsed = parseSearchTerm('9223372036854775807');
+      expect(parsed).to.deep.equal({
+        type: 'number',
+        term: parseFloat('9223372036854775807'), // parseFloat rounds, which is why `text` matters
+        isFloat: false,
+        text: '9223372036854775807',
+      });
     });
 
     it('detects public ids', () => {
@@ -509,6 +519,13 @@ describe('server/lib/search', () => {
 
     it('build conditions for IDs', () => {
       expect(testBuildSearchConditions('#4242')).to.deep.eq([{ id: 4242 }, { '$fromCollective.id$': 4242 }]);
+    });
+
+    it('builds dataFields conditions from the exact decimal text for large integers', () => {
+      const config = { ...TEST_FIELDS_CONFIGURATION, dataFields: ['data.transfer.id'] };
+      const conditions = buildSearchConditions('9223372036854775807', config);
+      expect(conditions).to.deep.include({ 'data.transfer.id': '9223372036854775807' });
+      expect(conditions).to.not.deep.include({ 'data.transfer.id': '9223372036854776000' });
     });
 
     it('build conditions for slugs', () => {
@@ -807,6 +824,14 @@ describe('server/lib/search', () => {
       expect(compiledSql).to.include('"data"."reference"');
       expect(compiledSql).to.not.include('ilike');
       expect(parameters).to.include('ref_abc');
+    });
+
+    it('builds dataFields conditions from the exact decimal text for large integers (Kysely)', () => {
+      const { parameters } = compileWithSearch('9223372036854775807', {
+        dataFields: ['data.transfer.id'],
+      });
+      expect(parameters).to.include('9223372036854775807');
+      expect(parameters).to.not.include('9223372036854776000');
     });
 
     it('falls through to inclusive ILIKE when email type has empty emailFields', () => {
