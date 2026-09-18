@@ -78,17 +78,17 @@ async function checkAccountingCategoryHostIntegrity({ fix = false } = {}) {
 }
 
 /**
- * A hold can only be put on an approved expense. Any other status with the flag set is stale.
+ * The hold is a host-side marker that survives collective review, but has no meaning once the expense is closed.
  */
-export async function checkStaleExpenseHolds({ fix = false } = {}) {
-  const message = 'Expenses on hold that are not approved';
+async function checkStaleExpenseHolds({ fix = false } = {}) {
+  const message = 'Closed expenses still on hold';
 
   const results = await sequelize.query<{ id: number; status: string }>(
     `
     SELECT id, status
     FROM "Expenses"
     WHERE "onHold" = true
-      AND status <> 'APPROVED'
+      AND status IN ('REJECTED', 'SPAM', 'CANCELED', 'PAID')
       AND "deletedAt" IS NULL
     ORDER BY "createdAt" DESC
     `,
@@ -105,7 +105,7 @@ export async function checkStaleExpenseHolds({ fix = false } = {}) {
         UPDATE "Expenses"
         SET "onHold" = false
         WHERE "onHold" = true
-          AND status <> 'APPROVED'
+          AND status IN ('REJECTED', 'SPAM', 'CANCELED', 'PAID')
           AND "deletedAt" IS NULL
         `,
         { type: QueryTypes.UPDATE },
