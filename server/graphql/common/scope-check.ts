@@ -31,6 +31,13 @@ export const checkRemoteUserCanUseAccount = (
   enforceScope(req, 'account');
 };
 
+export const checkRemoteUserCanUseIncognito = (req: Express.Request): void => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage incognito details.');
+  }
+  enforceScope(req, 'incognito');
+};
+
 export const checkRemoteUserCanUseExportRequests = (req: Express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage export requests.');
@@ -126,6 +133,8 @@ export const checkRemoteUserCanUseComment = (comment: Comment, req: Express.Requ
     checkRemoteUserCanUseExpenses(req);
   } else if (comment.HostApplicationId) {
     checkRemoteUserCanUseHostApplications(req);
+  } else if (comment.OrderId) {
+    checkRemoteUserCanUseOrders(req);
   }
 };
 
@@ -150,6 +159,9 @@ export const checkScopeForExportRequest = (
     checkRemoteUserCanUseTransactions(req);
     if (exportRequest.parameters?.isHostReport) {
       checkRemoteUserCanUseHost(req);
+    }
+    if (exportRequest.parameters?.includeIncognitoTransactions) {
+      checkRemoteUserCanUseIncognito(req);
     }
   } else if (exportRequest.type === ExportRequestTypes.HOSTED_COLLECTIVES) {
     checkRemoteUserCanUseHost(req);
