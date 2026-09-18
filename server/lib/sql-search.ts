@@ -162,6 +162,15 @@ const trimSearchTerm = term => {
 };
 
 /**
+ * Removes leading zeros from the decimal text of an integer search term. JSONB `dataFields` are
+ * compared as text, so a user searching `007` must still match a stored value of `7`. Zero-like
+ * terms keep a single `0` instead of collapsing to an empty string.
+ */
+export const canonicalizeIntegerSearchText = (text: string): string => {
+  return text.replace(/^0+(?=\d)/, '');
+};
+
+/**
  * Sanitize a search string to be used in a SQL query
  *
  * Examples: "   crème     brulée => "creme brulee"
@@ -793,8 +802,10 @@ export const buildSearchConditions = (
       parsedTerm.type === 'publicId')
   ) {
     // For numeric terms, compare the original decimal text rather than the `parseFloat`-rounded
-    // value: Wise/external identifiers may exceed `Number.MAX_SAFE_INTEGER`.
-    const dataTerm = parsedTerm.type === 'number' ? parsedTerm.text : toString(parsedTerm.term);
+    // value: Wise/external identifiers may exceed `Number.MAX_SAFE_INTEGER`. Leading zeros are
+    // canonicalized so `007` still matches a stored `7`.
+    const dataTerm =
+      parsedTerm.type === 'number' ? canonicalizeIntegerSearchText(parsedTerm.text) : toString(parsedTerm.term);
     conditions.push(...dataFields.map(field => ({ [field]: dataTerm })));
   }
 
@@ -907,8 +918,10 @@ export const buildKyselySearchConditions =
           (parsedTerm.type === 'number' && !parsedTerm.isFloat))
       ) {
         // For numeric terms, compare the original decimal text rather than the `parseFloat`-rounded
-        // value: Wise/external identifiers may exceed `Number.MAX_SAFE_INTEGER`.
-        const dataTerm = parsedTerm.type === 'number' ? parsedTerm.text : toString(parsedTerm.term);
+        // value: Wise/external identifiers may exceed `Number.MAX_SAFE_INTEGER`. Leading zeros are
+        // canonicalized so `007` still matches a stored `7`.
+        const dataTerm =
+          parsedTerm.type === 'number' ? canonicalizeIntegerSearchText(parsedTerm.text) : toString(parsedTerm.term);
         dataFields.forEach(field => conditions.push(eb(field, '=', dataTerm)));
       }
 
