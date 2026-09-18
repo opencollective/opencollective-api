@@ -9,6 +9,7 @@ import { EntityShortIdPrefix } from '../../../server/lib/permalink/entity-map';
 import {
   buildKyselySearchConditions,
   buildSearchConditions,
+  canonicalizeIntegerSearchText,
   parseSearchTerm,
   sanitizeSearchTermForILike,
   searchCollectivesByEmail,
@@ -496,6 +497,23 @@ describe('server/lib/search', () => {
     });
   });
 
+  describe('canonicalizeIntegerSearchText', () => {
+    it('removes leading zeros', () => {
+      expect(canonicalizeIntegerSearchText('007')).to.eq('7');
+      expect(canonicalizeIntegerSearchText('000123')).to.eq('123');
+      expect(canonicalizeIntegerSearchText('00700')).to.eq('700');
+    });
+
+    it('retains a single zero for zero-like terms', () => {
+      expect(canonicalizeIntegerSearchText('0')).to.eq('0');
+      expect(canonicalizeIntegerSearchText('000')).to.eq('0');
+    });
+
+    it('leaves terms without leading zeros unchanged', () => {
+      expect(canonicalizeIntegerSearchText('9223372036854775807')).to.eq('9223372036854775807');
+    });
+  });
+
   describe('buildSearchConditions', () => {
     const TEST_FIELDS_CONFIGURATION = {
       slugFields: ['slug', '$fromCollective.slug$'],
@@ -526,6 +544,13 @@ describe('server/lib/search', () => {
       const conditions = buildSearchConditions('9223372036854775807', config);
       expect(conditions).to.deep.include({ 'data.transfer.id': '9223372036854775807' });
       expect(conditions).to.not.deep.include({ 'data.transfer.id': '9223372036854776000' });
+    });
+
+    it('canonicalizes leading zeros for numeric dataFields searches', () => {
+      const config = { ...TEST_FIELDS_CONFIGURATION, dataFields: ['data.transfer.id'] };
+      const conditions = buildSearchConditions('007', config);
+      expect(conditions).to.deep.include({ 'data.transfer.id': '7' });
+      expect(conditions).to.not.deep.include({ 'data.transfer.id': '007' });
     });
 
     it('build conditions for slugs', () => {
@@ -832,6 +857,14 @@ describe('server/lib/search', () => {
       });
       expect(parameters).to.include('9223372036854775807');
       expect(parameters).to.not.include('9223372036854776000');
+    });
+
+    it('canonicalizes leading zeros for numeric dataFields searches (Kysely)', () => {
+      const { parameters } = compileWithSearch('007', {
+        dataFields: ['data.transfer.id'],
+      });
+      expect(parameters).to.include('7');
+      expect(parameters).to.not.include('007');
     });
 
     it('falls through to inclusive ILIKE when email type has empty emailFields', () => {
