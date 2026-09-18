@@ -1,5 +1,6 @@
 import assert from 'assert';
 
+import type { Request } from 'express';
 import {
   GraphQLBoolean,
   GraphQLFloat,
@@ -86,6 +87,17 @@ import { GraphQLHostStats } from './HostStats';
 import { GraphQLHostTransactionReports } from './HostTransactionReports';
 import { getOrganizationFields } from './Organization';
 
+const requireHostAdmin = (
+  req: Request,
+  host: Collective,
+  message = 'You need to be logged in as an admin of the host to see this data',
+): void => {
+  checkRemoteUserCanUseHost(req);
+  if (!req.remoteUser.isAdminOfCollective(host)) {
+    throw new Unauthorized(message);
+  }
+};
+
 const getNumberOfDays = (startDate, endDate, host) => {
   const momentStartDate = startDate && moment(startDate);
   const momentCreated = moment(host.createdAt);
@@ -170,7 +182,12 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLDateTime,
           },
         },
-        resolve: async (host, args) => {
+        resolve: async (host, args, req) => {
+          requireHostAdmin(
+            req,
+            host,
+            'You need to be logged in as an admin of the host to see its transaction reports',
+          );
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
             throw new Error('Only monthly, quarterly and yearly reports are supported.');
           }
@@ -458,7 +475,8 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLDateTime,
           },
         },
-        resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }) => {
+        resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }, req) => {
+          requireHostAdmin(req, host, 'You need to be logged in as an admin of the host to see its expense reports');
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
             throw new Error('Only monthly, quarterly and yearly reports are supported.');
           }
@@ -528,7 +546,12 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLDateTime,
           },
         },
-        resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }) => {
+        resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }, req) => {
+          requireHostAdmin(
+            req,
+            host,
+            'You need to be logged in as an admin of the host to see its contribution reports',
+          );
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
             throw new Error('Only monthly, quarterly and yearly reports are supported.');
           }
@@ -605,9 +628,7 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         resolve: async (host, args, req) => {
-          if (!req.remoteUser?.isAdmin(host.id)) {
-            throw new Unauthorized('You need to be logged in as an admin of the host to see its applications');
-          }
+          requireHostAdmin(req, host, 'You need to be logged in as an admin of the host to see its applications');
 
           const where = {};
 
@@ -691,9 +712,11 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         resolve: async (host, args, req) => {
-          if (!req.remoteUser?.isAdmin(host.id)) {
-            throw new Unauthorized('You need to be logged in as an admin of the host to see its pending application');
-          }
+          requireHostAdmin(
+            req,
+            host,
+            'You need to be logged in as an admin of the host to see its pending application',
+          );
 
           const applyTypes = [CollectiveType.COLLECTIVE, CollectiveType.FUND];
           const where = { HostCollectiveId: host.id, approvedAt: null, type: { [Op.in]: applyTypes } };
@@ -775,9 +798,11 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         async resolve(host, args, req) {
-          if (!req.remoteUser?.isAdmin(host.id)) {
-            throw new Unauthorized('You need to be logged in as an admin of the host to see its hosted virtual cards');
-          }
+          requireHostAdmin(
+            req,
+            host,
+            'You need to be logged in as an admin of the host to see its hosted virtual cards',
+          );
 
           const hasStatusFilter = !isEmpty(args.status);
           const hasCollectiveFilter = !isEmpty(args.collectiveAccountIds);
@@ -944,9 +969,7 @@ export const GraphQLHost = new GraphQLObjectType({
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
         },
         async resolve(host, args, req) {
-          if (!req.remoteUser?.isAdmin(host.id)) {
-            throw new Unauthorized('You need to be logged in as an admin to see the virtual card merchants');
-          }
+          requireHostAdmin(req, host, 'You need to be logged in as an admin to see the virtual card merchants');
 
           const result = await models.Collective.findAndCountAll({
             group: 'Collective.id',
@@ -988,9 +1011,7 @@ export const GraphQLHost = new GraphQLObjectType({
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
         },
         async resolve(host, args, req) {
-          if (!req.remoteUser?.isAdmin(host.id)) {
-            throw new Unauthorized('You need to be logged in as an admin to see the virtual card merchants');
-          }
+          requireHostAdmin(req, host, 'You need to be logged in as an admin to see the virtual card merchants');
 
           const result = await models.Collective.findAndCountAll({
             group: 'Collective.id',
@@ -1040,6 +1061,7 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         async resolve(host, args, req) {
+          checkRemoteUserCanUseHost(req);
           if (!Agreement.canSeeAgreementsForHostCollectiveId(req.remoteUser, host.id)) {
             throw new Unauthorized(
               'You need to be logged in as an admin or accountant of the host to see its agreements',

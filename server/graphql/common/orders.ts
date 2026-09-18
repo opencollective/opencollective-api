@@ -299,14 +299,14 @@ export const canEdit = async (req: express.Request, order: Order): Promise<boole
 };
 
 export const canComment = async (req: express.Request, order: Order): Promise<boolean> => {
-  return isOrderHostAdmin(req, order);
+  return validateOrderScope(req) && isOrderHostAdmin(req, order);
 };
 
 export const canSeeOrderPrivateActivities = async (req: express.Request, order: Order): Promise<boolean> => {
-  return isOrderHostAdminOrAccountant(req, order);
+  return validateOrderScope(req) && isOrderHostAdminOrAccountant(req, order);
 };
 
-const validateOrderScope = (req: express.Request, options: { throw?: boolean } = { throw: false }) => {
+export const validateOrderScope = (req: express.Request, options: { throw?: boolean } = { throw: false }) => {
   if (!checkScope(req, 'orders')) {
     if (options.throw) {
       throw new Forbidden('You do not have the necessary scope to perform this action');
