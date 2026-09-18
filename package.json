@@ -41,7 +41,7 @@
     "@octokit/auth-oauth-app": "9.0.5",
     "@octokit/rest": "22.0.1",
     "@opencollective/taxes": "5.5.0",
-    "@opensearch-project/opensearch": "3.5.0",
+    "@opensearch-project/opensearch": "3.6.0",
     "@paypal/payouts-sdk": "1.1.1",
     "@peculiar/asn1-schema": "2.9.4",
     "@peculiar/asn1-x509": "2.9.4",
