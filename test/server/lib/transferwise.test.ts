@@ -3,6 +3,8 @@ import nock from 'nock';
 import { assert, createSandbox } from 'sinon';
 
 import * as transferwise from '../../../server/lib/transferwise';
+import { wiseInt64 } from '../../../server/lib/wise-id';
+import { TransferStateChangeEvent } from '../../../server/types/transferwise';
 import { fakeConnectedAccount } from '../../test-helpers/fake-data';
 
 const sandbox = createSandbox();
@@ -90,7 +92,9 @@ describe('server/lib/transferwise', () => {
         data: { hasBody: true },
         headers: { Authorization: 'Bearer fake-tokinzes' },
       });
-      assert.calledWith(stub, 'fake-url', { hasBody: true }, { headers: { Authorization: 'Bearer fake-tokinzes' } });
+      assert.calledWith(stub, 'fake-url', '{"hasBody":true}', {
+        headers: { Authorization: 'Bearer fake-tokinzes', 'Content-Type': 'application/json' },
+      });
     });
 
     it('should extract data from the response', async () => {
@@ -119,7 +123,7 @@ describe('server/lib/transferwise', () => {
 
       const [url, data, options] = stub.secondCall.args;
       expect(url).to.equal('fake-url');
-      expect(data).to.deep.equal({ cool: 'beans' });
+      expect(data).to.equal('{"cool":"beans"}');
       expect(options).to.have.property('headers');
       expect(options.headers).to.have.property('Authorization').equal('Bearer fake-tokinzes');
       expect(options.headers).to.have.property('x-2fa-approval').equal('fake-token');
@@ -221,6 +225,123 @@ describe('server/lib/transferwise', () => {
       // The stale token should be disabled by destroying the connected account.
       // BUG: never happens - the account keeps failing on every request (OC-API-13D).
       expect(destroySpy.called).to.be.true;
+    });
+  });
+
+  describe('Int64 identifiers', () => {
+    const sandbox = createSandbox();
+    const MAX_INT64 = '9223372036854775807';
+
+    afterEach(() => {
+      sandbox.restore();
+      nock.cleanAll();
+    });
+
+    it('parses a verified webhook raw body losslessly and normalizes resource IDs', () => {
+      const rawBody = `{
+        "data": {
+          "resource": {
+            "id": 9223372036854775807,
+            "profile_id": 9007199254740993,
+            "account_id": 9007199254740992,
+            "type": "transfer"
+          },
+          "current_state": "outgoing_payment_sent",
+          "previous_state": "processing",
+          "occurred_at": "2020-03-02T13:37:54Z"
+        },
+        "subscription_id": "00000000-0000-0000-0000-000000000000",
+        "event_type": "transfers#state-change",
+        "schema_version": "2.0.0",
+        "sent_at": "2020-03-02T13:37:54Z"
+      }`;
+
+      const event = transferwise.parseWebhookEvent(rawBody) as TransferStateChangeEvent;
+      expect(event.data.resource.id).to.equal(MAX_INT64);
+      expect(event.data.resource.profile_id).to.equal('9007199254740993');
+      expect(event.data.resource.account_id).to.equal('9007199254740992');
+      // Adjacent unsafe values must remain distinct
+      expect(event.data.resource.profile_id).to.not.equal(event.data.resource.account_id);
+    });
+
+    it('serializes Wise int64 identifiers as exact unquoted integers', async () => {
+      const stub = sandbox.stub().resolves({ data: true });
+
+      await transferwise.requestDataAndThrowParsedError(stub, 'fake-url', {
+        data: { targetAccount: wiseInt64(MAX_INT64), quoteUuid: 'quote-uuid' },
+      });
+
+      const [, body, options] = stub.firstCall.args;
+      expect(body).to.equal(`{"targetAccount":${MAX_INT64},"quoteUuid":"quote-uuid"}`);
+      expect(options.headers).to.have.property('Content-Type', 'application/json');
+    });
+
+    it('parses Wise HTTP responses without rounding adjacent unsafe identifiers', async () => {
+      const connectedAccount = await fakeConnectedAccount({
+        service: 'transferwise',
+        token: 'cool-token',
+        // eslint-disable-next-line camelcase
+        data: { created_at: new Date(), expires_in: 10000 },
+      });
+      const rawBody =
+        '{"id":9007199254740993,"user":9007199254740992,"targetAccount":9007199254740992,"quote":9007199254740993,"sourceValue":123.45,"status":"processing"}';
+      nock('https://api.wise-sandbox.com')
+        .get('/v1/transfers/9007199254740993')
+        .reply(200, rawBody, { 'Content-Type': 'application/json' });
+
+      const transfer = await transferwise.getTransfer(connectedAccount, '9007199254740993');
+
+      expect(transfer.id).to.equal('9007199254740993');
+      expect(transfer.user).to.equal('9007199254740992');
+      expect(transfer.id).to.not.equal(transfer.user);
+      expect(transfer.targetAccount).to.equal('9007199254740992');
+      // Non-identifier numeric values must stay numeric
+      expect(transfer).to.have.property('sourceValue', 123.45);
+    });
+
+    it('normalizes simulated transfer responses to canonical string IDs', async () => {
+      const connectedAccount = await fakeConnectedAccount({
+        service: 'transferwise',
+        token: 'cool-token',
+        // eslint-disable-next-line camelcase
+        data: { created_at: new Date(), expires_in: 10000 },
+      });
+      const rawBody =
+        '{"id":2148014123,"user":9007199254740993,"targetAccount":2148014124,"sourceValue":123.45,"status":"outgoing_payment_sent"}';
+      nock('https://api.wise-sandbox.com')
+        .get('/v1/simulation/transfers/2148014123/processing')
+        .reply(200, rawBody, { 'Content-Type': 'application/json' })
+        .get('/v1/simulation/transfers/2148014123/funds_converted')
+        .reply(200, rawBody, { 'Content-Type': 'application/json' })
+        .get('/v1/simulation/transfers/2148014123/outgoing_payment_sent')
+        .reply(200, rawBody, { 'Content-Type': 'application/json' });
+
+      const transfer = await transferwise.simulateTransferSuccess(connectedAccount, '2148014123');
+
+      expect(transfer.id).to.equal('2148014123');
+      expect(transfer.user).to.equal('9007199254740993');
+      expect(transfer.targetAccount).to.equal('2148014124');
+      // Non-identifier numeric values must stay numeric
+      expect(transfer).to.have.property('sourceValue', 123.45);
+    });
+
+    it('sends the exact int64 targetAccount in the raw request body', async () => {
+      const connectedAccount = await fakeConnectedAccount({
+        service: 'transferwise',
+        token: 'cool-token',
+        // eslint-disable-next-line camelcase
+        data: { created_at: new Date(), expires_in: 10000 },
+      });
+      const expectedBody = `{"targetAccount":${MAX_INT64},"quoteUuid":"quote-uuid","customerTransactionId":"customer-tx"}`;
+      const scope = nock('https://api.wise-sandbox.com').post('/v1/transfers', expectedBody).reply(200, '{"id":1}');
+
+      await transferwise.createTransfer(connectedAccount, {
+        accountId: MAX_INT64,
+        quoteUuid: 'quote-uuid',
+        customerTransactionId: 'customer-tx',
+      });
+
+      expect(scope.isDone()).to.be.true;
     });
   });
 });
