@@ -77,7 +77,44 @@ async function checkAccountingCategoryHostIntegrity({ fix = false } = {}) {
   }
 }
 
-export const checks = [checkAccountingCategoryHostIntegrity];
+/**
+ * The hold is a host-side marker that survives collective review, but has no meaning once the expense is closed.
+ */
+async function checkStaleExpenseHolds({ fix = false } = {}) {
+  const message = 'Closed expenses still on hold';
+
+  const results = await sequelize.query<{ id: number; status: string }>(
+    `
+    SELECT id, status
+    FROM "Expenses"
+    WHERE "onHold" = true
+      AND status IN ('REJECTED', 'SPAM', 'CANCELED', 'PAID')
+      AND "deletedAt" IS NULL
+    ORDER BY "createdAt" DESC
+    `,
+    { type: QueryTypes.SELECT, raw: true },
+  );
+
+  if (results.length > 0) {
+    if (!fix) {
+      throw new Error(`${message} (found ${results.length})`);
+    } else {
+      logger.warn(`Fixing: ${message} (releasing hold on ${results.length} expenses)`);
+      await sequelize.query(
+        `
+        UPDATE "Expenses"
+        SET "onHold" = false
+        WHERE "onHold" = true
+          AND status IN ('REJECTED', 'SPAM', 'CANCELED', 'PAID')
+          AND "deletedAt" IS NULL
+        `,
+        { type: QueryTypes.UPDATE },
+      );
+    }
+  }
+}
+
+export const checks = [checkAccountingCategoryHostIntegrity, checkStaleExpenseHolds];
 
 if (!module.parent) {
   runAllChecksThenExit(checks);
