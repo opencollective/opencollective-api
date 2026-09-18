@@ -189,7 +189,7 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
   const expense = await models.Expense.findOne({
     where: {
       status: [expenseStatus.PROCESSING, expenseStatus.PAID, expenseStatus.ERROR],
-      data: { transfer: { id: transferId } },
+      data: { transfer: { id: toString(event.data.resource.id) } },
     },
     include: [
       {
