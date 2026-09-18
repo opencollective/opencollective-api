@@ -280,8 +280,11 @@ describe('server/graphql/v2/mutation/TransferwiseMutations', () => {
       });
       expect(connectedAccounts).to.have.length(1);
       expect(connectedAccounts[0].data.id).to.equal('9007199254740993');
-      // Historical hashes were derived from numeric IDs; the account must keep being found through it.
+      // The hash is derived from the exact canonical ids, never a rounded JavaScript number.
       expect(connectedAccounts[0].hash).to.equal(
+        hashObject({ profileId: '9007199254740993', service: 'transferwise', userId: '9007199254740992' }),
+      );
+      expect(connectedAccounts[0].hash).to.not.equal(
         hashObject({ profileId: 9007199254740992, service: 'transferwise', userId: 9007199254740992 }),
       );
     });
