@@ -157,7 +157,10 @@ describe('server/graphql/v2/mutation/ExportRequestMutations', () => {
       expect(result.data.createExportRequest.name).to.eq('Test Export');
       expect(result.data.createExportRequest.type).to.eq(ExportRequestTypes.TRANSACTIONS);
       expect(result.data.createExportRequest.status).to.eq(ExportRequestStatus.ENQUEUED);
-      expect(result.data.createExportRequest.parameters).to.deep.eq(parameters);
+      expect(result.data.createExportRequest.parameters).to.deep.eq({
+        ...parameters,
+        includeIncognitoTransactions: true,
+      });
       expect(result.data.createExportRequest.account.legacyId).to.eq(collective.id);
       expect(result.data.createExportRequest.createdAt).to.exist;
     });
@@ -230,6 +233,47 @@ describe('server/graphql/v2/mutation/ExportRequestMutations', () => {
       expect(result.errors[0].message).to.equal(
         'The User Token is not allowed for operations in scope "transactions".',
       );
+    });
+
+    it('records includeIncognitoTransactions from OAuth incognito scope', async () => {
+      const adminUser = await fakeUser();
+      const collective = await fakeCollective({ admin: adminUser });
+      const tokenWithoutIncognito = await fakeUserToken({
+        user: adminUser,
+        scope: ['exportRequests', 'transactions'],
+      });
+      const tokenWithIncognito = await fakeUserToken({
+        user: adminUser,
+        scope: ['exportRequests', 'transactions', 'incognito'],
+      });
+
+      const withoutIncognito = await oAuthGraphqlQueryV2(
+        createExportRequestMutation,
+        {
+          exportRequest: {
+            account: { legacyId: collective.id },
+            name: 'No Incognito',
+            type: 'TRANSACTIONS',
+          },
+        },
+        tokenWithoutIncognito,
+      );
+      expect(withoutIncognito.errors).to.not.exist;
+      expect(withoutIncognito.data.createExportRequest.parameters.includeIncognitoTransactions).to.equal(false);
+
+      const withIncognito = await oAuthGraphqlQueryV2(
+        createExportRequestMutation,
+        {
+          exportRequest: {
+            account: { legacyId: collective.id },
+            name: 'With Incognito',
+            type: 'TRANSACTIONS',
+          },
+        },
+        tokenWithIncognito,
+      );
+      expect(withIncognito.errors).to.not.exist;
+      expect(withIncognito.data.createExportRequest.parameters.includeIncognitoTransactions).to.equal(true);
     });
   });
 

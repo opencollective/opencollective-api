@@ -139,6 +139,32 @@ describe('server/lib/export-requests/export-csv', () => {
       expect(stream).to.be.an.instanceof(Readable);
     });
 
+    it('omits includeIncognitoTransactions unless the export request granted it', async () => {
+      const user = await fakeUser();
+      const withoutIncognito = await fakeExportRequest({
+        CreatedByUserId: user.id,
+        parameters: { includeIncognitoTransactions: false },
+      });
+      const withIncognito = await fakeExportRequest({
+        CreatedByUserId: user.id,
+        parameters: { includeIncognitoTransactions: true },
+      });
+      const uploadedFile = await fakeUploadedFile({ CreatedByUserId: user.id });
+      const axiosGetStub = sandbox.stub(axios, 'get').resolves({
+        data: Readable.from(['test data']),
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+      } as any);
+      sandbox.stub(UploadedFile, 'uploadStream').resolves(uploadedFile);
+
+      await processTransactionsRequest(withoutIncognito, new AbortController().signal);
+      expect(axiosGetStub.getCall(0).args[0]).to.not.include('includeIncognitoTransactions');
+
+      await processTransactionsRequest(withIncognito, new AbortController().signal);
+      expect(axiosGetStub.getCall(1).args[0]).to.include('includeIncognitoTransactions=1');
+    });
+
     it('should handle stream errors', async () => {
       // Create test data
       const user = await fakeUser();
