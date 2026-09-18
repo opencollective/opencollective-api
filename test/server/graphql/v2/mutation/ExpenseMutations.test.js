@@ -4963,6 +4963,16 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.data.processExpense.status).to.eq('PENDING');
       });
+
+      it('Keeps the hold, which belongs to the host', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED', onHold: true });
+        const mutationParams = { expenseId: expense.id, action: 'UNAPPROVE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('PENDING');
+        await expense.reload();
+        expect(expense.onHold).to.be.true;
+      });
     });
 
     describe('REJECT', () => {
@@ -5003,6 +5013,16 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'REJECT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.data.processExpense.status).to.eq('REJECTED');
+      });
+
+      it('Releases the hold', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PENDING', onHold: true });
+        const mutationParams = { expenseId: expense.id, action: 'REJECT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('REJECTED');
+        await expense.reload();
+        expect(expense.onHold).to.be.false;
       });
     });
 
