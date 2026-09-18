@@ -2,10 +2,10 @@ import { expect } from 'chai';
 import { isLosslessNumber } from 'lossless-json';
 
 import {
-  legacyNumericWiseId,
   normalizeWiseId,
   normalizeWiseIdList,
   parseLosslessJson,
+  safeLegacyNumericWiseId,
   stringifyLosslessJson,
   tryNormalizeWiseId,
   wiseIdListIncludes,
@@ -73,11 +73,24 @@ describe('server/lib/wise-id', () => {
     });
   });
 
-  describe('legacyNumericWiseId', () => {
-    it('keeps producing the legacy numeric value for hash compatibility', () => {
-      expect(legacyNumericWiseId('220192')).to.equal(220192);
-      // Legacy hashes were built from JSON-parsed numbers, which rounded the same way.
-      expect(legacyNumericWiseId('9007199254740993')).to.equal(9007199254740992);
+  describe('safeLegacyNumericWiseId', () => {
+    it('returns the legacy numeric value for safe integers', () => {
+      expect(safeLegacyNumericWiseId('220192')).to.equal(220192);
+      expect(safeLegacyNumericWiseId(220192)).to.equal(220192);
+      expect(safeLegacyNumericWiseId(220192n)).to.equal(220192);
+    });
+
+    it('refuses values that cannot be represented without rounding', () => {
+      // 9007199254740993 is not a safe integer; returning a rounded number would conflate it with
+      // its neighbour, so the fallback must be disabled for these values.
+      expect(safeLegacyNumericWiseId('9007199254740993')).to.be.undefined;
+      expect(safeLegacyNumericWiseId('9223372036854775807')).to.be.undefined;
+      expect(safeLegacyNumericWiseId(9007199254740993n)).to.be.undefined;
+    });
+
+    it('returns undefined for invalid values', () => {
+      expect(safeLegacyNumericWiseId('abc')).to.be.undefined;
+      expect(safeLegacyNumericWiseId(undefined)).to.be.undefined;
     });
   });
 

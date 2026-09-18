@@ -37,9 +37,9 @@ import { safeJsonStringify } from '../../lib/safe-json-stringify';
 import * as transferwise from '../../lib/transferwise';
 import { parseToBoolean } from '../../lib/utils';
 import {
-  legacyNumericWiseId,
   normalizeWiseId,
   normalizeWiseIdList,
+  safeLegacyNumericWiseId,
   type WiseId,
   wiseIdListIncludes,
   wiseIdsEqual,
@@ -75,18 +75,46 @@ const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blocke
 const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurrenciesForNonProfits);
 const recipientTypesBlockedForBusinessProfiles = splitCSV(config.transferwise.recipientTypesBlockedForBusinessProfiles);
 
+/**
+ * Rebuilds the legacy connected-account hash (computed from JavaScript numbers) for rows created
+ * before identifiers were carried as exact strings.
+ *
+ * `numericFields` lists the identifier keys that used to be numbers; every other key is passed
+ * through unchanged. Returns `undefined` unless all identifier values can be represented as safe
+ * integers, so rounding can never make adjacent Int64 ids collide. The resulting object preserves
+ * the original key order so the fingerprint matches the historical `hashObject` call.
+ */
+function buildLegacyNumericHash(fields: Record<string, unknown>, numericFields: string[]): string | undefined {
+  const legacyFields: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (numericFields.includes(key)) {
+      const numeric = safeLegacyNumericWiseId(value);
+      if (numeric === undefined) {
+        return undefined;
+      }
+      legacyFields[key] = numeric;
+    } else {
+      legacyFields[key] = value;
+    }
+  }
+  return hashObject(legacyFields);
+}
+
 async function populateProfileId(connectedAccount: ConnectedAccount, profileId: WiseId): Promise<void> {
   if (!connectedAccount.data?.id) {
     const profiles = await transferwise.getProfiles(connectedAccount);
     const personalProfile = profiles.find(p => p.type === 'PERSONAL');
+    // Wise does not guarantee that an account has a personal profile (e.g. a business-only
+    // account): fail with a clear error rather than crashing on `personalProfile.userId`.
+    assert(personalProfile, `Could not find a personal Wise profile for connected account ${connectedAccount.id}`);
     const businessProfile = profiles.find(p => wiseIdsEqual(p.id, profileId));
     if (businessProfile) {
-      // Historical hashes were computed from numeric IDs; keep using the legacy numeric
-      // representation so existing connected accounts keep being found.
+      // Use the exact canonical identifiers so adjacent ids above `Number.MAX_SAFE_INTEGER` never
+      // collide through a rounded JavaScript number.
       const hash = hashObject({
-        profileId: legacyNumericWiseId(businessProfile.id),
+        profileId: normalizeWiseId(businessProfile.id),
         service: PROVIDER_NAME,
-        userId: legacyNumericWiseId(personalProfile.userId),
+        userId: normalizeWiseId(personalProfile.userId),
       });
       const isOwner = businessProfile.type === 'BUSINESS' && businessProfile.companyRole === 'OWNER';
       await connectedAccount.update({
@@ -849,14 +877,29 @@ async function connectTransferwiseAccount({
   });
   const profiles = await transferwise.getProfiles(newConnectedAccount);
   const personalProfile = profiles.find(p => p.type === 'PERSONAL');
+  // Wise does not guarantee that an account has a personal profile (e.g. a business-only
+  // account): fail with a clear error rather than crashing on `personalProfile.userId`.
+  assert(personalProfile, 'Could not find a personal Wise profile for this account');
   const profile = profiles.find(p => wiseIdsEqual(p.id, profileId));
   assert(profile, `Could not find Wise profile with id ${profileId}`);
-  // Keep legacy numeric hashes so previously connected accounts are not duplicated.
+  // Hash the exact canonical identifiers: rounding ids above `Number.MAX_SAFE_INTEGER` through a
+  // JavaScript number would conflate adjacent accounts.
   const hash = hashObject({
-    profileId: legacyNumericWiseId(profile.id),
+    profileId: normalizeWiseId(profile.id),
     service: PROVIDER_NAME,
-    userId: legacyNumericWiseId(personalProfile.userId),
+    userId: normalizeWiseId(personalProfile.userId),
   });
+  // Pre-refactor rows were hashed from JavaScript numbers. When both ids are safe integers we can
+  // rebuild that legacy fingerprint losslessly and use it as a read-only fallback; unsafe ids stay
+  // exact-only so adjacent values above `Number.MAX_SAFE_INTEGER` can never be conflated.
+  const legacyHash = buildLegacyNumericHash(
+    {
+      profileId: profile.id,
+      service: PROVIDER_NAME,
+      userId: personalProfile.userId,
+    },
+    ['profileId', 'userId'],
+  );
 
   const collective = await Collective.findByPk(CollectiveId);
   assert(collective, `Could not find Collective #${CollectiveId}`);
@@ -891,17 +934,33 @@ async function connectTransferwiseAccount({
     );
 
     const mirrorHash = hashObject({
-      profileId: legacyNumericWiseId(profile.id),
+      profileId: normalizeWiseId(profile.id),
       service: 'transferwise',
-      userId: legacyNumericWiseId(profile.userId),
+      userId: normalizeWiseId(profile.userId),
       MirrorConnectedAccountId: connectedAccountToMirror.id,
     });
-    const existingMirror = await ConnectedAccount.findOne({
+    // Mirror rows created before the refactor were also hashed from numbers; try that legacy
+    // fingerprint (safe ids only) and upgrade the row to the canonical hash when it matches.
+    const legacyMirrorHash = buildLegacyNumericHash(
+      {
+        profileId: profile.id,
+        service: 'transferwise',
+        userId: profile.userId,
+        MirrorConnectedAccountId: connectedAccountToMirror.id,
+      },
+      ['profileId', 'userId'],
+    );
+    let existingMirror = await ConnectedAccount.findOne({
       where: { service: PROVIDER_NAME, CollectiveId, hash: mirrorHash },
     });
+    if (!existingMirror && legacyMirrorHash) {
+      existingMirror = await ConnectedAccount.findOne({
+        where: { service: PROVIDER_NAME, CollectiveId, hash: legacyMirrorHash },
+      });
+    }
     // If mirror account already exists, update it with new tokens
     if (existingMirror) {
-      await existingMirror.update({ token, refreshToken });
+      await existingMirror.update({ token, refreshToken, hash: mirrorHash });
       connectedAccount = existingMirror;
     }
     // Create a new empty connected account pointing to the existing one that ports the same credentials
@@ -920,11 +979,14 @@ async function connectTransferwiseAccount({
       });
     }
 
-    // Update the original connected account with the new tokens
+    // Update the original connected account with the new tokens. `hash` is this account's own
+    // canonical fingerprint, so legacy number-derived rows are upgraded here too (populateProfileId
+    // is a no-op once `data.id` is set).
     await connectedAccountToMirror.update({
       token,
       refreshToken,
       data: { ...connectedAccountToMirror.data, ...data },
+      hash,
     });
     await populateProfileId(connectedAccountToMirror, profile.id);
   }
@@ -933,6 +995,13 @@ async function connectTransferwiseAccount({
     connectedAccount = await ConnectedAccount.findOne({
       where: { service: PROVIDER_NAME, CollectiveId, hash },
     });
+    // Fall back to the legacy numeric fingerprint so pre-refactor rows stay discoverable, then
+    // upgrade the matched row to the canonical hash.
+    if (!connectedAccount && legacyHash) {
+      connectedAccount = await ConnectedAccount.findOne({
+        where: { service: PROVIDER_NAME, CollectiveId, hash: legacyHash },
+      });
+    }
     if (connectedAccount) {
       await connectedAccount.update({
         token,

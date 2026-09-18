@@ -85,13 +85,22 @@ export function wiseIdListIncludes(values: unknown, id: unknown): boolean {
 }
 
 /**
- * Legacy connected-account hashes were derived from Wise IDs parsed as JavaScript numbers. To keep
- * finding (and not duplicating) historical connected accounts, hashes must keep being computed from
- * the same numeric representation. Values above `Number.MAX_SAFE_INTEGER` round the same way they
- * did before, so the resulting fingerprint stays stable.
+ * Returns the legacy JavaScript `number` representation of a Wise identifier, or `undefined` when
+ * the value cannot be represented exactly.
+ *
+ * Pre-refactor connected-account hashes were computed from numbers. To keep finding those rows we
+ * may look them up with their legacy numeric fingerprint, but only when it is provably lossless:
+ * returning a rounded number would let adjacent ids above `Number.MAX_SAFE_INTEGER` collide, which
+ * is the exact bug this refactor removes. Unsafe values therefore return `undefined` and must never
+ * be used as a hash input.
  */
-export function legacyNumericWiseId(value: unknown): number {
-  return Number(normalizeWiseId(value));
+export function safeLegacyNumericWiseId(value: unknown): number | undefined {
+  const normalized = tryNormalizeWiseId(value);
+  if (normalized === null) {
+    return undefined;
+  }
+  const numeric = Number(normalized);
+  return Number.isSafeInteger(numeric) ? numeric : undefined;
 }
 
 const INTEGER_TOKEN = /^-?\d+$/;
