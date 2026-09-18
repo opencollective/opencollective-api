@@ -73,7 +73,7 @@
     "express-ws": "5.0.2",
     "fast-levenshtein": "3.0.0",
     "fast-redact": "3.5.0",
-    "get-urls": "10.0.1",
+    "get-urls": "12.1.0",
     "gqlmin": "0.3.2",
     "graphql": "17.0.2",
     "graphql-scalars": "2.0.0",
@@ -257,7 +257,6 @@
     ]
   },
   "overrides": {
-    "url-regex-safe": "4.0.0",
     "@types/express-serve-static-core": "5.0.7",
     "graphql": "17.0.2"
   },
