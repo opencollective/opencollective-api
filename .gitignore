@@ -49,5 +49,10 @@ scripts/dev/bin
 # Sentry Config File
 .sentryclirc
 
+.codegraph
+
+# Security audit artifacts
 **/security-poc/
+**/security-pocs/
 **/security-review/
+**/test/poc

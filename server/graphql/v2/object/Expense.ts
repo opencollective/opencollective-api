@@ -71,7 +71,7 @@ import { GraphQLSecurityCheck } from './SecurityCheck';
 import { GraphQLTaxInfo } from './TaxInfo';
 import { GraphQLTransactionsImportRow } from './TransactionsImportRow';
 import { GraphQLTransferWiseRequiredField } from './TransferWise';
-import { GraphQLVirtualCard } from './VirtualCard';
+import { canSeeVirtualCardPrivateInfo, GraphQLVirtualCard } from './VirtualCard';
 
 const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'taxes',
@@ -448,9 +448,16 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
         type: GraphQLVirtualCard,
         description: 'The virtual card used to pay for this charge',
         async resolve(expense, _, req) {
-          if (expense.VirtualCardId) {
-            return req.loaders.VirtualCard.byId.load(expense.VirtualCardId);
+          if (!expense.VirtualCardId) {
+            return null;
           }
+
+          const virtualCard = await req.loaders.VirtualCard.byId.load(expense.VirtualCardId);
+          if (!virtualCard || !(await canSeeVirtualCardPrivateInfo(req, virtualCard))) {
+            return null;
+          }
+
+          return virtualCard;
         },
       },
       attachedFiles: {

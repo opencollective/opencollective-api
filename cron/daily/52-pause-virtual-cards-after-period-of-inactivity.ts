@@ -79,7 +79,7 @@ async function pauseVirtualCardDueToInactivity(virtualCard: VirtualCard) {
       CollectiveId: virtualCard.collective.id,
       HostCollectiveId: virtualCard.host.id,
       data: {
-        virtualCard,
+        virtualCard: virtualCard.info,
         host: virtualCard.host.info,
         collective: virtualCard.collective.info,
       },
