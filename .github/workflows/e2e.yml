@@ -79,6 +79,10 @@ jobs:
       # man-db trigger on apt install is taking some time
       - name: Disable man-db update
         run: sudo rm -f /var/lib/man-db/auto-update
+      # postgresql-client-16 is not in the Ubuntu 26.04 archives (which ship PostgreSQL 18), get it from PGDG
+      - name: Add PGDG apt repository
+        run: sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+
       - name: Update apt
         run: sudo apt-get update || exit 0
 
@@ -91,6 +95,7 @@ jobs:
           postgresql-client-16 \
           `# GraphicsMagick (not sure if needed)` \
           graphicsmagick
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
 
       - name: Install stripe-cli
         run: |

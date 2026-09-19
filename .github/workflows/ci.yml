@@ -254,6 +254,14 @@ jobs:
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
+      # The ubuntu-26.04 image ships PostgreSQL 18 client tools, whose pg_restore emits
+      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Install the 16 client from PGDG.
+      - name: Install PostgreSQL 16 client
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-16
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
+
       - run: npm run db:restore:test
 
       - run: npm run test:coverage -- --ignore "test/server/graphql/**"
@@ -334,6 +342,14 @@ jobs:
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
+
+      # The ubuntu-26.04 image ships PostgreSQL 18 client tools, whose pg_restore emits
+      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Install the 16 client from PGDG.
+      - name: Install PostgreSQL 16 client
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-16
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
 
       - run: npm run db:restore:test
 
