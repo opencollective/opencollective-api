@@ -7,9 +7,15 @@ on:
   pull_request:
 
 jobs:
+  select-runner:
+    uses: ./.github/workflows/select-runner.yml
+    permissions:
+      pull-requests: read
+
   analyze:
     name: Analyze
-    runs-on: ubuntu-latest
+    needs: select-runner
+    runs-on: ${{ fromJSON(needs.select-runner.outputs.runs-on || '"ubuntu-latest"') }}
 
     steps:
       - name: Checkout repository

@@ -10,8 +10,14 @@ on:
       - reopened
 
 jobs:
+  select-runner:
+    uses: ./.github/workflows/select-runner.yml
+    permissions:
+      pull-requests: read
+
   lockfile-lint:
-    runs-on: ubuntu-latest
+    needs: select-runner
+    runs-on: ${{ fromJSON(needs.select-runner.outputs.runs-on || '"ubuntu-latest"') }}
     timeout-minutes: 5
 
     steps:

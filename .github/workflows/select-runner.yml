@@ -1,0 +1,25 @@
+name: Select runner
+
+on:
+  workflow_call:
+    outputs:
+      runs-on:
+        description: JSON runs-on value when a runner-* PR label is present
+        value: ${{ jobs.select-runner.outputs.runs-on }}
+
+jobs:
+  select-runner:
+    runs-on: ubuntu-latest
+    outputs:
+      runs-on: ${{ steps.select.outputs.runs-on }}
+    steps:
+      - id: select
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ github.event.pull_request.number || github.ref_name }}
+        run: |
+          label=$(gh pr view "$REF" --repo "$GITHUB_REPOSITORY" --json labels \
+            --jq '[.labels[].name | select(startswith("runner-"))][0] // empty' 2>/dev/null || true)
+          if [ -n "$label" ]; then
+            echo "runs-on=$(jq -cn --arg l "$label" '["self-hosted", $l]')" >> "$GITHUB_OUTPUT"
+          fi

@@ -42,8 +42,14 @@ env:
   STRIPE_WEBHOOK_SIGNING_SECRET: ${{ secrets.STRIPE_WEBHOOK_SIGNING_SECRET }}
 
 jobs:
+  select-runner:
+    uses: ./.github/workflows/select-runner.yml
+    permissions:
+      pull-requests: read
+
   e2e:
-    runs-on: ubuntu-24.04
+    needs: select-runner
+    runs-on: ${{ fromJSON(needs.select-runner.outputs.runs-on || '"ubuntu-24.04"') }}
     timeout-minutes: 30
 
     strategy:
