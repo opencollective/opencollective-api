@@ -15,7 +15,7 @@ export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? 
   }
   const hostStripeAccount = await order.collective.getHostStripeAccount();
   const stripeAccount = hostStripeAccount.username;
-  const stripePaymentIntent = await stripe.paymentIntents.retrieve(storedStripePaymentIntent.id, {
+  const stripePaymentIntent = await stripe.paymentIntents.retrieve(storedStripePaymentIntent.id, undefined, {
     stripeAccount,
   });
   logging?.(`Order ${order.id} paymentIntent status: ${stripePaymentIntent.status}`);
