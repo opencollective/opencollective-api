@@ -211,7 +211,7 @@ jobs:
       PG_DATABASE: opencollective_test
     services:
       redis:
-        image: redis@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5
+        image: redis@sha256:602d361c4da947cea77ea03b4f721ef85345c8457b70a80b0027974cacf68ece
         ports:
           - 6379:6379
         options: --entrypoint redis-server
@@ -280,7 +280,7 @@ jobs:
 
     services:
       redis:
-        image: redis@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5
+        image: redis@sha256:602d361c4da947cea77ea03b4f721ef85345c8457b70a80b0027974cacf68ece
         ports:
           - 6379:6379
         options: --entrypoint redis-server
@@ -358,7 +358,7 @@ jobs:
 
     services:
       redis:
-        image: redis@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5
+        image: redis@sha256:602d361c4da947cea77ea03b4f721ef85345c8457b70a80b0027974cacf68ece
         ports:
           - 6379:6379
         options: --entrypoint redis-server
@@ -409,7 +409,7 @@ jobs:
       pull-requests: read
     services:
       redis:
-        image: redis@sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5
+        image: redis@sha256:602d361c4da947cea77ea03b4f721ef85345c8457b70a80b0027974cacf68ece
         ports:
           - 6379:6379
         options: --entrypoint redis-server
