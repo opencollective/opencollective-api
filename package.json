@@ -117,7 +117,6 @@
     "spdx-license-list": "6.12.0",
     "stripe": "17.7.0",
     "tweetnacl": "1.0.3",
-    "tweetnacl-util": "0.15.1",
     "uuid": "14.0.2",
     "validator": "13.15.35",
     "winston": "3.19.0",
