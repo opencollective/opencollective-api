@@ -2334,14 +2334,24 @@ const getUserRole = (user: User, collective: Collective): keyof ExpenseDataValue
       : ExpenseRoles.submitter;
 };
 
-const tryToPredictExpenseCategory = async (collective, expenseData, req): Promise<AccountingCategory | null> => {
+const tryToPredictExpenseCategory = async (
+  collective: Collective,
+  host: Collective,
+  expenseData: ExpenseData,
+  req: express.Request,
+): Promise<AccountingCategory | null> => {
   try {
+    const isHostExpense = host && [collective.id, collective.ParentCollectiveId].includes(host.id);
+    const includeHostOnly = host && Boolean(req.remoteUser?.isAdmin(host.id));
+
     const predictions = await fetchExpenseCategoryPredictions({
-      hostSlug: collective.host.slug,
+      hostSlug: host.slug,
       accountSlug: collective.slug,
       type: expenseData.type,
       description: expenseData.description,
       items: expenseData.items,
+      isHostExpense,
+      includeHostOnly,
     });
 
     for (const prediction of predictions) {
@@ -2472,7 +2482,7 @@ export async function createExpense(
       collective,
     );
   } else if (collective.host?.settings?.autoAssignExpenseCategoryPredictions) {
-    expenseData.accountingCategory = await tryToPredictExpenseCategory(collective, expenseData, req);
+    expenseData.accountingCategory = await tryToPredictExpenseCategory(collective, collective.host, expenseData, req);
     accountingCategorySource = 'prediction';
   }
 
