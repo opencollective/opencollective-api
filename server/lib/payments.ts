@@ -1658,6 +1658,14 @@ export const getHostFeePercent = async (
  * host fee share transactions remain in the ledger and can still be refunded via the
  * refund path in `createRefundTransaction`.
  *
+ * Transition note: a Stripe payment intent created before this change (with the host fee
+ * share in its application fee) can still complete after it, e.g. a bank debit settling days
+ * later. Orders created in the years before this change got no host fee share when they were
+ * tip-eligible, so such an intent carries either the tip or the share, never both, and this
+ * cannot inflate a tip; for share-only hosts, the share Stripe collected on such an intent is
+ * simply not recorded. That window is a few days long and cents-level per contribution, and
+ * is accepted rather than carrying transition code in the ledger.
+ *
  * The signature is kept so the many payment providers calling it keep working unchanged.
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
