@@ -57,7 +57,6 @@ async function startExpressServer(workerId) {
   // surfaces as H13/H18 errors on POST requests (the router can't retry those). Heroku recommends
   // a dyno-side idle timeout of 90s or more so the router is the one closing connections.
   server.keepAliveTimeout = 95000;
-  server.headersTimeout = 96000; // must be greater than keepAliveTimeout
   expressApp['__server__'] = server;
 
   return expressApp;
