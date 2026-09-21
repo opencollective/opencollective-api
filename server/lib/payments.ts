@@ -1449,21 +1449,12 @@ export const sendExpiringCreditCardUpdateEmail = async (data): Promise<void> => 
   });
 };
 
+/**
+ * The application fee collected by the platform on a Stripe charge. Since host fee share is
+ * deprecated (see `getHostFeeSharePercent`), this is just the platform tip.
+ */
 export const getApplicationFee = async (order: Order): Promise<number> => {
-  let applicationFee = 0;
-
-  if (order.platformTipAmount) {
-    applicationFee += order.platformTipAmount;
-  }
-
-  const hostFeeAmount = await getHostFee(order);
-  const hostFeeSharePercent = await getHostFeeSharePercent(order);
-  if (hostFeeAmount && hostFeeSharePercent) {
-    const hostFeeShareAmount = calcFee(hostFeeAmount, hostFeeSharePercent, order.currency);
-    applicationFee += hostFeeShareAmount;
-  }
-
-  return applicationFee;
+  return order.platformTipAmount || 0;
 };
 
 export const getPlatformTip = (order: Order): number => {
