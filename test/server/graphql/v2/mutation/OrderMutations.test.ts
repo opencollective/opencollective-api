@@ -2405,7 +2405,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         hostAdmin,
       );
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal(`Tier #${foreignTier.id} is not part of collective #${order.CollectiveId}`);
+      expect(result.errors[0].message).to.equal(
+        `Tier #${foreignTier.id} is not part of collective #${order.CollectiveId}`,
+      );
     });
 
     it('edits a pending order', async () => {
@@ -3905,7 +3907,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
 
       it('rejects marking as paid when the tier does not belong to the destination collective', async () => {
-        const foreignCollective = await fakeCollective({ currency: 'USD', HostCollectiveId: collective.HostCollectiveId });
+        const foreignCollective = await fakeCollective({
+          currency: 'USD',
+          HostCollectiveId: collective.HostCollectiveId,
+        });
         const foreignTier = await fakeTier({ CollectiveId: foreignCollective.id, currency: 'USD' });
         await order.update({ TierId: foreignTier.id, data: { isPendingContribution: true } });
 
@@ -3921,7 +3926,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         );
 
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.equal(`Tier #${foreignTier.id} is not part of collective #${collective.id}`);
+        expect(result.errors[0].message).to.equal(
+          `Tier #${foreignTier.id} is not part of collective #${collective.id}`,
+        );
         await order.reload();
         expect(order.status).to.equal(OrderStatuses.PENDING);
       });
