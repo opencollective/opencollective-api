@@ -180,6 +180,10 @@ export const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
+// PostgreSQL's tsquery has a fixed internal stack size. Long search terms with many
+// tokens can exceed it and throw "tsquery stack too small". Cap the term to a safe length.
+const MAX_SEARCH_TERM_LENGTH = 150;
+
 export const getSearchTermSQLConditions = (term: string, collectiveTable?: string, isRoot = false) => {
   let tsQueryFunc, tsQueryArg;
   let sqlConditions = '';
@@ -187,7 +191,7 @@ export const getSearchTermSQLConditions = (term: string, collectiveTable?: strin
   let sanitizedTermNoWhitespaces = '';
   let sanitizedTermForILike = '';
   let sanitizedTermNoWhitespacesForILike = '';
-  const trimmedTerm = trimSearchTerm(term);
+  const trimmedTerm = trimSearchTerm(term)?.slice(0, MAX_SEARCH_TERM_LENGTH);
   const getField = field => (collectiveTable ? `${collectiveTable}."${field}"` : `"${field}"`);
   if (trimmedTerm?.length > 0) {
     // Cleanup term
