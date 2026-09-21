@@ -34,7 +34,7 @@ env:
 
 jobs:
   lint:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 15
 
     steps:
@@ -57,7 +57,7 @@ jobs:
       - run: npm run lint:check
 
   prettier:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 15
 
     steps:
@@ -80,7 +80,7 @@ jobs:
       - run: npm run prettier:check
 
   typescript:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 15
 
     steps:
@@ -103,7 +103,7 @@ jobs:
       - run: npm run type:check
 
   depcheck:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 15
 
     steps:
@@ -118,7 +118,7 @@ jobs:
       - run: npm run depcheck
 
   ts-unused-exports:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 15
 
     steps:
@@ -134,7 +134,7 @@ jobs:
         run: npm run ts-unused-exports
 
   build:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 15
 
     steps:
@@ -150,7 +150,7 @@ jobs:
         run: npm run build
 
   test:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 30
     env:
       PG_DATABASE: opencollective_test
@@ -220,7 +220,7 @@ jobs:
           flags: Unit
 
   test-graphql:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 30
 
     env:
@@ -303,7 +303,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
   schema-update:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 30
 
     services:
@@ -336,7 +336,7 @@ jobs:
 
   graphql-inspector:
     name: GraphQL Inspector
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     # The action publishes its results as check runs (with annotations) and reads PR labels for the
     # approve-label override. Workflows triggered by Dependabot get a read-only GITHUB_TOKEN by
     # default, so the write scope must be requested explicitly. This job never installs or runs
