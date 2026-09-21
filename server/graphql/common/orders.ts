@@ -92,6 +92,12 @@ export const checkCanUseAccountingCategoryForOrder = (
   }
 };
 
+export const assertTierBelongsToAccount = (tier: Tier | null | undefined, account: Collective): void => {
+  if (tier && tier.CollectiveId !== account.id) {
+    throw new ValidationFailed(`Tier #${tier.id} is not part of collective #${account.id}`);
+  }
+};
+
 export const canAddFundsFromAccount = (fromCollective: Collective, host: Collective, remoteUser: User) => {
   if (!remoteUser) {
     return false;
@@ -139,9 +145,8 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     );
   }
 
-  if (order.tier && order.tier.CollectiveId !== order.collective.id) {
-    throw new Error(`Tier #${order.tier.id} is not part of collective #${order.collective.id}`);
-  } else if (order.accountingCategory) {
+  assertTierBelongsToAccount(order.tier, order.collective);
+  if (order.accountingCategory) {
     checkCanUseAccountingCategoryForOrder(order.accountingCategory, host, collective);
   }
 
