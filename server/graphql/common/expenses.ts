@@ -1025,6 +1025,16 @@ export const canApprove: ExpensePermissionEvaluator = async (
   } else {
     expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
 
+    if (!expense.collective.isActive) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'Cannot approve an expense for an archived account',
+          EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+        );
+      }
+      return false;
+    }
+
     if (expense.collective.HostCollectiveId && expense.collective.approvedAt) {
       expense.collective.host =
         expense.collective.host || (await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId));
@@ -2359,6 +2369,32 @@ const tryToPredictExpenseCategory = async (collective, expenseData, req): Promis
   }
 };
 
+/**
+ * Checks that `account` can receive expenses:
+ * - archived accounts (`isActive === false`) are rejected;
+ * - only Collectives, Events, Funds and Projects (when active) or active Hosts (organizations) are
+ *   allowed.
+ * Shared by `createExpense`, `submitExpenseDraft` and `draftExpenseAndInviteUser` to keep the
+ * guards in sync.
+ */
+export const checkCanReceiveExpense = (account: Collective): void => {
+  if (!account.isActive) {
+    throw new ValidationFailed('Expenses can only be submitted to active entities.');
+  }
+  const isAllowedType = [
+    CollectiveType.COLLECTIVE,
+    CollectiveType.EVENT,
+    CollectiveType.FUND,
+    CollectiveType.PROJECT,
+  ].includes(account.type);
+  const isActiveHost = account.type === CollectiveType.ORGANIZATION && account.isActive;
+  if (!isAllowedType && !isActiveHost) {
+    throw new ValidationFailed(
+      'Expenses can only be submitted to Collectives, Events, Funds, Projects and active Hosts.',
+    );
+  }
+};
+
 export async function createExpense(
   req: express.Request,
   expenseData: ExpenseData,
@@ -2444,18 +2480,7 @@ export async function createExpense(
     throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
   }
 
-  const isAllowedType = [
-    CollectiveType.COLLECTIVE,
-    CollectiveType.EVENT,
-    CollectiveType.FUND,
-    CollectiveType.PROJECT,
-  ].includes(collective.type);
-  const isActiveHost = collective.type === CollectiveType.ORGANIZATION && collective.isActive;
-  if (!isAllowedType && !isActiveHost) {
-    throw new ValidationFailed(
-      'Expenses can only be submitted to Collectives, Events, Funds, Projects and active Hosts.',
-    );
-  }
+  checkCanReceiveExpense(collective);
 
   // Check payee
   await checkFromCollective(fromCollective, remoteUser, collective);
@@ -2763,6 +2788,7 @@ export async function submitExpenseDraft(
       { association: 'parent', required: false },
     ],
   });
+  checkCanReceiveExpense(collective);
   const fromCollective = expenseData.fromCollective || requestedPayee || existingExpense.fromCollective;
   await checkExpenseType(
     expenseData.type || existingExpense.type,

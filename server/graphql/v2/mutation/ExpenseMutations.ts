@@ -15,7 +15,6 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { groupBy, isNil, pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
-import { CollectiveType } from '../../../constants/collectives';
 import { Service } from '../../../constants/connected-account';
 import expenseStatus from '../../../constants/expense-status';
 import logger from '../../../lib/logger';
@@ -35,6 +34,7 @@ import {
   canEditPaidBy,
   canPayExpense,
   canVerifyDraftExpense,
+  checkCanReceiveExpense,
   checkExpenseType,
   createExpense,
   declineInvitedExpense,
@@ -725,18 +725,7 @@ const expenseMutations = {
         ],
       });
 
-      const isAllowedType = [
-        CollectiveType.COLLECTIVE,
-        CollectiveType.EVENT,
-        CollectiveType.FUND,
-        CollectiveType.PROJECT,
-      ].includes(collective.type);
-      const isActiveHost = collective.type === CollectiveType.ORGANIZATION && collective.isActive;
-      if (!isAllowedType && !isActiveHost) {
-        throw new ValidationFailed(
-          'Expenses can only be submitted to Collectives, Events, Funds, Projects and active Hosts.',
-        );
-      }
+      checkCanReceiveExpense(collective);
 
       const collectiveWithAccounts = await models.Collective.findByPk(collective.id, {
         include: [
