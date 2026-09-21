@@ -270,6 +270,12 @@ describe('server/graphql/common/expenses', () => {
     platformAdmin: true,
   };
 
+  /** Settlement approval is done by the billed fiscal host; amount edits stay platform-admin-only. */
+  const settlementApprovePermissions = {
+    ...platformGeneratedMutationPermissions,
+    hostAdmin: true,
+  };
+
   describe('canSeeExpenseAttachments', () => {
     describe('can see only with the allowed roles or host admin', () => {
       runEachForAllContexts(key => {
@@ -1445,7 +1451,7 @@ describe('server/graphql/common/expenses', () => {
       await expense.update({ status: 'REJECTED' });
       expect(await canApprove(req.hostAdmin, expense)).to.be.true;
     });
-    it('does not let the billed host approve a settlement, including against a per-host platform-tips account', async () => {
+    it('lets the billed host approve a settlement, including against a per-host platform-tips account', async () => {
       const hostAdmin = await fakeUser();
       const host = await fakeHost();
       await host.addUserWithRole(hostAdmin, 'ADMIN');
@@ -1464,7 +1470,7 @@ describe('server/graphql/common/expenses', () => {
         status: 'PENDING',
       });
 
-      expect(await canApprove(makeRequest(hostAdmin), expense)).to.be.false;
+      expect(await canApprove(makeRequest(hostAdmin), expense)).to.be.true;
     });
     it('lets a platform admin approve a settlement billed against the per-host platform-tips account', async () => {
       const platform = await getOrCreatePlatformAccount();
@@ -1493,20 +1499,22 @@ describe('server/graphql/common/expenses', () => {
         const { expense } = context;
         await expense.update({ status: 'PENDING' });
         expect(await checkAllPermissions(canApprove, context)).to.deep.equal(
-          isPlatformGeneratedContext(context)
-            ? platformGeneratedMutationPermissions
-            : {
-                public: false,
-                randomUser: false,
-                collectiveAdmin: context.expense.type !== 'CHARGE',
-                hostAdmin:
-                  context.expense.type !== 'CHARGE' || Boolean(context.expense.data?.isManualVirtualCardCharge),
-                expenseOwner: false,
-                limitedHostAdmin: false,
-                collectiveAccountant: false,
-                hostAccountant: false,
-                platformAdmin: false,
-              },
+          context.name === 'settlement'
+            ? settlementApprovePermissions
+            : isPlatformGeneratedContext(context)
+              ? platformGeneratedMutationPermissions
+              : {
+                  public: false,
+                  randomUser: false,
+                  collectiveAdmin: context.expense.type !== 'CHARGE',
+                  hostAdmin:
+                    context.expense.type !== 'CHARGE' || Boolean(context.expense.data?.isManualVirtualCardCharge),
+                  expenseOwner: false,
+                  limitedHostAdmin: false,
+                  collectiveAccountant: false,
+                  hostAccountant: false,
+                  platformAdmin: false,
+                },
         );
       });
     });
@@ -1793,30 +1801,56 @@ describe('server/graphql/common/expenses', () => {
         });
 
         ['PENDING', 'REJECTED', 'INCOMPLETE'].forEach(status => {
-          it(`lets only the platform admin approve in ${status}`, async () => {
-            const { expense } = getContext();
-            await expense.update({ status });
-            expect(await checkAllPermissions(canApprove, getContext())).to.deep.equal(
-              platformGeneratedMutationPermissions,
-            );
+          if (type === 'PLATFORM_BILLING') {
+            it(`lets only the platform admin approve in ${status}`, async () => {
+              const { expense } = getContext();
+              await expense.update({ status });
+              expect(await checkAllPermissions(canApprove, getContext())).to.deep.equal(
+                platformGeneratedMutationPermissions,
+              );
+            });
+          } else {
+            it(`lets the billed host or platform admin approve in ${status}`, async () => {
+              const { expense } = getContext();
+              await expense.update({ status });
+              expect(await checkAllPermissions(canApprove, getContext())).to.deep.equal(settlementApprovePermissions);
+            });
+          }
+        });
+
+        if (type === 'SETTLEMENT') {
+          it('does not let the billed host edit after changing status to PENDING (the production attack)', async () => {
+            const { expense, req } = getContext();
+            await expense.update({ status: 'APPROVED' });
+            expect(await canEditItems(req.hostAdmin, expense)).to.be.false;
+            expect(await canEditItems(req.collectiveAdmin, expense)).to.be.false;
+            expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+            expect(await canEditExpense(req.collectiveAdmin, expense)).to.be.false;
+
+            await expense.update({ status: 'PENDING' });
+            expect(await canEditItems(req.hostAdmin, expense)).to.be.false;
+            expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+            expect(await canApprove(req.hostAdmin, expense)).to.be.true;
+            expect(await canApprove(req.collectiveAdmin, expense)).to.be.false;
+            expect(await canApprove(req.platformAdmin, expense)).to.be.true;
           });
-        });
+        } else {
+          it('does not let the billed host edit or approve after changing status to PENDING (the production attack)', async () => {
+            const { expense, req } = getContext();
+            await expense.update({ status: 'APPROVED' });
+            expect(await canEditItems(req.hostAdmin, expense)).to.be.false;
+            expect(await canEditItems(req.collectiveAdmin, expense)).to.be.false;
+            expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+            expect(await canEditExpense(req.collectiveAdmin, expense)).to.be.false;
 
-        it('does not let the billed host edit or approve after changing status to PENDING (the production attack)', async () => {
-          const { expense, req } = getContext();
-          await expense.update({ status: 'APPROVED' });
-          expect(await canEditItems(req.hostAdmin, expense)).to.be.false;
-          expect(await canEditItems(req.collectiveAdmin, expense)).to.be.false;
-          expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
-          expect(await canEditExpense(req.collectiveAdmin, expense)).to.be.false;
+            await expense.update({ status: 'PENDING' });
+            expect(await canApprove(req.hostAdmin, expense)).to.be.false;
+            expect(await canApprove(req.collectiveAdmin, expense)).to.be.false;
+            expect(await canApprove(req.platformAdmin, expense)).to.be.true;
+          });
+        }
 
-          await expense.update({ status: 'PENDING' });
-          expect(await canApprove(req.hostAdmin, expense)).to.be.false;
-          expect(await canApprove(req.collectiveAdmin, expense)).to.be.false;
-          expect(await canApprove(req.platformAdmin, expense)).to.be.true;
-        });
-
-        it('throws MINIMAL_CONDITION_NOT_MET when the billed host tries to edit or approve', async () => {
+        it('throws MINIMAL_CONDITION_NOT_MET when the billed host tries to edit', async () => {
           const { expense, req } = getContext();
           await expense.update({ status: 'APPROVED' });
           expect(await getApolloErrorCode(canEditExpense(req.hostAdmin, expense, { throw: true }))).to.equal(
@@ -1830,12 +1864,19 @@ describe('server/graphql/common/expenses', () => {
           );
 
           await expense.update({ status: 'PENDING' });
-          expect(await getApolloErrorCode(canApprove(req.hostAdmin, expense, { throw: true }))).to.equal(
-            EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
-          );
-          expect(await getApolloErrorCode(canApprove(req.collectiveAdmin, expense, { throw: true }))).to.equal(
-            EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
-          );
+          if (type === 'PLATFORM_BILLING') {
+            expect(await getApolloErrorCode(canApprove(req.hostAdmin, expense, { throw: true }))).to.equal(
+              EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+            );
+            expect(await getApolloErrorCode(canApprove(req.collectiveAdmin, expense, { throw: true }))).to.equal(
+              EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+            );
+          } else {
+            expect(await canApprove(req.hostAdmin, expense)).to.be.true;
+            expect(await getApolloErrorCode(canApprove(req.collectiveAdmin, expense, { throw: true }))).to.equal(
+              EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+            );
+          }
         });
 
         it('still forbids platform admins from editing paid or processing expenses', async () => {

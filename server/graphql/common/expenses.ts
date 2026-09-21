@@ -246,9 +246,15 @@ const isPlatformAdmin = async (req: express.Request): Promise<boolean> => {
   return req.remoteUser.isAdminOfPlatform();
 };
 
-/** Platform invoices (subscription bills, host settlements). The billed host must not mutate amount or approve. */
+/** Platform invoices (subscription bills, host settlements). The billed host must not mutate amounts. */
 const isPlatformGeneratedExpense = (expense: Expense): boolean => {
   return [ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type);
+};
+
+const isPlatformGeneratedExpenseEditableStatus = (status: ExpenseStatus | string): boolean => {
+  return [ExpenseStatus.PENDING, ExpenseStatus.APPROVED, ExpenseStatus.INCOMPLETE, ExpenseStatus.DRAFT].includes(
+    status as ExpenseStatus,
+  );
 };
 
 const isCollectiveAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
@@ -639,8 +645,6 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
   // Host and expense owner can attach receipts to paid charge expenses
   if (expense.type === ExpenseType.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status)) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
-  } else if (expense.status === 'DRAFT') {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isDraftPayee], options);
   } else if (nonEditableStatuses.includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden('Can not edit expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
@@ -651,6 +655,10 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
       throw new Forbidden('User cannot edit expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (isPlatformGeneratedExpense(expense)) {
+    return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
+  } else if (expense.status === 'DRAFT') {
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isDraftPayee], options);
   } else {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
   }
@@ -665,6 +673,12 @@ export const canEditTitle: ExpensePermissionEvaluator = async (req, expense, opt
     }
     return false;
   } else if (isPlatformGeneratedExpense(expense)) {
+    if (!isPlatformGeneratedExpenseEditableStatus(expense.status)) {
+      if (options?.throw) {
+        throw new Forbidden('Can not edit title in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
+      }
+      return false;
+    }
     return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
   } else if (expense.status === ExpenseStatus.DRAFT) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
@@ -817,11 +831,7 @@ export const canEditItems: ExpensePermissionEvaluator = async (req, expense, opt
     }
     return false;
   } else if (isPlatformGeneratedExpense(expense)) {
-    if (
-      [ExpenseStatus.PROCESSING, ExpenseStatus.SCHEDULED_FOR_PAYMENT, ExpenseStatus.PAID].includes(
-        expense.status as ExpenseStatus,
-      )
-    ) {
+    if (!isPlatformGeneratedExpenseEditableStatus(expense.status)) {
       if (options?.throw) {
         throw new Forbidden(
           'Can not edit expense items in current status',
@@ -1014,7 +1024,8 @@ export const canMarkAsPaid: ExpensePermissionEvaluator = async (
 
 /**
  * Returns true if expense can be approved by user.
- * Platform-generated invoices (PLATFORM_BILLING, SETTLEMENT) can only be approved by platform admins.
+ * SETTLEMENT expenses are created by the platform but approved by the billed fiscal host (or a platform admin).
+ * PLATFORM_BILLING can only be approved by platform admins.
  */
 export const canApprove: ExpensePermissionEvaluator = async (
   req: express.Request,
@@ -1046,7 +1057,8 @@ export const canApprove: ExpensePermissionEvaluator = async (
     }
     return false;
   } else if (isPlatformGeneratedExpense(expense)) {
-    return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
+    const approvers = expense.type === ExpenseType.SETTLEMENT ? [isHostAdmin, isPlatformAdmin] : [isPlatformAdmin];
+    return remoteUserMeetsOneCondition(req, expense, approvers, options);
   } else {
     expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
 

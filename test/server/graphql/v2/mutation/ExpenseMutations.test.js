@@ -4766,18 +4766,32 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.status).to.equal('APPROVED');
       });
 
-      it(`${type}: billed host cannot approve a pending bill`, async () => {
-        const expense = await createPlatformExpense({ type, status: 'PENDING' });
-        const result = await graphqlQueryV2(
-          processExpenseMutation,
-          { expenseId: expense.id, action: 'APPROVE' },
-          billedHostAdmin,
-        );
-        expect(result.errors).to.exist;
-        expect(result.errors[0].extensions.code).to.equal('MINIMAL_CONDITION_NOT_MET');
-        await expense.reload();
-        expect(expense.status).to.equal('PENDING');
-      });
+      if (type === 'PLATFORM_BILLING') {
+        it(`${type}: billed host cannot approve a pending bill`, async () => {
+          const expense = await createPlatformExpense({ type, status: 'PENDING' });
+          const result = await graphqlQueryV2(
+            processExpenseMutation,
+            { expenseId: expense.id, action: 'APPROVE' },
+            billedHostAdmin,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].extensions.code).to.equal('MINIMAL_CONDITION_NOT_MET');
+          await expense.reload();
+          expect(expense.status).to.equal('PENDING');
+        });
+      } else {
+        it(`${type}: billed host can approve a pending bill`, async () => {
+          const expense = await createPlatformExpense({ type, status: 'PENDING' });
+          const result = await graphqlQueryV2(
+            processExpenseMutation,
+            { expenseId: expense.id, action: 'APPROVE' },
+            billedHostAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.processExpense.status).to.eq('APPROVED');
+        });
+      }
 
       it(`${type}: platform admin can reduce the amount (status returns to PENDING)`, async () => {
         const expense = await createPlatformExpense({ type });
@@ -4804,26 +4818,49 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.processExpense.status).to.eq('APPROVED');
       });
 
-      it(`${type}: billed host cannot complete the edit-then-approve attack`, async () => {
-        const expense = await createPlatformExpense({ type });
-        const editResult = await graphqlQueryV2(
-          editExpenseMutation,
-          { expense: itemAmountUpdate(expense, 100000) },
-          billedHostAdmin,
-        );
-        expect(editResult.errors).to.exist;
+      if (type === 'PLATFORM_BILLING') {
+        it(`${type}: billed host cannot complete the edit-then-approve attack`, async () => {
+          const expense = await createPlatformExpense({ type });
+          const editResult = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: itemAmountUpdate(expense, 100000) },
+            billedHostAdmin,
+          );
+          expect(editResult.errors).to.exist;
 
-        await expense.update({ status: 'PENDING' });
-        const approveResult = await graphqlQueryV2(
-          processExpenseMutation,
-          { expenseId: expense.id, action: 'APPROVE' },
-          billedHostAdmin,
-        );
-        expect(approveResult.errors).to.exist;
-        await expense.reload();
-        expect(expense.status).to.equal('PENDING');
-        expect(expense.amount).to.equal(170323);
-      });
+          await expense.update({ status: 'PENDING' });
+          const approveResult = await graphqlQueryV2(
+            processExpenseMutation,
+            { expenseId: expense.id, action: 'APPROVE' },
+            billedHostAdmin,
+          );
+          expect(approveResult.errors).to.exist;
+          await expense.reload();
+          expect(expense.status).to.equal('PENDING');
+          expect(expense.amount).to.equal(170323);
+        });
+      } else {
+        it(`${type}: billed host cannot reduce the amount but can approve after reverting to PENDING`, async () => {
+          const expense = await createPlatformExpense({ type });
+          const editResult = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: itemAmountUpdate(expense, 100000) },
+            billedHostAdmin,
+          );
+          expect(editResult.errors).to.exist;
+
+          await expense.update({ status: 'PENDING' });
+          const approveResult = await graphqlQueryV2(
+            processExpenseMutation,
+            { expenseId: expense.id, action: 'APPROVE' },
+            billedHostAdmin,
+          );
+          expect(approveResult.errors).to.not.exist;
+          await expense.reload();
+          expect(expense.status).to.equal('APPROVED');
+          expect(expense.amount).to.equal(170323);
+        });
+      }
     });
 
     it('still lets the billed host admin edit a regular receipt amount', async () => {
