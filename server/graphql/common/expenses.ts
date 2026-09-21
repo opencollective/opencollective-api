@@ -1596,7 +1596,11 @@ export const rejectExpense = async (req: express.Request, expense: Expense): Pro
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'REJECTED', lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({
+    status: 'REJECTED',
+    lastEditedById: req.remoteUser.id,
+    onHold: false,
+  });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, req.remoteUser);
   return updatedExpense;
 };
@@ -1640,7 +1644,11 @@ export const markExpenseAsSpam = async (req: express.Request, expense: Expense):
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'SPAM', lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({
+    status: 'SPAM',
+    lastEditedById: req.remoteUser.id,
+    onHold: false,
+  });
 
   // Limit the user so they can't submit expenses in the future
   const submittedByUser = await updatedExpense.getSubmitterUser();
