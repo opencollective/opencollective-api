@@ -182,7 +182,7 @@ export const sanitizeSearchTermForILike = term => {
 
 // PostgreSQL's tsquery has a fixed internal stack size. Long search terms with many
 // tokens can exceed it and throw "tsquery stack too small". Cap the term to a safe length.
-const MAX_SEARCH_TERM_LENGTH = 150;
+export const MAX_SEARCH_TERM_LENGTH = 150;
 
 export const getSearchTermSQLConditions = (term: string, collectiveTable?: string, isRoot = false) => {
   let tsQueryFunc, tsQueryArg;

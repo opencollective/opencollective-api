@@ -7,6 +7,7 @@ import { CollectiveType } from '../../../server/graphql/v1/CollectiveInterface';
 import { getKysely } from '../../../server/lib/kysely';
 import { EntityShortIdPrefix } from '../../../server/lib/permalink/entity-map';
 import {
+  MAX_SEARCH_TERM_LENGTH,
   buildKyselySearchConditions,
   buildSearchConditions,
   parseSearchTerm,
@@ -108,6 +109,37 @@ describe('server/lib/search', () => {
       const [results] = await searchCollectivesInDB(publicReq, 'le 47 \\');
       expect(results).to.be.an('array');
       // No error should be thrown; the search completes successfully
+    });
+
+    it('does not throw "tsquery stack too small" for very long search terms', async () => {
+      // Reproduces OC-API-7NC: a user pasted a lengthy Chinese academic text as a search term.
+      // websearch_to_tsquery exceeds its internal stack when given too many tokens.
+      const longTerm =
+        '漢學研究第 33 卷第 3 期 「真本」一詞，乃「手稿」、「原本」之意，不能望文生義，更絕非真假之謂。 ' +
+        '《漢書》「真本」出現於蕭琛宣城太守任上，他在天監元年（502）擔任此職， ' +
+        '「俄遷員外散騎常侍。三年，除太子中庶子、散騎常侍」。因此，蕭琛獲得這 ' +
+        '份文獻的時間，應該在天監元年或二年（503），即梁朝剛建立時。 ' +
+        '在南北長期分裂下，南北雙方在政治、軍事、社會、經濟、學術等層面，' +
+        '都出現各自發展的情況。經過日積月累，南北學術上的差距和特色益形明顯。';
+
+      // Must resolve without error (previously caused "tsquery stack too small")
+      const [results] = await searchCollectivesInDB(publicReq, longTerm);
+      expect(results).to.be.an('array');
+    });
+
+    it(`truncates search terms longer than ${MAX_SEARCH_TERM_LENGTH} characters before querying`, async () => {
+      // Create a collective whose name matches only the first MAX_SEARCH_TERM_LENGTH characters
+      // of a long term. If truncation works, we should still find it.
+      const uniquePrefix = randStr('search-trunc-');
+      const collective = await fakeCollective({ name: uniquePrefix });
+
+      const padding = ' extra words '.repeat(20); // push term well past MAX_SEARCH_TERM_LENGTH
+      const longTerm = `${uniquePrefix}${padding}`;
+      expect(longTerm.length).to.be.greaterThan(MAX_SEARCH_TERM_LENGTH);
+
+      const [results] = await searchCollectivesInDB(publicReq, longTerm);
+      // The collective is findable because the term is truncated to the prefix portion
+      expect(results.find(c => c.id === collective.id)).to.exist;
     });
 
     describe('Works with punctuation', async () => {
