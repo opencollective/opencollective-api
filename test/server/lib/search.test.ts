@@ -7,9 +7,9 @@ import { CollectiveType } from '../../../server/graphql/v1/CollectiveInterface';
 import { getKysely } from '../../../server/lib/kysely';
 import { EntityShortIdPrefix } from '../../../server/lib/permalink/entity-map';
 import {
-  MAX_SEARCH_TERM_LENGTH,
   buildKyselySearchConditions,
   buildSearchConditions,
+  MAX_SEARCH_TERM_LENGTH,
   parseSearchTerm,
   sanitizeSearchTermForILike,
   searchCollectivesByEmail,
