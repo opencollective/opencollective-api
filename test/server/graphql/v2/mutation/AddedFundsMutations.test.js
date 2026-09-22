@@ -361,7 +361,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
     });
 
     it('can add funds as host admin with authorization', async () => {
-      const userToken = await fakeUserToken({ scope: ['host'], UserId: hostAdmin.id });
+      const userToken = await fakeUserToken({ scope: ['host', 'transactions'], UserId: hostAdmin.id });
       const result = await oAuthGraphqlQueryV2(
         addFundsMutation,
         {
@@ -915,7 +915,10 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
     });
 
     it('can edit added funds properties', async () => {
-      const userToken = await fakeUserToken({ scope: ['host'], UserId: hostAdmin.id });
+      const userToken = await fakeUserToken({
+        scope: ['host', 'orders', 'transactions'],
+        UserId: hostAdmin.id,
+      });
       let result = await oAuthGraphqlQueryV2(
         addFundsMutation,
         {
@@ -1003,7 +1006,10 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
     });
 
     it('can edit added funds with taxes', async () => {
-      const userToken = await fakeUserToken({ scope: ['host'], UserId: hostAdmin.id });
+      const userToken = await fakeUserToken({
+        scope: ['host', 'orders', 'transactions'],
+        UserId: hostAdmin.id,
+      });
       let result = await oAuthGraphqlQueryV2(
         addFundsMutation,
         {
