@@ -92,13 +92,10 @@ jobs:
         with:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
-      - name: Restore TypeScript incremental cache
-        uses: actions/cache@v6
-        with:
-          path: tsconfig.tsbuildinfo
-          # Exact commit only: restoring tsbuildinfo from another SHA corrupts incremental state and can crash tsc (stack overflow on TS 6).
-          key: ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-tsc-${{ hashFiles('tsconfig.json', 'package-lock.json') }}-${{ github.sha }}
-
+      # No tsbuildinfo cache on purpose. Many GraphQL resolvers get their parent type from
+      # inference over cyclic imports, and tsc resolves those cycles differently when it
+      # re-checks a subset of the program instead of all of it, so a restored cache makes the
+      # verdict depend on whether the cache hit. Keep this job a cold, whole-program check.
       - run: npm run type:check
 
   depcheck:

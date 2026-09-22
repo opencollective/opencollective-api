@@ -9,7 +9,9 @@ import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLExpense } from './Expense';
 
-const GraphQLRecurringExpense = new GraphQLObjectType({
+// The explicit annotation breaks the import cycle with ./Expense: without it, inferring this
+// const's type needs GraphQLExpense, which needs this one back (TS2303).
+const GraphQLRecurringExpense: GraphQLObjectType = new GraphQLObjectType({
   name: 'RecurringExpense',
   description: 'A recurring expense object',
   fields: () => ({
