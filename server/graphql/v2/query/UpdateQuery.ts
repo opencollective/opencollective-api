@@ -4,6 +4,7 @@ import { GraphQLString } from 'graphql';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import models, { Update } from '../../../models';
+import { hasUpdatesScopeForNonPublicUpdate } from '../../common/update';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -26,8 +27,10 @@ const UpdateQuery = {
     },
   },
   async resolve(_, args, req: express.Request): Promise<Update | null> {
+    let update: Update | null = null;
+
     if (args.id) {
-      const update = isEntityPublicId(args.id, EntityShortIdPrefix.Update)
+      update = isEntityPublicId(args.id, EntityShortIdPrefix.Update)
         ? await req.loaders.Update.byPublicId.load(args.id)
         : await models.Update.findByPk(idDecode(args.id, IDENTIFIER_TYPES.UPDATE));
 
@@ -39,8 +42,6 @@ const UpdateQuery = {
 
         await assertCanSeeAccount(req, account);
       }
-
-      return update;
     } else if (args.account && args.slug) {
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
       if (!account) {
@@ -48,7 +49,7 @@ const UpdateQuery = {
       }
 
       await assertCanSeeAccount(req, account);
-      return models.Update.findOne({
+      update = await models.Update.findOne({
         where: {
           slug: args.slug.toLowerCase(),
           CollectiveId: account.id,
@@ -57,6 +58,14 @@ const UpdateQuery = {
     } else {
       throw new Error('You must either provide an ID or an account + slug to retrieve an update');
     }
+
+    // Token callers without the updates scope must not receive unpublished or private updates.
+    // Session callers stay role-gated in field resolvers via canSeeUpdate.
+    if (update && !hasUpdatesScopeForNonPublicUpdate(req, update)) {
+      return null;
+    }
+
+    return update;
   },
 };
 
