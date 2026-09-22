@@ -659,6 +659,11 @@ const accountFieldsDefinition = () => ({
         checkScope(req, 'updates') &&
         (req.remoteUser?.isAdminOfCollective(collective) || req.remoteUser?.isCommunityManager(collective));
 
+      // Asking for drafts without permission returns an empty page, not the published list.
+      if (isDraft && !canSeeDraftUpdates) {
+        return { nodes: [], totalCount: 0, limit, offset };
+      }
+
       if (onlyPublishedUpdates || !canSeeDraftUpdates) {
         where = assign(where, { publishedAt: { [Op.ne]: null } });
       } else if (isDraft) {
