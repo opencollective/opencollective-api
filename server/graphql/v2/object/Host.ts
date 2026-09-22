@@ -400,15 +400,9 @@ export const GraphQLHost = new GraphQLObjectType({
             description: 'The end date of the time series',
           },
         },
-        async resolve(host, args) {
-          let collectiveIds;
-          if (args.account) {
-            const collectives = await fetchAccountsWithReferences(args.account, {
-              attributes: ['id'],
-            });
-            collectiveIds = collectives.map(collective => collective.id);
-          }
-          const metrics = await host.getHostMetrics(args.dateFrom || args.from, args.dateTo || args.to, collectiveIds);
+        async resolve(host) {
+          // getHostMetrics is a stub that ignores the account and date arguments (see the model)
+          const metrics = await host.getHostMetrics();
           const toAmount = value => ({ value, currency: host.currency });
           return mapValues(metrics, (value, key) => (key.includes('Percent') ? value : toAmount(value)));
         },
