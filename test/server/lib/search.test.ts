@@ -128,17 +128,18 @@ describe('server/lib/search', () => {
     });
 
     it(`truncates search terms longer than ${MAX_SEARCH_TERM_LENGTH} characters before querying`, async () => {
-      // Create a collective whose name matches only the first MAX_SEARCH_TERM_LENGTH characters
-      // of a long term. If truncation works, we should still find it.
-      const uniquePrefix = randStr('search-trunc-');
-      const collective = await fakeCollective({ name: uniquePrefix });
+      // Use a single-token term so search stays on the prefix-match path after truncation.
+      // Multi-word terms use websearch_to_tsquery (AND across tokens), which would not match
+      // a name that only contains the leading portion of the query.
+      const uniquePrefix = randStr('searchtrunc-');
+      const searchableName = uniquePrefix + 'x'.repeat(MAX_SEARCH_TERM_LENGTH - uniquePrefix.length);
+      expect(searchableName.length).to.eq(MAX_SEARCH_TERM_LENGTH);
 
-      const padding = ' extra words '.repeat(20); // push term well past MAX_SEARCH_TERM_LENGTH
-      const longTerm = `${uniquePrefix}${padding}`;
+      const collective = await fakeCollective({ name: searchableName });
+      const longTerm = searchableName + 'y'.repeat(500);
       expect(longTerm.length).to.be.greaterThan(MAX_SEARCH_TERM_LENGTH);
 
       const [results] = await searchCollectivesInDB(publicReq, longTerm);
-      // The collective is findable because the term is truncated to the prefix portion
       expect(results.find(c => c.id === collective.id)).to.exist;
     });
 
