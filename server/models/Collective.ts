@@ -4063,7 +4063,7 @@ Collective.init(
         },
         isValidImage(url) {
           // Only validate for new images
-          if (!url || (this.id && this.previous('image') === undefined)) {
+          if (!url || (this.id && this.previous('backgroundImage') === undefined)) {
             return;
           } else if (!isValidUploadedImage(url, { allowTrustedThirdPartyImages: true })) {
             throw new Error('The background image URL is not valid');
