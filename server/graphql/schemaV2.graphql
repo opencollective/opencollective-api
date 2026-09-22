@@ -27119,7 +27119,7 @@ type Mutation {
   ): StripePaymentIntent!
 
   """
-  Create a new export request. Scopes: "exportRequests" (+ "transactions" and "incognito" for TRANSACTIONS exports, "host" for HOSTED_COLLECTIVES exports).
+  Create a new export request. Scopes: "exportRequests" (+ "transactions" and "incognito" for TRANSACTIONS exports, "host" for HOSTED_COLLECTIVES exports and for TRANSACTIONS exports when parameters.isHostReport is true).
   """
   createExportRequest(
     """

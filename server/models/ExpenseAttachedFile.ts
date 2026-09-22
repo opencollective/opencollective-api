@@ -1,4 +1,3 @@
-import config from 'config';
 import { DataTypes, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute, Transaction } from 'sequelize';
 
 import { diffDBEntries } from '../lib/data';
@@ -103,7 +102,7 @@ ExpenseAttachedFile.init(
           }
         },
         isValid(url: string): void {
-          if (url && !isValidUploadedImage(url) && !isValidRESTServiceURL(config.host.rest)) {
+          if (url && !isValidUploadedImage(url) && !isValidRESTServiceURL(url)) {
             throw new Error('The attached file URL is not valid');
           }
         },

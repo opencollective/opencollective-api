@@ -885,6 +885,11 @@ const orderMutations = {
           });
         }
 
+        if (order.TierId) {
+          const tierForValidation = await req.loaders.Tier.byId.load(order.TierId);
+          OrdersLib.assertTierBelongsToAccount(tierForValidation, toAccount);
+        }
+
         order = await order.markAsPaid(req.remoteUser);
 
         const tier = order.TierId && (await req.loaders.Tier.byId.load(order.TierId));
@@ -1333,6 +1338,7 @@ const orderMutations = {
       const toAccount = await fetchAccountWithReference(args.order.toAccount, { throwIfMissing: true });
       const host = await toAccount.getHostCollective({ loaders: req.loaders });
       const tier = args.order.tier && (await fetchTierWithReference(args.order.tier, { throwIfMissing: true }));
+      OrdersLib.assertTierBelongsToAccount(tier, toAccount);
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
         throw new Unauthorized('Only host admins can create pending orders');
@@ -1515,6 +1521,7 @@ const orderMutations = {
       const tier = args.order.tier
         ? await fetchTierWithReference(args.order.tier, { throwIfMissing: true })
         : order.tier;
+      OrdersLib.assertTierBelongsToAccount(tier, order.collective);
 
       if (
         fromAccount &&
