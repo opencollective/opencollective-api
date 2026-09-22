@@ -43,6 +43,17 @@ describe('server/lib/wise-id', () => {
       expect(() => normalizeWiseId(null)).to.throw(/Invalid Wise identifier type/);
       expect(() => normalizeWiseId(undefined)).to.throw(/Invalid Wise identifier type/);
     });
+
+    it('rejects values outside the signed Int64 range', () => {
+      // Wise documents identifiers as signed 64-bit integers; anything outside must never be
+      // accepted, otherwise `wiseInt64` could serialize an out-of-range token back to Wise.
+      expect(() => normalizeWiseId('9223372036854775808')).to.throw(/Int64/);
+      expect(() => normalizeWiseId('-9223372036854775809')).to.throw(/Int64/);
+      expect(() => normalizeWiseId('99999999999999999999')).to.throw(/Int64/);
+      expect(() => normalizeWiseId(9223372036854775808n)).to.throw(/Int64/);
+      expect(() => normalizeWiseId(-9223372036854775809n)).to.throw(/Int64/);
+      expect(tryNormalizeWiseId('9223372036854775808')).to.be.null;
+    });
   });
 
   describe('wiseIdsEqual', () => {
@@ -182,6 +193,11 @@ describe('server/lib/wise-id', () => {
       expect(isLosslessNumber(wiseInt64('42'))).to.be.true;
       expect(wiseInt64(42)?.toString()).to.equal('42');
       expect(wiseInt64(42n)?.toString()).to.equal('42');
+    });
+
+    it('refuses to serialize identifiers outside the signed Int64 range', () => {
+      expect(() => wiseInt64('9223372036854775808')).to.throw(/Int64/);
+      expect(() => wiseInt64(9223372036854775808n)).to.throw(/Int64/);
     });
   });
 });

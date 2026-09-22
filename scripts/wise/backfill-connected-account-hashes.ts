@@ -42,7 +42,12 @@ type BackfillSummary = {
 
 /** Reads the personal Wise profile `userId` from either supported storage location. */
 const getStoredUserId = (data: Record<string, unknown>, settings: Record<string, unknown>): unknown => {
-  return data?.personalProfile?.['userId'] ?? settings?.['userId'];
+  const personalProfile = data['personalProfile'];
+  const profileUserId =
+    personalProfile !== null && typeof personalProfile === 'object'
+      ? (personalProfile as Record<string, unknown>)['userId']
+      : undefined;
+  return profileUserId ?? settings['userId'];
 };
 
 /**

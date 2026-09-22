@@ -17,11 +17,25 @@ export type WiseId = string;
 
 const DECIMAL_ID = /^-?\d+$/;
 
+// Wise documents identifiers as signed 64-bit integers; anything outside this range must be rejected
+// so `wiseInt64` can never serialize an out-of-range token back to Wise.
+const INT64_MIN = -9223372036854775808n;
+const INT64_MAX = 9223372036854775807n;
+
+/** Returns `value.toString()` when it fits a signed Int64, otherwise throws. */
+function assertInt64Range(value: bigint): WiseId {
+  if (value < INT64_MIN || value > INT64_MAX) {
+    throw new Error(`Wise identifier is outside the signed Int64 range: ${value.toString()}`);
+  }
+  return value.toString();
+}
+
 /**
  * Returns the canonical (no leading zeros) decimal string for a Wise identifier.
  *
  * Accepts exact decimal strings, `bigint` and safe integer `number`s. Unsafe `number`s are rejected
- * because their original digits cannot be proven.
+ * because their original digits cannot be proven. Values outside the signed Int64 range that Wise
+ * documents are rejected as well.
  */
 export function normalizeWiseId(value: unknown): WiseId {
   if (typeof value === 'string') {
@@ -29,9 +43,9 @@ export function normalizeWiseId(value: unknown): WiseId {
     if (!DECIMAL_ID.test(trimmed)) {
       throw new Error(`Invalid Wise identifier: ${JSON.stringify(value)}`);
     }
-    return BigInt(trimmed).toString();
+    return assertInt64Range(BigInt(trimmed));
   } else if (typeof value === 'bigint') {
-    return value.toString();
+    return assertInt64Range(value);
   } else if (typeof value === 'number') {
     if (!Number.isSafeInteger(value)) {
       throw new Error(
