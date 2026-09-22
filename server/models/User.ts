@@ -616,7 +616,7 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
       hasMoneyManagement: Boolean(userData.hasMoneyManagement),
       hasHosting: userData.hasHosting,
       CreatedByUserId: userData.CreatedByUserId || this.id,
-      data: { ...(userData.data || {}), UserId: this.id },
+      data: { requiresProfileCompletion: true, ...(userData.data || {}), UserId: this.id },
       settings: userData.settings,
     };
     return await Collective.create(userCollectiveData, sequelizeParams);

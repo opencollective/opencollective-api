@@ -85,12 +85,10 @@ class MemberInvitation extends ModelWithPublicId<
       transaction,
       skipDefaultAdmin,
       privateNote,
-      isNewUser,
     }: {
       transaction?: Transaction;
       skipDefaultAdmin?: boolean;
       privateNote?: string;
-      isNewUser?: boolean;
     } = {},
   ) {
     const sequelizeParams = transaction ? { transaction } : undefined;
@@ -102,6 +100,11 @@ class MemberInvitation extends ModelWithPublicId<
       throw new Error(`Private accounts do not support the ${memberParams.role} role`);
     } else if (collective.type === CollectiveType.USER) {
       throw new Error('Individual accounts do not support members');
+    }
+
+    const inviteeCollective = await Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
+    if (!inviteeCollective || inviteeCollective.type !== CollectiveType.USER) {
+      throw new Error('Invitee does not exists');
     }
 
     // Ensure the user is not already a member
@@ -170,17 +173,9 @@ class MemberInvitation extends ModelWithPublicId<
       ...sequelizeParams,
     });
 
-    // If this is a freshly-created user account, flag their collective so they're prompted
-    // to complete their profile before they can accept the invitation. Mirrors the signup flow.
-    if (isNewUser) {
-      const inviteeCollective = await Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
-      if (inviteeCollective) {
-        const newData = { ...inviteeCollective.data, requiresProfileCompletion: true };
-        await inviteeCollective.update({ data: newData }, sequelizeParams);
-      }
-    }
-
-    await invitation.sendEmail(createdByUser, skipDefaultAdmin, sequelizeParams, privateNote, { isNewUser });
+    await invitation.sendEmail(createdByUser, skipDefaultAdmin, sequelizeParams, privateNote, {
+      isNewUser: inviteeCollective.data?.requiresProfileCompletion === true,
+    });
     return invitation;
   }
 }

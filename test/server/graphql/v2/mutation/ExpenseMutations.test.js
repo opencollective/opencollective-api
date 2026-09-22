@@ -46,6 +46,7 @@ import {
   fakeCollective,
   fakeComment,
   fakeConnectedAccount,
+  fakeEvent,
   fakeExpense,
   fakeExpenseAttachedFile,
   fakeExpenseItem,
@@ -383,6 +384,64 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the host');
+    });
+
+    it('fails if the collective is archived', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ isActive: false });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: collective.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Expenses can only be submitted to active entities.');
+    });
+
+    it('fails if the event is archived', async () => {
+      const user = await fakeUser();
+      const event = await fakeEvent({ isActive: false });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: event.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Expenses can only be submitted to active entities.');
+    });
+
+    it('fails if the target account type cannot receive expenses', async () => {
+      const user = await fakeUser();
+      const vendor = await fakeVendor();
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: vendor.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq(
+        'Expenses can only be submitted to Collectives, Events, Funds, Projects and active Hosts.',
+      );
+    });
+
+    it('fails if the organization (host) is inactive', async () => {
+      const user = await fakeUser();
+      const organization = await fakeOrganization({ isActive: false });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: organization.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Expenses can only be submitted to active entities.');
     });
 
     it('fails if the fromAccount requires 2FA', async () => {
@@ -3017,6 +3076,33 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         sandbox.restore();
       });
 
+      it('fails to submit a DRAFT when the collective is archived', async () => {
+        const submitter = await fakeUser();
+        const collective = await fakeCollective({ isActive: false });
+        const expense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: ExpenseTypes.INVOICE,
+          currency: 'USD',
+          CollectiveId: collective.id,
+          FromCollectiveId: submitter.collective.id,
+          data: {
+            draftKey: 'fake-key',
+            payee: submitter.collective.minimal,
+          },
+        });
+
+        const updatedExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          description: 'Submitting a draft to an archived account',
+          payee: { legacyId: submitter.collective.id },
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, submitter);
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses can only be submitted to active entities.');
+      });
+
       it('allows a logged in user to submit a DRAFT intended for them', async () => {
         const submitter = await fakeUser();
         const anotherUser = await fakeUser();
@@ -5453,6 +5539,21 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(emailSendMessageSpy.secondCall.args[1]).to.contain('New expense approved');
       });
 
+      it('Fails if the collective is archived', async () => {
+        const archivedCollective = await fakeCollective({
+          isActive: false,
+          HostCollectiveId: host.id,
+          admin: collectiveAdmin,
+        });
+        const expense = await fakeExpense({ CollectiveId: archivedCollective.id, status: 'PENDING' });
+        const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Cannot approve an expense for an archived account');
+        expect(result.errors[0].extensions.code).to.equal('MINIMAL_CONDITION_NOT_MET');
+      });
+
       it('Expense needs to be pending', async () => {
         const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PAID' });
         const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
@@ -5507,6 +5608,16 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.data.processExpense.status).to.eq('PENDING');
       });
+
+      it('Keeps the hold, which belongs to the host', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED', onHold: true });
+        const mutationParams = { expenseId: expense.id, action: 'UNAPPROVE' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('PENDING');
+        await expense.reload();
+        expect(expense.onHold).to.be.true;
+      });
     });
 
     describe('REJECT', () => {
@@ -5547,6 +5658,16 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'REJECT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.data.processExpense.status).to.eq('REJECTED');
+      });
+
+      it('Releases the hold', async () => {
+        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PENDING', onHold: true });
+        const mutationParams = { expenseId: expense.id, action: 'REJECT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('REJECTED');
+        await expense.reload();
+        expect(expense.onHold).to.be.false;
       });
     });
 
@@ -7469,6 +7590,18 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       const draftedExpense = result.data.draftExpenseAndInviteUser;
       expense = await models.Expense.findByPk(draftedExpense.legacyId);
+    });
+
+    it('should fail if the collective is archived', async () => {
+      const archivedCollective = await fakeCollective({ isActive: false });
+      const result = await graphqlQueryV2(
+        draftExpenseAndInviteUserMutation,
+        { expense: invoice, account: { legacyId: archivedCollective.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Expenses can only be submitted to active entities.');
     });
 
     it('should accept protected file upload url', async () => {

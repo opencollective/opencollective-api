@@ -737,13 +737,36 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
           expect(transaction.account.legalName).to.be.null;
         }
       });
+
+      const hostAccountant = await fakeUser();
+      await fakeMember({
+        CollectiveId: collective.HostCollectiveId,
+        MemberCollectiveId: hostAccountant.CollectiveId,
+        role: roles.ACCOUNTANT,
+      });
+      const resultHostAccountant = await graphqlQueryV2(transactionsCollectionQuery, queryArgs, hostAccountant);
+      resultHostAccountant.data.transactions.nodes.forEach(transaction => {
+        if (transaction.type === 'CREDIT') {
+          expect(transaction.fromAccount.legalName).to.eq('Secret Corp');
+          expect(transaction.oppositeAccount.legalName).to.eq('Secret Corp');
+        } else {
+          expect(transaction.oppositeAccount.legalName).to.eq('Secret Corp');
+          expect(transaction.toAccount.legalName).to.eq('Secret Corp');
+        }
+      });
     });
 
-    it('can see fromAccount.location.address if host admin', async () => {
+    it('can see fromAccount.location.address if host admin or accountant', async () => {
       const randomUser = await fakeUser();
       const testHostAdmin = await fakeUser();
+      const testHostAccountant = await fakeUser();
       const testFromCollectiveAdmin = await fakeUser();
       const testHost = await fakeHost({ admin: testHostAdmin.collective });
+      await fakeMember({
+        CollectiveId: testHost.id,
+        MemberCollectiveId: testHostAccountant.CollectiveId,
+        role: roles.ACCOUNTANT,
+      });
       const testFromCollective = await fakeOrganization({
         legalName: 'Test Corp',
         location: { address: '123 Secret Street' },
@@ -790,6 +813,12 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
       // Host admin should see the location address
       const resultHostAdmin = await graphqlQueryV2(transactionsCollectionQuery, queryArgs, testHostAdmin);
       resultHostAdmin.data.transactions.nodes.forEach(transaction => {
+        expect(transaction.fromAccount?.location?.address).to.eq('123 Secret Street');
+      });
+
+      // Host accountant should see the location address
+      const resultHostAccountant = await graphqlQueryV2(transactionsCollectionQuery, queryArgs, testHostAccountant);
+      resultHostAccountant.data.transactions.nodes.forEach(transaction => {
         expect(transaction.fromAccount?.location?.address).to.eq('123 Secret Street');
       });
     });

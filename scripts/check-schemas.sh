@@ -27,7 +27,7 @@ wait_for_service API 127.0.0.1 3060
 npm run graphql:update || exit 1
 
 # Check if files changed
-CHANGED=$(git status --porcelain | grep lang)
+CHANGED=$(git status --porcelain -- server/graphql/schemaV1.graphql server/graphql/schemaV2.graphql)
 if [ -n "${CHANGED}" ] ; then
   echo "GraphQL schema files are not up to date, Please run 'npm run graphql:update' with the API started"
   echo "-------- FILES --------"

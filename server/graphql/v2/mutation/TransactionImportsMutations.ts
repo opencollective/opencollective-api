@@ -2,7 +2,7 @@ import config from 'config';
 import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
-import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
+import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
 import { isEmpty, keyBy, mapValues, omit, pick, truncate } from 'lodash';
 
 import { applyBalanceAccountingCategoryFromImportRow } from '../../../lib/accounting/categorization/balance-accounts';

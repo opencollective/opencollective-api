@@ -8,6 +8,7 @@ import ExportRequest from '../../models/ExportRequest';
 import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { canSeeExpenseAttachments, canSeeExpenseDraftPrivateDetails } from './expenses';
+import { canUseExportRequestsForAccount } from './export-requests';
 
 export async function hasProtectedUrlPermission(req: Express.Request, url: string) {
   const requestedUrl = new URL(url);
@@ -80,7 +81,12 @@ export async function hasUploadedFilePermission(
         UploadedFileId: uploadedFile.id,
       },
     });
-    return Boolean(exportRequest && req.remoteUser.isAdmin(exportRequest.CollectiveId));
+    if (!exportRequest) {
+      return false;
+    }
+
+    const account = await req.loaders.Collective.byId.load(exportRequest.CollectiveId);
+    return canUseExportRequestsForAccount(req.remoteUser, account);
   }
 
   const result = await sequelize.query<Array<{ ExpenseId: number }>>(

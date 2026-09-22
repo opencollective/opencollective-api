@@ -64,6 +64,15 @@ describe('server/models/User', () => {
         expect(user.collective.slug).to.equal('hen3-bang4-de-yong4-hu4-awesome');
       });
     });
+
+    it('allows the profile completion requirement to be overridden', async () => {
+      const user = await User.createUserWithCollective({
+        email: randEmail('user@domain.com'),
+        data: { customFlag: true, requiresProfileCompletion: false },
+      });
+
+      expect(user.collective.data).to.include({ customFlag: true, requiresProfileCompletion: false, UserId: user.id });
+    });
   });
 
   /**
