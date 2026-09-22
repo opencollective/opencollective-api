@@ -160,6 +160,44 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
       expect(result.errors[0].message).to.eq('Two-factor authentication required');
       expect(result.errors[0].extensions.code).to.eq('2FA_REQUIRED');
     });
+
+    it('rejects javascript: redirect URIs', async () => {
+      const user = await fakeUser();
+      const result = await graphqlQueryV2(
+        CREATE_APPLICATION_MUTATION,
+        { application: { ...VALID_APPLICATION_PARAMS, redirectUri: 'javascript:alert(1)' } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('URL must use HTTP or HTTPS');
+      expect(result.data.createApplication).to.be.null;
+    });
+
+    it('rejects data: redirect URIs', async () => {
+      const user = await fakeUser();
+      const result = await graphqlQueryV2(
+        CREATE_APPLICATION_MUTATION,
+        { application: { ...VALID_APPLICATION_PARAMS, redirectUri: 'data:text/html,hello' } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('URL must use HTTP or HTTPS');
+      expect(result.data.createApplication).to.be.null;
+    });
+
+    it('allows http://localhost redirect URIs outside production', async () => {
+      const user = await fakeUser();
+      const result = await graphqlQueryV2(
+        CREATE_APPLICATION_MUTATION,
+        { application: { ...VALID_APPLICATION_PARAMS, redirectUri: 'http://localhost:3000/callback' } },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.createApplication.redirectUri).to.eq('http://localhost:3000/callback');
+    });
   });
 
   describe('updateApplicationMutation', () => {
@@ -292,6 +330,47 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
       const appFromDB = await models.Application.findByPk(appLegacyId);
       expect(appFromDB.callbackUrl).to.eq(newRedirectUri);
+    });
+
+    it('rejects javascript: redirect URIs', async () => {
+      const application = await fakeApplication({ type: 'oAuth' });
+      const user = await application.getCreatedByUser();
+      const result = await graphqlQueryV2(
+        UPDATE_APPLICATION_MUTATION,
+        {
+          application: {
+            legacyId: application.id,
+            redirectUri: 'javascript:alert(1)',
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('URL must use HTTP or HTTPS');
+      expect(result.data.updateApplication).to.be.null;
+
+      await application.reload();
+      expect(application.callbackUrl).to.not.equal('javascript:alert(1)');
+    });
+
+    it('rejects data: redirect URIs', async () => {
+      const application = await fakeApplication({ type: 'oAuth' });
+      const user = await application.getCreatedByUser();
+      const result = await graphqlQueryV2(
+        UPDATE_APPLICATION_MUTATION,
+        {
+          application: {
+            legacyId: application.id,
+            redirectUri: 'data:text/html,hello',
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('URL must use HTTP or HTTPS');
+      expect(result.data.updateApplication).to.be.null;
     });
 
     it('updates name and description without 2FA when redirectUri is unchanged', async () => {
