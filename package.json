@@ -99,7 +99,7 @@
     "nodemailer": "10.0.10",
     "nordigen-node": "1.4.1",
     "otplib": "13.5.0",
-    "p-map": "4.0.0",
+    "p-map": "7.0.8",
     "p-queue": "9.3.3",
     "passport": "0.7.0",
     "passport-github": "1.1.0",
