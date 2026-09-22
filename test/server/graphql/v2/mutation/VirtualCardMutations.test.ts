@@ -636,7 +636,7 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
         provider: VirtualCardProviders.STRIPE,
         data: { status: VirtualCardStatus.INACTIVE, pauseReason: 'MANUAL' },
       });
-      sandbox.stub(stripeVirtualCards, 'resumeCard').resolves();
+      const resumeCardStub = sandbox.stub(stripeVirtualCards, 'resumeCard').resolves();
 
       const result = await graphqlQueryV2(
         RESUME_VIRTUAL_CARD_MUTATION,
@@ -650,7 +650,7 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
-      expect(stripeVirtualCards.resumeCard.called).to.equal(false);
+      expect(resumeCardStub.called).to.equal(false);
 
       await virtualCard.reload();
       expect(virtualCard.data.status).to.equal(VirtualCardStatus.INACTIVE);
