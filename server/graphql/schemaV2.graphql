@@ -20954,6 +20954,7 @@ type Query {
     """
     role: [MemberRole]
   ): [MemberInvitation]
+
   """
   Get an order by reference. Scope: "orders".
   """
@@ -27119,7 +27120,7 @@ type Mutation {
   ): StripePaymentIntent!
 
   """
-  Create a new export request. Scopes: "exportRequests" (+ "transactions" and "incognito" for TRANSACTIONS exports, "host" for HOSTED_COLLECTIVES exports and for TRANSACTIONS exports when parameters.isHostReport is true).
+  Create a new export request. Scopes: "exportRequests" (+ "transactions" and "incognito" for TRANSACTIONS exports, "host" for HOSTED_COLLECTIVES exports).
   """
   createExportRequest(
     """
