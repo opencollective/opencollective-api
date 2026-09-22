@@ -33,6 +33,7 @@ import { plaidMutations } from './PlaidMutations';
 import platformSubscriptionMutations from './PlatformSubscriptionsMutations';
 import rootMutations from './RootMutations';
 import socialLinkMutations from './SocialLinkMutations';
+import { paypalMutations } from './PaypalMutations';
 import { stripeMutations } from './StripeMutations';
 import tagMutations from './TagMutations';
 import tierMutations from './TierMutations';
@@ -75,6 +76,7 @@ const mutation = {
   ...plaidMutations,
   ...goCardlessMutations,
   ...stripeMutations,
+  ...paypalMutations,
   ...transferwiseMutations,
   ...rootMutations,
   ...transactionMutations,
