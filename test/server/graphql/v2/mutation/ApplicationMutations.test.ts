@@ -171,7 +171,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('URL must use HTTP or HTTPS');
-      expect(result.data.createApplication).to.be.null;
+      expect(result.data).to.not.ok;
     });
 
     it('rejects data: redirect URIs', async () => {
@@ -184,7 +184,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('URL must use HTTP or HTTPS');
-      expect(result.data.createApplication).to.be.null;
+      expect(result.data).to.not.ok;
     });
 
     it('allows http://localhost redirect URIs outside production', async () => {
@@ -348,7 +348,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('URL must use HTTP or HTTPS');
-      expect(result.data.updateApplication).to.be.null;
+      expect(result.data).to.not.ok;
 
       await application.reload();
       expect(application.callbackUrl).to.not.equal('javascript:alert(1)');
@@ -370,7 +370,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('URL must use HTTP or HTTPS');
-      expect(result.data.updateApplication).to.be.null;
+      expect(result.data).to.not.ok;
     });
 
     it('updates name and description without 2FA when redirectUri is unchanged', async () => {
