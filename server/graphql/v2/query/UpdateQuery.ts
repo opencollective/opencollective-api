@@ -27,7 +27,7 @@ const UpdateQuery = {
     },
   },
   async resolve(_, args, req: express.Request): Promise<Update | null> {
-    let update: Update | null = null;
+    let update: Update | null;
 
     if (args.id) {
       update = isEntityPublicId(args.id, EntityShortIdPrefix.Update)
