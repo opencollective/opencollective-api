@@ -35,6 +35,107 @@ const RATES = {
   JPY: { USD: 0.009, EUR: 0.0075, GBP: 0.0071 },
 };
 
+/**
+ * Connected-account `data` as persisted before the Int64 refactor: Wise identifiers are JavaScript
+ * numbers. `stringifyWiseIds` converts the identifier fields (`id`, `userId`) to the canonical
+ * decimal strings used by the refactor, so the flow can be exercised against the new storage shape.
+ */
+const WISE_CONNECTED_ACCOUNT_DATA = {
+  id: 28891298,
+  type: 'BUSINESS',
+  email: 'asdasd@test.dev',
+  scope: 'transfers',
+  userId: 13144073,
+  address: {
+    id: 50137467,
+    city: 'Port Ha',
+    postCode: 'E38JJ',
+    stateCode: null,
+    countryIso2Code: 'GB',
+    countryIso3Code: 'gbr',
+    addressFirstLine: '73 Birch Link',
+  },
+  partner: false,
+  version: 0,
+  webpage: 'https://raymondandco4011.com',
+  fullName: 'Raymond and Co 4011',
+  publicId: '1aa1e5d1-01c3-45c5-ab0e-975ff36f512c',
+  createdAt: '2026-06-04T10:52:37',
+  updatedAt: '2026-06-04T10:52:37',
+  expires_at: '2026-06-04T23:03:51.097Z',
+  expires_in: 43199,
+  obfuscated: false,
+  token_type: 'bearer',
+  companyRole: 'OWNER',
+  companyType: 'LIMITED',
+  profileRole: 'DIRECT_CUSTOMER_PROFILE',
+  businessName: 'Raymond and Co 4011',
+  currentState: 'VISIBLE',
+  contactDetails: { email: 'asdasd@test.dev', phoneNumber: '+905616137250' },
+  dataObfuscated: false,
+  onboardingFlow: 'DEFAULT',
+  creatorClientId: 'transferwise_web',
+  partnerCustomer: false,
+  personalProfile: {
+    id: 28891297,
+    type: 'PERSONAL',
+    email: 'asdasd@test.dev',
+    userId: 13144073,
+    address: {
+      id: 50137466,
+      city: 'Artoon',
+      postCode: 'E79JJ',
+      stateCode: null,
+      countryIso2Code: 'GB',
+      countryIso3Code: 'gbr',
+      addressFirstLine: '57 Redcar Glebe',
+    },
+    partner: false,
+    version: 1,
+    fullName: 'Franco Beasley',
+    lastName: 'Beasley',
+    publicId: '623d276f-da07-44f7-8243-1cd555997043',
+    createdAt: '2026-06-04T10:52:35',
+    firstName: 'Franco',
+    updatedAt: '2026-06-04T10:52:36',
+    obfuscated: false,
+    dateOfBirth: '1995-01-06',
+    phoneNumber: '+905616137250',
+    profileRole: 'DIRECT_CUSTOMER_PROFILE',
+    currentState: 'VISIBLE',
+    jointProfile: false,
+    contactDetails: { email: 'asdasd@test.dev', phoneNumber: '+905616137250' },
+    dataObfuscated: false,
+    creatorClientId: 'transferwise_web',
+    partnerCustomer: false,
+    secondaryAddresses: [],
+    contractingWithWise: true,
+  },
+  firstLevelCategory: 'CONSULTING_IT_BUSINESS_SERVICES',
+  industryCategories: ['ADVERTISING_DESIGN_PHOTOGRAPHY'],
+  registrationNumber: '85771766',
+  contractingWithWise: true,
+  secondLevelCategory: 'DESIGN',
+  operationalAddresses: [],
+  descriptionOfBusiness: 'DESIGN',
+  refresh_token_expires_at: '2046-05-30T11:03:51.097Z',
+  refresh_token_expires_in: 630719999,
+};
+
+/** Recursively converts Wise identifier fields (`id`, `userId`) to canonical decimal strings. */
+const stringifyWiseIds = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value.map(stringifyWiseIds) as unknown as T;
+  } else if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) =>
+        key === 'id' || key === 'userId' ? [key, String(entry)] : [key, stringifyWiseIds(entry)],
+      ),
+    ) as T;
+  }
+  return value;
+};
+
 describe('/test/stories/transferwise.test.ts', () => {
   useIntegrationTestRecorder(
     config.transferwise.apiUrl,
@@ -43,6 +144,10 @@ describe('/test/stories/transferwise.test.ts', () => {
       // Ignore our randomly generated customerTransactionId
       if (nock.body?.customerTransactionId) {
         nock.body.customerTransactionId = /.+/i;
+      }
+      // The transfer `reference` is the auto-incremented expense id, which shifts when tests are added
+      if (nock.body?.details?.reference) {
+        nock.body.details.reference = /.+/i;
       }
       return nock;
     },
@@ -63,7 +168,12 @@ describe('/test/stories/transferwise.test.ts', () => {
     await seedCachedRates(RATES);
   });
 
-  const setupTest = async ({ expenseCurrency, collectiveCurrency, payoutData }) => {
+  const setupTest = async ({
+    expenseCurrency,
+    collectiveCurrency,
+    payoutData,
+    connectedAccountData = WISE_CONNECTED_ACCOUNT_DATA,
+  }) => {
     await models.Transaction.truncate();
     const hostCurrency = 'USD';
     const expenseAmount = 100e2;
@@ -86,88 +196,8 @@ describe('/test/stories/transferwise.test.ts', () => {
     await fakeConnectedAccount({
       CollectiveId: host.id,
       service: 'transferwise',
-      token: 'd89885e9-edc3-4352-a492-dd73eaf6fa75',
-      data: {
-        id: 28891298,
-        type: 'BUSINESS',
-        email: 'asdasd@test.dev',
-        scope: 'transfers',
-        userId: 13144073,
-        address: {
-          id: 50137467,
-          city: 'Port Ha',
-          postCode: 'E38JJ',
-          stateCode: null,
-          countryIso2Code: 'GB',
-          countryIso3Code: 'gbr',
-          addressFirstLine: '73 Birch Link',
-        },
-        partner: false,
-        version: 0,
-        webpage: 'https://raymondandco4011.com',
-        fullName: 'Raymond and Co 4011',
-        publicId: '1aa1e5d1-01c3-45c5-ab0e-975ff36f512c',
-        createdAt: '2026-06-04T10:52:37',
-        updatedAt: '2026-06-04T10:52:37',
-        expires_at: '2026-06-04T23:03:51.097Z',
-        expires_in: 43199,
-        obfuscated: false,
-        token_type: 'bearer',
-        companyRole: 'OWNER',
-        companyType: 'LIMITED',
-        profileRole: 'DIRECT_CUSTOMER_PROFILE',
-        businessName: 'Raymond and Co 4011',
-        currentState: 'VISIBLE',
-        contactDetails: { email: 'asdasd@test.dev', phoneNumber: '+905616137250' },
-        dataObfuscated: false,
-        onboardingFlow: 'DEFAULT',
-        creatorClientId: 'transferwise_web',
-        partnerCustomer: false,
-        personalProfile: {
-          id: 28891297,
-          type: 'PERSONAL',
-          email: 'asdasd@test.dev',
-          userId: 13144073,
-          address: {
-            id: 50137466,
-            city: 'Artoon',
-            postCode: 'E79JJ',
-            stateCode: null,
-            countryIso2Code: 'GB',
-            countryIso3Code: 'gbr',
-            addressFirstLine: '57 Redcar Glebe',
-          },
-          partner: false,
-          version: 1,
-          fullName: 'Franco Beasley',
-          lastName: 'Beasley',
-          publicId: '623d276f-da07-44f7-8243-1cd555997043',
-          createdAt: '2026-06-04T10:52:35',
-          firstName: 'Franco',
-          updatedAt: '2026-06-04T10:52:36',
-          obfuscated: false,
-          dateOfBirth: '1995-01-06',
-          phoneNumber: '+905616137250',
-          profileRole: 'DIRECT_CUSTOMER_PROFILE',
-          currentState: 'VISIBLE',
-          jointProfile: false,
-          contactDetails: { email: 'asdasd@test.dev', phoneNumber: '+905616137250' },
-          dataObfuscated: false,
-          creatorClientId: 'transferwise_web',
-          partnerCustomer: false,
-          secondaryAddresses: [],
-          contractingWithWise: true,
-        },
-        firstLevelCategory: 'CONSULTING_IT_BUSINESS_SERVICES',
-        industryCategories: ['ADVERTISING_DESIGN_PHOTOGRAPHY'],
-        registrationNumber: '85771766',
-        contractingWithWise: true,
-        secondLevelCategory: 'DESIGN',
-        operationalAddresses: [],
-        descriptionOfBusiness: 'DESIGN',
-        refresh_token_expires_at: '2046-05-30T11:03:51.097Z',
-        refresh_token_expires_in: 630719999,
-      },
+      token: 'f1007864-d022-4c33-8885-b9a69e2bc149',
+      data: connectedAccountData,
     });
     await hostAdmin.populateRoles();
     await fakeTransaction({
@@ -267,6 +297,36 @@ describe('/test/stories/transferwise.test.ts', () => {
       expenseCurrency,
       collectiveCurrency,
       payoutData,
+    });
+  });
+
+  it('payee.currency = expense.currency = collective.currency = host.currency (stringified Wise IDs)', async () => {
+    const expenseCurrency = 'USD';
+    const collectiveCurrency = 'USD';
+    const payoutData = {
+      accountHolderName: 'Nicolas Cage',
+      currency: 'USD',
+      type: 'aba',
+      details: {
+        abartn: '284084266',
+        address: {
+          city: 'New York',
+          state: 'NY',
+          country: 'US',
+          postCode: '01234',
+          firstLine: 'Some Ave',
+        },
+        legalType: 'PRIVATE',
+        accountType: 'CHECKING',
+        accountNumber: '65261083',
+      },
+    };
+
+    await setupTest({
+      expenseCurrency,
+      collectiveCurrency,
+      payoutData,
+      connectedAccountData: stringifyWiseIds(WISE_CONNECTED_ACCOUNT_DATA),
     });
   });
 
