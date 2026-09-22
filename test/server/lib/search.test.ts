@@ -9,6 +9,7 @@ import { EntityShortIdPrefix } from '../../../server/lib/permalink/entity-map';
 import {
   buildKyselySearchConditions,
   buildSearchConditions,
+  MAX_SEARCH_TERM_LENGTH,
   parseSearchTerm,
   sanitizeSearchTermForILike,
   searchCollectivesByEmail,
@@ -108,6 +109,38 @@ describe('server/lib/search', () => {
       const [results] = await searchCollectivesInDB(publicReq, 'le 47 \\');
       expect(results).to.be.an('array');
       // No error should be thrown; the search completes successfully
+    });
+
+    it('does not throw "tsquery stack too small" for very long search terms', async () => {
+      // Reproduces OC-API-7NC: a user pasted a lengthy Chinese academic text as a search term.
+      // websearch_to_tsquery exceeds its internal stack when given too many tokens.
+      const longTerm =
+        '漢學研究第 33 卷第 3 期 「真本」一詞，乃「手稿」、「原本」之意，不能望文生義，更絕非真假之謂。 ' +
+        '《漢書》「真本」出現於蕭琛宣城太守任上，他在天監元年（502）擔任此職， ' +
+        '「俄遷員外散騎常侍。三年，除太子中庶子、散騎常侍」。因此，蕭琛獲得這 ' +
+        '份文獻的時間，應該在天監元年或二年（503），即梁朝剛建立時。 ' +
+        '在南北長期分裂下，南北雙方在政治、軍事、社會、經濟、學術等層面，' +
+        '都出現各自發展的情況。經過日積月累，南北學術上的差距和特色益形明顯。';
+
+      // Must resolve without error (previously caused "tsquery stack too small")
+      const [results] = await searchCollectivesInDB(publicReq, longTerm);
+      expect(results).to.be.an('array');
+    });
+
+    it(`truncates search terms longer than ${MAX_SEARCH_TERM_LENGTH} characters before querying`, async () => {
+      // Use a single-token term so search stays on the prefix-match path after truncation.
+      // Multi-word terms use websearch_to_tsquery (AND across tokens), which would not match
+      // a name that only contains the leading portion of the query.
+      const uniquePrefix = randStr('searchtrunc-');
+      const searchableName = uniquePrefix + 'x'.repeat(MAX_SEARCH_TERM_LENGTH - uniquePrefix.length);
+      expect(searchableName.length).to.eq(MAX_SEARCH_TERM_LENGTH);
+
+      const collective = await fakeCollective({ name: searchableName });
+      const longTerm = searchableName + 'y'.repeat(500);
+      expect(longTerm.length).to.be.greaterThan(MAX_SEARCH_TERM_LENGTH);
+
+      const [results] = await searchCollectivesInDB(publicReq, longTerm);
+      expect(results.find(c => c.id === collective.id)).to.exist;
     });
 
     describe('Works with punctuation', async () => {
