@@ -1,15 +1,14 @@
 import config from 'config';
-import jwt from 'jsonwebtoken';
 import express from 'express';
+import jwt from 'jsonwebtoken';
 
+import { SupportedCurrency } from '../../constants/currencies';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import RateLimit from '../../lib/rate-limit';
-import models, { sequelize } from '../../models';
-import { Collective, ConnectedAccount } from '../../models';
+import models, { Collective, ConnectedAccount, sequelize } from '../../models';
 import PayoutMethod, { PayoutMethodTypes, PaypalPayoutMethodData } from '../../models/PayoutMethod';
 import User from '../../models/User';
-import { SupportedCurrency } from '../../constants/currencies';
 import { hashObject } from '../utils';
 
 import { exchangeAuthCodeForToken, paypalConnectAuthorizeUrl, retrievePaypalUserInfo } from './api';

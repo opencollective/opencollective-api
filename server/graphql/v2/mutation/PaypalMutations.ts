@@ -3,14 +3,14 @@ import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
+import { SupportedCurrency } from '../../../constants/currencies';
 import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
 import paypal, { connectPaypalPayoutMethod } from '../../../paymentProviders/paypal';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
 import { Forbidden, NotFound, ValidationFailed } from '../../errors';
-import { SupportedCurrency } from '../../../constants/currencies';
+import { GraphQLCurrency } from '../enum/Currency';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { fetchPayoutMethodWithReference, GraphQLPayoutMethodReferenceInput } from '../input/PayoutMethodReferenceInput';
-import { GraphQLCurrency } from '../enum/Currency';
 import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
 import GraphQLPayoutMethod from '../object/PayoutMethod';
 import GraphQLURL from '../scalar/URL';
