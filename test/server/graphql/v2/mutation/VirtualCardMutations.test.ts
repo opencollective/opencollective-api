@@ -49,6 +49,14 @@ const EDIT_VIRTUAL_CARD_MUTATION = gql`
   }
 `;
 
+const RESUME_VIRTUAL_CARD_MUTATION = gql`
+  mutation ResumeVirtualCard($virtualCard: VirtualCardReferenceInput!) {
+    resumeVirtualCard(virtualCard: $virtualCard) {
+      id
+    }
+  }
+`;
+
 const REQUEST_VIRTUAL_CARD_MUTATION = gql`
   mutation RequestVirtualCard($account: AccountReferenceInput!) {
     requestVirtualCard(
@@ -597,6 +605,55 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
       expect(result.data.createVirtualCard.name).to.equal('Test Virtual Card!');
       expect(result.data.createVirtualCard.spendingLimitAmount).to.equal(50000);
       expect(result.data.createVirtualCard.spendingLimitInterval).to.equal(VirtualCardLimitIntervals.MONTHLY);
+    });
+  });
+
+  describe('resumeVirtualCard', () => {
+    let hostAdminUser, host, collective;
+    let sandbox;
+
+    beforeEach(resetTestDB);
+    beforeEach(async () => {
+      hostAdminUser = await fakeUser();
+      host = await fakeHost({
+        admin: hostAdminUser,
+        data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+      });
+      collective = await fakeCollective({ HostCollectiveId: host.id });
+    });
+
+    beforeEach(() => {
+      sandbox = createSandbox();
+    });
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('rejects host admin without 2FA when host requires 2FA for admins', async () => {
+      const virtualCard = await fakeVirtualCard({
+        HostCollectiveId: host.id,
+        CollectiveId: collective.id,
+        provider: VirtualCardProviders.STRIPE,
+        data: { status: VirtualCardStatus.INACTIVE, pauseReason: 'MANUAL' },
+      });
+      sandbox.stub(stripeVirtualCards, 'resumeCard').resolves();
+
+      const result = await graphqlQueryV2(
+        RESUME_VIRTUAL_CARD_MUTATION,
+        {
+          virtualCard: {
+            id: virtualCard.id,
+          },
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+      expect(stripeVirtualCards.resumeCard.called).to.equal(false);
+
+      await virtualCard.reload();
+      expect(virtualCard.data.status).to.equal(VirtualCardStatus.INACTIVE);
     });
   });
 
