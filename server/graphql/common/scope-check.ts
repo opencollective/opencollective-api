@@ -189,6 +189,9 @@ export const checkScope = (req: Express.Request, scope: OAuthScope): boolean => 
   return true;
 };
 
+/**
+ * Enforces the scope **only** if the remoteUser is authenticated with a OAuth or Personal Token.
+ */
 export const enforceScope = (req: Express.Request, scope: OAuthScope): void => {
   if (!checkScope(req, scope)) {
     if (req.userToken) {

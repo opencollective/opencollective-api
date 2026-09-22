@@ -667,6 +667,7 @@ export const fakeComment = async (
       CollectiveId: <number>CollectiveId,
       CreatedByUserId: <number>CreatedByUserId,
       ExpenseId: <number>ExpenseId,
+      OrderId: <number>OrderId,
       ConversationId: <number>ConversationId,
     },
     sequelizeParams,

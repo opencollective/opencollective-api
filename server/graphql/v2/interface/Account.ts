@@ -445,7 +445,7 @@ const accountFieldsDefinition = () => ({
   emails: {
     type: new GraphQLList(new GraphQLNonNull(GraphQLEmailAddress)),
     description:
-      'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.',
+      'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".',
   },
   transactions: {
     type: new GraphQLNonNull(GraphQLTransactionCollection),
