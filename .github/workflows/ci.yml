@@ -96,9 +96,8 @@ jobs:
         uses: actions/cache@v6
         with:
           path: tsconfig.tsbuildinfo
+          # Exact commit only: restoring tsbuildinfo from another SHA corrupts incremental state and can crash tsc (stack overflow on TS 6).
           key: ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-tsc-${{ hashFiles('tsconfig.json', 'package-lock.json') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-tsc-${{ hashFiles('tsconfig.json', 'package-lock.json') }}-
 
       - run: npm run type:check
 
