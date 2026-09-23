@@ -138,12 +138,16 @@ const normalizeQuote = <T>(quote: T): T => {
 };
 
 const normalizeBatchGroup = <T>(batchGroup: T): T => {
-  const normalized = normalizeIdFields(batchGroup, ['version']);
-  const record = normalized as IdContainer;
-  if (Array.isArray(record?.transferIds)) {
+  if (!batchGroup || typeof batchGroup !== 'object') {
+    return batchGroup;
+  }
+  // Only `transferIds` are identifiers. `version` is an operational counter (a number) and must not
+  // be stringified; the lossless parser already keeps it exact if it ever exceeds the safe range.
+  const record = { ...(batchGroup as IdContainer) };
+  if (Array.isArray(record.transferIds)) {
     record.transferIds = normalizeWiseIdList(record.transferIds);
   }
-  return normalized;
+  return record as T;
 };
 
 const normalizeWebhookEvent = <T extends { data?: { resource?: Record<string, unknown> } }>(event: T): T => {

@@ -343,5 +343,26 @@ describe('server/lib/transferwise', () => {
 
       expect(scope.isDone()).to.be.true;
     });
+
+    it('keeps the batch group version numeric while normalizing its transfer ids', async () => {
+      // `version` is an operational counter, not a Wise identifier: it must stay a number. Only the
+      // `transferIds` are identifiers and get canonicalized to decimal strings.
+      const connectedAccount = await fakeConnectedAccount({
+        service: 'transferwise',
+        token: 'cool-token',
+        // eslint-disable-next-line camelcase
+        data: { id: '220192', created_at: new Date(), expires_in: 10000 },
+      });
+      const rawBody = '{"id":"batch-1","version":2,"transferIds":[9007199254740993,800],"status":"NEW"}';
+      nock('https://api.wise-sandbox.com')
+        .get('/v3/profiles/220192/batch-groups/batch-1')
+        .reply(200, rawBody, { 'Content-Type': 'application/json' });
+
+      const batchGroup = await transferwise.getBatchGroup(connectedAccount, 'batch-1');
+
+      expect(batchGroup).to.have.property('version', 2);
+      expect(batchGroup.version).to.be.a('number');
+      expect(batchGroup.transferIds).to.deep.equal(['9007199254740993', '800']);
+    });
   });
 });
