@@ -60,6 +60,11 @@ jobs:
       pdf-ref: ${{ steps.checkout-stack.outputs.pdf-ref }}
 
     steps:
+      - name: APT Update and Install
+        run: |
+          sudo apt-get update || true
+          sudo apt-get install graphicsmagick
+
       - name: Checkout (api)
         uses: actions/checkout@v7
 
