@@ -17,6 +17,7 @@ import { QueryTypes } from 'sequelize';
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
+import MemberRoles from '../../../constants/roles';
 import { FEATURE } from '../../../lib/allowed-features';
 import { listMatchingDimensionValues } from '../../../lib/metrics';
 import { GraphQLMetricsDateRangeInput, hostMetricsField } from '../../../lib/metrics/graphql';
@@ -180,8 +181,10 @@ export const GraphQLHost = new GraphQLObjectType({
         resolve: async (host, args, req) => {
           checkRemoteUserCanUseHost(req);
           checkRemoteUserCanUseTransactions(req);
-          if (!req.remoteUser.isAdminOfCollective(host)) {
-            throw new Unauthorized('You need to be logged in as an admin of the host to see its transaction reports');
+          if (!req.remoteUser.isAdminOfCollective(host) && !req.remoteUser.hasRole(MemberRoles.ACCOUNTANT, host.id)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin or an accountant of the host to see its transaction reports',
+            );
           }
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
             throw new Error('Only monthly, quarterly and yearly reports are supported.');
@@ -467,8 +470,10 @@ export const GraphQLHost = new GraphQLObjectType({
         resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }, req) => {
           checkRemoteUserCanUseHost(req);
           checkRemoteUserCanUseExpenses(req);
-          if (!req.remoteUser.isAdminOfCollective(host)) {
-            throw new Unauthorized('You need to be logged in as an admin of the host to see its expense reports');
+          if (!req.remoteUser.isAdminOfCollective(host) && !req.remoteUser.hasRole(MemberRoles.ACCOUNTANT, host.id)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin or an accountant of the host to see its expense reports',
+            );
           }
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
             throw new Error('Only monthly, quarterly and yearly reports are supported.');
@@ -542,8 +547,10 @@ export const GraphQLHost = new GraphQLObjectType({
         resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }, req) => {
           checkRemoteUserCanUseHost(req);
           checkRemoteUserCanUseOrders(req);
-          if (!req.remoteUser.isAdminOfCollective(host)) {
-            throw new Unauthorized('You need to be logged in as an admin of the host to see its contribution reports');
+          if (!req.remoteUser.isAdminOfCollective(host) && !req.remoteUser.hasRole(MemberRoles.ACCOUNTANT, host.id)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin or an accountant of the host to see its contribution reports',
+            );
           }
 
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
