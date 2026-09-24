@@ -41,7 +41,6 @@ import { GraphQLMemberCollection, GraphQLMemberOfCollection } from '../collectio
 import { GraphQLOAuthApplicationCollection } from '../collection/OAuthApplicationCollection';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
 import { GraphQLTransactionCollection } from '../collection/TransactionCollection';
-import { GraphQLTransactionGroupCollection } from '../collection/TransactionGroupCollection';
 import { GraphQLUpdateCollection } from '../collection/UpdateCollection';
 import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection';
 import {
@@ -105,10 +104,6 @@ import {
   ExpensesCollectionQueryResolver,
 } from '../query/collection/ExpensesCollectionQuery';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
-import {
-  TransactionGroupCollectionArgs,
-  TransactionGroupCollectionResolver,
-} from '../query/collection/TransactionGroupCollectionQuery';
 import {
   TransactionsCollectionArgs,
   TransactionsCollectionResolver,
@@ -1059,7 +1054,6 @@ const accountFieldsDefinition = () => ({
       }
     },
   },
-  transactionGroups: accountTransactionGroups,
   transactionReports: {
     type: GraphQLTransactionReports,
     description: 'EXPERIMENTAL (this may change or be removed)',
@@ -1266,17 +1260,6 @@ const accountTransactions = {
   },
   async resolve(collective: Collective, args, req) {
     return TransactionsCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
-  },
-};
-
-const accountTransactionGroups = {
-  type: new GraphQLNonNull(GraphQLTransactionGroupCollection),
-  description: '[!] Warning: this query is currently in beta and the API might change',
-  args: {
-    ...omit(TransactionGroupCollectionArgs, ['account']),
-  },
-  async resolve(collective: Collective, args, req) {
-    return TransactionGroupCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
   },
 };
 
