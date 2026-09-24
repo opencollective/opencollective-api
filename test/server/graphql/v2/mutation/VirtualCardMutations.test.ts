@@ -49,14 +49,6 @@ const EDIT_VIRTUAL_CARD_MUTATION = gql`
   }
 `;
 
-const RESUME_VIRTUAL_CARD_MUTATION = gql`
-  mutation ResumeVirtualCard($virtualCard: VirtualCardReferenceInput!) {
-    resumeVirtualCard(virtualCard: $virtualCard) {
-      id
-    }
-  }
-`;
-
 const REQUEST_VIRTUAL_CARD_MUTATION = gql`
   mutation RequestVirtualCard($account: AccountReferenceInput!) {
     requestVirtualCard(
