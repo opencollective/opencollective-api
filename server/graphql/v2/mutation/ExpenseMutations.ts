@@ -433,6 +433,10 @@ const expenseMutations = {
 
       const hostId = expense.HostCollectiveId || expense.collective.HostCollectiveId;
       const host = hostId && (await req.loaders.Collective.byId.load(hostId));
+      if (!host || !req.remoteUser.isAdmin(host.id)) {
+        throw new Forbidden('Only host admins can update the balance accounting category of an expense');
+      }
+
       let accountingCategory = null;
       if (args.accountingCategory) {
         accountingCategory = await fetchAccountingCategoryWithReference(args.accountingCategory, {
@@ -440,9 +444,6 @@ const expenseMutations = {
           loaders: req.loaders,
         });
         checkIsValidBalanceAccountingCategory(accountingCategory, host);
-        if (accountingCategory.hostOnly && !req.remoteUser.isAdmin(host.id)) {
-          throw new Forbidden('This accounting category can only be used by host admins');
-        }
       }
 
       return expense.update({ BalanceAccountingCategoryId: accountingCategory?.id || null });

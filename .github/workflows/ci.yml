@@ -96,9 +96,8 @@ jobs:
         uses: actions/cache@v6
         with:
           path: tsconfig.tsbuildinfo
+          # Exact commit only: restoring tsbuildinfo from another SHA corrupts incremental state and can crash tsc (stack overflow on TS 6).
           key: ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-tsc-${{ hashFiles('tsconfig.json', 'package-lock.json') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-tsc-${{ hashFiles('tsconfig.json', 'package-lock.json') }}-
 
       - run: npm run type:check
 
@@ -156,7 +155,7 @@ jobs:
       PG_DATABASE: opencollective_test
     services:
       redis:
-        image: redis@sha256:8a1efc5f479551822b47424ccae982026b633f28818eab0387348120a61e10e2
+        image: redis@sha256:718f745deb7dfefeac6eed7041fc7ec9476b50e61b247932682457c41adafa0e
         ports:
           - 6379:6379
         options: --entrypoint redis-server
@@ -228,7 +227,7 @@ jobs:
 
     services:
       redis:
-        image: redis@sha256:8a1efc5f479551822b47424ccae982026b633f28818eab0387348120a61e10e2
+        image: redis@sha256:718f745deb7dfefeac6eed7041fc7ec9476b50e61b247932682457c41adafa0e
         ports:
           - 6379:6379
         options: --entrypoint redis-server
@@ -308,7 +307,7 @@ jobs:
 
     services:
       redis:
-        image: redis@sha256:8a1efc5f479551822b47424ccae982026b633f28818eab0387348120a61e10e2
+        image: redis@sha256:718f745deb7dfefeac6eed7041fc7ec9476b50e61b247932682457c41adafa0e
         ports:
           - 6379:6379
         options: --entrypoint redis-server

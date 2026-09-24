@@ -26,6 +26,7 @@ import { getContextPermission, PERMISSION_TYPE } from '../../common/context-perm
 import { getFeatureStatusResolver } from '../../common/features';
 import {
   checkRemoteUserCanUseAccount,
+  checkRemoteUserCanUseHost,
   checkRemoteUserCanUseKYC,
   checkScope,
   rejectOAuthAndPersonalTokenAuth,
@@ -444,7 +445,7 @@ const accountFieldsDefinition = () => ({
   emails: {
     type: new GraphQLList(new GraphQLNonNull(GraphQLEmailAddress)),
     description:
-      'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.',
+      'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".',
   },
   transactions: {
     type: new GraphQLNonNull(GraphQLTransactionCollection),
@@ -658,6 +659,11 @@ const accountFieldsDefinition = () => ({
       const canSeeDraftUpdates =
         checkScope(req, 'updates') &&
         (req.remoteUser?.isAdminOfCollective(collective) || req.remoteUser?.isCommunityManager(collective));
+
+      // Asking for drafts without permission returns an empty page, not the published list.
+      if (isDraft && !canSeeDraftUpdates) {
+        return { nodes: [], totalCount: 0, limit, offset };
+      }
 
       if (onlyPublishedUpdates || !canSeeDraftUpdates) {
         where = assign(where, { publishedAt: { [Op.ne]: null } });
@@ -967,7 +973,7 @@ const accountFieldsDefinition = () => ({
   },
   hostApplicationRequests: {
     type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-    description: 'Host application requests',
+    description: 'Host application requests. Scope: "host".',
     args: {
       ...CollectionArgs,
       orderBy: {
@@ -1397,11 +1403,13 @@ export const AccountFields = {
   emails: {
     type: new GraphQLList(new GraphQLNonNull(GraphQLEmailAddress)),
     description:
-      'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.',
+      'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".',
     async resolve(collective: Collective, _, req) {
-      if (await req.loaders.Collective.canSeePrivateProfileInfo.load(collective.id)) {
-        return req.loaders.Member.adminUserEmailsForCollective.load(collective);
+      if (!checkScope(req, 'email') || !(await req.loaders.Collective.canSeePrivateProfileInfo.load(collective.id))) {
+        return null;
       }
+
+      return req.loaders.Member.adminUserEmailsForCollective.load(collective);
     },
   },
 
@@ -1620,7 +1628,7 @@ export const AccountFields = {
   },
   hostApplicationRequests: {
     type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-    description: 'Host application requests',
+    description: 'Host application requests. Scope: "host".',
     args: {
       ...CollectionArgs,
       orderBy: {
@@ -1634,6 +1642,7 @@ export const AccountFields = {
       },
     },
     async resolve(account: Collective, args, req: Express.Request) {
+      checkRemoteUserCanUseHost(req);
       if (!req.remoteUser?.isAdmin(account.id)) {
         throw new Unauthorized(
           'You need to be logged in as an admin of the collective to see its host applications requests',
