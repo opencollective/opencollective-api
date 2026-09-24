@@ -76,8 +76,7 @@ export async function processInviteMembersInput(
       throw new Forbidden('You can only invite accountants, admins, or members.');
     }
 
-    let memberAccount,
-      isNewUser = false;
+    let memberAccount;
     if (inviteMember.memberAccount) {
       memberAccount = await fetchAccountWithReference(inviteMember.memberAccount, { throwIfMissing: true });
     } else if (inviteMember.memberInfo) {
@@ -98,7 +97,6 @@ export async function processInviteMembersInput(
           isPrivate: options.isPrivate,
         };
         user = await models.User.createUserWithCollective(userData, options.transaction);
-        isNewUser = true;
       }
       memberAccount = await models.Collective.findByPk(user.CollectiveId, { transaction: options.transaction });
     } else {
@@ -114,7 +112,6 @@ export async function processInviteMembersInput(
       transaction: options.transaction,
       skipDefaultAdmin: options.skipDefaultAdmin,
       privateNote: options.privateNote,
-      isNewUser,
     });
     returnValue.push(invite);
   }

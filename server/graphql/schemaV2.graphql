@@ -383,12 +383,12 @@ interface Account {
   ): MemberOfCollection
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -585,7 +585,7 @@ interface Account {
   ): TransactionCollection!
   orders(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -1127,7 +1127,7 @@ interface Account {
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "host".
   """
   hostApplicationRequests(
     """
@@ -1159,7 +1159,7 @@ interface Account {
     """
     Number of activities to retrieve
     """
-    limit: Int
+    limit: Int = 20
 
     """
     The classes of activity types to filter for
@@ -1182,7 +1182,7 @@ interface Account {
   """
   transactionGroups(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -2163,7 +2163,7 @@ type Tier {
   videoUrl: String
 
   """
-  Get all orders
+  Get all orders. Scope: "orders".
   """
   orders(limit: Int! = 100, offset: Int! = 0, status: [OrderStatus]): OrderCollection!
   amount: Amount!
@@ -2194,7 +2194,7 @@ type Tier {
   """
   contributors(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -2273,7 +2273,7 @@ type Order {
   toAccount: Account
 
   """
-  Transactions for this order ordered by createdAt ASC
+  Transactions for this order ordered by createdAt ASC. Scope: "transactions".
   """
   transactions: [Transaction]!
   createdAt: DateTime
@@ -3287,12 +3287,12 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -3489,7 +3489,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   ): TransactionCollection!
   orders(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -3917,7 +3917,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   ): OAuthApplicationCollection
 
   "\n      Address. This field is public for hosts, otherwise:\n        - Users can see the addresses of the collectives they're admin of; if they are not an admin they can only see the country that the org belong to.\n        - Hosts can see the address of organizations submitting expenses to their collectives.\n    "
-  location: Location @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+  location: Location
   categories: [String]!
   stats: AccountStats
 
@@ -4015,7 +4015,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "host".
   """
   hostApplicationRequests(
     """
@@ -4047,7 +4047,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     """
     Number of activities to retrieve
     """
-    limit: Int
+    limit: Int = 20
 
     """
     The classes of activity types to filter for
@@ -4070,7 +4070,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   """
   transactionGroups(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -4157,7 +4157,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   ): Int!
   tiers(
     """
-    The number of results to fetch
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -4444,7 +4444,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   """
   hostedAccounts(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -4706,7 +4706,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   """
   vendors(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -4757,7 +4757,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   """
   potentialVendors(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -4814,7 +4814,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   ): [NonEmptyString]! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
   offPlatformTransactions(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -4876,7 +4876,7 @@ interface AccountWithContributions {
   ): Int!
   tiers(
     """
-    The number of results to fetch
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -6589,7 +6589,7 @@ type PaymentMethod {
   """
   orders(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -8001,8 +8001,6 @@ type CommunityStats {
     """
     type: CommunityTransactionType!
   ): TimeSeriesAmount!
-  lastInteractionAt: DateTime
-  firstInteractionAt: DateTime
   activities(
     """
     The number of results to fetch (default 10, max 1000)
@@ -9573,7 +9571,7 @@ type TransactionsImport {
   """
   rows(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -10844,12 +10842,12 @@ type Bot implements Account {
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -11046,7 +11044,7 @@ type Bot implements Account {
   ): TransactionCollection!
   orders(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -11574,7 +11572,7 @@ type Bot implements Account {
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "host".
   """
   hostApplicationRequests(
     """
@@ -11606,7 +11604,7 @@ type Bot implements Account {
     """
     Number of activities to retrieve
     """
-    limit: Int
+    limit: Int = 20
 
     """
     The classes of activity types to filter for
@@ -11629,7 +11627,7 @@ type Bot implements Account {
   """
   transactionGroups(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -11938,12 +11936,12 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -12140,7 +12138,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   ): TransactionCollection!
   orders(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -12668,7 +12666,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "host".
   """
   hostApplicationRequests(
     """
@@ -12700,7 +12698,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     Number of activities to retrieve
     """
-    limit: Int
+    limit: Int = 20
 
     """
     The classes of activity types to filter for
@@ -12723,7 +12721,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   """
   transactionGroups(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -12844,7 +12842,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   """
   hostAgreements(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 30, max 1000)
     """
     limit: Int! = 30
 
@@ -12876,7 +12874,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   ): Int!
   tiers(
     """
-    The number of results to fetch
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -13008,7 +13006,7 @@ interface AccountWithHost {
   """
   hostAgreements(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 30, max 1000)
     """
     limit: Int! = 30
 
@@ -13622,12 +13620,12 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -13824,7 +13822,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): TransactionCollection!
   orders(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -14352,7 +14350,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "host".
   """
   hostApplicationRequests(
     """
@@ -14384,7 +14382,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     """
     Number of activities to retrieve
     """
-    limit: Int
+    limit: Int = 20
 
     """
     The classes of activity types to filter for
@@ -14407,7 +14405,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   """
   transactionGroups(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -14528,7 +14526,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   """
   hostAgreements(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 30, max 1000)
     """
     limit: Int! = 30
 
@@ -14560,7 +14558,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): Int!
   tiers(
     """
-    The number of results to fetch
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -15015,12 +15013,12 @@ type Individual implements Account {
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -15217,7 +15215,7 @@ type Individual implements Account {
   ): TransactionCollection!
   orders(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -15743,7 +15741,7 @@ type Individual implements Account {
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "host".
   """
   hostApplicationRequests(
     """
@@ -15775,7 +15773,7 @@ type Individual implements Account {
     """
     Number of activities to retrieve
     """
-    limit: Int
+    limit: Int = 20
 
     """
     The classes of activity types to filter for
@@ -15798,7 +15796,7 @@ type Individual implements Account {
   """
   transactionGroups(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -16434,12 +16432,12 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -16636,7 +16634,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   ): TransactionCollection!
   orders(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -17162,7 +17160,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "host".
   """
   hostApplicationRequests(
     """
@@ -17194,7 +17192,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     """
     Number of activities to retrieve
     """
-    limit: Int
+    limit: Int = 20
 
     """
     The classes of activity types to filter for
@@ -17217,7 +17215,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   """
   transactionGroups(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -17304,7 +17302,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   ): Int!
   tiers(
     """
-    The number of results to fetch
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -17417,7 +17415,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   """
   vendors(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -17468,7 +17466,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   """
   potentialVendors(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -17519,7 +17517,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   ): [NonEmptyString]!
   offPlatformTransactions(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -17930,12 +17928,12 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -18132,7 +18130,7 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   ): TransactionCollection!
   orders(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -18660,7 +18658,7 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "host".
   """
   hostApplicationRequests(
     """
@@ -18692,7 +18690,7 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
     """
     Number of activities to retrieve
     """
-    limit: Int
+    limit: Int = 20
 
     """
     The classes of activity types to filter for
@@ -18715,7 +18713,7 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   """
   transactionGroups(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -18836,7 +18834,7 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   """
   hostAgreements(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 30, max 1000)
     """
     limit: Int! = 30
 
@@ -19133,12 +19131,12 @@ type Vendor implements Account & AccountWithContributions {
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -19335,7 +19333,7 @@ type Vendor implements Account & AccountWithContributions {
   ): TransactionCollection!
   orders(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -19863,7 +19861,7 @@ type Vendor implements Account & AccountWithContributions {
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "host".
   """
   hostApplicationRequests(
     """
@@ -19895,7 +19893,7 @@ type Vendor implements Account & AccountWithContributions {
     """
     Number of activities to retrieve
     """
-    limit: Int
+    limit: Int = 20
 
     """
     The classes of activity types to filter for
@@ -19918,7 +19916,7 @@ type Vendor implements Account & AccountWithContributions {
   """
   transactionGroups(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -20005,7 +20003,7 @@ type Vendor implements Account & AccountWithContributions {
   ): Int!
   tiers(
     """
-    The number of results to fetch
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -20387,7 +20385,7 @@ type Query {
   ): AccountCollection!
   activities(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -20526,7 +20524,15 @@ type Query {
     Only return accounts that expended within this amount range
     """
     totalExpended: AmountRangeInput
+
+    """
+    The number of results to fetch (default 100, max 1000)
+    """
     limit: Int! = 100
+
+    """
+    The offset to use to fetch
+    """
     offset: Int! = 0
   ): AccountCollection!
 
@@ -20948,6 +20954,10 @@ type Query {
     """
     role: [MemberRole]
   ): [MemberInvitation]
+
+  """
+  Get an order by reference. Scope: "orders".
+  """
   order(
     """
     Identifiers to retrieve the Order
@@ -20961,7 +20971,7 @@ type Query {
     account: AccountReferenceInput
 
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -21256,7 +21266,7 @@ type Query {
     account: [AccountReferenceInput!]
 
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -21477,7 +21487,7 @@ type Query {
     account: AccountReferenceInput!
 
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -21680,7 +21690,7 @@ type Query {
     account: AccountReferenceInput
 
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -23566,12 +23576,12 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -23768,7 +23778,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): TransactionCollection!
   orders(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -24296,7 +24306,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "host".
   """
   hostApplicationRequests(
     """
@@ -24328,7 +24338,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     """
     Number of activities to retrieve
     """
-    limit: Int
+    limit: Int = 20
 
     """
     The classes of activity types to filter for
@@ -24351,7 +24361,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   """
   transactionGroups(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -24472,7 +24482,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   """
   hostAgreements(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 30, max 1000)
     """
     limit: Int! = 30
 
@@ -24504,7 +24514,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): Int!
   tiers(
     """
-    The number of results to fetch
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -24817,12 +24827,12 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -25019,7 +25029,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   ): TransactionCollection!
   orders(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -25547,7 +25557,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "host".
   """
   hostApplicationRequests(
     """
@@ -25579,7 +25589,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     Number of activities to retrieve
     """
-    limit: Int
+    limit: Int = 20
 
     """
     The classes of activity types to filter for
@@ -25602,7 +25612,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   """
   transactionGroups(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -25723,7 +25733,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   """
   hostAgreements(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 30, max 1000)
     """
     limit: Int! = 30
 
@@ -25755,7 +25765,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   ): Int!
   tiers(
     """
-    The number of results to fetch
+    The number of results to fetch (default 100, max 1000)
     """
     limit: Int! = 100
 
@@ -25847,7 +25857,7 @@ type SearchResults {
   """
   accounts(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 0, max 1000)
     """
     limit: Int! = 0
 
@@ -25877,7 +25887,7 @@ type SearchResults {
   """
   comments(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 0, max 1000)
     """
     limit: Int! = 0
 
@@ -25892,7 +25902,7 @@ type SearchResults {
   """
   expenses(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 0, max 1000)
     """
     limit: Int! = 0
 
@@ -25907,7 +25917,7 @@ type SearchResults {
   """
   hostApplications(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 0, max 1000)
     """
     limit: Int! = 0
 
@@ -25922,7 +25932,7 @@ type SearchResults {
   """
   orders(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 0, max 1000)
     """
     limit: Int! = 0
 
@@ -25937,7 +25947,7 @@ type SearchResults {
   """
   tiers(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 0, max 1000)
     """
     limit: Int! = 0
 
@@ -25952,7 +25962,7 @@ type SearchResults {
   """
   transactions(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 0, max 1000)
     """
     limit: Int! = 0
 
@@ -25967,7 +25977,7 @@ type SearchResults {
   """
   updates(
     """
-    The number of results to fetch (default 10, max 1000)
+    The number of results to fetch (default 0, max 1000)
     """
     limit: Int! = 0
 
@@ -26795,13 +26805,13 @@ type Mutation {
   deleteApplication(application: ApplicationReferenceInput!): Application
 
   """
-  Edit a comment. Scope: "conversations", "expenses" or "updates".
+  Edit a comment. Scope: "conversations", "expenses", "updates" or "orders".
   """
   editComment(comment: CommentUpdateInput!): Comment
   deleteComment(id: String!): Comment
 
   """
-  Create a comment. Scope: "conversations", "expenses" or "updates".
+  Create a comment. Scope: "conversations", "expenses", "updates" or "orders".
   """
   createComment(comment: CommentCreateInput!): Comment
 
@@ -27110,7 +27120,7 @@ type Mutation {
   ): StripePaymentIntent!
 
   """
-  Create a new export request. Scopes: "exportRequests" (+ "transactions" for TRANSACTIONS exports, "host" for HOSTED_COLLECTIVES exports).
+  Create a new export request. Scopes: "exportRequests" (+ "transactions" and "incognito" for TRANSACTIONS exports, "host" for HOSTED_COLLECTIVES exports).
   """
   createExportRequest(
     """
@@ -27359,11 +27369,6 @@ type Mutation {
     Optional private note included in the invitation email sent to the invitee.
     """
     privateNote: String
-
-    """
-    When true, the invited user account was just created from the invite form. The invitee will be required to complete their profile before accepting the invitation.
-    """
-    isNewUser: Boolean = false
   ): MemberInvitation!
 
   """

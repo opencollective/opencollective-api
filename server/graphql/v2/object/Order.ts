@@ -22,6 +22,7 @@ import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as OrdersLib from '../../common/orders';
+import { enforceScope } from '../../common/scope-check';
 import { PRIVATE_ORDER_ACTIVITIES } from '../../loaders/order';
 import { GraphQLActivityCollection } from '../collection/ActivityCollection';
 import { CommentCollection } from '../collection/CommentCollection';
@@ -188,6 +189,7 @@ export const GraphQLOrder = new GraphQLObjectType({
           const hostCollectiveId = collective?.HostCollectiveId;
           if (req.remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId)) {
             allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, order.FromCollectiveId);
+            allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, order.FromCollectiveId);
           }
 
           // Orders are guarded above, but we still add this layer of protection just in case
@@ -207,9 +209,10 @@ export const GraphQLOrder = new GraphQLObjectType({
         },
       },
       transactions: {
-        description: 'Transactions for this order ordered by createdAt ASC',
+        description: 'Transactions for this order ordered by createdAt ASC. Scope: "transactions".',
         type: new GraphQLNonNull(new GraphQLList(GraphQLTransaction)),
         resolve(order, _, req) {
+          enforceScope(req, 'transactions');
           return req.loaders.Transaction.byOrderId.load(order.id);
         },
       },
@@ -438,19 +441,24 @@ export const GraphQLOrder = new GraphQLObjectType({
         type: GraphQLJSON,
         description:
           'Custom data related to the order, based on the fields described by tier.customFields. Must be authenticated as an admin of the fromAccount or toAccount (returns null otherwise)',
-        async resolve(order, _, { remoteUser, loaders }) {
+        async resolve(order, _, req) {
+          if (!OrdersLib.validateOrderScope(req)) {
+            return null;
+          }
+
           const [fromCollective, collective] = await Promise.all([
-            loaders.Collective.byId.load(order.FromCollectiveId),
-            loaders.Collective.byId.load(order.CollectiveId),
+            req.loaders.Collective.byId.load(order.FromCollectiveId),
+            req.loaders.Collective.byId.load(order.CollectiveId),
           ]);
 
-          if (
-            !remoteUser ||
-            !(remoteUser.isAdminOfCollective(collective) || remoteUser.isAdminOfCollective(fromCollective))
-          ) {
-            return null;
-          } else {
+          const canSeeCustomData =
+            req.remoteUser &&
+            (req.remoteUser.isAdminOfCollective(collective) || req.remoteUser.isAdminOfCollective(fromCollective));
+
+          if (canSeeCustomData) {
             return order.data?.customData || {};
+          } else {
+            return null;
           }
         },
       },
@@ -458,10 +466,14 @@ export const GraphQLOrder = new GraphQLObjectType({
         type: GraphQLString,
         description:
           'Memo field which adds additional details about the order. For example in added funds this can be a note to mark what method (cheque, money order) the funds were received.',
-        async resolve(order, _, { loaders, remoteUser }) {
-          const collective = order.collective || (await loaders.Collective.byId.load(order.CollectiveId));
+        async resolve(order, _, req) {
+          if (!OrdersLib.validateOrderScope(req)) {
+            return null;
+          }
+
+          const collective = order.collective || (await req.loaders.Collective.byId.load(order.CollectiveId));
           const hostCollectiveId = collective?.HostCollectiveId;
-          if (remoteUser && remoteUser.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId)) {
+          if (req.remoteUser && req.remoteUser.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId)) {
             return order.data?.memo;
           } else {
             return null;
@@ -512,6 +524,10 @@ export const GraphQLOrder = new GraphQLObjectType({
         type: GraphQLPendingOrderData,
         description: 'Data about the pending contribution',
         async resolve(order, _, req) {
+          if (!OrdersLib.validateOrderScope(req)) {
+            return null;
+          }
+
           const pendingContributionFields = ['expectedAt', 'paymentMethod', 'ponumber', 'fromAccountInfo', 'memo'];
           const fromCollective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
           const collective = await req.loaders.Collective.byId.load(order.CollectiveId);

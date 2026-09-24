@@ -286,10 +286,14 @@ export const isHostAdmin = async (req: express.Request, expense: Expense): Promi
 };
 
 const isAdminOrAccountantOfHostWhoPaidExpense = async (req: express.Request, expense: Expense): Promise<boolean> => {
-  if (!req.remoteUser) {
+  if (!req.remoteUser || !expense.HostCollectiveId) {
     return false;
   }
-  return expense.HostCollectiveId && req.remoteUser.isAdmin(expense.HostCollectiveId);
+
+  return (
+    req.remoteUser.isAdmin(expense.HostCollectiveId) ||
+    req.remoteUser.hasRole(roles.ACCOUNTANT, expense.HostCollectiveId)
+  );
 };
 
 const isAdminOfCollectiveWithPermissivePayoutMethodPermissions = async (
@@ -591,7 +595,8 @@ export const canSeeExpenseTransactionImportRow: ExpensePermissionEvaluator = asy
   if (!validateExpenseScope(req)) {
     return false;
   } else {
-    return isHostAdmin(req, expense);
+    // Mirrors canSeeOrderTransactionImportRow: host admins and accountants can see import rows.
+    return (await isHostAdmin(req, expense)) || (await isHostAccountant(req, expense));
   }
 };
 
@@ -1019,6 +1024,16 @@ export const canApprove: ExpensePermissionEvaluator = async (
     return false;
   } else {
     expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
+
+    if (!expense.collective.isActive) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'Cannot approve an expense for an archived account',
+          EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+        );
+      }
+      return false;
+    }
 
     if (expense.collective.HostCollectiveId && expense.collective.approvedAt) {
       expense.collective.host =
@@ -1591,7 +1606,11 @@ export const rejectExpense = async (req: express.Request, expense: Expense): Pro
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'REJECTED', lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({
+    status: 'REJECTED',
+    lastEditedById: req.remoteUser.id,
+    onHold: false,
+  });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, req.remoteUser);
   return updatedExpense;
 };
@@ -1635,7 +1654,11 @@ export const markExpenseAsSpam = async (req: express.Request, expense: Expense):
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'SPAM', lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({
+    status: 'SPAM',
+    lastEditedById: req.remoteUser.id,
+    onHold: false,
+  });
 
   // Limit the user so they can't submit expenses in the future
   const submittedByUser = await updatedExpense.getSubmitterUser();
@@ -2311,14 +2334,24 @@ const getUserRole = (user: User, collective: Collective): keyof ExpenseDataValue
       : ExpenseRoles.submitter;
 };
 
-const tryToPredictExpenseCategory = async (collective, expenseData, req): Promise<AccountingCategory | null> => {
+const tryToPredictExpenseCategory = async (
+  collective: Collective,
+  host: Collective,
+  expenseData: ExpenseData,
+  req: express.Request,
+): Promise<AccountingCategory | null> => {
   try {
+    const isHostExpense = host && [collective.id, collective.ParentCollectiveId].includes(host.id);
+    const includeHostOnly = host && Boolean(req.remoteUser?.isAdmin(host.id));
+
     const predictions = await fetchExpenseCategoryPredictions({
-      hostSlug: collective.host.slug,
+      hostSlug: host.slug,
       accountSlug: collective.slug,
       type: expenseData.type,
       description: expenseData.description,
       items: expenseData.items,
+      isHostExpense,
+      includeHostOnly,
     });
 
     for (const prediction of predictions) {
@@ -2343,6 +2376,32 @@ const tryToPredictExpenseCategory = async (collective, expenseData, req): Promis
     }
   } catch (e) {
     reportErrorToSentry(e, { req, user: req.remoteUser, feature: FEATURE.USE_EXPENSES, extra: { expenseData } });
+  }
+};
+
+/**
+ * Checks that `account` can receive expenses:
+ * - archived accounts (`isActive === false`) are rejected;
+ * - only Collectives, Events, Funds and Projects (when active) or active Hosts (organizations) are
+ *   allowed.
+ * Shared by `createExpense`, `submitExpenseDraft` and `draftExpenseAndInviteUser` to keep the
+ * guards in sync.
+ */
+export const checkCanReceiveExpense = (account: Collective): void => {
+  if (!account.isActive) {
+    throw new ValidationFailed('Expenses can only be submitted to active entities.');
+  }
+  const isAllowedType = [
+    CollectiveType.COLLECTIVE,
+    CollectiveType.EVENT,
+    CollectiveType.FUND,
+    CollectiveType.PROJECT,
+  ].includes(account.type);
+  const isActiveHost = account.type === CollectiveType.ORGANIZATION && account.isActive;
+  if (!isAllowedType && !isActiveHost) {
+    throw new ValidationFailed(
+      'Expenses can only be submitted to Collectives, Events, Funds, Projects and active Hosts.',
+    );
   }
 };
 
@@ -2423,7 +2482,7 @@ export async function createExpense(
       collective,
     );
   } else if (collective.host?.settings?.autoAssignExpenseCategoryPredictions) {
-    expenseData.accountingCategory = await tryToPredictExpenseCategory(collective, expenseData, req);
+    expenseData.accountingCategory = await tryToPredictExpenseCategory(collective, collective.host, expenseData, req);
     accountingCategorySource = 'prediction';
   }
 
@@ -2431,18 +2490,7 @@ export async function createExpense(
     throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
   }
 
-  const isAllowedType = [
-    CollectiveType.COLLECTIVE,
-    CollectiveType.EVENT,
-    CollectiveType.FUND,
-    CollectiveType.PROJECT,
-  ].includes(collective.type);
-  const isActiveHost = collective.type === CollectiveType.ORGANIZATION && collective.isActive;
-  if (!isAllowedType && !isActiveHost) {
-    throw new ValidationFailed(
-      'Expenses can only be submitted to Collectives, Events, Funds, Projects and active Hosts.',
-    );
-  }
+  checkCanReceiveExpense(collective);
 
   // Check payee
   await checkFromCollective(fromCollective, remoteUser, collective);
@@ -2750,6 +2798,7 @@ export async function submitExpenseDraft(
       { association: 'parent', required: false },
     ],
   });
+  checkCanReceiveExpense(collective);
   const fromCollective = expenseData.fromCollective || requestedPayee || existingExpense.fromCollective;
   await checkExpenseType(
     expenseData.type || existingExpense.type,

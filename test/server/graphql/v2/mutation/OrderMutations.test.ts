@@ -1968,6 +1968,17 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(resultOrder.tier.legacyId).to.equal(tier.id);
     });
 
+    it('rejects a tier that does not belong to the destination collective', async () => {
+      const foreignCollective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id });
+      const foreignTier = await fakeTier({ CollectiveId: foreignCollective.id, currency: 'USD' });
+      const orderInput = { ...validOrderPrams, tier: { legacyId: foreignTier.id } };
+      const result = await callCreatePendingOrder({ order: orderInput }, hostAdmin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        `Tier #${foreignTier.id} is not part of collective #${validOrderPrams.toAccount.legacyId}`,
+      );
+    });
+
     it('creates a pending order with tax', async () => {
       const orderInput = { ...validOrderPrams, tax: { type: 'VAT', rate: 0.21 } };
       const result = await callCreatePendingOrder({ order: orderInput }, hostAdmin);
@@ -2383,6 +2394,19 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal(
         'Only pending contributions created by fiscal-host admins can be editted',
+      );
+    });
+
+    it('rejects changing to a tier that does not belong to the destination collective', async () => {
+      const foreignCollective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id });
+      const foreignTier = await fakeTier({ CollectiveId: foreignCollective.id, currency: 'USD' });
+      const result = await callEditPendingOrder(
+        { order: { ...validEditOrderParams, tier: { legacyId: foreignTier.id } } },
+        hostAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        `Tier #${foreignTier.id} is not part of collective #${order.CollectiveId}`,
       );
     });
 
@@ -3880,6 +3904,33 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         expect(result.data).to.have.nested.property('processPendingOrder.status').equal('EXPIRED');
+      });
+
+      it('rejects marking as paid when the tier does not belong to the destination collective', async () => {
+        const foreignCollective = await fakeCollective({
+          currency: 'USD',
+          HostCollectiveId: collective.HostCollectiveId,
+        });
+        const foreignTier = await fakeTier({ CollectiveId: foreignCollective.id, currency: 'USD' });
+        await order.update({ TierId: foreignTier.id, data: { isPendingContribution: true } });
+
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            order: {
+              id: idEncode(order.id, 'order'),
+            },
+            action: 'MARK_AS_PAID',
+          },
+          hostAdminUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal(
+          `Tier #${foreignTier.id} is not part of collective #${collective.id}`,
+        );
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.PENDING);
       });
 
       it('should mark as paid', async () => {

@@ -576,6 +576,8 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to edit this Virtual Card");
       }
 
+      await twoFactorAuthLib.enforceForAccount(req, virtualCard.host);
+
       if (virtualCard.data.status === VirtualCardStatus.CANCELED) {
         throw new BadRequest('This Virtual Card cannot be activated');
       }
