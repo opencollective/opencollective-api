@@ -1039,11 +1039,12 @@ export const canApprove: ExpensePermissionEvaluator = async (
     if (expense.collective.HostCollectiveId && expense.collective.approvedAt) {
       expense.collective.host =
         expense.collective.host || (await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId));
-      collectiveIsHost = expense.collective.id === expense.collective.host.id;
+      collectiveIsHost = expense.collective.id === expense.collective.host?.id;
     }
 
     const currency = expense.collective.host?.currency || expense.collective.currency;
     const requesterIsHostAdmin = await isHostAdmin(req, expense);
+    const userIsCollectiveAdmin = await isCollectiveAdmin(req, expense);
     const hostPolicy = await getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
     const collectivePolicy = await getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
     const numberOfAdmins = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
@@ -1056,9 +1057,22 @@ export const canApprove: ExpensePermissionEvaluator = async (
     const collectivePolicyApplies =
       collectivePolicy.enabled && (!hostPolicyApplies || hostPolicy.amountInCents >= collectivePolicy.amountInCents);
 
-    const usedPolicy = requesterIsHostAdmin
-      ? hostPolicyApplies && hostPolicy
-      : (collectivePolicyApplies && collectivePolicy) || (hostPolicyApplies && hostPolicy);
+    let usedPolicy;
+    if (requesterIsHostAdmin) {
+      // Edge-case: Users who are admins of both the host and a collective that has a single admin are subject to collective policy.
+      if (
+        userIsCollectiveAdmin &&
+        numberOfAdmins === 1 &&
+        collectivePolicy?.enabled &&
+        !hostPolicy?.appliesToSingleAdminCollectives
+      ) {
+        usedPolicy = collectivePolicy;
+      } else {
+        usedPolicy = hostPolicyApplies && hostPolicy;
+      }
+    } else {
+      usedPolicy = (collectivePolicyApplies && collectivePolicy) || (hostPolicyApplies && hostPolicy);
+    }
 
     const authorCannotApprove = usedPolicy && isExpenseAuthor && expense.amount >= usedPolicy.amountInCents;
     if (authorCannotApprove) {

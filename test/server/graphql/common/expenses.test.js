@@ -1581,31 +1581,6 @@ describe('server/graphql/common/expenses', () => {
         expect(await canApprove(req.collectiveAdmin, newExpense)).to.be.false;
       });
 
-      it('by a host admin author uses only the applicable host policy', async () => {
-        const { req, collective } = contexts.normal;
-        await collective.setPolicies({
-          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true, amountInCents: 0 },
-        });
-        newExpense.collective = await collective.reload();
-        await newExpense.update({ UserId: req.hostAdmin.remoteUser.id });
-
-        expect(await canApprove(req.hostAdmin, newExpense)).to.be.true;
-
-        newExpense.collective.host = await collective.host.setPolicies({
-          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
-            enabled: true,
-            amountInCents: 10e2,
-            appliesToHostedCollectives: true,
-            appliesToSingleAdminCollectives: true,
-          },
-        });
-
-        expect(await getApolloErrorCode(canApprove(req.hostAdmin, newExpense, { throw: true }))).to.be.equal(
-          EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
-        );
-        expect(await canApprove(req.hostAdmin, newExpense)).to.be.false;
-      });
-
       it('allows the author to approve when no policy is enabled', async () => {
         const { req, collective } = contexts.normal;
         await collective.setPolicies({
@@ -1694,6 +1669,43 @@ describe('server/graphql/common/expenses', () => {
           await getApolloErrorCode(canApprove(makeRequest(hostAdmin), selfHostedExpense, { throw: true })),
         ).to.be.equal(EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE);
         expect(await canApprove(makeRequest(hostAdmin), selfHostedExpense)).to.be.false;
+      });
+
+      it('applies the collective policy to a dual host/collective admin author when the host policy exempts single-admin collectives', async () => {
+        const dualRoleAdmin = await fakeUser();
+        const host = await fakeHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: dualRoleAdmin });
+        await host.addUserWithRole(dualRoleAdmin, 'ADMIN');
+        await dualRoleAdmin.populateRoles({ force: true });
+        collective.host = host;
+
+        const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+        const expense = await fakeExpense({
+          CollectiveId: collective.id,
+          FromCollectiveId: dualRoleAdmin.CollectiveId,
+          PayoutMethodId: payoutMethod.id,
+          UserId: dualRoleAdmin.id,
+          status: 'PENDING',
+          amount: 10e2,
+        });
+        expense.collective = collective;
+
+        await collective.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true, amountInCents: 10e2 },
+        });
+        await host.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
+            enabled: true,
+            amountInCents: 0,
+            appliesToHostedCollectives: true,
+            appliesToSingleAdminCollectives: false,
+          },
+        });
+
+        expect(await getApolloErrorCode(canApprove(makeRequest(dualRoleAdmin), expense, { throw: true }))).to.be.equal(
+          EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+        );
+        expect(await canApprove(makeRequest(dualRoleAdmin), expense)).to.be.false;
       });
     });
 
