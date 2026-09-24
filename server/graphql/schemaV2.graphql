@@ -383,7 +383,7 @@ interface Account {
   ): MemberOfCollection
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
   """
   emails: [EmailAddress!]
   transactions(
@@ -1127,7 +1127,7 @@ interface Account {
   permissions: AccountPermissions!
 
   """
-  Host application requests. Scope: "host".
+  Host application requests
   """
   hostApplicationRequests(
     """
@@ -2163,7 +2163,7 @@ type Tier {
   videoUrl: String
 
   """
-  Get all orders. Scope: "orders".
+  Get all orders
   """
   orders(limit: Int! = 100, offset: Int! = 0, status: [OrderStatus]): OrderCollection!
   amount: Amount!
@@ -2273,7 +2273,7 @@ type Order {
   toAccount: Account
 
   """
-  Transactions for this order ordered by createdAt ASC. Scope: "transactions".
+  Transactions for this order ordered by createdAt ASC
   """
   transactions: [Transaction]!
   createdAt: DateTime
@@ -3287,7 +3287,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
   """
   emails: [EmailAddress!]
   transactions(
@@ -4015,7 +4015,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   permissions: AccountPermissions!
 
   """
-  Host application requests. Scope: "host".
+  Host application requests
   """
   hostApplicationRequests(
     """
@@ -10082,7 +10082,7 @@ type ExpensePermissions {
   """
   Whether the current user can edit the expense
   """
-  canEdit: Boolean!
+  canEdit: Boolean! @deprecated(reason: "2026-09-15: Use the granular permissions instead.")
 
   """
   Whether the current user can edit the expense title
@@ -10842,7 +10842,7 @@ type Bot implements Account {
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
   """
   emails: [EmailAddress!]
   transactions(
@@ -11572,7 +11572,7 @@ type Bot implements Account {
   permissions: AccountPermissions!
 
   """
-  Host application requests. Scope: "host".
+  Host application requests
   """
   hostApplicationRequests(
     """
@@ -11936,7 +11936,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
   """
   emails: [EmailAddress!]
   transactions(
@@ -12666,7 +12666,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   permissions: AccountPermissions!
 
   """
-  Host application requests. Scope: "host".
+  Host application requests
   """
   hostApplicationRequests(
     """
@@ -13620,7 +13620,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
   """
   emails: [EmailAddress!]
   transactions(
@@ -14350,7 +14350,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   permissions: AccountPermissions!
 
   """
-  Host application requests. Scope: "host".
+  Host application requests
   """
   hostApplicationRequests(
     """
@@ -15013,7 +15013,7 @@ type Individual implements Account {
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
   """
   emails: [EmailAddress!]
   transactions(
@@ -15741,7 +15741,7 @@ type Individual implements Account {
   permissions: AccountPermissions!
 
   """
-  Host application requests. Scope: "host".
+  Host application requests
   """
   hostApplicationRequests(
     """
@@ -16432,7 +16432,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
   """
   emails: [EmailAddress!]
   transactions(
@@ -17160,7 +17160,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   permissions: AccountPermissions!
 
   """
-  Host application requests. Scope: "host".
+  Host application requests
   """
   hostApplicationRequests(
     """
@@ -17928,7 +17928,7 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
   """
   emails: [EmailAddress!]
   transactions(
@@ -18658,7 +18658,7 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   permissions: AccountPermissions!
 
   """
-  Host application requests. Scope: "host".
+  Host application requests
   """
   hostApplicationRequests(
     """
@@ -19131,7 +19131,7 @@ type Vendor implements Account & AccountWithContributions {
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
   """
   emails: [EmailAddress!]
   transactions(
@@ -19861,7 +19861,7 @@ type Vendor implements Account & AccountWithContributions {
   permissions: AccountPermissions!
 
   """
-  Host application requests. Scope: "host".
+  Host application requests
   """
   hostApplicationRequests(
     """
@@ -20954,10 +20954,6 @@ type Query {
     """
     role: [MemberRole]
   ): [MemberInvitation]
-
-  """
-  Get an order by reference. Scope: "orders".
-  """
   order(
     """
     Identifiers to retrieve the Order
@@ -23576,7 +23572,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
   """
   emails: [EmailAddress!]
   transactions(
@@ -24306,7 +24302,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   permissions: AccountPermissions!
 
   """
-  Host application requests. Scope: "host".
+  Host application requests
   """
   hostApplicationRequests(
     """
@@ -24827,7 +24823,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
   """
   emails: [EmailAddress!]
   transactions(
@@ -25557,7 +25553,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   permissions: AccountPermissions!
 
   """
-  Host application requests. Scope: "host".
+  Host application requests
   """
   hostApplicationRequests(
     """
@@ -26805,13 +26801,13 @@ type Mutation {
   deleteApplication(application: ApplicationReferenceInput!): Application
 
   """
-  Edit a comment. Scope: "conversations", "expenses", "updates" or "orders".
+  Edit a comment. Scope: "conversations", "expenses" or "updates".
   """
   editComment(comment: CommentUpdateInput!): Comment
   deleteComment(id: String!): Comment
 
   """
-  Create a comment. Scope: "conversations", "expenses", "updates" or "orders".
+  Create a comment. Scope: "conversations", "expenses" or "updates".
   """
   createComment(comment: CommentCreateInput!): Comment
 
@@ -27120,7 +27116,7 @@ type Mutation {
   ): StripePaymentIntent!
 
   """
-  Create a new export request. Scopes: "exportRequests" (+ "transactions" and "incognito" for TRANSACTIONS exports, "host" for HOSTED_COLLECTIVES exports).
+  Create a new export request. Scopes: "exportRequests" (+ "transactions" for TRANSACTIONS exports, "host" for HOSTED_COLLECTIVES exports).
   """
   createExportRequest(
     """
