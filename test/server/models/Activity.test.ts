@@ -110,6 +110,7 @@ describe('server/models/Activity', () => {
     });
 
     it('is a no-op when dispatch tracking is disabled', async () => {
+      disableActivityDispatchTracking(); // Tracking is enabled globally by the test setup
       let dispatchCompleted = false;
       sandbox.stub(notify, 'collective').callsFake(async () => {
         await new Promise(resolve => setTimeout(resolve, 50));
