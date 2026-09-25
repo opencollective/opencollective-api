@@ -31,6 +31,28 @@ async function checkActiveApprovedAtInconsistency() {
   }
 }
 
+async function checkArchivedActiveChildren() {
+  const message = 'archived (deactivatedAt) children must not be isActive or approved (no auto fix)';
+
+  const [results] = await sequelize.query<{ active: number; approved: number }>(
+    `
+    SELECT
+      COUNT(*) FILTER (WHERE "isActive" IS TRUE) as "active",
+      COUNT(*) FILTER (WHERE "approvedAt" IS NOT NULL) as "approved"
+    FROM "Collectives"
+    WHERE "deletedAt" IS NULL
+    AND "deactivatedAt" IS NOT NULL
+    AND "ParentCollectiveId" IS NOT NULL
+    AND "type" != 'VENDOR'
+    AND ("isActive" IS TRUE OR "approvedAt" IS NOT NULL)`,
+    { type: QueryTypes.SELECT, raw: true },
+  );
+
+  if (results.active > 0 || results.approved > 0) {
+    throw new Error(`${message} (${results.active} active, ${results.approved} approved)`);
+  }
+}
+
 async function checkNonActiveHostOrganizations({ fix = false } = {}) {
   const results = await sequelize.query<{ count: number }>(
     `
@@ -61,7 +83,11 @@ async function checkNonActiveHostOrganizations({ fix = false } = {}) {
   }
 }
 
-export const checks = [checkActiveApprovedAtInconsistency, checkNonActiveHostOrganizations];
+export const checks = [
+  checkActiveApprovedAtInconsistency,
+  checkArchivedActiveChildren,
+  checkNonActiveHostOrganizations,
+];
 
 if (!module.parent) {
   runAllChecksThenExit(checks);

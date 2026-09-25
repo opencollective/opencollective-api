@@ -2488,11 +2488,13 @@ class Collective extends ModelWithPublicId<
       platformFeePercent: hostCollective.platformFeePercent,
       currency: undefined,
       isPrivate: this.isPrivate,
-      ...(shouldAutomaticallyApprove ? { isActive: true, approvedAt: new Date() } : null),
+      ...(shouldAutomaticallyApprove ? { isActive: true, approvedAt: new Date() as Date | null } : null),
     };
 
+    // Archived children must stay inactive and unapproved (see `checkArchivedActiveChildren`)
     if (this.ParentCollectiveId && !isNull(this.deactivatedAt)) {
       updatedValues.isActive = false;
+      updatedValues.approvedAt = null;
     }
 
     // events should take the currency of their parent collective, not necessarily the one from their host.
