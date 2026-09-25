@@ -889,6 +889,7 @@ type PlanType {
   manualPayments: Boolean
   hostFees: Boolean
   hostFeeSharePercent: Float
+    @deprecated(reason: "2026-09-21: Host fee share is deprecated and no longer charged, always returns 0")
 }
 
 type Policies {

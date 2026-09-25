@@ -1449,21 +1449,12 @@ export const sendExpiringCreditCardUpdateEmail = async (data): Promise<void> => 
   });
 };
 
+/**
+ * The application fee collected by the platform on a Stripe charge. Since host fee share is
+ * deprecated (see `getHostFeeSharePercent`), this is just the platform tip.
+ */
 export const getApplicationFee = async (order: Order): Promise<number> => {
-  let applicationFee = 0;
-
-  if (order.platformTipAmount) {
-    applicationFee += order.platformTipAmount;
-  }
-
-  const hostFeeAmount = await getHostFee(order);
-  const hostFeeSharePercent = await getHostFeeSharePercent(order);
-  if (hostFeeAmount && hostFeeSharePercent) {
-    const hostFeeShareAmount = calcFee(hostFeeAmount, hostFeeSharePercent, order.currency);
-    applicationFee += hostFeeShareAmount;
-  }
-
-  return applicationFee;
+  return order.platformTipAmount || 0;
 };
 
 export const getPlatformTip = (order: Order): number => {
@@ -1659,54 +1650,32 @@ export const getHostFeePercent = async (
   return possibleValues.find(isNumber);
 };
 
+/**
+ * @deprecated Host fee share has been deprecated and is no longer generated.
+ *
+ * This always resolves to 0, so no new HOST_FEE_SHARE / HOST_FEE_SHARE_DEBT transactions
+ * are created (and no host fee share is folded into the Stripe application fee). Existing
+ * host fee share transactions remain in the ledger and can still be refunded via the
+ * refund path in `createRefundTransaction`.
+ *
+ * Transition note: a Stripe payment intent created before this change (with the host fee
+ * share in its application fee) can still complete after it, e.g. a bank debit settling days
+ * later. Orders created in the years before this change got no host fee share when they were
+ * tip-eligible, so such an intent carries either the tip or the share, never both, and this
+ * cannot inflate a tip; for share-only hosts, the share Stripe collected on such an intent is
+ * simply not recorded. That window is a few days long and cents-level per contribution, and
+ * is accepted rather than carrying transition code in the ledger.
+ *
+ * The signature is kept so the many payment providers calling it keep working unchanged.
+ */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 export const getHostFeeSharePercent = async (
   order: Order,
-  { loaders = null, sqlTransaction = undefined }: { loaders?: loaders; sqlTransaction?: SequelizeTransaction } = {},
+  options: { loaders?: loaders; sqlTransaction?: SequelizeTransaction } = {},
 ): Promise<number> => {
-  if (!order.collective) {
-    if (loaders && !sqlTransaction) {
-      order.collective = await loaders.Collective.byId.load(order.CollectiveId);
-    } else {
-      order.collective = await order.getCollective({ transaction: sqlTransaction });
-    }
-  }
-
-  const host = await order.collective.getHostCollective({ loaders, transaction: sqlTransaction });
-
-  const plan = host.getLegacyPlan();
-
-  const possibleValues = [];
-
-  // Platform Tip Eligible or Platform Fee? No Host Fee Share, that's it
-  if (order.platformTipEligible === true) {
-    return 0;
-  }
-
-  // Make sure payment method is available
-  if (!order.paymentMethod && order.PaymentMethodId) {
-    order.paymentMethod = await order.getPaymentMethod({ transaction: sqlTransaction });
-  }
-
-  // Used by 1st party hosts to set Stripe and PayPal (aka "Crowfunding") share percent to zero
-  // Ideally, this will not be used in the future as we'll always rely on the platformTipEligible flag to do that
-  // We still have a lot of old orders were platformTipEligible is not set, so we'll keep that configuration for now
-
-  // Assign different fees based on the payment provider
-  if (order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.STRIPE) {
-    possibleValues.push(host.data?.stripeHostFeeSharePercent);
-    possibleValues.push(plan?.stripeHostFeeSharePercent); // deprecated
-  } else if (order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.PAYPAL) {
-    possibleValues.push(host.data?.paypalHostFeeSharePercent);
-    possibleValues.push(plan?.paypalHostFeeSharePercent); // deprecated
-  }
-
-  // Default
-  possibleValues.push(host.data?.hostFeeSharePercent);
-  possibleValues.push(plan?.hostFeeSharePercent);
-
-  // Pick the first that is set as a Number
-  return possibleValues.find(isNumber);
+  return 0;
 };
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 /** Account types that can only pay with balance-based methods (collective balance, gift card, prepaid). */
 export const BALANCE_ONLY_COLLECTIVE_TYPES = [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.PROJECT];

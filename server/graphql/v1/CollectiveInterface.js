@@ -136,6 +136,8 @@ const PlanType = new GraphQLObjectType({
     },
     hostFeeSharePercent: {
       type: GraphQLFloat,
+      deprecationReason: '2026-09-21: Host fee share is deprecated and no longer charged, always returns 0',
+      resolve: () => 0,
     },
   }),
 });

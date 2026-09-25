@@ -5333,6 +5333,7 @@ type HostPlan {
   Charge on revenues made through Host Fees.
   """
   hostFeeSharePercent: Float
+    @deprecated(reason: "2026-09-21: Host fee share is deprecated and no longer charged, always returns 0")
 
   """
   Ability to collect Platform Tips.
