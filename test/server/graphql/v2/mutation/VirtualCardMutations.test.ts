@@ -49,14 +49,6 @@ const EDIT_VIRTUAL_CARD_MUTATION = gql`
   }
 `;
 
-const RESUME_VIRTUAL_CARD_MUTATION = gql`
-  mutation ResumeVirtualCard($virtualCard: VirtualCardReferenceInput!) {
-    resumeVirtualCard(virtualCard: $virtualCard) {
-      id
-    }
-  }
-`;
-
 const REQUEST_VIRTUAL_CARD_MUTATION = gql`
   mutation RequestVirtualCard($account: AccountReferenceInput!) {
     requestVirtualCard(
@@ -96,6 +88,44 @@ const CREATE_VIRTUAL_CARD_MUTATION = gql`
     }
   }
 `;
+
+const PAUSE_VIRTUAL_CARD_MUTATION = gql`
+  mutation PauseVirtualCard($virtualCard: VirtualCardReferenceInput!) {
+    pauseVirtualCard(virtualCard: $virtualCard) {
+      id
+      name
+      last4
+      status
+    }
+  }
+`;
+
+const RESUME_VIRTUAL_CARD_MUTATION = gql`
+  mutation ResumeVirtualCard($virtualCard: VirtualCardReferenceInput!) {
+    resumeVirtualCard(virtualCard: $virtualCard) {
+      id
+      name
+      last4
+      status
+    }
+  }
+`;
+
+const PRIVATE_CARD_DATA = { cardNumber: '4111111111114242', cvv: 'FAKESECRET_q3r4s5t6u7v8w9x0y1z2' };
+
+const expectPublicVirtualCardSnapshot = (snapshot, virtualCard) => {
+  expect(snapshot).to.include({
+    id: virtualCard.id,
+    name: virtualCard.name,
+    last4: virtualCard.last4,
+    provider: virtualCard.provider,
+    CollectiveId: virtualCard.CollectiveId,
+    HostCollectiveId: virtualCard.HostCollectiveId,
+  });
+  expect(snapshot).to.not.have.property('privateData');
+  expect(snapshot).to.not.have.property('cardNumber');
+  expect(snapshot).to.not.have.property('cvv');
+};
 
 describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
   describe('deleteVirtualCard', () => {
@@ -722,6 +752,216 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
 
       const activity = await models.Activity.findOne({ where: { type: ActivityTypes.VIRTUAL_CARD_REQUESTED } });
       expect(activity).to.exist;
+    });
+  });
+
+  describe('pauseVirtualCard', () => {
+    let hostAdminUser, collectiveAdminUser, host, collective;
+    let sandbox;
+
+    beforeEach(resetTestDB);
+    beforeEach(async () => {
+      hostAdminUser = await fakeUser();
+      collectiveAdminUser = await fakeUser();
+      host = await fakeHost({ admin: hostAdminUser });
+      collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdminUser });
+    });
+
+    beforeEach(() => {
+      sandbox = createSandbox();
+      sandbox.stub(stripeVirtualCards, 'pauseCard').resolves();
+    });
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    const createCard = (overrides = {}) =>
+      fakeVirtualCard({
+        HostCollectiveId: host.id,
+        CollectiveId: collective.id,
+        provider: VirtualCardProviders.STRIPE,
+        name: 'Ops card',
+        last4: '4242',
+        privateData: PRIVATE_CARD_DATA,
+        ...overrides,
+      });
+
+    it('requires authenticated user', async () => {
+      const virtualCard = await createCard();
+      const result = await graphqlQueryV2(PAUSE_VIRTUAL_CARD_MUTATION, { virtualCard: { id: virtualCard.id } });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage virtual cards.');
+    });
+
+    it('validates request has permission to pause card', async () => {
+      const virtualCard = await createCard();
+      const user = await fakeUser();
+      const result = await graphqlQueryV2(PAUSE_VIRTUAL_CARD_MUTATION, { virtualCard: { id: virtualCard.id } }, user);
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal("You don't have permission to pause this Virtual Card");
+    });
+
+    it('validates virtual card exist', async () => {
+      const result = await graphqlQueryV2(
+        PAUSE_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: 'does-not-exist' } },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Could not find Virtual Card');
+    });
+
+    it('rejects pausing a canceled card', async () => {
+      const virtualCard = await createCard({ data: { status: VirtualCardStatus.CANCELED } });
+      const result = await graphqlQueryV2(
+        PAUSE_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: virtualCard.id } },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('This Virtual Card cannot be paused');
+    });
+
+    it('pauses card using host admin and stores a public virtual card snapshot on the activity', async () => {
+      const virtualCard = await createCard();
+      const result = await graphqlQueryV2(
+        PAUSE_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: virtualCard.id } },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.pauseVirtualCard.status).to.equal('INACTIVE');
+
+      await virtualCard.reload();
+      expect(virtualCard.data.status).to.eq(VirtualCardStatus.INACTIVE);
+      expect(virtualCard.data.pauseReason).to.eq('MANUAL');
+
+      const activity = await models.Activity.findOne({
+        where: { type: ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED },
+      });
+      expectPublicVirtualCardSnapshot(activity.data.virtualCard, virtualCard);
+      expect(activity.UserId).to.equal(hostAdminUser.id);
+    });
+
+    it('pauses card using collective admin and does not persist privateData on the activity', async () => {
+      const virtualCard = await createCard();
+      const result = await graphqlQueryV2(
+        PAUSE_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: virtualCard.id } },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.pauseVirtualCard.status).to.equal('INACTIVE');
+
+      const activity = await models.Activity.findOne({
+        where: { type: ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED },
+      });
+      expectPublicVirtualCardSnapshot(activity.data.virtualCard, virtualCard);
+      expect(activity.UserId).to.equal(collectiveAdminUser.id);
+    });
+  });
+
+  describe('resumeVirtualCard', () => {
+    let hostAdminUser, collectiveAdminUser, host, collective;
+    let sandbox;
+
+    beforeEach(resetTestDB);
+    beforeEach(async () => {
+      hostAdminUser = await fakeUser();
+      collectiveAdminUser = await fakeUser();
+      host = await fakeHost({ admin: hostAdminUser });
+      collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdminUser });
+    });
+
+    beforeEach(() => {
+      sandbox = createSandbox();
+      sandbox.stub(stripeVirtualCards, 'resumeCard').resolves();
+    });
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    const createPausedCard = (overrides = {}) =>
+      fakeVirtualCard({
+        HostCollectiveId: host.id,
+        CollectiveId: collective.id,
+        provider: VirtualCardProviders.STRIPE,
+        name: 'Ops card',
+        last4: '4242',
+        privateData: PRIVATE_CARD_DATA,
+        data: { status: VirtualCardStatus.INACTIVE, pauseReason: 'MANUAL' },
+        ...overrides,
+      });
+
+    it('requires authenticated user', async () => {
+      const virtualCard = await createPausedCard();
+      const result = await graphqlQueryV2(RESUME_VIRTUAL_CARD_MUTATION, { virtualCard: { id: virtualCard.id } });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage virtual cards.');
+    });
+
+    it('rejects collective admin', async () => {
+      const virtualCard = await createPausedCard();
+      const result = await graphqlQueryV2(
+        RESUME_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: virtualCard.id } },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal("You don't have permission to edit this Virtual Card");
+    });
+
+    it('validates virtual card exist', async () => {
+      const result = await graphqlQueryV2(
+        RESUME_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: 'does-not-exist' } },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Could not find Virtual Card');
+    });
+
+    it('rejects resuming a canceled card', async () => {
+      const virtualCard = await createPausedCard({ data: { status: VirtualCardStatus.CANCELED } });
+      const result = await graphqlQueryV2(
+        RESUME_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: virtualCard.id } },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('This Virtual Card cannot be activated');
+    });
+
+    it('resumes card using host admin and stores a public virtual card snapshot on the activity', async () => {
+      const virtualCard = await createPausedCard();
+      const result = await graphqlQueryV2(
+        RESUME_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: virtualCard.id } },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.resumeVirtualCard.status).to.equal('ACTIVE');
+
+      await virtualCard.reload();
+      expect(virtualCard.data.status).to.eq(VirtualCardStatus.ACTIVE);
+      expect(virtualCard.data).to.not.have.property('pauseReason');
+
+      const activity = await models.Activity.findOne({
+        where: { type: ActivityTypes.COLLECTIVE_VIRTUAL_CARD_RESUMED },
+      });
+      expectPublicVirtualCardSnapshot(activity.data.virtualCard, virtualCard);
+      expect(activity.UserId).to.equal(hostAdminUser.id);
     });
   });
 });
