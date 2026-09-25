@@ -11,7 +11,7 @@ on:
 
 jobs:
   lockfile-lint:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
 
     steps:
