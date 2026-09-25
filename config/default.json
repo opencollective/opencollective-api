@@ -207,8 +207,7 @@
     "blockedCurrenciesForNonProfits": "INR",
     "currenciesThatRequireReference": "RUB",
     "blockedCountries": "SS, SD, BI, CF, TD, CG, CD, SO, CU, IR, VE, SY, KP, AF, ER, IQ, LY, MM, YE, RU, BY",
-    "useTransferRefundHandler": false,
-    "useSimplifiedQuote": true
+    "useTransferRefundHandler": false
   },
   "hyperwatch": {
     "enabled": false,
