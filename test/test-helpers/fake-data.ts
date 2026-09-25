@@ -1351,6 +1351,11 @@ export const fakePlatformBill = (data: Partial<Billing> = {}): Billing => {
           activeCollectives: 0,
         },
       },
+      crowdfunding: {
+        totalAmount: 0,
+        feePercent: 0,
+        fee: 0,
+      },
       baseAmount: totalAmount,
       totalAmount: totalAmount,
       utilization: {
