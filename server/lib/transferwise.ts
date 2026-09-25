@@ -36,11 +36,37 @@ import logger from './logger';
 import { lockUntilResolved } from './mutex';
 import { reportErrorToSentry } from './sentry';
 import { sleep } from './utils';
+import {
+  normalizeOptionalWiseId,
+  normalizeWiseId,
+  normalizeWiseIdList,
+  parseLosslessJson,
+  stringifyLosslessJson,
+  type WiseId,
+  wiseInt64,
+} from './wise-id';
 
 const debug = Debug('transferwise');
 
 const axiosClient = axios.create({
   baseURL: config.transferwise.apiUrl,
+  // Axios' default parser uses `JSON.parse`, which rounds integers above Number.MAX_SAFE_INTEGER.
+  // Parse Wise responses losslessly so Int64 identifiers keep their exact digits.
+  transformResponse: [
+    function losslessTransformResponse(data) {
+      if (typeof data === 'string') {
+        try {
+          return parseLosslessJson(data);
+        } catch (e) {
+          if (e.name === 'SyntaxError') {
+            return data;
+          }
+          throw e;
+        }
+      }
+      return data;
+    },
+  ],
 });
 
 const isProduction = config.env === 'production';
@@ -59,6 +85,82 @@ const compactRecipientDetails = <T>(object: T): Partial<T> => <Partial<T>>omitBy
 
 const getData = <T extends { data?: Record<string, unknown> }>(obj: T | undefined): T['data'] | undefined =>
   obj && obj.data;
+
+type IdContainer = Record<string, unknown>;
+
+/**
+ * Canonicalizes the identifier fields of a Wise payload into decimal strings, leaving amounts,
+ * rates, timestamps and other numeric fields untouched.
+ */
+const normalizeIdFields = <T>(payload: T, fields: string[]): T => {
+  if (!payload || typeof payload !== 'object') {
+    return payload;
+  }
+  const result = { ...(payload as IdContainer) };
+  for (const field of fields) {
+    const normalized = normalizeOptionalWiseId(result[field]);
+    if (normalized !== undefined) {
+      result[field] = normalized;
+    }
+  }
+  return result as T;
+};
+
+const normalizeProfile = <T>(profile: T): T => normalizeIdFields(profile, ['id', 'userId']);
+
+const normalizeRecipient = <T>(recipient: T): T => normalizeIdFields(recipient, ['id']);
+
+const normalizeTransfer = <T>(transfer: T): T =>
+  normalizeIdFields(transfer, ['id', 'user', 'targetAccount', 'sourceAccount', 'quote', 'business', 'transferRequest']);
+
+const normalizeBalance = <T>(balance: T): T => {
+  const normalized = normalizeIdFields(balance, ['id']);
+  const record = normalized as IdContainer;
+  if (record?.bankDetails && typeof record.bankDetails === 'object') {
+    record.bankDetails = normalizeIdFields(record.bankDetails, ['id']);
+  }
+  return normalized;
+};
+
+const normalizeQuote = <T>(quote: T): T => {
+  const normalized = normalizeIdFields(quote, ['user', 'profile', 'targetAccount']);
+  const record = normalized as IdContainer;
+  if (Array.isArray(record?.paymentOptions)) {
+    record.paymentOptions = record.paymentOptions.map(option => {
+      const optionRecord = option as IdContainer;
+      if (optionRecord?.price && typeof optionRecord.price === 'object') {
+        optionRecord.price = normalizeIdFields(optionRecord.price, ['priceSetId']);
+      }
+      return optionRecord;
+    });
+  }
+  return normalized;
+};
+
+const normalizeBatchGroup = <T>(batchGroup: T): T => {
+  if (!batchGroup || typeof batchGroup !== 'object') {
+    return batchGroup;
+  }
+  // Only `transferIds` are identifiers. `version` is an operational counter (a number) and must not
+  // be stringified; the lossless parser already keeps it exact if it ever exceeds the safe range.
+  const record = { ...(batchGroup as IdContainer) };
+  if (Array.isArray(record.transferIds)) {
+    record.transferIds = normalizeWiseIdList(record.transferIds);
+  }
+  return record as T;
+};
+
+const normalizeWebhookEvent = <T extends { data?: { resource?: Record<string, unknown> } }>(event: T): T => {
+  if (event?.data?.resource) {
+    event.data.resource = normalizeIdFields(event.data.resource, ['id', 'profile_id', 'account_id']);
+  }
+  return event;
+};
+
+/** Losslessly parses a verified webhook's raw body, normalizing it into canonical decimal IDs. */
+export const parseWebhookEvent = (rawBody: string): WebhookEvent => {
+  return normalizeWebhookEvent(parseLosslessJson<WebhookEvent>(rawBody));
+};
 
 const errorMessages = {
   'balance.insufficient-funds': 'You do not have enough funds in your Wise balance to complete this transfer.',
@@ -209,16 +311,19 @@ export const requestDataAndThrowParsedError = async (
     set(options, 'headers.Authorization', `Bearer ${token}`);
   }
 
+  // Serialize Wise JSON bodies losslessly. `LosslessNumber` values are emitted as exact unquoted
+  // int64 tokens while regular values keep JSON.stringify-compatible behavior.
+  const requestData = data ? stringifyLosslessJson(data) : undefined;
+  if (data) {
+    set(options, 'headers.Content-Type', 'application/json');
+  }
+
   debug(
-    `calling ${config.transferwise.apiUrl}${url}: ${JSON.stringify(
-      { data, params: options.params, retries },
-      null,
-      2,
-    )}`,
+    `calling ${config.transferwise.apiUrl}${url}: ${stringifyLosslessJson({ data, params: options.params, retries }, 2)}`,
   );
 
   try {
-    const pRequest = data ? fn(url, data, options) : fn(url, options);
+    const pRequest = data ? fn(url, requestData, options) : fn(url, options);
     const response = await pRequest;
     return getData(response);
   } catch (e: any) {
@@ -265,10 +370,10 @@ export const requestDataAndThrowParsedError = async (
 };
 
 interface CreateQuote {
-  profileId: number;
+  profileId: WiseId;
   sourceCurrency: string;
   targetCurrency: string;
-  targetAccount?: number;
+  targetAccount?: WiseId;
   targetAmount?: number;
   sourceAmount?: number;
   payOut?: 'BANK_TRANSFER' | 'BALANCE' | 'SWIFT' | 'INTERAC' | null;
@@ -289,7 +394,7 @@ export const createQuote = async (
 ): Promise<QuoteV3> => {
   const data = {
     payOut,
-    targetAccount,
+    targetAccount: wiseInt64(targetAccount),
     preferredPayIn: 'BALANCE',
     sourceAmount,
     sourceCurrency,
@@ -299,33 +404,33 @@ export const createQuote = async (
   };
   return requestDataAndThrowParsedError(
     axiosClient.post,
-    `/v3/profiles/${profile}/quotes`,
+    `/v3/profiles/${normalizeWiseId(profile)}/quotes`,
     {
       connectedAccount,
       data,
     },
     'There was an error while creating the quote on Wise',
-  );
+  ).then(normalizeQuote);
 };
 
 export const getQuote = async (connectedAccount: ConnectedAccount, quoteId: string): Promise<QuoteV3> => {
   const profile = connectedAccount.data.id;
   return requestDataAndThrowParsedError(
     axiosClient.get,
-    `/v3/profiles/${profile}/quotes/${quoteId}`,
+    `/v3/profiles/${normalizeWiseId(profile)}/quotes/${quoteId}`,
     {
       connectedAccount,
     },
     'There was an error while fetching the quote on Wise',
-  );
+  ).then(normalizeQuote);
 };
 
 export const createRecipientAccount = async (
   connectedAccount: ConnectedAccount,
   { currency, type, accountHolderName, legalType, details }: RecipientAccount,
 ): Promise<RecipientAccount> => {
-  const profile = connectedAccount.data.id;
-  const data = { profile, currency, type, accountHolderName, legalType, details };
+  const profile = normalizeWiseId(connectedAccount.data.id);
+  const data = { profile: wiseInt64(profile), currency, type, accountHolderName, legalType, details };
   const response = await requestDataAndThrowParsedError(
     axiosClient.post,
     `/v1/accounts`,
@@ -335,14 +440,14 @@ export const createRecipientAccount = async (
     },
     "There was an error while creating Wise's recipient",
   );
-  return {
+  return normalizeRecipient({
     ...response,
     details: compactRecipientDetails(response.details),
-  };
+  });
 };
 
 export interface CreateTransfer {
-  accountId: number;
+  accountId: WiseId;
   quoteUuid: string;
   customerTransactionId: string;
   details?: {
@@ -356,7 +461,7 @@ export const createTransfer = async (
   connectedAccount: ConnectedAccount,
   { accountId: targetAccount, quoteUuid, customerTransactionId, details }: CreateTransfer,
 ): Promise<Transfer> => {
-  const data = { targetAccount, quoteUuid, customerTransactionId, details };
+  const data = { targetAccount: wiseInt64(targetAccount), quoteUuid, customerTransactionId, details };
   return requestDataAndThrowParsedError(
     axiosClient.post,
     `/v1/transfers`,
@@ -365,14 +470,14 @@ export const createTransfer = async (
       connectedAccount,
     },
     'There was an error while creating the Wise transfer',
-  );
+  ).then(normalizeTransfer);
 };
 
 export const validateTransferRequirements = async (
   connectedAccount: ConnectedAccount,
   { accountId: targetAccount, quoteUuid, details }: Omit<CreateTransfer, 'customerTransactionId'>,
 ): Promise<TransactionRequirementsType[]> => {
-  const data = { targetAccount, quoteUuid, details };
+  const data = { targetAccount: wiseInt64(targetAccount), quoteUuid, details };
   return requestDataAndThrowParsedError(
     axiosClient.post,
     `/v1/transfer-requirements`,
@@ -386,31 +491,31 @@ export const validateTransferRequirements = async (
 
 export const cancelTransfer = async (
   connectedAccount: ConnectedAccount,
-  transferId: string | number,
+  transferId: string | number | bigint,
 ): Promise<Transfer> => {
   return requestDataAndThrowParsedError(
     axiosClient.put,
-    `/v1/transfers/${transferId}/cancel`,
+    `/v1/transfers/${normalizeWiseId(transferId)}/cancel`,
     {
       requestPath: '/v1/transfers/:id/cancel',
       data: {},
       connectedAccount,
     },
     'There was an error while cancelling the Wise transfer',
-  );
+  ).then(normalizeTransfer);
 };
 
 interface FundTransfer {
-  transferId: number;
+  transferId: WiseId;
 }
 export const fundTransfer = async (
   connectedAccount: ConnectedAccount,
   { transferId }: FundTransfer,
 ): Promise<{ status: 'COMPLETED' | 'REJECTED'; errorCode: string }> => {
-  const profileId = connectedAccount.data.id;
+  const profileId = normalizeWiseId(connectedAccount.data.id);
   return requestDataAndThrowParsedError(
     axiosClient.post,
-    `/v3/profiles/${profileId}/transfers/${transferId}/payments`,
+    `/v3/profiles/${profileId}/transfers/${normalizeWiseId(transferId)}/payments`,
     {
       requestPath: '/v3/profiles/:profileId/transfers/:transferId/payments',
       data: { type: 'BALANCE' },
@@ -428,18 +533,18 @@ export const getProfiles = async (connectedAccount: ConnectedAccount): Promise<P
       connectedAccount,
     },
     'There was an error fetching the profiles for Wise',
-  );
+  ).then(profiles => (profiles || []).map(normalizeProfile));
 };
 
-export const getProfile = async (connectedAccount: ConnectedAccount, profileId: number): Promise<ProfileV2> => {
+export const getProfile = async (connectedAccount: ConnectedAccount, profileId: WiseId): Promise<ProfileV2> => {
   return requestDataAndThrowParsedError(
     axiosClient.get,
-    `/v2/profiles/${profileId}`,
+    `/v2/profiles/${normalizeWiseId(profileId)}`,
     {
       connectedAccount,
     },
     'There was an error fetching the profiles for Wise',
-  );
+  ).then(normalizeProfile);
 };
 
 export const listTransfers = async (connectedAccount: ConnectedAccount, params) => {
@@ -451,18 +556,18 @@ export const listTransfers = async (connectedAccount: ConnectedAccount, params) 
       params,
     },
     'There was an error fetching transfers from Wise',
-  );
+  ).then(transfers => (transfers || []).map(normalizeTransfer));
 };
 
-export const getRecipient = async (connectedAccount: ConnectedAccount, accountId) => {
+export const getRecipient = async (connectedAccount: ConnectedAccount, accountId: WiseId) => {
   return requestDataAndThrowParsedError(
     axiosClient.get,
-    `/v1/accounts/${accountId}`,
+    `/v1/accounts/${normalizeWiseId(accountId)}`,
     {
       connectedAccount,
     },
     'There was an error fetching the recipient information from Wise',
-  );
+  ).then(normalizeRecipient);
 };
 
 interface GetTemporaryQuote {
@@ -488,24 +593,24 @@ export const getTemporaryQuote = async (
       data,
     },
     'There was an error while fetching the Wise quote',
-  );
+  ).then(normalizeQuote);
 };
 
-export const getTransfer = async (connectedAccount: ConnectedAccount, transferId: number): Promise<Transfer> => {
+export const getTransfer = async (connectedAccount: ConnectedAccount, transferId: WiseId): Promise<Transfer> => {
   return requestDataAndThrowParsedError(
     axiosClient.get,
-    `/v1/transfers/${transferId}`,
+    `/v1/transfers/${normalizeWiseId(transferId)}`,
     {
       requestPath: '/v1/transfers/:id',
       connectedAccount,
     },
     'There was an error fetching transfer for Wise',
-  );
+  ).then(normalizeTransfer);
 };
 
 export const simulateTransferSuccess = async (
   connectedAccount: ConnectedAccount,
-  transferId: number,
+  transferId: WiseId,
 ): Promise<Transfer> => {
   if (isProduction) {
     throw new Error('Simulate transfer success is only available in development');
@@ -525,7 +630,7 @@ export const simulateTransferSuccess = async (
     );
   }
 
-  return response;
+  return normalizeTransfer(response);
 };
 
 export const getAccountRequirements = async (
@@ -612,12 +717,12 @@ export const listBalancesAccount = async (
   try {
     return requestDataAndThrowParsedError(
       axiosClient.get,
-      `/v4/profiles/${connectedAccount.data.id}/balances?types=${types}`,
+      `/v4/profiles/${normalizeWiseId(connectedAccount.data.id)}/balances?types=${types}`,
       {
         requestPath: '/v4/profiles/:profileId/balances',
         connectedAccount,
       },
-    );
+    ).then(balances => (balances || []).map(normalizeBalance));
   } catch (e) {
     logger.error(e);
     reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
@@ -629,13 +734,13 @@ export const createBatchGroup = async (
   connectedAccount: ConnectedAccount,
   data: { name: string; sourceCurrency: string },
 ): Promise<BatchGroup> => {
-  const profileId = connectedAccount.data.id;
+  const profileId = normalizeWiseId(connectedAccount.data.id);
   try {
     return requestDataAndThrowParsedError(axiosClient.post, `/v3/profiles/${profileId}/batch-groups`, {
       requestPath: '/v3/profiles/:profileId/batch-groups',
       data,
       connectedAccount,
-    });
+    }).then(normalizeBatchGroup);
   } catch (e) {
     logger.error(e);
     reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
@@ -644,12 +749,12 @@ export const createBatchGroup = async (
 };
 
 export const getBatchGroup = async (connectedAccount: ConnectedAccount, batchGroupId: string): Promise<BatchGroup> => {
-  const profileId = connectedAccount.data.id;
+  const profileId = normalizeWiseId(connectedAccount.data.id);
   try {
     return requestDataAndThrowParsedError(axiosClient.get, `/v3/profiles/${profileId}/batch-groups/${batchGroupId}`, {
       requestPath: '/v3/profiles/:profileId/batch-groups/:batchGroupId',
       connectedAccount,
-    });
+    }).then(normalizeBatchGroup);
   } catch (e) {
     logger.error(e);
     reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
@@ -662,8 +767,8 @@ export const createBatchGroupTransfer = async (
   batchGroupId: string,
   { accountId: targetAccount, quoteUuid, customerTransactionId, details }: CreateTransfer,
 ): Promise<Transfer> => {
-  const profileId = connectedAccount.data.id;
-  const data = { targetAccount, quoteUuid, customerTransactionId, details };
+  const profileId = normalizeWiseId(connectedAccount.data.id);
+  const data = { targetAccount: wiseInt64(targetAccount), quoteUuid, customerTransactionId, details };
   try {
     return requestDataAndThrowParsedError(
       axiosClient.post,
@@ -673,7 +778,7 @@ export const createBatchGroupTransfer = async (
         data,
         connectedAccount,
       },
-    );
+    ).then(normalizeTransfer);
   } catch (e) {
     logger.error(e);
     reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
@@ -684,15 +789,15 @@ export const createBatchGroupTransfer = async (
 export const completeBatchGroup = async (
   connectedAccount: ConnectedAccount,
   batchGroupId: string,
-  version: number,
+  version: number | WiseId,
 ): Promise<BatchGroup> => {
-  const profileId = connectedAccount.data.id;
+  const profileId = normalizeWiseId(connectedAccount.data.id);
   try {
     return requestDataAndThrowParsedError(axiosClient.patch, `/v3/profiles/${profileId}/batch-groups/${batchGroupId}`, {
       requestPath: '/v3/profiles/:profileId/batch-groups/:batchGroupId',
-      data: { version, status: 'COMPLETED' },
+      data: { version: wiseInt64(version), status: 'COMPLETED' },
       connectedAccount,
-    });
+    }).then(normalizeBatchGroup);
   } catch (e) {
     logger.error(e);
     reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
@@ -703,15 +808,15 @@ export const completeBatchGroup = async (
 export const cancelBatchGroup = async (
   connectedAccount: ConnectedAccount,
   batchGroupId: string,
-  version: number,
+  version: number | WiseId,
 ): Promise<BatchGroup> => {
-  const profileId = connectedAccount.data.id;
+  const profileId = normalizeWiseId(connectedAccount.data.id);
   try {
     return requestDataAndThrowParsedError(axiosClient.patch, `/v3/profiles/${profileId}/batch-groups/${batchGroupId}`, {
       requestPath: '/v3/profiles/:profileId/batch-groups/:batchGroupId',
-      data: { version, status: 'CANCELLED' },
+      data: { version: wiseInt64(version), status: 'CANCELLED' },
       connectedAccount,
-    });
+    }).then(normalizeBatchGroup);
   } catch (e) {
     logger.error(e);
     reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
@@ -728,7 +833,7 @@ export type OTTResponse = {
 
 export const fundBatchGroup = async (
   token: string,
-  profileId: string | number,
+  profileId: string | number | bigint,
   batchGroupId: string,
   x2faApproval?: string,
 ): Promise<BatchGroup | OTTResponse> => {
@@ -738,8 +843,13 @@ export const fundBatchGroup = async (
   }
 
   return axiosClient
-    .post(`/v3/profiles/${profileId}/batch-payments/${batchGroupId}/payments`, { type: 'BALANCE' }, { headers })
+    .post(
+      `/v3/profiles/${normalizeWiseId(profileId)}/batch-payments/${batchGroupId}/payments`,
+      { type: 'BALANCE' },
+      { headers },
+    )
     .then(getData)
+    .then(data => (data && typeof data === 'object' && 'transferIds' in data ? normalizeBatchGroup(data) : data))
     .catch(e => {
       const headers = pick(e.response?.headers, ['x-2fa-approval']);
       const status = e.response?.status;
@@ -774,7 +884,8 @@ export const verifyEvent = (req: Request & { rawBody: string }): WebhookEvent =>
   if (!verified) {
     throw new Error('Could not verify event signature');
   }
-  return req.body;
+  // Parse the verified raw body losslessly so Int64 identifiers keep their exact digits.
+  return parseWebhookEvent(req.rawBody);
 };
 
 export const formatAccountDetails = (

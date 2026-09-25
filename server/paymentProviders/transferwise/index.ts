@@ -20,7 +20,6 @@ import {
   set,
   split,
   toLower,
-  toNumber,
 } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
@@ -37,6 +36,14 @@ import logger from '../../lib/logger';
 import { safeJsonStringify } from '../../lib/safe-json-stringify';
 import * as transferwise from '../../lib/transferwise';
 import { parseToBoolean } from '../../lib/utils';
+import {
+  normalizeWiseId,
+  normalizeWiseIdList,
+  safeLegacyNumericWiseId,
+  type WiseId,
+  wiseIdListIncludes,
+  wiseIdsEqual,
+} from '../../lib/wise-id';
 import { Collective, ConnectedAccount, Expense, Op, PayoutMethod, sequelize, User } from '../../models';
 import {
   BalanceV4,
@@ -68,16 +75,46 @@ const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blocke
 const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurrenciesForNonProfits);
 const recipientTypesBlockedForBusinessProfiles = splitCSV(config.transferwise.recipientTypesBlockedForBusinessProfiles);
 
-async function populateProfileId(connectedAccount: ConnectedAccount, profileId: number): Promise<void> {
+/**
+ * Rebuilds the legacy connected-account hash (computed from JavaScript numbers) for rows created
+ * before identifiers were carried as exact strings.
+ *
+ * `numericFields` lists the identifier keys that used to be numbers; every other key is passed
+ * through unchanged. Returns `undefined` unless all identifier values can be represented as safe
+ * integers, so rounding can never make adjacent Int64 ids collide. The resulting object preserves
+ * the original key order so the fingerprint matches the historical `hashObject` call.
+ */
+function buildLegacyNumericHash(fields: Record<string, unknown>, numericFields: string[]): string | undefined {
+  const legacyFields: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (numericFields.includes(key)) {
+      const numeric = safeLegacyNumericWiseId(value);
+      if (numeric === undefined) {
+        return undefined;
+      }
+      legacyFields[key] = numeric;
+    } else {
+      legacyFields[key] = value;
+    }
+  }
+  return hashObject(legacyFields);
+}
+
+async function populateProfileId(connectedAccount: ConnectedAccount, profileId: WiseId): Promise<void> {
   if (!connectedAccount.data?.id) {
     const profiles = await transferwise.getProfiles(connectedAccount);
     const personalProfile = profiles.find(p => p.type === 'PERSONAL');
-    const businessProfile = profiles.find(p => p.id === profileId);
+    // Wise does not guarantee that an account has a personal profile (e.g. a business-only
+    // account): fail with a clear error rather than crashing on `personalProfile.userId`.
+    assert(personalProfile, `Could not find a personal Wise profile for connected account ${connectedAccount.id}`);
+    const businessProfile = profiles.find(p => wiseIdsEqual(p.id, profileId));
     if (businessProfile) {
+      // Use the exact canonical identifiers so adjacent ids above `Number.MAX_SAFE_INTEGER` never
+      // collide through a rounded JavaScript number.
       const hash = hashObject({
-        profileId: businessProfile.id,
+        profileId: normalizeWiseId(businessProfile.id),
         service: PROVIDER_NAME,
-        userId: personalProfile.userId,
+        userId: normalizeWiseId(personalProfile.userId),
       });
       const isOwner = businessProfile.type === 'BUSINESS' && businessProfile.companyRole === 'OWNER';
       await connectedAccount.update({
@@ -121,7 +158,7 @@ async function quoteExpense(
   connectedAccount: ConnectedAccount,
   payoutMethod: PayoutMethod,
   expense: Expense,
-  targetAccount?: number,
+  targetAccount?: WiseId,
   transferNature?: string,
 ): Promise<ExpenseDataQuoteV3 | ExpenseDataQuoteV2> {
   const existingQuote = expense.data?.quote;
@@ -135,8 +172,8 @@ async function quoteExpense(
     existingQuote['paymentOption'].disabled === false &&
     // Make sure this is not a temporoary quote and it points to the correct Target Account
     'targetAccount' in existingQuote &&
-    existingQuote.targetAccount === expense.data.recipient?.id &&
-    (targetAccount === undefined || existingQuote.targetAccount === targetAccount) &&
+    wiseIdsEqual(existingQuote.targetAccount, expense.data.recipient?.id) &&
+    (targetAccount === undefined || wiseIdsEqual(existingQuote.targetAccount, targetAccount)) &&
     // We can not reuse quotes if a Transfer was already created
     !expense.data.transfer &&
     moment.utc().subtract(60, 'seconds').isBefore(existingQuote['expirationTime']);
@@ -149,7 +186,7 @@ async function quoteExpense(
   expense.host = expense.host || (await expense.collective.getHostCollective());
   const targetCurrency = payoutMethod.data.currency;
   const quoteParams = {
-    profileId: connectedAccount.data.id,
+    profileId: normalizeWiseId(connectedAccount.data.id),
     // Attention: sourceCurrency must always be the host currency, we count with this when persisting the Processor Payment Fee
     sourceCurrency: expense.host.currency,
     targetCurrency,
@@ -495,7 +532,10 @@ async function scheduleExpenseForPayment(
   });
 
   batchGroup = await transferwise.getBatchGroup(connectedAccount, batchGroup.id);
-  assert(batchGroup.transferIds.includes(transfer.id), new Error('Failed to add transfer to existing batch group'));
+  assert(
+    wiseIdListIncludes(batchGroup.transferIds, transfer.id),
+    new Error('Failed to add transfer to existing batch group'),
+  );
   await expense.reload();
   await expense.update({ data: { ...expense.data, batchGroup } });
   await updateBatchGroup(batchGroup);
@@ -579,8 +619,8 @@ async function payExpensesBatchGroup({
     }
     // If it is new, check if the expenses match the batch group and mark it as completed
     else if (batchGroup.status === 'NEW') {
-      const expenseTransferIds = expenses.map(e => e.data.transfer.id);
-      if (difference(batchGroup.transferIds, expenseTransferIds).length > 0) {
+      const expenseTransferIds = normalizeWiseIdList(expenses.map(e => e.data.transfer.id));
+      if (difference(normalizeWiseIdList(batchGroup.transferIds), expenseTransferIds).length > 0) {
         throw new Error(`Expenses requested do not match the transfers added to batch group ${batchGroup.id}`);
       }
       expenses.forEach(expense => {
@@ -592,7 +632,7 @@ async function payExpensesBatchGroup({
         if (moment().isSameOrAfter(expense.data.quote.expirationTime)) {
           throw new Error(`Expense ${expense.id} quote expired. Unschedule expense and try again`);
         }
-        if (!batchGroup.transferIds.includes(expense.data.transfer.id)) {
+        if (!wiseIdListIncludes(batchGroup.transferIds, expense.data.transfer.id)) {
           throw new Error(`Batch group ${batchGroup.id} does not include expense ${expense.id}`);
         }
       });
@@ -821,7 +861,7 @@ async function connectTransferwiseAccount({
   CreatedByUserId,
 }: {
   code: string;
-  profileId: number | string;
+  profileId: string | number | bigint;
   CollectiveId: number;
   CreatedByUserId: number;
 }): Promise<ConnectedAccount> {
@@ -837,9 +877,29 @@ async function connectTransferwiseAccount({
   });
   const profiles = await transferwise.getProfiles(newConnectedAccount);
   const personalProfile = profiles.find(p => p.type === 'PERSONAL');
-  const profile = profiles.find(p => p.id === toNumber(profileId));
+  // Wise does not guarantee that an account has a personal profile (e.g. a business-only
+  // account): fail with a clear error rather than crashing on `personalProfile.userId`.
+  assert(personalProfile, 'Could not find a personal Wise profile for this account');
+  const profile = profiles.find(p => wiseIdsEqual(p.id, profileId));
   assert(profile, `Could not find Wise profile with id ${profileId}`);
-  const hash = hashObject({ profileId: profile.id, service: PROVIDER_NAME, userId: personalProfile.userId });
+  // Hash the exact canonical identifiers: rounding ids above `Number.MAX_SAFE_INTEGER` through a
+  // JavaScript number would conflate adjacent accounts.
+  const hash = hashObject({
+    profileId: normalizeWiseId(profile.id),
+    service: PROVIDER_NAME,
+    userId: normalizeWiseId(personalProfile.userId),
+  });
+  // Pre-refactor rows were hashed from JavaScript numbers. When both ids are safe integers we can
+  // rebuild that legacy fingerprint losslessly and use it as a read-only fallback; unsafe ids stay
+  // exact-only so adjacent values above `Number.MAX_SAFE_INTEGER` can never be conflated.
+  const legacyHash = buildLegacyNumericHash(
+    {
+      profileId: profile.id,
+      service: PROVIDER_NAME,
+      userId: personalProfile.userId,
+    },
+    ['profileId', 'userId'],
+  );
 
   const collective = await Collective.findByPk(CollectiveId);
   assert(collective, `Could not find Collective #${CollectiveId}`);
@@ -874,17 +934,33 @@ async function connectTransferwiseAccount({
     );
 
     const mirrorHash = hashObject({
-      profileId: profile.id,
+      profileId: normalizeWiseId(profile.id),
       service: 'transferwise',
-      userId: profile.userId,
+      userId: normalizeWiseId(profile.userId),
       MirrorConnectedAccountId: connectedAccountToMirror.id,
     });
-    const existingMirror = await ConnectedAccount.findOne({
+    // Mirror rows created before the refactor were also hashed from numbers; try that legacy
+    // fingerprint (safe ids only) and upgrade the row to the canonical hash when it matches.
+    const legacyMirrorHash = buildLegacyNumericHash(
+      {
+        profileId: profile.id,
+        service: 'transferwise',
+        userId: profile.userId,
+        MirrorConnectedAccountId: connectedAccountToMirror.id,
+      },
+      ['profileId', 'userId'],
+    );
+    let existingMirror = await ConnectedAccount.findOne({
       where: { service: PROVIDER_NAME, CollectiveId, hash: mirrorHash },
     });
+    if (!existingMirror && legacyMirrorHash) {
+      existingMirror = await ConnectedAccount.findOne({
+        where: { service: PROVIDER_NAME, CollectiveId, hash: legacyMirrorHash },
+      });
+    }
     // If mirror account already exists, update it with new tokens
     if (existingMirror) {
-      await existingMirror.update({ token, refreshToken });
+      await existingMirror.update({ token, refreshToken, hash: mirrorHash });
       connectedAccount = existingMirror;
     }
     // Create a new empty connected account pointing to the existing one that ports the same credentials
@@ -903,11 +979,14 @@ async function connectTransferwiseAccount({
       });
     }
 
-    // Update the original connected account with the new tokens
+    // Update the original connected account with the new tokens. `hash` is this account's own
+    // canonical fingerprint, so legacy number-derived rows are upgraded here too (populateProfileId
+    // is a no-op once `data.id` is set).
     await connectedAccountToMirror.update({
       token,
       refreshToken,
       data: { ...connectedAccountToMirror.data, ...data },
+      hash,
     });
     await populateProfileId(connectedAccountToMirror, profile.id);
   }
@@ -916,6 +995,13 @@ async function connectTransferwiseAccount({
     connectedAccount = await ConnectedAccount.findOne({
       where: { service: PROVIDER_NAME, CollectiveId, hash },
     });
+    // Fall back to the legacy numeric fingerprint so pre-refactor rows stay discoverable, then
+    // upgrade the matched row to the canonical hash.
+    if (!connectedAccount && legacyHash) {
+      connectedAccount = await ConnectedAccount.findOne({
+        where: { service: PROVIDER_NAME, CollectiveId, hash: legacyHash },
+      });
+    }
     if (connectedAccount) {
       await connectedAccount.update({
         token,
