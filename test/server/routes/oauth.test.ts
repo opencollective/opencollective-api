@@ -6,8 +6,16 @@ import { createHash, randomBytes } from 'node:crypto';
 import { useFakeTimers } from 'sinon';
 import request from 'supertest';
 
+import activities from '../../../server/constants/activities';
+import OAuthScopes from '../../../server/constants/oauth-scopes';
 import models from '../../../server/models';
-import { fakeApplication, fakeOAuthAuthorizationCode, fakeUser } from '../../test-helpers/fake-data';
+import {
+  fakeApplication,
+  fakeOAuthAuthorizationCode,
+  fakePersonalToken,
+  fakeUser,
+  fakeUserToken,
+} from '../../test-helpers/fake-data';
 import { startTestServer, stopTestServer } from '../../test-helpers/server';
 import { resetTestDB } from '../../utils';
 
@@ -108,6 +116,200 @@ describe('server/routes/oauth', () => {
   });
 
   describe('authorize', () => {
+    describe('session-only authorization', () => {
+      let application, user, limitedToken, authorizeUrl;
+
+      beforeEach(async () => {
+        application = await fakeApplication();
+        user = application.createdByUser;
+        limitedToken = await fakeUserToken({ user, ApplicationId: application.id, scope: [OAuthScopes.email] });
+        authorizeUrl = (clientId = application.clientId, scope = 'email account') => {
+          const params = new URLSearchParams({
+            response_type: 'code',
+            client_id: clientId,
+            redirect_uri: application.callbackUrl,
+            scope,
+          });
+          return `/oauth/authorize?${params.toString()}`;
+        };
+      });
+
+      const expectNoNewAuthorization = async (user, application, codeCount, activityCount) => {
+        expect(
+          await models.OAuthAuthorizationCode.count({ where: { UserId: user.id, ApplicationId: application.id } }),
+        ).to.eq(codeCount);
+        expect(
+          await models.Activity.count({ where: { UserId: user.id, type: activities.OAUTH_APPLICATION_AUTHORIZED } }),
+        ).to.eq(activityCount);
+      };
+
+      for (const scope of ['email account', 'email', '']) {
+        it(`rejects an OAuth token requesting ${scope || 'no'} scopes without creating a grant`, async () => {
+          const codeCount = await models.OAuthAuthorizationCode.count({
+            where: { UserId: user.id, ApplicationId: application.id },
+          });
+          const activityCount = await models.Activity.count({
+            where: { UserId: user.id, type: activities.OAUTH_APPLICATION_AUTHORIZED },
+          });
+
+          const response = await request(expressApp)
+            .post(authorizeUrl(application.clientId, scope))
+            .set('Authorization', `Bearer ${user.jwt({ scope: 'oauth', access_token: limitedToken.accessToken })}`)
+            .expect(401);
+
+          expect(response.body).to.be.empty;
+          expect(response.get('www-authenticate')).to.eq('Bearer realm="service"');
+          await expectNoNewAuthorization(user, application, codeCount, activityCount);
+          expect((await models.UserToken.findByPk(limitedToken.id)).scope).to.deep.eq([OAuthScopes.email]);
+        });
+      }
+
+      it('rejects an OAuth token when authorizing another application', async () => {
+        const otherApplication = await fakeApplication({ user });
+        const codeCount = await models.OAuthAuthorizationCode.count({
+          where: { UserId: user.id, ApplicationId: otherApplication.id },
+        });
+        const params = new URLSearchParams({
+          response_type: 'code',
+          client_id: otherApplication.clientId,
+          redirect_uri: otherApplication.callbackUrl,
+          scope: 'email account',
+        });
+
+        await request(expressApp)
+          .post(`/oauth/authorize?${params.toString()}`)
+          .set('Authorization', `Bearer ${user.jwt({ scope: 'oauth', access_token: limitedToken.accessToken })}`)
+          .expect(401);
+
+        expect(
+          await models.OAuthAuthorizationCode.count({ where: { UserId: user.id, ApplicationId: otherApplication.id } }),
+        ).to.eq(codeCount);
+      });
+
+      it('rejects personal tokens in headers and query parameters, even with a session JWT', async () => {
+        const personalToken = await fakePersonalToken({ user });
+        const codeCount = await models.OAuthAuthorizationCode.count({
+          where: { UserId: user.id, ApplicationId: application.id },
+        });
+        const activityCount = await models.Activity.count({
+          where: { UserId: user.id, type: activities.OAUTH_APPLICATION_AUTHORIZED },
+        });
+
+        await request(expressApp).post(authorizeUrl()).set('Personal-Token', personalToken.token).expect(401);
+        await request(expressApp).post(`${authorizeUrl()}&personalToken=${personalToken.token}`).expect(401);
+        await request(expressApp)
+          .post(authorizeUrl())
+          .set('Personal-Token', personalToken.token)
+          .set('Authorization', `Bearer ${user.jwt()}`)
+          .expect(401);
+
+        await expectNoNewAuthorization(user, application, codeCount, activityCount);
+      });
+
+      it('rejects an explicit OAuth JWT scope without a persisted user token', async () => {
+        await request(expressApp)
+          .post(authorizeUrl())
+          .set('Authorization', `Bearer ${user.jwt({ scope: 'oauth' })}`)
+          .expect(401);
+      });
+
+      it('keeps the limited token denied by an account-scope mutation after a rejected expansion', async () => {
+        const bearer = `Bearer ${user.jwt({ scope: 'oauth', access_token: limitedToken.accessToken })}`;
+        await request(expressApp).post(authorizeUrl()).set('Authorization', bearer).expect(401);
+
+        const response = await request(expressApp)
+          .post('/graphql/v2')
+          .set('Authorization', bearer)
+          .send({
+            query: 'mutation { inviteMembers(account: { legacyId: 1 }, members: []) { id } }',
+          })
+          .expect(200);
+
+        expect(response.body.errors?.[0]?.message).to.include('scope');
+      });
+
+      it('allows a session to expand an existing grant and exchanges the code with its approved scopes', async () => {
+        const response = await request(expressApp)
+          .post(authorizeUrl())
+          .set('Authorization', `Bearer ${user.jwt({ scope: 'session' })}`)
+          .expect(200);
+        const code = new URL(response.body.redirect_uri).searchParams.get('code');
+        const authorization = await models.OAuthAuthorizationCode.findOne({ where: { code } });
+        expect(authorization.scope).to.deep.eq(['email', 'account']);
+
+        const tokenResponse = await request(expressApp)
+          .post('/oauth/token')
+          .type('application/x-www-form-urlencoded')
+          .send({
+            grant_type: 'authorization_code',
+            code,
+            client_id: application.clientId,
+            client_secret: application.clientSecret,
+            redirect_uri: application.callbackUrl,
+            scope: 'root',
+          })
+          .expect(200);
+
+        expect(tokenResponse.body.scope).to.eq('email account');
+        expect(
+          (await models.UserToken.findOne({ where: { UserId: user.id, ApplicationId: application.id } })).scope,
+        ).to.deep.eq(['email', 'account']);
+      });
+    });
+
+    it('allows a session to authorize a connection with no scopes', async () => {
+      const application = await fakeApplication();
+      const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: application.clientId,
+        redirect_uri: application.callbackUrl,
+      });
+      const response = await request(expressApp)
+        .post(`/oauth/authorize?${params.toString()}`)
+        .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
+        .expect(200);
+      const code = new URL(response.body.redirect_uri).searchParams.get('code');
+      expect((await models.OAuthAuthorizationCode.findOne({ where: { code } })).scope).to.deep.eq([]);
+
+      const tokenResponse = await request(expressApp)
+        .post('/oauth/token')
+        .type('application/x-www-form-urlencoded')
+        .send({
+          grant_type: 'authorization_code',
+          code,
+          client_id: application.clientId,
+          client_secret: application.clientSecret,
+          redirect_uri: application.callbackUrl,
+        })
+        .expect(200);
+      expect(tokenResponse.body.access_token).to.be.a('string');
+      expect(
+        (
+          await models.UserToken.findOne({
+            where: { UserId: application.CreatedByUserId, ApplicationId: application.id },
+          })
+        ).scope,
+      ).to.deep.eq([]);
+    });
+
+    for (const scope of ['unknown', 'email unknown']) {
+      it(`rejects unsupported scopes: ${scope}`, async () => {
+        const application = await fakeApplication();
+        const params = new URLSearchParams({
+          response_type: 'code',
+          client_id: application.clientId,
+          redirect_uri: application.callbackUrl,
+          scope,
+        });
+        const response = await request(expressApp)
+          .post(`/oauth/authorize?${params.toString()}`)
+          .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
+          .expect(400);
+
+        expect(response.body.error).to.eq('invalid_scope');
+      });
+    }
+
     it('must provide a client_id', async () => {
       const response = await request(expressApp).post('/oauth/authorize?response_type=code').expect(400);
       const body = response.body;
@@ -698,6 +900,18 @@ describe('server/routes/oauth', () => {
       // Verify the JWT has the correct scope
       const decodedToken = jwt.verify(newToken.access_token, config.keys.opencollective.jwtSecret) as jwt.JwtPayload;
       expect(decodedToken.scope).to.eq('oauth');
+    });
+
+    it('rejects an attempt to expand scope during refresh', async () => {
+      const response = await request(expressApp)
+        .post('/oauth/token')
+        .type('application/x-www-form-urlencoded')
+        .send({ ...refreshTokenParams, scope: 'email account root' })
+        .expect(400);
+
+      expect(response.body.error).to.eq('invalid_scope');
+      // The OAuth library revokes the old refresh token before checking scope, but issues no broader token.
+      expect(await models.UserToken.count({ where: { UserId: user.id, ApplicationId: application.id } })).to.eq(0);
     });
 
     it('issues a new refresh token on each refresh', async () => {

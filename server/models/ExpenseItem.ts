@@ -18,7 +18,7 @@ import { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
 import User from './User';
 
 // Expense items diff as [newEntries, removedEntries, updatedEntries]
-type ExpenseItemsDiff = [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]];
+export type ExpenseItemsDiff = [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]];
 
 /**
  * Sequelize model to represent an ExpenseItem, linked to the `ExpenseItems` table.

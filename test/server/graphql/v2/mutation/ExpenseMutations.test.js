@@ -74,6 +74,7 @@ import {
   expectTransactionsLinkedToPaymentIntent,
 } from '../../../../test-helpers/payment-intent';
 import {
+  getOrCreatePlatformAccount,
   graphqlQueryV2,
   makeRequest,
   preloadAssociationsForTransactions,
@@ -4422,6 +4423,549 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await expense.reload();
         expect(expense.InvoiceFileId).to.eql(invoiceUploadedFile.id);
       });
+    });
+
+    describe('field-level permissions', () => {
+      let hostAdmin, collectiveAdmin, owner, host, collective;
+
+      const forbiddenPermissionsMessage = /do not have the necessary permissions|don't have permission to edit/i;
+
+      const createReceipt = (status, extra = {}) =>
+        fakeExpense({
+          type: 'RECEIPT',
+          status,
+          amount: 5000,
+          UserId: owner.id,
+          CollectiveId: collective.id,
+          items: [{ amount: 5000, description: 'Receipt', url: randUrl() }],
+          ...extra,
+        });
+
+      const itemAmountUpdate = (expense, amount) => ({
+        id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+        items: expense.items.map(item => ({
+          id: idEncode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
+          amount,
+          description: item.description,
+          incurredAt: item.incurredAt,
+          url: item.url,
+        })),
+      });
+
+      before(async () => {
+        hostAdmin = await fakeUser();
+        collectiveAdmin = await fakeUser();
+        owner = await fakeUser();
+        host = await fakeActiveHost({ admin: hostAdmin.collective, currency: 'USD' });
+        collective = await fakeCollective({
+          admin: collectiveAdmin.collective,
+          HostCollectiveId: host.id,
+          currency: 'USD',
+          settings: { VAT: { type: 'OWN', idNumber: 'XXXXXX' } },
+        });
+      });
+
+      describe('canEditItems', () => {
+        it('host admin cannot change items on a PENDING expense', async () => {
+          const expense = await createReceipt('PENDING');
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: itemAmountUpdate(expense, 1000) },
+            hostAdmin,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(forbiddenPermissionsMessage);
+          await expense.reload();
+          expect(expense.amount).to.equal(5000);
+        });
+
+        it('collective admin can change items on a PENDING expense', async () => {
+          const expense = await createReceipt('PENDING');
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: itemAmountUpdate(expense, 1000) },
+            collectiveAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.editExpense.amount).to.equal(1000);
+        });
+
+        it('owner can change items on a PENDING expense', async () => {
+          const expense = await createReceipt('PENDING');
+          const result = await graphqlQueryV2(editExpenseMutation, { expense: itemAmountUpdate(expense, 1000) }, owner);
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.editExpense.amount).to.equal(1000);
+        });
+
+        it('collective admin cannot change items on an APPROVED expense', async () => {
+          const expense = await createReceipt('APPROVED');
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: itemAmountUpdate(expense, 1000) },
+            collectiveAdmin,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(forbiddenPermissionsMessage);
+          await expense.reload();
+          expect(expense.amount).to.equal(5000);
+          expect(expense.status).to.equal('APPROVED');
+        });
+
+        it('host admin can change items on an APPROVED expense', async () => {
+          const expense = await createReceipt('APPROVED');
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: itemAmountUpdate(expense, 1000) },
+            hostAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.editExpense.amount).to.equal(1000);
+          expect(result.data.editExpense.status).to.equal('PENDING');
+        });
+
+        it('owner can change items on an APPROVED expense', async () => {
+          const expense = await createReceipt('APPROVED');
+          const result = await graphqlQueryV2(editExpenseMutation, { expense: itemAmountUpdate(expense, 1000) }, owner);
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.editExpense.amount).to.equal(1000);
+        });
+
+        it('collective admin cannot change tax on an APPROVED invoice', async () => {
+          const expense = await fakeExpense({
+            type: expenseTypes.INVOICE,
+            status: 'APPROVED',
+            amount: 10000,
+            items: [{ amount: 10000, description: 'Invoice item' }],
+            UserId: owner.id,
+            CollectiveId: collective.id,
+            currency: 'USD',
+          });
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), tax: [{ type: 'VAT', rate: 0.21 }] } },
+            collectiveAdmin,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(forbiddenPermissionsMessage);
+          await expense.reload();
+          expect(expense.amount).to.equal(10000);
+        });
+
+        it('owner can change tax on an APPROVED invoice', async () => {
+          const expense = await fakeExpense({
+            type: expenseTypes.INVOICE,
+            status: 'APPROVED',
+            amount: 10000,
+            items: [{ amount: 10000, description: 'Invoice item' }],
+            UserId: owner.id,
+            CollectiveId: collective.id,
+            currency: 'USD',
+          });
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), tax: [{ type: 'VAT', rate: 0.21 }] } },
+            owner,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.editExpense.amount).to.equal(12100);
+          expect(result.data.editExpense.status).to.equal('PENDING');
+        });
+
+        it('collective admin cannot change currency on an APPROVED expense', async () => {
+          const expense = await createReceipt('APPROVED');
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), currency: 'EUR' } },
+            collectiveAdmin,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(forbiddenPermissionsMessage);
+          await expense.reload();
+          expect(expense.currency).to.equal('USD');
+        });
+
+        it('owner can change currency on an APPROVED expense', async () => {
+          const expense = await createReceipt('APPROVED');
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), currency: 'EUR' } },
+            owner,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.editExpense.status).to.equal('PENDING');
+          await expense.reload();
+          expect(expense.currency).to.equal('EUR');
+        });
+      });
+
+      describe('canEditTitle', () => {
+        it('host admin cannot change title on a PENDING expense', async () => {
+          const expense = await createReceipt('PENDING');
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: 'Host rewrite' } },
+            hostAdmin,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(forbiddenPermissionsMessage);
+          await expense.reload();
+          expect(expense.description).to.not.equal('Host rewrite');
+        });
+
+        it('owner can change title on a PENDING expense', async () => {
+          const expense = await createReceipt('PENDING');
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: 'Owner rewrite' } },
+            owner,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.editExpense.description).to.equal('Owner rewrite');
+        });
+      });
+
+      describe('canEditPayee and canEditPayoutMethod', () => {
+        it('host admin cannot change payee to another account', async () => {
+          const expense = await createReceipt('PENDING');
+          const otherPayee = await fakeUser();
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+                payee: { legacyId: otherPayee.collective.id },
+              },
+            },
+            hostAdmin,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(
+            /do not have the necessary permissions|must be an admin of the account/i,
+          );
+          await expense.reload();
+          expect(expense.FromCollectiveId).to.equal(owner.CollectiveId);
+        });
+
+        it('owner can change payee', async () => {
+          const expense = await createReceipt('PENDING');
+          const newPayee = await fakeCollective({ admin: owner.collective });
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+                payee: { legacyId: newPayee.id },
+              },
+            },
+            owner,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.editExpense.payee.legacyId).to.equal(newPayee.id);
+        });
+
+        it('host admin cannot change payout method', async () => {
+          const expense = await createReceipt('PENDING');
+          const newPayoutMethod = await fakePayoutMethod({ CollectiveId: owner.CollectiveId });
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+                payoutMethod: { id: idEncode(newPayoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD) },
+              },
+            },
+            hostAdmin,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(forbiddenPermissionsMessage);
+          await expense.reload();
+          expect(expense.PayoutMethodId).to.not.equal(newPayoutMethod.id);
+        });
+
+        it('owner can change payout method', async () => {
+          const expense = await createReceipt('PENDING');
+          const newPayoutMethod = await fakePayoutMethod({ CollectiveId: owner.CollectiveId });
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+                payoutMethod: { id: idEncode(newPayoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD) },
+              },
+            },
+            owner,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.editExpense.status).to.equal('PENDING');
+          await expense.reload();
+          expect(expense.PayoutMethodId).to.equal(newPayoutMethod.id);
+        });
+      });
+
+      describe('paid CHARGE', () => {
+        it('owner can still attach receipts without changing the amount', async () => {
+          const virtualCard = await fakeVirtualCard();
+          const expense = await fakeExpense({
+            data: { missingDetails: true },
+            status: expenseStatus.PAID,
+            type: expenseTypes.CHARGE,
+            VirtualCardId: virtualCard.id,
+            amount: 2000,
+            CollectiveId: collective.id,
+            UserId: owner.id,
+            items: [{ amount: 2000, description: 'Card charge' }],
+          });
+          const item = expense.items[0];
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+                description: 'Credit Card charge',
+                items: [
+                  {
+                    id: idEncode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
+                    amount: 2000,
+                    description: 'totally valid beer',
+                    url: 'http://opencollective.com/cool/story/bro',
+                  },
+                ],
+              },
+            },
+            owner,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          await expense.reload();
+          expect(expense.amount).to.equal(2000);
+          expect(expense).to.have.nested.property('data.missingDetails').eq(false);
+        });
+
+        it('owner cannot change the amount of a paid card charge', async () => {
+          const virtualCard = await fakeVirtualCard();
+          const expense = await fakeExpense({
+            data: { missingDetails: true },
+            status: expenseStatus.PAID,
+            type: expenseTypes.CHARGE,
+            VirtualCardId: virtualCard.id,
+            amount: 2000,
+            CollectiveId: collective.id,
+            UserId: owner.id,
+            items: [{ amount: 2000, description: 'Card charge' }],
+          });
+          const item = expense.items[0];
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+                items: [
+                  {
+                    id: idEncode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
+                    amount: 1000,
+                    description: item.description,
+                    url: 'http://opencollective.com/cool/story/bro',
+                  },
+                ],
+              },
+            },
+            owner,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(/cannot change the amount of a paid card charge/i);
+          await expense.reload();
+          expect(expense.amount).to.equal(2000);
+        });
+      });
+    });
+  });
+
+  describe('platform-generated expense permissions (PLATFORM_BILLING, SETTLEMENT)', () => {
+    let platform, platformAdmin, billedHost, billedHostAdmin;
+
+    before(async () => {
+      await resetTestDB();
+      platform = await getOrCreatePlatformAccount();
+      platformAdmin = await fakeUser();
+      await platform.addUserWithRole(platformAdmin, 'ADMIN');
+      await platformAdmin.populateRoles();
+      billedHostAdmin = await fakeUser();
+      billedHost = await fakeActiveHost({ admin: billedHostAdmin.collective });
+      await billedHostAdmin.populateRoles();
+    });
+
+    const createPlatformExpense = async ({ type, status = 'APPROVED', amount = 170323 } = {}) => {
+      return fakeExpense({
+        type,
+        status,
+        amount,
+        CollectiveId: billedHost.id,
+        FromCollectiveId: platform.id,
+        items: [{ amount, description: 'Base subscription Pro 200' }],
+      });
+    };
+
+    const itemAmountUpdate = (expense, amount) => ({
+      id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+      items: expense.items.map(item => ({
+        id: idEncode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
+        amount,
+        description: item.description,
+        incurredAt: item.incurredAt,
+      })),
+    });
+
+    ['PLATFORM_BILLING', 'SETTLEMENT'].forEach(type => {
+      it(`${type}: billed host cannot reduce the amount`, async () => {
+        const expense = await createPlatformExpense({ type });
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: itemAmountUpdate(expense, 100000) },
+          billedHostAdmin,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/don't have permission to edit this expense/i);
+        await expense.reload();
+        expect(expense.amount).to.equal(170323);
+        expect(expense.status).to.equal('APPROVED');
+      });
+
+      it(`${type}: billed host cannot change the title`, async () => {
+        const expense = await createPlatformExpense({ type });
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: 'Pay' } },
+          billedHostAdmin,
+        );
+        expect(result.errors).to.exist;
+        await expense.reload();
+        expect(expense.description).to.not.equal('Pay');
+        expect(expense.status).to.equal('APPROVED');
+      });
+
+      if (type === 'PLATFORM_BILLING') {
+        it(`${type}: billed host cannot approve a pending bill`, async () => {
+          const expense = await createPlatformExpense({ type, status: 'PENDING' });
+          const result = await graphqlQueryV2(
+            processExpenseMutation,
+            { expenseId: expense.id, action: 'APPROVE' },
+            billedHostAdmin,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].extensions.code).to.equal('MINIMAL_CONDITION_NOT_MET');
+          await expense.reload();
+          expect(expense.status).to.equal('PENDING');
+        });
+      } else {
+        it(`${type}: billed host can approve a pending bill`, async () => {
+          const expense = await createPlatformExpense({ type, status: 'PENDING' });
+          const result = await graphqlQueryV2(
+            processExpenseMutation,
+            { expenseId: expense.id, action: 'APPROVE' },
+            billedHostAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.processExpense.status).to.eq('APPROVED');
+        });
+      }
+
+      it(`${type}: platform admin can reduce the amount (status returns to PENDING)`, async () => {
+        const expense = await createPlatformExpense({ type });
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: itemAmountUpdate(expense, 100000) },
+          platformAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.amount).to.equal(100000);
+        expect(result.data.editExpense.status).to.equal('PENDING');
+      });
+
+      it(`${type}: platform admin can approve a pending bill`, async () => {
+        const expense = await createPlatformExpense({ type, status: 'PENDING', amount: 100000 });
+        const result = await graphqlQueryV2(
+          processExpenseMutation,
+          { expenseId: expense.id, action: 'APPROVE' },
+          platformAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('APPROVED');
+      });
+
+      if (type === 'PLATFORM_BILLING') {
+        it(`${type}: billed host cannot complete the edit-then-approve attack`, async () => {
+          const expense = await createPlatformExpense({ type });
+          const editResult = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: itemAmountUpdate(expense, 100000) },
+            billedHostAdmin,
+          );
+          expect(editResult.errors).to.exist;
+
+          await expense.update({ status: 'PENDING' });
+          const approveResult = await graphqlQueryV2(
+            processExpenseMutation,
+            { expenseId: expense.id, action: 'APPROVE' },
+            billedHostAdmin,
+          );
+          expect(approveResult.errors).to.exist;
+          await expense.reload();
+          expect(expense.status).to.equal('PENDING');
+          expect(expense.amount).to.equal(170323);
+        });
+      } else {
+        it(`${type}: billed host cannot reduce the amount but can approve after reverting to PENDING`, async () => {
+          const expense = await createPlatformExpense({ type });
+          const editResult = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: itemAmountUpdate(expense, 100000) },
+            billedHostAdmin,
+          );
+          expect(editResult.errors).to.exist;
+
+          await expense.update({ status: 'PENDING' });
+          const approveResult = await graphqlQueryV2(
+            processExpenseMutation,
+            { expenseId: expense.id, action: 'APPROVE' },
+            billedHostAdmin,
+          );
+          expect(approveResult.errors).to.not.exist;
+          await expense.reload();
+          expect(expense.status).to.equal('APPROVED');
+          expect(expense.amount).to.equal(170323);
+        });
+      }
+    });
+
+    it('still lets the billed host admin edit a regular receipt amount', async () => {
+      const expense = await fakeExpense({
+        type: 'RECEIPT',
+        status: 'APPROVED',
+        amount: 170323,
+        CollectiveId: billedHost.id,
+        items: [{ amount: 170323, description: 'Regular receipt' }],
+      });
+      const result = await graphqlQueryV2(
+        editExpenseMutation,
+        { expense: itemAmountUpdate(expense, 100000) },
+        billedHostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.editExpense.amount).to.equal(100000);
+      expect(result.data.editExpense.status).to.equal('PENDING');
     });
   });
 

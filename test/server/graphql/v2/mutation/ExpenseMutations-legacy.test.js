@@ -690,7 +690,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
 
       it('record a breakdown of the values by role (when editing multiple fields)', async () => {
         const hostAdmin = await fakeUser();
-        const expense = await fakeExpense();
+        const expense = await fakeExpense({ status: 'APPROVED' });
         await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
         await expense.collective.host.update({ plan: 'start-plan-2021' });
 
