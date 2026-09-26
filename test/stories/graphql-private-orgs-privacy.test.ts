@@ -52,7 +52,6 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Account.members': 'parent-gate',
   'Account.memberOf': 'parent-gate',
   'Account.transactions': 'parent-gate',
-  'Account.transactionGroups': 'parent-gate',
   'Account.orders': 'parent-gate',
   'Account.expenses': 'parent-gate',
   'Account.updates': 'parent-gate', // has own canSeePrivateAccount check
@@ -241,10 +240,6 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Activity.account': 'parent-gate',
   'Activity.host': 'parent-gate',
   'Activity.individual': 'parent-gate',
-
-  // ---- TransactionGroup ----
-  'TransactionGroup.host': 'parent-gate',
-  'TransactionGroup.account': 'parent-gate',
 
   // ---- CommunityAssociatedAccount ----
   'CommunityAssociatedAccount.account': 'parent-gate',
