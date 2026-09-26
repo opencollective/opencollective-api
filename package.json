@@ -66,7 +66,7 @@
     "dataloader": "2.2.3",
     "dataloader-sequelize": "2.3.3",
     "debug": "4.4.3",
-    "dotenv": "18.0.2",
+    "dotenv": "18.0.3",
     "express": "5.2.1",
     "express-basic-auth": "1.2.1",
     "express-session": "1.19.0",
