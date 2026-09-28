@@ -3,7 +3,6 @@
 import hyperwatch from '@hyperwatch/hyperwatch';
 import config from 'config';
 import expressBasicAuth from 'express-basic-auth';
-import expressWs from 'express-ws';
 import { get, pick } from 'lodash';
 
 import { md5, parseToBoolean } from './utils';
@@ -25,7 +24,11 @@ const computeMask = req => {
   return md5(maskString);
 };
 
-const load = app => {
+/**
+ * @param {import('express').Application} app
+ * @param {import('http').Server} [server] The HTTP server of the app, needed to serve the Hyperwatch WebSocket streams
+ */
+const load = (app, server) => {
   if (!config.hyperwatch || parseToBoolean(config.hyperwatch.enabled) !== true) {
     return;
   }
@@ -42,18 +45,29 @@ const load = app => {
     },
   });
 
-  // Mount Hyperwatch API and Websocket
+  // Mount Hyperwatch API and WebSocket streams
 
   if (config.hyperwatch.secret) {
-    // We need to setup express-ws here to make Hyperwatch's websocket works
-    expressWs(app);
-    const hyperwatchBasicAuth = expressBasicAuth({
-      users: { [config.hyperwatch.username]: config.hyperwatch.secret },
-      challenge: true,
-      realm: config.hyperwatch.realm,
-    });
-    app.use(config.hyperwatch.path, hyperwatchBasicAuth, hyperwatch.app.api);
-    app.use(config.hyperwatch.path, hyperwatchBasicAuth, hyperwatch.app.websocket);
+    if (!server) {
+      console.warn('Hyperwatch: no HTTP server provided, the API and WebSocket streams will not be mounted.');
+    } else {
+      const hyperwatchBasicAuth = expressBasicAuth({
+        users: { [config.hyperwatch.username]: config.hyperwatch.secret },
+        challenge: true,
+        realm: config.hyperwatch.realm,
+      });
+      hyperwatch.app.mount(app, {
+        server,
+        path: config.hyperwatch.path,
+        // The WebSocket upgrades go through the app like HTTP requests, so basic auth applies to both
+        middleware: hyperwatchBasicAuth,
+        // We don't serve any other WebSocket: close the upgrades that Hyperwatch doesn't own instead of leaving them hanging
+        fallback: (req, socket) => {
+          socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
+          socket.destroy();
+        },
+      });
+    }
   }
 
   // Configure input

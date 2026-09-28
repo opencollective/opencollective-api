@@ -70,7 +70,6 @@
     "express": "5.2.1",
     "express-basic-auth": "1.2.1",
     "express-session": "1.19.0",
-    "express-ws": "5.0.2",
     "fast-levenshtein": "3.0.0",
     "fast-redact": "3.5.0",
     "get-urls": "12.1.0",

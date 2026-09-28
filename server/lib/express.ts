@@ -1,3 +1,5 @@
+import http from 'http';
+
 import config from 'config';
 import { RedisStore } from 'connect-redis';
 import cookieParser from 'cookie-parser';
@@ -21,7 +23,7 @@ import { parseToBoolean } from './utils';
 
 const CANONICAL_HOSTNAME = new URL(config.host.api).hostname;
 
-export default function setupExpress(app: express.Application, redisClient?: RedisClientType) {
+export default function setupExpress(app: express.Application, redisClient?: RedisClientType, server?: http.Server) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
   // Keep Express 4 query parsing behavior (extended) for compatibility in v5.
   app.set('query parser', 'extended');
@@ -85,7 +87,7 @@ export default function setupExpress(app: express.Application, redisClient?: Red
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // Hyperwatch
-  hyperwatch(app);
+  hyperwatch(app, server);
 
   // Cors.
   app.use(cors());
