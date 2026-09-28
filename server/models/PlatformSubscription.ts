@@ -1,5 +1,5 @@
 import DataLoader from 'dataloader';
-import { keyBy } from 'lodash';
+import { keyBy, sum } from 'lodash';
 import moment from 'moment';
 import {
   BelongsToGetAssociationMixin,
@@ -21,6 +21,7 @@ import { SupportedCurrency } from '../constants/currencies';
 import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import ExpenseType from '../constants/expense-type';
 import FEATURE from '../constants/feature';
+import { PAYMENT_METHOD_SERVICE } from '../constants/paymentMethods';
 import {
   CROWDFUNDING_FEE_PERCENT,
   PlatformSubscriptionPlan,
@@ -386,18 +387,24 @@ class PlatformSubscription extends Model<
     // Crowdfunding fee: plans with platform tips disabled charge a percentage fee on crowdfunding
     // contributions. Only contributions that were not subject to platform tips are counted (see
     // `sumCrowdfundingContributions`), so hybrid periods (mid-month plan switch, older recurring
-    // contributions still carrying a tip) are not double charged.
+    // contributions still carrying a tip) are not double charged. The sum is also bounded to the
+    // days each tips-off subscription was active: contributions received before the subscription
+    // started may already be charged as legacy Platform Share (see `cron/monthly/host-settlement`).
     const crowdfunding: Billing['crowdfunding'] = { totalAmount: 0, feePercent: 0, fee: 0 };
-    const tipsOffSubscription = subscriptions.find(sub => sub.plan.pricing?.platformTips === false);
-    if (tipsOffSubscription) {
-      const feePercent = tipsOffSubscription.plan.pricing.crowdfundingFeePercent ?? CROWDFUNDING_FEE_PERCENT;
+    const tipsOffSubscriptions = subscriptions.filter(sub => sub.plan.pricing?.platformTips === false);
+    if (tipsOffSubscriptions.length > 0) {
+      // Like the additional utilization pricing above, the latest plan sets the rate
+      const feePercent = tipsOffSubscriptions[0].plan.pricing.crowdfundingFeePercent ?? CROWDFUNDING_FEE_PERCENT;
       if (feePercent) {
-        const billingPeriodRange = PlatformSubscription.getBillingPeriodRange(billingPeriod);
-        const amount = await PlatformSubscription.sumCrowdfundingContributions(
-          collectiveId,
-          PlatformSubscription.periodStartDate(billingPeriodRange),
-          PlatformSubscription.periodEndDate(billingPeriodRange),
-        );
+        let amount = 0;
+        for (const sub of tipsOffSubscriptions) {
+          const [subBillingStart, subBillingEnd] = sub.overlapWith(billingPeriod);
+          amount += await PlatformSubscription.sumCrowdfundingContributions(
+            collectiveId,
+            subBillingStart,
+            subBillingEnd,
+          );
+        }
         // Refunds can make the net amount negative, never credit the organization for those
         crowdfunding.totalAmount = Math.max(0, amount);
         crowdfunding.feePercent = feePercent;
@@ -472,7 +479,7 @@ class PlatformSubscription extends Model<
       AND ((t."type" = 'CREDIT' AND t."isRefund" IS NOT TRUE) OR (t."type" = 'DEBIT' AND t."isRefund" IS TRUE))
       AND t."createdAt" BETWEEN :startDate AND :endDate
       AND t."deletedAt" IS NULL
-      AND (pm."service" IN ('stripe', 'paypal') OR o."ManualPaymentProviderId" IS NOT NULL)
+      AND (pm."service" IN (:crowdfundingServices) OR o."ManualPaymentProviderId" IS NOT NULL)
       AND o."platformTipEligible" IS FALSE
       GROUP BY t."hostCurrency"
     `,
@@ -483,6 +490,7 @@ class PlatformSubscription extends Model<
           HostCollectiveId: collectiveId,
           startDate,
           endDate,
+          crowdfundingServices: [PAYMENT_METHOD_SERVICE.STRIPE, PAYMENT_METHOD_SERVICE.PAYPAL],
         },
       },
     );
@@ -491,10 +499,7 @@ class PlatformSubscription extends Model<
       rows.map(row => convertToCurrency(parseInt(row.amount, 10) || 0, row.currency, 'USD')),
     );
 
-    return roundCentsAmount(
-      amounts.reduce((acc, amount) => acc + amount, 0),
-      'USD',
-    );
+    return roundCentsAmount(sum(amounts), 'USD');
   }
 
   static rangeLiteral(range: Range<Date>): string {
