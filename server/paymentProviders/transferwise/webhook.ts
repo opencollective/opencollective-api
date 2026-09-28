@@ -31,6 +31,14 @@ import {
 export async function handleTransferStateChange(event: TransferStateChangeEvent): Promise<void> {
   const isUsingTransferRefundHandler = parseToBoolean(config.transferwise.useTransferRefundHandler);
 
+  // This state is emitted right after a transfer is created and is waiting to be funded (e.g. a transfer added to a
+  // batch group, or a direct transfer before it is funded). At this point the expense is still APPROVED or
+  // SCHEDULED_FOR_PAYMENT, so there is nothing to do yet. Bail early to avoid the misleading
+  // "Could not find related Expense" log for transfers that are not (yet) linked to a PROCESSING/PAID expense.
+  if (event.data.current_state === 'incoming_payment_waiting') {
+    return;
+  }
+
   const expense = await models.Expense.findOne({
     where: {
       status: [expenseStatus.PROCESSING, expenseStatus.PAID],
