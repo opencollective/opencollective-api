@@ -5,7 +5,6 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
 import type { FileUpload } from 'graphql-upload/processRequest.mjs';
-import { encodeBase64 } from 'tweetnacl-util';
 
 import ActivityTypes from '../../../constants/activities';
 import FEATURE from '../../../constants/feature';
@@ -123,9 +122,7 @@ export const legalDocumentsMutations = {
         data: {
           ...legalDocument.data,
           valuesHash,
-          encryptedFormData: encodeBase64(
-            new Uint8Array(LegalDocument.encrypt(Buffer.from(JSON.stringify(args.formData)))),
-          ),
+          encryptedFormData: LegalDocument.encrypt(Buffer.from(JSON.stringify(args.formData))).toString('base64'),
         },
       });
 

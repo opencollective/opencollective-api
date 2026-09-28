@@ -10,6 +10,7 @@ import errors from '../lib/errors';
 import logger from '../lib/logger';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import { simulateTransferSuccess } from '../lib/transferwise';
+import { wiseIdsEqual } from '../lib/wise-id';
 import models, { Op } from '../models';
 import transferwise from '../paymentProviders/transferwise';
 import { handleTransferStateChange } from '../paymentProviders/transferwise/webhook';
@@ -105,7 +106,7 @@ export async function payBatch(
         for (const transferId of fundResponse.transferIds) {
           const response = await simulateTransferSuccess(connectedAccount, transferId);
           logger.debug(`Wise: Simulated transfer success for transfer ${transferId}`);
-          const expense = expenses.find(e => e.data.transfer.id === transferId);
+          const expense = expenses.find(e => wiseIdsEqual(e.data.transfer.id, transferId));
           await expense.update({ data: { ...expense.data, transfer: response } });
           // In development mode we don't have webhooks set up, so we need to manually trigger the event handler.
           if (config.env === 'development') {

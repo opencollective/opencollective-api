@@ -3,7 +3,6 @@ import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
-import { decodeBase64 } from 'tweetnacl-util';
 
 import {
   US_TAX_FORM_THRESHOLD_POST_2026,
@@ -148,7 +147,7 @@ describe('LegalDocumentsMutations', () => {
       expect(ld.data.valuesHash).to.exist;
       expect(ld.data.encryptedFormData).to.exist;
       expect(
-        JSON.parse(LegalDocument.decrypt(Buffer.from(decodeBase64(ld.data.encryptedFormData))).toString()),
+        JSON.parse(LegalDocument.decrypt(Buffer.from(ld.data.encryptedFormData, 'base64')).toString()),
       ).to.deep.equal({ formType: 'W9' });
 
       // Check activity
