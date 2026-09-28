@@ -224,7 +224,7 @@ export async function getToken(connectedAccount: ConnectedAccount, refresh = fal
     try {
       const newToken = await getOrRefreshToken({
         refreshToken: connectedAccount.refreshToken,
-        errorMeta: { user: connectedAccount.CollectiveId, extra: { connectedAccountId: connectedAccount.id } },
+        errorMeta: { extra: { CollectiveId: connectedAccount.CollectiveId, connectedAccountId: connectedAccount.id } },
       });
       if (!newToken) {
         Activity.create({
