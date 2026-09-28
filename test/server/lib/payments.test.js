@@ -370,6 +370,56 @@ describe('server/lib/payments', () => {
     });
   });
 
+  describe('prepaid budgets', () => {
+    it('does not create a prepaid payment method for orders on the prepaid-budget tier', async () => {
+      // Given a host with a "Prepaid Budget" tier (the legacy way to get a prepaid payment method)
+      const prepaidBudgetHost = await fakeActiveHost({ currency: CURRENCY });
+      const prepaidBudgetCollective = await fakeCollective({
+        slug: 'opensource',
+        currency: CURRENCY,
+        HostCollectiveId: prepaidBudgetHost.id,
+      });
+      const tier = await models.Tier.create({
+        name: 'Prepaid Budget',
+        slug: 'prepaid-budget',
+        type: 'TIER',
+        amount: AMOUNT,
+        currency: CURRENCY,
+        CollectiveId: prepaidBudgetCollective.id,
+      });
+
+      const prepaidPaymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.PREPAID,
+        CollectiveId: user.CollectiveId,
+        CreatedByUserId: user.id,
+        currency: CURRENCY,
+        initialBalance: AMOUNT * 10,
+        data: { HostCollectiveId: prepaidBudgetHost.id },
+      });
+
+      // When an order on that tier is executed
+      const prepaidBudgetOrder = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: prepaidBudgetCollective.id,
+        TierId: tier.id,
+        PaymentMethodId: prepaidPaymentMethod.id,
+        totalAmount: AMOUNT,
+        currency: CURRENCY,
+        status: status.PENDING,
+      });
+      await executeOrder(user, prepaidBudgetOrder);
+
+      // Then no new prepaid payment method is created
+      const prepaidPaymentMethods = await models.PaymentMethod.findAll({
+        where: { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.PREPAID },
+      });
+      expect(prepaidPaymentMethods).to.have.length(1);
+      expect(prepaidPaymentMethods[0].id).to.eq(prepaidPaymentMethod.id);
+    });
+  });
+
   describe('createRefundTransaction', () => {
     it('should allow collective to start a refund', async () => {
       // Given the following pair of transactions created

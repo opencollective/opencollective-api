@@ -420,8 +420,8 @@ function getCreateParams(args, collective, sourcePaymentMethod, remoteUser) {
   args.currency = getCurrencyFromCreateArgs(args, collective);
 
   // Ensure sourcePaymentMethod type is supported
-  if (!['creditcard', 'prepaid'].includes(sourcePaymentMethod.type)) {
-    throw new Error('Only prepaid and creditcard can be used as gift cards source payment methods');
+  if (sourcePaymentMethod.type !== PAYMENT_METHOD_TYPE.CREDITCARD) {
+    throw new Error('Only credit cards can be used as gift cards source payment methods');
   }
 
   // Ensure amount or monthlyLimitPerMember are valid

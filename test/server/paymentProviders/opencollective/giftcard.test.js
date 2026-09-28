@@ -851,6 +851,30 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
         expect(gqlResult.errors[0]).to.exist;
         expect(gqlResult.errors[0].toString()).to.contain('Invalid PaymentMethodId');
       });
+
+      it('should fail creating a gift card with a prepaid payment method as source', async () => {
+        const prepaidPaymentMethod = await models.PaymentMethod.create({
+          name: 'Prepaid Budget',
+          service: 'opencollective',
+          type: 'prepaid',
+          CollectiveId: collective1.id,
+          currency: 'USD',
+          initialBalance: 100000,
+          data: { HostCollectiveId: collective1.id },
+        });
+
+        const args = {
+          currency: 'USD',
+          collectiveId: collective1.id,
+          amount: 10000,
+          paymentMethodId: prepaidPaymentMethod.id,
+        };
+        const gqlResult = await utils.graphqlQuery(createGiftCardsMutation, args, user1);
+        expect(gqlResult.errors).to.exist;
+        expect(gqlResult.errors[0].toString()).to.contain(
+          'Only credit cards can be used as gift cards source payment methods',
+        );
+      });
     }); /** End Of "#create" */
 
     describe('#claim', async () => {
