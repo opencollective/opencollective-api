@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
+import nacl from 'tweetnacl';
 
 import { crypto, decryptWithCipher, encryptWithCipher, generateKey, secretbox } from '../../../server/lib/encryption';
 
@@ -19,6 +20,60 @@ describe('server/lib/encryption', () => {
       const result = secretbox.decrypt(encrypted, key);
 
       expect(result).to.eq(message);
+    });
+
+    it('generates base64-encoded keys of the expected length', () => {
+      const key = generateKey();
+      expect(Buffer.from(key, 'base64').toString('base64')).to.eq(key);
+      expect(Buffer.from(key, 'base64')).to.have.length(nacl.secretbox.keyLength);
+    });
+
+    it('produces payloads in the `nonce || box` format', () => {
+      const key = generateKey();
+      const message = Buffer.from('OpenCollective Rules');
+      const encrypted = secretbox.encrypt(message, key);
+
+      const { nonceLength, overheadLength } = nacl.secretbox;
+      expect(encrypted).to.have.length(nonceLength + overheadLength + message.length);
+      const decrypted = nacl.secretbox.open(
+        new Uint8Array(encrypted.subarray(nonceLength)),
+        new Uint8Array(encrypted.subarray(0, nonceLength)),
+        new Uint8Array(Buffer.from(key, 'base64')),
+      );
+      expect(Buffer.from(decrypted).equals(message)).to.be.true;
+    });
+
+    it('fails to decrypt with the wrong key', () => {
+      const encrypted = secretbox.encrypt(Buffer.from('OpenCollective Rules'), generateKey());
+      expect(() => secretbox.decrypt(encrypted, generateKey())).to.throw('Could not decrypt message');
+      expect(() => secretbox.decryptRaw(encrypted, generateKey())).to.throw('Could not decrypt message');
+    });
+
+    // These payloads were generated with tweetnacl@1.0.3 + tweetnacl-util@0.15.1, which we used before
+    // switching to the native Buffer/crypto helpers. They must keep decrypting properly, since the tax
+    // form PDFs in S3 and `LegalDocuments.data.encryptedFormData` are stored in this format.
+    describe('decrypts legacy tweetnacl-util payloads', () => {
+      const key = 'tWWsqPgkOVcMYYuPYXQm+LiFF9PaBN14ySGV1HNuYPs=';
+
+      it('decrypts a text payload', () => {
+        const encrypted = Buffer.from(
+          'iaqj99iS06bhBJcl5i2XOqsUA6afR7yp1ykJvNh5FKd/w8No/IT9HlCz15f9V7ERpPIGRrY199j763kk',
+          'base64',
+        );
+        expect(secretbox.decrypt(encrypted, key)).to.eq('OpenCollective Rules');
+      });
+
+      it('decrypts an `encryptedFormData` payload', () => {
+        const encryptedFormData =
+          'P9HhWJcoB3mwTp7/8v6kvru2NgquhZJbHy+UtuYDNBAsgfiU0XKZooleoZxSJxSsNmG/NIXmaWfNKye6qWSewt8MOWn1slxQd0tlfR58XIDaN7pTHw==';
+        const decrypted = secretbox.decryptRaw(Buffer.from(encryptedFormData, 'base64'), key);
+        expect(JSON.parse(decrypted.toString())).to.deep.eq({ formType: 'W9', name: 'José Müller 🎉' });
+      });
+
+      it('decrypts a binary payload byte for byte', () => {
+        const encrypted = Buffer.from('SB2cmzu/rHLY8GoGdtVo2w/HZnoEreahYUr4YBmW+30g7QxZSUPjM+2kLMDrLBtBsD0=', 'base64');
+        expect(secretbox.decryptRaw(encrypted, key).toString('hex')).to.eq('255044462dfffe00800a');
+      });
     });
   });
 
