@@ -29,4 +29,24 @@ describe('server/graphql/v2/scalar/URL', () => {
       expect(URLResolver.parseValue('https://www.google.com/')).to.equal('https://www.google.com/');
     });
   });
+
+  describe('rejects non-http(s) schemes', () => {
+    it('when url uses javascript:', () => {
+      expect(() => URLResolver.parseValue('javascript:alert(1)')).throw(
+        'URL must use HTTP or HTTPS: javascript:alert(1)',
+      );
+    });
+
+    it('when url uses data:', () => {
+      expect(() => URLResolver.parseValue('data:text/html,hello')).throw(
+        'URL must use HTTP or HTTPS: data:text/html,hello',
+      );
+    });
+
+    it('when url uses blob:', () => {
+      expect(() => URLResolver.parseValue('blob:https://example.com/uuid')).throw(
+        'URL must use HTTP or HTTPS: blob:https://example.com/uuid',
+      );
+    });
+  });
 });
