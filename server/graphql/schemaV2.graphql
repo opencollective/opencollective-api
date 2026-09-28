@@ -1178,41 +1178,6 @@ interface Account {
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
@@ -4064,41 +4029,6 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   If this account was duplicated, the accounts that were created from it
   """
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
-
-  """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
 
   """
   EXPERIMENTAL (this may change or be removed)
@@ -7908,41 +7838,6 @@ enum ActivityClassType {
 }
 
 """
-A collection of Transactions groups
-"""
-type TransactionGroupCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-  nodes: [TransactionGroup!]!
-}
-
-"""
-Transaction group
-"""
-type TransactionGroup {
-  id: String!
-  totalAmount: Amount!
-  host: Account
-
-  """
-  The account on the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)
-  """
-  account: Account
-
-  """
-  The primary transaction in the group
-  """
-  primaryTransaction: Transaction
-
-  """
-  The transactions in the group
-  """
-  transactions: [Transaction]
-  createdAt: DateTime
-}
-
-"""
 EXPERIMENTAL (this may change or be deleted): Host transaction report
 """
 type TransactionReports {
@@ -11623,41 +11518,6 @@ type Bot implements Account {
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
@@ -12715,41 +12575,6 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   If this account was duplicated, the accounts that were created from it
   """
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
-
-  """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
 
   """
   EXPERIMENTAL (this may change or be removed)
@@ -14401,41 +14226,6 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
@@ -15790,41 +15580,6 @@ type Individual implements Account {
   If this account was duplicated, the accounts that were created from it
   """
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
-
-  """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
 
   """
   EXPERIMENTAL (this may change or be removed)
@@ -17209,41 +16964,6 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   If this account was duplicated, the accounts that were created from it
   """
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
-
-  """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
 
   """
   EXPERIMENTAL (this may change or be removed)
@@ -18709,41 +18429,6 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
@@ -19910,41 +19595,6 @@ type Vendor implements Account & AccountWithContributions {
   If this account was duplicated, the accounts that were created from it
   """
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
-
-  """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
 
   """
   EXPERIMENTAL (this may change or be removed)
@@ -21461,61 +21111,6 @@ type Query {
     """
     payoutMethod: PayoutMethodReferenceInput
   ): TransactionCollection!
-
-  """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroup(
-    """
-    The public id identifying the transaction group (ie: rvelja97-pkzqbgq7-bbzyx6wd-50o8n4rm)
-    """
-    groupId: String!
-
-    """
-    Account associated to the transaction group
-    """
-    account: AccountReferenceInput!
-  ): TransactionGroup @deprecated(reason: "2026-07-02: Please use PaymentIntents query instead")
-
-  """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    Reference of the account(s) assigned to the main side of the transaction group (CREDIT -> recipient, DEBIT -> sender)
-    """
-    account: AccountReferenceInput!
-
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
 
   """
   Fetch a transactions import
@@ -24357,41 +23952,6 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
@@ -25606,41 +25166,6 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   If this account was duplicated, the accounts that were created from it
   """
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
-
-  """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
 
   """
   EXPERIMENTAL (this may change or be removed)
