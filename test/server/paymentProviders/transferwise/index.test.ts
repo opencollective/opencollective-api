@@ -137,7 +137,11 @@ describe('server/paymentProviders/transferwise/index', () => {
 
   before(async () => {
     hostAdmin = await fakeUser();
-    host = await fakeCollective({ hasMoneyManagement: true, admin: hostAdmin });
+    host = await fakeCollective({
+      hasMoneyManagement: true,
+      admin: hostAdmin,
+      settings: { transferwise: { ott: true } },
+    });
     connectedAccount = await fakeConnectedAccount({
       CollectiveId: host.id,
       service: 'transferwise',
@@ -396,6 +400,29 @@ describe('server/paymentProviders/transferwise/index', () => {
       await expect(transferwise.scheduleExpenseForPayment(newExpense)).to.be.rejectedWith(
         'Insufficient balance in USD to cover the existing batch plus this expense amount, you need 303.42 USD and you currently have 300 USD.',
       );
+    });
+
+    it('should throw if the host is not using Wise SCA (transferwise.ott)', async () => {
+      const previousSettings = host.settings;
+      await host.update({ settings: {} });
+
+      const newExpense = await fakeExpense({
+        payoutMethod: 'transferwise',
+        PayoutMethodId: payoutMethod.id,
+        status: 'APPROVED',
+        amount: 10000,
+        CollectiveId: collective.id,
+        currency: 'USD',
+        FromCollectiveId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'January Invoice #1',
+      });
+      newExpense.PayoutMethod = payoutMethod;
+
+      await expect(transferwise.scheduleExpenseForPayment(newExpense)).to.be.rejectedWith('transferwise.ott');
+
+      await host.update({ settings: previousSettings });
     });
   });
 

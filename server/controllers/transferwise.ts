@@ -4,6 +4,7 @@ import type Express from 'express';
 import { Service } from '../constants/connected-account';
 import expenseStatus from '../constants/expense-status';
 import { getExpenseFees, setTransferWiseExpenseAsProcessing } from '../graphql/common/expenses';
+import { checkRemoteUserCanUseExpenses } from '../graphql/common/scope-check';
 import { fetchAccountWithReference } from '../graphql/v2/input/AccountReferenceInput';
 import { fetchExpenseWithReference } from '../graphql/v2/input/ExpenseReferenceInput';
 import errors from '../lib/errors';
@@ -15,6 +16,23 @@ import models, { Op } from '../models';
 import transferwise from '../paymentProviders/transferwise';
 import { handleTransferStateChange } from '../paymentProviders/transferwise/webhook';
 import { BatchGroup } from '../types/transferwise';
+
+const getErrorStatusCode = (e: any): number => {
+  if (typeof e.code === 'number') {
+    return e.code;
+  }
+  switch (e.extensions?.code) {
+    case 'Unauthorized':
+      return 401;
+    case 'Forbidden':
+    case 'FeatureNotAllowedForUser':
+      return 403;
+    case 'NotFound':
+      return 404;
+    default:
+      return 500;
+  }
+};
 
 const processPaidExpense = (host, remoteUser, batchGroup: BatchGroup) => async expense => {
   try {
@@ -44,6 +62,7 @@ export async function payBatch(
     if (!remoteUser) {
       throw new errors.Unauthorized('User needs to be logged in');
     }
+    checkRemoteUserCanUseExpenses(req);
 
     const host = await fetchAccountWithReference({ id: body.hostId });
     if (!host) {
@@ -51,6 +70,9 @@ export async function payBatch(
     }
     if (!remoteUser.isAdmin(host.id)) {
       throw new errors.Unauthorized('User must be admin of host collective');
+    }
+    if (host.settings?.transferwise?.ott !== true) {
+      throw new errors.Forbidden('Wise batch payments require the host to use Wise SCA (transferwise.ott)');
     }
     const expenseIds = await Promise.all(
       body.expenseIds?.map(id => fetchExpenseWithReference({ id }).then(expense => expense?.id)),
@@ -123,9 +145,7 @@ export async function payBatch(
   } catch (e) {
     logger.error('Error paying Wise batch group', e);
     reportErrorToSentry(e);
-    res
-      .status(e.code || 500)
-      .send(e.toString())
-      .end();
+    const message = e.message || 'An error occurred while processing the Wise batch payment.';
+    res.status(getErrorStatusCode(e)).send(message).end();
   }
 }

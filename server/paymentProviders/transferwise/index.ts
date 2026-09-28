@@ -28,7 +28,7 @@ import activities from '../../constants/activities';
 import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
-import { TransferwiseError } from '../../graphql/errors';
+import { Forbidden, TransferwiseError, ValidationFailed } from '../../graphql/errors';
 import { applyBalanceAccountingCategoryFromConnectedAccount } from '../../lib/accounting/categorization/balance-accounts';
 import cache, { sessionCache } from '../../lib/cache';
 import { centsAmountToFloat, getFxRate } from '../../lib/currency';
@@ -449,9 +449,12 @@ async function scheduleExpenseForPayment(
   if (!host) {
     throw new Error(`Can not find Host for expense ${expense.id}`);
   }
+  if (host.settings?.transferwise?.ott !== true) {
+    throw new Forbidden('Wise batch scheduling requires the host to use Wise SCA (transferwise.ott)');
+  }
 
   if (collective.currency !== host.currency) {
-    throw new Error('Can not batch an expense with a currency different from its host currency');
+    throw new ValidationFailed('Can not batch an expense with a currency different from its host currency');
   }
   if (!expense.PayoutMethod) {
     expense.PayoutMethod = await expense.getPayoutMethod();

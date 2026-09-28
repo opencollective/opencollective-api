@@ -26,7 +26,11 @@ describe('server/controllers/transferwise', () => {
   beforeEach(async () => {
     sandbox.restore();
     remoteUser = await fakeUser();
-    host = await fakeCollective({ hasMoneyManagement: true, admin: remoteUser.collective });
+    host = await fakeCollective({
+      hasMoneyManagement: true,
+      admin: remoteUser.collective,
+      settings: { transferwise: { ott: true } },
+    });
     await remoteUser.populateRoles();
     const collective = await fakeCollective({ hasMoneyManagement: false, HostCollectiveId: host.id });
     const payoutMethod = await fakePayoutMethod({
@@ -118,7 +122,7 @@ describe('server/controllers/transferwise', () => {
 
     expect(res.status.called).to.be.true;
     expect(res.status.firstCall.firstArg).to.equal(401);
-    expect(res.send.firstCall.firstArg).to.equal('Error: User must be admin of host collective');
+    expect(res.send.firstCall.firstArg).to.equal('User must be admin of host collective');
   });
 
   it('should throw if an expense can not be found', async () => {
@@ -129,7 +133,7 @@ describe('server/controllers/transferwise', () => {
 
     expect(res.status.called).to.be.true;
     expect(res.status.firstCall.firstArg).to.equal(404);
-    expect(res.send.firstCall.firstArg).to.equal('Error: Could not find requested expenses');
+    expect(res.send.firstCall.firstArg).to.equal('Could not find requested expenses');
   });
 
   it('should throw if an expense is not scheduled for payment', async () => {
@@ -139,6 +143,43 @@ describe('server/controllers/transferwise', () => {
     expect(res.status.called).to.be.true;
     expect(res.status.firstCall.firstArg).to.equal(500);
     expect(res.send.firstCall.firstArg).to.include('must be scheduled for payment');
+  });
+
+  it('should throw if an OAuth token lacks the expenses scope', async () => {
+    await transferwiseController.payBatch(
+      { ...req, userToken: { type: 'OAUTH', hasScope: scope => scope === 'account' } } as any,
+      res as any,
+    );
+
+    expect(res.status.called).to.be.true;
+    expect(res.status.firstCall.firstArg).to.equal(403);
+    expect(res.send.firstCall.firstArg).to.include('User Token is not allowed');
+    expect(payExpensesBatchGroup.called).to.be.false;
+  });
+
+  it('should throw if a personal token lacks the expenses scope', async () => {
+    await transferwiseController.payBatch(
+      {
+        ...req,
+        personalToken: { id: 1, scope: ['account'], hasScope: scope => scope === 'account' },
+      } as any,
+      res as any,
+    );
+
+    expect(res.status.called).to.be.true;
+    expect(res.status.firstCall.firstArg).to.equal(403);
+    expect(res.send.firstCall.firstArg).to.include('Personal Token is not allowed');
+    expect(payExpensesBatchGroup.called).to.be.false;
+  });
+
+  it('should throw if the host is not using Wise SCA (transferwise.ott)', async () => {
+    await host.update({ settings: {} });
+    await transferwiseController.payBatch(req, res);
+
+    expect(res.status.called).to.be.true;
+    expect(res.status.firstCall.firstArg).to.equal(403);
+    expect(res.send.firstCall.firstArg).to.include('transferwise.ott');
+    expect(payExpensesBatchGroup.called).to.be.false;
   });
 
   it('should proxy OTT headers from TransferWise', async () => {
