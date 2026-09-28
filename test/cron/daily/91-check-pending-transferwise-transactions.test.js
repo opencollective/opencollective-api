@@ -77,6 +77,19 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
     expect(expense).to.have.property('status', status.PAID);
   });
 
+  it('should propagate an Int64-maximum transfer id without digit changes', async () => {
+    const MAX_INT64 = '9223372036854775807';
+    await expense.update({ data: { ...expense.data, transfer: { id: MAX_INT64 } } });
+    getTransfer.resolves({ status: 'outgoing_payment_sent', id: MAX_INT64 });
+
+    await checkPendingTransfers();
+
+    await expense.reload();
+    expect(expense).to.have.property('status', status.PAID);
+    expect(expense).to.have.nested.property('data.transfer.id', MAX_INT64);
+    expect(getTransfer.firstCall.args[1]).to.equal(MAX_INT64);
+  });
+
   it('should ignore expenses manually marked as paid', async () => {
     getTransfer.resolves({ status: 'outgoing_payment_sent', id: 1234 });
     const manualExpense = await fakeExpense({

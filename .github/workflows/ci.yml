@@ -34,7 +34,7 @@ env:
 
 jobs:
   lint:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     steps:
@@ -57,7 +57,7 @@ jobs:
       - run: npm run lint:check
 
   prettier:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     steps:
@@ -80,7 +80,7 @@ jobs:
       - run: npm run prettier:check
 
   typescript:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     steps:
@@ -102,7 +102,7 @@ jobs:
       - run: npm run type:check
 
   depcheck:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     steps:
@@ -117,7 +117,7 @@ jobs:
       - run: npm run depcheck
 
   ts-unused-exports:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     steps:
@@ -133,7 +133,7 @@ jobs:
         run: npm run ts-unused-exports
 
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     steps:
@@ -160,7 +160,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.15@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
+        image: postgres:16.15@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -232,7 +232,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.15@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
+        image: postgres:16.15@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -302,7 +302,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
   schema-update:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
 
     services:
@@ -312,7 +312,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.15@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
+        image: postgres:16.15@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -335,7 +335,7 @@ jobs:
 
   graphql-inspector:
     name: GraphQL Inspector
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # The action publishes its results as check runs (with annotations) and reads PR labels for the
     # approve-label override. Workflows triggered by Dependabot get a read-only GITHUB_TOKEN by
     # default, so the write scope must be requested explicitly. This job never installs or runs

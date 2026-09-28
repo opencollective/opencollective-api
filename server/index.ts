@@ -1,6 +1,7 @@
 import './env';
 import './lib/sentry/init';
 
+import http from 'http';
 import { AddressInfo } from 'net';
 import os from 'os';
 
@@ -21,10 +22,12 @@ import routes from './routes';
 
 async function startExpressServer(workerId) {
   const expressApp = express();
+  // Created here rather than with `expressApp.listen()` so Hyperwatch can handle WebSocket upgrades on it
+  const server = http.createServer(expressApp);
 
   await updateCachedFidoMetadata();
   const redisClient = await createRedisClient(RedisInstanceType.SESSION);
-  setupExpress(expressApp, redisClient);
+  setupExpress(expressApp, redisClient, server);
 
   /**
    * Routes.
@@ -36,7 +39,7 @@ async function startExpressServer(workerId) {
   /**
    * Start server
    */
-  const server = expressApp.listen(config.port, () => {
+  server.listen(config.port, () => {
     const host = os.hostname();
     logger.info(
       'Open Collective API listening at http://%s:%s in %s environment. Worker #%s',

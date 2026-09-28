@@ -1,5 +1,7 @@
+import { WiseId } from '../lib/wise-id';
+
 export type Quote = {
-  id?: number;
+  id?: WiseId;
   source: string;
   target: string;
   sourceAmount: number;
@@ -7,8 +9,8 @@ export type Quote = {
   type: string;
   rate: number;
   createdTime: string;
-  createdByUserId: number;
-  profile: number;
+  createdByUserId: WiseId;
+  profile: WiseId;
   rateType: string;
   deliveryEstimate: string;
   fee: number;
@@ -55,8 +57,8 @@ export type QuoteV2 = {
   payOut: 'BANK_TRANSFER';
   rate: number;
   createdTime: string;
-  user: number;
-  profile: number;
+  user: WiseId;
+  profile: WiseId;
   rateType: 'FIXED';
   rateExpirationTime: string;
   guaranteedTargetAmountAllowed: boolean;
@@ -89,7 +91,7 @@ export type QuoteV3PaymentOption = {
   };
   price: {
     priceDecisionReferenceId: string;
-    priceSetId: number;
+    priceSetId: WiseId;
     total: {
       type: 'TOTAL';
       label: string;
@@ -136,8 +138,8 @@ export type QuoteV3 = {
   preferredPayIn: 'BANK_TRANSFER' | 'BALANCE';
   rate: number;
   createdTime: number;
-  user: number;
-  profile: number;
+  user: WiseId;
+  profile: WiseId;
   rateType: 'FIXED' | 'FLOATING';
   rateExpirationTime: string;
   guaranteedTargetAmountAllowed: boolean;
@@ -155,7 +157,7 @@ export type QuoteV3 = {
   paymentMetadata?: {
     transferNature?: string;
   };
-  targetAccount?: number;
+  targetAccount?: WiseId;
 };
 
 /** When saving the quote in expense data */
@@ -163,7 +165,7 @@ export type ExpenseDataQuoteV2 = Omit<QuoteV2, 'paymentOptions'> & { paymentOpti
 export type ExpenseDataQuoteV3 = Omit<QuoteV3, 'paymentOptions'> & { paymentOption: QuoteV3PaymentOption };
 
 export type RecipientAccount = {
-  id?: number;
+  id?: WiseId;
   currency: string;
   type: string;
   accountHolderName: string;
@@ -232,9 +234,9 @@ export type RecipientAccount = {
 
 export type PersonalProfileV2 = {
   type: 'PERSONAL';
-  id: number;
+  id: WiseId;
   publicId: string;
-  userId: number;
+  userId: WiseId;
   address: {
     addressFirstLine?: string;
     city?: string;
@@ -260,9 +262,9 @@ export type PersonalProfileV2 = {
 
 export type BusinessProfileV2 = {
   type: 'BUSINESS';
-  id: number;
+  id: WiseId;
   publicId: string;
-  userId: number;
+  userId: WiseId;
   address: {
     addressFirstLine?: string;
     city?: string;
@@ -312,9 +314,9 @@ export interface WebhookEvent {
 export interface TransferStateChangeEvent extends WebhookEvent {
   data: {
     resource: {
-      id: number;
-      profile_id: number;
-      account_id: number;
+      id: WiseId;
+      profile_id: WiseId;
+      account_id: WiseId;
       type: 'transfer';
     };
     current_state: TransferStatus;
@@ -328,9 +330,9 @@ export interface TransferRefundEvent extends WebhookEvent {
   data: {
     resource: {
       type: 'transfer';
-      id: number;
-      profile_id: number;
-      account_id: number;
+      id: WiseId;
+      profile_id: WiseId;
+      account_id: WiseId;
       refund_amount: number;
       refund_currency: string;
     };
@@ -340,18 +342,18 @@ export interface TransferRefundEvent extends WebhookEvent {
 }
 
 export type Transfer = {
-  id: number;
-  user: number;
-  targetAccount: number;
-  sourceAccount: null | number;
-  quote: number;
+  id: WiseId;
+  user: WiseId;
+  targetAccount: WiseId;
+  sourceAccount: null | WiseId;
+  quote: WiseId;
   quoteUuid: string;
   status: string;
   reference?: string;
   rate: number;
   created: string;
-  business: number;
-  transferRequest: null | number;
+  business: WiseId;
+  transferRequest: null | WiseId;
   details: {
     reference?: string;
   };
@@ -385,7 +387,7 @@ export type Balance = {
     currency: string;
   };
   bankDetails: null | {
-    id: number;
+    id: WiseId;
     currency: string;
     bankCode: string | null;
     accountNumber: string | null;
@@ -404,7 +406,7 @@ export type Balance = {
 };
 
 export type BalanceV4 = {
-  id: number;
+  id: WiseId;
   currency: string;
   type: 'STANDARD' | 'SAVINGS';
   amount: {
@@ -464,11 +466,12 @@ export type WebhookCreateInput = Pick<Webhook, 'name' | 'delivery' | 'trigger_on
 
 export type BatchGroup = {
   id: string;
-  version: number;
+  /** Operational Int64, not an opaque identifier: kept able to round-trip unsafe values as strings. */
+  version: number | WiseId;
   name: string;
   sourceCurrency: string;
   status: 'NEW' | 'COMPLETED' | 'MARKED_FOR_CANCELLATION' | 'PROCESSING_CANCEL' | 'CANCELLED';
-  transferIds: Array<number>;
+  transferIds: Array<WiseId>;
   payInDetails?: Array<Record<string, any>>;
   alreadyPaid?: boolean;
 };

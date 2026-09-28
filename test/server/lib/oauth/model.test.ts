@@ -3,6 +3,7 @@ import {
   Client,
   InvalidClientError,
   InvalidGrantError,
+  InvalidScopeError,
   InvalidTokenError,
   Token,
 } from '@node-oauth/oauth2-server';
@@ -152,6 +153,31 @@ describe('server/lib/oauth/model', () => {
       expect(tokenFromDb.refreshTokenExpiresAt.toISOString()).to.eq(token.refreshTokenExpiresAt.toISOString());
       expect(tokenFromDb.ApplicationId).to.eq(application.id);
       expect(tokenFromDb.UserId).to.eq(user.id);
+    });
+  });
+
+  describe('validateScope', () => {
+    it('accepts no scopes and normalizes supported string and array formats', async () => {
+      expect(await OAuthModel.validateScope(null, null, undefined)).to.deep.eq([]);
+      expect(await OAuthModel.validateScope(null, null, 'email,account email%20orders')).to.deep.eq([
+        'email',
+        'account',
+        'orders',
+      ]);
+      expect(await OAuthModel.validateScope(null, null, ['email,account', ' email%20orders', ''])).to.deep.eq([
+        'email',
+        'account',
+        'orders',
+      ]);
+    });
+
+    it('rejects unknown scopes, including requests that also contain a supported scope', async () => {
+      await expect(OAuthModel.validateScope(null, null, 'unknown')).to.be.rejectedWith(InvalidScopeError);
+      await expect(OAuthModel.validateScope(null, null, ['email', 'unknown'])).to.be.rejectedWith(InvalidScopeError);
+    });
+
+    it('reports malformed URI encoding as an OAuth scope error', async () => {
+      await expect(OAuthModel.validateScope(null, null, 'email%ZZ')).to.be.rejectedWith(InvalidScopeError);
     });
   });
 

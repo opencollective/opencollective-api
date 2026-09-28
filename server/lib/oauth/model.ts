@@ -7,6 +7,7 @@ import {
   Client,
   InvalidClientError,
   InvalidGrantError,
+  InvalidScopeError,
   InvalidTokenError,
   RefreshToken,
   RefreshTokenModel,
@@ -16,6 +17,7 @@ import config from 'config';
 import debugLib from 'debug';
 
 import activities from '../../constants/activities';
+import OAuthScopes from '../../constants/oauth-scopes';
 import models from '../../models';
 import Application from '../../models/Application';
 import type OAuthAuthorizationCode from '../../models/OAuthAuthorizationCode';
@@ -26,7 +28,9 @@ const debug = debugLib('oAuth');
 
 const TOKEN_LENGTH = 64;
 
-interface OauthModel extends AuthorizationCodeModel, RefreshTokenModel {}
+interface OauthModel extends AuthorizationCodeModel, RefreshTokenModel {
+  validateScope(user: User, client: Client, scope?: string | string[]): Promise<string[]>;
+}
 
 // Helpers to convert data from/to our model types to OAuth2Server types.
 
@@ -267,15 +271,29 @@ const model: OauthModel = {
     return true; // Scope verification is not implemented yet, but it's required by the library
   },
 
-  // We're not validating scope at this point, because due to internal library implementation
-  // that would disallow any connection attempt without scope
-  /*
-  async validateScope(user: User, client: Client, scope: string | string[]): Promise<string | string[]> {
+  async validateScope(user: User, client: Client, scope?: string | string[]): Promise<string[]> {
     debug('model.validateScope', user, client, scope);
 
-    return scope) // Scope validation is not implemented yet, and is not required by the library
+    let requestedScopes: string[];
+    try {
+      requestedScopes = (Array.isArray(scope) ? scope : [scope])
+        .filter((value): value is string => typeof value === 'string')
+        .flatMap(value => decodeURIComponent(value).split(/[,\s]+/))
+        .filter(Boolean);
+    } catch (error) {
+      if (error instanceof URIError) {
+        throw new InvalidScopeError('Invalid scope: Malformed encoding');
+      }
+      throw error;
+    }
+
+    const supportedScopes = new Set<string>(Object.values(OAuthScopes));
+    if (requestedScopes.some(requestedScope => !supportedScopes.has(requestedScope))) {
+      throw new InvalidScopeError('Invalid scope: Requested scope is unsupported');
+    }
+
+    return [...new Set(requestedScopes)];
   },
-  */
 };
 
 export default model;
