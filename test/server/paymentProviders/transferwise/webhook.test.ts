@@ -12,6 +12,7 @@ import status from '../../../../server/constants/expense-status';
 import app from '../../../../server/index';
 import { getFxRate } from '../../../../server/lib/currency';
 import emailLib from '../../../../server/lib/email';
+import logger from '../../../../server/lib/logger';
 import * as transferwiseLib from '../../../../server/lib/transferwise';
 import models from '../../../../server/models';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
@@ -225,6 +226,20 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       verifyEvent.returns(refundEvent);
 
       await api.post('/webhooks/transferwise').send(event).expect(200);
+    });
+
+    it('should ignore incoming_payment_waiting events without logging a missing expense', async () => {
+      const loggerStub = sandbox.stub(logger, 'debug');
+      // A transfer waiting for its batch group to be funded is still SCHEDULED_FOR_PAYMENT at this point
+      await expense.update({ status: status.SCHEDULED_FOR_PAYMENT });
+      const incomingEvent = { ...event, data: { ...event.data, current_state: 'incoming_payment_waiting' } };
+      verifyEvent.returns(incomingEvent);
+
+      await api.post('/webhooks/transferwise').send(incomingEvent).expect(200);
+
+      await expense.reload();
+      expect(expense).to.have.property('status', status.SCHEDULED_FOR_PAYMENT);
+      expect(loggerStub.calledWithMatch('Wise: Could not find related Expense')).to.be.false;
     });
 
     it('works with Expenses with feesPayer = PAYEE', async () => {
