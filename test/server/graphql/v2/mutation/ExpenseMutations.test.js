@@ -9,6 +9,7 @@ import { createSandbox } from 'sinon';
 import { activities, expenseStatus, expenseTypes } from '../../../../../server/constants';
 import ExpenseTypes from '../../../../../server/constants/expense-type';
 import FEATURE from '../../../../../server/constants/feature';
+import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import PaymentIntentStatus from '../../../../../server/constants/payment-intent-status';
 import PaymentIntentType from '../../../../../server/constants/payment-intent-type';
 import { UseVendorPolicyValue } from '../../../../../server/constants/policies';
@@ -54,6 +55,7 @@ import {
   fakeLegalDocument,
   fakeOrganization,
   fakePayoutMethod,
+  fakePersonalToken,
   fakePlatformSubscription,
   fakeProject,
   fakeRecurringExpense,
@@ -5165,6 +5167,36 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq("You don't have permission to pay this expense");
+      });
+
+      it('rejects a non-pre-authorized personal token when the host does not require 2FA payouts', async () => {
+        const tokenUser = await fakeUser({ twoFactorAuthToken: '12345' });
+        const tokenHost = await fakeActiveHost({ admin: tokenUser.collective });
+        const tokenCollective = await fakeCollective({ HostCollectiveId: tokenHost.id });
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: tokenCollective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+        const personalToken = await fakePersonalToken({ user: tokenUser, scope: [OAuthScopes.expenses] });
+        await tokenUser.populateRoles();
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: tokenCollective.id, amount: expense.amount });
+
+        const result = await graphqlQueryV2(
+          processExpenseMutation,
+          { expenseId: expense.id, action: 'PAY' },
+          tokenUser,
+          null,
+          {},
+          undefined,
+          personalToken,
+        );
+
+        expect(result.errors).to.have.length(1);
+        expect(result.errors[0].message).to.equal('This personal token is not pre-authorized for 2FA');
+        expect(await expense.reload()).to.have.property('status', 'APPROVED');
       });
 
       it('Expense needs to be approved or error', async () => {

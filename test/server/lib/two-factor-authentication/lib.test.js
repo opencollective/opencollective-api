@@ -329,6 +329,9 @@ describe('lib/two-factor-authentication', () => {
         await expect(twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true })).to.eventually.be.rejectedWith(
           'This personal token is not pre-authorized for 2FA',
         );
+        await expect(twoFactorAuthLib.validateRequest(req, { onlyAskOnLogin: true })).to.eventually.be.rejectedWith(
+          'This personal token is not pre-authorized for 2FA',
+        );
       });
 
       it('fails if using an OAuth token that has not been pre-authorized', async () => {
@@ -337,6 +340,9 @@ describe('lib/two-factor-authentication', () => {
         const req = { remoteUser: user, userToken };
 
         await expect(twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true })).to.eventually.be.rejectedWith(
+          'This OAuth token is not pre-authorized for 2FA',
+        );
+        await expect(twoFactorAuthLib.validateRequest(req, { onlyAskOnLogin: true })).to.eventually.be.rejectedWith(
           'This OAuth token is not pre-authorized for 2FA',
         );
       });

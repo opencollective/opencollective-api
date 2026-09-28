@@ -168,18 +168,18 @@ async function validateRequest(
     throw new ApolloError('Two factor authentication must be configured', '2FA_REQUIRED');
   }
 
-  if (!userHasTwoFactorAuth || options.onlyAskOnLogin) {
-    return false;
-  }
-
   // Allow Personal Tokens and OAuth tokens to bypass 2FA check if they have been pre-authorized
-  if (req.userToken || req.personalToken) {
+  if (userHasTwoFactorAuth && (req.userToken || req.personalToken)) {
     if (req.personalToken?.preAuthorize2FA || req.userToken?.preAuthorize2FA) {
       return true;
     } else {
       const type = req.personalToken ? 'personal' : 'OAuth';
       throw new Error(`This ${type} token is not pre-authorized for 2FA`);
     }
+  }
+
+  if (!userHasTwoFactorAuth || options.onlyAskOnLogin) {
+    return false;
   }
 
   if (!options.alwaysAskForToken) {
