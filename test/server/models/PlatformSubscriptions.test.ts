@@ -1433,10 +1433,10 @@ describe('server/models/PlatformSubscriptions', () => {
         pricing: { ...basicPlan.pricing, platformTips: false },
       };
 
-      async function fakeCrowdfundedHost(plan) {
+      async function fakeCrowdfundedHost(plan, subscriptionStart = new Date(Date.UTC(2016, 0, 1))) {
         const admin = await fakeUser();
         const host = await fakeActiveHost({ admin });
-        await PlatformSubscription.createSubscription(host, new Date(Date.UTC(2016, 0, 1)), plan, admin);
+        await PlatformSubscription.createSubscription(host, subscriptionStart, plan, admin);
         const collective = await fakeCollective({ HostCollectiveId: host.id });
         const stripePaymentMethod = await fakePaymentMethod({
           service: PAYMENT_METHOD_SERVICE.STRIPE,
@@ -1563,6 +1563,18 @@ describe('server/models/PlatformSubscriptions', () => {
 
         const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
         expect(billing.crowdfunding).to.deep.equal({ totalAmount: 10000, feePercent: 5, fee: 500 });
+      });
+
+      it('only charges contributions received while a tips-off subscription was active', async () => {
+        // Subscription starts mid-month: contributions received before that (e.g. still charged
+        // as legacy Platform Share) are ignored
+        const { host, contribution } = await fakeCrowdfundedHost(tipsOffPlan, new Date(Date.UTC(2016, 0, 15)));
+
+        await fakeTransaction({ ...contribution, amount: 10000, createdAt: new Date(Date.UTC(2016, 0, 10)) });
+        await fakeTransaction({ ...contribution, amount: 4000, createdAt: new Date(Date.UTC(2016, 0, 20)) });
+
+        const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+        expect(billing.crowdfunding).to.deep.equal({ totalAmount: 4000, feePercent: 5, fee: 200 });
       });
 
       it('never credits the organization when refunds exceed contributions', async () => {
