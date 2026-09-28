@@ -5,6 +5,7 @@ import { omit, pick } from 'lodash';
 import { Service } from '../../../constants/connected-account';
 import FEATURE_STATUS from '../../../constants/feature-status';
 import OrderStatuses from '../../../constants/order-status';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import stripe, { sanitizeStripeError } from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Op } from '../../../models';
@@ -12,7 +13,7 @@ import { createOrRetrievePaymentMethodFromSetupIntent } from '../../../paymentPr
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { checkCanUsePaymentMethods } from '../../common/features';
 import { checkRemoteUserCanUseOrders } from '../../common/scope-check';
-import { BadRequest, Forbidden, NotFound, Unauthorized } from '../../errors';
+import { BadRequest, Forbidden, NotFound, RateLimitExceeded, Unauthorized } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLCreditCardCreateInput } from '../input/CreditCardCreateInput';
 import {
@@ -72,6 +73,24 @@ const addCreditCard = {
 
     // Check 2FA
     await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
+
+    const rateLimit = new RateLimit(
+      `add-credit-card-user-${req.remoteUser.id}`,
+      config.limits.addCreditCardPerUserPerHour,
+      ONE_HOUR_IN_SECONDS,
+    );
+    if (!(await rateLimit.registerCall())) {
+      throw new RateLimitExceeded('Too many credit cards added. Please try again later.');
+    }
+
+    const creditCardCount = await models.PaymentMethod.count({
+      where: { CollectiveId: collective.id, type: 'creditcard' },
+    });
+    if (creditCardCount >= config.limits.maxCreditCardsPerAccount) {
+      throw new RateLimitExceeded(
+        `Accounts cannot have more than ${config.limits.maxCreditCardsPerAccount} credit cards`,
+      );
+    }
 
     const token = await stripe.tokens.retrieve(args.creditCardInfo.token);
     const newPaymentMethodData = {
