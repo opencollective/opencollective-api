@@ -168,7 +168,6 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'VAT',
   'GST',
   'giftCardsMaxDailyCount',
-  'W9',
   'virtualcards',
   'transferwise',
   'customEmailMessage',
