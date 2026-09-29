@@ -366,7 +366,7 @@ async function createTransfer(
     } catch {
       error = { message: e.message, details: safeJsonStringify(e) };
     }
-    await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAYMENT_ERROR, user, {
       error,
       isSystem: true,
     });
