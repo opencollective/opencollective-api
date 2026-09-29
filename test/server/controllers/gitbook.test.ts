@@ -23,7 +23,7 @@ describe('server/controllers/gitbook', () => {
   });
 
   afterEach(() => {
-    sinon.restore();
+    fetchStub.restore();
   });
 
   describe('search', () => {
