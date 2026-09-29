@@ -5,7 +5,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { UpdateChannel } from '../../../models/Update';
-import { canSeeUpdate } from '../../common/update';
+import { canSeeUpdate, hasUpdatesScopeForNonPublicUpdate } from '../../common/update';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLUpdateAudienceType } from '../enum';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -76,7 +76,7 @@ const GraphQLUpdate = new GraphQLObjectType({
           },
         },
         async resolve(update, args, req) {
-          if (!req.remoteUser || update.publishedAt) {
+          if (!req.remoteUser || update.publishedAt || !hasUpdatesScopeForNonPublicUpdate(req, update)) {
             return null;
           }
 

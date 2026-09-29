@@ -115,6 +115,11 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
         }
 
         const importInstance = await req.loaders.TransactionsImport.byId.load(row.TransactionsImportId);
+        // Fields consumed by resolvers on TransactionsImportAccount (eg: balanceAccountingCategory)
+        const commonFields = {
+          CollectiveId: importInstance.CollectiveId,
+          BalanceAccountingCategoryId: importInstance.settings?.balanceAccountingCategories?.[accountId],
+        };
         if (importInstance.type === 'PLAID') {
           const matchingPlaidAccount = importInstance.data?.plaid?.availableAccounts?.find(
             plaidAccount => plaidAccount.accountId === accountId,
@@ -126,6 +131,7 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
               subtype: matchingPlaidAccount.subtype,
               type: matchingPlaidAccount.type,
               mask: matchingPlaidAccount.mask,
+              ...commonFields,
             };
           }
         } else if (importInstance.type === 'GOCARDLESS') {
@@ -136,6 +142,7 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
             return {
               id: matchingGoCardlessAccount.id,
               name: matchingGoCardlessAccount.name || 'Account',
+              ...commonFields,
             };
           }
         }

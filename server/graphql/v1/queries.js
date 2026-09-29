@@ -131,7 +131,7 @@ const queries = {
       kinds: { type: new GraphQLList(GraphQLString) },
       includeExpenseTransactions: {
         type: GraphQLBoolean,
-        default: true,
+        default: { value: true },
         description: 'If false, only the transactions not linked to an expense (orders/refunds) will be returned',
       },
       includeHostedCollectivesTransactions: {

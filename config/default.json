@@ -68,6 +68,10 @@
       "perMask": 5,
       "forCollective": 10
     },
+    "manualOrdersPerHour": {
+      "perUser": 10,
+      "perIp": 10
+    },
     "giftCards": {
       "maxPerDay": 100
     },
@@ -84,6 +88,8 @@
       "confirmToken": 15
     },
     "setPasswordPerUserPerHour": 10,
+    "addCreditCardPerUserPerHour": 10,
+    "maxCreditCardsPerAccount": 100,
     "confirmEmailPerIpPerHour": 10,
     "skipCleanOrdersLimitSlugs": "",
     "enabledMasks": "",
@@ -203,8 +209,7 @@
     "blockedCurrenciesForNonProfits": "INR",
     "currenciesThatRequireReference": "RUB",
     "blockedCountries": "SS, SD, BI, CF, TD, CG, CD, SO, CU, IR, VE, SY, KP, AF, ER, IQ, LY, MM, YE, RU, BY",
-    "useTransferRefundHandler": false,
-    "useSimplifiedQuote": true
+    "useTransferRefundHandler": false
   },
   "hyperwatch": {
     "enabled": false,

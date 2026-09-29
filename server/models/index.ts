@@ -117,6 +117,8 @@ const models = {
 AccountingCategory.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 AccountingCategory.hasMany(Expense, { foreignKey: 'AccountingCategoryId', as: 'expenses' });
 AccountingCategory.hasMany(Order, { foreignKey: 'AccountingCategoryId', as: 'orders' });
+AccountingCategory.hasMany(Expense, { foreignKey: 'BalanceAccountingCategoryId', as: 'balanceExpenses' });
+AccountingCategory.hasMany(Order, { foreignKey: 'BalanceAccountingCategoryId', as: 'balanceOrders' });
 
 // Activity.
 Activity.belongsTo(Collective);
@@ -205,6 +207,7 @@ ExportRequest.belongsTo(UploadedFile, { foreignKey: 'UploadedFileId', as: 'uploa
 
 // Expense
 Expense.belongsTo(AccountingCategory, { as: 'accountingCategory', foreignKey: 'AccountingCategoryId' });
+Expense.belongsTo(AccountingCategory, { as: 'balanceAccountingCategory', foreignKey: 'BalanceAccountingCategoryId' });
 Expense.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Expense.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
 Expense.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
@@ -264,6 +267,7 @@ OAuthAuthorizationCode.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
 
 // Order.
 Order.belongsTo(AccountingCategory, { as: 'accountingCategory', foreignKey: 'AccountingCategoryId' });
+Order.belongsTo(AccountingCategory, { as: 'balanceAccountingCategory', foreignKey: 'BalanceAccountingCategoryId' });
 Order.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Order.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
 Order.belongsTo(ManualPaymentProvider, { foreignKey: 'ManualPaymentProviderId', as: 'manualPaymentProvider' });

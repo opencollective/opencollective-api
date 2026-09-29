@@ -18,6 +18,7 @@ import { reportErrorToSentry } from '../../lib/sentry';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import { getQuote, getTransfer, verifyEvent } from '../../lib/transferwise';
 import { parseToBoolean } from '../../lib/utils';
+import { wiseIdsEqual } from '../../lib/wise-id';
 import models from '../../models';
 import {
   ExpenseDataQuoteV3,
@@ -29,6 +30,14 @@ import {
 
 export async function handleTransferStateChange(event: TransferStateChangeEvent): Promise<void> {
   const isUsingTransferRefundHandler = parseToBoolean(config.transferwise.useTransferRefundHandler);
+
+  // This state is emitted right after a transfer is created and is waiting to be funded (e.g. a transfer added to a
+  // batch group, or a direct transfer before it is funded). At this point the expense is still APPROVED or
+  // SCHEDULED_FOR_PAYMENT, so there is nothing to do yet. Bail early to avoid the misleading
+  // "Could not find related Expense" log for transfers that are not (yet) linked to a PROCESSING/PAID expense.
+  if (event.data.current_state === 'incoming_payment_waiting') {
+    return;
+  }
 
   const expense = await models.Expense.findOne({
     where: {
@@ -188,7 +197,7 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
   const expense = await models.Expense.findOne({
     where: {
       status: [expenseStatus.PROCESSING, expenseStatus.PAID, expenseStatus.ERROR],
-      data: { transfer: { id: transferId } },
+      data: { transfer: { id: toString(event.data.resource.id) } },
     },
     include: [
       {
@@ -227,7 +236,9 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
 
     const refundedAmount = event.data.resource.refund_amount;
     const sourceAmount = expense.data.transfer.sourceValue;
-    const relatedTransferTransactions = expense.Transactions.filter(t => t.data?.transfer?.id === transferId);
+    const relatedTransferTransactions = expense.Transactions.filter(t =>
+      wiseIdsEqual(t.data?.transfer?.id, transferId),
+    );
     const hasTransactions = relatedTransferTransactions.some(t => t.kind === TransactionKind.EXPENSE);
 
     if (hasTransactions) {

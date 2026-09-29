@@ -78,12 +78,6 @@ const memberInvitationMutations = {
         type: GraphQLString,
         description: 'Optional private note included in the invitation email sent to the invitee.',
       },
-      isNewUser: {
-        type: GraphQLBoolean,
-        description:
-          'When true, the invited user account was just created from the invite form. The invitee will be required to complete their profile before accepting the invitation.',
-        defaultValue: false,
-      },
     },
     async resolve(_, args, req) {
       checkRemoteUserCanUseAccount(req);
@@ -117,7 +111,6 @@ const memberInvitationMutations = {
       // Invite member
       return models.MemberInvitation.invite(account, memberParams, {
         privateNote: privateNote,
-        isNewUser: args.isNewUser || memberAccount.data?.requiresProfileCompletion,
       });
     },
   },

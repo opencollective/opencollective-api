@@ -62,6 +62,36 @@ describe('MemberInvitationMutations', () => {
   `;
 
   describe('inviteMember', () => {
+    const removedIsNewUserMutation = gql`
+      mutation InviteMember(
+        $memberAccount: AccountReferenceInput!
+        $account: AccountReferenceInput!
+        $role: MemberRole!
+        $isNewUser: Boolean
+      ) {
+        inviteMember(memberAccount: $memberAccount, account: $account, role: $role, isNewUser: $isNewUser) {
+          id
+        }
+      }
+    `;
+
+    it('does not accept the client-controlled isNewUser argument', async () => {
+      const invitedUser = await fakeUser();
+      const result = await utils.graphqlQueryV2(
+        removedIsNewUserMutation,
+        {
+          memberAccount: { id: idEncode(invitedUser.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          role: roles.MEMBER,
+          isNewUser: true,
+        },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('Unknown argument "isNewUser" on field "Mutation.inviteMember".');
+    });
+
     it('should create a new member invitation and its related activity', async () => {
       const randomUserToInvite = await fakeUser();
       const result = await utils.graphqlQueryV2(

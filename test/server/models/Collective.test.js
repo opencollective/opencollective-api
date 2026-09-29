@@ -481,6 +481,17 @@ describe('server/models/Collective', () => {
         );
       });
 
+      it('validates backgroundImage when image field is not loaded on the instance', async () => {
+        const collective = await fakeCollective({ backgroundImage: validImage });
+        const partial = await models.Collective.findByPk(collective.id, {
+          attributes: ['id', 'slug', 'backgroundImage'],
+        });
+        await expect(partial.update({ backgroundImage: invalidImage })).to.be.rejectedWith(
+          Error,
+          'Validation error: The background image URL is not valid',
+        );
+      });
+
       it('does not re-validate the URL if it has not changed', async () => {
         const collective = await fakeCollective({ backgroundImage: invalidImage }, { validate: false });
         await collective.update({ backgroundImage: invalidImage, name: 'New Name' });

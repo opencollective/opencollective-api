@@ -3,6 +3,7 @@ import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
+import { assertOAuthRedirectUri } from '../../../lib/url-validation';
 import models from '../../../models';
 import { checkRemoteUserCanUseApplications, rejectOAuthAndPersonalTokenAuth } from '../../common/scope-check';
 import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
@@ -37,6 +38,10 @@ const createApplication = {
     const numberOfAppsForThisAccount = await models.Application.count({ where: { CollectiveId: collective.id } });
     if (numberOfAppsForThisAccount >= config.limits.maxNumberOfAppsPerUser) {
       throw new RateLimitExceeded('You have reached the maximum number of applications for this user');
+    }
+
+    if (args.application.redirectUri) {
+      assertOAuthRedirectUri(args.application.redirectUri);
     }
 
     const createParams = {
@@ -74,6 +79,7 @@ const updateApplication = {
 
     // Doing this we're not supporting update to NULL
     if (args.application.redirectUri && args.application.redirectUri !== application.callbackUrl) {
+      assertOAuthRedirectUri(args.application.redirectUri);
       await twoFactorAuthLib.enforceForAccount(req, application.collective, { alwaysAskForToken: true });
       updateParams.callbackUrl = args.application.redirectUri;
     }

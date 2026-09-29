@@ -6,6 +6,7 @@ import { roles } from '../../../../../../server/constants';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../../../server/constants/transaction-kind';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../../server/graphql/v2/identifiers';
+import type { Transfer } from '../../../../../../server/types/transferwise';
 import {
   fakeAccountingCategory,
   fakeActiveHost,
@@ -648,6 +649,44 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
       expect(result.data.transactions.nodes).to.containSubset([{ merchantId: 'ch_123' }, { merchantId: 'paypov' }]);
     });
 
+    it('by merchantId with an Int64 Wise transfer id, including legacy numeric values', async () => {
+      const bigTransferId = '9223372036854775807';
+      const legacyNumericId = 2147483648;
+      // Dedicated accounts so we don't pollute counts asserted by other tests
+      const merchantHost = await fakeHost({ admin: hostAdmin.collective });
+      const merchantCollective = await fakeCollective({ HostCollectiveId: merchantHost.id });
+      const merchantFromCollective = await fakeCollective();
+      const baseTx = {
+        FromCollectiveId: merchantFromCollective.id,
+        CollectiveId: merchantCollective.id,
+        HostCollectiveId: merchantHost.id,
+        kind: TransactionKind.EXPENSE,
+        type: 'DEBIT' as const,
+        amount: -1000,
+      };
+      const bigTransaction = await fakeTransaction({
+        ...baseTx,
+        data: { transfer: { id: bigTransferId } as unknown as Transfer },
+      });
+      const legacyTransaction = await fakeTransaction({
+        ...baseTx,
+        data: { transfer: { id: legacyNumericId } as unknown as Transfer },
+      });
+
+      const result = await graphqlQueryV2(
+        transactionsCollectionQuery,
+        { slug: merchantCollective.slug, merchantId: [bigTransferId, String(legacyNumericId)] },
+        hostAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.transactions.totalCount).to.eq(2);
+      const nodes = result.data.transactions.nodes;
+      expect(nodes.map(n => n.merchantId).sort()).to.deep.equal([String(legacyNumericId), bigTransferId].sort());
+      expect(nodes[0].id).to.be.a('string');
+      expect(bigTransaction.id).to.exist;
+      expect(legacyTransaction.id).to.exist;
+    });
+
     it('by Accounting Category', async () => {
       const result = await graphqlQueryV2(transactionsCollectionQuery, {
         slug: collective.slug,
@@ -737,13 +776,36 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
           expect(transaction.account.legalName).to.be.null;
         }
       });
+
+      const hostAccountant = await fakeUser();
+      await fakeMember({
+        CollectiveId: collective.HostCollectiveId,
+        MemberCollectiveId: hostAccountant.CollectiveId,
+        role: roles.ACCOUNTANT,
+      });
+      const resultHostAccountant = await graphqlQueryV2(transactionsCollectionQuery, queryArgs, hostAccountant);
+      resultHostAccountant.data.transactions.nodes.forEach(transaction => {
+        if (transaction.type === 'CREDIT') {
+          expect(transaction.fromAccount.legalName).to.eq('Secret Corp');
+          expect(transaction.oppositeAccount.legalName).to.eq('Secret Corp');
+        } else {
+          expect(transaction.oppositeAccount.legalName).to.eq('Secret Corp');
+          expect(transaction.toAccount.legalName).to.eq('Secret Corp');
+        }
+      });
     });
 
-    it('can see fromAccount.location.address if host admin', async () => {
+    it('can see fromAccount.location.address if host admin or accountant', async () => {
       const randomUser = await fakeUser();
       const testHostAdmin = await fakeUser();
+      const testHostAccountant = await fakeUser();
       const testFromCollectiveAdmin = await fakeUser();
       const testHost = await fakeHost({ admin: testHostAdmin.collective });
+      await fakeMember({
+        CollectiveId: testHost.id,
+        MemberCollectiveId: testHostAccountant.CollectiveId,
+        role: roles.ACCOUNTANT,
+      });
       const testFromCollective = await fakeOrganization({
         legalName: 'Test Corp',
         location: { address: '123 Secret Street' },
@@ -790,6 +852,12 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
       // Host admin should see the location address
       const resultHostAdmin = await graphqlQueryV2(transactionsCollectionQuery, queryArgs, testHostAdmin);
       resultHostAdmin.data.transactions.nodes.forEach(transaction => {
+        expect(transaction.fromAccount?.location?.address).to.eq('123 Secret Street');
+      });
+
+      // Host accountant should see the location address
+      const resultHostAccountant = await graphqlQueryV2(transactionsCollectionQuery, queryArgs, testHostAccountant);
+      resultHostAccountant.data.transactions.nodes.forEach(transaction => {
         expect(transaction.fromAccount?.location?.address).to.eq('123 Secret Street');
       });
     });

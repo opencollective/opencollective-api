@@ -532,7 +532,7 @@ const virtualCardMutations = {
 
       const card = await virtualCard.pause({ pauseReason: 'MANUAL' });
       const data = {
-        virtualCard,
+        virtualCard: card.info,
         host: virtualCard.host.info,
         collective: virtualCard.collective.info,
       };
@@ -576,6 +576,8 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to edit this Virtual Card");
       }
 
+      await twoFactorAuthLib.enforceForAccount(req, virtualCard.host);
+
       if (virtualCard.data.status === VirtualCardStatus.CANCELED) {
         throw new BadRequest('This Virtual Card cannot be activated');
       }
@@ -588,7 +590,7 @@ const virtualCardMutations = {
         HostCollectiveId: virtualCard.host.id,
         UserId: req.remoteUser.id,
         data: {
-          virtualCard: resumedVirtualCard,
+          virtualCard: resumedVirtualCard.info,
           host: resumedVirtualCard.host.info,
           collective: resumedVirtualCard.collective.info,
         },

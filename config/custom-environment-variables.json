@@ -166,6 +166,10 @@
       "perMask": "ORDERS_LIMIT_MASK",
       "forCollective": "ORDERS_LIMIT_COLLECTIVE"
     },
+    "manualOrdersPerHour": {
+      "perUser": "MANUAL_ORDERS_LIMIT_USER",
+      "perIp": "MANUAL_ORDERS_LIMIT_IP"
+    },
     "skipCleanOrdersLimitSlugs": "ORDERS_LIMIT_SKIP_CLEAN_SLUGS",
     "enabledMasks": "ORDERS_LIMIT_ENABLED_MASKS",
     "userSignUpPerHour": "LIMIT_USER_SIGNUP_PER_HOUR",
@@ -225,8 +229,7 @@
     "blockedCurrenciesForBusinessProfiles": "TRANSFERWISE_BLOCKED_CURRENCIES_BUSINESS",
     "recipientTypesBlockedForBusinessProfiles": "TRANSFERWISE_BLOCKED_RECIPIENT_TYPES_BUSINESS",
     "blockedCurrenciesForNonProfits": "TRANSFERWISE_BLOCKED_CURRENCIES_NONPROFIT",
-    "useTransferRefundHandler": "TRANSFERWISE_USE_TRANSFER_REFUND_HANDLER",
-    "useSimplifiedQuote": "TRANSFERWISE_USE_SIMPLIFIED_QUOTE"
+    "useTransferRefundHandler": "TRANSFERWISE_USE_TRANSFER_REFUND_HANDLER"
   },
   "hyperwatch": {
     "enabled": "HYPERWATCH_ENABLED",

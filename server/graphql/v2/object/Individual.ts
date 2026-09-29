@@ -55,15 +55,11 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: GraphQLString,
         description: 'Email for the account. For authenticated user: scope: "email".',
         async resolve(userCollective, args, req: Request) {
-          if (!req.remoteUser || userCollective.isIncognito) {
+          if (!req.remoteUser || userCollective.isIncognito || !checkScope(req, 'email')) {
             return null;
-          } else if (req.remoteUser.CollectiveId === userCollective.id && !checkScope(req, 'email')) {
-            return null;
-          } else {
-            if (await req.loaders.Collective.canSeePrivateProfileInfo.load(userCollective.id)) {
-              const user = await req.loaders.User.byCollectiveId.load(userCollective.id);
-              return user?.email;
-            }
+          } else if (await req.loaders.Collective.canSeePrivateProfileInfo.load(userCollective.id)) {
+            const user = await req.loaders.User.byCollectiveId.load(userCollective.id);
+            return user?.email;
           }
         },
       },

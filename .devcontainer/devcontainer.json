@@ -10,7 +10,7 @@
   "containerEnv": {
     "PG_HOST": "postgres",
     "MAILPIT_HOST": "mailpit",
-    "AWS_S3_ENDPOINT": "http://minio:9000"
+    "AWS_S3_ENDPOINT": "http://rustfs:9000"
   },
   // Features to add to the dev container. More info: https://containers.dev/features.
   "features": {
@@ -41,12 +41,12 @@
       "requireLocalPort": true
     },
     "9000": {
-      "label": "MinIO",
+      "label": "RustFS",
       "onAutoForward": "silent",
       "requireLocalPort": true
     },
     "9001": {
-      "label": "MinIO Console",
+      "label": "RustFS Console",
       "onAutoForward": "silent",
       "requireLocalPort": true
     }

@@ -16,6 +16,7 @@ import { getDiffBetweenInstances } from '../../../lib/data';
 import { executeOrder } from '../../../lib/payments';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Order } from '../../../models';
+import { checkIsValidBalanceAccountingCategory } from '../../common/balance-accounting-categories';
 import { addFunds, canAddFundsFromAccount, checkCanUseAccountingCategoryForOrder } from '../../common/orders';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { refundTransaction } from '../../common/transactions';
@@ -56,6 +57,7 @@ type AddFundsMutationArgs = {
   invoiceTemplate: string;
   tax: TaxInput;
   accountingCategory: GraphQLAccountingCategoryReferenceInputFields;
+  balanceAccountingCategory?: GraphQLAccountingCategoryReferenceInputFields;
   transactionsImportRow: GraphQLTransactionsImportRowReferenceInputFields;
 };
 
@@ -180,6 +182,10 @@ export default {
         type: GraphQLAccountingCategoryReferenceInput,
         description: 'The accounting category of this order',
       },
+      balanceAccountingCategory: {
+        type: GraphQLAccountingCategoryReferenceInput,
+        description: 'The balance/clearing accounting category the funds were received through',
+      },
       transactionsImportRow: {
         type: GraphQLTransactionsImportRowReferenceInput,
         description: 'The transaction import row to associate with this order',
@@ -198,6 +204,13 @@ export default {
           throwIfMissing: true,
           loaders: req.loaders,
         }));
+      const balanceAccountingCategory =
+        args.balanceAccountingCategory &&
+        (await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        }));
+      checkIsValidBalanceAccountingCategory(balanceAccountingCategory, host);
 
       // Check amounts
       const totalAmount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency: account.currency });
@@ -242,6 +255,7 @@ export default {
           tax: args.tax,
           transactionsImportRow,
           accountingCategory,
+          balanceAccountingCategory,
         },
         req.remoteUser,
       );
@@ -303,6 +317,10 @@ export default {
         type: GraphQLAccountingCategoryReferenceInput,
         description: 'The accounting category of this order',
       },
+      balanceAccountingCategory: {
+        type: GraphQLAccountingCategoryReferenceInput,
+        description: 'The balance/clearing accounting category the funds were received through',
+      },
     },
     resolve: async (
       _,
@@ -322,6 +340,13 @@ export default {
           throwIfMissing: true,
           loaders: req.loaders,
         }));
+      const balanceAccountingCategory =
+        args.balanceAccountingCategory &&
+        (await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        }));
+      checkIsValidBalanceAccountingCategory(balanceAccountingCategory, host);
 
       // Check amounts
       const totalAmount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency: account.currency });
@@ -387,6 +412,10 @@ export default {
         status: OrderStatuses.NEW,
         TierId: tier === null ? null : tier?.id || order.TierId,
         AccountingCategoryId: accountingCategory === null ? null : accountingCategory?.id || order.AccountingCategoryId,
+        BalanceAccountingCategoryId:
+          balanceAccountingCategory === null
+            ? null
+            : balanceAccountingCategory?.id || order.BalanceAccountingCategoryId,
         processedAt: args.processedAt || order.processedAt,
         data: {
           ...order.data,

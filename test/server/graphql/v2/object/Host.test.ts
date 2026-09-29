@@ -1,9 +1,11 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import { flatten } from 'lodash';
 import moment from 'moment';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import { PlatformSubscriptionTiers, PlatformSubscriptionTierTypes } from '../../../../../server/constants/plans';
+import MemberRoles from '../../../../../server/constants/roles';
 import models, { PlatformSubscription } from '../../../../../server/models';
 import { BillingMonth } from '../../../../../server/models/PlatformSubscription';
 import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
@@ -12,6 +14,7 @@ import {
   fakeCollective,
   fakeEvent,
   fakeExpense,
+  fakeMember,
   fakeProject,
   fakeUploadedFile,
   fakeUser,
@@ -1174,6 +1177,59 @@ describe('server/graphql/v2/object/Host', () => {
           },
         ],
       });
+    });
+  });
+
+  describe('reports access', () => {
+    const hostReportsQuery = gql`
+      query HostTransactionReports($slug: String!) {
+        host(slug: $slug) {
+          id
+          hostTransactionsReports(timeUnit: MONTH) {
+            timeUnit
+          }
+          hostContributionsReport(timeUnit: MONTH) {
+            timeUnit
+          }
+          hostExpensesReport(timeUnit: MONTH) {
+            timeUnit
+          }
+        }
+      }
+    `;
+
+    let host, hostAccountant, randomUser;
+    before(async () => {
+      const hostAdmin = await fakeUser();
+      host = await fakeActiveHost({ admin: hostAdmin });
+      hostAccountant = await fakeUser();
+      await fakeMember({
+        CollectiveId: host.id,
+        MemberCollectiveId: hostAccountant.CollectiveId,
+        role: MemberRoles.ACCOUNTANT,
+      });
+      randomUser = await fakeUser();
+    });
+
+    it('allows an accountant of the host to see its transaction reports', async () => {
+      const result = await graphqlQueryV2(hostReportsQuery, { slug: host.slug }, hostAccountant);
+      expect(result.errors).to.not.exist;
+      expect(result.data.host.hostTransactionsReports.timeUnit).to.eq('MONTH');
+      expect(result.data.host.hostExpensesReport.timeUnit).to.eq('MONTH');
+      expect(result.data.host.hostContributionsReport.timeUnit).to.eq('MONTH');
+    });
+
+    it('still denies a user without a role on the host', async () => {
+      const result = await graphqlQueryV2(hostReportsQuery, { slug: host.slug }, randomUser);
+      expect(result.errors).to.exist;
+      expect(result.errors).to.have.length(3);
+      result.errors.map(error => {
+        expect(error.message).to.include('admin or an accountant');
+      });
+      const paths = flatten(result.errors.map(e => e.path));
+      expect(paths).to.include('hostExpensesReport');
+      expect(paths).to.include('hostTransactionsReports');
+      expect(paths).to.include('hostContributionsReport');
     });
   });
 });

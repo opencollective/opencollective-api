@@ -1111,6 +1111,39 @@ export const ConnectedAccountType = new GraphQLObjectType({
   },
 });
 
+/**
+ * Checks if the user has permission to access the payment method.
+ * @param {Request} req - The request object.
+ * @param {PaymentMethod} paymentMethod - The payment method to check permission for.
+ * @returns {Promise<boolean>} - True if the user has permission, false otherwise.
+ */
+const hasPermissionOnPaymentMethod = async (req, paymentMethod) => {
+  if (!req.remoteUser) {
+    return false;
+  }
+
+  const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+  if (!collective) {
+    return false;
+  } else if (req.remoteUser.isAdminOfCollectiveOrHost(collective)) {
+    return true;
+  }
+
+  if (paymentMethod.SourcePaymentMethodId) {
+    const sourcePaymentMethod = await req.loaders.PaymentMethod.byId.load(paymentMethod.SourcePaymentMethodId);
+    if (sourcePaymentMethod) {
+      const sourceCollective = await req.loaders.Collective.byId.load(sourcePaymentMethod.CollectiveId);
+      if (!sourceCollective) {
+        return false;
+      }
+
+      return req.remoteUser.isAdminOfCollectiveOrHost(sourceCollective);
+    }
+  }
+
+  return false;
+};
+
 export const PaymentMethodType = new GraphQLObjectType({
   name: 'PaymentMethodType',
   description: 'Sanitized PaymentMethod Info (PaymentMethod model)',
@@ -1212,13 +1245,19 @@ export const PaymentMethodType = new GraphQLObjectType({
       },
       monthlyLimitPerMember: {
         type: GraphQLFloat,
-        resolve(paymentMethod) {
+        async resolve(paymentMethod, _, req) {
+          if (!(await hasPermissionOnPaymentMethod(req, paymentMethod))) {
+            return null;
+          }
           return paymentMethod.monthlyLimitPerMember;
         },
       },
       initialBalance: {
         type: GraphQLFloat,
-        resolve(paymentMethod) {
+        async resolve(paymentMethod, _, req) {
+          if (!(await hasPermissionOnPaymentMethod(req, paymentMethod))) {
+            return null;
+          }
           return paymentMethod.initialBalance;
         },
       },
@@ -1226,6 +1265,9 @@ export const PaymentMethodType = new GraphQLObjectType({
         type: GraphQLFloat,
         description: 'Returns the balance in the currency of this paymentMethod',
         async resolve(paymentMethod, args, req) {
+          if (!(await hasPermissionOnPaymentMethod(req, paymentMethod))) {
+            return null;
+          }
           const balance = await paymentMethod.getBalanceForUser(req.remoteUser);
           return balance.amount;
         },
@@ -1262,7 +1304,10 @@ export const PaymentMethodType = new GraphQLObjectType({
             description: 'Only returns orders that have an active subscription (monthly/yearly)',
           },
         },
-        resolve(paymentMethod, args) {
+        async resolve(paymentMethod, args, req) {
+          if (!(await hasPermissionOnPaymentMethod(req, paymentMethod))) {
+            return null;
+          }
           const query = {};
           if (args.hasActiveSubscription) {
             query.where = { status: { [Op.or]: [orderStatus.ACTIVE, orderStatus.ERROR] } };

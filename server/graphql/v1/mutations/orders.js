@@ -26,7 +26,13 @@ import {
   processOrder,
 } from '../../../lib/payments';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
-import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
+import {
+  checkGuestContribution,
+  checkManualOrdersLimit,
+  checkOrdersLimit,
+  cleanOrdersLimit,
+  getOrdersLimitKeys,
+} from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
@@ -264,6 +270,12 @@ export async function createOrder(order, req) {
   }
 
   await checkOrdersLimit(order, reqIp, reqMask);
+  if (order.paymentMethod?.type === PAYMENT_METHOD_TYPE.MANUAL) {
+    await checkManualOrdersLimit(remoteUser, reqIp);
+  }
+  // Persisted on the order so the Stripe webhook can release them for Payment Intent orders, which are confirmed
+  // asynchronously (other payment methods are released by `cleanOrdersLimit` below, once the order is processed)
+  const ordersLimitKeys = getOrdersLimitKeys(order, reqIp, reqMask);
   await orderFraudProtection(req, order).catch(error => {
     reportErrorToSentry(error, { transactionName: 'orderFraudProtection', user: req.remoteUser });
     throw new ValidationFailed(
@@ -515,6 +527,7 @@ export async function createOrder(order, req) {
             }
           : {}),
         isManualContribution: isManualPayment,
+        ordersLimitKeys,
       },
       status: orderStatus,
     };
@@ -585,7 +598,7 @@ export async function createOrder(order, req) {
     const skipCleanOrdersLimitSlugs = config.limits.skipCleanOrdersLimitSlugs;
 
     if (!skipCleanOrdersLimitSlugs || !skipCleanOrdersLimitSlugs.includes(collective.slug)) {
-      cleanOrdersLimit(order, reqIp, reqMask);
+      await cleanOrdersLimit(order, reqIp, reqMask);
     }
 
     order = await models.Order.findByPk(orderCreated.id);

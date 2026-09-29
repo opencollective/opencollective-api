@@ -31,6 +31,13 @@ export const checkRemoteUserCanUseAccount = (
   enforceScope(req, 'account');
 };
 
+const checkRemoteUserCanUseIncognito = (req: Express.Request): void => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage incognito details.');
+  }
+  enforceScope(req, 'incognito');
+};
+
 export const checkRemoteUserCanUseExportRequests = (req: Express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage export requests.');
@@ -126,6 +133,8 @@ export const checkRemoteUserCanUseComment = (comment: Comment, req: Express.Requ
     checkRemoteUserCanUseExpenses(req);
   } else if (comment.HostApplicationId) {
     checkRemoteUserCanUseHostApplications(req);
+  } else if (comment.OrderId) {
+    checkRemoteUserCanUseOrders(req);
   }
 };
 
@@ -148,6 +157,7 @@ export const checkScopeForExportRequest = (
 ): void => {
   if (exportRequest.type === ExportRequestTypes.TRANSACTIONS) {
     checkRemoteUserCanUseTransactions(req);
+    checkRemoteUserCanUseIncognito(req);
     if (exportRequest.parameters?.isHostReport) {
       checkRemoteUserCanUseHost(req);
     }
@@ -179,6 +189,9 @@ export const checkScope = (req: Express.Request, scope: OAuthScope): boolean => 
   return true;
 };
 
+/**
+ * Enforces the scope **only** if the remoteUser is authenticated with a OAuth or Personal Token.
+ */
 export const enforceScope = (req: Express.Request, scope: OAuthScope): void => {
   if (!checkScope(req, scope)) {
     if (req.userToken) {

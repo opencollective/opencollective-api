@@ -1,7 +1,8 @@
 import { Command } from 'commander';
 import config from 'config';
-import cryptojs from 'crypto-js';
+import { isNil } from 'lodash';
 
+import { decryptWithCipher, encryptWithCipher } from '../server/lib/encryption';
 import { sequelize } from '../server/models';
 
 const CIPHER = config.dbEncryption.cipher;
@@ -37,9 +38,12 @@ async function main(args) {
   );
 
   console.info(`Re-encrypting ${accounts.length} ConnectedAccounts...`);
-  const encrypt = message => cryptojs[args.toCipher].encrypt(message, args.newKey).toString();
+  // `refreshToken` is nullable, and the ConnectedAccount model stores NULL rather than an encrypted
+  // empty string for missing values (`value ? crypto.encrypt(value) : null`). We update with raw SQL
+  // here, which bypasses those accessors, so the same semantics have to be preserved by hand.
+  const encrypt = message => (message ? encryptWithCipher(message, args.newKey, args.toCipher) : null);
   const decrypt = encryptedMessage =>
-    cryptojs[args.fromCipher].decrypt(encryptedMessage, args.oldKey).toString(cryptojs.enc.Utf8);
+    isNil(encryptedMessage) ? null : decryptWithCipher(encryptedMessage, args.oldKey, args.fromCipher);
 
   try {
     await sequelize.transaction(async transaction => {
@@ -66,6 +70,7 @@ async function main(args) {
   } catch (e) {
     console.error('Oops, something went wrong and I rolled back the transaction.');
     console.error(e);
+    process.exit(1);
   }
   console.log('Done!');
   process.exit(0);

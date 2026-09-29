@@ -107,6 +107,11 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
       type: new GraphQLList(GraphQLTransactionsImportAccount),
       description: 'List of available accounts for the import',
       resolve: async (importInstance: TransactionsImport) => {
+        const balanceAccountingCategories = importInstance.settings?.balanceAccountingCategories || {};
+        const commonFields = (accountId: string) => ({
+          CollectiveId: importInstance.CollectiveId,
+          BalanceAccountingCategoryId: balanceAccountingCategories[accountId],
+        });
         if (importInstance.type === 'PLAID') {
           return (
             importInstance.data?.plaid?.availableAccounts?.map(account => ({
@@ -115,12 +120,14 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
               subtype: account.subtype,
               type: account.type,
               mask: account.mask,
+              ...commonFields(account.accountId),
             })) || []
           );
         } else if (importInstance.type === 'GOCARDLESS') {
           return importInstance.data?.gocardless?.accountsMetadata?.map(account => ({
             id: account.id,
             name: account.name || 'Unknown Account',
+            ...commonFields(account.id),
           }));
         }
 

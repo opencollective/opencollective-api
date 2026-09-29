@@ -1,8 +1,9 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 
+import MemberRoles from '../../../../../../server/constants/roles';
 import { ExportRequestStatus, ExportRequestTypes } from '../../../../../../server/models/ExportRequest';
-import { fakeCollective, fakeExportRequest, fakeUser } from '../../../../../test-helpers/fake-data';
+import { fakeCollective, fakeExportRequest, fakeMember, fakeUser } from '../../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../../utils';
 
 const exportRequestsCollectionQuery = gql`
@@ -77,6 +78,39 @@ describe('server/graphql/v2/collection/ExportRequestsCollectionQuery', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('You do not have permission');
+    });
+
+    it('allows an accountant of the account to view export requests', async () => {
+      const adminUser = await fakeUser();
+      const accountantUser = await fakeUser();
+      const collective = await fakeCollective({ admin: adminUser });
+      await fakeMember({
+        CollectiveId: collective.id,
+        MemberCollectiveId: accountantUser.CollectiveId,
+        role: MemberRoles.ACCOUNTANT,
+      });
+
+      const exportRequest = await fakeExportRequest({
+        CollectiveId: collective.id,
+        CreatedByUserId: adminUser.id,
+        name: 'Accountant Export',
+        type: ExportRequestTypes.TRANSACTIONS,
+        status: ExportRequestStatus.COMPLETED,
+      });
+
+      const result = await graphqlQueryV2(
+        exportRequestsCollectionQuery,
+        {
+          account: { legacyId: collective.id },
+          limit: 10,
+          offset: 0,
+        },
+        accountantUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.exportRequests.totalCount).to.eq(1);
+      expect(result.data.exportRequests.nodes[0].legacyId).to.eq(exportRequest.id);
     });
 
     it('allows admin of the account to view export requests', async () => {

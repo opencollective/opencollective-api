@@ -4,6 +4,7 @@ import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-sca
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import ExportRequest from '../../../models/ExportRequest';
+import { canUseExportRequestsForAccount } from '../../common/export-requests';
 import { checkScopeForExportRequest } from '../../common/scope-check';
 import { Forbidden, NotFound } from '../../errors';
 import { GraphQLExportRequestStatus } from '../enum/ExportRequestStatus';
@@ -96,7 +97,7 @@ export const GraphQLExportRequest = new GraphQLObjectType({
         }
 
         await assertCanSeeAccount(req, account);
-        if (!req.remoteUser.isAdminOfCollective(account)) {
+        if (!canUseExportRequestsForAccount(req.remoteUser, account)) {
           throw new Forbidden('You do not have permission to view this export request');
         }
 

@@ -12,6 +12,7 @@ import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { findLast, pick, round, takeRightWhile, toString, uniq } from 'lodash';
 import { WhereOptions } from 'sequelize';
 
+import { roles } from '../../../constants';
 import ActivityTypes from '../../../constants/activities';
 import { Service } from '../../../constants/connected-account';
 import expenseStatus from '../../../constants/expense-status';
@@ -70,7 +71,7 @@ import { GraphQLSecurityCheck } from './SecurityCheck';
 import { GraphQLTaxInfo } from './TaxInfo';
 import { GraphQLTransactionsImportRow } from './TransactionsImportRow';
 import { GraphQLTransferWiseRequiredField } from './TransferWise';
-import { GraphQLVirtualCard } from './VirtualCard';
+import { canSeeVirtualCardPrivateInfo, GraphQLVirtualCard } from './VirtualCard';
 
 const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'taxes',
@@ -238,6 +239,20 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
           if (expense.AccountingCategoryId) {
             return req.loaders.AccountingCategory.byId.load(expense.AccountingCategoryId);
           }
+        },
+      },
+      balanceAccountingCategory: {
+        type: GraphQLAccountingCategory,
+        description: 'The balance/clearing accounting category the expense was paid from',
+        async resolve(expense, _, req) {
+          if (!expense.BalanceAccountingCategoryId) {
+            return null;
+          }
+          const collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
+          if (req.remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], collective?.HostCollectiveId)) {
+            return req.loaders.AccountingCategory.byId.load(expense.BalanceAccountingCategoryId);
+          }
+          return null;
         },
       },
       valuesByRole: {
@@ -433,9 +448,16 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
         type: GraphQLVirtualCard,
         description: 'The virtual card used to pay for this charge',
         async resolve(expense, _, req) {
-          if (expense.VirtualCardId) {
-            return req.loaders.VirtualCard.byId.load(expense.VirtualCardId);
+          if (!expense.VirtualCardId) {
+            return null;
           }
+
+          const virtualCard = await req.loaders.VirtualCard.byId.load(expense.VirtualCardId);
+          if (!virtualCard || !(await canSeeVirtualCardPrivateInfo(req, virtualCard))) {
+            return null;
+          }
+
+          return virtualCard;
         },
       },
       attachedFiles: {

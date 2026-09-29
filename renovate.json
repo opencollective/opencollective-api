@@ -1,5 +1,14 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["local>opencollective/renovate-config"],
-  "assigneesSampleSize": 1
+  "assigneesSampleSize": 1,
+  "packageRules": [
+    {
+      "description": "npm follows the version bundled with Node, do not propose a newer major",
+      "matchDepTypes": ["engines"],
+      "matchPackageNames": ["npm"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    }
+  ]
 }

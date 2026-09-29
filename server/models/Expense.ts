@@ -106,6 +106,7 @@ class Expense extends ModelWithPublicId<
   declare public VirtualCardId: ForeignKey<VirtualCard['id']>;
   declare public RecurringExpenseId: ForeignKey<RecurringExpense['id']>;
   declare public AccountingCategoryId: ForeignKey<AccountingCategory['id']>;
+  declare public BalanceAccountingCategoryId: ForeignKey<AccountingCategory['id']>;
   declare public InvoiceFileId: UploadedFile['id'];
 
   declare public payeeLocation: Location;
@@ -172,6 +173,7 @@ class Expense extends ModelWithPublicId<
   declare public attachedFiles?: ExpenseAttachedFile[];
   declare public invoiceFile?: NonAttribute<UploadedFile>;
   declare public accountingCategory?: AccountingCategory;
+  declare public balanceAccountingCategory?: AccountingCategory;
   declare public reference: string;
 
   // Association getters
@@ -838,6 +840,14 @@ Expense.init(
     data: DataTypes.JSONB,
 
     AccountingCategoryId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'AccountingCategories' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+
+    BalanceAccountingCategoryId: {
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'AccountingCategories' },
       onDelete: 'SET NULL',

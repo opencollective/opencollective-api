@@ -3,6 +3,7 @@ import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models, { Op } from '../../../models';
+import { enforceScope } from '../../common/scope-check';
 import { GraphQLContributorCollection } from '../collection/ContributorCollection';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
 import { GraphQLOrderStatus, GraphQLTierAmountType, GraphQLTierInterval, GraphQLTierType } from '../enum';
@@ -57,14 +58,15 @@ export const GraphQLTier = new GraphQLObjectType({
         description: 'Link to a video (YouTube, Vimeo).',
       },
       orders: {
-        description: 'Get all orders',
+        description: 'Get all orders. Scope: "orders".',
         type: new GraphQLNonNull(GraphQLOrderCollection),
         args: {
           limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
           status: { type: new GraphQLList(GraphQLOrderStatus) },
         },
-        async resolve(tier, args) {
+        async resolve(tier, args, req) {
+          enforceScope(req, 'orders');
           const where = { TierId: tier.id };
 
           if (args.status && args.status.length > 0) {

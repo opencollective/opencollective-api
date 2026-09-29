@@ -9,6 +9,8 @@ import { EntityShortIdPrefix } from '../../../server/lib/permalink/entity-map';
 import {
   buildKyselySearchConditions,
   buildSearchConditions,
+  canonicalizeIntegerSearchText,
+  MAX_SEARCH_TERM_LENGTH,
   parseSearchTerm,
   sanitizeSearchTermForILike,
   searchCollectivesByEmail,
@@ -108,6 +110,38 @@ describe('server/lib/search', () => {
       const [results] = await searchCollectivesInDB(publicReq, 'le 47 \\');
       expect(results).to.be.an('array');
       // No error should be thrown; the search completes successfully
+    });
+
+    it('does not throw "tsquery stack too small" for very long search terms', async () => {
+      // Reproduces OC-API-7NC: a user pasted a lengthy Chinese academic text as a search term.
+      // websearch_to_tsquery exceeds its internal stack when given too many tokens.
+      const longTerm =
+        '漢學研究第 33 卷第 3 期 「真本」一詞，乃「手稿」、「原本」之意，不能望文生義，更絕非真假之謂。 ' +
+        '《漢書》「真本」出現於蕭琛宣城太守任上，他在天監元年（502）擔任此職， ' +
+        '「俄遷員外散騎常侍。三年，除太子中庶子、散騎常侍」。因此，蕭琛獲得這 ' +
+        '份文獻的時間，應該在天監元年或二年（503），即梁朝剛建立時。 ' +
+        '在南北長期分裂下，南北雙方在政治、軍事、社會、經濟、學術等層面，' +
+        '都出現各自發展的情況。經過日積月累，南北學術上的差距和特色益形明顯。';
+
+      // Must resolve without error (previously caused "tsquery stack too small")
+      const [results] = await searchCollectivesInDB(publicReq, longTerm);
+      expect(results).to.be.an('array');
+    });
+
+    it(`truncates search terms longer than ${MAX_SEARCH_TERM_LENGTH} characters before querying`, async () => {
+      // Use a single-token term so search stays on the prefix-match path after truncation.
+      // Multi-word terms use websearch_to_tsquery (AND across tokens), which would not match
+      // a name that only contains the leading portion of the query.
+      const uniquePrefix = randStr('searchtrunc-');
+      const searchableName = uniquePrefix + 'x'.repeat(MAX_SEARCH_TERM_LENGTH - uniquePrefix.length);
+      expect(searchableName.length).to.eq(MAX_SEARCH_TERM_LENGTH);
+
+      const collective = await fakeCollective({ name: searchableName });
+      const longTerm = searchableName + 'y'.repeat(500);
+      expect(longTerm.length).to.be.greaterThan(MAX_SEARCH_TERM_LENGTH);
+
+      const [results] = await searchCollectivesInDB(publicReq, longTerm);
+      expect(results.find(c => c.id === collective.id)).to.exist;
     });
 
     describe('Works with punctuation', async () => {
@@ -458,9 +492,19 @@ describe('server/lib/search', () => {
     });
 
     it('detects numbers', () => {
-      expect(parseSearchTerm('42')).to.deep.equal({ type: 'number', term: 42, isFloat: false });
-      expect(parseSearchTerm('42.')).to.deep.equal({ type: 'number', term: 42, isFloat: true });
-      expect(parseSearchTerm('42.64')).to.deep.equal({ type: 'number', term: 42.64, isFloat: true });
+      expect(parseSearchTerm('42')).to.deep.equal({ type: 'number', term: 42, isFloat: false, text: '42' });
+      expect(parseSearchTerm('42.')).to.deep.equal({ type: 'number', term: 42, isFloat: true, text: '42.' });
+      expect(parseSearchTerm('42.64')).to.deep.equal({ type: 'number', term: 42.64, isFloat: true, text: '42.64' });
+    });
+
+    it('preserves the exact decimal text for integers above Number.MAX_SAFE_INTEGER', () => {
+      const parsed = parseSearchTerm('9223372036854775807');
+      expect(parsed).to.deep.equal({
+        type: 'number',
+        term: parseFloat('9223372036854775807'), // parseFloat rounds, which is why `text` matters
+        isFloat: false,
+        text: '9223372036854775807',
+      });
     });
 
     it('detects public ids', () => {
@@ -483,6 +527,23 @@ describe('server/lib/search', () => {
       expect(parseSearchTerm('test-hyphen')).to.deep.equal({ type: 'text', term: 'test-hyphen', words: 2 });
       expect(parseSearchTerm('#4242 not an id')).to.deep.equal({ type: 'text', term: '#4242 not an id', words: 4 });
       expect(parseSearchTerm('@slug not a slug')).to.deep.equal({ type: 'text', term: '@slug not a slug', words: 4 });
+    });
+  });
+
+  describe('canonicalizeIntegerSearchText', () => {
+    it('removes leading zeros', () => {
+      expect(canonicalizeIntegerSearchText('007')).to.eq('7');
+      expect(canonicalizeIntegerSearchText('000123')).to.eq('123');
+      expect(canonicalizeIntegerSearchText('00700')).to.eq('700');
+    });
+
+    it('retains a single zero for zero-like terms', () => {
+      expect(canonicalizeIntegerSearchText('0')).to.eq('0');
+      expect(canonicalizeIntegerSearchText('000')).to.eq('0');
+    });
+
+    it('leaves terms without leading zeros unchanged', () => {
+      expect(canonicalizeIntegerSearchText('9223372036854775807')).to.eq('9223372036854775807');
     });
   });
 
@@ -509,6 +570,20 @@ describe('server/lib/search', () => {
 
     it('build conditions for IDs', () => {
       expect(testBuildSearchConditions('#4242')).to.deep.eq([{ id: 4242 }, { '$fromCollective.id$': 4242 }]);
+    });
+
+    it('builds dataFields conditions from the exact decimal text for large integers', () => {
+      const config = { ...TEST_FIELDS_CONFIGURATION, dataFields: ['data.transfer.id'] };
+      const conditions = buildSearchConditions('9223372036854775807', config);
+      expect(conditions).to.deep.include({ 'data.transfer.id': '9223372036854775807' });
+      expect(conditions).to.not.deep.include({ 'data.transfer.id': '9223372036854776000' });
+    });
+
+    it('canonicalizes leading zeros for numeric dataFields searches', () => {
+      const config = { ...TEST_FIELDS_CONFIGURATION, dataFields: ['data.transfer.id'] };
+      const conditions = buildSearchConditions('007', config);
+      expect(conditions).to.deep.include({ 'data.transfer.id': '7' });
+      expect(conditions).to.not.deep.include({ 'data.transfer.id': '007' });
     });
 
     it('build conditions for slugs', () => {
@@ -807,6 +882,22 @@ describe('server/lib/search', () => {
       expect(compiledSql).to.include('"data"."reference"');
       expect(compiledSql).to.not.include('ilike');
       expect(parameters).to.include('ref_abc');
+    });
+
+    it('builds dataFields conditions from the exact decimal text for large integers (Kysely)', () => {
+      const { parameters } = compileWithSearch('9223372036854775807', {
+        dataFields: ['data.transfer.id'],
+      });
+      expect(parameters).to.include('9223372036854775807');
+      expect(parameters).to.not.include('9223372036854776000');
+    });
+
+    it('canonicalizes leading zeros for numeric dataFields searches (Kysely)', () => {
+      const { parameters } = compileWithSearch('007', {
+        dataFields: ['data.transfer.id'],
+      });
+      expect(parameters).to.include('7');
+      expect(parameters).to.not.include('007');
     });
 
     it('falls through to inclusive ILIKE when email type has empty emailFields', () => {

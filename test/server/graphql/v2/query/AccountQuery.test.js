@@ -650,6 +650,27 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       expect(resultRandomUser.data.account.emails).to.be.null;
       expect(resultAdmin.data.account.emails).to.deep.eq([adminUser.email, adminUser2.email]);
     });
+
+    it('does not return emails for OAuth tokens without the email scope', async () => {
+      const user = await fakeUser();
+      const tokenWithoutEmail = await fakeUserToken({ user, scope: ['account'] });
+      const tokenWithEmail = await fakeUserToken({ user, scope: ['account', 'email'] });
+      const emailsQuery = gql`
+        query AccountEmails($slug: String!) {
+          account(slug: $slug) {
+            emails
+          }
+        }
+      `;
+
+      const denied = await oAuthGraphqlQueryV2(emailsQuery, { slug: user.collective.slug }, tokenWithoutEmail);
+      const allowed = await oAuthGraphqlQueryV2(emailsQuery, { slug: user.collective.slug }, tokenWithEmail);
+
+      expect(denied.errors).to.not.exist;
+      expect(denied.data.account.emails).to.be.null;
+      expect(allowed.errors).to.not.exist;
+      expect(allowed.data.account.emails).to.deep.eq([user.email]);
+    });
   });
 
   describe('supportedExpenseTypes', () => {

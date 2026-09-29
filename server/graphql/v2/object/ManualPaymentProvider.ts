@@ -6,6 +6,8 @@ import { ManualPaymentProviderTypes } from '../../../models/ManualPaymentProvide
 import { GraphQLManualPaymentProviderType } from '../enum/ManualPaymentProviderType';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
+import { GraphQLAccountingCategory } from './AccountingCategory';
+
 export const GraphQLManualPaymentProvider = new GraphQLObjectType({
   name: 'ManualPaymentProvider',
   description: 'A manual payment provider configured by a host for contributors to use',
@@ -46,6 +48,16 @@ export const GraphQLManualPaymentProvider = new GraphQLObjectType({
       description: 'Bank account details for BANK_TRANSFER type providers',
       resolve: provider =>
         provider.type === ManualPaymentProviderTypes.BANK_TRANSFER ? provider.data?.accountDetails : null,
+    },
+    balanceAccountingCategory: {
+      type: GraphQLAccountingCategory,
+      description: 'The balance/clearing accounting category used to attribute payments through this provider',
+      resolve: (provider, _, req) => {
+        if (!provider.data?.BalanceAccountingCategoryId || !req.remoteUser?.isAdmin(provider.CollectiveId)) {
+          return null;
+        }
+        return req.loaders.AccountingCategory.byId.load(provider.data.BalanceAccountingCategoryId);
+      },
     },
     isArchived: {
       type: new GraphQLNonNull(GraphQLBoolean),

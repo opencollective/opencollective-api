@@ -50,6 +50,8 @@ export const TransactionsImportTypes = ['CSV', 'MANUAL', 'PLAID', 'GOCARDLESS'] 
 const settingsSchema = z
   .object({
     assignments: z.record(z.string(), z.array(z.number())).optional(),
+    /** Balance/clearing accounting category per bank sub-account, keyed like `assignments` (accountId) */
+    balanceAccountingCategories: z.record(z.string(), z.number()).optional(),
     csvConfig: z.record(z.string(), z.unknown()).optional(),
   })
   .optional();

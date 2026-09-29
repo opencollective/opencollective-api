@@ -1,0 +1,26 @@
+name: Setup project
+description: Installs the right node version and dependencies
+inputs:
+  CACHE_VERSION:
+    description: The cache version, to manually invalidate the dependencies cache
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup node
+      uses: actions/setup-node@v7
+      with:
+        node-version-file: 'package.json'
+        cache: 'npm'
+
+    - name: Restore node_modules
+      uses: actions/cache@v6
+      id: node-modules
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ inputs.CACHE_VERSION }}
+
+    - name: Install dependencies
+      shell: bash
+      if: steps.node-modules.outputs.cache-hit != 'true'
+      run: npm ci --prefer-offline --no-audit --no-fund

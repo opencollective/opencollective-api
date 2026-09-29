@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import ExportRequest from '../../../models/ExportRequest';
+import { canUseExportRequestsForAccount } from '../../common/export-requests';
 import { checkRemoteUserCanUseExportRequests } from '../../common/scope-check';
 import { Forbidden, NotFound } from '../../errors';
 import {
@@ -43,7 +44,7 @@ const ExportRequestQuery = {
     }
 
     await assertCanSeeAccount(req, account);
-    if (!req.remoteUser.isAdminOfCollective(account)) {
+    if (!canUseExportRequestsForAccount(req.remoteUser, account)) {
       throw new Forbidden('You do not have permission to view this export request');
     }
 

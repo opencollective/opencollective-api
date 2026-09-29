@@ -1,8 +1,8 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
-import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
-import type { FileUpload } from 'graphql-upload/Upload.js';
+import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
+import type { FileUpload } from 'graphql-upload/processRequest.mjs';
 import { pick } from 'lodash';
 
 import ActivityTypes from '../../../constants/activities';

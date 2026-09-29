@@ -5,6 +5,7 @@ import { InferCreationAttributes } from 'sequelize';
 import { CollectiveType } from '../../constants/collectives';
 import status from '../../constants/order-status';
 import roles from '../../constants/roles';
+import { getBalanceAccountingCategoryIdForImportRow } from '../../lib/accounting/categorization/balance-accounts';
 import { purgeCacheForCollective } from '../../lib/cache';
 import { roundCentsAmount } from '../../lib/currency';
 import { executeOrder } from '../../lib/payments';
@@ -17,6 +18,7 @@ import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 import { getOrderTaxInfoFromTaxInput } from '../v1/mutations/orders';
 import { TaxInput } from '../v2/input/TaxInput';
 
+import { checkIsValidBalanceAccountingCategory } from './balance-accounting-categories';
 import { checkScope } from './scope-check';
 
 type AddFundsInput = {
@@ -33,6 +35,7 @@ type AddFundsInput = {
   invoiceTemplate: string;
   tax: TaxInput;
   accountingCategory?: AccountingCategory;
+  balanceAccountingCategory?: AccountingCategory;
   transactionsImportRow?: TransactionsImportRow;
 };
 
@@ -89,6 +92,12 @@ export const checkCanUseAccountingCategoryForOrder = (
   }
 };
 
+export const assertTierBelongsToAccount = (tier: Tier | null | undefined, account: Collective): void => {
+  if (tier && tier.CollectiveId !== account.id) {
+    throw new ValidationFailed(`Tier #${tier.id} is not part of collective #${account.id}`);
+  }
+};
+
 export const canAddFundsFromAccount = (fromCollective: Collective, host: Collective, remoteUser: User) => {
   if (!remoteUser) {
     return false;
@@ -136,11 +145,12 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     );
   }
 
-  if (order.tier && order.tier.CollectiveId !== order.collective.id) {
-    throw new Error(`Tier #${order.tier.id} is not part of collective #${order.collective.id}`);
-  } else if (order.accountingCategory) {
+  assertTierBelongsToAccount(order.tier, order.collective);
+  if (order.accountingCategory) {
     checkCanUseAccountingCategoryForOrder(order.accountingCategory, host, collective);
   }
+
+  checkIsValidBalanceAccountingCategory(order.balanceAccountingCategory, host);
 
   const orderData: Partial<InferCreationAttributes<Order>> = {
     CreatedByUserId: remoteUser.id,
@@ -152,6 +162,7 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     status: status.NEW,
     TierId: order.tier?.id || null,
     AccountingCategoryId: order.accountingCategory?.id || null,
+    BalanceAccountingCategoryId: order.balanceAccountingCategory?.id || null,
     data: {
       hostFeePercent: order.hostFeePercent,
       paymentProcessorFee: order.paymentProcessorFee,
@@ -191,6 +202,14 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
       throw new NotFound('TransactionsImport not found');
     } else if (transactionsImport.CollectiveId !== host.id) {
       throw new ValidationFailed('This import does not belong to the host');
+    }
+
+    // Default the balance accounting category from the bank sub-account the row belongs to
+    if (!orderData.BalanceAccountingCategoryId) {
+      orderData.BalanceAccountingCategoryId = getBalanceAccountingCategoryIdForImportRow(
+        order.transactionsImportRow,
+        transactionsImport,
+      );
     }
   }
 
@@ -285,14 +304,14 @@ export const canEdit = async (req: express.Request, order: Order): Promise<boole
 };
 
 export const canComment = async (req: express.Request, order: Order): Promise<boolean> => {
-  return isOrderHostAdmin(req, order);
+  return validateOrderScope(req) && isOrderHostAdmin(req, order);
 };
 
 export const canSeeOrderPrivateActivities = async (req: express.Request, order: Order): Promise<boolean> => {
-  return isOrderHostAdminOrAccountant(req, order);
+  return validateOrderScope(req) && isOrderHostAdminOrAccountant(req, order);
 };
 
-const validateOrderScope = (req: express.Request, options: { throw?: boolean } = { throw: false }) => {
+export const validateOrderScope = (req: express.Request, options: { throw?: boolean } = { throw: false }) => {
   if (!checkScope(req, 'orders')) {
     if (options.throw) {
       throw new Forbidden('You do not have the necessary scope to perform this action');

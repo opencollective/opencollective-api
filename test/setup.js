@@ -49,7 +49,7 @@ export const mochaHooks = {
     } catch {
       if (process.env.OC_ENV !== 'ci') {
         console.warn(
-          'Unable to initialize test S3 buckets. This is expected if you are running the tests locally without touching uploaded files tests. Otherwise, start minio (see docs/s3.md).',
+          'Unable to initialize test S3 buckets. This is expected if you are running the tests locally without touching uploaded files tests. Otherwise, start the local S3 server (see docs/s3.md).',
         );
       }
     }

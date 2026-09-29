@@ -3,7 +3,7 @@ import '../../server/env';
 import status from '../../server/constants/order-status';
 import logger from '../../server/lib/logger';
 import { sendReminderPendingOrderEmail } from '../../server/lib/payments';
-import models, { Op } from '../../server/models';
+import models, { Op, sequelize } from '../../server/models';
 import { runCronJob } from '../utils';
 
 const REMINDER_DAYS = 4;
@@ -16,10 +16,18 @@ const fetchPendingOrders = async date => {
 
   const orders = await models.Order.findAll({
     where: {
-      status: status.PENDING,
-      deletedAt: null,
-      PaymentMethodId: null,
-      createdAt: { [Op.gte]: dateFrom, [Op.lte]: dateTo },
+      [Op.and]: [
+        {
+          status: status.PENDING,
+          deletedAt: null,
+          PaymentMethodId: null,
+          createdAt: { [Op.gte]: dateFrom, [Op.lte]: dateTo },
+        },
+        // Expected funds created through `createPendingOrder` (data.isPendingContribution)
+        // are already tracked by the host and are not manual bank transfers awaiting
+        // confirmation, so they must not receive the pending order reminder.
+        sequelize.literal(`COALESCE("Order"."data"->>'isPendingContribution', 'false') != 'true'`),
+      ],
     },
     include: [
       { model: models.Collective, as: 'fromCollective' },
@@ -31,7 +39,7 @@ const fetchPendingOrders = async date => {
   return orders;
 };
 
-const run = async () => {
+export const run = async () => {
   const reminderDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
   reminderDate.setDate(reminderDate.getDate() - REMINDER_DAYS);
 

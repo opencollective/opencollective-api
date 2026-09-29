@@ -20,7 +20,7 @@ import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { buildKyselySearchConditions, buildSearchConditions, parseSearchTerm } from '../../../../lib/sql-search';
 import models, { Collective, ManualPaymentProvider, Op, PaymentMethod, Tier, User } from '../../../../models';
-import { checkScope } from '../../../common/scope-check';
+import { checkScope, enforceScope } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../../errors';
 import { GraphQLOrderCollection } from '../../collection/OrderCollection';
 import { GraphQLAccountOrdersFilter, GraphQLAccountOrdersFilterValues } from '../../enum/AccountOrdersFilter';
@@ -52,7 +52,7 @@ import {
   GraphQLPaymentMethodReferenceInput,
 } from '../../input/PaymentMethodReferenceInput';
 import { getDatabaseIdFromTierReference, GraphQLTierReferenceInput } from '../../input/TierReferenceInput';
-import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import { CollectionArgs, collectionLimitArg, CollectionReturnType } from '../../interface/Collection';
 import { UncategorizedValue } from '../../object/AccountingCategory';
 
 /**
@@ -153,7 +153,7 @@ const getCollectivesCondition = (
 };
 
 export const OrdersCollectionArgs = {
-  limit: { ...CollectionArgs.limit, defaultValue: 100 },
+  limit: collectionLimitArg(100),
   offset: CollectionArgs.offset,
   accountingCategory: {
     type: new GraphQLList(GraphQLString),
@@ -354,6 +354,8 @@ interface OrdersCollectionArgsType {
 }
 
 export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, req: express.Request) => {
+  enforceScope(req, 'orders');
+
   if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
     throw new Error('Cannot fetch more than 1,000 orders at the same time, please adjust the limit');
   }

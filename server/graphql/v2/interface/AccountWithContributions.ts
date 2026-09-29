@@ -22,7 +22,7 @@ import { GraphQLContributorCollection } from '../collection/ContributorCollectio
 import { GraphQLTierCollection } from '../collection/TierCollection';
 import { GraphQLAccountType, GraphQLMemberRole, GraphQLTierType } from '../enum';
 
-import { CollectionArgs } from './Collection';
+import { CollectionArgs, collectionLimitArg } from './Collection';
 
 export const AccountWithContributionsFields = {
   totalFinancialContributors: {
@@ -53,11 +53,7 @@ export const AccountWithContributionsFields = {
     type: new GraphQLNonNull(GraphQLTierCollection),
     args: {
       ...CollectionArgs,
-      limit: {
-        type: new GraphQLNonNull(GraphQLInt),
-        description: 'The number of results to fetch',
-        defaultValue: 100,
-      },
+      limit: collectionLimitArg(100),
       onlyValid: {
         type: GraphQLBoolean,
         description:

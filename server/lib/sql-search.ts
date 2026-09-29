@@ -162,6 +162,15 @@ const trimSearchTerm = term => {
 };
 
 /**
+ * Removes leading zeros from the decimal text of an integer search term. JSONB `dataFields` are
+ * compared as text, so a user searching `007` must still match a stored value of `7`. Zero-like
+ * terms keep a single `0` instead of collapsing to an empty string.
+ */
+export const canonicalizeIntegerSearchText = (text: string): string => {
+  return text.replace(/^0+(?=\d)/, '');
+};
+
+/**
  * Sanitize a search string to be used in a SQL query
  *
  * Examples: "   crème     brulée => "creme brulee"
@@ -180,6 +189,10 @@ export const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
+// PostgreSQL's tsquery has a fixed internal stack size. Long search terms with many
+// tokens can exceed it and throw "tsquery stack too small". Cap the term to a safe length.
+export const MAX_SEARCH_TERM_LENGTH = 150;
+
 export const getSearchTermSQLConditions = (term: string, collectiveTable?: string, isRoot = false) => {
   let tsQueryFunc, tsQueryArg;
   let sqlConditions = '';
@@ -187,7 +200,7 @@ export const getSearchTermSQLConditions = (term: string, collectiveTable?: strin
   let sanitizedTermNoWhitespaces = '';
   let sanitizedTermForILike = '';
   let sanitizedTermNoWhitespacesForILike = '';
-  const trimmedTerm = trimSearchTerm(term);
+  const trimmedTerm = trimSearchTerm(term)?.slice(0, MAX_SEARCH_TERM_LENGTH);
   const getField = field => (collectiveTable ? `${collectiveTable}."${field}"` : `"${field}"`);
   if (trimmedTerm?.length > 0) {
     // Cleanup term
@@ -660,6 +673,11 @@ export const parseSearchTerm = (
       type: 'number';
       term: number;
       isFloat?: boolean;
+      /**
+       * Original decimal text. `term` is coerced through `parseFloat`, which rounds integers above
+       * `Number.MAX_SAFE_INTEGER`; JSONB data fields must be compared using the exact digits.
+       */
+      text: string;
     }
   | {
       type: 'publicId';
@@ -680,7 +698,7 @@ export const parseSearchTerm = (
     // Searching for integer IDs (e.g. `#123`)
     return { type: 'id', term: parseInt(searchTerm.replace(/^#/, '')) };
   } else if (searchTerm.match(/^\d+\.?\d*$/)) {
-    return { type: 'number', term: parseFloat(searchTerm), isFloat: searchTerm.includes('.') };
+    return { type: 'number', term: parseFloat(searchTerm), isFloat: searchTerm.includes('.'), text: searchTerm };
   } else if (isAnyEntityPublicId(searchTerm)) {
     return { type: 'publicId', term: searchTerm, prefix: getEntityShortIdPrefix(searchTerm) };
   } else {
@@ -783,7 +801,12 @@ export const buildSearchConditions = (
       (parsedTerm.type === 'number' && !parsedTerm.isFloat) ||
       parsedTerm.type === 'publicId')
   ) {
-    conditions.push(...dataFields.map(field => ({ [field]: toString(parsedTerm.term) })));
+    // For numeric terms, compare the original decimal text rather than the `parseFloat`-rounded
+    // value: Wise/external identifiers may exceed `Number.MAX_SAFE_INTEGER`. Leading zeros are
+    // canonicalized so `007` still matches a stored `7`.
+    const dataTerm =
+      parsedTerm.type === 'number' ? canonicalizeIntegerSearchText(parsedTerm.text) : toString(parsedTerm.term);
+    conditions.push(...dataFields.map(field => ({ [field]: dataTerm })));
   }
 
   // Conditions for numbers (ID, amount)
@@ -894,7 +917,12 @@ export const buildKyselySearchConditions =
         ((parsedTerm.type === 'text' && parsedTerm.words === 1) ||
           (parsedTerm.type === 'number' && !parsedTerm.isFloat))
       ) {
-        dataFields.forEach(field => conditions.push(eb(field, '=', toString(parsedTerm.term))));
+        // For numeric terms, compare the original decimal text rather than the `parseFloat`-rounded
+        // value: Wise/external identifiers may exceed `Number.MAX_SAFE_INTEGER`. Leading zeros are
+        // canonicalized so `007` still matches a stored `7`.
+        const dataTerm =
+          parsedTerm.type === 'number' ? canonicalizeIntegerSearchText(parsedTerm.text) : toString(parsedTerm.term);
+        dataFields.forEach(field => conditions.push(eb(field, '=', dataTerm)));
       }
 
       // Bare numbers (not #id): match integer id columns and/or amount columns (stored in cents).

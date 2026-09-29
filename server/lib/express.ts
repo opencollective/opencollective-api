@@ -1,4 +1,5 @@
-import cloudflareIps from 'cloudflare-ip/ips.json';
+import http from 'http';
+
 import config from 'config';
 import { RedisStore } from 'connect-redis';
 import cookieParser from 'cookie-parser';
@@ -14,6 +15,7 @@ import { RedisClientType } from 'redis';
 import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import { loadersMiddleware } from '../graphql/loaders';
 
+import cloudflareIps from './cloudflare-ips.json';
 import hyperwatch from './hyperwatch';
 import logger from './logger';
 import { HandlerType, reportMessageToSentry } from './sentry';
@@ -21,7 +23,7 @@ import { parseToBoolean } from './utils';
 
 const CANONICAL_HOSTNAME = new URL(config.host.api).hostname;
 
-export default function setupExpress(app: express.Application, redisClient?: RedisClientType) {
+export default function setupExpress(app: express.Application, redisClient?: RedisClientType, server?: http.Server) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
   // Keep Express 4 query parsing behavior (extended) for compatibility in v5.
   app.set('query parser', 'extended');
@@ -85,7 +87,7 @@ export default function setupExpress(app: express.Application, redisClient?: Red
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // Hyperwatch
-  hyperwatch(app);
+  hyperwatch(app, server);
 
   // Cors.
   app.use(cors());

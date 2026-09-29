@@ -58,7 +58,7 @@ import {
   GraphQLPayoutMethodReferenceInput,
 } from '../../input/PayoutMethodReferenceInput';
 import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
-import { CollectionArgs } from '../../interface/Collection';
+import { CollectionArgs, collectionLimitArg } from '../../interface/Collection';
 
 const oneDayInSeconds = 60 * 60 * 24;
 
@@ -72,7 +72,7 @@ const LEDGER_ORDERED_TRANSACTIONS_FIELDS = {
 const { PLATFORM_TIP, HOST_FEE_SHARE } = TransactionKind;
 
 export const TransactionsCollectionArgs = {
-  limit: { ...CollectionArgs.limit, defaultValue: 100 },
+  limit: collectionLimitArg(100),
   offset: CollectionArgs.offset,
   type: {
     type: GraphQLTransactionType,

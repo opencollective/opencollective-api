@@ -74,9 +74,14 @@ describe('server/models/Order', () => {
       const lockSpy = sandbox.spy(order, 'lock');
 
       let firstCallResult, secondCallResult;
+      let markFirstLockAcquired;
+      const firstLockAcquired = new Promise(resolve => {
+        markFirstLockAcquired = resolve;
+      });
       const firstCall = order.lock(
         () =>
           new Promise(resolve => {
+            markFirstLockAcquired();
             setTimeout(() => {
               resolve();
               firstCallResult = 1;
@@ -85,6 +90,9 @@ describe('server/models/Order', () => {
       );
       expect(firstCallResult).to.be.undefined;
 
+      // Only start the second call once the first one holds the lock, otherwise the two `SELECT ... FOR UPDATE`
+      // race for the row and the first call (which has no retries) can be the one that finds the order locked
+      await firstLockAcquired;
       const secondCall = order.lock(
         () => {
           secondCallResult = 2;

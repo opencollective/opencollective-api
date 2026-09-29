@@ -29,6 +29,7 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
     canEdit: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the expense',
+      deprecationReason: '2026-09-15: Use the granular permissions instead.',
       async resolve(expense, _, req: express.Request): Promise<boolean> {
         return ExpenseLib.canEditExpense(req, expense);
       },

@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import config from 'config';
-import crypto from 'crypto-js';
 import gql from 'fake-tag';
 import { defaultsDeep, omit, pick, round, sumBy } from 'lodash';
 import { generateSecret, generateSync } from 'otplib';
@@ -14,6 +13,7 @@ import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/ide
 import * as LibCurrency from '../../../../../server/lib/currency';
 import { getFxRate } from '../../../../../server/lib/currency';
 import emailLib from '../../../../../server/lib/email';
+import { crypto } from '../../../../../server/lib/encryption';
 import {
   TwoFactorAuthenticationHeader,
   TwoFactorMethod,
@@ -49,9 +49,6 @@ import {
   snapshotTransactions,
   waitForCondition,
 } from '../../../../utils';
-
-const SECRET_KEY = config.dbEncryption.secretKey;
-const CIPHER = config.dbEncryption.cipher;
 
 const SNAPSHOT_COLUMNS = [
   'type',
@@ -693,7 +690,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
 
       it('record a breakdown of the values by role (when editing multiple fields)', async () => {
         const hostAdmin = await fakeUser();
-        const expense = await fakeExpense();
+        const expense = await fakeExpense({ status: 'APPROVED' });
         await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
         await expense.collective.host.update({ plan: 'start-plan-2021' });
 
@@ -2978,7 +2975,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
 
     it('Pays multiple expenses - 2FA is asked for the first time and after the limit is exceeded', async () => {
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       await UserTwoFactorMethod.create({
         UserId: hostAdmin.id,
         method: TwoFactorMethod.TOTP,
@@ -3048,7 +3045,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
       });
 
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       await UserTwoFactorMethod.create({
         UserId: hostAdmin.id,
         method: TwoFactorMethod.TOTP,

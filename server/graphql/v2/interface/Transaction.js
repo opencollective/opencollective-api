@@ -27,6 +27,7 @@ import { GraphQLRefundKind } from '../enum/RefundKind';
 import { GraphQLTransactionKind } from '../enum/TransactionKind';
 import { GraphQLTransactionType } from '../enum/TransactionType';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
+import { GraphQLAccountingCategory } from '../object/AccountingCategory';
 import { GraphQLAmount } from '../object/Amount';
 import { GraphQLExpense } from '../object/Expense';
 import { GraphQLOrder } from '../object/Order';
@@ -55,6 +56,18 @@ async function getPaymentMethodForTransaction(transaction, req) {
     return null;
   }
 }
+
+/**
+ * Whether the user can see the private profile details (legal name, location, ...) of the
+ * accounts involved in a transaction. Host admins and accountants are allowed, matching the
+ * behaviour of `Order.fromAccount`.
+ */
+const canSeeTransactionCounterpartyPrivateDetails = (remoteUser, hostCollectiveId) => {
+  if (!remoteUser || !hostCollectiveId) {
+    return false;
+  }
+  return remoteUser.isAdmin(hostCollectiveId) || remoteUser.hasRole(roles.ACCOUNTANT, hostCollectiveId);
+};
 
 const GraphQLTransactionPermissions = new GraphQLObjectType({
   name: 'TransactionPermissions',
@@ -258,6 +271,11 @@ const transactionFieldsDefinition = () => ({
   },
   order: {
     type: GraphQLOrder,
+  },
+  balanceAccountingCategory: {
+    type: GraphQLAccountingCategory,
+    description:
+      'The balance/clearing accounting category the funds moved through, inherited from the related order or expense (only visible to host admins and accountants)',
   },
   isRefunded: {
     type: GraphQLBoolean,
@@ -620,7 +638,7 @@ export const TransactionFields = () => {
       type: GraphQLAccount,
       description: 'The account on the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)',
       resolve(transaction, _, req) {
-        if (req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
+        if (canSeeTransactionCounterpartyPrivateDetails(req.remoteUser, transaction.HostCollectiveId)) {
           allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, transaction.CollectiveId);
           allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, transaction.CollectiveId);
         }
@@ -632,7 +650,7 @@ export const TransactionFields = () => {
       type: GraphQLAccount,
       description: 'The account on the opposite side of the transaction (CREDIT -> sender, DEBIT -> recipient)',
       resolve(transaction, _, req) {
-        if (req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
+        if (canSeeTransactionCounterpartyPrivateDetails(req.remoteUser, transaction.HostCollectiveId)) {
           allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, transaction.FromCollectiveId);
           allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, transaction.FromCollectiveId);
         }
@@ -678,6 +696,31 @@ export const TransactionFields = () => {
       type: GraphQLBoolean,
       resolve(transaction) {
         return transaction.isRefund !== true && transaction.RefundTransactionId !== null;
+      },
+    },
+    balanceAccountingCategory: {
+      type: GraphQLAccountingCategory,
+      description:
+        'The balance/clearing accounting category the funds moved through, inherited from the related order or expense (only visible to host admins and accountants)',
+      async resolve(transaction, _, req) {
+        if (!req.remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], transaction.HostCollectiveId)) {
+          return null;
+        }
+
+        let balanceAccountingCategoryId = null;
+        if (transaction.OrderId) {
+          const order = transaction.Order || (await req.loaders.Order.byId.load(transaction.OrderId));
+          balanceAccountingCategoryId = order?.BalanceAccountingCategoryId;
+        } else if (transaction.ExpenseId) {
+          const expense = await req.loaders.Expense.byId.load(transaction.ExpenseId);
+          balanceAccountingCategoryId = expense?.BalanceAccountingCategoryId;
+        }
+
+        if (!balanceAccountingCategoryId) {
+          return null;
+        }
+
+        return req.loaders.AccountingCategory.byId.load(balanceAccountingCategoryId);
       },
     },
     paymentMethod: {

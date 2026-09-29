@@ -20,6 +20,7 @@ import PlatformSubscription, {
   BillingPeriod,
   UtilizationType,
 } from '../../../models/PlatformSubscription';
+import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
 
 import { GraphQLAmount } from './Amount';
 import { GraphQLExpense } from './Expense';
@@ -106,7 +107,8 @@ export const GraphQLPlatformBilling = new GraphQLObjectType({
     },
     expenses: {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpense))),
-      resolve(billing: Billing) {
+      resolve(billing: Billing, _, req) {
+        checkRemoteUserCanUseExpenses(req);
         return Expense.findAll({
           where: {
             CollectiveId: billing.collectiveId,

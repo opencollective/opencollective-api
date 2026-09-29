@@ -81,8 +81,30 @@ Sentry.init({
       return samplingContext.inheritOrSampleWith(TRACES_SAMPLE_RATE);
     }
   },
-  // Relative to tracesSampler
-  profilesSampleRate: PROFILES_SAMPLE_RATE,
+  // Sentry 11 defaults to span streaming, which turns `beforeSendTransaction` (used above to redact request data)
+  // into a no-op. Keep the transaction-based model until that redaction is moved to `beforeSendSpan`.
+  traceLifecycle: 'static',
+  // Sentry 11 collects request/response bodies, cookies, unscrubbed headers, DB query data, etc. by default.
+  // This explicitly keeps the Sentry 10 baseline, see:
+  // https://github.com/getsentry/sentry-javascript/blob/11.0.0/MIGRATION.md#senddefaultpii-is-replaced-by-datacollection
+  dataCollection: {
+    userInfo: false,
+    cookies: false,
+    httpHeaders: {
+      request: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+      response: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+    },
+    httpBodies: [],
+    urlQueryParams: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+    genAI: { inputs: false, outputs: false },
+    databaseQueryData: false,
+    queues: false,
+    graphQL: { document: false, variables: false },
+  },
+  // Sentry 11 replaced the per-transaction `profilesSampleRate` with session-based profiling: the rate is evaluated
+  // once per process, and `profileLifecycle: 'trace'` then profiles every sampled trace of the sampled processes.
+  profileSessionSampleRate: PROFILES_SAMPLE_RATE,
+  profileLifecycle: 'trace',
   release: process.env.HEROKU_SLUG_COMMIT,
   dist: config.env,
 });

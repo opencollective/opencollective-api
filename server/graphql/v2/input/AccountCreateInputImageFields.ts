@@ -1,4 +1,4 @@
-import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
+import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
 
 import { UploadedFile } from '../../../models';
 
