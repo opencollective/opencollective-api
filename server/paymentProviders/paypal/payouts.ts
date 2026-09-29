@@ -93,7 +93,9 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
       const updateExpenses = expenses.map(async e => {
         await e.update({ data: { ...e.data, ...response.batch_header }, status: status.PROCESSING });
         const user = await models.User.findByPk(e.lastEditedById);
-        await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user);
+        await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user, {
+          payoutResponse: response.batch_header,
+        });
         return e;
       });
       return Promise.all(updateExpenses);
