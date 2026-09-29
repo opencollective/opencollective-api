@@ -25,7 +25,7 @@ import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import models, { Collective } from '../../models';
 import Expense from '../../models/Expense';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
-import { PayoutItemDetails } from '../../types/paypal';
+import { PayoutError, PayoutItemDetails, PayoutRequestResult } from '../../types/paypal';
 
 const PROVIDER_NAME = Service.PAYPAL;
 
@@ -87,32 +87,9 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
     items,
   };
 
+  let response: PayoutRequestResult | PayoutError;
   try {
-    const response = await paypal.executePayouts(connectedAccount, requestBody);
-    if ('batch_header' in response && response.batch_header.payout_batch_id) {
-      const updateExpenses = expenses.map(async e => {
-        await e.update({ data: { ...e.data, ...response.batch_header }, status: status.PROCESSING });
-        const user = await models.User.findByPk(e.lastEditedById);
-        await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user, {
-          payoutResponse: response.batch_header,
-        });
-        return e;
-      });
-      return Promise.all(updateExpenses);
-    } else if ('name' in response) {
-      const error = response;
-      reportErrorToSentry(error, { feature: FEATURE.PAYPAL_PAYOUTS });
-      const updateExpenses = expenses.map(async e => {
-        await e.update({ status: status.ERROR, data: { ...e.data, error } });
-        const user = await models.User.findByPk(e.lastEditedById);
-        await e.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
-          error,
-          isSystem: true,
-        });
-        return e;
-      });
-      return Promise.all(updateExpenses);
-    }
+    response = await paypal.executePayouts(connectedAccount, requestBody);
   } catch (error) {
     reportErrorToSentry(error, { feature: FEATURE.PAYPAL_PAYOUTS });
     const updateExpenses = expenses.map(async e => {
@@ -135,6 +112,33 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
       return e;
     });
     return Promise.all(updateExpenses);
+  }
+
+  if ('batch_header' in response && response.batch_header.payout_batch_id) {
+    const updateExpenses = expenses.map(async e => {
+      await e.update({ data: { ...e.data, ...response.batch_header }, status: status.PROCESSING });
+      const user = await models.User.findByPk(e.lastEditedById);
+      await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user, {
+        payoutResponse: response.batch_header,
+      });
+      return e;
+    });
+    return Promise.all(updateExpenses);
+  } else if ('name' in response) {
+    const error = response;
+    reportErrorToSentry(error, { feature: FEATURE.PAYPAL_PAYOUTS });
+    const updateExpenses = expenses.map(async e => {
+      await e.update({ status: status.ERROR, data: { ...e.data, error } });
+      const user = await models.User.findByPk(e.lastEditedById);
+      await e.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
+        error,
+        isSystem: true,
+      });
+      return e;
+    });
+    return Promise.all(updateExpenses);
+  } else {
+    throw new Error('Unexpected response from PayPal API');
   }
 };
 
