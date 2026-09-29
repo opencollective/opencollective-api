@@ -12,6 +12,13 @@ import TierType from '../../constants/tiers';
 import logger from '../../lib/logger';
 import { createRefundTransaction } from '../../lib/payments';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
+import {
+  mapErrorToType,
+  MetricEvent,
+  MetricFlow,
+  MetricProvider,
+  recordPaymentOutcome,
+} from '../../lib/sentry/metrics';
 import models, { Collective } from '../../models';
 import Order from '../../models/Order';
 import PaymentMethod from '../../models/PaymentMethod';
@@ -302,6 +309,16 @@ export const setupPaypalSubscriptionForOrder = async (order: Order, paymentMetho
     const error = new Error('Failed to activate PayPal subscription');
     error['rootException'] = e;
     order.update({ status: ORDER_STATUS.ERROR });
+
+    // Terminal failure of the payment attempt (the order lands in ERROR here)
+    recordPaymentOutcome({
+      provider: MetricProvider.PAYPAL,
+      flow: MetricFlow.CONTRIBUTION,
+      method: paymentMethod.type,
+      outcome: MetricEvent.FAILED,
+      errorType: mapErrorToType(e),
+    });
+
     throw error;
   }
 

@@ -11,6 +11,14 @@ import roles from '../constants/roles';
 import models from '../models';
 
 import { notify } from './notifications/email';
+import {
+  mapErrorToType,
+  MetricEvent,
+  MetricFlow,
+  MetricProvider,
+  paymentServiceToMetricProvider,
+  recordPaymentOutcome,
+} from './sentry/metrics';
 import { FEATURE } from './allowed-features';
 import emailLib from './email';
 import logger from './logger';
@@ -133,7 +141,20 @@ export async function processOrderWithSubscription(order, options) {
         orderProcessedStatus = transaction ? 'success' : 'processing';
       } catch (error) {
         if (error.stripeResponse && error.stripeResponse.paymentIntent) {
+          // Requires 3D Secure confirmation: not a terminal payment outcome, so it must not be counted
           creditCardNeedsConfirmation = true;
+        } else {
+          // Terminal failure of a payment attempt. Internal flows (opencollective service) are out of scope.
+          const provider = paymentServiceToMetricProvider(order.paymentMethod?.service);
+          if (provider === MetricProvider.STRIPE || provider === MetricProvider.PAYPAL) {
+            recordPaymentOutcome({
+              provider,
+              flow: MetricFlow.CONTRIBUTION,
+              method: order.paymentMethod.type,
+              outcome: MetricEvent.FAILED,
+              errorType: mapErrorToType(error),
+            });
+          }
         }
         orderProcessedStatus = 'failure';
         csvEntry.error = error.message;
@@ -155,6 +176,17 @@ export async function processOrderWithSubscription(order, options) {
         }
 
         order.status = status.ACTIVE;
+
+        // Terminal success of a payment attempt (internal flows out of scope)
+        const provider = paymentServiceToMetricProvider(order.paymentMethod?.service);
+        if (provider === MetricProvider.STRIPE || provider === MetricProvider.PAYPAL) {
+          recordPaymentOutcome({
+            provider,
+            flow: MetricFlow.CONTRIBUTION,
+            method: order.paymentMethod.type,
+            outcome: MetricEvent.SUCCEEDED,
+          });
+        }
       } else if (orderProcessedStatus === 'processing') {
         order.status = status.PROCESSING;
       }

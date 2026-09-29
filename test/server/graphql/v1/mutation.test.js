@@ -1,12 +1,16 @@
+import * as SentrySdk from '@sentry/node';
 import * as chai from 'chai';
+import config from 'config';
 import gqlV1 from 'fake-tag';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
 
 import ActivityTypes from '../../../../server/constants/activities';
 import roles from '../../../../server/constants/roles';
+import { createOrder } from '../../../../server/graphql/v1/mutations/orders';
 import * as CacheLib from '../../../../server/lib/cache';
 import models from '../../../../server/models';
+import creditcard from '../../../../server/paymentProviders/stripe/creditcard';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -525,6 +529,90 @@ describe('server/graphql/v1/mutation', () => {
         expect(result.data.editCollective.settings.tos).to.eq('https://example.com/tos');
         expect(result.data.editCollective.settings.payoutsTwoFactorAuth.rollingLimit).to.eq(10_000_00);
       });
+    });
+  });
+
+  describe('createOrder tests', () => {
+    let localSandbox, metricsCountStub;
+
+    // Enough card data for the fraud-protection card fingerprinting
+    const fakeCreditCardPaymentMethodInput = () => ({
+      service: 'stripe',
+      type: 'creditcard',
+      token: 'tok_visa',
+      name: '4242',
+      data: { expYear: 2030, expMonth: 12, brand: 'visa', fingerprint: 'fp_test' },
+    });
+
+    beforeEach(() => {
+      localSandbox = createSandbox();
+      localSandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+      metricsCountStub = localSandbox.stub(SentrySdk.metrics, 'count');
+    });
+
+    afterEach(() => localSandbox.restore());
+
+    it('records a failed payment outcome metric when a synchronous payment attempt fails', async () => {
+      const hostAdmin = await fakeUser();
+      const hostCollective = await fakeActiveHost({ currency: 'USD', admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: hostCollective.id, currency: 'USD' });
+      const user = await fakeUser();
+      localSandbox
+        .stub(creditcard, 'processOrder')
+        .rejects(Object.assign(new Error('Your card was declined.'), { code: 'card_declined' }));
+
+      await expect(
+        createOrder(
+          {
+            collective: { id: collective.id },
+            paymentMethod: fakeCreditCardPaymentMethodInput(),
+            amount: 1000,
+            quantity: 1,
+            totalAmount: 1000,
+            currency: 'USD',
+          },
+          utils.makeRequest(user),
+        ),
+      ).to.be.rejected;
+
+      expect(metricsCountStub).to.have.been.calledOnce;
+      expect(metricsCountStub.firstCall.args).to.deep.equal([
+        'thirdparty.stripe.payment.failed',
+        1,
+        // eslint-disable-next-line camelcase
+        { attributes: { flow: 'contribution', method: 'creditcard', error_type: 'card_declined' } },
+      ]);
+
+      const order = await models.Order.findOne({ where: { CollectiveId: collective.id } });
+      expect(order.status).to.eq('ERROR');
+    });
+
+    it('does not record metrics when the payment requires client confirmation (3DS)', async () => {
+      const hostAdmin = await fakeUser();
+      const hostCollective = await fakeActiveHost({ currency: 'USD', admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: hostCollective.id, currency: 'USD' });
+      const user = await fakeUser();
+      const threeDSError = Object.assign(new Error('Payment Intent require action'), {
+        stripeResponse: { paymentIntent: { id: 'pi_3ds', status: 'requires_action' } },
+      });
+      localSandbox.stub(creditcard, 'processOrder').rejects(threeDSError);
+
+      const result = await createOrder(
+        {
+          collective: { id: collective.id },
+          paymentMethod: fakeCreditCardPaymentMethodInput(),
+          amount: 1000,
+          quantity: 1,
+          totalAmount: 1000,
+          currency: 'USD',
+        },
+        utils.makeRequest(user),
+      );
+
+      expect(result.stripeError).to.exist;
+      expect(metricsCountStub.called).to.be.false;
+      const order = await models.Order.findOne({ where: { CollectiveId: collective.id } });
+      expect(order.status).to.eq('REQUIRE_CLIENT_CONFIRMATION');
     });
   });
 });

@@ -114,6 +114,7 @@ class Order extends ModelWithPublicId<
     customData?: any;
     needsConfirmation?: boolean;
     paypalStatusChangeNote?: string;
+    paypalCaptureId?: string;
     savePaymentMethod?: boolean;
     isBalanceTransfer?: boolean;
     isRootBalanceTransfer?: boolean;
