@@ -38,6 +38,7 @@ describe('cron/daily/pause-virtual-cards-after-period-of-inactivity', () => {
         CollectiveId: HostCollectiveId,
         createdAt: cardCreatedAt,
         name,
+        privateData: { cardNumber: '4111111111114242', cvv: 'FAKESECRET_q3r4s5t6u7v8w9x0y1z2' },
       });
 
       if (expenseCreatedAt) {
@@ -174,6 +175,16 @@ describe('cron/daily/pause-virtual-cards-after-period-of-inactivity', () => {
       await vc.reload();
       expect(vc.data.status, `Card ${vc.name} should be INACTIVE`).to.eql(VirtualCardStatus.INACTIVE);
     }
+
+    const inactivityActivity = await Activity.findOne({
+      where: { type: ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED_DUE_TO_INACTIVITY },
+    });
+    expect(inactivityActivity).to.exist;
+    expect(inactivityActivity.data.virtualCard).to.have.property('id');
+    expect(inactivityActivity.data.virtualCard).to.have.property('last4');
+    expect(inactivityActivity.data.virtualCard).to.not.have.property('privateData');
+    expect(inactivityActivity.data.virtualCard).to.not.have.property('cardNumber');
+    expect(inactivityActivity.data.virtualCard).to.not.have.property('cvv');
   });
 
   it('does not pause vc if it was resumed within the period of inactivity', async () => {
