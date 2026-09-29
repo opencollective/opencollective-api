@@ -88,6 +88,8 @@
       "confirmToken": 15
     },
     "setPasswordPerUserPerHour": 10,
+    "addCreditCardPerUserPerHour": 10,
+    "maxCreditCardsPerAccount": 100,
     "confirmEmailPerIpPerHour": 10,
     "skipCleanOrdersLimitSlugs": "",
     "enabledMasks": "",
