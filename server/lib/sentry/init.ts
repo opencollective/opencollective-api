@@ -5,7 +5,10 @@ import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import config from 'config';
 import { cloneDeep, compact } from 'lodash';
 
+import logger from '../logger';
 import * as utils from '../utils';
+
+import { METRIC_NAME_REGEX } from './metrics';
 
 const TRACES_SAMPLE_RATE = parseFloat(config.sentry.tracesSampleRate) || 0;
 const PROFILES_SAMPLE_RATE = parseFloat(config.sentry.profilesSampleRate) || 0;
@@ -55,6 +58,19 @@ export const redactSensitiveDataFromRequest = rawRequest => {
   return request;
 };
 
+/**
+ * Safety net on top of the typed metrics wrapper (`./metrics`): drops any metric whose name
+ * violates the metric name grammar (`<origin>.<provider>.<domain>.<event>`) so a bad name can
+ * never mix series, and warns so the misuse is visible.
+ */
+export const beforeSendMetric = (metric: Sentry.Metric): Sentry.Metric | null => {
+  if (!METRIC_NAME_REGEX.test(metric.name)) {
+    logger.warn(`sentry: dropping metric with invalid name: ${metric.name}`);
+    return null;
+  }
+  return metric;
+};
+
 Sentry.init({
   beforeSend(event) {
     event.request = redactSensitiveDataFromRequest(event.request);
@@ -64,6 +80,7 @@ Sentry.init({
     event.request = redactSensitiveDataFromRequest(event.request);
     return event;
   },
+  beforeSendMetric,
   dsn: config.sentry.dsn,
   environment: config.env,
   integrations: compact([
