@@ -1,6 +1,9 @@
 import { expect } from 'chai';
 
-import { archiveEmptyPrepaidPaymentMethods } from '../../../scripts/cleanup/archive-empty-prepaid-payment-methods';
+import {
+  archiveEmptyPrepaidPaymentMethods,
+  parseMinIdleDays,
+} from '../../../scripts/cleanup/archive-empty-prepaid-payment-methods';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import models from '../../../server/models';
 import { fakeCollective, fakePaymentMethod, fakeTransaction } from '../../test-helpers/fake-data';
@@ -18,6 +21,19 @@ describe('scripts/cleanup/archive-empty-prepaid-payment-methods', () => {
       currency: 'USD',
       initialBalance,
     });
+
+  describe('parseMinIdleDays', () => {
+    it('accepts non-negative integers', () => {
+      expect(parseMinIdleDays('0')).to.equal(0);
+      expect(parseMinIdleDays('30')).to.equal(30);
+    });
+
+    it('rejects malformed, negative, and non-finite values', () => {
+      for (const value of ['nope', '1day', '-1', '1.5', 'Infinity', '999999999999999999999999']) {
+        expect(() => parseMinIdleDays(value)).to.throw();
+      }
+    });
+  });
 
   it('archives prepaid payment methods with no balance left and keeps the ones with a balance', async () => {
     // Given a spent and a funded prepaid payment method

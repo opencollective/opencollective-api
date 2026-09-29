@@ -14,8 +14,9 @@
  */
 module.exports = {
   async up(queryInterface) {
-    const [impactedTiers] = await queryInterface.sequelize.query(
-      `
+    await queryInterface.sequelize.transaction(async transaction => {
+      const [impactedTiers] = await queryInterface.sequelize.query(
+        `
       UPDATE "Tiers"
       SET "endsAt" = NOW(), "updatedAt" = NOW()
       WHERE slug = 'prepaid-budget'
@@ -26,24 +27,27 @@ module.exports = {
         )
       RETURNING id
     `,
-      {
-        type: queryInterface.sequelize.QueryTypes.UPDATE,
-      },
-    );
+        {
+          type: queryInterface.sequelize.QueryTypes.UPDATE,
+          transaction,
+        },
+      );
 
-    if (impactedTiers.length > 0) {
-      await queryInterface.sequelize.query(
-        `
+      if (impactedTiers.length > 0) {
+        await queryInterface.sequelize.query(
+          `
         INSERT INTO "MigrationLogs" ("type", "createdAt", "description", "data")
         VALUES ('MIGRATION', NOW(), '20260928120000-unpublish-prepaid-budget-tiers', :data)
       `,
-        {
-          replacements: {
-            data: JSON.stringify({ tiersUpdated: impactedTiers.map(tier => tier.id) }),
+          {
+            replacements: {
+              data: JSON.stringify({ tiersUpdated: impactedTiers.map(tier => tier.id) }),
+            },
+            transaction,
           },
-        },
-      );
-    }
+        );
+      }
+    });
   },
 
   async down() {

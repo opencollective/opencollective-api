@@ -26,7 +26,7 @@
 
 import '../../server/env';
 
-import { Command } from 'commander';
+import { Command, InvalidArgumentError } from 'commander';
 import type { WhereOptions } from 'sequelize';
 import { Op } from 'sequelize';
 
@@ -48,6 +48,19 @@ export type ArchivePrepaidPaymentMethodsResult = {
 };
 
 const DEFAULT_MIN_IDLE_DAYS = 30;
+
+export const parseMinIdleDays = (value: string): number => {
+  if (!/^\d+$/.test(value)) {
+    throw new InvalidArgumentError('Must be a non-negative integer');
+  }
+
+  const days = Number(value);
+  if (!Number.isSafeInteger(days)) {
+    throw new InvalidArgumentError('Must be a finite, non-negative integer');
+  }
+
+  return days;
+};
 
 /** Date of the last transaction that touched this payment method (directly or as a gift card source) */
 export const getLastUsedAt = async (paymentMethod: PaymentMethodModel): Promise<Date | null> => {
@@ -112,7 +125,7 @@ export const archiveEmptyPrepaidPaymentMethods = async ({
 
 const main = async (): Promise<void> => {
   const program = new Command();
-  program.option('--min-idle-days <n>', 'Only archive methods unused for that many days', parseInt).parse();
+  program.option('--min-idle-days <n>', 'Only archive methods unused for that many days', parseMinIdleDays).parse();
 
   const options = program.opts();
   const dryRun = process.env.DRY_RUN !== 'false';
