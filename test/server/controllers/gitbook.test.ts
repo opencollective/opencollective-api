@@ -35,8 +35,8 @@ describe('server/controllers/gitbook', () => {
 
       expect(fetchStub).to.have.been.calledOnce;
       const url = new URL(String(fetchStub.firstCall.args[0]));
-      expect(url.origin).to.equal(config.get('gitbook.apiUrl'));
-      expect(url.pathname).to.equal(`/v1/spaces/${config.get('gitbook.spaceId')}/search`);
+      expect(url.origin).to.equal(config.gitbook.apiUrl);
+      expect(url.pathname).to.equal(`/v1/spaces/${config.gitbook.spaceId}/search`);
       expect(Array.from(url.searchParams.keys())).to.deep.equal(['query']);
       expect(url.searchParams.getAll('query')).to.deep.equal([query]);
     });
@@ -48,7 +48,7 @@ describe('server/controllers/gitbook', () => {
 
       expect(fetchStub.firstCall.args[1]?.method).to.equal('GET');
       expect(fetchStub.firstCall.args[1]?.headers).to.deep.equal({
-        Authorization: `Bearer ${config.get('gitbook.apiKey')}`,
+        Authorization: `Bearer ${config.gitbook.apiKey}`,
       });
     });
 
