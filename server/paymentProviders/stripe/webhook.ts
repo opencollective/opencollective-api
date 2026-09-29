@@ -44,6 +44,7 @@ import models, { sequelize } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
 import Order from '../../models/Order';
 import PaymentMethod from '../../models/PaymentMethod';
+import { PayoutMethodTypes } from '../../models/PayoutMethod';
 
 import { getVirtualCardForTransaction } from './../utils';
 import { createChargeTransactions, createPaymentMethod, UNKNOWN_ERROR_MSG, userFriendlyErrorMessage } from './common';
@@ -448,6 +449,15 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
 
   if (shouldMarkPaid) {
     await expense.markAsPaid({ paidAt });
+
+    // Terminal success of the payout attempt. Emitted only when this delivery records the payment
+    // (redeliveries are deduped on the charge transaction and never reach this line).
+    recordPaymentOutcome({
+      provider: MetricProvider.STRIPE,
+      flow: MetricFlow.PAYOUT,
+      method: expense.PayoutMethod?.type ?? PayoutMethodTypes.STRIPE,
+      outcome: MetricEvent.SUCCEEDED,
+    });
   }
 }
 
@@ -751,13 +761,26 @@ async function handleExpensePaymentIntentFailed(event: Stripe.Event) {
   const reason = stripePaymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
   logger.info(`Stripe Webook: Payment Intent failed for Expense #${expense.id}. Reason: ${reason}`);
 
+  const isTerminalFailure = expense.status === ExpenseStatus.PROCESSING;
   await expense.update({
-    status: expense.status === ExpenseStatus.PROCESSING ? ExpenseStatus.ERROR : undefined,
+    status: isTerminalFailure ? ExpenseStatus.ERROR : undefined,
     data: {
       ...omit(expense.data, ['stripePaymentIntent']),
       previousStripePaymentIntents: [...(expense.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
     },
   });
+
+  // Terminal failure of the payout attempt: counted only when the expense transitions to ERROR, so
+  // redeliveries and failures arriving for already-settled expenses are not counted twice.
+  if (isTerminalFailure) {
+    recordPaymentOutcome({
+      provider: MetricProvider.STRIPE,
+      flow: MetricFlow.PAYOUT,
+      method: expense.PayoutMethod?.type ?? PayoutMethodTypes.STRIPE,
+      outcome: MetricEvent.FAILED,
+      errorType: mapErrorToType(stripePaymentIntent.last_payment_error || reason),
+    });
+  }
 }
 
 export const chargeDisputeCreated = async (event: Stripe.Event) => {

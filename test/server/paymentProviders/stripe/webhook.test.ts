@@ -37,12 +37,14 @@ import {
 import * as utils from '../../../utils';
 
 describe('webhook', () => {
-  let sandbox;
+  let sandbox, metricsCountStub;
 
   beforeEach(async () => {
     await utils.resetTestDB();
     await utils.seedDefaultVendors();
     sandbox = createSandbox();
+    sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+    metricsCountStub = sandbox.stub(Sentry.metrics, 'count');
   });
 
   afterEach(() => {
@@ -494,11 +496,9 @@ describe('webhook', () => {
   });
 
   describe('paymentIntent', () => {
-    let order, event, metricsCountStub;
+    let order, event;
 
     beforeEach(async () => {
-      sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
-      metricsCountStub = sandbox.stub(Sentry.metrics, 'count');
       const paymentMethod = await fakePaymentMethod({
         type: PAYMENT_METHOD_TYPE.PAYMENT_INTENT,
         service: PAYMENT_METHOD_SERVICE.STRIPE,
@@ -1433,6 +1433,19 @@ describe('webhook', () => {
         expect(expense.status).to.eql(ExpenseStatuses.PAID);
       });
 
+      it('records a successful payment outcome metric when the expense payment succeeds', async () => {
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.PAID);
+        expect(metricsCountStub).to.have.been.calledOnce;
+        expect(metricsCountStub.firstCall.args).to.deep.equal([
+          'thirdparty.stripe.payment.succeeded',
+          1,
+          { attributes: { flow: 'payout', method: 'STRIPE' } },
+        ]);
+      });
+
       it('does not mark expense as PAID when PaymentIntent amount does not match the expense', async () => {
         event.data.object.amount = 50e2;
         await webhook.stripePaymentIntentSucceeded(event);
@@ -1440,6 +1453,7 @@ describe('webhook', () => {
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
         expect(transactions.createTransactionsFromPaidStripeExpense).to.not.have.been.called;
+        expect(metricsCountStub.called).to.be.false;
       });
 
       it('does not mark expense as PAID when PaymentIntent currency does not match the expense', async () => {
@@ -1470,11 +1484,27 @@ describe('webhook', () => {
         expect(expense.status).to.eql(ExpenseStatuses.ERROR);
       });
 
+      it('records a failed payment outcome metric when the expense payment fails', async () => {
+        event.data.object.last_payment_error = { code: 'card_declined', message: 'Your card was declined.' };
+        await webhook.stripePaymentIntentProcessing(event);
+        await webhook.stripePaymentIntentFailed(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.ERROR);
+        expect(metricsCountStub).to.have.been.calledOnce;
+        expect(metricsCountStub.firstCall.args).to.deep.equal([
+          'thirdparty.stripe.payment.failed',
+          1,
+          { attributes: { flow: 'payout', method: 'STRIPE', error_type: 'card_declined' } },
+        ]);
+      });
+
       it('keeps expense status if payment failed immediately', async () => {
         await webhook.stripePaymentIntentFailed(event);
 
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
+        expect(metricsCountStub.called).to.be.false;
       });
     });
   });
