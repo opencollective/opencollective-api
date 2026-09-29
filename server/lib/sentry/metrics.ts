@@ -59,7 +59,7 @@ export function isValidMetricName(name: string): boolean {
 }
 
 /** True for third-party providers. The `opencollective` service is internal - it must never be tagged `thirdparty`. */
-export function providerToOrigin(provider: MetricProvider): MetricOrigin {
+function providerToOrigin(provider: MetricProvider): MetricOrigin {
   return provider === MetricProvider.OPENCOLLECTIVE ? MetricOrigin.INTERNAL : MetricOrigin.THIRDPARTY;
 }
 
@@ -220,7 +220,7 @@ export function mapErrorToType(error: unknown): ErrorType {
   return ErrorType.UNKNOWN;
 }
 
-export type PaymentOutcomeParams = {
+type PaymentOutcomeParams = {
   provider: MetricProvider;
   flow: MetricFlow;
   /** `order.paymentMethod.type` for contributions, `payoutMethod.type` for payouts */
