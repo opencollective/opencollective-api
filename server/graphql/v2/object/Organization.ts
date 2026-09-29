@@ -24,6 +24,7 @@ import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/en
 import { getPolicy } from '../../../lib/policies';
 import sequelize from '../../../lib/sequelize';
 import { buildKyselySearchConditions, buildSearchConditions } from '../../../lib/sql-search';
+import { getTransactionsImportRowLinkedIdSearchConditions } from '../../../lib/transactions-imports';
 import { parseToBoolean } from '../../../lib/utils';
 import { expandAccountIdsWithParents } from '../../../lib/vendor-visibility';
 import models, { Collective, ConnectedAccount, Op, TransactionsImportRow } from '../../../models';
@@ -753,11 +754,15 @@ export const getOrganizationFields = () => ({
 
       // Search term
       if (args.searchTerm) {
+        const linkedIdConditions = await getTransactionsImportRowLinkedIdSearchConditions(args.searchTerm, req.loaders);
         where.push({
-          [Op.or]: buildSearchConditions(args.searchTerm, {
-            textFields: ['description', 'sourceId'],
-            publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.TransactionsImportRow }],
-          }),
+          [Op.or]: [
+            ...buildSearchConditions(args.searchTerm, {
+              textFields: ['description', 'sourceId'],
+              publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.TransactionsImportRow }],
+            }),
+            ...linkedIdConditions,
+          ],
         });
       }
 
