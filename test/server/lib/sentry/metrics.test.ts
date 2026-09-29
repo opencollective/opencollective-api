@@ -15,6 +15,7 @@ import {
   MetricFlow,
   MetricOrigin,
   MetricProvider,
+  paymentServiceToMetricProvider,
   recordPaymentOutcome,
 } from '../../../../server/lib/sentry/metrics';
 
@@ -88,6 +89,21 @@ describe('server/lib/sentry/metrics', () => {
       expect(isValidMetricName('thirdparty.stripe.unknown.succeeded')).to.be.false;
       expect(isValidMetricName('thirdparty.stripe.payment.succeeded!')).to.be.false;
       expect(isValidMetricName('third party.stripe.payment.succeeded')).to.be.false;
+    });
+  });
+
+  describe('paymentServiceToMetricProvider', () => {
+    it('maps payment method services to metric providers', () => {
+      expect(paymentServiceToMetricProvider('stripe')).to.equal(MetricProvider.STRIPE);
+      expect(paymentServiceToMetricProvider('paypal')).to.equal(MetricProvider.PAYPAL);
+      expect(paymentServiceToMetricProvider('wise')).to.equal(MetricProvider.WISE);
+      expect(paymentServiceToMetricProvider('opencollective')).to.equal(MetricProvider.OPENCOLLECTIVE);
+    });
+
+    it('returns null for unknown services and empty values', () => {
+      expect(paymentServiceToMetricProvider('mangopay')).to.be.null;
+      expect(paymentServiceToMetricProvider(null)).to.be.null;
+      expect(paymentServiceToMetricProvider(undefined)).to.be.null;
     });
   });
 

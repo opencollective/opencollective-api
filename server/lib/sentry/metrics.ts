@@ -63,6 +63,22 @@ export function providerToOrigin(provider: MetricProvider): MetricOrigin {
   return provider === MetricProvider.OPENCOLLECTIVE ? MetricOrigin.INTERNAL : MetricOrigin.THIRDPARTY;
 }
 
+/** Maps a `PaymentMethod.service` value to a metric provider. Returns null for unknown services. */
+export function paymentServiceToMetricProvider(service: string): MetricProvider | null {
+  switch (service) {
+    case 'stripe':
+      return MetricProvider.STRIPE;
+    case 'paypal':
+      return MetricProvider.PAYPAL;
+    case 'wise':
+      return MetricProvider.WISE;
+    case 'opencollective':
+      return MetricProvider.OPENCOLLECTIVE;
+    default:
+      return null;
+  }
+}
+
 export function buildMetricName(params: {
   origin: MetricOrigin;
   provider: MetricProvider;
