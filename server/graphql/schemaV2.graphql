@@ -9977,7 +9977,7 @@ type ExpensePermissions {
   """
   Whether the current user can edit the expense
   """
-  canEdit: Boolean!
+  canEdit: Boolean! @deprecated(reason: "2026-09-15: Use the granular permissions instead.")
 
   """
   Whether the current user can edit the expense title
