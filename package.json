@@ -62,7 +62,7 @@
     "cookie-parser": "1.4.7",
     "cors": "2.8.6",
     "crypto-random-string": "6.0.0",
-    "csv-parse": "7.0.2",
+    "csv-parse": "7.0.3",
     "dataloader": "2.2.3",
     "dataloader-sequelize": "2.3.3",
     "debug": "4.4.3",
