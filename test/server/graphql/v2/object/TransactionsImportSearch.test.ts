@@ -103,6 +103,7 @@ describe('server/graphql/v2/object/TransactionsImport search', () => {
         .filter(row => row.ExpenseId === expense.id || row.OrderId === expense.id)
         .map(row => row.publicId);
       expect((await getResults(surface, String(expense.id))).sort()).to.deep.equal(matchingRows.sort());
+      expect((await getResults(surface, `#${expense.id}`)).sort()).to.deep.equal(matchingRows.sort());
     });
 
     it(`searches linked orders by public and numeric ID on the ${surface} query`, async () => {
@@ -112,6 +113,7 @@ describe('server/graphql/v2/object/TransactionsImport search', () => {
         .filter(row => row.ExpenseId === order.id || row.OrderId === order.id)
         .map(row => row.publicId);
       expect((await getResults(surface, String(order.id))).sort()).to.deep.equal(matchingRows.sort());
+      expect((await getResults(surface, `#${order.id}`)).sort()).to.deep.equal(matchingRows.sort());
     });
 
     it(`preserves description and source ID search on the ${surface} query`, async () => {

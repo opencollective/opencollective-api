@@ -21,8 +21,7 @@ export const getTransactionsImportRowLinkedIdSearchConditions = async (
       return id ? [{ OrderId: id }] : [];
     }
   } else if (
-    parsedSearchTerm.type === 'number' &&
-    !parsedSearchTerm.isFloat &&
+    (parsedSearchTerm.type === 'id' || (parsedSearchTerm.type === 'number' && !parsedSearchTerm.isFloat)) &&
     Number.isSafeInteger(parsedSearchTerm.term) &&
     parsedSearchTerm.term > 0
   ) {
