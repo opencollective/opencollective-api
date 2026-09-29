@@ -165,6 +165,15 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       expect(expense.data.error).to.deep.equal(payoutError);
       expect(expense2.data.error).to.deep.equal(payoutError);
     });
+
+    it('should throw when executePayouts returns an unexpected response', async () => {
+      paypalLib.executePayouts.resolves({ unexpected: 'response' });
+
+      await expect(paypalPayouts.payExpensesBatch([expense])).to.be.rejectedWith('Unexpected response from PayPal API');
+
+      await expense.reload();
+      expect(expense).to.have.property('status', status.SCHEDULED_FOR_PAYMENT);
+    });
   });
 
   describe('checkBatchStatus', () => {
