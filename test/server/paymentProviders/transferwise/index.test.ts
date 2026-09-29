@@ -436,10 +436,14 @@ describe('server/paymentProviders/transferwise/index', () => {
           description: 'Test Invoice for Error',
         });
 
-        // Make createTransfer fail with an error
+        // Make createTransfer fail with a real-world Wise validation error (422 → `transferwise.error.validation`)
         createTransfer.rejects(
           // eslint-disable-next-line custom-errors/no-unthrown-errors
-          new TransferwiseError('Insufficient balance', 'INSUFFICIENT_BALANCE', { errorCode: 4020 }),
+          new TransferwiseError(
+            'Validation error: You are not allowed to send money. Please contact our support team for more details.',
+            'transferwise.error.validation',
+            { tracing: { 'x-trace-id': '2fdedcd616024b0e0eb294952e68c351', 'cf-ray': 'a3d0d62fff55311e-IAD' } },
+          ),
         );
       });
 
@@ -450,7 +454,7 @@ describe('server/paymentProviders/transferwise/index', () => {
 
       it('should throw the error from createTransfer', async () => {
         await expect(transferwise.payExpense(connectedAccount, payoutMethod, testExpense)).to.be.rejectedWith(
-          'Wise: Insufficient balance',
+          'Wise: Validation error: You are not allowed to send money. Please contact our support team for more details.',
         );
       });
 
@@ -470,9 +474,17 @@ describe('server/paymentProviders/transferwise/index', () => {
         expect(activitiesAfter.length).to.be.greaterThan(activitiesBefore.length);
 
         const errorActivity = activitiesAfter[activitiesAfter.length - 1];
-        expect(errorActivity.type).to.equal('collective.expense.error');
+        expect(errorActivity.type).to.equal('collective.expense.payment.error');
         expect(errorActivity.data).to.have.property('error');
-        expect(errorActivity.data.error).to.have.property('message', 'Wise: Insufficient balance');
+        expect(errorActivity.data.error).to.have.property(
+          'message',
+          'Wise: Validation error: You are not allowed to send money. Please contact our support team for more details.',
+        );
+        // The richer error details (not just message) must be persisted
+        expect(errorActivity.data.error.extensions).to.deep.include({ code: 'transferwise.error.validation' });
+        expect(errorActivity.data.error.extensions.tracing).to.deep.include({
+          'x-trace-id': '2fdedcd616024b0e0eb294952e68c351',
+        });
       });
     });
   });
