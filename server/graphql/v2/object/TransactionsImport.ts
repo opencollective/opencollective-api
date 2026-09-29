@@ -3,6 +3,7 @@ import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-sca
 
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../lib/sql-search';
+import { getTransactionsImportRowLinkedIdSearchConditions } from '../../../lib/transactions-imports';
 import { Op, TransactionsImport } from '../../../models';
 import TransactionsImportRow from '../../../models/TransactionsImportRow';
 import { GraphQLTransactionsImportRowCollection } from '../collection/GraphQLTransactionsImportRow';
@@ -182,6 +183,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
           searchTerm: string;
           accountId: string[];
         },
+        req,
       ) => {
         const where: Parameters<typeof TransactionsImportRow.findAll>[0]['where'] = {
           [Op.and]: [{ TransactionsImportId: importInstance.id }],
@@ -194,10 +196,15 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
 
         // Search term
         if (args.searchTerm) {
+          const linkedIdConditions = await getTransactionsImportRowLinkedIdSearchConditions(
+            args.searchTerm,
+            req.loaders,
+          );
           where[Op.and].push({
-            [Op.or]: buildSearchConditions(args.searchTerm, {
-              textFields: ['description', 'sourceId'],
-            }),
+            [Op.or]: [
+              ...buildSearchConditions(args.searchTerm, { textFields: ['description', 'sourceId'] }),
+              ...linkedIdConditions,
+            ],
           });
         }
 
