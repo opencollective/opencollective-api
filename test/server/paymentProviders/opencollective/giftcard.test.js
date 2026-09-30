@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import gqlV1 from 'fake-tag';
 import gql from 'fake-tag';
 import moment from 'moment';
 import nock from 'nock';
@@ -7,7 +6,6 @@ import { createSandbox, stub } from 'sinon';
 
 import { maxInteger } from '../../../../server/constants/math';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../server/graphql/v2/identifiers';
-import emailLib from '../../../../server/lib/email';
 import models from '../../../../server/models';
 import giftcard from '../../../../server/paymentProviders/opencollective/giftcard';
 import creditCardLib from '../../../../server/paymentProviders/stripe/creditcard';
@@ -71,60 +69,6 @@ const fixerNock = function () {
 };
 /* eslint-enable camelcase */
 
-const createGiftCardsMutation = gqlV1 /* GraphQL */ `
-  mutation CreateGiftCards(
-    $amount: Int
-    $monthlyLimitPerMember: Int
-    $collectiveId: Int!
-    $paymentMethodId: Int
-    $description: String
-    $expiryDate: String
-    $currency: String!
-    $limitedToTags: [String]
-    $limitedToHostCollectiveIds: [Int]
-  ) {
-    createGiftCards(
-      amount: $amount
-      monthlyLimitPerMember: $monthlyLimitPerMember
-      CollectiveId: $collectiveId
-      PaymentMethodId: $paymentMethodId
-      description: $description
-      expiryDate: $expiryDate
-      currency: $currency
-      limitedToTags: $limitedToTags
-      limitedToHostCollectiveIds: $limitedToHostCollectiveIds
-      numberOfGiftCards: 1
-    ) {
-      id
-      name
-      uuid
-      collective {
-        id
-      }
-      initialBalance
-      monthlyLimitPerMember
-      expiryDate
-      currency
-      limitedToHostCollectiveIds
-    }
-  }
-`;
-
-const claimPaymentMethodMutation = gqlV1 /* GraphQL */ `
-  mutation ClaimPaymentMethod($user: UserInputType, $code: String!) {
-    claimPaymentMethod(user: $user, code: $code) {
-      id
-      expiryDate
-      collective {
-        id
-        slug
-        name
-        twitterHandle
-      }
-    }
-  }
-`;
-
 const createOrderMutation = gql`
   mutation CreateOrder($order: OrderCreateInput!) {
     createOrder(order: $order) {
@@ -162,7 +106,7 @@ const updateOrderMutation = gql`
 `;
 
 describe('server/paymentProviders/opencollective/giftcard', () => {
-  let sandbox, sendEmailSpy;
+  let sandbox;
 
   before(fixerNock);
   after(() => {
@@ -171,7 +115,6 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
 
   beforeEach(() => {
     sandbox = createSandbox();
-    sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
     // And given that the endpoint for creating customers on Stripe
     // is patched
     utils.stubStripeCreate(
@@ -191,207 +134,6 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
   afterEach(() => sandbox.restore());
 
   describe('paymentProviders.opencollective.giftcard', () => {
-    describe('#create', async () => {
-      let collective1, user1;
-
-      before(() => utils.resetTestDB());
-      before('create collective1(currency USD, No Host)', () =>
-        models.Collective.create({
-          name: 'collective1',
-          currency: 'USD',
-          isActive: true,
-          approvedAt: new Date(),
-        }).then(c => (collective1 = c)),
-      );
-      before('creates User 1', () =>
-        models.User.createUserWithCollective({
-          email: store.randEmail(),
-          name: 'User 1',
-        }).then(u => (user1 = u)),
-      );
-      before('user1 to become Admin of collective1', () => {
-        return models.Member.create({
-          CreatedByUserId: user1.id,
-          MemberCollectiveId: user1.CollectiveId,
-          CollectiveId: collective1.id,
-          role: 'ADMIN',
-        }).then(() => {
-          user1.populateRoles();
-        });
-      });
-      before('create a payment method', () =>
-        models.PaymentMethod.create({
-          name: '4242',
-          service: 'stripe',
-          type: 'creditcard',
-          token: 'tok_123456781234567812345678',
-          CollectiveId: collective1.id,
-          monthlyLimitPerMember: null,
-        }),
-      );
-
-      it('should create a U$100 gift card payment method', async () => {
-        const args = {
-          description: 'gift card test',
-          CollectiveId: collective1.id,
-          amount: 10000,
-          currency: 'USD',
-        };
-        const paymentMethod = await giftcard.create(args, user1);
-        expect(paymentMethod).to.exist;
-        expect(paymentMethod.CollectiveId).to.be.equal(collective1.id);
-        expect(paymentMethod.initialBalance).to.be.equal(args.amount);
-        expect(paymentMethod.service).to.be.equal('opencollective');
-        expect(paymentMethod.type).to.be.equal('giftcard');
-        expect(moment(paymentMethod.expiryDate).format('YYYY-MM-DD')).to.be.equal(
-          moment().add(24, 'months').format('YYYY-MM-DD'),
-        );
-        expect(paymentMethod.description).to.be.equal(args.description);
-      }); /** End Of "should create a U$100 gift card payment method" */
-
-      it('should create a U$100 gift card payment method defining an expiry date', async () => {
-        const expiryDate = moment().add(6, 'months').format('YYYY-MM-DD');
-        const args = {
-          CollectiveId: collective1.id,
-          amount: 10000,
-          currency: 'USD',
-          expiryDate: expiryDate,
-        };
-        const paymentMethod = await giftcard.create(args, user1);
-        expect(paymentMethod).to.exist;
-        expect(paymentMethod.CollectiveId).to.be.equal(collective1.id);
-        expect(paymentMethod.initialBalance).to.be.equal(args.amount);
-        expect(paymentMethod.service).to.be.equal('opencollective');
-        expect(paymentMethod.type).to.be.equal('giftcard');
-        expect(moment(paymentMethod.expiryDate).format('YYYY-MM-DD')).to.be.equal(expiryDate);
-        expect(paymentMethod.description).to.contain('Gift Card from');
-        expect(paymentMethod.description).to.not.contain('Monthly Gift Card');
-      }); /** End Of "should create a U$100 gift card payment method defining an expiry date" */
-
-      it('should create a gift card with monthly limit member of U$100 per month', async () => {
-        const args = {
-          CollectiveId: collective1.id,
-          monthlyLimitPerMember: 10000,
-          currency: 'USD',
-        };
-        const paymentMethod = await giftcard.create(args, user1);
-        expect(paymentMethod).to.exist;
-        expect(paymentMethod.CollectiveId).to.be.equal(collective1.id);
-        expect(paymentMethod.service).to.be.equal('opencollective');
-        expect(paymentMethod.type).to.be.equal('giftcard');
-        expect(moment(paymentMethod.expiryDate).format('YYYY-MM-DD')).to.be.equal(
-          moment().add(24, 'months').format('YYYY-MM-DD'),
-        );
-        expect(paymentMethod.monthlyLimitPerMember).to.be.equal(args.monthlyLimitPerMember);
-        // if there is a monthlyLimitPerMember balance must not exist
-        expect(paymentMethod.balance).to.not.exist;
-        expect(paymentMethod.description).to.contain('Monthly Gift Card from');
-      }); /** End Of "should create a gift card with monthly limit member of U$100 per month" */
-
-      it('should create a gift card with monthly limit member of U$100 per month defining an expiry date', async () => {
-        const expiryDate = moment().add(6, 'months').format('YYYY-MM-DD');
-        const args = {
-          description: 'gift card test',
-          CollectiveId: collective1.id,
-          monthlyLimitPerMember: 10000,
-          currency: 'USD',
-          expiryDate: expiryDate,
-        };
-        const paymentMethod = await giftcard.create(args, user1);
-        expect(paymentMethod).to.exist;
-        expect(paymentMethod.CollectiveId).to.be.equal(collective1.id);
-        expect(paymentMethod.service).to.be.equal('opencollective');
-        expect(paymentMethod.type).to.be.equal('giftcard');
-        expect(moment(paymentMethod.expiryDate).format('YYYY-MM-DD')).to.be.equal(expiryDate);
-        expect(paymentMethod.monthlyLimitPerMember).to.be.equal(args.monthlyLimitPerMember);
-        // if there is a monthlyLimitPerMember balance must not exist
-        expect(paymentMethod.balance).to.not.exist;
-      }); /** End Of "should create a gift card with monthly limit member of U$100 per month defining an expiry date" */
-    }); /** End Of "#create" */
-
-    describe('#claim', async () => {
-      let collective1, paymentMethod1, user1, giftCardPaymentMethod;
-
-      before(() => utils.resetTestDB());
-      before('create collective1(currency USD, No Host)', () =>
-        models.Collective.create({
-          name: 'collective1',
-          currency: 'USD',
-          isActive: true,
-          approvedAt: new Date(),
-        }).then(c => (collective1 = c)),
-      );
-      before('create a credit card payment method', () =>
-        models.PaymentMethod.create({
-          name: '4242',
-          service: 'stripe',
-          type: 'creditcard',
-          token: 'tok_123456781234567812345678',
-          CollectiveId: collective1.id,
-          monthlyLimitPerMember: null,
-        }).then(pm => (paymentMethod1 = pm)),
-      );
-
-      before('creates User 1', () =>
-        models.User.createUserWithCollective({
-          email: store.randEmail(),
-          name: 'User 1',
-        }).then(u => (user1 = u)),
-      );
-
-      before('user1 to become Admin of collective1', () =>
-        models.Member.create({
-          CreatedByUserId: user1.id,
-          MemberCollectiveId: user1.CollectiveId,
-          CollectiveId: collective1.id,
-          role: 'ADMIN',
-        }).then(() => user1.populateRoles()),
-      );
-
-      before('create a gift card payment method', () => {
-        const createParams = {
-          description: 'gift card test',
-          CollectiveId: collective1.id,
-          amount: 10000,
-          currency: 'USD',
-        };
-        return giftcard.create(createParams, user1).then(pm => (giftCardPaymentMethod = pm));
-      });
-
-      it('new User should claim a gift card', async () => {
-        // setting correct code to claim gift card by new User
-        const giftCardCode = giftCardPaymentMethod.uuid.substring(0, 8);
-        const args = {
-          user: { email: 'new@user.com' },
-          code: giftCardCode,
-        };
-        // claim gift card
-        const paymentMethod = await giftcard.claim(args);
-        // payment method should exist
-        expect(paymentMethod).to.exist;
-        // then paymentMethod SourcePaymentMethodId should be paymentMethod1.id(the PM of the organization collective1)
-        expect(paymentMethod.SourcePaymentMethodId).to.be.equal(paymentMethod1.id);
-        // and collective id of "original" gift card should be different than the one returned
-        expect(giftCardPaymentMethod.CollectiveId).not.to.be.equal(paymentMethod.CollectiveId);
-        // then find collective of created user
-        const userCollective = await models.Collective.findByPk(paymentMethod.CollectiveId);
-        // then find the user
-        const user = await models.User.findOne({
-          where: {
-            CollectiveId: userCollective.id,
-          },
-        });
-        // then check if the user email matches the email on the argument used on the claim
-        expect(user.email).to.be.equal(args.user.email);
-        // then check if both have the same uuid
-        expect(paymentMethod.uuid).not.to.be.equal(giftCardPaymentMethod.id);
-        // and check if both have the same expiry
-        expect(moment(paymentMethod.expiryDate).format()).to.be.equal(
-          moment(giftCardPaymentMethod.expiryDate).format(),
-        );
-      }); /** End Of "new User should claim a gift card" */
-    }); /** End Of "#claim" */
-
     describe('#processOrder', async () => {
       let host1, collective1, collective2, paymentMethod1, giftCardPaymentMethod, user, user1, userCollective;
 
@@ -457,36 +199,29 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
         }).then(pm => (paymentMethod1 = pm)),
       );
 
-      beforeEach('create a gift card payment method', () =>
-        giftcard
-          .create(
-            {
-              description: 'gift card test',
-              CollectiveId: collective1.id,
-              amount: 10000,
-              currency: 'USD',
-            },
-            user1,
-          )
-          .then(pm => (giftCardPaymentMethod = pm)),
-      );
-
-      beforeEach('new user claims a gift card', () =>
-        giftcard
-          .claim({
-            user: { email: 'new@user.com' },
-            code: giftCardPaymentMethod.uuid.substring(0, 8),
-          })
-          .then(async pm => {
-            giftCardPaymentMethod = await models.PaymentMethod.findByPk(pm.id);
-            userCollective = await models.Collective.findByPk(giftCardPaymentMethod.CollectiveId);
-            user = await models.User.findOne({
-              where: {
-                CollectiveId: userCollective.id,
-              },
-            });
-          }),
-      );
+      beforeEach('create a claimed gift card payment method', async () => {
+        user = await models.User.createUserWithCollective({
+          email: store.randEmail('giftcard-claimer@opencollective.com'),
+          name: 'Gift Card Claimer',
+        });
+        userCollective = user.collective;
+        giftCardPaymentMethod = await models.PaymentMethod.create({
+          name: 'gift card test',
+          description: 'gift card test',
+          SourcePaymentMethodId: paymentMethod1.id,
+          initialBalance: 10000,
+          monthlyLimitPerMember: null,
+          currency: 'USD',
+          CollectiveId: userCollective.id,
+          CreatedByUserId: user1.id,
+          service: 'opencollective',
+          type: 'giftcard',
+          confirmedAt: new Date(),
+          expiryDate: moment().add(24, 'months').toDate(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      });
 
       it('Order should NOT be executed because its amount exceeds the balance of the gift card', async () => {
         expect(giftCardPaymentMethod.SourcePaymentMethodId).to.be.equal(paymentMethod1.id);
@@ -749,295 +484,16 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
   }); /** End Of "paymentProviders.opencollective.giftcard" */
 
   describe('graphql.mutations.paymentMethods.giftcard', () => {
-    describe('#create', async () => {
-      let collective1, collective2, creditCard2, user1;
-
-      before(() => utils.resetTestDB());
-      before('create collective1(currency USD, No Host)', () =>
-        models.Collective.create({
-          name: 'collective1',
-          type: 'ORGANIZATION',
-          currency: 'USD',
-          isActive: true,
-          approvedAt: new Date(),
-        }).then(c => (collective1 = c)),
-      );
-      before('create collective2(currency USD, No Host)', () =>
-        models.Collective.create({
-          name: 'collective2',
-          currency: 'USD',
-          isActive: true,
-          approvedAt: new Date(),
-        }).then(c => (collective2 = c)),
-      );
-      before('creates User 1', () =>
-        models.User.createUserWithCollective({
-          email: store.randEmail(),
-          name: 'User 1',
-        }).then(u => (user1 = u)),
-      );
-      before('user1 to become Admin of collective1', () =>
-        models.Member.create({
-          CreatedByUserId: user1.id,
-          MemberCollectiveId: user1.CollectiveId,
-          CollectiveId: collective1.id,
-          role: 'ADMIN',
-        }),
-      );
-      before('create a payment method for collective 1', () => store.createCreditCard(collective1.id));
-      before('create a payment method for collective 2', () =>
-        store.createCreditCard(collective2.id).then(c => (creditCard2 = c)),
-      );
-
-      it('should fail creating a gift card because there is no currency defined', async () => {
-        const args = { collectiveId: collective1.id, amount: 10000 };
-        // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(createGiftCardsMutation, args, user1);
-        expect(gqlResult.errors[0]).to.exist;
-        expect(gqlResult.errors[0].message).to.contain(
-          'Variable "$currency" has invalid value: Expected a value of non-null type "String!" to be provided.',
-        );
-      }); /** End of "should fail creating a gift card because there is no currency defined" */
-
-      it('should fail creating a gift card because there is no amount or monthlyLimitPerMember defined', async () => {
-        const args = {
-          currency: 'USD',
-          collectiveId: collective1.id,
-        };
-        // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(createGiftCardsMutation, args, user1);
-        expect(gqlResult.errors[0]).to.exist;
-        expect(gqlResult.errors[0].toString()).to.contain(
-          'you need to define either the amount or the monthlyLimitPerMember of the payment method.',
-        );
-      }); /** End of "should fail creating a gift card because there is amount or monthlyLimitPerMember defined" */
-
-      it('should create a U$100 gift card payment method limited to open source', async () => {
-        const args = {
-          collectiveId: collective1.id,
-          amount: 10000,
-          currency: 'USD',
-          limitedToTags: ['open source'],
-        };
-        // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(createGiftCardsMutation, args, user1);
-
-        gqlResult.errors && console.error(gqlResult.errors[0]);
-        expect(gqlResult.errors).to.be.undefined;
-
-        const paymentMethod = await models.PaymentMethod.findByPk(gqlResult.data.createGiftCards[0].id);
-        expect(paymentMethod).to.exist;
-        expect(paymentMethod.limitedToTags).to.contain('open source');
-        expect(paymentMethod.CreatedByUserId).to.be.equal(user1.id);
-        expect(paymentMethod.CollectiveId).to.be.equal(collective1.id);
-        expect(paymentMethod.initialBalance).to.be.equal(args.amount);
-        expect(paymentMethod.service).to.be.equal('opencollective');
-        expect(paymentMethod.type).to.be.equal('giftcard');
-        expect(moment(paymentMethod.expiryDate).format('YYYY-MM-DD')).to.be.equal(
-          moment().add(24, 'months').format('YYYY-MM-DD'),
-        );
-      }); /** End of "should create a U$100 gift card payment method" */
-
-      it("should fail if payment method does't belongs to collective", async () => {
-        const args = {
-          currency: 'USD',
-          collectiveId: collective1.id,
-          amount: 10000,
-          paymentMethodId: creditCard2.id,
-        };
-        // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(createGiftCardsMutation, args, user1);
-        expect(gqlResult.errors).to.exist;
-        expect(gqlResult.errors[0]).to.exist;
-        expect(gqlResult.errors[0].toString()).to.contain('Invalid PaymentMethodId');
-      });
-
-      it('should fail creating a gift card with a prepaid payment method as source', async () => {
-        const prepaidPaymentMethod = await models.PaymentMethod.create({
-          name: 'Prepaid Budget',
-          service: 'opencollective',
-          type: 'prepaid',
-          CollectiveId: collective1.id,
-          currency: 'USD',
-          initialBalance: 100000,
-          data: { HostCollectiveId: collective1.id },
-        });
-
-        const args = {
-          currency: 'USD',
-          collectiveId: collective1.id,
-          amount: 10000,
-          paymentMethodId: prepaidPaymentMethod.id,
-        };
-        const gqlResult = await utils.graphqlQuery(createGiftCardsMutation, args, user1);
-        expect(gqlResult.errors).to.exist;
-        expect(gqlResult.errors[0].toString()).to.contain(
-          'Only credit cards can be used as gift cards source payment methods',
-        );
-      });
-    }); /** End Of "#create" */
-
-    describe('#claim', async () => {
-      let collective1, paymentMethod1, giftCardPaymentMethod, user1;
-
-      before(() => utils.resetTestDB());
-
-      before('create collective1(currency USD, No Host)', () =>
-        models.Collective.create({
-          name: 'collective1',
-          currency: 'USD',
-          image: 'https://cldup.com/rdmBCmH20l.png',
-          isActive: true,
-          approvedAt: new Date(),
-        }).then(c => (collective1 = c)),
-      );
-
-      before('create a credit card payment method', () =>
-        models.PaymentMethod.create({
-          name: '4242',
-          service: 'stripe',
-          type: 'creditcard',
-          token: 'tok_123456781234567812345678',
-          CollectiveId: collective1.id,
-          monthlyLimitPerMember: null,
-        }).then(pm => (paymentMethod1 = pm)),
-      );
-
-      before('creates User 1', () =>
-        models.User.createUserWithCollective({
-          email: store.randEmail(),
-          name: 'User 1',
-        }).then(u => (user1 = u)),
-      );
-      before('user1 to become Admin of collective1', () => {
-        return models.Member.create({
-          CreatedByUserId: user1.id,
-          MemberCollectiveId: user1.CollectiveId,
-          CollectiveId: collective1.id,
-          role: 'ADMIN',
-        }).then(() => {
-          return user1.populateRoles();
-        });
-      });
-
-      beforeEach('create a gift card payment method', () =>
-        giftcard
-          .create(
-            {
-              description: 'gift card test',
-              CollectiveId: collective1.id,
-              amount: 10000,
-              currency: 'USD',
-            },
-            user1,
-          )
-          .then(pm => (giftCardPaymentMethod = pm)),
-      );
-
-      it('new User should claim a gift card', async () => {
-        // setting correct code to claim gift card by new User
-        const giftCardCode = giftCardPaymentMethod.uuid.substring(0, 8);
-        const args = {
-          user: {
-            name: 'New User',
-            email: 'new@user.com',
-            twitterHandle: 'xdamman',
-          },
-          code: giftCardCode,
-        };
-        // claim gift card
-        // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(claimPaymentMethodMutation, args);
-
-        gqlResult.errors && console.error(gqlResult.errors[0]);
-        expect(gqlResult.errors).to.be.undefined;
-
-        const paymentMethod = gqlResult.data.claimPaymentMethod;
-        // payment method should exist
-        expect(paymentMethod).to.exist;
-        // then paymentMethod SourcePaymentMethodId should be paymentMethod1.id(the PM of the organization collective1)
-        const pmFromDb = await models.PaymentMethod.findByPk(paymentMethod.id);
-        expect(pmFromDb.SourcePaymentMethodId).to.equal(paymentMethod1.id);
-        expect(paymentMethod.collective.name).to.equal(args.user.name);
-        expect(paymentMethod.collective.twitterHandle).to.equal(args.user.twitterHandle);
-        // and collective id of "original" gift card should be different than the one returned
-        expect(giftCardPaymentMethod.CollectiveId).not.to.equal(paymentMethod.collective.id);
-        // then find collective of created user
-        const userCollective = paymentMethod.collective;
-
-        // then find the user
-        const user = await models.User.findOne({
-          where: {
-            CollectiveId: userCollective.id,
-          },
-        });
-        // then check if the user email matches the email on the argument used on the claim
-        expect(user.email).to.be.equal(args.user.email);
-        // then check if both have the same uuid
-        expect(paymentMethod.uuid).not.to.be.equal(giftCardPaymentMethod.id);
-        // and check if both have the same expiry
-        expect(moment(new Date(paymentMethod.expiryDate)).format()).to.be.equal(
-          moment(giftCardPaymentMethod.expiryDate).format(),
-        );
-
-        await utils.waitForCondition(() => sendEmailSpy.callCount > 0);
-        expect(sendEmailSpy.firstCall.args[0]).to.equal(args.user.email);
-        expect(sendEmailSpy.firstCall.args[1]).to.contain(
-          `You've got $100.00 from collective1 to spend on Open Collective`,
-        );
-        expect(sendEmailSpy.firstCall.args[2]).to.contain(`next=/redeemed?code=${giftCardCode}`);
-        expect(sendEmailSpy.firstCall.args[2]).to.contain(
-          collective1.image.substr(collective1.image.lastIndexOf('/') + 1),
-        );
-      }); /** End Of "#new User should claim a gift card" */
-
-      it('Existing User should claim a gift card', async () => {
-        const existingUser = await models.User.createUserWithCollective({
-          email: store.randEmail(),
-          name: 'Existing User',
-        });
-        // setting correct code to claim gift card by new User
-        const giftCardCode = giftCardPaymentMethod.uuid.substring(0, 8);
-        const args = {
-          code: giftCardCode,
-        };
-        // claim gift card
-        // call graphql mutation
-        const gqlResult = await utils.graphqlQuery(claimPaymentMethodMutation, args, existingUser);
-
-        gqlResult.errors && console.error(gqlResult.errors[0]);
-        expect(gqlResult.errors).to.be.undefined;
-
-        const paymentMethod = await models.PaymentMethod.findByPk(gqlResult.data.claimPaymentMethod.id);
-
-        // payment method should exist
-        expect(paymentMethod).to.exist;
-        // then paymentMethod SourcePaymentMethodId should be paymentMethod1.id(the PM of the organization collective1)
-        expect(paymentMethod.SourcePaymentMethodId).to.be.equal(paymentMethod1.id);
-        // and collective id of "original" gift card should be different than the one returned
-        expect(giftCardPaymentMethod.CollectiveId).not.to.be.equal(paymentMethod.CollectiveId);
-        // then find collective of created user
-        const userCollective = await models.Collective.findByPk(paymentMethod.CollectiveId);
-        // then find the user
-        const user = await models.User.findOne({
-          where: {
-            CollectiveId: userCollective.id,
-          },
-        });
-        // compare user from collectiveId on payment method to existingUser(that claimend)
-        expect(user.email).to.be.equal(existingUser.email);
-        expect(userCollective.id).to.be.equal(existingUser.CollectiveId);
-        // then check if both have the same uuid
-        expect(paymentMethod.uuid).not.to.be.equal(giftCardPaymentMethod.id);
-        // and check if both have the same expiry
-        expect(moment(paymentMethod.expiryDate).format()).to.be.equal(
-          moment(giftCardPaymentMethod.expiryDate).format(),
-        );
-      }); /** End Of "Existing User should claim a gift card" */
-    }); /** End Of "#claim" */
-
     describe('#processOrder2', async () => {
-      let host1, host2, collective1, collective2, giftCardPaymentMethod, user1, userGiftCard, userGiftCardCollective;
+      let host1,
+        host2,
+        collective1,
+        collective2,
+        giftCardPaymentMethod,
+        sourcePaymentMethod,
+        user1,
+        userGiftCard,
+        userGiftCardCollective;
 
       before(() => utils.resetTestDB());
 
@@ -1111,41 +567,34 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           token: 'tok_123456781234567812345678',
           CollectiveId: collective1.id,
           monthlyLimitPerMember: null,
-        }),
+        }).then(pm => (sourcePaymentMethod = pm)),
       );
 
-      before('create a gift card payment method', () =>
-        giftcard
-          .create(
-            {
-              description: 'gift card test',
-              CollectiveId: collective1.id,
-              amount: 10000,
-              currency: 'USD',
-              limitedToHostCollectiveIds: [host1.id],
-              limitedToTags: ['open source'],
-            },
-            user1,
-          )
-          .then(pm => (giftCardPaymentMethod = pm)),
-      );
-
-      before('new user claims a gift card', () =>
-        giftcard
-          .claim({
-            user: { email: 'new@user.com' },
-            code: giftCardPaymentMethod.uuid.substring(0, 8),
-          })
-          .then(async pm => {
-            giftCardPaymentMethod = await models.PaymentMethod.findByPk(pm.id);
-            userGiftCardCollective = await models.Collective.findByPk(giftCardPaymentMethod.CollectiveId);
-            userGiftCard = await models.User.findOne({
-              where: {
-                CollectiveId: userGiftCardCollective.id,
-              },
-            });
-          }),
-      );
+      before('create a claimed gift card payment method', async () => {
+        userGiftCard = await models.User.createUserWithCollective({
+          email: store.randEmail('giftcard-claimer@opencollective.com'),
+          name: 'Gift Card Claimer',
+        });
+        userGiftCardCollective = userGiftCard.collective;
+        giftCardPaymentMethod = await models.PaymentMethod.create({
+          name: 'gift card test',
+          description: 'gift card test',
+          SourcePaymentMethodId: sourcePaymentMethod.id,
+          initialBalance: 10000,
+          monthlyLimitPerMember: null,
+          currency: 'USD',
+          CollectiveId: userGiftCardCollective.id,
+          CreatedByUserId: user1.id,
+          service: 'opencollective',
+          type: 'giftcard',
+          confirmedAt: new Date(),
+          expiryDate: moment().add(24, 'months').toDate(),
+          limitedToTags: ['open source'],
+          limitedToHostCollectiveIds: [host1.id],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      });
 
       it('Order should NOT be executed because its amount exceeds the balance of the gift card', async () => {
         // Setting up order

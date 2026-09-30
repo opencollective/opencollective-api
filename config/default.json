@@ -72,9 +72,6 @@
       "perUser": 10,
       "perIp": 10
     },
-    "giftCards": {
-      "maxPerDay": 100
-    },
     "klippa": {
       "perUser": {
         "month": 100,

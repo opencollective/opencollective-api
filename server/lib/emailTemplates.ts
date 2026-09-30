@@ -100,8 +100,6 @@ export const templateNames = [
   'order.processed',
   'order.processed.fr',
   'order.processed.opensource',
-  'user.card.claimed',
-  'user.card.invited',
   'user.changeEmail',
   'user.monthlyreport',
   'user.new.token',

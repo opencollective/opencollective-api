@@ -7,10 +7,5 @@
   },
   "mailpit": {
     "client": true
-  },
-  "limits": {
-    "giftCards": {
-      "maxPerDay": 1000
-    }
   }
 }
