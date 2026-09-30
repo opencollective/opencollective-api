@@ -42,7 +42,6 @@ import { getFxRate, roundCentsAmount } from './currency';
 import emailLib from './email';
 import { toNegative } from './math';
 import { getTransactionPdf } from './pdf';
-import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
 import { optsSanitizeOnlyTextFormatting, sanitizeHTML } from './sanitize-html';
 import { reportMessageToSentry } from './sentry';
@@ -1106,11 +1105,6 @@ export const executeOrder = async (
     // Or in the case of tickets register the user as an ATTENDEE
     if (order.fromCollective?.ParentCollectiveId !== order.collective.id) {
       await order.getOrCreateMembers();
-    }
-
-    // Create a Pre-Paid Payment Method for the prepaid budget
-    if (isPrepaidBudgetOrder(order)) {
-      await createPrepaidPaymentMethod(transaction);
     }
   }
 

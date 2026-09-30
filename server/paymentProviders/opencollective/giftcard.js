@@ -276,6 +276,9 @@ async function getSourcePaymentMethodFromCreateArgs(args, collective) {
       throw Error('Invalid PaymentMethodId');
     }
   }
+  if (paymentMethod.type !== PAYMENT_METHOD_TYPE.CREDITCARD) {
+    throw new Error('Only credit cards can be used as gift cards source payment methods');
+  }
   return paymentMethod;
 }
 
@@ -418,11 +421,6 @@ function getCurrencyFromCreateArgs(args, collective) {
 function getCreateParams(args, collective, sourcePaymentMethod, remoteUser) {
   // Make sure currency is a string, trim and uppercase it.
   args.currency = getCurrencyFromCreateArgs(args, collective);
-
-  // Ensure sourcePaymentMethod type is supported
-  if (!['creditcard', 'prepaid'].includes(sourcePaymentMethod.type)) {
-    throw new Error('Only prepaid and creditcard can be used as gift cards source payment methods');
-  }
 
   // Ensure amount or monthlyLimitPerMember are valid
   if (!args.amount && !args.monthlyLimitPerMember) {
