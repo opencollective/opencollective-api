@@ -445,6 +445,55 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
       expect(result.errors[0].message).to.equal(`You don't have permission to update this Virtual Card's limit`);
     });
 
+    it('rejects host admin without 2FA when editing a limit on a host that requires 2FA', async () => {
+      await host.update({ data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+      const virtualCard = await fakeVirtualCard({
+        HostCollectiveId: host.id,
+        CollectiveId: collective.id,
+        provider: VirtualCardProviders.STRIPE,
+      });
+      const updateVirtualCardLimitStub = sandbox.stub(stripeVirtualCards, 'updateVirtualCardLimit').resolves();
+
+      const result = await graphqlQueryV2(
+        EDIT_VIRTUAL_CARD_MUTATION,
+        {
+          virtualCard: { id: virtualCard.id },
+          limitAmount: { valueInCents: 10000 },
+          limitInterval: VirtualCardLimitIntervals.MONTHLY,
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+      expect(updateVirtualCardLimitStub.called).to.equal(false);
+    });
+
+    it('enforces the host 2FA policy when the host admin also admins the collective', async () => {
+      await host.update({ data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+      const weakCollective = await fakeCollective({ HostCollectiveId: host.id, admin: hostAdminUser });
+      const virtualCard = await fakeVirtualCard({
+        HostCollectiveId: host.id,
+        CollectiveId: weakCollective.id,
+        provider: VirtualCardProviders.STRIPE,
+      });
+      const updateVirtualCardLimitStub = sandbox.stub(stripeVirtualCards, 'updateVirtualCardLimit').resolves();
+
+      const result = await graphqlQueryV2(
+        EDIT_VIRTUAL_CARD_MUTATION,
+        {
+          virtualCard: { id: virtualCard.id },
+          limitAmount: { valueInCents: 10000 },
+          limitInterval: VirtualCardLimitIntervals.MONTHLY,
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+      expect(updateVirtualCardLimitStub.called).to.equal(false);
+    });
+
     it('validates limit is less than maximum monthly limit', async () => {
       const virtualCard = await fakeVirtualCard({
         HostCollectiveId: host.id,
