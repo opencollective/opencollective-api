@@ -36,13 +36,13 @@ import models, { sequelize } from '../../server/models';
 import type PaymentMethodModel from '../../server/models/PaymentMethod';
 import prepaid from '../../server/paymentProviders/opencollective/prepaid';
 
-export type ArchivePrepaidPaymentMethodsOptions = {
+type ArchivePrepaidPaymentMethodsOptions = {
   dryRun?: boolean;
   /** Only archive methods that have not been used (as a payment method or as a gift card source) for that many days */
   minIdleDays?: number;
 };
 
-export type ArchivePrepaidPaymentMethodsResult = {
+type ArchivePrepaidPaymentMethodsResult = {
   archived: number[];
   kept: Array<{ id: number; balance: number; currency: string; lastUsedAt: Date | null }>;
 };
@@ -63,7 +63,7 @@ export const parseMinIdleDays = (value: string): number => {
 };
 
 /** Date of the last transaction that touched this payment method (directly or as a gift card source) */
-export const getLastUsedAt = async (paymentMethod: PaymentMethodModel): Promise<Date | null> => {
+const getLastUsedAt = async (paymentMethod: PaymentMethodModel): Promise<Date | null> => {
   const result = (await models.Transaction.findOne({
     attributes: [[sequelize.fn('MAX', sequelize.col('Transaction.createdAt')), 'lastUsedAt']],
     where: { deletedAt: null },
