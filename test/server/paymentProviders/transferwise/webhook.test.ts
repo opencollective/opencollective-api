@@ -1,5 +1,6 @@
 /* eslint-disable camelcase */
 
+import * as SentrySdk from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
 import { defaultsDeep } from 'lodash';
@@ -37,7 +38,7 @@ const RATES = {
 };
 
 describe('server/paymentProviders/transferwise/webhook', () => {
-  let expressApp, api;
+  let expressApp, api, metricsCountStub;
   before(async () => {
     expressApp = await app();
     api = request(expressApp);
@@ -45,6 +46,10 @@ describe('server/paymentProviders/transferwise/webhook', () => {
   });
 
   const sandbox = createSandbox();
+  beforeEach(() => {
+    sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+    metricsCountStub = sandbox.stub(SentrySdk.metrics, 'count');
+  });
   afterEach(sandbox.restore);
 
   describe('handleTransferStateChange', () => {
@@ -142,6 +147,24 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       expect(debitTransaction).to.be.have.nested.property('data.transfer.id', 1234);
     });
 
+    it('records a successful payment outcome metric when the transfer is sent', async () => {
+      await api.post('/webhooks/transferwise').send(event).expect(200);
+
+      expect(metricsCountStub).to.have.been.calledOnce;
+      expect(metricsCountStub.firstCall.args).to.deep.equal([
+        'thirdparty.wise.payment.succeeded',
+        1,
+        { attributes: { flow: 'payout', method: 'BANK_ACCOUNT' } },
+      ]);
+    });
+
+    it('does not record the metric again when the success event is redelivered', async () => {
+      await api.post('/webhooks/transferwise').send(event).expect(200);
+      await api.post('/webhooks/transferwise').send(event).expect(200);
+
+      expect(metricsCountStub).to.have.been.calledOnce;
+    });
+
     it('should handle an Int64-maximum transfer id without digit changes', async () => {
       const MAX_INT64 = '9223372036854775807';
       const bigEvent = {
@@ -201,6 +224,30 @@ describe('server/paymentProviders/transferwise/webhook', () => {
 
       await expense.reload();
       expect(expense).to.have.property('status', status.ERROR);
+    });
+
+    it('records a failed payment outcome metric when the transfer is cancelled', async () => {
+      const refundEvent = { ...event, data: { ...event.data, current_state: 'cancelled' } };
+      verifyEvent.returns(refundEvent);
+
+      await api.post('/webhooks/transferwise').send(refundEvent).expect(200);
+
+      expect(metricsCountStub).to.have.been.calledOnce;
+      expect(metricsCountStub.firstCall.args).to.deep.equal([
+        'thirdparty.wise.payment.failed',
+        1,
+        { attributes: { flow: 'payout', method: 'BANK_ACCOUNT', error_type: 'transfer_cancelled' } },
+      ]);
+    });
+
+    it('does not record the metric again when the failure event is redelivered', async () => {
+      const refundEvent = { ...event, data: { ...event.data, current_state: 'cancelled' } };
+      verifyEvent.returns(refundEvent);
+
+      await api.post('/webhooks/transferwise').send(refundEvent).expect(200);
+      await api.post('/webhooks/transferwise').send(refundEvent).expect(200);
+
+      expect(metricsCountStub).to.have.been.calledOnce;
     });
 
     it('should send a notification email to the payee and the host when the transfer fails', async () => {
@@ -413,6 +460,19 @@ describe('server/paymentProviders/transferwise/webhook', () => {
         expect(expense).to.have.nested.property('data.transfer.id', event.data.resource.id);
         expect(expense).to.have.nested.property('data.refundWiseEventTimestamp', event.data.occurred_at);
         expect(expense.Transactions).to.have.length(0);
+      });
+
+      it('records a failed payment outcome metric when the transfer is refunded', async () => {
+        const { event } = await setup({ amount: 10000, fees: 1000, refunded: 11000 });
+
+        await api.post('/webhooks/transferwise').send(event).expect(200);
+
+        expect(metricsCountStub).to.have.been.calledOnce;
+        expect(metricsCountStub.firstCall.args).to.deep.equal([
+          'thirdparty.wise.payment.failed',
+          1,
+          { attributes: { flow: 'payout', method: 'BANK_ACCOUNT', error_type: 'funds_refunded' } },
+        ]);
       });
 
       it('should match a canonical string refund event id against a legacy numeric JSONB expense id', async () => {

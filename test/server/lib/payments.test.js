@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
 import nock from 'nock';
@@ -68,7 +69,7 @@ const SNAPSHOT_COLUMNS = [
 ];
 
 describe('server/lib/payments', () => {
-  let host, user, user2, collective, order, collective2, sandbox, emailSendSpy;
+  let host, user, user2, collective, order, collective2, sandbox, emailSendSpy, metricsCountStub;
 
   before(() => {
     nock('https://data.fixer.io', { encodedQueryParams: true })
@@ -93,6 +94,8 @@ describe('server/lib/payments', () => {
 
   beforeEach(() => {
     sandbox = createSandbox();
+    sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+    metricsCountStub = sandbox.stub(Sentry.metrics, 'count');
     sandbox.stub(stripe.customers, 'create').callsFake(() => Promise.resolve({ id: 'cus_BM7mGwp1Ea8RtL' }));
     sandbox.stub(stripe.customers, 'retrieve').callsFake(() => Promise.resolve({ id: 'cus_BM7mGwp1Ea8RtL' }));
     sandbox.stub(stripe.tokens, 'retrieve').callsFake(async id => ({ id }));
@@ -160,7 +163,7 @@ describe('server/lib/payments', () => {
       TierId: tier.id,
     });
 
-    order = await o.setPaymentMethod({ token: STRIPE_TOKEN });
+    order = await o.setPaymentMethod({ token: STRIPE_TOKEN, type: PAYMENT_METHOD_TYPE.CREDITCARD });
   });
   beforeEach('add host to collective', () => collective.addHost(host, user, { shouldAutomaticallyApprove: true }));
   beforeEach('add host to collective2', () => collective2.addHost(host, user, { shouldAutomaticallyApprove: true }));
@@ -268,6 +271,15 @@ describe('server/lib/payments', () => {
               });
               expect(paymentIntent.primaryTransactionGroup).to.exist;
               await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
+            });
+
+            it('records a thirdparty payment outcome metric for the successful charge', () => {
+              expect(metricsCountStub).to.have.been.calledOnce;
+              expect(metricsCountStub.firstCall.args).to.deep.equal([
+                'thirdparty.stripe.payment.succeeded',
+                1,
+                { attributes: { flow: 'contribution', method: 'creditcard' } },
+              ]);
             });
 
             it('successfully adds the user as a backer', () =>

@@ -35,6 +35,14 @@ import {
 } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
 import { reportErrorToSentry } from '../../../lib/sentry';
+import {
+  mapErrorToType,
+  MetricEvent,
+  MetricFlow,
+  MetricProvider,
+  paymentServiceToMetricProvider,
+  recordPaymentOutcome,
+} from '../../../lib/sentry/metrics';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency } from '../../../lib/utils';
@@ -610,7 +618,26 @@ export async function createOrder(order, req) {
         if (error.stripeResponse) {
           orderCreated.status = status.REQUIRE_CLIENT_CONFIRMATION;
         } else {
+          const wasAlreadyFailed = orderCreated.status === status.ERROR;
           orderCreated.status = status.ERROR;
+
+          // Terminal failure of a synchronous payment attempt - only when a payment method was set,
+          // and only when the order transitions to ERROR here (errors that already landed the order
+          // in ERROR, e.g. the PayPal subscription setup, have been counted at their own site).
+          // `REQUIRE_CLIENT_CONFIRMATION` (3DS) is not terminal and is not counted. Internal flows
+          // (opencollective service) are out of scope.
+          if (!wasAlreadyFailed) {
+            const provider = paymentServiceToMetricProvider(orderCreated.paymentMethod?.service);
+            if (provider === MetricProvider.STRIPE || provider === MetricProvider.PAYPAL) {
+              recordPaymentOutcome({
+                provider,
+                flow: MetricFlow.CONTRIBUTION,
+                method: orderCreated.paymentMethod.type,
+                outcome: MetricEvent.FAILED,
+                errorType: mapErrorToType(error),
+              });
+            }
+          }
         }
         // This is not working
         // orderCreated.data.error = { message: error.message };

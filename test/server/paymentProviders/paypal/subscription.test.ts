@@ -1,6 +1,8 @@
 /* eslint-disable camelcase */
 
+import * as SentrySdk from '@sentry/node';
 import { expect } from 'chai';
+import config from 'config';
 import nock from 'nock';
 import { assert, createSandbox } from 'sinon';
 
@@ -108,6 +110,41 @@ describe('server/paymentProviders/paypal/subscription', () => {
       const createdSubscription = await order.getSubscription();
       expect(createdSubscription.paypalSubscriptionId).to.eq(validSubscriptionParams.id);
       expect(createdSubscription.isActive).to.be.false; // Will be activated when the first payment hits
+    });
+
+    it('records a failed payment outcome metric when the subscription activation fails', async () => {
+      const paymentMethod = await fakePaypalSubscriptionPm(validSubscriptionParams);
+      const order = await fakeOrder({
+        CollectiveId: host.id,
+        status: OrderStatuses.NEW,
+        TierId: null,
+        totalAmount: 1000,
+        PaymentMethodId: paymentMethod.id,
+      });
+      const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest');
+      const subscriptionUrl = `billing/subscriptions/${paymentMethod.token}`;
+      paypalRequestStub.withArgs(subscriptionUrl).returns(validSubscriptionParams);
+      const paypalError = {
+        message: 'PayPal refused to activate the subscription',
+        metadata: { error: { name: 'INTERNAL_ERROR', details: [{ issue: 'INTERNAL_ERROR' }] } },
+      };
+      paypalRequestStub.withArgs(`${subscriptionUrl}/activate`).rejects(paypalError);
+
+      sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+      const metricsCountStub = sandbox.stub(SentrySdk.metrics, 'count');
+
+      const error = await setupPaypalSubscriptionForOrder(order, paymentMethod).catch(e => e);
+      expect(error['rootException'].message).to.eq('PayPal refused to activate the subscription');
+
+      expect(metricsCountStub).to.have.been.calledOnce;
+      expect(metricsCountStub.firstCall.args).to.deep.equal([
+        'thirdparty.paypal.payment.failed',
+        1,
+        { attributes: { flow: 'contribution', method: 'subscription', error_type: 'provider_error' } },
+      ]);
+
+      // NB: the ERROR update is fire-and-forget in the handler, assert on the in-memory instance
+      expect(order.status).to.eq(OrderStatuses.ERROR);
     });
 
     describe('subscription matches the contribution', () => {

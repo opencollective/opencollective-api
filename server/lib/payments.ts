@@ -38,6 +38,13 @@ import { applyBalanceAccountingCategory } from './accounting/categorization/bala
 import { applyContributionAccountingCategoryRules } from './accounting/categorization/contribution-rules';
 import { notify } from './notifications/email';
 import { syncPaymentIntentFromRefund } from './payment-intents/sync';
+import {
+  MetricEvent,
+  MetricFlow,
+  MetricProvider,
+  paymentServiceToMetricProvider,
+  recordPaymentOutcome,
+} from './sentry/metrics';
 import { getFxRate, roundCentsAmount } from './currency';
 import emailLib from './email';
 import { toNegative } from './math';
@@ -1088,6 +1095,21 @@ export const executeOrder = async (
       processedAt: order.processedAt || new Date(),
       data: omit(order.data, ['stripePaymentIntent']),
     });
+
+    // Terminal outcome for synchronous payments. Async methods (SEPA, payment intents) settle later
+    // and are counted by the webhooks, after their idempotency/dedupe guards. PayPal is counted where
+    // its transaction is recorded (sync capture in the provider, async capture in the webhook) to
+    // avoid double-counting the race between the two. Internal flows (opencollective service:
+    // balance, gift card, prepaid, manual) are out of scope.
+    const provider = paymentServiceToMetricProvider(order.paymentMethod?.service);
+    if (provider === MetricProvider.STRIPE) {
+      recordPaymentOutcome({
+        provider,
+        flow: MetricFlow.CONTRIBUTION,
+        method: order.paymentMethod.type,
+        outcome: MetricEvent.SUCCEEDED,
+      });
+    }
 
     await applyContributionAccountingCategoryRules(order);
     await applyBalanceAccountingCategory(order);

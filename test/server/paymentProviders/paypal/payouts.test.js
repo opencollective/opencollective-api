@@ -1,5 +1,7 @@
 /* eslint-disable camelcase */
+import * as SentrySdk from '@sentry/node';
 import { expect } from 'chai';
+import config from 'config';
 import { assert, createSandbox } from 'sinon';
 
 import status from '../../../../server/constants/expense-status';
@@ -17,11 +19,13 @@ import {
 import * as utils from '../../../utils';
 
 describe('server/paymentProviders/paypal/payouts.js', () => {
-  let expense, host, collective, payoutMethod, sandbox;
+  let expense, host, collective, payoutMethod, sandbox, metricsCountStub;
 
   beforeEach(async () => {
     await utils.resetTestDB({ groupedTruncate: false });
     sandbox = createSandbox();
+    sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+    metricsCountStub = sandbox.stub(SentrySdk.metrics, 'count');
   });
 
   afterEach(() => {
@@ -116,6 +120,24 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       expect(processingActivities).to.have.length(1);
       expect(processingActivities[0].data).to.deep.include({ payoutResponse: { payout_batch_id: 'fake' } });
     });
+
+    it('records a failed payment outcome metric for each expense when the batch submit fails', async () => {
+      paypalLib.executePayouts.rejects({
+        message: 'PayPal refused the payout batch',
+        metadata: { error: { name: 'INTERNAL_ERROR', details: [{ issue: 'INTERNAL_ERROR' }] } },
+      });
+
+      await paypalPayouts.payExpensesBatch([expense]);
+      await expense.reload();
+
+      expect(expense).to.have.property('status', status.ERROR);
+      expect(metricsCountStub).to.have.been.calledOnce;
+      expect(metricsCountStub.firstCall.args).to.deep.equal([
+        'thirdparty.paypal.payment.failed',
+        1,
+        { attributes: { flow: 'payout', method: 'PAYPAL', error_type: 'provider_error' } },
+      ]);
+    });
   });
 
   describe('checkBatchStatus', () => {
@@ -196,6 +218,29 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
           time_processed: '2024-08-15T10:30:00Z',
         },
       });
+    });
+
+    it('records a successful payment outcome metric when the payout item succeeds', async () => {
+      paypalLib.getBatchInfo.resolves({
+        items: [
+          {
+            transaction_status: 'SUCCESS',
+            payout_item: { sender_item_id: expense.id.toString() },
+            payout_batch_id: 'fake-batch-id',
+            time_processed: '2024-08-15T10:30:00Z',
+          },
+        ],
+      });
+
+      await paypalPayouts.checkBatchStatus([expense]);
+
+      expect(expense).to.have.property('status', 'PAID');
+      expect(metricsCountStub).to.have.been.calledOnce;
+      expect(metricsCountStub.firstCall.args).to.deep.equal([
+        'thirdparty.paypal.payment.succeeded',
+        1,
+        { attributes: { flow: 'payout', method: 'PAYPAL' } },
+      ]);
     });
 
     it('work with cross-currency collectives', async () => {
@@ -321,6 +366,20 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         expect(errorActivities[0].data).to.containSubset({
           payoutItem: { transaction_status, payout_batch_id: 'fake-batch-id' },
         });
+
+        // Failed payout item settles the attempt terminally: exactly one metric with the mapped error type
+        expect(metricsCountStub).to.have.been.calledOnce;
+        expect(metricsCountStub.firstCall.args).to.deep.equal([
+          'thirdparty.paypal.payment.failed',
+          1,
+          {
+            attributes: {
+              flow: 'payout',
+              method: 'PAYPAL',
+              error_type: transaction_status === 'REFUNDED' ? 'funds_refunded' : 'provider_error',
+            },
+          },
+        ]);
       }),
     );
   });

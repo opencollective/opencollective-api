@@ -15,11 +15,13 @@ import logger from '../../lib/logger';
 import { lockUntilResolved } from '../../lib/mutex';
 import { createRefundTransaction } from '../../lib/payments';
 import { reportErrorToSentry } from '../../lib/sentry';
+import { ErrorType, MetricEvent, MetricFlow, MetricProvider, recordPaymentOutcome } from '../../lib/sentry/metrics';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import { getQuote, getTransfer, verifyEvent } from '../../lib/transferwise';
 import { parseToBoolean } from '../../lib/utils';
 import { wiseIdsEqual } from '../../lib/wise-id';
 import models from '../../models';
+import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import {
   ExpenseDataQuoteV3,
   QuoteV2PaymentOption,
@@ -88,6 +90,14 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       logger.info(`Wise: Transfer sent, marking expense as paid.`, event);
       // Mark Expense as Paid, create activity and send notifications
       await expense.markAsPaid({ paidAt: transaction.clearedAt || transaction.createdAt });
+
+      // Terminal success of the payout attempt (the state/status guards above make redeliveries no-ops)
+      recordPaymentOutcome({
+        provider: MetricProvider.WISE,
+        flow: MetricFlow.PAYOUT,
+        method: expense.PayoutMethod?.type ?? PayoutMethodTypes.BANK_ACCOUNT,
+        outcome: MetricEvent.SUCCEEDED,
+      });
     } else if (expense.status === expenseStatus.PROCESSING && event.data.current_state === 'outgoing_payment_sent') {
       logger.info(`Wise: Transfer sent, marking expense as paid and creating transactions.`, event);
       const feesInHostCurrency = (expense.data.feesInHostCurrency || {}) as {
@@ -145,6 +155,14 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       const paidAt = (event.data?.occurred_at && new Date(event.data.occurred_at)) || new Date();
       // Mark Expense as Paid, create activity and send notifications
       await expense.markAsPaid({ paidAt });
+
+      // Terminal success of the payout attempt (the status guard above makes redeliveries no-ops)
+      recordPaymentOutcome({
+        provider: MetricProvider.WISE,
+        flow: MetricFlow.PAYOUT,
+        method: expense.PayoutMethod?.type ?? PayoutMethodTypes.BANK_ACCOUNT,
+        outcome: MetricEvent.SUCCEEDED,
+      });
     }
     // Legacy refund handler
     else if (
@@ -172,6 +190,16 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       await expense.update({ data: { ...expense.data, transfer } });
       await expense.setError(expense.lastEditedById);
       await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+
+      // Terminal failure of the payout attempt (the expense lookup above skips already-errored expenses)
+      recordPaymentOutcome({
+        provider: MetricProvider.WISE,
+        flow: MetricFlow.PAYOUT,
+        method: expense.PayoutMethod?.type ?? PayoutMethodTypes.BANK_ACCOUNT,
+        outcome: MetricEvent.FAILED,
+        errorType:
+          event.data.current_state === 'funds_refunded' ? ErrorType.FUNDS_REFUNDED : ErrorType.TRANSFER_CANCELLED,
+      });
     } else if (
       isUsingTransferRefundHandler &&
       expense.status === expenseStatus.PROCESSING &&
@@ -181,6 +209,15 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       await expense.update({ data: { ...expense.data, transfer } });
       await expense.setError(expense.lastEditedById);
       await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+
+      // Terminal failure of the payout attempt (the status guard makes redeliveries no-ops)
+      recordPaymentOutcome({
+        provider: MetricProvider.WISE,
+        flow: MetricFlow.PAYOUT,
+        method: expense.PayoutMethod?.type ?? PayoutMethodTypes.BANK_ACCOUNT,
+        outcome: MetricEvent.FAILED,
+        errorType: ErrorType.TRANSFER_CANCELLED,
+      });
     }
   });
 }
@@ -273,6 +310,15 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
       if (expense.status !== expenseStatus.ERROR) {
         await expense.setError(expense.lastEditedById);
         await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+
+        // Terminal failure of the payout attempt (the status guard makes redeliveries no-ops)
+        recordPaymentOutcome({
+          provider: MetricProvider.WISE,
+          flow: MetricFlow.PAYOUT,
+          method: expense.PayoutMethod?.type ?? PayoutMethodTypes.BANK_ACCOUNT,
+          outcome: MetricEvent.FAILED,
+          errorType: ErrorType.FUNDS_REFUNDED,
+        });
       }
     } else {
       if (refundedAmount < sourceAmount) {
@@ -300,6 +346,15 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
         if (expense.status !== expenseStatus.ERROR) {
           await expense.setError(expense.lastEditedById);
           await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+
+          // Terminal failure of the payout attempt (the status guard makes redeliveries no-ops)
+          recordPaymentOutcome({
+            provider: MetricProvider.WISE,
+            flow: MetricFlow.PAYOUT,
+            method: expense.PayoutMethod?.type ?? PayoutMethodTypes.BANK_ACCOUNT,
+            outcome: MetricEvent.FAILED,
+            errorType: ErrorType.FUNDS_REFUNDED,
+          });
         }
       } else {
         logger.verbose('Wise: Expense was never marked as Paid, marking it as error', event);
@@ -307,6 +362,15 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
         if (expense.status !== expenseStatus.ERROR) {
           await expense.setError(expense.lastEditedById);
           await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+
+          // Terminal failure of the payout attempt (the status guard makes redeliveries no-ops)
+          recordPaymentOutcome({
+            provider: MetricProvider.WISE,
+            flow: MetricFlow.PAYOUT,
+            method: expense.PayoutMethod?.type ?? PayoutMethodTypes.BANK_ACCOUNT,
+            outcome: MetricEvent.FAILED,
+            errorType: ErrorType.FUNDS_REFUNDED,
+          });
         }
       }
     }

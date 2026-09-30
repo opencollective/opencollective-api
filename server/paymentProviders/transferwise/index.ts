@@ -34,6 +34,13 @@ import cache, { sessionCache } from '../../lib/cache';
 import { centsAmountToFloat, getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { safeJsonStringify } from '../../lib/safe-json-stringify';
+import {
+  mapErrorToType,
+  MetricEvent,
+  MetricFlow,
+  MetricProvider,
+  recordPaymentOutcome,
+} from '../../lib/sentry/metrics';
 import * as transferwise from '../../lib/transferwise';
 import {
   normalizeWiseId,
@@ -356,6 +363,17 @@ async function createTransfer(
       error: { message: e.message, details: safeJsonStringify(e) },
       isSystem: true,
     });
+
+    // Terminal failure of the payout attempt (submit phase), including `INSUFFICIENT_BALANCE`
+    // which is counted with its own error type even though it does not set the expense to ERROR.
+    recordPaymentOutcome({
+      provider: MetricProvider.WISE,
+      flow: MetricFlow.PAYOUT,
+      method: payoutMethod.type,
+      outcome: MetricEvent.FAILED,
+      errorType: mapErrorToType(e),
+    });
+
     throw e;
   }
 }
@@ -400,7 +418,19 @@ async function payExpense(
     }
   } catch (e) {
     logger.error(`Wise: Error paying expense ${expense.id}`, e);
+
+    // Terminal failure of the payout attempt (funding phase). Recorded before cancelling the transfer,
+    // which can itself throw and would otherwise skip the metric.
+    recordPaymentOutcome({
+      provider: MetricProvider.WISE,
+      flow: MetricFlow.PAYOUT,
+      method: payoutMethod.type,
+      outcome: MetricEvent.FAILED,
+      errorType: mapErrorToType(e),
+    });
+
     await transferwise.cancelTransfer(connectedAccount, transfer.id);
+
     throw e;
   }
 

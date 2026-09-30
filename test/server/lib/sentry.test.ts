@@ -1,9 +1,12 @@
 import { BaseContext, GraphQLRequestContext } from '@apollo/server';
+import type { Metric } from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
 import sinon from 'sinon';
 
+import logger from '../../../server/lib/logger';
 import * as SentryLib from '../../../server/lib/sentry';
+import { beforeSendMetric } from '../../../server/lib/sentry/init';
 import { makeRequest } from '../../utils';
 
 describe('server/lib/sentry', () => {
@@ -53,6 +56,28 @@ describe('server/lib/sentry', () => {
         request: req,
       });
       expect(captureExceptionSpy).to.not.have.been.called;
+    });
+  });
+
+  describe('beforeSendMetric', () => {
+    it('keeps metrics whose name matches the grammar', () => {
+      const metric: Metric = { name: 'thirdparty.stripe.payment.succeeded', value: 1, type: 'counter' };
+      expect(beforeSendMetric(metric)).to.equal(metric);
+    });
+
+    it('drops metrics whose name violates the grammar', () => {
+      expect(beforeSendMetric({ name: 'totally-invalid', value: 1, type: 'counter' })).to.be.null;
+      expect(beforeSendMetric({ name: 'thirdparty.stripe.payment', value: 1, type: 'counter' })).to.be.null;
+      expect(beforeSendMetric({ name: 'thirdparty.stripe.payment.succeeded.extra', value: 1, type: 'counter' })).to.be
+        .null;
+      expect(beforeSendMetric({ name: 'other.stripe.payment.succeeded', value: 1, type: 'counter' })).to.be.null;
+    });
+
+    it('logs a warning when dropping a metric', () => {
+      const warnSpy = sandbox.spy(logger, 'warn');
+      beforeSendMetric({ name: 'invalid-metric-name', value: 1, type: 'counter' });
+      expect(warnSpy.called).to.be.true;
+      expect(warnSpy.firstCall.args[0]).to.include('invalid-metric-name');
     });
   });
 });

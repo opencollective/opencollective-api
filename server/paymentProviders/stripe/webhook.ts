@@ -31,12 +31,20 @@ import {
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates, MAX_RETRIES } from '../../lib/recurring-contributions';
 import { cleanOrdersLimitForOrder } from '../../lib/security/limit';
 import { reportMessageToSentry } from '../../lib/sentry';
+import {
+  mapErrorToType,
+  MetricEvent,
+  MetricFlow,
+  MetricProvider,
+  recordPaymentOutcome,
+} from '../../lib/sentry/metrics';
 import stripe, { convertToStripeAmount, getDashboardObjectIdURL } from '../../lib/stripe';
 import { createTransactionsFromPaidStripeExpense, getPaymentProcessorFeeVendor } from '../../lib/transactions';
 import models, { sequelize } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
 import Order from '../../models/Order';
 import PaymentMethod from '../../models/PaymentMethod';
+import { PayoutMethodTypes } from '../../models/PayoutMethod';
 
 import { getVirtualCardForTransaction } from './../utils';
 import { createChargeTransactions, createPaymentMethod, UNKNOWN_ERROR_MSG, userFriendlyErrorMessage } from './common';
@@ -271,10 +279,20 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
     return;
   }
 
-  await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, stripePaymentIntent);
+  const paymentMethod = await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, stripePaymentIntent);
 
   const wasCancelled = order.status === OrderStatuses.CANCELLED;
   const transaction = await createChargeTransactions(charge, { order });
+
+  // Terminal success of the payment attempt. Emitted after the existing-charge dedupe above and once
+  // the ledger records the payment, so redeliveries and settle-twice flows count exactly once.
+  recordPaymentOutcome({
+    provider: MetricProvider.STRIPE,
+    flow: MetricFlow.CONTRIBUTION,
+    method: paymentMethod.type,
+    outcome: MetricEvent.SUCCEEDED,
+  });
+
   const sideEffects: (() => Promise<unknown>)[] = [
     // Payment is in the ledger: release the orders limit first, so it can't stay locked if a later effect fails
     () => (order.SubscriptionId ? Promise.resolve() : cleanOrdersLimitForOrder(order)),
@@ -431,6 +449,18 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
 
   if (shouldMarkPaid) {
     await expense.markAsPaid({ paidAt });
+
+    // Terminal success of the payout attempt. Emitted only when this delivery records the payment
+    // (redeliveries are deduped on the charge transaction and never reach this line).
+    // The payout method is not necessarily Stripe: platform billing uses a STRIPE payout method,
+    // but card-funded expense payments carry the payee's method, so load the real one.
+    const payoutMethod = await expense.getPayoutMethod();
+    recordPaymentOutcome({
+      provider: MetricProvider.STRIPE,
+      flow: MetricFlow.PAYOUT,
+      method: payoutMethod?.type ?? PayoutMethodTypes.STRIPE,
+      outcome: MetricEvent.SUCCEEDED,
+    });
   }
 }
 
@@ -652,6 +682,7 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
       { association: 'collective', required: true },
       { association: 'fromCollective', required: true },
       { association: 'createdByUser', required: true },
+      { association: 'paymentMethod', required: false },
     ],
   });
 
@@ -665,10 +696,24 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
   logger.info(`Stripe Webook: Payment Intent failed for Order #${order.id}. Reason: ${reason}`);
 
   const wasCancelled = order.status === OrderStatuses.CANCELLED;
+  const wasAlreadyFailed = order.status === OrderStatuses.ERROR;
   await order.update({
     status: wasCancelled ? OrderStatuses.CANCELLED : OrderStatuses.ERROR,
     data: { ...order.data, stripePaymentIntent: stripePaymentIntent },
   });
+
+  // Terminal failure of the payment attempt. Counted only when the order transitions to ERROR, which
+  // keeps redeliveries of the same event from double-counting. `REQUIRE_CLIENT_CONFIRMATION` (3DS)
+  // failures still land here once the attempt is terminally declined.
+  if (!wasCancelled && !wasAlreadyFailed) {
+    recordPaymentOutcome({
+      provider: MetricProvider.STRIPE,
+      flow: MetricFlow.CONTRIBUTION,
+      method: order.paymentMethod?.type ?? 'unknown',
+      outcome: MetricEvent.FAILED,
+      errorType: mapErrorToType(stripePaymentIntent.last_payment_error || reason),
+    });
+  }
 
   const userFriendlyError = userFriendlyErrorMessage({ message: reason }) || UNKNOWN_ERROR_MSG;
 
@@ -719,13 +764,29 @@ async function handleExpensePaymentIntentFailed(event: Stripe.Event) {
   const reason = stripePaymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
   logger.info(`Stripe Webook: Payment Intent failed for Expense #${expense.id}. Reason: ${reason}`);
 
+  const isTerminalFailure = expense.status === ExpenseStatus.PROCESSING;
   await expense.update({
-    status: expense.status === ExpenseStatus.PROCESSING ? ExpenseStatus.ERROR : undefined,
+    status: isTerminalFailure ? ExpenseStatus.ERROR : undefined,
     data: {
       ...omit(expense.data, ['stripePaymentIntent']),
       previousStripePaymentIntents: [...(expense.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
     },
   });
+
+  // Terminal failure of the payout attempt: counted only when the expense transitions to ERROR, so
+  // redeliveries and failures arriving for already-settled expenses are not counted twice.
+  // The payout method is not necessarily Stripe (card-funded expense payments carry the payee's
+  // method), so load the real one rather than assuming STRIPE.
+  if (isTerminalFailure) {
+    const payoutMethod = await expense.getPayoutMethod();
+    recordPaymentOutcome({
+      provider: MetricProvider.STRIPE,
+      flow: MetricFlow.PAYOUT,
+      method: payoutMethod?.type ?? PayoutMethodTypes.STRIPE,
+      outcome: MetricEvent.FAILED,
+      errorType: mapErrorToType(stripePaymentIntent.last_payment_error || reason),
+    });
+  }
 }
 
 export const chargeDisputeCreated = async (event: Stripe.Event) => {

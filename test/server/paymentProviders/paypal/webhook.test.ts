@@ -1,8 +1,11 @@
 /* eslint-disable camelcase */
 
+import * as SentrySdk from '@sentry/node';
 import { expect } from 'chai';
+import config from 'config';
 import { createSandbox } from 'sinon';
 
+import OrderStatuses from '../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../../../server/constants/transactions';
@@ -11,6 +14,7 @@ import * as Sentry from '../../../../server/lib/sentry';
 import models from '../../../../server/models';
 import Order from '../../../../server/models/Order';
 import * as PaypalApi from '../../../../server/paymentProviders/paypal/api';
+import * as paypalPayment from '../../../../server/paymentProviders/paypal/payment';
 import paypalWebhook from '../../../../server/paymentProviders/paypal/webhook';
 import {
   fakeCollective,
@@ -178,6 +182,100 @@ describe('server/paymentProviders/paypal/webhook', () => {
       expect(transaction.paymentProcessorFeeInHostCurrency).to.eq(-120);
       await order.reload();
       expect(order.status).to.eq('ACTIVE');
+    });
+
+    it('records a thirdparty payment outcome metric for the successful recurring payment', async () => {
+      const host = await fakeHost();
+      await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const order = await createOrderWithSubscription({
+        CollectiveId: collective.id,
+        status: 'PENDING',
+      });
+
+      sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+      const metricsCountStub = sandbox.stub(SentrySdk.metrics, 'count');
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+      await callPaymentSaleCompleted(host.id, {
+        resource: {
+          id: 'SALE123',
+          billing_agreement_id: order.paymentMethod.token,
+          amount: { total: '12.00', currency: 'USD' },
+          transaction_fee: { value: '1.20', currency: 'USD' },
+        },
+      });
+
+      expect(metricsCountStub).to.have.been.calledOnce;
+      expect(metricsCountStub.firstCall.args).to.deep.equal([
+        'thirdparty.paypal.payment.succeeded',
+        1,
+        { attributes: { flow: 'contribution', method: 'subscription' } },
+      ]);
+    });
+
+    it('does not record the metric again when the sale event is redelivered', async () => {
+      const host = await fakeHost();
+      await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const order = await createOrderWithSubscription({
+        CollectiveId: collective.id,
+        status: 'PENDING',
+      });
+
+      sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+      const metricsCountStub = sandbox.stub(SentrySdk.metrics, 'count');
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+      const body = {
+        resource: {
+          id: 'SALE123',
+          billing_agreement_id: order.paymentMethod.token,
+          amount: { total: '12.00', currency: 'USD' },
+          transaction_fee: { value: '1.20', currency: 'USD' },
+        },
+      };
+
+      await callPaymentSaleCompleted(host.id, body);
+      await callPaymentSaleCompleted(host.id, body);
+
+      expect(metricsCountStub).to.have.been.calledOnce;
+    });
+  });
+
+  describe('PAYMENT.CAPTURE.COMPLETED', () => {
+    it('records a thirdparty payment outcome metric for the successful one-time payment', async () => {
+      const host = await fakeHost();
+      await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.PAYPAL,
+        type: PAYMENT_METHOD_TYPE.PAYMENT,
+      });
+      const order = await fakeOrder({
+        CollectiveId: collective.id,
+        FromCollectiveId: paymentMethod.CollectiveId,
+        PaymentMethodId: paymentMethod.id,
+        status: OrderStatuses.NEW,
+        data: { paypalCaptureId: 'PAYCAPTURE123' },
+      });
+
+      sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+      const metricsCountStub = sandbox.stub(SentrySdk.metrics, 'count');
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+      sandbox
+        .stub(paypalPayment, 'recordPaypalCapture')
+        .callsFake(async () => fakeTransaction({ OrderId: order.id, data: { paypalCaptureId: 'PAYCAPTURE123' } }));
+
+      await callPayPalWebhook(host.id, {
+        event_type: 'PAYMENT.CAPTURE.COMPLETED',
+        resource: { id: 'PAYCAPTURE123', amount: { total: '12.00', currency: 'USD' } },
+      });
+
+      expect(metricsCountStub).to.have.been.calledOnce;
+      expect(metricsCountStub.firstCall.args).to.deep.equal([
+        'thirdparty.paypal.payment.succeeded',
+        1,
+        { attributes: { flow: 'contribution', method: 'payment' } },
+      ]);
     });
   });
 

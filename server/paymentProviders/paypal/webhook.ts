@@ -16,6 +16,7 @@ import { createRefundTransaction, pauseOrderInDb } from '../../lib/payments';
 import { validateWebhookEvent, WatchedPaypalWebhookEvent } from '../../lib/paypal';
 import { recordOrderProcessed } from '../../lib/recurring-contributions';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
+import { MetricEvent, MetricFlow, MetricProvider, recordPaymentOutcome } from '../../lib/sentry/metrics';
 import models from '../../models';
 import { PayoutWebhookRequest, PaypalCapture, PaypalRefund } from '../../types/paypal';
 
@@ -132,6 +133,15 @@ async function handleSaleCompleted(req: Request): Promise<void> {
     // 2.2 Record the transaction
     transaction = await recordPaypalSale(order, sale);
 
+    // Terminal success of the payment attempt. Emitted after the existing-transaction dedupe above and
+    // once the ledger records the payment, so redeliveries count exactly once.
+    recordPaymentOutcome({
+      provider: MetricProvider.PAYPAL,
+      flow: MetricFlow.CONTRIBUTION,
+      method: order.paymentMethod.type,
+      outcome: MetricEvent.SUCCEEDED,
+    });
+
     // 2.3 Mark order/subscription as active
     if (order.status !== OrderStatus.ACTIVE) {
       await order.update({ status: OrderStatus.ACTIVE, processedAt: new Date() });
@@ -212,6 +222,15 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
 
     // Record the transaction
     transaction = await recordPaypalCapture(order, capture);
+
+    // Terminal success of the payment attempt (after the existing-transaction dedupe above, inside the lock)
+    recordPaymentOutcome({
+      provider: MetricProvider.PAYPAL,
+      flow: MetricFlow.CONTRIBUTION,
+      method: order.paymentMethod.type,
+      outcome: MetricEvent.SUCCEEDED,
+    });
+
     await order.update({ processedAt: new Date(), status: OrderStatus.PAID });
   });
 

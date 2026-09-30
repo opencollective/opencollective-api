@@ -13,9 +13,18 @@ import logger from '../../lib/logger';
 import * as paypal from '../../lib/paypal';
 import { safeJsonStringify } from '../../lib/safe-json-stringify';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
+import {
+  ErrorType,
+  mapErrorToType,
+  MetricEvent,
+  MetricFlow,
+  MetricProvider,
+  recordPaymentOutcome,
+} from '../../lib/sentry/metrics';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import models, { Collective } from '../../models';
 import Expense from '../../models/Expense';
+import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { PayoutItemDetails } from '../../types/paypal';
 
 const PROVIDER_NAME = Service.PAYPAL;
@@ -96,6 +105,16 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
         error: { message: error.message, details: safeJsonStringify(error) },
         isSystem: true,
       });
+
+      // Terminal failure of each payout attempt (batch submit)
+      recordPaymentOutcome({
+        provider: MetricProvider.PAYPAL,
+        flow: MetricFlow.PAYOUT,
+        method: e.PayoutMethod?.type ?? PayoutMethodTypes.PAYPAL,
+        outcome: MetricEvent.FAILED,
+        errorType: mapErrorToType(error),
+      });
+
       return e;
     });
     return Promise.all(updateExpenses);
@@ -158,6 +177,14 @@ export const checkBatchItemStatus = async (
         });
         // Mark Expense as Paid, create activity and send notifications
         await expense.markAsPaid({ paidAt: clearedAt, activityData: { payoutItem: item } });
+
+        // Terminal success of the payout attempt (the PAID guard above makes redeliveries no-ops)
+        recordPaymentOutcome({
+          provider: MetricProvider.PAYPAL,
+          flow: MetricFlow.PAYOUT,
+          method: expense.PayoutMethod?.type ?? PayoutMethodTypes.PAYPAL,
+          outcome: MetricEvent.SUCCEEDED,
+        });
       }
       break;
     case 'FAILED':
@@ -174,6 +201,15 @@ export const checkBatchItemStatus = async (
           { id: expense.lastEditedById },
           { error: item.errors, isSystem: true, payoutItem: item },
         );
+
+        // Terminal failure of the payout attempt (the ERROR guard above makes redeliveries no-ops)
+        recordPaymentOutcome({
+          provider: MetricProvider.PAYPAL,
+          flow: MetricFlow.PAYOUT,
+          method: expense.PayoutMethod?.type ?? PayoutMethodTypes.PAYPAL,
+          outcome: MetricEvent.FAILED,
+          errorType: item.transaction_status === 'REFUNDED' ? ErrorType.FUNDS_REFUNDED : ErrorType.PROVIDER_ERROR,
+        });
       }
       break;
     // Ignore cases
