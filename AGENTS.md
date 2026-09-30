@@ -27,4 +27,6 @@ Private organizations: `docs/private-organizations.md`.
 
 ## Quality
 
-From this repo: `npm run type:check`, `npm run lint:check`, `npm run prettier:check` (fix: `prettier:write`). Tests: Mocha (`npm run test`). Schema dumps: `npm run graphql:update`.
+From this repo: `npm run type:check`, `npm run lint:check`, `npm run prettier:check` (fix: `prettier:write`), `npm run ts-unused-exports`.
+Tests: Mocha (`npm run test`).
+Schema dumps: `npm run graphql:update`.
