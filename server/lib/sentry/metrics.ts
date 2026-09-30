@@ -256,7 +256,7 @@ export function recordPaymentOutcome(params: PaymentOutcomeParams): void {
       attributes.error_type = params.errorType || ErrorType.UNKNOWN; // eslint-disable-line camelcase
     }
 
-    // NB: `@sentry/node` 11.0.0 has no `increment` API - counters are `count(name, 1)`
+    // NB: `@sentry/node` 10.x/11.x expose no `increment` API - counters are `count(name, 1)`
     Sentry.metrics.count(name, 1, { attributes });
   } catch (error) {
     logger.warn('sentry/metrics: failed to record payment outcome', error);
