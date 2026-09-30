@@ -383,6 +383,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.activities.totalCount).to.eq(1);
       expect(result.data.activities.nodes[0].data.error).to.deep.equal({
+        name: 'VALIDATION_ERROR',
         message: 'Invalid request - see details',
         details: [{ issue: 'AMOUNT_INVALID' }],
       });
@@ -409,6 +410,38 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.activities.nodes[0].data.error).to.deep.equal({
         message: 'Authorization error occurred.',
+      });
+    });
+
+    it('extracts issue codes from payout item errors (payout_errors_details)', async () => {
+      await fakeActivity({
+        type: ActivityTypes.COLLECTIVE_EXPENSE_ERROR,
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        UserId: admin.id,
+        data: {
+          isSystem: true,
+          error: {
+            name: 'RECEIVER_ACCOUNT_INVALID',
+            message: 'The recipient account is invalid.',
+            // eslint-disable-next-line camelcase
+            debug_id: 'abc123',
+            // eslint-disable-next-line camelcase
+            information_link: 'https://developer.paypal.com/docs/api/payments.payouts-batch/#errors',
+            // eslint-disable-next-line camelcase
+            payout_errors_details: [{ field: 'payout_item.sender_item_id', issue: 'RECEIVER_ACCOUNT_INVALID' }],
+          },
+        },
+      });
+
+      const variables = { account: [{ legacyId: collective.id }], type: 'COLLECTIVE_EXPENSE_ERROR' };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.nodes[0].data.error).to.deep.equal({
+        name: 'RECEIVER_ACCOUNT_INVALID',
+        message: 'The recipient account is invalid.',
+        details: [{ issue: 'RECEIVER_ACCOUNT_INVALID' }],
       });
     });
   });

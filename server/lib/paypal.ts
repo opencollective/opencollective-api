@@ -68,7 +68,7 @@ export const executePayouts = async (
   const request = new paypal.payouts.PayoutsPostRequest();
   request.requestBody(requestBody);
   try {
-    return executeRequest<PayoutRequestResult>(connectedAccount, request);
+    return await executeRequest<PayoutRequestResult>(connectedAccount, request);
   } catch (e) {
     if (e.statusCode) {
       try {
