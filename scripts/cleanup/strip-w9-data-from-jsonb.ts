@@ -1,35 +1,37 @@
 /**
- * Remove legacy W9 tax-bot data from Collectives and Activities JSONB columns.
+ * Remove legacy W9 tax-bot data from Activities JSONB snapshots.
  *
- * `Collectives.data.W9` (`{ receivedFromUserIds, requestSentToUserIds }`) was written by
- * the W9 bot, which was removed in 2019. No active code reads or writes it. Historical
- * collective snapshots embedded in `Activities.data` (e.g. `host.data.W9`,
- * `virtualCard.host.data.W9`) still carry copies.
+ * The W9 bot (removed in 2019) wrote `Collectives.data.W9`
+ * (`{ receivedFromUserIds, requestSentToUserIds }`). No active code reads or
+ * writes it. Historical collective snapshots embedded in `Activities.data`
+ * (e.g. `host.data.W9`, `virtualCard.host.data.W9`) still carry copies.
+ * (The `Collectives` cleanup already ran, so this script is activities-only.)
  *
- * All key removal happens in SQL: the collectives phase strips the root `W9` key,
- * and the activities phase strips it from an explicit list of snapshot locations
- * (`ACTIVITY_W9_PARENT_PATHS`) via guarded `#-` operators. Every phase reports
- * the reclaimed size (KB/MB) per batch plus a running total.
+ * All key removal happens in SQL: the script strips `W9` from an explicit
+ * list of snapshot locations (`ACTIVITY_W9_PARENT_PATHS`) via guarded `#-`
+ * operators, and reports the reclaimed size (KB/MB) per batch plus a total.
  *
- * Performance (no index required, no state files): each run scans at most
- * `scanBudget` rows (default 1,000,000, calibrated to ~30s on 5.7M rows at
- * ~38k rows/s) past `--after-id`, so no statement can run away on huge tables.
- * Resume by passing the printed `lastId` as the next run's `--after-id`.
+ * Performance (no index required, no state files): every Activities query is
+ * bounded by a probe window. `--batch-size` defines the window: the script
+ * probes the `--batch-size`-th id past `--after-id` (e.g. `--batch-size 10`
+ * with `--after-id 0` yields `stopId=10` on contiguous ids) and every batch
+ * query carries `id > :afterId AND id <= :stopId`, so no statement can run
+ * away on the huge Activities table. Resume an interrupted run by passing
+ * the printed `lastId` as the next run's `--after-id`.
  * `complete=true` is only reported once the scan reaches the end of the table.
  *
  * Usage:
  *   # Dry run (default) - reports reclaimable rows and KB without writing
  *   npm run script scripts/cleanup/strip-w9-data-from-jsonb.ts
  *
- *   # Apply to up to 500 rows per phase; rerun to continue
+ *   # Apply to up to 500 rows (one default window); rerun to continue
  *   DRY_RUN=false npm run script scripts/cleanup/strip-w9-data-from-jsonb.ts
  *
- *   # Update up to 5,000 rows per phase in batches of 500
- *   DRY_RUN=false npm run script scripts/cleanup/strip-w9-data-from-jsonb.ts -- --batch-size 500 --limit 5000
+ *   # Loop through all activities one thousand at a time, stop after one migrated
+ *   DRY_RUN=false npm run script scripts/cleanup/strip-w9-data-from-jsonb.ts -- --batch-size 1000 --limit 1
  *
- *   # Each run scans at most scanBudget rows past --after-id (default 1,000,000).
- *   # Resume with the printed lastId; repeat until complete=true. No state files.
- *   DRY_RUN=false npm run script scripts/cleanup/strip-w9-data-from-jsonb.ts -- --phase activities --after-id 5000000 --limit 10000
+ *   # Same, but starting after ID=1234 (resume cursor)
+ *   DRY_RUN=false npm run script scripts/cleanup/strip-w9-data-from-jsonb.ts -- --batch-size 1000 --limit 1 --after-id 1234
  */
 
 import '../../server/env';
@@ -45,13 +47,6 @@ import { sequelize } from '../../server/models';
 
 const BATCH_SIZE = 500;
 
-/**
- * Maximum table rows examined per run past `--after-id`. Bounds every statement
- * so huge tables can't stall a run; resume with the printed `lastId`.
- * Calibrated from a production probe (~38k rows/s for the activities filter).
- */
-const SCAN_BUDGET = 1_000_000;
-
 /** Per-batch statement timeout (fixed safety net, not operator-facing). */
 const STATEMENT_TIMEOUT_MS = 300_000;
 
@@ -61,52 +56,44 @@ const INTER_BATCH_DELAY_MS = 250;
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
 /** Run batch work with a fixed statement timeout, without leaking session state to the pool. */
-const runWithBatchTimeout = async <T>(
-  db: Sequelize,
-  work: (transaction: Transaction) => Promise<T>,
-  { disableSeqScan = false }: { disableSeqScan?: boolean } = {},
-): Promise<T> =>
+const runWithBatchTimeout = async <T>(db: Sequelize, work: (transaction: Transaction) => Promise<T>): Promise<T> =>
   db.transaction(async transaction => {
     await db.query(`SET LOCAL statement_timeout = '${STATEMENT_TIMEOUT_MS}'`, { transaction });
-    if (disableSeqScan) {
-      await db.query('SET LOCAL enable_seqscan = off', { transaction });
-    }
+    // Activities is huge: keep every batch on the pkey range scan so the
+    // probe window structurally bounds the work.
+    await db.query('SET LOCAL enable_seqscan = off', { transaction });
     return work(transaction);
   });
 
-type ScannableTable = 'Collectives' | 'Activities';
-
-/** End of the per-run scan window: at most `scanBudget` rows past `afterId`. */
+/** End of a probe window: the `--batch-size`-th id past `afterId`. */
 type ScanWindow = {
   stopId: number | null;
   reachesEnd: boolean;
 };
 
-const probeWindow = async (
-  db: Sequelize,
-  table: ScannableTable,
-  afterId: number,
-  scanBudget: number,
-): Promise<ScanWindow> => {
+const probeWindow = async (db: Sequelize, afterId: number, batchSize: number): Promise<ScanWindow> => {
   const rows = await db.query<{ id: number }>(
-    `SELECT id FROM "${table}" WHERE id > :afterId ORDER BY id ASC LIMIT 2 OFFSET :offset`,
-    { replacements: { afterId, offset: scanBudget - 1 }, type: QueryTypes.SELECT },
+    `SELECT id FROM "Activities" WHERE id > :afterId ORDER BY id ASC LIMIT 2 OFFSET :offset`,
+    { replacements: { afterId, offset: batchSize - 1 }, type: QueryTypes.SELECT },
   );
   if (rows.length === 0) {
-    return { stopId: null, reachesEnd: true };
+    // Fewer than `batchSize` rows remain: cap the window at the last id so
+    // every Activities query stays bounded. No rows at all means we're done.
+    const tail = await db.query<{ id: number }>(
+      `SELECT id FROM "Activities" WHERE id > :afterId ORDER BY id DESC LIMIT 1`,
+      { replacements: { afterId }, type: QueryTypes.SELECT },
+    );
+    if (tail.length === 0) {
+      return { stopId: null, reachesEnd: true };
+    }
+    return { stopId: tail[0].id, reachesEnd: true };
   }
   return { stopId: rows[0].id, reachesEnd: rows.length < 2 };
 };
 
-const countWindow = async (
-  db: Sequelize,
-  table: ScannableTable,
-  afterId: number,
-  stopId: number | null,
-): Promise<number> => {
+const countWindow = async (db: Sequelize, afterId: number, stopId: number): Promise<number> => {
   const rows = await db.query<{ count: number }>(
-    `SELECT COUNT(*)::int AS count FROM "${table}"
-     WHERE id > :afterId${stopId === null ? '' : ' AND id <= :stopId'}`,
+    `SELECT COUNT(*)::int AS count FROM "Activities" WHERE id > :afterId AND id <= :stopId`,
     { replacements: { afterId, stopId }, type: QueryTypes.SELECT },
   );
   return rows[0]?.count ?? 0;
@@ -167,14 +154,11 @@ const ACTIVITY_W9_FLAG_PATHS: Record<string, string> = Object.fromEntries(
   ACTIVITY_W9_PARENT_PATHS.map(parts => [activityW9Flag(parts), [...parts, 'W9'].join('.')]),
 );
 
-type StripW9Phase = 'collectives' | 'activities' | 'all';
-
 type StripW9Options = {
   dryRun?: boolean;
   batchSize?: number;
   limit?: number;
   afterId?: number;
-  scanBudget?: number;
 };
 
 type PhaseStats = {
@@ -186,62 +170,14 @@ type PhaseStats = {
   complete: boolean;
 };
 
-type Estimate = {
-  count: number;
-  bytes: number;
-};
-
-const estimateCollectives = async (db: Sequelize): Promise<Estimate> => {
-  const rows = await db.query<{ count: number; bytes: string }>(
-    `
-      SELECT COUNT(*)::int AS count,
-             COALESCE(SUM(octet_length((data->'W9')::text)), 0)::bigint AS bytes
-      FROM "Collectives"
-      WHERE data ? 'W9';
-    `,
-    { type: QueryTypes.SELECT },
-  );
-  return { count: rows[0]?.count ?? 0, bytes: Number(rows[0]?.bytes ?? 0) };
-};
-
-const COLLECTIVES_DRY_RUN_QUERY = (bounded: boolean) => `
-  SELECT id,
-         octet_length(data::text) AS before_size,
-         octet_length((data - 'W9')::text) AS after_size
-  FROM "Collectives"
-  WHERE id > :afterId
-    AND data ? 'W9'
-    ${bounded ? 'AND id <= :stopId' : ''}
-  ORDER BY id ASC
-  LIMIT :batchSize
-`;
-
-const COLLECTIVES_UPDATE_QUERY = (bounded: boolean) => `
-  WITH candidates AS (
-    SELECT id, data
-    FROM "Collectives"
-    WHERE id > :afterId
-      AND data ? 'W9'
-      ${bounded ? 'AND id <= :stopId' : ''}
-    ORDER BY id ASC
-    LIMIT :batchSize
-  )
-  UPDATE "Collectives" AS c
-  SET data = c.data - 'W9'
-  FROM candidates
-  WHERE c.id = candidates.id
-  RETURNING c.id AS id,
-            (octet_length(candidates.data::text) - octet_length(c.data::text)) AS bytes_saved
-`;
-
-const ACTIVITIES_DRY_RUN_QUERY = (bounded: boolean) => `
+const ACTIVITIES_DRY_RUN_QUERY = `
   SELECT id,
          octet_length(data::text) AS before_size,
          octet_length((${ACTIVITIES_W9_REMOVAL('data')})::text) AS after_size,
          ${ACTIVITIES_W9_FLAGS('data')}
   FROM "Activities"
   WHERE id > :afterId
-    ${bounded ? 'AND id <= :stopId' : ''}
+    AND id <= :stopId
     AND strpos(data::text, '"W9"') > 0
     AND (
       ${ACTIVITIES_W9_WHERE('data')}
@@ -250,12 +186,12 @@ const ACTIVITIES_DRY_RUN_QUERY = (bounded: boolean) => `
   LIMIT :batchSize
 `;
 
-const ACTIVITIES_UPDATE_QUERY = (bounded: boolean) => `
+const ACTIVITIES_UPDATE_QUERY = `
   WITH candidates AS (
     SELECT id, data
     FROM "Activities"
     WHERE id > :afterId
-      ${bounded ? 'AND id <= :stopId' : ''}
+      AND id <= :stopId
       AND strpos(data::text, '"W9"') > 0
       AND (
         ${ACTIVITIES_W9_WHERE('data')}
@@ -283,37 +219,34 @@ type ActivityW9Row = {
 const activityW9RemovedPaths = (row: ActivityW9Row): string[] =>
   Object.keys(ACTIVITY_W9_FLAG_PATHS).filter(flag => Boolean(row[flag]));
 
-const runCollectivesPhase = async (db: Sequelize, options: StripW9Options): Promise<PhaseStats> => {
+const runActivities = async (db: Sequelize, options: StripW9Options): Promise<PhaseStats> => {
   const dryRun = options.dryRun ?? false;
   const batchSize = options.batchSize ?? BATCH_SIZE;
-  const limit = options.limit;
-  const scanBudget = options.scanBudget ?? SCAN_BUDGET;
+  const limit = options.limit ?? batchSize;
   let afterId = options.afterId ?? 0;
   let processed = 0;
   let updated = 0;
   let bytesSaved = 0;
+  let scanned = 0;
 
-  const { stopId, reachesEnd } = await probeWindow(db, 'Collectives', afterId, scanBudget);
-  const scanned = await countWindow(db, 'Collectives', afterId, stopId);
-  logger.info(
-    `collectives: scanning at most ${scanned} rows in this run (afterId=${afterId}${stopId === null ? '' : `, stopId=${stopId}`})`,
-  );
+  logger.info(`activities: migrating up to ${limit} rows in windows of ${batchSize} (afterId=${afterId})`);
 
   while (true) {
-    if (limit !== undefined && processed >= limit) {
+    if (processed >= limit) {
       break;
     }
 
-    const effectiveBatchSize = limit !== undefined ? Math.min(batchSize, limit - processed) : batchSize;
-    const bounded = stopId !== null;
+    const { stopId, reachesEnd } = await probeWindow(db, afterId, batchSize);
+    if (stopId === null) {
+      return { processed, updated, bytesSaved, scanned, lastId: afterId, complete: true };
+    }
+    scanned += await countWindow(db, afterId, stopId);
+    logger.info(`activities: window afterId=${afterId}, stopId=${stopId} (~${scanned} rows scanned so far)`);
+
+    const effectiveBatchSize = Math.min(batchSize, limit - processed);
 
     const rows = await runWithBatchTimeout(db, transaction =>
-      db.query<{
-        id: number;
-        before_size?: number | string;
-        after_size?: number | string;
-        bytes_saved?: number | string;
-      }>(dryRun ? COLLECTIVES_DRY_RUN_QUERY(bounded) : COLLECTIVES_UPDATE_QUERY(bounded), {
+      db.query<ActivityW9Row>(dryRun ? ACTIVITIES_DRY_RUN_QUERY : ACTIVITIES_UPDATE_QUERY, {
         replacements: { afterId, batchSize: effectiveBatchSize, stopId },
         type: QueryTypes.SELECT,
         transaction,
@@ -321,79 +254,12 @@ const runCollectivesPhase = async (db: Sequelize, options: StripW9Options): Prom
     );
 
     if (rows.length === 0) {
-      // Window exhausted: everything up to stopId was examined, so resume past it.
-      // (stopId null means the tail was reached: nothing left at all.)
-      return { processed, updated, bytesSaved, scanned, lastId: stopId ?? afterId, complete: reachesEnd };
-    }
-
-    for (const row of rows) {
-      processed++;
-      afterId = Math.max(afterId, row.id);
-      const saved = dryRun ? Number(row.before_size) - Number(row.after_size) : Number(row.bytes_saved);
-      if (saved > 0) {
-        updated++;
-        bytesSaved += saved;
+      // Window holds no matches: everything up to stopId was examined, resume past it.
+      afterId = stopId;
+      if (reachesEnd) {
+        return { processed, updated, bytesSaved, scanned, lastId: afterId, complete: true };
       }
-    }
-
-    logger.info(
-      `collectives: batch ${dryRun ? 'would strip W9 from' : 'stripped W9 from'} ${rows.length} rows (total=${processed}, ${dryRun ? 'wouldUpdate' : 'updated'}=${updated}, ${dryRun ? 'wouldSave' : 'saved'}=${formatSize(bytesSaved)}, lastId=${afterId})`,
-    );
-
-    if (rows.length < effectiveBatchSize) {
-      // Window exhausted (fewer matches than the page fits): resume past stopId,
-      // everything up to it was examined. Tail (stopId null) means we're done.
-      return { processed, updated, bytesSaved, scanned, lastId: stopId ?? afterId, complete: reachesEnd };
-    }
-
-    await sleep(INTER_BATCH_DELAY_MS);
-  }
-
-  return { processed, updated, bytesSaved, scanned, lastId: afterId, complete: false };
-};
-
-const runActivitiesPhase = async (db: Sequelize, options: StripW9Options): Promise<PhaseStats> => {
-  const dryRun = options.dryRun ?? false;
-  const batchSize = options.batchSize ?? BATCH_SIZE;
-  const limit = options.limit;
-  const scanBudget = options.scanBudget ?? SCAN_BUDGET;
-  let afterId = options.afterId ?? 0;
-  let processed = 0;
-  let updated = 0;
-  let bytesSaved = 0;
-
-  const { stopId, reachesEnd } = await probeWindow(db, 'Activities', afterId, scanBudget);
-  const scanned = await countWindow(db, 'Activities', afterId, stopId);
-  logger.info(
-    `activities: scanning at most ${scanned} rows in this run (afterId=${afterId}${stopId === null ? '' : `, stopId=${stopId}`})`,
-  );
-
-  while (true) {
-    if (limit !== undefined && processed >= limit) {
-      break;
-    }
-
-    const effectiveBatchSize = limit !== undefined ? Math.min(batchSize, limit - processed) : batchSize;
-    const bounded = stopId !== null;
-
-    const rows = await runWithBatchTimeout(
-      db,
-      transaction =>
-        db.query<ActivityW9Row>(dryRun ? ACTIVITIES_DRY_RUN_QUERY(bounded) : ACTIVITIES_UPDATE_QUERY(bounded), {
-          replacements: { afterId, batchSize: effectiveBatchSize, stopId },
-          type: QueryTypes.SELECT,
-          transaction,
-        }),
-      // Activities is huge: keep every batch on the pkey range scan so the
-      // scan window structurally bounds the work. (Collectives is small enough
-      // that a sequential scan is fine, so it doesn't opt in.)
-      { disableSeqScan: true },
-    );
-
-    if (rows.length === 0) {
-      // Window exhausted: everything up to stopId was examined, so resume past it.
-      // (stopId null means the tail was reached: nothing left at all.)
-      return { processed, updated, bytesSaved, scanned, lastId: stopId ?? afterId, complete: reachesEnd };
+      continue;
     }
 
     for (const row of rows) {
@@ -416,9 +282,12 @@ const runActivitiesPhase = async (db: Sequelize, options: StripW9Options): Promi
     );
 
     if (rows.length < effectiveBatchSize) {
-      // Window exhausted (fewer matches than the page fits): resume past stopId,
-      // everything up to it was examined. Tail (stopId null) means we're done.
-      return { processed, updated, bytesSaved, scanned, lastId: stopId ?? afterId, complete: reachesEnd };
+      // Fewer matches than the page fits: every match in the window was seen,
+      // so resume past stopId. Tail window means we're done.
+      afterId = stopId;
+      if (reachesEnd) {
+        return { processed, updated, bytesSaved, scanned, lastId: afterId, complete: true };
+      }
     }
 
     await sleep(INTER_BATCH_DELAY_MS);
@@ -427,60 +296,17 @@ const runActivitiesPhase = async (db: Sequelize, options: StripW9Options): Promi
   return { processed, updated, bytesSaved, scanned, lastId: afterId, complete: false };
 };
 
-const runStripW9DataFromJsonb = async (
-  db: Sequelize,
-  phase: StripW9Phase,
-  options: StripW9Options = {},
-): Promise<Record<string, PhaseStats>> => {
-  const dryRun = options.dryRun ?? false;
-  const results: Record<string, PhaseStats> = {};
-  const phasesToRun: StripW9Phase[] = phase === 'all' ? ['collectives', 'activities'] : [phase];
-
-  logger.info(
-    `strip-w9-data-from-jsonb: phase=${phase}, dryRun=${dryRun}, batchSize=${options.batchSize ?? BATCH_SIZE}, limit=${options.limit ?? 'none'}, afterId=${options.afterId ?? 0}, scanBudget=${options.scanBudget ?? SCAN_BUDGET}`,
-  );
-
-  if (phasesToRun.includes('collectives')) {
-    const estimate = await estimateCollectives(db);
-    logger.info(`collectives: ~${estimate.count} rows hold data.W9, ~${formatSize(estimate.bytes)} reclaimable`);
-  }
-
-  for (const currentPhase of phasesToRun) {
-    if (currentPhase === 'collectives') {
-      results.collectives = await runCollectivesPhase(db, options);
-    } else {
-      results.activities = await runActivitiesPhase(db, options);
-    }
-    const stats = currentPhase === 'collectives' ? results.collectives : results.activities;
-    logger.info(
-      `${currentPhase}: processed=${stats.processed}, updated=${stats.updated}, scanned=${stats.scanned}, ${dryRun ? 'wouldSave' : 'saved'}=${formatSize(stats.bytesSaved)}, lastId=${stats.lastId}, complete=${stats.complete}${stats.complete ? '' : ` (resume with --after-id ${stats.lastId})`}`,
-    );
-  }
-
-  const totalBytes = Object.values(results).reduce((sum, stats) => sum + stats.bytesSaved, 0);
-  const totalUpdated = Object.values(results).reduce((sum, stats) => sum + stats.updated, 0);
-  logger.info(
-    `strip-w9-data-from-jsonb: ${dryRun ? 'would update' : 'updated'} ${totalUpdated} rows, ${dryRun ? 'would reclaim' : 'reclaimed'} ${formatSize(totalBytes)} in this run`,
-  );
-
-  return results;
-};
-
 export async function run({
   dryRun = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : true,
   batchSize = BATCH_SIZE,
   limit = batchSize,
   afterId = 0,
-  scanBudget = SCAN_BUDGET,
-  phase = 'all' as StripW9Phase,
 }: {
   dryRun?: boolean;
   batchSize?: number;
   limit?: number;
   afterId?: number;
-  scanBudget?: number;
-  phase?: StripW9Phase;
-} = {}): Promise<Record<string, PhaseStats>> {
+} = {}): Promise<PhaseStats> {
   if (!Number.isSafeInteger(batchSize) || batchSize <= 0) {
     throw new Error('batchSize must be a positive integer');
   }
@@ -493,25 +319,22 @@ export async function run({
     throw new Error('afterId must be a non-negative integer');
   }
 
-  if (!Number.isSafeInteger(scanBudget) || scanBudget <= 0) {
-    throw new Error('scanBudget must be a positive integer');
-  }
+  logger.info(`strip-w9-data-from-jsonb: dryRun=${dryRun}, batchSize=${batchSize}, limit=${limit}, afterId=${afterId}`);
 
-  if (!['collectives', 'activities', 'all'].includes(phase)) {
-    throw new Error(`Invalid phase: ${phase}. Expected one of: collectives, activities, all`);
-  }
+  const stats = await runActivities(sequelize, { dryRun, batchSize, limit, afterId });
+  logger.info(
+    `activities: processed=${stats.processed}, updated=${stats.updated}, scanned=${stats.scanned}, ${dryRun ? 'wouldSave' : 'saved'}=${formatSize(stats.bytesSaved)}, lastId=${stats.lastId}, complete=${stats.complete}${stats.complete ? '' : ` (resume with --after-id ${stats.lastId})`}`,
+  );
 
-  return runStripW9DataFromJsonb(sequelize, phase, { dryRun, batchSize, limit, afterId, scanBudget });
+  return stats;
 }
 
 const main = async (): Promise<void> => {
   const program = new Command();
   program
-    .option('--phase <name>', 'Phase to run: collectives, activities, or all', 'all')
-    .option('--batch-size <n>', 'Rows per batch', Number)
-    .option('--limit <n>', 'Max rows to process per phase in this run', Number)
-    .option('--after-id <n>', 'Resume cursor (id > after-id, applied per phase)', Number)
-    .option('--scan-budget <n>', 'Max table rows to examine per phase in this run', Number);
+    .option('--batch-size <n>', 'Probe window size: migrate in windows of n Activities ids', Number)
+    .option('--limit <n>', 'Max rows to migrate in this run', Number)
+    .option('--after-id <n>', 'Resume cursor (only rows with id > after-id are examined)', Number);
 
   // `npm run script <file> -- --flag value` leaves a leading `--` in argv
   // (babel-node forwards it); strip it so commander parses the flags.
@@ -524,13 +347,6 @@ const main = async (): Promise<void> => {
 
   const options = program.opts();
   const dryRun = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : true;
-  const phase = options.phase as StripW9Phase;
-  const validPhases: StripW9Phase[] = ['collectives', 'activities', 'all'];
-
-  if (!validPhases.includes(phase)) {
-    logger.error(`Invalid phase: ${phase}. Expected one of: ${validPhases.join(', ')}`);
-    process.exit(1);
-  }
 
   if (dryRun) {
     logger.info('Running in DRY RUN mode');
@@ -541,8 +357,6 @@ const main = async (): Promise<void> => {
     batchSize: options.batchSize,
     limit: options.limit,
     afterId: options.afterId,
-    scanBudget: options.scanBudget,
-    phase,
   });
 };
 
