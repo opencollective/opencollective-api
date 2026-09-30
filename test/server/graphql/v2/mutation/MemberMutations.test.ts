@@ -5,8 +5,8 @@ import { describe, it } from 'mocha';
 import ActivityTypes from '../../../../../server/constants/activities';
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
-import models, { Member } from '../../../../../server/models';
-import { fakeCollective, fakeMember, fakePersonalToken, fakeUser } from '../../../../test-helpers/fake-data';
+import models from '../../../../../server/models';
+import { fakeCollective, fakePersonalToken, fakeUser } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 const MemberRoles = roles;
@@ -298,225 +298,34 @@ describe('memberMutations', () => {
     });
   });
 
-  describe('follow', () => {
-    const followMutation = gql`
-      mutation FollowCollective($account: AccountReferenceInput!) {
-        followAccount(account: $account) {
-          member {
-            id
-            role
-          }
-          individual {
-            memberOf(role: [FOLLOWER]) {
-              nodes {
-                id
+  describe('removed follower feature', () => {
+    it('does not expose follow mutations or the follower member role', async () => {
+      const result = await utils.graphqlQueryV2(
+        gql`
+          query RemovedFollowerFeature {
+            __schema {
+              mutationType {
+                fields {
+                  name
+                }
+              }
+            }
+            __type(name: "MemberRole") {
+              enumValues {
+                name
               }
             }
           }
-        }
-      }
-    `;
-
-    it('follows new account', async () => {
-      const collective = await fakeCollective();
-      const user = await fakeUser();
-
-      const result = await utils.graphqlQueryV2(
-        followMutation,
-        {
-          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
-        },
-        user,
+        `,
+        {},
       );
 
       expect(result.errors).to.not.exist;
-      expect(result.data.followAccount.member.role).to.equal(MemberRoles.FOLLOWER);
-      expect(result.data.followAccount.individual.memberOf.nodes).to.have.length(1);
-
-      const followers = await Member.findAll({
-        where: {
-          MemberCollectiveId: user.collective.id,
-          CollectiveId: collective.id,
-          role: MemberRoles.FOLLOWER,
-        },
-      });
-
-      expect(followers).to.have.length(1);
-    });
-
-    it('tries to follow account again', async () => {
-      const collective = await fakeCollective();
-      const user = await fakeUser();
-
-      const member = await fakeMember({
-        CollectiveId: collective.id,
-        MemberCollectiveId: user.collective.id,
-        role: MemberRoles.FOLLOWER,
-      });
-
-      const result = await utils.graphqlQueryV2(
-        followMutation,
-        {
-          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
-        },
-        user,
-      );
-
-      expect(result.errors).to.not.exist;
-      expect(result.data.followAccount.member.role).to.equal(MemberRoles.FOLLOWER);
-      expect(result.data.followAccount.member.id).to.equal(idEncode(member.id, IDENTIFIER_TYPES.MEMBER));
-
-      expect(result.data.followAccount.individual.memberOf.nodes).to.have.length(1);
-      expect(result.data.followAccount.individual.memberOf.nodes[0].id).to.equal(
-        idEncode(member.id, IDENTIFIER_TYPES.MEMBER),
-      );
-
-      const followers = await Member.findAll({
-        where: {
-          MemberCollectiveId: user.collective.id,
-          CollectiveId: collective.id,
-          role: MemberRoles.FOLLOWER,
-        },
-      });
-
-      expect(followers).to.have.length(1);
-    });
-
-    it('creates only one follow member', async () => {
-      const collective = await fakeCollective();
-      const user = await fakeUser();
-
-      const member = await fakeMember({
-        CollectiveId: collective.id,
-        MemberCollectiveId: user.collective.id,
-        role: MemberRoles.FOLLOWER,
-        deletedAt: new Date(),
-      });
-
-      let memberRecords = await Member.findAll({
-        where: {
-          MemberCollectiveId: user.collective.id,
-          CollectiveId: collective.id,
-          role: MemberRoles.FOLLOWER,
-        },
-        paranoid: false,
-      });
-      expect(memberRecords).to.have.length(1);
-
-      const result = await utils.graphqlQueryV2(
-        followMutation,
-        {
-          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
-        },
-        user,
-      );
-
-      expect(result.errors).to.not.exist;
-      expect(result.data.followAccount.member.role).to.equal(MemberRoles.FOLLOWER);
-      expect(result.data.followAccount.member.id).to.equal(idEncode(member.id, IDENTIFIER_TYPES.MEMBER));
-
-      expect(result.data.followAccount.individual.memberOf.nodes).to.have.length(1);
-      expect(result.data.followAccount.individual.memberOf.nodes[0].id).to.equal(
-        idEncode(member.id, IDENTIFIER_TYPES.MEMBER),
-      );
-
-      const followers = await Member.findAll({
-        where: {
-          MemberCollectiveId: user.collective.id,
-          CollectiveId: collective.id,
-          role: MemberRoles.FOLLOWER,
-        },
-      });
-
-      expect(followers).to.have.length(1);
-
-      memberRecords = await Member.findAll({
-        where: {
-          MemberCollectiveId: user.collective.id,
-          CollectiveId: collective.id,
-          role: MemberRoles.FOLLOWER,
-        },
-        paranoid: false,
-      });
-      expect(memberRecords).to.have.length(1);
-    });
-  });
-
-  describe('unfollow', () => {
-    const unfollowMutation = gql`
-      mutation UnfollowCollective($account: AccountReferenceInput!) {
-        unfollowAccount(account: $account) {
-          member {
-            id
-          }
-          individual {
-            id
-            memberOf(role: [FOLLOWER]) {
-              nodes {
-                id
-              }
-            }
-          }
-        }
-      }
-    `;
-
-    it('handles unfollowing account', async () => {
-      const collective = await fakeCollective();
-      const collective2 = await fakeCollective();
-      const user = await fakeUser();
-
-      await fakeMember({
-        CollectiveId: collective.id,
-        MemberCollectiveId: user.collective.id,
-        role: MemberRoles.FOLLOWER,
-      });
-
-      const member2 = await fakeMember({
-        CollectiveId: collective2.id,
-        MemberCollectiveId: user.collective.id,
-        role: MemberRoles.FOLLOWER,
-      });
-
-      const result = await utils.graphqlQueryV2(
-        unfollowMutation,
-        {
-          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
-        },
-        user,
-      );
-
-      expect(result.errors).to.not.exist;
-      expect(result.data.unfollowAccount.individual.memberOf.nodes).to.have.length(1);
-      expect(result.data.unfollowAccount.individual.memberOf.nodes[0].id).to.eq(
-        idEncode(member2.id, IDENTIFIER_TYPES.MEMBER),
-      );
-    });
-
-    it('handles unfollowing account without follow', async () => {
-      const collective = await fakeCollective();
-      const user = await fakeUser();
-
-      const result = await utils.graphqlQueryV2(
-        unfollowMutation,
-        {
-          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
-        },
-        user,
-      );
-
-      expect(result.errors).to.not.exist;
-      expect(result.data.unfollowAccount.individual.memberOf.nodes).to.have.length(0);
-
-      const followers = await Member.findAll({
-        where: {
-          MemberCollectiveId: user.collective.id,
-          CollectiveId: collective.id,
-          role: MemberRoles.FOLLOWER,
-        },
-      });
-
-      expect(followers).to.have.length(0);
+      const mutations = result.data.__schema.mutationType.fields.map(field => field.name);
+      const memberRoles = result.data.__type.enumValues.map(role => role.name);
+      expect(mutations).to.not.include('followAccount');
+      expect(mutations).to.not.include('unfollowAccount');
+      expect(memberRoles).to.not.include('FOLLOWER');
     });
   });
 });

@@ -16,7 +16,6 @@ import { TransactionTypes } from '../../constants/transactions';
 import models, { Activity, Collective } from '../../models';
 import { CommentType } from '../../models/Comment';
 import { ExpenseStatus } from '../../models/Expense';
-import { UpdateChannel } from '../../models/Update';
 import User from '../../models/User';
 import emailLib from '../email';
 import logger from '../logger';
@@ -361,7 +360,7 @@ export const notifyByEmail = async (activity: Activity) => {
       activity.data.update.html = replaceVideosByImagePreviews(activity.data.update.html);
 
       // Updates can have many subscribers (e.g. OSC has 6000+). We only load the ID and defer the rest to the email functions.
-      const usersIdsToNotify = await update.getUsersIdsToNotify(UpdateChannel.EMAIL);
+      const usersIdsToNotify = await update.getUsersIdsToNotify();
       const emailOpts = { from: activity.data.fromEmail };
       await notify.users(usersIdsToNotify, activity, emailOpts);
       break;

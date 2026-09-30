@@ -110,7 +110,7 @@ export default {
           group: ['MemberCollectiveId'],
           raw: true,
           mapToModel: false,
-          where: { MemberCollectiveId: otherAccountsCollectiveIds, role: { [Op.ne]: MemberRoles.FOLLOWER } },
+          where: { MemberCollectiveId: otherAccountsCollectiveIds, role: { [Op.in]: Object.values(MemberRoles) } },
           include: {
             association: 'collective',
             required: true,
@@ -167,7 +167,7 @@ export default {
           group: ['MemberCollectiveId'],
           raw: true,
           mapToModel: false,
-          where: { MemberCollectiveId: otherAccountsCollectiveIds, role: { [Op.ne]: MemberRoles.FOLLOWER } },
+          where: { MemberCollectiveId: otherAccountsCollectiveIds, role: { [Op.in]: Object.values(MemberRoles) } },
           include: {
             association: 'collective',
             required: true,

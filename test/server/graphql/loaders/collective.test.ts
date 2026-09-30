@@ -5,6 +5,7 @@ import { CollectiveType } from '../../../../server/constants/collectives';
 import MemberRoles from '../../../../server/constants/roles';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import CollectiveLoaders from '../../../../server/graphql/loaders/collective';
+import { sequelize } from '../../../../server/models';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -18,6 +19,29 @@ import { makeRequest, resetTestDB } from '../../../utils';
 describe('server/graphql/loaders/collective', () => {
   before(async () => {
     await resetTestDB();
+  });
+
+  it('does not expose private profile information through a legacy follower membership', async () => {
+    const user = await fakeUser();
+    const collectiveAdmin = await fakeUser();
+    const hostAdmin = await fakeUser();
+    const collective = await fakeCollective({ admin: collectiveAdmin });
+    await collective.host.addUserWithRole(hostAdmin, MemberRoles.ADMIN);
+
+    const member = await fakeMember({
+      CollectiveId: collective.id,
+      MemberCollectiveId: user.CollectiveId,
+      role: MemberRoles.BACKER,
+    });
+    // Simulate an obsolete membership before the removal migration has run.
+    await sequelize.query(`UPDATE "Members" SET role = 'FOLLOWER' WHERE id = :id`, {
+      replacements: { id: member.id },
+    });
+
+    for (const remoteUser of [collectiveAdmin, hostAdmin]) {
+      expect(await CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser }).load(user.CollectiveId)).to.be.false;
+      expect(await CollectiveLoaders.canSeePrivateLocation({ remoteUser }).load(user.CollectiveId)).to.be.false;
+    }
   });
 
   describe('canSeePrivateProfileInfo', () => {

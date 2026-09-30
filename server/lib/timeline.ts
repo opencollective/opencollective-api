@@ -85,21 +85,6 @@ const makeTimelineQuery = async (
           MemberRoles.ADMIN,
         ]),
       });
-
-      const followingCollectives = getCollectiveIdsForRole(memberships, [MemberRoles.FOLLOWER]);
-      if (!isEmpty(followingCollectives)) {
-        conditionals.push({
-          [Op.and]: [
-            {
-              type: ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
-              CollectiveId: followingCollectives,
-            },
-            Sequelize.literal(
-              `EXISTS (SELECT FROM "Updates" u where u.id = ("Activity"."data"#>'{update,id}')::integer AND NOT u."isPrivate")`,
-            ),
-          ],
-        });
-      }
     }
     return {
       [Op.or]: conditionals,
@@ -230,7 +215,8 @@ debug('Cache TTL: %d (%d days)', TTL, config.timeline.daysCached);
  */
 const getCacheKey = (collectiveSlug: string, classes: ActivityClasses[]): string => {
   const sortedClasses = [...classes].sort().join('-');
-  return `timeline-${collectiveSlug}-${sortedClasses || 'none'}`;
+  // Rebuild feeds cached before follower memberships were removed.
+  return `timeline-v2-${collectiveSlug}-${sortedClasses || 'none'}`;
 };
 
 /**
