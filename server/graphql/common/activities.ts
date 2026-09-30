@@ -23,18 +23,24 @@ const canSeeExpenseCommentActivity = async (req: Express.Request, activity, expe
  * Errors are persisted with provider-specific shapes (PayPal PayoutError, Wise errors, stringified dumps).
  * Only these fields are ever returned to clients.
  */
-const sanitizeErrorData = (error): { message?: string; details?: { issue: string }[] } => {
-  const sanitized: { message?: string; details?: { issue: string }[] } = {};
+const sanitizeErrorData = (error): { name?: string; message?: string; details?: { issue: string }[] } => {
+  const sanitized: { name?: string; message?: string; details?: { issue: string }[] } = {};
+  if (typeof error?.name === 'string') {
+    sanitized.name = error.name;
+  }
   if (typeof error?.message === 'string') {
     sanitized.message = error.message;
   }
-  if (Array.isArray(error?.details)) {
-    const details = error.details
-      .filter(detail => typeof detail?.issue === 'string')
-      .map(detail => ({ issue: detail.issue }));
-    if (details.length > 0) {
-      sanitized.details = details;
-    }
+  // Batch errors use `details`, payout item errors use `payout_errors_details`
+  const rawDetails = [
+    ...(Array.isArray(error?.details) ? error.details : []),
+    ...(Array.isArray(error?.payout_errors_details) ? error.payout_errors_details : []),
+  ];
+  const details = rawDetails
+    .filter(detail => typeof detail?.issue === 'string')
+    .map(detail => ({ issue: detail.issue }));
+  if (details.length > 0) {
+    sanitized.details = details;
   }
   return sanitized;
 };

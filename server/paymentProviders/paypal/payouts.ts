@@ -1,5 +1,6 @@
 /* eslint-disable camelcase */
 import { isNil, omit, round, toNumber, truncate } from 'lodash';
+import assert from 'node:assert';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
@@ -88,15 +89,23 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
   };
 
   let response: PayoutRequestResult | PayoutError;
+  let parsedErrorResponse: PayoutError | undefined;
   try {
     response = await paypal.executePayouts(connectedAccount, requestBody);
+    if (!('batch_header' in response) && 'name' in response) {
+      parsedErrorResponse = response;
+      throw response;
+    }
   } catch (error) {
     reportErrorToSentry(error, { feature: FEATURE.PAYPAL_PAYOUTS });
+    // Parsed PayPal error responses are persisted as-is so their structured `details` items reach
+    // host admins. Anything else is stringified.
+    const activityError = parsedErrorResponse ?? { message: error.message, details: safeJsonStringify(error) };
     const updateExpenses = expenses.map(async e => {
       await e.update({ status: status.ERROR, data: { ...e.data, error } });
       const user = await models.User.findByPk(e.lastEditedById);
       await e.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
-        error: { message: error.message, details: safeJsonStringify(error) },
+        error: activityError,
         isSystem: true,
       });
 
@@ -114,32 +123,19 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
     return Promise.all(updateExpenses);
   }
 
-  if ('batch_header' in response && response.batch_header.payout_batch_id) {
-    const updateExpenses = expenses.map(async e => {
-      await e.update({ data: { ...e.data, ...response.batch_header }, status: status.PROCESSING });
-      const user = await models.User.findByPk(e.lastEditedById);
-      await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user, {
-        payoutResponse: response.batch_header,
-      });
-      return e;
+  assert(
+    'batch_header' in response && response.batch_header.payout_batch_id,
+    'PayPal Payouts response failed to return batch_header',
+  );
+  const updateExpenses = expenses.map(async e => {
+    await e.update({ data: { ...e.data, ...response.batch_header }, status: status.PROCESSING });
+    const user = await models.User.findByPk(e.lastEditedById);
+    await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user, {
+      payoutResponse: response.batch_header,
     });
-    return Promise.all(updateExpenses);
-  } else if ('name' in response) {
-    const error = response;
-    reportErrorToSentry(error, { feature: FEATURE.PAYPAL_PAYOUTS });
-    const updateExpenses = expenses.map(async e => {
-      await e.update({ status: status.ERROR, data: { ...e.data, error } });
-      const user = await models.User.findByPk(e.lastEditedById);
-      await e.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
-        error,
-        isSystem: true,
-      });
-      return e;
-    });
-    return Promise.all(updateExpenses);
-  } else {
-    throw new Error('Unexpected response from PayPal API');
-  }
+    return e;
+  });
+  return Promise.all(updateExpenses);
 };
 
 export const checkBatchItemStatus = async (
