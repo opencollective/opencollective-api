@@ -1,4 +1,5 @@
 /* eslint-disable camelcase */
+import paypalPayoutsSDK from '@paypal/payouts-sdk';
 import * as SentrySdk from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
@@ -137,6 +138,75 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         1,
         { attributes: { flow: 'payout', method: 'PAYPAL', error_type: 'provider_error' } },
       ]);
+    });
+
+    it('should mark expenses as ERROR when executePayouts returns a PayoutError', async () => {
+      const payoutError = {
+        name: 'VALIDATION_ERROR',
+        message: 'Invalid request - see details',
+        debug_id: 'abc123',
+        details: [
+          {
+            field: 'items[0].amount.value',
+            issue: 'AMOUNT_INVALID',
+            description: 'Amount is invalid',
+          },
+        ],
+      };
+
+      paypalLib.executePayouts.resolves(payoutError);
+
+      await paypalPayouts.payExpensesBatch([expense, expense2]);
+      await expense.reload();
+      await expense2.reload();
+
+      assert.calledOnce(paypalLib.executePayouts);
+      expect(expense).to.have.property('status', status.ERROR);
+      expect(expense2).to.have.property('status', status.ERROR);
+      expect(expense.data.error).to.deep.equal(payoutError);
+      expect(expense2.data.error).to.deep.equal(payoutError);
+    });
+
+    it('should mark expenses as ERROR when the PayPal request fails but executePayouts returns a parsed error', async () => {
+      // Use the real executePayouts to cover its parse-on-failure path
+      paypalLib.executePayouts.restore();
+      const payoutError = {
+        name: 'VALIDATION_ERROR',
+        message: 'Invalid request - see details',
+        debug_id: 'abc123',
+        details: [
+          {
+            field: 'items[0].amount.value',
+            issue: 'AMOUNT_INVALID',
+            description: 'Amount is invalid',
+          },
+        ],
+      };
+      const execute = sandbox
+        .stub()
+        .rejects(Object.assign(new Error(JSON.stringify(payoutError)), { statusCode: 400 }));
+      sandbox.stub(paypalPayoutsSDK.core, 'PayPalHttpClient').returns({ execute });
+
+      await paypalPayouts.payExpensesBatch([expense]);
+      await expense.reload();
+
+      assert.calledOnce(execute);
+      expect(expense).to.have.property('status', status.ERROR);
+      expect(expense.data.error).to.deep.equal(payoutError);
+      const errorActivities = await expense.getActivities({ where: { type: 'collective.expense.error' } });
+      expect(errorActivities).to.have.length(1);
+      expect(errorActivities[0].data.error).to.deep.equal(payoutError);
+    });
+
+    it('should throw when executePayouts returns an unexpected response', async () => {
+      paypalLib.executePayouts.resolves({ unexpected: 'response' });
+
+      await expect(paypalPayouts.payExpensesBatch([expense])).to.be.rejectedWith(
+        'PayPal Payouts response failed to return batch_header',
+      );
+
+      await expense.reload();
+      expect(expense).to.have.property('status', status.SCHEDULED_FOR_PAYMENT);
     });
   });
 
