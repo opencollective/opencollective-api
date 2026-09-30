@@ -18,13 +18,9 @@ module.exports = {
       const [impactedTiers] = await queryInterface.sequelize.query(
         `
       UPDATE "Tiers"
-      SET "endsAt" = NOW(), "updatedAt" = NOW()
+      SET "deletedAt" = NOW()
       WHERE slug = 'prepaid-budget'
         AND "deletedAt" IS NULL
-        AND ("endsAt" IS NULL OR "endsAt" > NOW())
-        AND "CollectiveId" IN (
-          SELECT id FROM "Collectives" WHERE slug IN ('opensource', 'foundation', 'europe')
-        )
       RETURNING id
     `,
         {
