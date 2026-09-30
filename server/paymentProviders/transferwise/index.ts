@@ -418,9 +418,9 @@ async function payExpense(
     }
   } catch (e) {
     logger.error(`Wise: Error paying expense ${expense.id}`, e);
-    await transferwise.cancelTransfer(connectedAccount, transfer.id);
 
-    // Terminal failure of the payout attempt (funding phase)
+    // Terminal failure of the payout attempt (funding phase). Recorded before cancelling the transfer,
+    // which can itself throw and would otherwise skip the metric.
     recordPaymentOutcome({
       provider: MetricProvider.WISE,
       flow: MetricFlow.PAYOUT,
@@ -428,6 +428,8 @@ async function payExpense(
       outcome: MetricEvent.FAILED,
       errorType: mapErrorToType(e),
     });
+
+    await transferwise.cancelTransfer(connectedAccount, transfer.id);
 
     throw e;
   }

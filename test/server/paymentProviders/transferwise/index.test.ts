@@ -403,6 +403,28 @@ describe('server/paymentProviders/transferwise/index', () => {
           fundTransfer.resolves({ status: 'COMPLETED' });
         }
       });
+
+      it('records the failure metric even when cancelling the transfer fails', async () => {
+        const wiseExpense = await fakeWiseExpense();
+        fundTransfer.rejects(new Error('Funding exploded'));
+        cancelTransfer.rejects(new Error('Cancel exploded'));
+
+        try {
+          await expect(transferwise.payExpense(connectedAccount, payoutMethod, wiseExpense)).to.be.rejected;
+
+          expect(metricsCountStub).to.have.been.calledOnce;
+          expect(metricsCountStub.firstCall.args).to.deep.equal([
+            'thirdparty.wise.payment.failed',
+            1,
+            { attributes: { flow: 'payout', method: 'BANK_ACCOUNT', error_type: 'unknown' } },
+          ]);
+        } finally {
+          fundTransfer.resetBehavior();
+          fundTransfer.resolves({ status: 'COMPLETED' });
+          cancelTransfer.resetBehavior();
+          cancelTransfer.resolves();
+        }
+      });
     });
   });
 

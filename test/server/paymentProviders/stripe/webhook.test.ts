@@ -19,6 +19,7 @@ import { MAX_RETRIES } from '../../../../server/lib/recurring-contributions';
 import stripe from '../../../../server/lib/stripe';
 import * as transactions from '../../../../server/lib/transactions';
 import models, { Collective, Expense } from '../../../../server/models';
+import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import * as common from '../../../../server/paymentProviders/stripe/common';
 import * as webhook from '../../../../server/paymentProviders/stripe/webhook';
 import stripeMocks from '../../../mocks/stripe';
@@ -29,6 +30,7 @@ import {
   fakeExpense,
   fakeOrder,
   fakePaymentMethod,
+  fakePayoutMethod,
   fakeSubscription,
   fakeTransaction,
   fakeUser,
@@ -1386,10 +1388,15 @@ describe('webhook', () => {
 
       payee = await fakeCollective();
 
+      // Stripe expense payments are not necessarily paid through a STRIPE payout method (card-funded
+      // expense payments carry the payee's method), so use an explicit non-Stripe one here.
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.BANK_ACCOUNT });
+
       expense = await fakeExpense({
         status: ExpenseStatuses.APPROVED,
         Collective: payee.id,
         FromCollectiveId: fromCollective.id,
+        PayoutMethodId: payoutMethod.id,
         currency: 'USD',
         amount: 100e2,
         description: 'A expense to be paid with stripe',
@@ -1442,7 +1449,7 @@ describe('webhook', () => {
         expect(metricsCountStub.firstCall.args).to.deep.equal([
           'thirdparty.stripe.payment.succeeded',
           1,
-          { attributes: { flow: 'payout', method: 'STRIPE' } },
+          { attributes: { flow: 'payout', method: 'BANK_ACCOUNT' } },
         ]);
       });
 
@@ -1495,7 +1502,7 @@ describe('webhook', () => {
         expect(metricsCountStub.firstCall.args).to.deep.equal([
           'thirdparty.stripe.payment.failed',
           1,
-          { attributes: { flow: 'payout', method: 'STRIPE', error_type: 'card_declined' } },
+          { attributes: { flow: 'payout', method: 'BANK_ACCOUNT', error_type: 'card_declined' } },
         ]);
       });
 

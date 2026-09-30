@@ -1097,11 +1097,13 @@ export const executeOrder = async (
       data: omit(order.data, ['stripePaymentIntent']),
     });
 
-    // Terminal outcome for synchronous payments. Async methods (SEPA, PayPal, payment intents)
-    // settle later and are counted by the webhooks, after their idempotency/dedupe guards.
-    // Internal flows (opencollective service: balance, gift card, prepaid, manual) are out of scope.
+    // Terminal outcome for synchronous payments. Async methods (SEPA, payment intents) settle later
+    // and are counted by the webhooks, after their idempotency/dedupe guards. PayPal is counted where
+    // its transaction is recorded (sync capture in the provider, async capture in the webhook) to
+    // avoid double-counting the race between the two. Internal flows (opencollective service:
+    // balance, gift card, prepaid, manual) are out of scope.
     const provider = paymentServiceToMetricProvider(order.paymentMethod?.service);
-    if (provider === MetricProvider.STRIPE || provider === MetricProvider.PAYPAL) {
+    if (provider === MetricProvider.STRIPE) {
       recordPaymentOutcome({
         provider,
         flow: MetricFlow.CONTRIBUTION,

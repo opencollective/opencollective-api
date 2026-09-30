@@ -452,10 +452,13 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
 
     // Terminal success of the payout attempt. Emitted only when this delivery records the payment
     // (redeliveries are deduped on the charge transaction and never reach this line).
+    // The payout method is not necessarily Stripe: platform billing uses a STRIPE payout method,
+    // but card-funded expense payments carry the payee's method, so load the real one.
+    const payoutMethod = await expense.getPayoutMethod();
     recordPaymentOutcome({
       provider: MetricProvider.STRIPE,
       flow: MetricFlow.PAYOUT,
-      method: expense.PayoutMethod?.type ?? PayoutMethodTypes.STRIPE,
+      method: payoutMethod?.type ?? PayoutMethodTypes.STRIPE,
       outcome: MetricEvent.SUCCEEDED,
     });
   }
@@ -772,11 +775,14 @@ async function handleExpensePaymentIntentFailed(event: Stripe.Event) {
 
   // Terminal failure of the payout attempt: counted only when the expense transitions to ERROR, so
   // redeliveries and failures arriving for already-settled expenses are not counted twice.
+  // The payout method is not necessarily Stripe (card-funded expense payments carry the payee's
+  // method), so load the real one rather than assuming STRIPE.
   if (isTerminalFailure) {
+    const payoutMethod = await expense.getPayoutMethod();
     recordPaymentOutcome({
       provider: MetricProvider.STRIPE,
       flow: MetricFlow.PAYOUT,
-      method: expense.PayoutMethod?.type ?? PayoutMethodTypes.STRIPE,
+      method: payoutMethod?.type ?? PayoutMethodTypes.STRIPE,
       outcome: MetricEvent.FAILED,
       errorType: mapErrorToType(stripePaymentIntent.last_payment_error || reason),
     });
