@@ -55,7 +55,7 @@
     "bcrypt": "6.0.0",
     "blurhash": "2.0.5",
     "cheerio": "^1.1.2",
-    "cloudflare": "7.1.0",
+    "cloudflare": "7.2.0",
     "commander": "15.0.0",
     "config": "5.0.1",
     "connect-redis": "10.0.0",
