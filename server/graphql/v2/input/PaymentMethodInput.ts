@@ -6,7 +6,10 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/
 import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import stripe from '../../../lib/stripe';
 import { GraphQLPaymentMethodLegacyType } from '../enum';
-import { getServiceTypeFromLegacyPaymentMethodType } from '../enum/PaymentMethodLegacyType';
+import {
+  getServiceTypeFromLegacyPaymentMethodType,
+  PaymentMethodLegacyTypeEnum,
+} from '../enum/PaymentMethodLegacyType';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 
@@ -76,7 +79,7 @@ export const GraphQLPaymentMethodInput = new GraphQLInputObjectType({
  * pass to `createOrder` (legacy).
  */
 export const getLegacyPaymentMethodFromPaymentMethodInput = async (
-  pm: Record<string, any>,
+  pm: Record<string, unknown>,
 ): Promise<Record<string, unknown> | { service: string; type: PAYMENT_METHOD_TYPE }> => {
   if (!pm) {
     return null;
@@ -84,16 +87,17 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
     return fetchPaymentMethodWithReference(pm);
   }
 
-  if (pm.creditCardInfo) {
-    const token = await stripe.tokens.retrieve(pm.creditCardInfo.token);
+  const creditCardInfo = pm.creditCardInfo as Record<string, unknown>;
+  if (creditCardInfo) {
+    const token = await stripe.tokens.retrieve(creditCardInfo.token as string);
     const paymentMethod = {
       service: PAYMENT_METHOD_SERVICE.STRIPE,
       type: PAYMENT_METHOD_TYPE.CREDITCARD,
       name: token.card.last4,
       save: pm.isSavedForLater,
-      token: pm.creditCardInfo.token,
+      token: creditCardInfo.token,
       data: {
-        ...pick(pm.creditCardInfo, ['zip']), // Not returned by Stripe
+        ...pick(creditCardInfo, ['zip']), // Not returned by Stripe
         ...pick(token.card, ['brand', 'country', 'funding', 'fingerprint', 'last4']), // Returned by Stripe
         name: token.card.name,
         expMonth: token.card.exp_month,
@@ -113,20 +117,21 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
     }
     return paymentMethod;
   } else if (pm.paypalInfo) {
-    if (pm.paypalInfo.subscriptionId) {
+    const paypalInfo = pm.paypalInfo as Record<string, unknown>;
+    if (paypalInfo.subscriptionId) {
       return {
         service: PAYMENT_METHOD_SERVICE.PAYPAL,
         type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
-        token: pm.paypalInfo.subscriptionId,
+        token: paypalInfo.subscriptionId,
       };
     } else {
       return {
         service: PAYMENT_METHOD_SERVICE.PAYPAL,
         type: PAYMENT_METHOD_TYPE.PAYMENT,
-        ...pick(pm.paypalInfo, ['token']),
+        ...pick(paypalInfo, ['token']),
         data: {
-          ...(pm.paypalInfo.data || {}),
-          ...pick(pm.paypalInfo, ['orderId']),
+          ...((paypalInfo.data as Record<string, unknown>) || {}),
+          ...pick(paypalInfo, ['orderId']),
         },
       };
     }
@@ -138,7 +143,7 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
       save: pm.isSavedForLater,
     };
   } else if (pm.legacyType) {
-    return getServiceTypeFromLegacyPaymentMethodType(pm.legacyType);
+    return getServiceTypeFromLegacyPaymentMethodType(pm.legacyType as PaymentMethodLegacyTypeEnum);
   } else if (pm.service && pm.newType) {
     return { service: pm.service, type: pm.newType, manualPaymentProvider: pm.manualPaymentProvider };
   } else if (pm.service && pm.type) {

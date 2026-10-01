@@ -1,3 +1,5 @@
+import type { ThroughOptions } from 'sequelize';
+
 import sequelize, { Op } from '../lib/sequelize';
 
 import AccountingCategory from './AccountingCategory';
@@ -142,10 +144,10 @@ Collective.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' })
 Collective.belongsTo(Collective, { foreignKey: 'ParentCollectiveId', as: 'parent' });
 Collective.belongsToMany(Collective, {
   as: 'memberCollectives',
-  through: { model: Member, unique: false, foreignKey: 'MemberCollectiveId' } as any,
+  through: { model: Member, unique: false, foreignKey: 'MemberCollectiveId' } as ThroughOptions,
 });
 Collective.belongsToMany(Collective, {
-  through: { model: Member, unique: false, foreignKey: 'CollectiveId' } as any,
+  through: { model: Member, unique: false, foreignKey: 'CollectiveId' } as ThroughOptions,
   as: 'memberOfCollectives',
 });
 Collective.hasMany(AccountingCategory, { foreignKey: 'CollectiveId', as: 'accountingCategories' });

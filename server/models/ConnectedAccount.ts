@@ -32,7 +32,9 @@ class ConnectedAccount extends ModelWithPublicId<
   declare public token: string;
   declare public refreshToken: string;
   declare public hash: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ConnectedAccount.data holds provider-specific OAuth/token payloads (Wise, Stripe, GoCardless) deep-read across payment providers; narrowing it would cascade errors without per-provider schemas
   declare public data: CreationOptional<Record<string, any>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ConnectedAccount.settings holds provider-specific settings deep-read across payment providers; narrowing it would cascade errors without per-provider schemas
   declare public settings: CreationOptional<Record<string, any>>;
 
   declare public CollectiveId: CreationOptional<number>;

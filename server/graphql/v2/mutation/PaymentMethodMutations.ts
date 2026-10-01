@@ -5,6 +5,7 @@ import { omit, pick } from 'lodash';
 import { Service } from '../../../constants/connected-account';
 import FEATURE_STATUS from '../../../constants/feature-status';
 import OrderStatuses from '../../../constants/order-status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import stripe, { sanitizeStripeError } from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
@@ -94,8 +95,8 @@ const addCreditCard = {
 
     const token = await stripe.tokens.retrieve(args.creditCardInfo.token);
     const newPaymentMethodData = {
-      service: 'stripe',
-      type: 'creditcard',
+      service: PAYMENT_METHOD_SERVICE.STRIPE,
+      type: PAYMENT_METHOD_TYPE.CREDITCARD,
       name: args.name,
       CreatedByUserId: req.remoteUser.id,
       currency: collective.currency,
@@ -110,7 +111,7 @@ const addCreditCard = {
       },
     };
 
-    let pm = await models.PaymentMethod.create(newPaymentMethodData as any);
+    let pm = await models.PaymentMethod.create(newPaymentMethodData);
 
     try {
       pm = await setupCreditCard(pm, { collective, user: req.remoteUser });

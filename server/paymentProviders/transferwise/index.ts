@@ -412,8 +412,24 @@ async function payExpense(
       // In development mode we don't have webhooks set up, so we need to manually trigger the event handler.
       if (config.env === 'development') {
         await handleTransferStateChange({
-          data: { resource: response, current_state: 'outgoing_payment_sent' },
-        } as any);
+          subscription_id: '',
+          event_type: 'transfers#state-change',
+          schema_version: '2.0.0',
+          sent_at: new Date().toISOString(),
+          data: {
+            // `handleTransferStateChange` only reads `resource.id`, but we fill the event shape from the transfer we
+            // just fetched so this stays a faithful simulation of Wise's webhook payload.
+            resource: {
+              id: response.id,
+              profile_id: response.user,
+              account_id: response.targetAccount,
+              type: 'transfer',
+            },
+            current_state: 'outgoing_payment_sent',
+            previous_state: 'funds_converted',
+            occurred_at: new Date().toISOString(),
+          },
+        });
       }
     }
   } catch (e) {

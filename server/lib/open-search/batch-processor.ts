@@ -179,9 +179,9 @@ export class OpenSearchBatchProcessor {
 
   private async convertRequestsToBulkOperations(
     requests: OpenSearchRequest[],
-  ): Promise<{ operations: Record<string, any>[]; deleteQuery: DeleteByQueryRequest }> {
+  ): Promise<{ operations: Record<string, unknown>[]; deleteQuery: DeleteByQueryRequest }> {
     const { accountsToReIndex, requestsGroupedByTableName } = this.preprocessRequests(requests);
-    const operations: Record<string, any>[] = [];
+    const operations: Record<string, unknown>[] = [];
 
     let deleteQuery: DeleteByQueryRequest | null = null;
     // Start with FULL_ACCOUNT_RE_INDEX requests

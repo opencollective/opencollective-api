@@ -2073,6 +2073,26 @@ type ExpenseData = {
   isNewExpenseFlow?: boolean;
 };
 
+/**
+ * The subset of the `editExpense` GraphQL arguments that the draft flows (`editExpenseDraft` /
+ * `submitExpenseDraft`) rely on.
+ */
+type ExpenseDraftArgs = {
+  draftKey?: string;
+  expense: {
+    payee?: {
+      email: string;
+      name?: string;
+      legalName?: string;
+      newsletterOptIn?: boolean;
+      organization?: Record<string, unknown>;
+      id?: string;
+      legacyId?: number;
+      slug?: string;
+    };
+  };
+};
+
 const EXPENSE_EDITABLE_FIELDS = [
   'currency',
   'description',
@@ -2808,7 +2828,7 @@ export async function submitExpenseDraft(
     originalPayee,
     isNewExpenseFlow,
   }: {
-    args?: Record<string, any> & { draftKey?: string };
+    args?: ExpenseDraftArgs;
     originalPayee?: Collective;
     requestedPayee?: Collective;
     isNewExpenseFlow?: boolean;
@@ -3037,7 +3057,7 @@ export async function sendDraftExpenseInvite(
 export async function editExpenseDraft(
   req: express.Request,
   expenseData: ExpenseData,
-  args: Record<string, any>,
+  args: ExpenseDraftArgs,
   opts?: { isNewExpenseFlow?: boolean },
 ) {
   const existingExpense = await models.Expense.findByPk(expenseData.id, {
@@ -3080,10 +3100,15 @@ export async function editExpenseDraft(
 
   const currency = expenseData.currency || existingExpense.currency;
   const items =
-    (await prepareExpenseItemInputs(req, currency, expenseData.items || (existingExpense.data.items as any), {
-      isEditing: true,
-      expenseType: expenseData.type || existingExpense.type,
-    })) || existingExpense.items;
+    (await prepareExpenseItemInputs(
+      req,
+      currency,
+      expenseData.items || (existingExpense.data.items as Array<Record<string, unknown> & { url?: string }>),
+      {
+        isEditing: true,
+        expenseType: expenseData.type || existingExpense.type,
+      },
+    )) || existingExpense.items;
 
   const attachedFiles =
     (await prepareAttachedFiles(req, expenseData.attachedFiles)) || existingExpense.data.attachedFiles;

@@ -75,6 +75,9 @@ class LegalDocument extends ModelWithPublicId<
   declare public updatedAt: Date;
   declare public deletedAt?: Date;
 
+  // LegalDocument.data holds varying tax-form payloads (reminder flags, encrypted form blobs) that are
+  // deep-read in tests and scripts; narrowing it would cascade errors without a versioned payload schema.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   declare public data: any;
 
   static findByTypeYearCollective = ({ documentType, year, collective }) => {

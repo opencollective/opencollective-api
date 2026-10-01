@@ -67,7 +67,7 @@ export async function exchangeAuthCodeForToken(code: string): Promise<{
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(
-      `PayPal token exchange failed (${response.status}): ${(error as any).error_description || response.statusText}`,
+      `PayPal token exchange failed (${response.status}): ${error.error_description || response.statusText}`,
     );
   }
 
@@ -92,7 +92,7 @@ export async function refreshPaypalUserToken(
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(
-      `PayPal token refresh failed (${response.status}): ${(error as any).error_description || response.statusText}`,
+      `PayPal token refresh failed (${response.status}): ${error.error_description || response.statusText}`,
     );
   }
   return response.json();
@@ -108,9 +108,7 @@ export async function retrievePaypalUserInfo(accessToken: string): Promise<Paypa
   const response = await fetch(url, { method: 'get', headers });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(
-      `PayPal userinfo request failed (${response.status}): ${(error as any).message || response.statusText}`,
-    );
+    throw new Error(`PayPal userinfo request failed (${response.status}): ${error.message || response.statusText}`);
   }
   return response.json();
 }
@@ -129,7 +127,7 @@ export async function retrieveGrantedScopes(clientId: string, clientSecret: stri
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(
-      `PayPal credentials check failed (${response.status}): ${(error as any).error_description || response.statusText}`,
+      `PayPal credentials check failed (${response.status}): ${error.error_description || response.statusText}`,
     );
   }
   const result = (await response.json()) as { scope?: string };

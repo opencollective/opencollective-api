@@ -16,7 +16,11 @@ import { enforceScope } from '../../common/scope-check';
 import { Forbidden, ValidationFailed } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { AccountingCategoryInput, AccountingCategoryInputFields } from '../input/AccountingCategoryInput';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import {
+  AccountReferenceInput,
+  fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
+} from '../input/AccountReferenceInput';
 import { GraphQLContributionAccountingCategoryRuleInput } from '../input/ContributionAccountingCategoryRuleInput';
 import { GraphQLAccount } from '../interface/Account';
 
@@ -51,7 +55,7 @@ export default {
     },
     resolve: async (
       _: void,
-      args: { account: any; categories: AccountingCategoryInputFields[] },
+      args: { account: AccountReferenceInput; categories: AccountingCategoryInputFields[] },
       req: Express.Request,
     ) => {
       // Check scope

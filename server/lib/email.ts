@@ -9,6 +9,8 @@ import { activities } from '../constants';
 import { EmailTheme } from '../constants/email-theme';
 import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import models from '../models';
+import type Collective from '../models/Collective';
+import type User from '../models/User';
 
 import templates, { EmailTemplates } from './emailTemplates';
 import logger from './logger';
@@ -39,7 +41,8 @@ type SendMessageData = {
   unsubscribeUrl?: string;
   interval?: string;
   config?;
-} & Record<string, any>;
+  theme?: typeof EmailTheme;
+} & Record<string, unknown>;
 
 export const getMailer = () => {
   if (config.mailpit.client && config.env !== 'production') {
@@ -60,8 +63,9 @@ export const getMailer = () => {
   }
 };
 
-const render = (template: EmailTemplates, data: any) => {
-  data.imageNotSvg = data.collective && data.collective.image && !data.collective.image.endsWith('.svg');
+const render = (template: EmailTemplates, data: Record<string, unknown>) => {
+  const collectiveImage = (data.collective as { image?: string } | undefined)?.image;
+  data.imageNotSvg = Boolean(collectiveImage) && !collectiveImage.endsWith('.svg');
   data = merge({}, data);
   delete data.config;
   data.config = { host: config.host };
@@ -273,11 +277,11 @@ const generateEmailFromTemplate = (
   data: SendMessageData = {},
   options: SendMessageOptions = {},
 ): ReturnType<typeof render> => {
-  const slug = get(options, 'collective.slug') || get(data, 'collective.slug') || '';
-  const hostSlug = get(data, 'host.slug');
-  const eventSlug = get(data, 'event.slug');
-  const projectSlug = get(data, 'project.slug');
-  const emailId = get(options, 'type') || template;
+  const slug = (get(options, 'collective.slug') || get(data, 'collective.slug') || '') as string;
+  const hostSlug = get(data, 'host.slug') as string;
+  const eventSlug = get(data, 'event.slug') as string;
+  const projectSlug = get(data, 'project.slug') as string;
+  const emailId = (get(options, 'type') || template) as string;
 
   // Populate the `listId` and `accountSlug` options to later populate the email headers. We're doing that here for
   // consistency with the unsubscribe link handling below, but mutating `data` is not ideal and should be refactored.
@@ -333,8 +337,9 @@ const generateEmailFromTemplate = (
 };
 
 const isNotificationActive = async (template: string, data: SendMessageData) => {
-  if (data.user && data.user.id) {
-    return models.Notification.isActive(template, data.user, data.collective);
+  const user = data.user as User;
+  if (user && user.id) {
+    return models.Notification.isActive(template, user, data.collective as Collective);
   } else {
     return true;
   }

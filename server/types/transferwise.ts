@@ -472,7 +472,7 @@ export type BatchGroup = {
   sourceCurrency: string;
   status: 'NEW' | 'COMPLETED' | 'MARKED_FOR_CANCELLATION' | 'PROCESSING_CANCEL' | 'CANCELLED';
   transferIds: Array<WiseId>;
-  payInDetails?: Array<Record<string, any>>;
+  payInDetails?: Array<Record<string, unknown>>;
   alreadyPaid?: boolean;
 };
 

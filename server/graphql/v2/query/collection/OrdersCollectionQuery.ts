@@ -3,7 +3,15 @@ import assert from 'assert';
 import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { Expression, ExpressionBuilder, expressionBuilder, OrderByModifiers, sql, SqlBool } from 'kysely';
+import {
+  Expression,
+  ExpressionBuilder,
+  expressionBuilder,
+  OrderByExpression,
+  OrderByModifiers,
+  sql,
+  SqlBool,
+} from 'kysely';
 import { KyselifyModel } from 'kysely-sequelize';
 import { compact, isEmpty, isNil, uniq } from 'lodash';
 import moment from 'moment';
@@ -966,7 +974,11 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
           ),
         )
         .$if(args.orderBy.field !== 'lastChargedAt', qb =>
-          qb.orderBy(args.orderBy.field as any, (args.orderBy.direction?.toLowerCase() as OrderByModifiers) ?? 'desc'),
+          qb.orderBy(
+            // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- `{}` is Kysely's "no select" output type here
+            args.orderBy.field as OrderByExpression<DatabaseWithViews, 'Orders', {}>,
+            (args.orderBy.direction?.toLowerCase() as OrderByModifiers) ?? 'desc',
+          ),
         )
         .execute()
         .then(kyselyToSequelizeModels(models.Order)),
