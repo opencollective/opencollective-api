@@ -6,9 +6,9 @@ import {
   DataTypes,
   InferAttributes,
   InferCreationAttributes,
+  literal,
   NonAttribute,
   Op,
-  QueryTypes,
 } from 'sequelize';
 
 import { activities } from '../constants';
@@ -368,15 +368,15 @@ class LegalDocument extends ModelWithPublicId<
 
       // Clear the taxable country on the account's data, since the previous
       // form is no longer valid and the user will have to submit a new one.
-      // Use an atomic JSONB `-` (delete key) so we don't clobber a concurrent
-      // writer's changes to other keys in `collective.data` (e.g.
-      // privateInstructions, isUSEntity) by writing back a stale snapshot.
+      // The value is a SQL expression evaluated against the *current* row rather
+      // than a snapshot, so concurrent writers of other keys in `collective.data`
+      // (e.g. privateInstructions, isUSEntity) are not clobbered. See the
+      // "concurrent writer" regression test in LegalDocumentsMutations.test.ts.
+      // `literal` only ever carries this constant expression, never user input.
+      // `hooks: false` is required because a SQL-expression value would make
+      // instance hooks read the expression object instead of the JSON value.
       if (this.collective.data?.taxableCountry) {
-        await sequelize.query(`UPDATE "Collectives" SET "data" = "data" - 'taxableCountry' WHERE id = :accountId`, {
-          type: QueryTypes.UPDATE,
-          replacements: { accountId: this.CollectiveId },
-          transaction,
-        });
+        await this.collective.update({ data: literal(`"data" - 'taxableCountry'`) }, { transaction, hooks: false });
         await this.collective.reload({ transaction });
       }
 

@@ -5,7 +5,7 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
 import type { FileUpload } from 'graphql-upload/processRequest.mjs';
-import { QueryTypes } from 'sequelize';
+import { cast, col, fn, literal } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
 import FEATURE from '../../../constants/feature';
@@ -23,7 +23,7 @@ import {
   W8BenTaxFormValues,
   W9TaxFormValues,
 } from '../../../lib/tax-forms/opencollective';
-import { Activity, LegalDocument, sequelize, UploadedFile } from '../../../models';
+import { Activity, LegalDocument, UploadedFile } from '../../../models';
 import {
   LEGAL_DOCUMENT_REQUEST_STATUS,
   LEGAL_DOCUMENT_SERVICE,
@@ -194,20 +194,35 @@ export const legalDocumentsMutations = {
       const isUSEntityChanged = isUSEntity !== null && account.data?.isUSEntity !== isUSEntity;
 
       if (taxableCountryChanged || isUSEntityChanged) {
-        let dataUpdate = `COALESCE("data", '{}'::jsonb)`;
-        const replacements: Record<string, unknown> = { accountId: account.id };
+        // Write only the keys that changed, as a SQL expression evaluated against
+        // the *current* row rather than the request-time snapshot, so a concurrent
+        // writer of other keys in `account.data` (e.g. privateInstructions) is not
+        // clobbered. See the "concurrent writer" regression test in
+        // LegalDocumentsMutations.test.ts. `literal` only ever carries constant
+        // expressions (the key paths and the `create_missing` flag) - user values
+        // go through `cast` and are escaped by the ORM.
+        let dataUpdate = fn('COALESCE', col('data'), literal(`'{}'::jsonb`));
         if (taxableCountryChanged) {
-          dataUpdate = `jsonb_set(${dataUpdate}, '{taxableCountry}', to_jsonb(:taxableCountry::text), true)`;
-          replacements.taxableCountry = taxableCountry;
+          dataUpdate = fn(
+            'jsonb_set',
+            dataUpdate,
+            literal(`'{taxableCountry}'`),
+            fn('to_jsonb', cast(taxableCountry, 'text')),
+            literal('true'),
+          );
         }
         if (isUSEntityChanged) {
-          dataUpdate = `jsonb_set(${dataUpdate}, '{isUSEntity}', to_jsonb(:isUSEntity::boolean), true)`;
-          replacements.isUSEntity = isUSEntity;
+          dataUpdate = fn(
+            'jsonb_set',
+            dataUpdate,
+            literal(`'{isUSEntity}'`),
+            fn('to_jsonb', cast(isUSEntity, 'boolean')),
+            literal('true'),
+          );
         }
-        await sequelize.query(`UPDATE "Collectives" SET "data" = ${dataUpdate} WHERE id = :accountId`, {
-          type: QueryTypes.UPDATE,
-          replacements,
-        });
+        // `hooks: false` is required because a SQL-expression value would make
+        // instance hooks read the expression object instead of the JSON value.
+        await account.update({ data: dataUpdate }, { hooks: false });
         await account.reload();
       }
 
