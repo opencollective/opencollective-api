@@ -120,7 +120,7 @@
   <a href="https://opencollective.com/{{slug}}">
     <div>
       <div class='CollectiveCard-head' style="background-image:url('{{resizeImage backgroundImage width=320 defaultImage="/public/images/collectives/default-header-bg.jpg"}}');">
-        <center><img src="{{collectiveLogoUrl this height=128}}" height="64" /></center>
+        {{#if (collectiveLogoUrl this height=128)}}<center><img src="{{collectiveLogoUrl this height=128}}" height="64" /></center>{{/if}}
       </div>
       <div class='CollectiveCard-body'>
         <div class='CollectiveCard-name'>{{name}}</div>
