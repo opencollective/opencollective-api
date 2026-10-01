@@ -3,9 +3,16 @@ import config from 'config';
 import { assert } from 'sinon';
 
 import ActivityTypes from '../../../server/constants/activities';
+import { CollectiveType } from '../../../server/constants/collectives';
 import ExpenseStatuses from '../../../server/constants/expense-status';
 import OrderStatuses from '../../../server/constants/order-status';
-import { deleteCollective, isCollectiveDeletable, parseImageServiceUrl } from '../../../server/lib/collectivelib';
+import {
+  deleteCollective,
+  getCollectivePreviewImageUrl,
+  isCollectiveDeletable,
+  parseImageServiceUrl,
+} from '../../../server/lib/collectivelib';
+import { md5 } from '../../../server/lib/utils';
 import models from '../../../server/models';
 import {
   fakeActiveHost,
@@ -425,6 +432,33 @@ describe('server/lib/collectivelib', () => {
       } finally {
         models.Member.destroy = originalDestroy;
       }
+    });
+  });
+
+  describe('getCollectivePreviewImageUrl', () => {
+    const image = 'https://example.com/logo.png';
+    const proxyUrl = `${config.host.images}/proxy/images/?src=${encodeURIComponent(image)}&height=96`;
+
+    it('returns null if there is no image', () => {
+      expect(getCollectivePreviewImageUrl(null)).to.be.null;
+      expect(getCollectivePreviewImageUrl({ slug: 'babel', type: CollectiveType.COLLECTIVE })).to.be.null;
+    });
+
+    it('uses the images service logo/avatar routes', () => {
+      const hash = md5(image).substring(0, 7);
+      expect(
+        getCollectivePreviewImageUrl({ slug: 'babel', type: CollectiveType.COLLECTIVE, image }, { height: 96 }),
+      ).to.eq(`${config.host.images}/babel/${hash}/logo/96.png`);
+      expect(getCollectivePreviewImageUrl({ slug: 'john', type: CollectiveType.USER, image }, { height: 96 })).to.eq(
+        `${config.host.images}/john/${hash}/avatar/96.png`,
+      );
+    });
+
+    it('falls back on the proxy for profiles that the images service cannot resolve', () => {
+      const collective = { slug: 'babel', type: CollectiveType.COLLECTIVE, image };
+      expect(getCollectivePreviewImageUrl({ ...collective, isPrivate: true }, { height: 96 })).to.eq(proxyUrl);
+      expect(getCollectivePreviewImageUrl({ ...collective, isIncognito: true }, { height: 96 })).to.eq(proxyUrl);
+      expect(getCollectivePreviewImageUrl({ image }, { height: 96 })).to.eq(proxyUrl);
     });
   });
 

@@ -138,6 +138,10 @@ export function pluralize(str, count) {
   return `${str}s`.replace(/s+$/, 's');
 }
 
+/**
+ * @param {string} imageUrl
+ * @param {{ width?: number, height?: number, query?: string, defaultImage?: string }} options
+ */
 export function resizeImage(imageUrl, { width, height, query, defaultImage }) {
   if (!imageUrl) {
     if (defaultImage) {
