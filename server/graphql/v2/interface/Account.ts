@@ -26,7 +26,7 @@ import { getContextPermission, PERMISSION_TYPE } from '../../common/context-perm
 import { getFeatureStatusResolver } from '../../common/features';
 import {
   checkRemoteUserCanUseAccount,
-  checkRemoteUserCanUseHost,
+  checkRemoteUserCanUseApplications,
   checkRemoteUserCanUseKYC,
   checkScope,
   rejectOAuthAndPersonalTokenAuth,
@@ -968,7 +968,7 @@ const accountFieldsDefinition = () => ({
   },
   hostApplicationRequests: {
     type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-    description: 'Host application requests. Scope: "host".',
+    description: 'Host application requests. Scope: "applications".',
     args: {
       ...CollectionArgs,
       orderBy: {
@@ -1611,7 +1611,7 @@ export const AccountFields = {
   },
   hostApplicationRequests: {
     type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-    description: 'Host application requests. Scope: "host".',
+    description: 'Host application requests. Scope: "applications".',
     args: {
       ...CollectionArgs,
       orderBy: {
@@ -1625,7 +1625,7 @@ export const AccountFields = {
       },
     },
     async resolve(account: Collective, args, req: Express.Request) {
-      checkRemoteUserCanUseHost(req);
+      checkRemoteUserCanUseApplications(req);
       if (!req.remoteUser?.isAdmin(account.id)) {
         throw new Unauthorized(
           'You need to be logged in as an admin of the collective to see its host applications requests',
