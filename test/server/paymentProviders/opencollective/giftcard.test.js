@@ -987,9 +987,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           `You've got $100.00 from collective1 to spend on Open Collective`,
         );
         expect(sendEmailSpy.firstCall.args[2]).to.contain(`next=/redeemed?code=${giftCardCode}`);
-        expect(sendEmailSpy.firstCall.args[2]).to.contain(
-          collective1.image.substr(collective1.image.lastIndexOf('/') + 1),
-        );
+        expect(sendEmailSpy.firstCall.args[2]).to.contain(collective1.getImageUrl({ height: 128 }));
       }); /** End Of "#new User should claim a gift card" */
 
       it('Existing User should claim a gift card', async () => {
