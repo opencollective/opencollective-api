@@ -437,7 +437,6 @@ describe('server/lib/collectivelib', () => {
 
   describe('getCollectivePreviewImageUrl', () => {
     const image = 'https://example.com/logo.png';
-    const proxyUrl = `${config.host.images}/proxy/images/?src=${encodeURIComponent(image)}&height=96`;
 
     it('returns null if there is no image', () => {
       expect(getCollectivePreviewImageUrl(null)).to.be.null;
@@ -454,11 +453,11 @@ describe('server/lib/collectivelib', () => {
       );
     });
 
-    it('falls back on the proxy for profiles that the images service cannot resolve', () => {
+    it('returns null for private and incognito profiles, or if there is no slug', () => {
       const collective = { slug: 'babel', type: CollectiveType.COLLECTIVE, image };
-      expect(getCollectivePreviewImageUrl({ ...collective, isPrivate: true }, { height: 96 })).to.eq(proxyUrl);
-      expect(getCollectivePreviewImageUrl({ ...collective, isIncognito: true }, { height: 96 })).to.eq(proxyUrl);
-      expect(getCollectivePreviewImageUrl({ image }, { height: 96 })).to.eq(proxyUrl);
+      expect(getCollectivePreviewImageUrl({ ...collective, isPrivate: true }, { height: 96 })).to.be.null;
+      expect(getCollectivePreviewImageUrl({ ...collective, isIncognito: true }, { height: 96 })).to.be.null;
+      expect(getCollectivePreviewImageUrl({ image }, { height: 96 })).to.be.null;
     });
   });
 

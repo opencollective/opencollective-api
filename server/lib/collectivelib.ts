@@ -14,7 +14,7 @@ import { AllTierTypes } from '../models/Tier';
 import logger from './logger';
 import { stripHTML } from './sanitize-html';
 import { containsProtectedBrandName } from './string-utils';
-import { md5, resizeImage } from './utils';
+import { md5 } from './utils';
 
 const { USER } = CollectiveType;
 
@@ -89,21 +89,18 @@ export const getCollectiveAvatarUrl = (
 };
 
 /**
- * Returns a logo URL that can be embedded in emails and webhook payloads, or null if the collective has no image.
- * Private and incognito profiles can't be resolved by slug on the images service, so we fallback
- * on proxying the raw image for them (as well as for legacy payloads that have no slug).
+ * Returns a logo URL that can be embedded in emails and webhook payloads, or null if there is no custom logo
+ * to show. Private and incognito profiles never expose their image there.
  */
 export const getCollectivePreviewImageUrl = (
   collective: Partial<Pick<Collective, 'slug' | 'type' | 'image' | 'isPrivate' | 'isIncognito'>> | null | undefined,
   args: Pick<ImageUrlOpts, 'height'> = {},
 ): string | null => {
-  if (!collective?.image) {
+  if (!collective?.image || !collective.slug || collective.isPrivate || collective.isIncognito) {
     return null;
-  } else if (!collective.slug || collective.isPrivate || collective.isIncognito) {
-    return resizeImage(collective.image, { height: args.height });
-  } else {
-    return getCollectiveAvatarUrl(collective.slug, collective.type, collective.image, args);
   }
+
+  return getCollectiveAvatarUrl(collective.slug, collective.type, collective.image, args);
 };
 
 export const getCollectiveBackgroundImageUrl = (
