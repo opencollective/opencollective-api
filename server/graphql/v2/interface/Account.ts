@@ -180,7 +180,7 @@ const accountFieldsDefinition = () => ({
         return null;
       }
       if (
-        !canSeeLegalName(req.remoteUser, account) &&
+        !req.remoteUser?.isAdminOfCollective(account) &&
         !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
       ) {
         return null;
@@ -206,7 +206,7 @@ const accountFieldsDefinition = () => ({
         return null;
       }
       if (
-        !canSeeLegalName(req.remoteUser, account) &&
+        !req.remoteUser?.isAdminOfCollective(account) &&
         !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
       ) {
         return null;
