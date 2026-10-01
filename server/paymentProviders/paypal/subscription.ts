@@ -177,7 +177,7 @@ async function createPaypalPlan(host, collective, productId, interval, amount, c
         },
       ],
       payment_preferences: {
-        auto_bill_outstanding: true,
+        auto_bill_outstanding: false,
         payment_failure_threshold: 4, // Will fail up to 4 times, after that the subscription gets cancelled
       },
       /* eslint-enable camelcase */
