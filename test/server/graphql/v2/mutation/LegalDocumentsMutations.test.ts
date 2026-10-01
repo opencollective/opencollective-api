@@ -13,7 +13,7 @@ import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/ide
 import emailLib from '../../../../../server/lib/email';
 import * as PDFLib from '../../../../../server/lib/pdf';
 import * as TaxFormLib from '../../../../../server/lib/tax-forms';
-import models, { LegalDocument } from '../../../../../server/models';
+import models, { LegalDocument, sequelize } from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import {
@@ -570,6 +570,54 @@ describe('LegalDocumentsMutations', () => {
 
       expect(result.errors).to.not.exist;
       await payeeCollective.reload();
+      expect(payeeCollective.data?.taxableCountry).to.be.undefined;
+      expect(payeeCollective.data?.privateInstructions).to.equal('note');
+      await waitForCondition(() => sendEmailSpy.callCount === 1);
+    });
+
+    it('clears the taxable country atomically: a concurrent writer committed after the snapshot is not clobbered', async () => {
+      // Pin the atomicity of the data update: `markAsInvalid` works from a
+      // `collective` snapshot loaded before its transaction, so a full-object
+      // `data` write would drop any key a concurrent writer committed in
+      // between. Only a partial (atomic) JSONB update preserves it.
+      const payee = await fakeUser();
+      const payoutMethod = await fakePayoutMethod({
+        CollectiveId: payee.CollectiveId,
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+      });
+      const expense = await fakeExpense({
+        type: 'INVOICE',
+        status: 'APPROVED',
+        CollectiveId: host.id,
+        FromCollectiveId: payee.CollectiveId,
+        amount: US_TAX_FORM_THRESHOLD + 100e2,
+        PayoutMethodId: payoutMethod.id,
+      });
+      const legalDocument = await fakeLegalDocument({
+        documentType: 'US_TAX_FORM',
+        requestStatus: 'RECEIVED',
+        CollectiveId: expense.FromCollectiveId,
+        year: new Date().getFullYear(),
+      });
+
+      // Load the document with its collective *before* the concurrent write,
+      // so `document.collective.data` is a stale snapshot.
+      const document = await LegalDocument.findByPk(legalDocument.id, {
+        include: [{ association: 'collective', required: true }],
+      });
+      await document.collective.update({ data: { taxableCountry: 'FR' } });
+      await document.collective.reload();
+      expect(document.collective.data?.privateInstructions).to.be.undefined;
+
+      // A concurrent writer commits another key behind the model's back
+      await sequelize.query(
+        `UPDATE "Collectives" SET "data" = jsonb_set(COALESCE("data", '{}'), '{privateInstructions}', '"note"', true) WHERE id = :id`,
+        { replacements: { id: document.CollectiveId } },
+      );
+
+      await document.markAsInvalid(hostAdmin, host, 'Bad Bad not Good');
+
+      const payeeCollective = await models.Collective.findByPk(document.CollectiveId);
       expect(payeeCollective.data?.taxableCountry).to.be.undefined;
       expect(payeeCollective.data?.privateInstructions).to.equal('note');
       await waitForCondition(() => sendEmailSpy.callCount === 1);
