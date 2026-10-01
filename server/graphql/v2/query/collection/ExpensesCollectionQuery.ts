@@ -482,9 +482,10 @@ const loadAllAccountsFromArgs = async (
 
 export const ExpensesCollectionQueryResolver = async (
   _: void,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GraphQL resolver args bag, shaped by graphql-js at runtime
   args: Record<string, any> & { amount?: AmountRangeInputType },
   req: express.Request,
-): Promise<CollectionReturnType & { totalAmount?: any; payees?: any }> => {
+): Promise<CollectionReturnType & { totalAmount?: unknown; payees?: unknown }> => {
   const where = { [Op.and]: [] };
   const include = [];
 
@@ -766,7 +767,7 @@ export const ExpensesCollectionQueryResolver = async (
     }
   } else {
     if (req.remoteUser) {
-      const userClause: any[] = [{ status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } }];
+      const userClause: WhereOptions[] = [{ status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } }];
 
       if (accounts.every(account => req.remoteUser.isAdminOfCollectiveOrHost(account))) {
         userClause.push({ status: expenseStatus.DRAFT });

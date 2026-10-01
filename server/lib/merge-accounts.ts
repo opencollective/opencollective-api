@@ -1,5 +1,5 @@
 import { flatten, isEmpty, keyBy, mapValues, some } from 'lodash';
-import { Model, ModelStatic, Transaction as SQLTransaction } from 'sequelize';
+import { DestroyOptions, Model, ModelStatic, Transaction as SQLTransaction } from 'sequelize';
 
 import { CollectiveType } from '../constants/collectives';
 import models, { Collective, Op, sequelize } from '../models';
@@ -372,7 +372,7 @@ const moveCollectiveAssociations = async (from, into, transaction) => {
           hooks: false,
           sideEffects: false,
           validate: false,
-        } as any);
+        } as DestroyOptions);
       }
     } catch (e) {
       if (

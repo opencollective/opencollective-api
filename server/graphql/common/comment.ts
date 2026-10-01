@@ -14,6 +14,7 @@ import Order from '../../models/Order';
 import Update from '../../models/Update';
 import { canComment as canCommentOrder } from '../common/orders';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
+import type { Loaders } from '../loaders';
 
 import { canComment as canCommentExpense, canUsePrivateNotes as canUseExpensePrivateNotes } from './expenses';
 import { canCommentHostApplication, canMakePrivateNoteOnHostApplication } from './host-applications';
@@ -29,11 +30,11 @@ type CommentAssociationData = Pick<
 
 const loadCommentedEntity = async (
   commentValues: CommentAssociationData,
-  loaders: any,
-): Promise<[CommentableEntity, ActivityTypes, Record<string, any>]> => {
+  loaders: Loaders,
+): Promise<[CommentableEntity, ActivityTypes, Record<string, unknown>]> => {
   let activityType = ActivityTypes.COLLECTIVE_COMMENT_CREATED;
   let entity: CommentableEntity;
-  let activityData: Record<string, any> = {};
+  let activityData: Record<string, unknown> = {};
 
   if (commentValues.ExpenseId) {
     activityType = ActivityTypes.EXPENSE_COMMENT_CREATED;

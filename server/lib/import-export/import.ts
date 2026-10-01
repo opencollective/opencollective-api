@@ -4,7 +4,13 @@ import readline from 'readline';
 
 import debugLib from 'debug';
 import { isEmpty, isNil, isUndefined, mapKeys, mapValues, pick, set } from 'lodash';
-import { Model as SequelizeModel, ModelStatic, QueryTypes } from 'sequelize';
+import type {
+  Model as SequelizeModel,
+  ModelAttributeColumnOptions,
+  ModelAttributeColumnReferencesOptions,
+  ModelStatic,
+} from 'sequelize';
+import { QueryTypes } from 'sequelize';
 
 import models, { ModelNames, sequelize } from '../../models';
 import logger from '../logger';
@@ -13,7 +19,7 @@ const debug = debugLib('import');
 
 export const MODELS_ARRAY = Object.values(models);
 
-const DEFAULT_VALUES = {
+const DEFAULT_VALUES: Partial<Record<ModelNames, Record<string, unknown>>> = {
   PayoutMethod: {
     isSaved: false,
     data: {},
@@ -23,11 +29,12 @@ const DEFAULT_VALUES = {
   },
 };
 
-export const populateDefaultValues = (row: any) => {
-  if (DEFAULT_VALUES[row.model]) {
+export const populateDefaultValues = <T extends Record<string, unknown>>(row: T): T => {
+  const defaultValues = DEFAULT_VALUES[row.model as ModelNames];
+  if (defaultValues) {
     return mapValues(row, (value, key) =>
-      !isUndefined(DEFAULT_VALUES[row.model][key]) && isNil(value) ? DEFAULT_VALUES[row.model][key] : value,
-    );
+      !isUndefined(defaultValues[key]) && isNil(value) ? defaultValues[key] : value,
+    ) as T;
   } else {
     return row;
   }
@@ -138,9 +145,14 @@ const modelsDeduplicationSchema: Record<ModelNames, { unique?: string[] }> = {
 };
 
 /**
+ * A record of a JSONL export file: the model name plus all the column values.
+ */
+type ImportRecord = { model: ModelNames } & Record<string, unknown>;
+
+/**
  * Iterate over each record in a JSONL file.
  */
-const forEachRecord = async (file: string, cb: (record: any) => Promise<void>) => {
+const forEachRecord = async (file: string, cb: (record: ImportRecord) => Promise<void>) => {
   const fileStream = fs.createReadStream(file);
   const rl = readline.createInterface({
     input: fileStream,
@@ -148,7 +160,7 @@ const forEachRecord = async (file: string, cb: (record: any) => Promise<void>) =
   });
 
   for await (const line of rl) {
-    const record = JSON.parse(line);
+    const record = JSON.parse(line) as ImportRecord;
     await cb(record);
   }
 };
@@ -171,11 +183,12 @@ const equalDates = (firstDate, secondDate) => {
 export const remapPKs = async (dataFile: string): Promise<PKMap> => {
   const pkMap = MODELS_ARRAY.reduce((acc, model) => {
     return { ...acc, [model.name]: {} };
-  }, {}) as Record<ModelNames, any>;
+  }, {}) as Record<ModelNames, Record<number | string, number | string | typeof IGNORE>>;
 
   await forEachRecord(dataFile, async record => {
     const model: ModelStatic<SequelizeModel> = models[record.model];
     const primaryKey = model.primaryKeyAttribute;
+    const recordPk = record[primaryKey] as number | string;
 
     // If we have a unique constraint, we need to check if the record already exists
     if (modelsDeduplicationSchema[record.model].unique) {
@@ -185,17 +198,15 @@ export const remapPKs = async (dataFile: string): Promise<PKMap> => {
         const existingRecord = await model.findOne({ where, paranoid: false });
         if (existingRecord) {
           // If record exists with same PK, we can mark it for ignoring
-          if (existingRecord[primaryKey] === record[primaryKey]) {
-            debug(`Record ${record.model}#${record[primaryKey]} already exists with same id`);
-            pkMap[record.model][record[primaryKey]] = IGNORE;
+          if (existingRecord[primaryKey] === recordPk) {
+            debug(`Record ${record.model}#${recordPk} already exists with same id`);
+            pkMap[record.model][recordPk] = IGNORE;
             return;
           }
           // Else, we need remap to their existing PK
           else {
-            debug(
-              `Record ${record.model}#${record[primaryKey]} already exists with different id ${existingRecord[primaryKey]}`,
-            );
-            pkMap[record.model][record[primaryKey]] = existingRecord[primaryKey];
+            debug(`Record ${record.model}#${recordPk} already exists with different id ${existingRecord[primaryKey]}`);
+            pkMap[record.model][recordPk] = existingRecord[primaryKey];
             return;
           }
         }
@@ -204,16 +215,16 @@ export const remapPKs = async (dataFile: string): Promise<PKMap> => {
 
     // If we don't have a way to detect unique instances or can't find the same record, we need to check if the id is being used...
     if (primaryKey) {
-      const matchingRecord = await model.findOne({ where: { [primaryKey]: record[primaryKey] }, paranoid: false });
+      const matchingRecord = await model.findOne({ where: { [primaryKey]: recordPk }, paranoid: false });
       if (matchingRecord) {
         if (equalDates(matchingRecord.dataValues['createdAt'], record.createdAt)) {
-          debug(`Record ${record.model}#${record[primaryKey]} already exists with same id and createdAt`);
-          pkMap[record.model][record[primaryKey]] = IGNORE;
+          debug(`Record ${record.model}#${recordPk} already exists with same id and createdAt`);
+          pkMap[record.model][recordPk] = IGNORE;
         } else {
           // If the ID is already being used, we'll generate the next valid one and mark it for remapping
           const newId = await getNextPK(model);
-          pkMap[record.model][record[primaryKey]] = newId;
-          debug(`Record ${record.model}#${record[primaryKey]} has conflicting id, remaping to ${newId}`);
+          pkMap[record.model][recordPk] = newId;
+          debug(`Record ${record.model}#${recordPk} has conflicting id, remaping to ${newId}`);
         }
       }
       // Otherwise we leave the map empty so we can insert the record as is.
@@ -236,18 +247,30 @@ const TABLE_TO_MODEL = mapValues(
  * Object mapping model names to model names with an array of columns.
  * e.g. { "Collective": { "User": ["CreatedByUserId"] }, ... }
  */
-const FOREIGN_KEYS: Record<ModelNames, Partial<Record<ModelNames, string[]>>> = mapValues(models, (model: any) =>
-  Object.values(model.tableAttributes)
-    .filter((column: any) => Boolean(column.references))
-    .reduce((acc, column: any) => {
-      const referencedModel = TABLE_TO_MODEL[column.references.model];
-      if (acc[referencedModel]) {
-        acc[referencedModel].push(column.fieldName);
-      } else {
-        acc[referencedModel] = [column.fieldName];
-      }
-      return acc;
-    }, {}),
+/**
+ * Shape of the `tableAttributes` entries we care about when resolving foreign keys.
+ * `fieldName` is added by Sequelize at runtime but is not part of the public typings.
+ */
+type ModelColumn = ModelAttributeColumnOptions & { fieldName: string };
+
+const FOREIGN_KEYS: Record<ModelNames, Partial<Record<ModelNames, string[]>>> = mapValues(
+  models,
+  (model: ModelStatic<SequelizeModel>) =>
+    Object.values(model.rawAttributes as Record<string, ModelColumn>)
+      .filter(column => Boolean(column.references))
+      .reduce(
+        (acc, column) => {
+          const referencedTable = (column.references as ModelAttributeColumnReferencesOptions).model as string;
+          const referencedModel = TABLE_TO_MODEL[referencedTable];
+          if (acc[referencedModel]) {
+            acc[referencedModel].push(column.fieldName);
+          } else {
+            acc[referencedModel] = [column.fieldName];
+          }
+          return acc;
+        },
+        {} as Partial<Record<ModelNames, string[]>>,
+      ),
 );
 
 /**
@@ -259,20 +282,21 @@ export const mergeRecords = async (dataFile: string, pkMap: PKMap, transaction) 
   await forEachRecord(dataFile, async record => {
     const model: ModelStatic<SequelizeModel> = models[record.model];
     const primaryKey = model.primaryKeyAttribute;
-    const referencedModels = FOREIGN_KEYS[record.model as ModelNames];
-    const remap = pkMap[record.model][record[primaryKey]];
+    const recordPk = record[primaryKey] as number | string;
+    const referencedModels = FOREIGN_KEYS[record.model];
+    const remap = pkMap[record.model][recordPk];
 
     const remappedDependencies = {};
     // Update any foreign keys that may have been remapped
     Object.keys(referencedModels).forEach(referencedModel => {
       const foreignKeys = referencedModels[referencedModel];
       foreignKeys.forEach(foreignKey => {
-        const rowPk = record[foreignKey];
+        const rowPk = record[foreignKey] as number | string;
         const remappedPk = pkMap[referencedModel][rowPk];
         if (remappedPk && remappedPk !== IGNORE) {
           set(remappedDependencies, foreignKey, remappedPk);
           debug(
-            `Remaping foreign key: ${record.model}#${record[primaryKey]} ${foreignKey} ${rowPk} to ${referencedModel}#${remappedPk}`,
+            `Remaping foreign key: ${record.model}#${recordPk} ${foreignKey} ${rowPk} to ${referencedModel}#${remappedPk}`,
           );
         }
       });
@@ -280,12 +304,12 @@ export const mergeRecords = async (dataFile: string, pkMap: PKMap, transaction) 
 
     // If the record already exists with the same ID, we can skip it
     if (remap === IGNORE) {
-      debug(`Skipping record: ${record.model}#${record[primaryKey]}`);
+      debug(`Skipping record: ${record.model}#${recordPk}`);
       return;
     }
     // If the record was remapped, we need to update its primary key
     else if (remap) {
-      debug(`Remaping key: ${record.model}#${record[primaryKey]} ${primaryKey} to ${remap}`);
+      debug(`Remaping key: ${record.model}#${recordPk} ${primaryKey} to ${remap}`);
       set(record, primaryKey, remap);
     }
     // If the record has any foreign keys that were remapped, we need to update them

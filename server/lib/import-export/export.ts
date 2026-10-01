@@ -1,16 +1,16 @@
 import debugLib from 'debug';
 import type Express from 'express';
 import { compact, concat, keys, pick, set, uniqBy, values } from 'lodash';
-import type { Model as SequelizeModel } from 'sequelize';
+import type { Model as SequelizeModel, ModelStatic, Order, WhereOptions } from 'sequelize';
 import { DataType, QueryTypes } from 'sequelize';
 
-import type { ModelNames, Models } from '../../models';
+import type { ModelInstance, ModelNames, Models } from '../../models';
 import models, { sequelize } from '../../models';
 import { crypto } from '../encryption';
 import logger from '../logger';
 
 import { getSanitizers } from './sanitize';
-import { RecipeItem } from './types';
+import type { ExportedItem, RecipeItem } from './types';
 
 const debug = debugLib('export');
 
@@ -65,7 +65,7 @@ const serialize = async (model: ModelNames, req: Express.Request, document: Sequ
     return baseValues;
   }
 
-  const sanitizedValues = await sanitizers[model](document as any, req);
+  const sanitizedValues = await sanitizers[model](document as ModelInstance<ModelNames>, req);
   if (sanitizedValues === null) {
     return null; // A null return means the record should be skipped
   }
@@ -73,18 +73,17 @@ const serialize = async (model: ModelNames, req: Express.Request, document: Sequ
   return { ...baseValues, ...sanitizedValues };
 };
 
-type ExportedItem = Record<string, any> & { model: ModelNames; id: number | string };
-
 const PAGINATION_LIMIT = 10000;
 
-async function* paginate(model: ModelNames, where: Record<string, any>, order: Record<string, any>, limit?: number) {
+async function* paginate(model: ModelNames, where: WhereOptions, order: Order, limit?: number) {
   let offset = 0;
   let totalCount;
+  const modelStatic = models[model] as ModelStatic<SequelizeModel>;
   if (limit) {
-    yield await (models[model] as any).findAll({ where, order, limit });
+    yield await modelStatic.findAll({ where, order, limit });
   } else {
     do {
-      const result = await (models[model] as any).findAndCountAll({ where, order, limit: PAGINATION_LIMIT, offset });
+      const result = await modelStatic.findAndCountAll({ where, order, limit: PAGINATION_LIMIT, offset });
       totalCount = result.count;
       yield result.rows;
       offset += PAGINATION_LIMIT;
@@ -92,9 +91,12 @@ async function* paginate(model: ModelNames, where: Record<string, any>, order: R
   }
 }
 
-const hashObject = (obj: Record<string, any>) => crypto.hash(JSON.stringify(obj));
+const hashObject = (obj: unknown) => crypto.hash(JSON.stringify(obj));
 
-const isTargetWhere = q => {
+/** A recipe item with a plain (non-function) `where` clause */
+type Query = RecipeItem & { where: WhereOptions };
+
+const isTargetWhere = (q: Query) => {
   const queryValues = values(q.where);
   return queryValues.length === 1 && typeof queryValues[0] !== 'object';
 };
@@ -102,7 +104,7 @@ const isTargetWhere = q => {
 /**
  * Reducer that combines multiple queries that target a single EQ property to a single query with an IN clause
  */
-const compactQueries = (queries, maxBatchSize = 500) => {
+const compactQueries = (queries: Query[], maxBatchSize = 500): Query[] => {
   const compactableQueries = queries.reduce((acc, query) => {
     if (isTargetWhere(query)) {
       const key = keys(query.where)[0];
@@ -120,7 +122,7 @@ const compactQueries = (queries, maxBatchSize = 500) => {
     } else {
       return acc.concat(query);
     }
-  }, []);
+  }, [] as Query[]);
 
   return compactableQueries;
 };
@@ -128,9 +130,10 @@ const compactQueries = (queries, maxBatchSize = 500) => {
 export const traverse = async (
   { model, where, order, dependencies, limit, defaultDependencies = {}, parsed = {}, depth = 1 }: RecipeItem,
   req: Express.Request,
-  callback: (ei: ExportedItem) => Promise<any>,
+  callback: (ei: ExportedItem) => Promise<unknown>,
 ): Promise<void> => {
-  if (model && where) {
+  // A `where` function is only supported for dependencies; the top-level item always has a static where clause
+  if (model && where && typeof where !== 'function') {
     debug('traverse', { model, where });
     const hasIdField = models[model]['tableAttributes'].id;
     if (hasIdField) {
@@ -154,10 +157,10 @@ export const traverse = async (
 
       // Inject default dependencies for the model
       dependencies = compact(concat(dependencies, defaultDependencies[model]));
-      let queries = [];
+      let queries: Query[] = [];
       for (const record of records) {
         for (const dep of dependencies) {
-          let where = {};
+          let where: WhereOptions = {};
           // If the dependency has a custom function
           if (typeof dep.where === 'function') {
             where = dep.where(record);
