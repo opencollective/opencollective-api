@@ -6,6 +6,7 @@ import moment from 'moment-timezone';
 import { FeatureDetails } from '../constants/feature';
 import { freeFeatures } from '../constants/plans';
 
+import { getCollectivePreviewImageUrl } from './collectivelib';
 import { getDefaultCurrencyPrecision } from './currency';
 import { getAccountUrl, getAccountUrlWithParent, getCollectiveExpensesUrl, getFullDashboardUrl } from './email-urls';
 import { capitalize, formatCurrency, formatCurrencyObject, pluralize, resizeImage } from './utils';
@@ -184,6 +185,9 @@ handlebars.registerHelper('number', (value, props) => {
 });
 
 handlebars.registerHelper('resizeImage', (imageUrl, props) => resizeImage(imageUrl, props.hash));
+handlebars.registerHelper('collectiveLogoUrl', (collective, props) =>
+  getCollectivePreviewImageUrl(collective, props.hash),
+);
 handlebars.registerHelper('capitalize', str => capitalize(str));
 handlebars.registerHelper('pluralize', (str, props) => pluralize(str, props.hash.n || props.hash.count));
 
