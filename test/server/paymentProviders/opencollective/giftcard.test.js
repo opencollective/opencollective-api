@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import gqlV1 from 'fake-tag';
 import gql from 'fake-tag';
 import moment from 'moment';
 import nock from 'nock';
@@ -14,6 +13,8 @@ import creditCardLib from '../../../../server/paymentProviders/stripe/creditcard
 import * as store from '../../../stores';
 import { fakeOrder } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
+
+const gqlV1 = gql;
 
 const ORDER_TOTAL_AMOUNT = 5000;
 const STRIPE_FEE_STUBBED_VALUE = 300;
