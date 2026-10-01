@@ -25,6 +25,28 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
     toPick.push('isManualPayout');
   } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_UPDATED) {
     toPick.push('previousData.status', 'expense.status');
+    // Tax-form and payout-method fan-out (see #8702). Only expose to users who can see
+    // the underlying private details; the activity itself is still surfaced in the thread.
+    if (activity.ExpenseId) {
+      const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
+      if (expense) {
+        if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
+          toPick.push(
+            'previousData.taxFormStatus',
+            'newData.taxFormStatus',
+            'taxForm.id',
+            'taxForm.publicId',
+            'taxForm.year',
+            'taxForm.documentType',
+            'taxForm.requestStatus',
+            'taxForm.service',
+          );
+        }
+        if (await ExpenseLib.canSeeExpensePayoutMethodPrivateDetails(req, expense)) {
+          toPick.push('previousData.payoutMethod', 'newData.payoutMethod');
+        }
+      }
+    }
   } else if (
     [ActivityTypes.COLLECTIVE_EXPENSE_ERROR, ActivityTypes.COLLECTIVE_EXPENSE_PAYMENT_ERROR].includes(activity.type)
   ) {
