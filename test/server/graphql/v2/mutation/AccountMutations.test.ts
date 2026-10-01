@@ -2211,5 +2211,41 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         newData: { 'data.isUSEntity': true },
       });
     });
+
+    it('persists both data fields when privateInstructions and isUSEntity are updated in the same mutation', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+
+      expect(collective.data?.privateInstructions).to.be.undefined;
+      expect(collective.data?.isUSEntity).to.be.undefined;
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            privateInstructions: 'Please invoice monthly',
+            isUSEntity: true,
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+
+      await collective.reload();
+      expect(collective.data.privateInstructions).to.equal('Please invoice monthly');
+      expect(collective.data.isUSEntity).to.be.true;
+
+      // The activity must record both changes
+      const activities = await models.Activity.findAll({
+        where: { UserId: user.id, CollectiveId: collective.id, type: ACTIVITY.COLLECTIVE_EDITED },
+      });
+      expect(activities.length).to.equal(1);
+      expect(activities[0].data).to.containSubset({
+        previousData: { 'data.privateInstructions': undefined, 'data.isUSEntity': undefined },
+        newData: { 'data.privateInstructions': 'Please invoice monthly', 'data.isUSEntity': true },
+      });
+    });
   });
 });

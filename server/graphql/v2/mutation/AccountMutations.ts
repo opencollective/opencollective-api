@@ -729,7 +729,11 @@ const accountMutations = {
             if (args.account.privateInstructions !== account.data?.privateInstructions) {
               previousData['data.privateInstructions'] = account.data?.privateInstructions;
               newData['data.privateInstructions'] = args.account.privateInstructions;
-              updateParams.data = { ...account.data, privateInstructions: args.account.privateInstructions };
+              updateParams.data = {
+                ...account.data,
+                ...updateParams.data,
+                privateInstructions: args.account.privateInstructions,
+              };
             }
             break;
           }
@@ -737,7 +741,7 @@ const accountMutations = {
             if (args.account.isUSEntity !== account.data?.isUSEntity) {
               previousData['data.isUSEntity'] = account.data?.isUSEntity;
               newData['data.isUSEntity'] = args.account.isUSEntity;
-              updateParams.data = { ...account.data, isUSEntity: args.account.isUSEntity };
+              updateParams.data = { ...account.data, ...updateParams.data, isUSEntity: args.account.isUSEntity };
             }
             break;
           }
