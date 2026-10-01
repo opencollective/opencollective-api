@@ -184,7 +184,7 @@ export const legalDocumentsMutations = {
       // The US-entity status is derived from the form type (W-9 = US person/entity,
       // W-8BEN / W-8BEN-E = non-US): the submitted form is the source of truth.
       // Unlike `taxableCountry`, `isUSEntity` is NOT cleared when the form is
-      // invalidated (it stays sticky, see P1 #6 decision in PLAN.md).
+      // invalidated.
       // Use atomic jsonb_set to avoid clobbering a concurrent writer's changes
       // to other keys in `account.data` (e.g. privateInstructions).
       debug('Sync taxable country and US-entity status on the account');
