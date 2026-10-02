@@ -59,7 +59,7 @@ enum NFFEStatus {
   NonProfitOrganization = 'NonProfitOrganization',
 }
 
-type W9TaxFormValues = {
+export type W9TaxFormValues = {
   isUSPersonOrEntity?: boolean;
   submitterType?: SubmitterType;
   formType?: TaxFormType;
@@ -82,7 +82,7 @@ type W9TaxFormValues = {
   };
 };
 
-type W8BenTaxFormValues = ({
+export type W8BenTaxFormValues = ({
   isUSPersonOrEntity?: boolean;
   submitterType?: SubmitterType;
   formType?: TaxFormType;
@@ -133,7 +133,7 @@ type W8BenTaxFormValues = ({
   ))) &
   ({ isSignerTheBeneficialOwner?: true } | { isSignerTheBeneficialOwner?: false; signerCapacity?: string });
 
-type W8BenETaxFormValues = ((({
+export type W8BenETaxFormValues = ((({
   isUSPersonOrEntity?: boolean;
   submitterType?: SubmitterType;
   formType?: TaxFormType;
@@ -226,10 +226,10 @@ type W8BenETaxFormValues = ((({
       }
   );
 
-const isW9Data = (data: Record<string, unknown>): data is W9TaxFormValues => data?.formType === TaxFormType.W9;
-const isW8BenData = (data: Record<string, unknown>): data is W8BenTaxFormValues =>
+export const isW9Data = (data: Record<string, unknown>): data is W9TaxFormValues => data?.formType === TaxFormType.W9;
+export const isW8BenData = (data: Record<string, unknown>): data is W8BenTaxFormValues =>
   data?.formType === TaxFormType.W8_BEN;
-const isW8BenEData = (data: Record<string, unknown>): data is W8BenETaxFormValues =>
+export const isW8BenEData = (data: Record<string, unknown>): data is W8BenETaxFormValues =>
   data?.formType === TaxFormType.W8_BEN_E;
 
 /**

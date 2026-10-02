@@ -33,6 +33,7 @@ import pMap from 'p-map';
 import {
   Attributes,
   CreationOptional,
+  FindAttributeOptions,
   FindOptions,
   HasManyCountAssociationsMixin,
   HasManyCreateAssociationMixin,
@@ -41,6 +42,7 @@ import {
   InferAttributes,
   InferCreationAttributes,
   NonAttribute,
+  ProjectionAlias,
   WhereOptions,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
@@ -231,6 +233,8 @@ type Data = Partial<{
   useVendorPolicy?: UseVendorPolicyValue;
   requiresProfileCompletion: boolean;
   isBlockedForUnpaidPlatformBilling?: boolean;
+  isUSEntity?: boolean;
+  taxableCountry?: string;
 }> &
   Record<string, unknown>;
 
@@ -500,14 +504,14 @@ class Collective extends ModelWithPublicId<
       startsAt: this.startsAt,
       endsAt: this.endsAt,
       timezone: this.timezone,
-      status: (this as any).status,
+      status: (this as unknown as { status?: unknown }).status,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       isActive: this.isActive,
       hasMoneyManagement: this.hasMoneyManagement,
       hasHosting: this.hasHosting,
       slug: this.slug,
-      tiers: (this as any).tiers,
+      tiers: this.tiers,
       type: this.type,
       settings: this.settings,
       website: this.website,
@@ -1568,7 +1572,7 @@ class Collective extends ModelWithPublicId<
     paranoid = true,
     transaction = undefined,
   }: {
-    collectiveAttributes?: any;
+    collectiveAttributes?: FindAttributeOptions;
     paranoid?: boolean;
     transaction?: SequelizeTransaction;
   } = {}): Promise<User[]> {
@@ -1731,7 +1735,7 @@ class Collective extends ModelWithPublicId<
    * @param {*} endDate end of the time period
    */
   getCancelledOrders = async function (startDate = 0, endDate = new Date()) {
-    let orders = <Array<any>>await Order.findAll({
+    let orders = <Array<Order & { totalTransactions?: number }>>await Order.findAll({
       where: {
         CollectiveId: this.id,
       },
@@ -1783,25 +1787,33 @@ class Collective extends ModelWithPublicId<
    * type: COLLECTIVE/USER/ORGANIZATION or an array of types
    * until: date till when to count the number of backers
    */
-  getBackersCount = function (options: any = {}) {
-    const query = <any>{
-      attributes: [[Sequelize.fn('COUNT', Sequelize.fn('DISTINCT', Sequelize.col('FromCollectiveId'))), 'count']],
-      where: {
-        CollectiveId: this.id,
-        FromCollectiveId: { [Op.ne]: this.HostCollectiveId },
-        type: 'CREDIT',
-      },
+  getBackersCount = function (
+    options: {
+      since?: Date | string | number;
+      until?: Date | string | number;
+      type?: string | string[];
+      group?: string;
+    } = {},
+  ) {
+    const where: WhereOptions = {
+      CollectiveId: this.id,
+      FromCollectiveId: { [Op.ne]: this.HostCollectiveId },
+      type: 'CREDIT',
     };
+    const attributes: (string | ProjectionAlias)[] = [
+      [Sequelize.fn('COUNT', Sequelize.fn('DISTINCT', Sequelize.col('FromCollectiveId'))), 'count'],
+    ];
 
     if (options.since) {
-      query.where.createdAt = query.where.createdAt || {};
-      query.where.createdAt[Op.gte] = options.since;
+      where.createdAt = where.createdAt || {};
+      where.createdAt[Op.gte] = options.since;
     }
     if (options.until) {
-      query.where.createdAt = query.where.createdAt || {};
-      query.where.createdAt[Op.lt] = options.until;
+      where.createdAt = where.createdAt || {};
+      where.createdAt[Op.lt] = options.until;
     }
 
+    const query: FindOptions = { attributes, where };
     if (options.type) {
       const types = typeof options.type === 'string' ? [options.type] : options.type;
       query.include = [
@@ -1818,7 +1830,7 @@ class Collective extends ModelWithPublicId<
 
     let method;
     if (options.group) {
-      query.attributes.push('fromCollective.type');
+      attributes.push('fromCollective.type');
       query.include = [
         {
           model: Collective,
@@ -1933,7 +1945,8 @@ class Collective extends ModelWithPublicId<
     role,
     defaultAttributes: { TierId?: number; CreatedByUserId?: number; description?: string; since?: Date } = {},
     context: {
-      skipActivity?: any;
+      skipActivity?: boolean;
+      order?: Order;
     } = {},
     transaction = undefined,
   ) {
@@ -2858,7 +2871,7 @@ class Collective extends ModelWithPublicId<
     });
 
     // Load existing data
-    const [oldMembers, oldInvitations] = <[Array<any>, Array<any>]>await Promise.all([
+    const [oldMembers, oldInvitations] = <[Array<Member>, Array<MemberInvitation>]>await Promise.all([
       this.getMembers({ where: { role: { [Op.in]: allowedRoles } } }),
       MemberInvitation.findAll({
         where: { CollectiveId: this.id, role: { [Op.in]: allowedRoles } },
@@ -2867,7 +2880,7 @@ class Collective extends ModelWithPublicId<
 
     // remove the members that are not present anymore
     const { remoteUserCollectiveId } = defaultAttributes;
-    const diff = differenceBy(oldMembers, members, m => m.id);
+    const diff: Member[] = differenceBy(oldMembers, members, (m: Member) => m.id);
     if (diff.length > 0) {
       const nbAdminsBefore = oldMembers.filter(m => m.role === roles.ADMIN && m.id).length;
       const nbAdmins = members.filter(m => m.role === roles.ADMIN && m.id).length;
@@ -2973,7 +2986,7 @@ class Collective extends ModelWithPublicId<
 
   // Where `this` collective is a type == ORGANIZATION collective.
   getExpensesForHost = function (status, startDate, endDate = new Date(), createdByUserId, excludedTypes) {
-    const where: any = {
+    const where: WhereOptions = {
       createdAt: { [Op.lt]: endDate },
     };
     if (status) {
@@ -3003,7 +3016,7 @@ class Collective extends ModelWithPublicId<
   };
 
   getExpenses = function (status, startDate, endDate = new Date(), createdByUserId, excludedTypes) {
-    const where: any = {
+    const where: WhereOptions = {
       createdAt: { [Op.lt]: endDate },
       CollectiveId: this.id,
     };
@@ -3027,7 +3040,7 @@ class Collective extends ModelWithPublicId<
   };
 
   getUpdates = function (status, startDate = 0, endDate = new Date()) {
-    const where: any = {
+    const where: WhereOptions = {
       createdAt: { [Op.lt]: endDate },
       CollectiveId: this.id,
     };
@@ -3045,15 +3058,14 @@ class Collective extends ModelWithPublicId<
   };
 
   // Returns the last payment method that has been confirmed attached to this collective
-  getPaymentMethod = async function (where, mustBeConfirmed = true) {
-    const query: any = {
-      where: {
-        ...where,
-        CollectiveId: this.id,
-      },
-    };
+  getPaymentMethod = async function (where: WhereOptions, mustBeConfirmed = true) {
+    // NB: built with Object.assign (rather than spread) so `whereOptions` keeps a plain
+    // object-literal type that supports dotted mutations below
+    const whereOptions: WhereOptions = { CollectiveId: this.id };
+    Object.assign(whereOptions, where, { CollectiveId: this.id });
+    const query: FindOptions = { where: whereOptions };
     if (mustBeConfirmed) {
-      query.where.confirmedAt = { [Op.ne]: null };
+      whereOptions.confirmedAt = { [Op.ne]: null };
       query.order = [['confirmedAt', 'DESC']];
     } else {
       query.order = [['createdAt', 'DESC']];
@@ -3071,15 +3083,15 @@ class Collective extends ModelWithPublicId<
     return getBalanceAmount(this, { ...options, withBlockedFunds: true });
   };
 
-  getBalanceWithBlockedFunds = function (options: any = {}) {
+  getBalanceWithBlockedFunds = function (options: Record<string, unknown> = {}) {
     return getBalanceAmount(this, { ...options, withBlockedFunds: true }).then(result => result.value);
   };
 
-  getBalanceAmount = function (options: any = {}) {
+  getBalanceAmount = function (options: Record<string, unknown> = {}) {
     return getBalanceAmount(this, options);
   };
 
-  getBalance = function (options: any = {}) {
+  getBalance = function (options: Record<string, unknown> = {}) {
     return getBalanceAmount(this, options).then(result => result.value);
   };
 
@@ -3196,9 +3208,25 @@ class Collective extends ModelWithPublicId<
     includeUsedGiftCardsEmittedByOthers = true,
     includeExpenseTransactions = true,
     excludePrivateAccounts = false,
-  }: any = {}) {
-    // Base query
-    const query: any = { where: this.transactionsWhereQuery(includeUsedGiftCardsEmittedByOthers) };
+  }: {
+    HostCollectiveId?: number;
+    startDate?: Date | string;
+    endDate?: Date | string;
+    type?: string;
+    offset?: number;
+    limit?: number;
+    attributes?: FindAttributeOptions;
+    kinds?: string | string[];
+    order?: Array<[string, string]>;
+    includeUsedGiftCardsEmittedByOthers?: boolean;
+    includeExpenseTransactions?: boolean;
+    excludePrivateAccounts?: boolean;
+  } = {}) {
+    // NB: built with Object.assign (rather than spread) so `where` keeps a plain
+    // object-literal type that supports dotted mutations below
+    const where: WhereOptions = {};
+    Object.assign(where, this.transactionsWhereQuery(includeUsedGiftCardsEmittedByOthers));
+    const query: FindOptions = { where };
 
     // Select attributes
     if (attributes) {
@@ -3207,31 +3235,31 @@ class Collective extends ModelWithPublicId<
 
     // Hide expenses transactions on demand
     if (includeExpenseTransactions === false) {
-      query.where.ExpenseId = null;
+      where.ExpenseId = null;
     }
 
     // Filter on host
     if (HostCollectiveId) {
-      query.where.HostCollectiveId = HostCollectiveId;
+      where.HostCollectiveId = HostCollectiveId;
     }
 
     // Filter on kind
     if (kinds) {
-      query.where.kind = kinds;
+      where.kind = kinds;
     }
 
     // Filter on date
     if (startDate && endDate) {
-      query.where.createdAt = { [Op.gte]: startDate, [Op.lt]: endDate };
+      where.createdAt = { [Op.gte]: startDate, [Op.lt]: endDate };
     } else if (startDate) {
-      query.where.createdAt = { [Op.gte]: startDate };
+      where.createdAt = { [Op.gte]: startDate };
     } else if (endDate) {
-      query.where.createdAt = { [Op.lt]: endDate };
+      where.createdAt = { [Op.lt]: endDate };
     }
 
     // Filter on type
     if (type) {
-      query.where.type = type;
+      where.type = type;
     }
 
     // Pagination
@@ -3248,10 +3276,11 @@ class Collective extends ModelWithPublicId<
     }
 
     if (excludePrivateAccounts) {
-      query.include = query.include || [];
-      query.include.push({ association: 'collective', attributes: [] });
-      query.include.push({ association: 'fromCollective', attributes: [] });
-      query.include.push({ association: 'host', attributes: [] });
+      query.include = [
+        { association: 'collective', attributes: [] },
+        { association: 'fromCollective', attributes: [] },
+        { association: 'host', attributes: [] },
+      ];
       query.where[Op.and] = query.where[Op.and] || [];
       query.where[Op.and].push({
         [Op.and]: [
@@ -3294,7 +3323,7 @@ class Collective extends ModelWithPublicId<
    * @param {*} tags if not null, only takes into account donations made to collectives that contains one of those tags
    */
   getLatestTransactions = function (since, until, tags) {
-    const conditionOnCollective: any = {};
+    const conditionOnCollective: WhereOptions<Attributes<Collective>> = {};
     if (tags) {
       conditionOnCollective.tags = { [Op.overlap]: tags };
     }

@@ -103,7 +103,7 @@ export function withTiming(
     const endTiming = req.middlewareTimingTracker.startTiming(middlewareName);
 
     // Call the original middleware
-    middleware(req, res, (error?: any) => {
+    middleware(req, res, (error?: unknown) => {
       endTiming();
       next(error);
     });

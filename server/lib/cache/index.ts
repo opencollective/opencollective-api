@@ -96,7 +96,7 @@ const buildCache = (instanceType = RedisInstanceType.DEFAULT) => ({
       logger.warn(`Error while checking from cache: ${err.message}`);
     }
   },
-  set: async (key: string, value: any, expirationInSeconds?: number, options?) => {
+  set: async (key: string, value: unknown, expirationInSeconds?: number, options?) => {
     try {
       debugCache(`set ${key} ttl:${expirationInSeconds}s`);
       const provider = await getDefaultProvider(instanceType);

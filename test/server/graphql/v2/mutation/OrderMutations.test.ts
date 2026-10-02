@@ -511,6 +511,39 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(result.errors[0].message).to.match(/only pay with its balance/i);
         });
 
+        it('rejects a frequency that does not match a fixed interval tier', async () => {
+          const tier = await fakeTier({
+            CollectiveId: toCollective.id,
+            amount: 5000,
+            amountType: 'FLEXIBLE',
+            interval: 'month',
+          });
+          const result = await callCreateOrder(
+            { order: { ...validOrderParams, frequency: 'ONETIME', tier: { legacyId: tier.id } } },
+            fromUser,
+          );
+
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq('This tier only accepts contributions with a "month" interval');
+        });
+
+        it('accepts any frequency for a flexible interval tier', async () => {
+          const tier = await fakeTier({
+            CollectiveId: toCollective.id,
+            amount: 5000,
+            amountType: 'FLEXIBLE',
+            interval: 'flexible',
+          });
+          const result = await callCreateOrder(
+            { order: { ...validOrderParams, frequency: 'ONETIME', tier: { legacyId: tier.id } } },
+            fromUser,
+          );
+
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.createOrder.order.frequency).to.eq('ONETIME');
+        });
+
         it('supports additional params', async () => {
           const tier = await fakeTier({
             CollectiveId: toCollective.id,
@@ -637,6 +670,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             CollectiveId: event.id,
             name: 'tier-name',
             type: 'TICKET',
+            interval: null,
             amount: 0,
             amountType: 'FLEXIBLE',
             presets: [0, 500, 1000],
@@ -1021,7 +1055,12 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
       describe('Quantity', () => {
         it('fails if not enough available', async () => {
-          const tier = await fakeTier({ maxQuantity: 10, CollectiveId: toCollective.id, name: 'My Tier' });
+          const tier = await fakeTier({
+            maxQuantity: 10,
+            CollectiveId: toCollective.id,
+            name: 'My Tier',
+            interval: null,
+          });
           const orderData = { ...validOrderParams, tier: { legacyId: tier.id }, quantity: 11 };
           const result = await callCreateOrder({ order: orderData }, fromUser);
           expect(result.errors).to.exist;

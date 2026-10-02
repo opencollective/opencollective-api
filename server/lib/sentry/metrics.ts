@@ -150,7 +150,7 @@ export function mapErrorToType(error: unknown): ErrorType {
 
   const err = error as {
     code?: unknown;
-    decline_code?: unknown; // eslint-disable-line camelcase
+    decline_code?: unknown;
     type?: unknown;
     name?: unknown;
     message?: unknown;

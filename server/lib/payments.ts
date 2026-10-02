@@ -1,6 +1,5 @@
 /** @module lib/payments */
 import config from 'config';
-import DataLoader from 'dataloader';
 import debugLib from 'debug';
 import { escape, find, get, includes, isNil, isNumber, omit, pick, truncate } from 'lodash';
 import moment from 'moment';
@@ -18,6 +17,7 @@ import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
+import type { Loaders } from '../graphql/loaders';
 import { ManualPaymentProvider, Op, sequelize } from '../models';
 import Activity from '../models/Activity';
 import { ManualPaymentProviderTypes, sanitizeManualPaymentProviderInstructions } from '../models/ManualPaymentProvider';
@@ -61,7 +61,7 @@ const { CREDIT, DEBIT } = TransactionTypes;
 
 const debug = debugLib('payments');
 
-type loaders = Record<string, Record<string, DataLoader<number | string, any>>>;
+type loaders = Loaders;
 
 /** Check if paymentMethod has a given fully qualified name
  *

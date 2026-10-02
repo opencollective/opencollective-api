@@ -17,8 +17,10 @@ import { InvalidToken, ValidationFailed } from '../errors';
 
 type CreateUserOptions = {
   organizationData?: {
-    name: string;
-    slug: string;
+    name?: string;
+    legalName?: string;
+    slug?: string;
+    description?: string;
     website?: string;
     twitterHandle?: string;
     githubHandle?: string;
@@ -39,7 +41,7 @@ export const createUser = (
     name?: string;
     legalName?: string;
     email: string;
-    newsletterOptIn: boolean;
+    newsletterOptIn?: boolean;
     location: Record<string, unknown>;
   },
   {

@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import gqlV1 from 'fake-tag';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
@@ -8,6 +7,8 @@ import { Collective, ConnectedAccount, Order, PaymentMethod, User } from '../../
 import creditcard from '../../../../server/paymentProviders/stripe/creditcard';
 import { randEmail } from '../../../stores';
 import { data, graphqlQuery, graphqlQueryV2, resetTestDB } from '../../../utils';
+
+const gqlV1 = gql;
 
 const TIER_QUERY = gql`
   query Tier($id: Int!) {
@@ -84,7 +85,7 @@ describe('server/graphql/v1/user', () => {
   });
 
   beforeEach(async () => {
-    tier1 = await collective1.createTier(data('tier1'));
+    tier1 = await collective1.createTier({ ...data('tier1'), interval: null });
   });
   beforeEach(async () => {
     ticket1 = await collective1.createTier(data('ticket1'));

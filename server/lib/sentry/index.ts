@@ -72,8 +72,9 @@ if (checkIfSentryConfigured()) {
 
   // Catch all errors that haven't been caught anywhere else
   process
-    .on('unhandledRejection', (reason: any) => {
-      reportErrorToSentry(reason, { severity: 'fatal', handler: HandlerType.FALLBACK });
+    .on('unhandledRejection', (reason: unknown) => {
+      // The rejection reason can be anything; Sentry handles non-Error values fine
+      reportErrorToSentry(reason as Error, { severity: 'fatal', handler: HandlerType.FALLBACK });
     })
     .on('uncaughtException', (err: Error) => {
       reportErrorToSentry(err, { severity: 'fatal', handler: HandlerType.FALLBACK });

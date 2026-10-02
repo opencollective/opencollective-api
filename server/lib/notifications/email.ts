@@ -1,6 +1,7 @@
 import config from 'config';
 import debugLib from 'debug';
 import { cloneDeep, compact, get, uniq } from 'lodash';
+import type { SendMailOptions } from 'nodemailer';
 import PQueue from 'p-queue';
 
 import { roles } from '../../constants';
@@ -30,7 +31,7 @@ const debug = debugLib('notifications');
 const VENDOR_SUBSCRIBED_ACTIVITIES = [ActivityTypes.ORDER_PROCESSED];
 
 type NotifySubscribersOptions = {
-  attachments?: any[];
+  attachments?: NonNullable<SendMailOptions['attachments']>;
   bcc?: string;
   cc?: string;
   collective?: Collective;
@@ -41,7 +42,7 @@ type NotifySubscribersOptions = {
   template?: string;
   to?: string;
   unsubscribed?: Array<User>;
-  customEmailHeaders?: Record<string, any>;
+  customEmailHeaders?: Record<string, string>;
 };
 
 export const notify = {

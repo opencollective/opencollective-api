@@ -13,6 +13,8 @@ import * as store from '../../../stores';
 import { fakeOrder } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
+const gqlV1 = gql;
+
 const ORDER_TOTAL_AMOUNT = 5000;
 const STRIPE_FEE_STUBBED_VALUE = 300;
 
