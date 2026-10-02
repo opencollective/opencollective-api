@@ -2883,30 +2883,6 @@ export async function submitExpenseDraft(
     ],
   });
   checkCanReceiveExpense(collective);
-
-  // Defensive check for restricted collectives (`disablePublicExpenseSubmission`): legacy drafts
-  // created before the creation-time guard must not be laundered to PENDING.
-  // - Author-driven submissions require the author (current user) to be authorized.
-  // - Invited-payee submissions (correct draft key or original-payee identity) require the draft
-  //   author to have been authorized, preserving legitimate invitations where the invitee is a
-  //   non-member. The submitter itself may be a non-member in that flow.
-  if (collective.settings?.['disablePublicExpenseSubmission']) {
-    const hasCorrectKey = Boolean(existingExpense.data?.draftKey) && existingExpense.data.draftKey === args.draftKey;
-    if (userIsAuthor) {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to submit an expense');
-      }
-      checkCanCreateExpenseForCollective(collective, req.remoteUser);
-    } else if (hasCorrectKey || userIsOriginalPayee) {
-      const draftAuthor = existingExpense.UserId ? await models.User.findByPk(existingExpense.UserId) : null;
-      if (!draftAuthor) {
-        throw new Error('You must be a member of the collective to create new expense');
-      }
-      await draftAuthor.populateRoles();
-      checkCanCreateExpenseForCollective(collective, draftAuthor);
-    }
-  }
-
   const fromCollective = expenseData.fromCollective || requestedPayee || existingExpense.fromCollective;
   await checkExpenseType(
     expenseData.type || existingExpense.type,
