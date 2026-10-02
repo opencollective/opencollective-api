@@ -9,8 +9,6 @@ import models from '../../../../../server/models';
 import { fakeCollective, fakePersonalToken, fakeUser } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
-const MemberRoles = roles;
-
 let collectiveAdminUser, collectiveMemberUser, collective;
 
 describe('memberMutations', () => {

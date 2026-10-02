@@ -33,8 +33,8 @@ describe('server/graphql/loaders/collective', () => {
       MemberCollectiveId: user.CollectiveId,
       role: MemberRoles.BACKER,
     });
-    // Simulate an obsolete membership before the removal migration has run.
-    await sequelize.query(`UPDATE "Members" SET role = 'FOLLOWER' WHERE id = :id`, {
+    // Simulate a soft-deleted follower membership left behind by the retirement migration.
+    await sequelize.query(`UPDATE "Members" SET role = 'FOLLOWER', "deletedAt" = NOW() WHERE id = :id`, {
       replacements: { id: member.id },
     });
 

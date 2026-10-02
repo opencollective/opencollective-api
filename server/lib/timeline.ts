@@ -215,7 +215,6 @@ debug('Cache TTL: %d (%d days)', TTL, config.timeline.daysCached);
  */
 const getCacheKey = (collectiveSlug: string, classes: ActivityClasses[]): string => {
   const sortedClasses = [...classes].sort().join('-');
-  // Rebuild feeds cached before follower memberships were removed.
   return `timeline-v2-${collectiveSlug}-${sortedClasses || 'none'}`;
 };
 

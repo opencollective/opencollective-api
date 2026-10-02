@@ -5,7 +5,7 @@ import { QueryTypes } from 'sequelize';
 
 import { roles } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
-import MemberRoles, { MemberRolesForPrivateAccounts } from '../../constants/roles';
+import { MemberRolesForPrivateAccounts } from '../../constants/roles';
 import models, { Collective, Op, sequelize } from '../../models';
 
 import { sortResultsSimple } from './helpers';
@@ -110,7 +110,7 @@ export default {
           group: ['MemberCollectiveId'],
           raw: true,
           mapToModel: false,
-          where: { MemberCollectiveId: otherAccountsCollectiveIds, role: { [Op.in]: Object.values(MemberRoles) } },
+          where: { MemberCollectiveId: otherAccountsCollectiveIds },
           include: {
             association: 'collective',
             required: true,
@@ -167,7 +167,7 @@ export default {
           group: ['MemberCollectiveId'],
           raw: true,
           mapToModel: false,
-          where: { MemberCollectiveId: otherAccountsCollectiveIds, role: { [Op.in]: Object.values(MemberRoles) } },
+          where: { MemberCollectiveId: otherAccountsCollectiveIds },
           include: {
             association: 'collective',
             required: true,
