@@ -21,6 +21,7 @@ const isCloudinaryUrl = url => {
 
 async function main() {
   console.log(`Running in ${DRY_RUN ? 'DRY RUN' : 'REAL RUN'} mode`);
+  const stats = { migrated: 0, skipped: 0, failed: 0 };
 
   for (const { name, kind } of FIELDS) {
     const collectives = await models.Collective.findAll({
@@ -32,12 +33,14 @@ async function main() {
       console.log(`Processing ${name} for ${collective.slug} (${collective.id}): ${url}`);
       if (!isCloudinaryUrl(url)) {
         console.log('Skipping, not hosted on Cloudinary');
+        stats.skipped++;
         continue;
       }
       try {
         const response = await fetch(url);
         if (!response.ok) {
           console.log(`Skipping, source returned ${response.status}`);
+          stats.skipped++;
           continue;
         }
         const buffer = Buffer.from(await response.arrayBuffer());
@@ -47,9 +50,11 @@ async function main() {
         console.log(`Fetched ${originalname} (${mimetype}, ${size} bytes)`);
         if (!UploadedFile.isSupportedImageMimeType(mimetype)) {
           console.log(`Skipping, unsupported image type ${mimetype}`);
+          stats.skipped++;
           continue;
         }
         if (DRY_RUN) {
+          stats.migrated++;
           continue;
         }
         const file = {
@@ -61,13 +66,17 @@ async function main() {
         const uploadedFile = await UploadedFile.upload(file, kind, null);
         await collective.update({ [name]: uploadedFile.url });
         console.log(`Updated to ${uploadedFile.url}`);
+        stats.migrated++;
       } catch (e) {
         console.log(`Failed to migrate ${name} for ${collective.slug}:`, e);
+        stats.failed++;
       }
     }
   }
 
-  console.log('Done.');
+  console.log(
+    `Done. ${DRY_RUN ? 'Would migrate' : 'Migrated'}: ${stats.migrated}, skipped: ${stats.skipped}, failed: ${stats.failed}`,
+  );
   await sequelize.close();
 }
 
