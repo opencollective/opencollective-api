@@ -2489,7 +2489,7 @@ export const checkCanCreateExpenseForCollective = (collective: Collective, remot
     !remoteUser.isAdminOfCollectiveOrHost(collective) &&
     !remoteUser.isRoot()
   ) {
-    throw new Error('You must be a member of the collective to create new expense');
+    throw new Forbidden('You must be a member of the collective to create new expense');
   }
 };
 
