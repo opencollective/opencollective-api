@@ -42,8 +42,28 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
             'taxForm.service',
           );
         }
-        if (await ExpenseLib.canSeeExpensePayoutMethodPrivateDetails(req, expense)) {
-          toPick.push('previousData.payoutMethod', 'newData.payoutMethod');
+        // Authorize each payout-method snapshot independently by its own method id: after an
+        // archive/replace, historical expenses stay on the old method while reassigned ones move
+        // to the new one, so the expense's current method must not authorize the other snapshot.
+        const previousSnapshotId = activity.data?.previousData?.payoutMethod?.id;
+        if (
+          previousSnapshotId !== undefined &&
+          previousSnapshotId !== null &&
+          (await ExpenseLib.canSeeExpensePayoutMethodPrivateDetails(req, expense, {
+            payoutMethodId: previousSnapshotId,
+          }))
+        ) {
+          toPick.push('previousData.payoutMethod');
+        }
+        const newSnapshotId = activity.data?.newData?.payoutMethod?.id;
+        if (
+          newSnapshotId !== undefined &&
+          newSnapshotId !== null &&
+          (await ExpenseLib.canSeeExpensePayoutMethodPrivateDetails(req, expense, {
+            payoutMethodId: newSnapshotId,
+          }))
+        ) {
+          toPick.push('newData.payoutMethod');
         }
       }
     }

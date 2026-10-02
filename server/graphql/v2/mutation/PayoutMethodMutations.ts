@@ -11,7 +11,7 @@ import {
 import { reportErrorToSentry } from '../../../lib/sentry';
 import sequelize from '../../../lib/sequelize';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { PayoutMethod } from '../../../models';
+import models, { Op, PayoutMethod } from '../../../models';
 import PayoutMethodModel, { PayoutMethodTypes, PaypalPayoutMethodData } from '../../../models/PayoutMethod';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
@@ -29,6 +29,8 @@ type PayoutMethodSnapshot = {
   id: number;
   type: PayoutMethodTypes | string;
   name?: string;
+  isSaved?: boolean;
+  currency?: string | null;
   filteredData: Record<string, unknown>;
 };
 
@@ -43,39 +45,53 @@ const createPayoutMethodExpenseActivities = async (
       return;
     }
 
-    const expenses = await models.Expense.findAll({
-      where: { PayoutMethodId: payoutMethodIds },
-      limit: 100,
-      order: [['createdAt', 'DESC']],
-    });
-
-    if (!expenses.length) {
-      return;
-    }
-
     const oldFiltered = {
       id: oldSnapshot.id,
       type: oldSnapshot.type,
       name: oldSnapshot.name,
+      isSaved: oldSnapshot.isSaved,
+      currency: oldSnapshot.currency,
       data: oldSnapshot.filteredData,
     };
     const newFiltered = {
       id: newSnapshot.id,
       type: newSnapshot.type,
       name: newSnapshot.name,
+      isSaved: newSnapshot.isSaved,
+      currency: newSnapshot.currency,
       data: newSnapshot.filteredData,
     };
 
-    for (const expense of expenses) {
-      try {
-        await expense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, user, {
-          isSystem: true,
-          notify: false,
-          previousData: { payoutMethod: oldFiltered },
-          newData: { payoutMethod: newFiltered },
-        });
-      } catch (e) {
-        reportErrorToSentry(e, { extra: { expenseId: expense.id, payoutMethodId: oldSnapshot.id } });
+    // Paginate through all linked expenses (no overall cap), oldest first for stable paging.
+    const BATCH_SIZE = 100;
+    let lastId = 0;
+    for (;;) {
+      const expenses = await models.Expense.findAll({
+        where: { id: { [Op.gt]: lastId }, PayoutMethodId: payoutMethodIds },
+        order: [['id', 'ASC']],
+        limit: BATCH_SIZE,
+      });
+
+      if (!expenses.length) {
+        return;
+      }
+      lastId = expenses[expenses.length - 1].id;
+
+      for (const expense of expenses) {
+        try {
+          await expense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, user, {
+            isSystem: true,
+            notify: false,
+            previousData: { payoutMethod: oldFiltered },
+            newData: { payoutMethod: newFiltered },
+          });
+        } catch (e) {
+          reportErrorToSentry(e, { extra: { expenseId: expense.id, payoutMethodId: oldSnapshot.id } });
+        }
+      }
+
+      if (expenses.length < BATCH_SIZE) {
+        return;
       }
     }
   } catch (e) {
@@ -87,6 +103,8 @@ const toPayoutMethodSnapshot = (payoutMethod: PayoutMethodModel): PayoutMethodSn
   id: payoutMethod.id,
   type: payoutMethod.type,
   name: payoutMethod.name,
+  isSaved: payoutMethod.isSaved,
+  currency: payoutMethod.currency,
   filteredData: payoutMethod.getFilteredData() as Record<string, unknown>,
 });
 
@@ -267,12 +285,12 @@ const payoutMethodMutations = {
         } catch (e) {
           reportErrorToSentry(e, { req, user: req.remoteUser, extra: { payoutMethodId: updatedPayoutMethod.id } });
         }
-        // Surface the edit in related expense threads (best-effort, no email)
-        await createPayoutMethodExpenseActivities(
-          oldSnapshot,
-          toPayoutMethodSnapshot(updatedPayoutMethod),
-          req.remoteUser,
-        );
+        // Surface the edit in related expense threads (best-effort, no email).
+        // Skip when nothing actually changed (e.g. saving without edits).
+        const newSnapshot = toPayoutMethodSnapshot(updatedPayoutMethod);
+        if (!isEqual(oldSnapshot, newSnapshot)) {
+          await createPayoutMethodExpenseActivities(oldSnapshot, newSnapshot, req.remoteUser);
+        }
         return updatedPayoutMethod;
       } else if (payoutMethod.canBeArchived()) {
         // Capture the pre-archive state for the expense thread fan-out
@@ -309,7 +327,11 @@ const payoutMethodMutations = {
         }
         // Surface the replacement in related expense threads (best-effort, no email).
         // Covers both historical expenses (still on the old id) and pending expenses (now on the new id).
-        await createPayoutMethodExpenseActivities(oldSnapshot, toPayoutMethodSnapshot(newPayoutMethod), req.remoteUser);
+        // Skip when nothing actually changed.
+        const newSnapshot = toPayoutMethodSnapshot(newPayoutMethod);
+        if (!isEqual(oldSnapshot, newSnapshot)) {
+          await createPayoutMethodExpenseActivities(oldSnapshot, newSnapshot, req.remoteUser);
+        }
         return newPayoutMethod;
       } else {
         throw new Forbidden();

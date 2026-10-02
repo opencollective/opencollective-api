@@ -131,6 +131,9 @@ class LegalDocument extends ModelWithPublicId<
         findAll: (options: unknown) => Promise<
           Array<{
             id: number;
+            CollectiveId: number;
+            FromCollectiveId: number;
+            HostCollectiveId?: number | null;
             paidAt?: Date | string;
             createdAt?: Date | string;
             createActivity: (
@@ -141,33 +144,17 @@ class LegalDocument extends ModelWithPublicId<
           }>
         >;
       };
+      const CollectiveModel = sequelize.models.Collective as unknown as {
+        findAll: (options: unknown) => Promise<Array<{ id: number; HostCollectiveId?: number | null }>>;
+      };
+      const RequiredLegalDocumentModel = sequelize.models.RequiredLegalDocument as unknown as {
+        findAll: (options: unknown) => Promise<Array<{ HostCollectiveId: number }>>;
+      };
       if (!ExpenseModel || !payee?.id || !legalDocument) {
         return;
       }
 
-      const expenses = await ExpenseModel.findAll({
-        where: {
-          FromCollectiveId: payee.id,
-          type: { [Op.notIn]: [...TAX_FORM_IGNORED_EXPENSE_TYPES] },
-          status: { [Op.notIn]: [...TAX_FORM_IGNORED_EXPENSE_STATUSES] },
-        },
-        limit: 100,
-        order: [['createdAt', 'DESC']],
-      });
-
       const targetYear = legalDocument.year || new Date().getFullYear();
-      const matchingExpenses = expenses.filter(expense => {
-        const refDate = expense.paidAt || expense.createdAt;
-        if (!refDate) {
-          return true;
-        }
-        return new Date(refDate).getFullYear() === targetYear;
-      });
-
-      if (!matchingExpenses.length) {
-        return;
-      }
-
       const taxFormInfo = {
         id: legalDocument.id,
         publicId: (legalDocument as unknown as { publicId?: string }).publicId,
@@ -177,17 +164,77 @@ class LegalDocument extends ModelWithPublicId<
         service: legalDocument.service,
       };
 
-      for (const expense of matchingExpenses) {
-        try {
-          await expense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, user, {
-            isSystem: true,
-            notify: false,
-            previousData: { taxFormStatus: previousStatus },
-            newData: { taxFormStatus: newStatus },
-            taxForm: taxFormInfo,
+      // Paginate through all matching expenses (no overall cap), oldest first for stable paging.
+      const BATCH_SIZE = 100;
+      let lastId = 0;
+      for (;;) {
+        const expenses = await ExpenseModel.findAll({
+          where: {
+            id: { [Op.gt]: lastId },
+            FromCollectiveId: payee.id,
+            type: { [Op.notIn]: [...TAX_FORM_IGNORED_EXPENSE_TYPES] },
+            status: { [Op.notIn]: [...TAX_FORM_IGNORED_EXPENSE_STATUSES] },
+          },
+          order: [['id', 'ASC']],
+          limit: BATCH_SIZE,
+        });
+
+        if (!expenses.length) {
+          return;
+        }
+        lastId = expenses[expenses.length - 1].id;
+
+        const yearMatchingExpenses = expenses.filter(expense => {
+          const refDate = expense.paidAt || expense.createdAt;
+          if (!refDate) {
+            return true;
+          }
+          return new Date(refDate).getFullYear() === targetYear;
+        });
+
+        if (yearMatchingExpenses.length) {
+          // Tax-form applicability is host-specific: only fan out to expenses under a host
+          // that requires US tax forms, preserving the document year for the check.
+          const collectiveIds = uniq(yearMatchingExpenses.map(expense => expense.CollectiveId));
+          const collectives = await CollectiveModel.findAll({
+            where: { id: collectiveIds },
+            attributes: ['id', 'HostCollectiveId'],
           });
-        } catch (e) {
-          reportErrorToSentry(e, { extra: { expenseId: expense.id, legalDocumentId: legalDocument.id } });
+          const hostIdByCollectiveId = new Map(collectives.map(c => [c.id, c.HostCollectiveId]));
+          const hostIds = uniq(
+            yearMatchingExpenses
+              .map(expense => expense.HostCollectiveId ?? hostIdByCollectiveId.get(expense.CollectiveId))
+              .filter((hostId): hostId is number => Boolean(hostId)),
+          );
+
+          if (hostIds.length) {
+            const requiredDocs = await RequiredLegalDocumentModel.findAll({
+              where: { HostCollectiveId: hostIds, documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM },
+              attributes: ['HostCollectiveId'],
+            });
+            const taxFormHostIds = new Set(requiredDocs.map(doc => doc.HostCollectiveId));
+            const applicableExpenses = yearMatchingExpenses.filter(expense =>
+              taxFormHostIds.has(expense.HostCollectiveId ?? hostIdByCollectiveId.get(expense.CollectiveId)),
+            );
+
+            for (const expense of applicableExpenses) {
+              try {
+                await expense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, user, {
+                  isSystem: true,
+                  notify: false,
+                  previousData: { taxFormStatus: previousStatus },
+                  newData: { taxFormStatus: newStatus },
+                  taxForm: taxFormInfo,
+                });
+              } catch (e) {
+                reportErrorToSentry(e, { extra: { expenseId: expense.id, legalDocumentId: legalDocument.id } });
+              }
+            }
+          }
+        }
+
+        if (expenses.length < BATCH_SIZE) {
+          return;
         }
       }
     } catch (e) {

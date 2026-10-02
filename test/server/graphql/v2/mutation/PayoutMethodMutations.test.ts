@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import { createSandbox } from 'sinon';
 
+import ActivityTypes from '../../../../../server/constants/activities';
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import * as kycExpensesCheck from '../../../../../server/lib/kyc/expenses/kyc-expenses-check';
 import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
@@ -833,6 +834,97 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
         expect(newPayoutMethod.id).to.not.equal(payoutMethod.id);
         expect(newPayoutMethod.name).to.equal('New Bank');
       });
+    });
+  });
+
+  describe('expense thread fan-out (see #8702)', () => {
+    const editPayoutMethodMutation = gql`
+      mutation EditPayoutMethod($payoutMethod: PayoutMethodInput!) {
+        editPayoutMethod(payoutMethod: $payoutMethod) {
+          id
+          data
+          name
+          type
+          isSaved
+        }
+      }
+    `;
+
+    beforeEach(utils.resetTestDB);
+
+    it('does not create expense activities when nothing changed', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user.collective });
+      const payoutMethod = await fakePayoutMethod({
+        CollectiveId: collective.id,
+        isSaved: true,
+        name: 'Same Name',
+      });
+      const expense = await fakeExpense({
+        PayoutMethodId: payoutMethod.id,
+        status: 'PENDING',
+        FromCollectiveId: collective.id,
+        CollectiveId: collective.id,
+      });
+
+      const result = await graphqlQueryV2(
+        editPayoutMethodMutation,
+        {
+          payoutMethod: { id: idEncode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD), name: 'Same Name' },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      const activities = await models.Activity.findAll({
+        where: { type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, ExpenseId: expense.id },
+      });
+      expect(activities).to.have.length(0);
+    });
+
+    it('fans out to all linked expenses, including beyond 100', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user.collective });
+      const payoutMethod = await fakePayoutMethod({
+        CollectiveId: collective.id,
+        isSaved: true,
+        name: 'Shared method',
+      });
+
+      const expenseIds = [];
+      for (let i = 0; i < 105; i++) {
+        const expense = await fakeExpense({
+          PayoutMethodId: payoutMethod.id,
+          status: 'PENDING',
+          FromCollectiveId: collective.id,
+          CollectiveId: collective.id,
+          UserId: user.id,
+          lastEditedById: user.id,
+          items: [],
+        });
+        expenseIds.push(expense.id);
+      }
+
+      const result = await graphqlQueryV2(
+        editPayoutMethodMutation,
+        {
+          payoutMethod: { id: idEncode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD), name: 'Renamed method' },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      const activitiesCount = await models.Activity.count({
+        where: { type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, ExpenseId: expenseIds },
+      });
+      expect(activitiesCount).to.equal(105);
+
+      const sampleActivity = await models.Activity.findOne({
+        where: { type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, ExpenseId: expenseIds[0] },
+      });
+      expect(sampleActivity.data.previousData.payoutMethod.name).to.equal('Shared method');
+      expect(sampleActivity.data.newData.payoutMethod.name).to.equal('Renamed method');
+      expect(sampleActivity.data.notify).to.equal(false);
     });
   });
 });
