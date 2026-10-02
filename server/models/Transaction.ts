@@ -52,7 +52,7 @@ import User from './User';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 
-const { CONTRIBUTION, EXPENSE, ADDED_FUNDS } = TransactionKind;
+const { CONTRIBUTION, EXPENSE, ADDED_FUNDS, BALANCE_TRANSFER } = TransactionKind;
 
 export const MERCHANT_ID_PATHS = {
   [CONTRIBUTION]: [
@@ -459,8 +459,12 @@ class Transaction extends ModelWithPublicId<
         transaction.PaymentMethod?.service !== PAYMENT_METHOD_SERVICE.STRIPE
       ) {
         throw new Error('Transaction kind=EXPENSE should be initiated as a DEBIT transaction.');
-      } else if (transaction.kind === CONTRIBUTION && transaction.type === DEBIT && !transaction.isRefund) {
-        throw new Error('Transaction kind=CONTRIBUTION should be initiated as a CREDIT transaction.');
+      } else if (
+        (transaction.kind === CONTRIBUTION || transaction.kind === BALANCE_TRANSFER) &&
+        transaction.type === DEBIT &&
+        !transaction.isRefund
+      ) {
+        throw new Error(`Transaction kind=${transaction.kind} should be initiated as a CREDIT transaction.`);
       }
       // TODO: should we check for refunds also?
 
@@ -866,6 +870,11 @@ class Transaction extends ModelWithPublicId<
       transaction.hostCurrency,
     );
     transaction.amount = roundCentsAmount(transaction.amount - amount, transaction.currency);
+
+    // Defense-in-depth: a platform tip must never drive the parent transaction negative.
+    if (transaction.amount < 0 || transaction.amountInHostCurrency < 0) {
+      throw new Error('Platform tip amount cannot exceed the transaction amount');
+    }
 
     // Reset the platformFee because we're accounting for this value in a separate set of transactions
     // This way of passing tips is deprecated but still used in some older tests
