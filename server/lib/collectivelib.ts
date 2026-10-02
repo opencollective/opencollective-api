@@ -88,6 +88,21 @@ export const getCollectiveAvatarUrl = (
   return `${sections.join('/')}.${args.format || 'png'}`;
 };
 
+/**
+ * Returns a logo URL that can be embedded in emails and webhook payloads, or null if there is no custom logo
+ * to show. Private and incognito profiles never expose their image there.
+ */
+export const getCollectivePreviewImageUrl = (
+  collective: Partial<Pick<Collective, 'slug' | 'type' | 'image' | 'isPrivate' | 'isIncognito'>> | null | undefined,
+  args: Pick<ImageUrlOpts, 'height'> = {},
+): string | null => {
+  if (!collective?.image || !collective.slug || collective.isPrivate || collective.isIncognito) {
+    return null;
+  }
+
+  return getCollectiveAvatarUrl(collective.slug, collective.type, collective.image, args);
+};
+
 export const getCollectiveBackgroundImageUrl = (
   backgroundImage: string,
   collectiveSlug: string,
