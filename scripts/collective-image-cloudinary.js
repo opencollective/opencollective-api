@@ -45,6 +45,10 @@ async function main() {
         const mimetype = (response.headers.get('Content-Type') || 'unknown').split(';')[0].trim();
         const originalname = new URL(response.url).pathname.split('/').pop() || 'unknown';
         console.log(`Fetched ${originalname} (${mimetype}, ${size} bytes)`);
+        if (!UploadedFile.isSupportedImageMimeType(mimetype)) {
+          console.log(`Skipping, unsupported image type ${mimetype}`);
+          continue;
+        }
         if (DRY_RUN) {
           continue;
         }
@@ -58,7 +62,7 @@ async function main() {
         await collective.update({ [name]: uploadedFile.url });
         console.log(`Updated to ${uploadedFile.url}`);
       } catch (e) {
-        console.log(e);
+        console.log(`Failed to migrate ${name} for ${collective.slug}:`, e);
       }
     }
   }
