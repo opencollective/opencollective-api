@@ -85,7 +85,7 @@ describe('server/graphql/v1/user', () => {
   });
 
   beforeEach(async () => {
-    tier1 = await collective1.createTier(data('tier1'));
+    tier1 = await collective1.createTier({ ...data('tier1'), interval: null });
   });
   beforeEach(async () => {
     ticket1 = await collective1.createTier(data('ticket1'));

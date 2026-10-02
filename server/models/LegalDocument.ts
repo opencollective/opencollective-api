@@ -6,6 +6,7 @@ import {
   DataTypes,
   InferAttributes,
   InferCreationAttributes,
+  literal,
   NonAttribute,
   Op,
 } from 'sequelize';
@@ -491,6 +492,20 @@ class LegalDocument extends ModelWithPublicId<
     await sequelize.transaction(async transaction => {
       // Mark current tax form as invalid
       await this.update({ requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.INVALID }, { transaction });
+
+      // Clear the taxable country on the account's data, since the previous
+      // form is no longer valid and the user will have to submit a new one.
+      // The value is a SQL expression evaluated against the *current* row rather
+      // than a snapshot, so concurrent writers of other keys in `collective.data`
+      // (e.g. privateInstructions, isUSEntity) are not clobbered. See the
+      // "concurrent writer" regression test in LegalDocumentsMutations.test.ts.
+      // `literal` only ever carries this constant expression, never user input.
+      // `hooks: false` is required because a SQL-expression value would make
+      // instance hooks read the expression object instead of the JSON value.
+      if (this.collective.data?.taxableCountry) {
+        await this.collective.update({ data: literal(`"data" - 'taxableCountry'`) }, { transaction, hooks: false });
+        await this.collective.reload({ transaction });
+      }
 
       // Create a new tax form request
       await LegalDocument.create(
