@@ -9,7 +9,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { findLast, pick, round, takeRightWhile, toString, uniq } from 'lodash';
+import { findLast, omit, pick, round, takeRightWhile, toString, uniq } from 'lodash';
 import { WhereOptions } from 'sequelize';
 
 import { roles } from '../../../constants';
@@ -652,9 +652,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
             if (Array.isArray(draftData.taxes) && !canSeeExpenseDraftPrivateDetails) {
               draftData.taxes = (draftData.taxes as ExpenseTaxDefinition[]).map(tax => {
                 if (tax && typeof tax === 'object' && 'idNumber' in tax) {
-                  const publicTax = { ...tax };
-                  delete publicTax.idNumber;
-                  return publicTax;
+                  return omit(tax, 'idNumber');
                 }
                 return tax;
               });
