@@ -1,5 +1,5 @@
 import DataLoader from 'dataloader';
-import { keyBy } from 'lodash';
+import { keyBy, sum } from 'lodash';
 import moment from 'moment';
 import {
   BelongsToGetAssociationMixin,
@@ -17,12 +17,19 @@ import {
 import Temporal from 'sequelize-temporal';
 
 import ActivityTypes from '../constants/activities';
+import { SupportedCurrency } from '../constants/currencies';
 import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import ExpenseType from '../constants/expense-type';
 import FEATURE from '../constants/feature';
-import { PlatformSubscriptionPlan, PlatformSubscriptionTiers, PlatformSubscriptionTierTypes } from '../constants/plans';
+import { PAYMENT_METHOD_SERVICE } from '../constants/paymentMethods';
+import {
+  CROWDFUNDING_FEE_PERCENT,
+  PlatformSubscriptionPlan,
+  PlatformSubscriptionTiers,
+  PlatformSubscriptionTierTypes,
+} from '../constants/plans';
 import { sortResultsSimple } from '../graphql/loaders/helpers';
-import { roundCentsAmount } from '../lib/currency';
+import { convertToCurrency, roundCentsAmount } from '../lib/currency';
 import { chargeExpense, getPreferredPlatformPayout } from '../lib/platform-subscriptions';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize from '../lib/sequelize';
@@ -42,6 +49,14 @@ export type Billing = {
   base: {
     subscriptions: { title: string; amount: number; startDate: Date; endDate: Date }[];
     total: number;
+  };
+  crowdfunding: {
+    /** Crowdfunding contributions subject to the fee during the period, in USD cents */
+    totalAmount: number;
+    /** The fee percentage applied, from the plan's pricing */
+    feePercent: number;
+    /** The resulting fee, in USD cents */
+    fee: number;
   };
   totalAmount: number;
   billingPeriod: BillingPeriod;
@@ -338,6 +353,7 @@ class PlatformSubscription extends Model<
           total: 0,
           amounts: Object.fromEntries(Object.entries(utilization).map(([k]) => [k, 0])) as PeriodUtilization,
         },
+        crowdfunding: { totalAmount: 0, feePercent: 0, fee: 0 },
         totalAmount: 0,
         billingPeriod,
         subscriptions,
@@ -368,6 +384,34 @@ class PlatformSubscription extends Model<
 
     const additionalTotal = Object.entries(additionalUtilizationAmounts).reduce((acc, [, amount]) => acc + amount, 0);
 
+    // Crowdfunding fee: plans with platform tips disabled charge a percentage fee on crowdfunding
+    // contributions. Only contributions that were not subject to platform tips are counted (see
+    // `sumCrowdfundingContributions`), so hybrid periods (mid-month plan switch, older recurring
+    // contributions still carrying a tip) are not double charged. The sum is also bounded to the
+    // days each tips-off subscription was active: contributions received before the subscription
+    // started may already be charged as legacy Platform Share (see `cron/monthly/host-settlement`).
+    const crowdfunding: Billing['crowdfunding'] = { totalAmount: 0, feePercent: 0, fee: 0 };
+    const tipsOffSubscriptions = subscriptions.filter(sub => sub.plan.pricing?.platformTips === false);
+    if (tipsOffSubscriptions.length > 0) {
+      // Like the additional utilization pricing above, the latest plan sets the rate
+      const feePercent = tipsOffSubscriptions[0].plan.pricing.crowdfundingFeePercent ?? CROWDFUNDING_FEE_PERCENT;
+      if (feePercent) {
+        let amount = 0;
+        for (const sub of tipsOffSubscriptions) {
+          const [subBillingStart, subBillingEnd] = sub.overlapWith(billingPeriod);
+          amount += await PlatformSubscription.sumCrowdfundingContributions(
+            collectiveId,
+            subBillingStart,
+            subBillingEnd,
+          );
+        }
+        // Refunds can make the net amount negative, never credit the organization for those
+        crowdfunding.totalAmount = Math.max(0, amount);
+        crowdfunding.feePercent = feePercent;
+        crowdfunding.fee = Math.max(0, roundCentsAmount((amount * feePercent) / 100, 'USD'));
+      }
+    }
+
     // Consolidate subscriptions so that any mid-period downgrade causes the cheaper plan to
     // cover the higher-tier plan's portion too (no pro-rata charge for the higher tier).
     const effectiveBillingEntries = consolidateSubscriptionsForBillingPeriod(subscriptions, billingPeriod);
@@ -393,7 +437,7 @@ class PlatformSubscription extends Model<
     );
     const baseTotal = subscriptionValues.reduce((acc, sub) => acc + sub.amount, 0);
 
-    const totalAmount = baseTotal + additionalTotal;
+    const totalAmount = baseTotal + additionalTotal + crowdfunding.fee;
 
     return {
       collectiveId,
@@ -406,12 +450,56 @@ class PlatformSubscription extends Model<
         amounts: additionalUtilizationAmounts,
         total: additionalTotal,
       },
+      crowdfunding,
       totalAmount: totalAmount,
       billingPeriod,
       subscriptions,
       utilization,
       dueDate,
     };
+  }
+
+  /**
+   * Sums crowdfunding contributions (Stripe, PayPal and contributor-initiated bank transfers)
+   * received by the collectives hosted by `collectiveId` between `startDate` and `endDate`
+   * (inclusive), net of refunds recorded in the same window. Only contributions whose order was
+   * not subject to platform tips are counted, so host-created pending contributions (expected
+   * funds) and added funds never count while orders still carrying a tip are not double charged.
+   * Returns the total in USD cents.
+   */
+  static async sumCrowdfundingContributions(collectiveId: number, startDate: Date, endDate: Date): Promise<number> {
+    const rows: { currency: SupportedCurrency; amount: string }[] = await sequelize.query(
+      `
+      SELECT t."hostCurrency" AS "currency", SUM(t."amountInHostCurrency") AS "amount"
+      FROM "Transactions" t
+      INNER JOIN "Orders" o ON o.id = t."OrderId"
+      LEFT JOIN "PaymentMethods" pm ON pm.id = t."PaymentMethodId"
+      WHERE t."HostCollectiveId" = :HostCollectiveId
+      AND t."kind" = 'CONTRIBUTION'
+      AND ((t."type" = 'CREDIT' AND t."isRefund" IS NOT TRUE) OR (t."type" = 'DEBIT' AND t."isRefund" IS TRUE))
+      AND t."createdAt" BETWEEN :startDate AND :endDate
+      AND t."deletedAt" IS NULL
+      AND (pm."service" IN (:crowdfundingServices) OR o."ManualPaymentProviderId" IS NOT NULL)
+      AND o."platformTipEligible" IS FALSE
+      GROUP BY t."hostCurrency"
+    `,
+      {
+        type: QueryTypes.SELECT,
+        raw: true,
+        replacements: {
+          HostCollectiveId: collectiveId,
+          startDate,
+          endDate,
+          crowdfundingServices: [PAYMENT_METHOD_SERVICE.STRIPE, PAYMENT_METHOD_SERVICE.PAYPAL],
+        },
+      },
+    );
+
+    const amounts = await Promise.all(
+      rows.map(row => convertToCurrency(parseInt(row.amount, 10) || 0, row.currency, 'USD')),
+    );
+
+    return roundCentsAmount(sum(amounts), 'USD');
   }
 
   static rangeLiteral(range: Range<Date>): string {

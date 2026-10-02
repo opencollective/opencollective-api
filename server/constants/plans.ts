@@ -217,6 +217,9 @@ const legacyPlans: Record<string, HostPlan> = {
   },
 } as const;
 
+/** Fee percentage applied to crowdfunding contributions when a plan has platform tips disabled */
+export const CROWDFUNDING_FEE_PERCENT = 5;
+
 export enum PlatformSubscriptionTierTypes {
   FREE = 'Discover',
   BASIC = 'Basic',
@@ -246,7 +249,7 @@ export interface PlatformSubscriptionPlan {
     /** Whether this plan has platform tips enabled */
     platformTips: boolean;
 
-    /** If tips are not enabled, the fixed platform fee percentage on contributions */
+    /** If tips are not enabled, the fixed platform fee percentage on contributions (defaults to CROWDFUNDING_FEE_PERCENT) */
     crowdfundingFeePercent?: number;
   };
   features: Partial<Record<CommercialFeaturesType, boolean>>;
