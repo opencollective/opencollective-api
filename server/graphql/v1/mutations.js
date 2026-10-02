@@ -1,14 +1,10 @@
 import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import FEATURE_STATUS from '../../constants/feature-status';
 import { checkCaptcha, isCaptchaSetup } from '../../lib/check-captcha';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit';
 import { reportMessageToSentry } from '../../lib/sentry';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
-import models from '../../models';
-import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
-import { checkCanEmitGiftCards } from '../common/features';
 import { editPublicMessage } from '../common/members';
 import {
   checkRemoteUserCanUseAccount,
@@ -262,104 +258,6 @@ const mutations = {
       checkRemoteUserCanUseOrders(req);
       return paymentMethodsMutation.replaceCreditCard(args, req);
     },
-  },
-  createGiftCards: {
-    type: new GraphQLList(PaymentMethodType),
-    args: {
-      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      PaymentMethodId: { type: GraphQLInt },
-      emails: {
-        type: new GraphQLList(GraphQLString),
-        description: 'A list of emails to generate gift cards for (only if numberOfGiftCards is not provided)',
-      },
-      numberOfGiftCards: {
-        type: GraphQLInt,
-        description: 'Number of gift cards to generate (only if emails is not provided)',
-      },
-      currency: {
-        type: GraphQLString,
-        description: 'An optional currency. If not provided, will use the collective currency.',
-      },
-      amount: {
-        type: GraphQLInt,
-        description: 'The amount as an Integer with cents.',
-      },
-      batch: {
-        type: GraphQLString,
-        description: 'Batch name for the created gift cards.',
-      },
-      monthlyLimitPerMember: { type: GraphQLInt },
-      limitedToTags: {
-        type: new GraphQLList(GraphQLString),
-        description: 'Limit this payment method to make donations to collectives having those tags',
-      },
-      limitedToHostCollectiveIds: {
-        type: new GraphQLList(GraphQLInt),
-        description: 'Limit this payment method to make donations to the collectives hosted by those hosts',
-      },
-      limitedToOpenSourceCollectives: {
-        type: GraphQLBoolean,
-        description: 'Set `limitedToHostCollectiveIds` to open-source collectives only',
-      },
-      description: {
-        type: GraphQLString,
-        description: 'A custom message attached to the email that will be sent for this gift card',
-      },
-      customMessage: {
-        type: GraphQLString,
-        description: 'A custom message that will be sent in the invitation email',
-      },
-      expiryDate: { type: GraphQLString },
-    },
-    resolve: async (_, { emails, numberOfGiftCards, ...args }, req) => {
-      checkRemoteUserCanUseHost(req);
-      if (numberOfGiftCards && emails && numberOfGiftCards !== emails.length) {
-        throw Error("numberOfGiftCards and emails counts doesn't match");
-      } else if (args.limitedToOpenSourceCollectives && args.limitedToHostCollectiveIds) {
-        throw Error('limitedToOpenSourceCollectives and limitedToHostCollectiveIds cannot be used at the same time');
-      }
-
-      if (args.limitedToOpenSourceCollectives) {
-        const openSourceHost = await models.Collective.findOne({
-          attributes: ['id'],
-          where: { slug: 'opensource' },
-        });
-        if (!openSourceHost) {
-          throw new Error(
-            'Cannot find the host "Open Source Collective". You can disable the opensource-only limitation, or contact us at support@opencollective.com if this keeps happening',
-          );
-        }
-        args.limitedToHostCollectiveIds = [openSourceHost.id];
-      }
-
-      const collective = await req.loaders.Collective.byId.load(args.CollectiveId);
-      if (!collective) {
-        throw new Error('Collective does not exist');
-      } else if (!req.remoteUser.isAdminOfCollective(collective)) {
-        throw new Error('User must be admin of collective');
-      } else if ((await checkCanEmitGiftCards(collective)) === FEATURE_STATUS.UNSUPPORTED) {
-        throw new Error('Cannot create gift cards from this account');
-      }
-
-      await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
-
-      if (numberOfGiftCards) {
-        return bulkCreateGiftCards(collective, args, req.remoteUser, numberOfGiftCards);
-      } else if (emails) {
-        return createGiftCardsForEmails(collective, args, req.remoteUser, emails, args.customMessage);
-      }
-
-      throw new Error('You must either pass numberOfGiftCards of an email list');
-    },
-  },
-  claimPaymentMethod: {
-    type: new GraphQLNonNull(PaymentMethodType),
-    args: {
-      code: { type: new GraphQLNonNull(GraphQLString) },
-      user: { type: UserInputType },
-    },
-    // eslint-disable-next-line graphql-mutations/require-scope-check -- public mutation for claiming gift cards, usable without authentication
-    resolve: async (_, args, req) => paymentMethodsMutation.claimPaymentMethod(args, req),
   },
   editWebhooks: {
     type: new GraphQLList(NotificationType),

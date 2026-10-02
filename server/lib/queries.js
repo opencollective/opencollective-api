@@ -316,35 +316,6 @@ export const countMembersToNotifyForUpdateSQLQuery = `
 `;
 
 /**
- * Get list of all unique batches for collective.
- * Returns an array of objects matching `PaymentMethodBatchInfo`
- */
-const getGiftCardBatchesForCollective = async collectiveId => {
-  return sequelize.query(
-    `
-    SELECT
-      :collectiveId::varchar || '-giftcard-' || COALESCE(pm.batch, ' __UNGROUPED__ ') AS id,
-      :collectiveId AS "collectiveId",
-      'giftcard' AS type,
-      pm.batch AS name,
-      COUNT(pm.id) as count
-    FROM "PaymentMethods" pm
-    INNER JOIN "PaymentMethods" spm ON pm."SourcePaymentMethodId" = spm.id
-    WHERE spm."CollectiveId" = :collectiveId
-    AND pm."deletedAt" IS NULL
-    AND spm."deletedAt" IS NULL
-    GROUP BY pm.batch
-    ORDER BY pm.batch ASC
-  `,
-    {
-      raw: true,
-      type: QueryTypes.SELECT,
-      replacements: { collectiveId },
-    },
-  );
-};
-
-/**
  * Returns top sponsors in the past 3 months ordered by total amount donated and number of collectives they sponsor
  * (excluding open source collective id 9805 and sponsors that have sponsored only one collective)
  */
@@ -1036,7 +1007,6 @@ const queries = {
   getTotalAnnualBudgetForHost,
   getTotalNumberOfActiveCollectives,
   getTotalNumberOfDonors,
-  getGiftCardBatchesForCollective,
 };
 
 export default queries;
