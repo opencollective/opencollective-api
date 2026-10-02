@@ -235,7 +235,7 @@ describe('server/lib/webhooks', () => {
       expect(sanitized.data.collective).to.not.exist;
     });
 
-    it('Sanitizes COLLECTIVE_REJECTED, without leaking the reviewer email', () => {
+    it('Sanitizes COLLECTIVE_REJECTED, without leaking the reviewer email or the rejection reason', () => {
       const sanitized = sanitizeActivityForWebhookPayload({
         type: activities.COLLECTIVE_REJECTED,
         data: {
@@ -248,7 +248,7 @@ describe('server/lib/webhooks', () => {
 
       expect(sanitized.data.collective.id).to.eq(42);
       expect(sanitized.data.host.id).to.eq(43);
-      expect(sanitized.data.rejectionReason).to.eq('Out of scope');
+      expect(sanitized.data.rejectionReason).to.not.exist;
       expect(sanitized.data.user).to.not.exist;
     });
 

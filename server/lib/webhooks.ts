@@ -374,14 +374,12 @@ export const sanitizeActivityForWebhookPayload = (activity: Activity) => {
       cleanActivity.data.tier = getTierInfo({ id: activity.data.order.TierId });
     }
   } else if (HostApplicationActivities.includes(type)) {
-    // Never expose `data.user`: it holds the email of the admin who applied/reviewed
+    // Only public info: `data.user` holds the email of the admin who applied/reviewed, and the application
+    // message, custom data and rejection reason may contain private information
     cleanActivity.data = {
       collective: getCollectiveInfo(activity.data.collective),
       host: getCollectiveInfo(activity.data.host),
     };
-    if (type === activities.COLLECTIVE_REJECTED) {
-      cleanActivity.data.rejectionReason = activity.data.rejectionReason ?? null;
-    }
   } else if (
     [activities.SUBSCRIPTION_CANCELED, activities.SUBSCRIPTION_PAUSED, activities.SUBSCRIPTION_RESUMED].includes(type)
   ) {
