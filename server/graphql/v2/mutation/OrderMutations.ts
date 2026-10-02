@@ -24,7 +24,6 @@ import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { Service } from '../../../constants/connected-account';
 import FEATURE from '../../../constants/feature';
-import INTERVALS from '../../../constants/intervals';
 import OrderStatuses from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { getBalanceAccountingCategoryIdForImportRow } from '../../../lib/accounting/categorization/balance-accounts';
@@ -218,13 +217,6 @@ const orderMutations = {
       const fromCollective = order.fromAccount && (await loadAccount(order.fromAccount));
       const collective = await loadAccount(order.toAccount);
       const expectedCurrency = (tier && tier.currency) || collective.currency;
-      const amountInCents = getValueInCentsFromAmountInput(order.amount);
-      const interval = getIntervalFromContributionFrequency(order.frequency);
-
-      // Tiers with a fixed interval only accept contributions with this interval (free contributions excepted)
-      if (tier?.interval && tier.interval !== INTERVALS.FLEXIBLE && tier.interval !== interval && amountInCents > 0) {
-        throw new ValidationFailed(`This tier only accepts contributions with a "${tier.interval}" interval`);
-      }
 
       let paymentMethod;
       if (order.isBalanceTransfer && !order.paymentMethod) {
@@ -246,12 +238,13 @@ const orderMutations = {
         }
       });
 
+      const amountInCents = getValueInCentsFromAmountInput(order.amount);
       const quantity = order.quantity || 1;
       const legacyOrderObj = {
         quantity,
         amount: amountInCents,
         currency: expectedCurrency,
-        interval,
+        interval: getIntervalFromContributionFrequency(order.frequency),
         taxAmount: tax && getTaxAmount(amountInCents * quantity, tax, expectedCurrency),
         tax: tax,
         paymentMethod,
