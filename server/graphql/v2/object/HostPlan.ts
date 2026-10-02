@@ -73,6 +73,8 @@ export const GraphQLHostPlan = new GraphQLObjectType({
     hostFeeSharePercent: {
       type: GraphQLFloat,
       description: 'Charge on revenues made through Host Fees.',
+      deprecationReason: '2026-09-21: Host fee share is deprecated and no longer charged, always returns 0',
+      resolve: () => 0,
     },
     platformTips: {
       type: GraphQLBoolean,
