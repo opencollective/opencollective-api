@@ -17,7 +17,7 @@ export const GraphQLStripeConnectedAccount = new GraphQLObjectType({
       type: GraphQLAmount,
       async resolve(connectedAccount: ConnectedAccount) {
         try {
-          const stripeBalance = await stripe.balance.retrieve({
+          const stripeBalance = await stripe.balance.retrieve(undefined, {
             stripeAccount: connectedAccount.username,
           });
 
