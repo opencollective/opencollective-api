@@ -8,8 +8,16 @@ type Limit = {
   reset: number;
 };
 
+type ExpressLimiterLookupFunction = (
+  req: express.Request,
+  res: express.Response,
+  opts: ExpressLimiterOptions,
+  next: () => void,
+) => void;
+
 type ExpressLimiterOptions = {
-  lookup: any;
+  /** Either a dot-separated request path to the key (`remoteUser.id`), or a function resolving it dynamically */
+  lookup: string | string[] | ExpressLimiterLookupFunction;
   total?: number;
   expire?: number;
   onRateLimited?: (req: express.Request, res: express.Response, next: express.NextFunction) => void;
@@ -33,13 +41,18 @@ export default function expressLimiter(redisClient: RedisClientType) {
       // Make a local copy to avoid mutations
       const total = opts.total ?? 60;
       const expire = opts.expire ?? 1000 * 60;
-      const lookup = Array.isArray(opts.lookup) ? opts.lookup : [opts.lookup];
+      // By the time this middleware runs, `opts.lookup` has been resolved to a static key path (see below)
+      const staticLookup = opts.lookup as string | string[];
+      const lookup: string[] = Array.isArray(staticLookup) ? staticLookup : [staticLookup];
 
       const lookups = lookup
         .map(item => {
-          return `${item}:${item.split('.').reduce((prev, cur) => {
-            return prev[cur];
-          }, req)}`;
+          return `${item}:${item.split('.').reduce(
+            (prev, cur) => {
+              return prev[cur];
+            },
+            req as unknown as Record<string, unknown>,
+          )}`;
         })
         .join(':');
       const path = req.path;

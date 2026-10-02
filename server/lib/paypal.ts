@@ -51,13 +51,13 @@ const getPayPalClient = ({
   return new paypal.core.PayPalHttpClient(environment);
 };
 
-const executeRequest = async (
+const executeRequest = async <T>(
   connectedAccount: ConnectedAccount,
   request: PayoutRequestBody | Record<string, unknown>,
-): Promise<any> => {
+): Promise<T> => {
   const client = getPayPalClient(connectedAccount);
   const response = await client.execute(request);
-  return response.result;
+  return response.result as T;
 };
 
 export const executePayouts = async (
@@ -66,7 +66,7 @@ export const executePayouts = async (
 ): Promise<PayoutRequestResult> => {
   const request = new paypal.payouts.PayoutsPostRequest();
   request.requestBody(requestBody);
-  return executeRequest(connectedAccount, request);
+  return executeRequest<PayoutRequestResult>(connectedAccount, request);
 };
 
 export const getBatchInfo = async (
@@ -77,7 +77,7 @@ export const getBatchInfo = async (
   request.page(1);
   request.pageSize(100);
   request.totalRequired(true);
-  return executeRequest(connectedAccount, request);
+  return executeRequest<PayoutBatchDetails>(connectedAccount, request);
 };
 
 export const validateConnectedAccount = async ({ token, clientId }: Partial<ConnectedAccount>): Promise<void> => {

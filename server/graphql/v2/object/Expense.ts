@@ -27,7 +27,7 @@ import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import SQLQueries from '../../../lib/queries';
 import models, { Activity, UploadedFile } from '../../../models';
 import { CommentType } from '../../../models/Comment';
-import ExpenseModel from '../../../models/Expense';
+import ExpenseModel, { ExpenseTaxDefinition } from '../../../models/Expense';
 import LegalDocument, { LEGAL_DOCUMENT_TYPE, LegalDocumentAttributes } from '../../../models/LegalDocument';
 import transferwise from '../../../paymentProviders/transferwise';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
@@ -202,7 +202,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
           if (!expense.data?.taxes) {
             return [];
           } else {
-            return (expense.data.taxes as any[]).map(({ type, rate, idNumber }) => ({
+            return (expense.data.taxes as ExpenseTaxDefinition[]).map(({ type, rate, idNumber }) => ({
               id: type,
               percentage: round(rate * 100, 2),
               type,

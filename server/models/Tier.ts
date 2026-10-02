@@ -173,7 +173,7 @@ class Tier extends ModelWithPublicId<EntityShortIdPrefix.Tier, InferAttributes<T
     }).then(memberships => {
       const membershipsForBackerCollective = {};
       memberships.map(m => {
-        membershipsForBackerCollective[m.MemberCollectiveId] = (m as any).Tier;
+        membershipsForBackerCollective[m.MemberCollectiveId] = (m as unknown as { Tier?: Tier }).Tier;
       });
       return backerCollectives.map(backerCollective => {
         backerCollective.tier = membershipsForBackerCollective[backerCollective.id];

@@ -25,6 +25,8 @@ enum POLICIES {
   EXPENSE_POLICIES = 'EXPENSE_POLICIES',
   /** Enforces contributor information requirements based on yearly contribution amount thresholds */
   CONTRIBUTOR_INFO_THRESHOLDS = 'CONTRIBUTOR_INFO_THRESHOLDS',
+  /** Tax form collection thresholds for US and non-US entities */
+  TAX_FORM_THRESHOLDS = 'TAX_FORM_THRESHOLDS',
 }
 
 export enum UseVendorPolicyValue {
@@ -68,6 +70,11 @@ export type Policies = Partial<{
     legalName?: number;
     address?: number;
   };
+  [POLICIES.TAX_FORM_THRESHOLDS]: {
+    US?: number;
+    NON_US?: number;
+    includePayPalExpenses?: boolean;
+  };
 }>;
 
 export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
@@ -108,6 +115,7 @@ export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
   [POLICIES.USE_VENDOR_POLICY]: UseVendorPolicyValue.HOST_ADMINS,
   [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: false,
   [POLICIES.CONTRIBUTOR_INFO_THRESHOLDS]: undefined,
+  [POLICIES.TAX_FORM_THRESHOLDS]: undefined,
 };
 
 export default POLICIES;

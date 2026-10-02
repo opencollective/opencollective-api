@@ -43,8 +43,8 @@ class VirtualCard extends ModelWithPublicId<
   declare public VirtualCardRequestId: ForeignKey<VirtualCardRequest['id']>;
   declare public name: string;
   declare public last4: string;
-  declare public data: Record<string, any>;
-  declare public privateData: string | Record<string, any>;
+  declare public data: Record<string, unknown>;
+  declare public privateData: string | Record<string, unknown>;
   declare public provider: VirtualCardProviders;
   declare public spendingLimitAmount: number;
   declare public spendingLimitInterval: string;
@@ -55,15 +55,15 @@ class VirtualCard extends ModelWithPublicId<
   declare public resumedAt: CreationOptional<Date>;
 
   // Associations
-  declare public collective?: NonAttribute<any>;
+  declare public collective?: NonAttribute<Collective>;
   declare public host?: NonAttribute<Collective>;
   declare public getHost: BelongsToGetAssociationMixin<Collective>;
-  declare public user?: NonAttribute<any>;
+  declare public user?: NonAttribute<User>;
 
   declare public virtualCardRequest?: NonAttribute<VirtualCardRequest>;
   declare public getVirtualCardRequest?: BelongsToGetAssociationMixin<VirtualCardRequest>;
 
-  async getExpensesMissingDetails(): Promise<Array<any>> {
+  async getExpensesMissingDetails(): Promise<Array<Expense>> {
     return Expense.findPendingCardCharges({
       where: { VirtualCardId: this.id, createdAt: { [Op.lte]: moment.utc().subtract(30, 'days') } },
     });

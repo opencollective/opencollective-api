@@ -98,8 +98,8 @@ Sentry.init({
       return samplingContext.inheritOrSampleWith(TRACES_SAMPLE_RATE);
     }
   },
-  // Relative to tracesSampler
-  profilesSampleRate: PROFILES_SAMPLE_RATE,
+  // Proportion of SDK sessions that are profiled (absolute rate, not relative to tracesSampler)
+  profileSessionSampleRate: PROFILES_SAMPLE_RATE,
   release: process.env.HEROKU_SLUG_COMMIT,
   dist: config.env,
 });

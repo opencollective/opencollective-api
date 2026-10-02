@@ -5,6 +5,7 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
 import type { FileUpload } from 'graphql-upload/processRequest.mjs';
+import { cast, col, fn, literal } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
 import FEATURE from '../../../constants/feature';
@@ -14,6 +15,14 @@ import { getUSTaxFormPdf } from '../../../lib/pdf';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import { encryptAndUploadTaxFormToS3 } from '../../../lib/tax-forms';
+import {
+  isW8BenData,
+  isW8BenEData,
+  isW9Data,
+  W8BenETaxFormValues,
+  W8BenTaxFormValues,
+  W9TaxFormValues,
+} from '../../../lib/tax-forms/opencollective';
 import { Activity, LegalDocument, UploadedFile } from '../../../models';
 import {
   LEGAL_DOCUMENT_REQUEST_STATUS,
@@ -34,6 +43,51 @@ import {
 import { GraphQLLegalDocument } from '../object/LegalDocument';
 
 const debug = debugLib('legalDocuments');
+
+/**
+ * Extract the taxable country from a tax form's form data.
+ * The field used depends on the form type:
+ *  - W9: `location.country` (the US person/entity's address)
+ *  - W8_BEN: `residenceAddress.country` (the beneficial owner's tax residency)
+ *  - W8_BEN_E: `businessCountryOfIncorporationOrOrganization` (the entity's country of incorporation)
+ */
+const getTaxableCountryFromFormData = (
+  formData: W9TaxFormValues | W8BenTaxFormValues | W8BenETaxFormValues,
+): string | null => {
+  if (isW9Data(formData)) {
+    return formData.location?.country || null;
+  } else if (isW8BenData(formData)) {
+    return formData.residenceAddress?.country || null;
+  } else if (isW8BenEData(formData)) {
+    return formData.businessCountryOfIncorporationOrOrganization || formData.businessAddress?.country || null;
+  }
+
+  return null;
+};
+
+/**
+ * Extract the US-entity status from a tax form's form data.
+ * The explicit `isUSPersonOrEntity` answer from the tax information form
+ * is authoritative when present (the user can override the value the form
+ * type implies). Otherwise the form type itself is used: the W-9 is the US
+ * tax form (the filer is a US person or entity), while the W-8BEN /
+ * W-8BEN-E are for non-US individuals / entities.
+ */
+const getIsUSEntityFromFormData = (
+  formData: W9TaxFormValues | W8BenTaxFormValues | W8BenETaxFormValues,
+): boolean | null => {
+  if (typeof formData?.isUSPersonOrEntity === 'boolean') {
+    return formData.isUSPersonOrEntity;
+  }
+
+  if (isW9Data(formData)) {
+    return true;
+  } else if (isW8BenData(formData) || isW8BenEData(formData)) {
+    return false;
+  }
+
+  return null;
+};
 
 export const legalDocumentsMutations = {
   submitLegalDocument: {
@@ -125,6 +179,52 @@ export const legalDocumentsMutations = {
           encryptedFormData: LegalDocument.encrypt(Buffer.from(JSON.stringify(args.formData))).toString('base64'),
         },
       });
+
+      // Sync the taxable country and the US-entity status on the account's data.
+      // The US-entity status is derived from the form type (W-9 = US person/entity,
+      // W-8BEN / W-8BEN-E = non-US): the submitted form is the source of truth.
+      // Unlike `taxableCountry`, `isUSEntity` is NOT cleared when the form is
+      // invalidated.
+      // Use atomic jsonb_set to avoid clobbering a concurrent writer's changes
+      // to other keys in `account.data` (e.g. privateInstructions).
+      debug('Sync taxable country and US-entity status on the account');
+      const taxableCountry = getTaxableCountryFromFormData(args.formData);
+      const isUSEntity = getIsUSEntityFromFormData(args.formData);
+      const taxableCountryChanged = Boolean(taxableCountry) && account.data?.taxableCountry !== taxableCountry;
+      const isUSEntityChanged = isUSEntity !== null && account.data?.isUSEntity !== isUSEntity;
+
+      if (taxableCountryChanged || isUSEntityChanged) {
+        // Write only the keys that changed, as a SQL expression evaluated against
+        // the *current* row rather than the request-time snapshot, so a concurrent
+        // writer of other keys in `account.data` (e.g. privateInstructions) is not
+        // clobbered. See the "concurrent writer" regression test in
+        // LegalDocumentsMutations.test.ts. `literal` only ever carries constant
+        // expressions (the key paths and the `create_missing` flag) - user values
+        // go through `cast` and are escaped by the ORM.
+        let dataUpdate = fn('COALESCE', col('data'), literal(`'{}'::jsonb`));
+        if (taxableCountryChanged) {
+          dataUpdate = fn(
+            'jsonb_set',
+            dataUpdate,
+            literal(`'{taxableCountry}'`),
+            fn('to_jsonb', cast(taxableCountry, 'text')),
+            literal('true'),
+          );
+        }
+        if (isUSEntityChanged) {
+          dataUpdate = fn(
+            'jsonb_set',
+            dataUpdate,
+            literal(`'{isUSEntity}'`),
+            fn('to_jsonb', cast(isUSEntity, 'boolean')),
+            literal('true'),
+          );
+        }
+        // `hooks: false` is required because a SQL-expression value would make
+        // instance hooks read the expression object instead of the JSON value.
+        await account.update({ data: dataUpdate }, { hooks: false });
+        await account.reload();
+      }
 
       try {
         debug('Create activity');

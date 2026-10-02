@@ -21,6 +21,7 @@ import PlatformConstants from '../constants/platform';
 import { RefundKind } from '../constants/refund-kind';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
+import type { Loaders } from '../graphql/loaders';
 import { shouldGenerateTransactionActivities } from '../lib/activities';
 import { getFxRate, roundCentsAmount } from '../lib/currency';
 import logger from '../lib/logger';
@@ -220,7 +221,7 @@ class Transaction extends ModelWithPublicId<
   declare settlementStatus: TransactionSettlementStatus;
 
   // Class methods
-  declare getHostCollective: (options?: { loaders?: any }) => Promise<Collective>;
+  declare getHostCollective: (options?: { loaders?: Loaders }) => Promise<Collective>;
   declare getCollective: BelongsToGetAssociationMixin<Collective>;
   declare getOrder: BelongsToGetAssociationMixin<Order>;
   declare getExpense: BelongsToGetAssociationMixin<Expense>;

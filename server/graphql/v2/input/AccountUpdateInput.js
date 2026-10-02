@@ -24,6 +24,10 @@ export const GraphQLAccountUpdateInput = new GraphQLInputObjectType({
     },
     name: { type: GraphQLString },
     legalName: { type: GraphQLString },
+    isUSEntity: {
+      type: GraphQLBoolean,
+      description: 'Whether the account is a US person or entity.',
+    },
     slug: { type: GraphQLString },
     description: { type: GraphQLString },
     image: { type: GraphQLURL },

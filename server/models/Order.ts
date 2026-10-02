@@ -21,6 +21,7 @@ import {
   InferCreationAttributes,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
+import Stripe from 'stripe';
 
 import { roles } from '../constants';
 import ActivityTypes from '../constants/activities';
@@ -109,9 +110,13 @@ class Order extends ModelWithPublicId<
     resumeReason?: string;
     pausedBy?: 'HOST' | 'PLATFORM' | 'USER' | 'COLLECTIVE';
     tax?: OrderTax;
+    // Partial payment-intent snapshots (`{ id, status }`, see `payment-intent.ts`) are deliberately stored here,
+    // so this cannot be typed as a full `Stripe.PaymentIntent` without touching the writers. Narrowing it would
+    // force changes across payment providers and tests without a shared partial-intent type.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     stripePaymentIntent?: any;
-    previousStripePaymentIntents?: any[];
-    customData?: any;
+    previousStripePaymentIntents?: Stripe.PaymentIntent[];
+    customData?: Record<string, unknown>;
     needsConfirmation?: boolean;
     paypalStatusChangeNote?: string;
     paypalCaptureId?: string;

@@ -47,7 +47,13 @@ import PaymentMethod from '../../models/PaymentMethod';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 
 import { getVirtualCardForTransaction } from './../utils';
-import { createChargeTransactions, createPaymentMethod, UNKNOWN_ERROR_MSG, userFriendlyErrorMessage } from './common';
+import {
+  createChargeTransactions,
+  createPaymentMethod,
+  getPaymentIntentCharge,
+  UNKNOWN_ERROR_MSG,
+  userFriendlyErrorMessage,
+} from './common';
 import * as virtualcard from './virtual-cards';
 
 const debug = debugLib('stripe');
@@ -227,7 +233,7 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   const stripeAccount = event.account ?? config.stripe.accountId;
   const stripePaymentIntent = event.data.object as Stripe.PaymentIntent;
 
-  let charge = stripePaymentIntent.latest_charge || ((stripePaymentIntent as any).charges?.data?.[0] as Stripe.Charge);
+  let charge = stripePaymentIntent.latest_charge || getPaymentIntentCharge(stripePaymentIntent);
   if (typeof charge === 'string') {
     charge = await stripe.charges.retrieve(charge, { stripeAccount });
   }
@@ -691,7 +697,7 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
     return;
   }
 
-  const charge = (stripePaymentIntent as any).charges?.data?.[0] as Stripe.Charge;
+  const charge = getPaymentIntentCharge(stripePaymentIntent);
   const reason = stripePaymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
   logger.info(`Stripe Webook: Payment Intent failed for Order #${order.id}. Reason: ${reason}`);
 
@@ -760,7 +766,7 @@ async function handleExpensePaymentIntentFailed(event: Stripe.Event) {
     return;
   }
 
-  const charge = (stripePaymentIntent as any).charges?.data?.[0] as Stripe.Charge;
+  const charge = getPaymentIntentCharge(stripePaymentIntent);
   const reason = stripePaymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
   logger.info(`Stripe Webook: Payment Intent failed for Expense #${expense.id}. Reason: ${reason}`);
 

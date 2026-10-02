@@ -18,7 +18,7 @@ export type GraphQLCurrencyExchangeRateFields = {
 const GraphQLCurrencyExchangeRate = new GraphQLObjectType({
   name: 'CurrencyExchangeRate',
   description: 'Fields for a currency fx rate',
-  fields: (): Record<keyof GraphQLCurrencyExchangeRateFields, GraphQLFieldConfig<ExpenseItem, any>> => ({
+  fields: (): Record<keyof GraphQLCurrencyExchangeRateFields, GraphQLFieldConfig<ExpenseItem, Express.Request>> => ({
     value: {
       type: new GraphQLNonNull(GraphQLFloat),
       description: 'Exchange rate value as a scalar (e.g 1.15 or 0.86)',

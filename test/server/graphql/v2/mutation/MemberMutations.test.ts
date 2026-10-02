@@ -4,11 +4,12 @@ import { describe, it } from 'mocha';
 
 import ActivityTypes from '../../../../../server/constants/activities';
 import roles from '../../../../../server/constants/roles';
-import MemberRoles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import models, { Member } from '../../../../../server/models';
 import { fakeCollective, fakeMember, fakePersonalToken, fakeUser } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
+
+const MemberRoles = roles;
 
 let collectiveAdminUser, collectiveMemberUser, collective;
 
