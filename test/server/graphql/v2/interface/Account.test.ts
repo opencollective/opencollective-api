@@ -249,4 +249,109 @@ describe('server/graphql/v2/interface/Account', () => {
       expect(result.data.account.mainProfile.slug).to.equal(user.collective.slug);
     });
   });
+
+  describe('taxableCountry', () => {
+    const query = gql`
+      query TaxableCountryTest($slug: String!) {
+        account(slug: $slug) {
+          taxableCountry
+        }
+      }
+    `;
+
+    it('returns null when not authenticated', async () => {
+      const user = await fakeUser();
+      await user.collective.update({ data: { taxableCountry: 'US' } });
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.taxableCountry).to.be.null;
+    });
+
+    it('returns null when the taxableCountry is not set', async () => {
+      const user = await fakeUser();
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.taxableCountry).to.be.null;
+    });
+
+    it('returns the taxableCountry for the account owner', async () => {
+      const user = await fakeUser();
+      await user.collective.update({ data: { taxableCountry: 'US' } });
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.taxableCountry).to.equal('US');
+    });
+
+    it('returns null for an unrelated user', async () => {
+      const user = await fakeUser();
+      await user.collective.update({ data: { taxableCountry: 'US' } });
+      const otherUser = await fakeUser();
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug }, otherUser);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.taxableCountry).to.be.null;
+    });
+
+    it('returns the taxableCountry of the main profile for an incognito account', async () => {
+      const user = await fakeUser();
+      await user.collective.update({ data: { taxableCountry: 'FR' } });
+      const incognito = await fakeIncognitoProfile(user);
+      const result = await graphqlQueryV2(query, { slug: incognito.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.taxableCountry).to.equal('FR');
+    });
+
+    it('does not expose the taxableCountry of a money-management account to anonymous users', async () => {
+      // `canSeeLegalName` is public for money-management accounts (host legal names are
+      // public), but tax-profile data must not inherit that exemption.
+      const host = await fakeActiveHost();
+      await host.update({ data: { taxableCountry: 'US' } });
+      const result = await graphqlQueryV2(query, { slug: host.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.taxableCountry).to.be.null;
+    });
+
+    it('does not expose the taxableCountry of a money-management account to an unrelated user', async () => {
+      const host = await fakeActiveHost();
+      await host.update({ data: { taxableCountry: 'US' } });
+      const otherUser = await fakeUser();
+      const result = await graphqlQueryV2(query, { slug: host.slug }, otherUser);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.taxableCountry).to.be.null;
+    });
+  });
+
+  describe('isUSEntity', () => {
+    const query = gql`
+      query IsUSEntityTest($slug: String!) {
+        account(slug: $slug) {
+          isUSEntity
+        }
+      }
+    `;
+
+    it('returns the isUSEntity for the account owner', async () => {
+      const user = await fakeUser();
+      await user.collective.update({ data: { isUSEntity: true } });
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isUSEntity).to.be.true;
+    });
+
+    it('does not expose the isUSEntity of a money-management account to anonymous users', async () => {
+      const host = await fakeActiveHost();
+      await host.update({ data: { isUSEntity: true } });
+      const result = await graphqlQueryV2(query, { slug: host.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isUSEntity).to.be.null;
+    });
+
+    it('does not expose the isUSEntity of a money-management account to an unrelated user', async () => {
+      const host = await fakeActiveHost();
+      await host.update({ data: { isUSEntity: false } });
+      const otherUser = await fakeUser();
+      const result = await graphqlQueryV2(query, { slug: host.slug }, otherUser);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isUSEntity).to.be.null;
+    });
+  });
 });

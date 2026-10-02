@@ -3,7 +3,7 @@ import chaiAsPromised from 'chai-as-promised';
 import chaiJestSnapshot from 'chai-jest-snapshot';
 import chaiSorted from 'chai-sorted';
 import { mapValues } from 'lodash';
-import markdownTable from 'markdown-table';
+import { markdownTable } from 'markdown-table';
 import Sequelize from 'sequelize';
 import sinonChai from 'sinon-chai';
 

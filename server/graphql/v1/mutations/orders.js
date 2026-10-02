@@ -9,6 +9,7 @@ import { get, isEmpty, isNil, omit, pick, set } from 'lodash';
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
+import INTERVALS from '../../../constants/intervals';
 import status from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
@@ -465,6 +466,16 @@ export async function createOrder(order, req) {
         const prettyMinTotal = formatCurrency(minTotalAmount, currency);
         throw new Error(`The amount you set is below minimum tier value, it should be at least ${prettyMinTotal}`);
       }
+    }
+
+    // Tiers with a fixed interval only accept contributions with this interval (free contributions excepted)
+    if (
+      tier?.interval &&
+      tier.interval !== INTERVALS.FLEXIBLE &&
+      tier.interval !== order.interval &&
+      order.amount > 0
+    ) {
+      throw new ValidationFailed(`This tier only accepts contributions with a "${tier.interval}" interval`);
     }
 
     // Default status, will get updated after the order is processed
