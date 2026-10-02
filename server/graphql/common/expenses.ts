@@ -3095,12 +3095,6 @@ export async function editExpenseDraft(
     throw new Unauthorized('Only the author of the draft can edit it');
   }
 
-  // Defensive check for restricted collectives: legacy drafts created by unauthorized authors
-  // must not be editable (including payee changes) when public submission is disabled.
-  if (existingExpense.collective?.settings?.['disablePublicExpenseSubmission']) {
-    checkCanCreateExpenseForCollective(existingExpense.collective, req.remoteUser);
-  }
-
   if (expenseData.type && existingExpense.type !== expenseData.type) {
     await checkExpenseType(
       expenseData.type,
