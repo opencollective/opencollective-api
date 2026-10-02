@@ -9,6 +9,7 @@ import sinonChai from 'sinon-chai';
 
 import { checkS3Configured, dangerouslyInitNonProductionBuckets } from '../server/lib/awsS3';
 import { getDBConf } from '../server/lib/db.js';
+import { enableActivityDispatchTracking } from '../server/lib/notifications/activity-dispatch-tracker';
 
 /** Tests truncate and reset data; they must never run against a dev or shared DB. */
 const REQUIRED_TEST_DATABASE_NAME = 'opencollective_test';
@@ -37,6 +38,8 @@ chai.use(sinonChai);
 export const mochaHooks = {
   beforeAll: async function () {
     assertPostgresTestDatabase();
+    // Track activity dispatches so resetTestDB can wait for them before truncating
+    enableActivityDispatchTracking();
 
     chaiJestSnapshot.resetSnapshotRegistry();
 
