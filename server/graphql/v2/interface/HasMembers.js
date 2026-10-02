@@ -17,7 +17,7 @@ import EmailAddress from '../scalar/EmailAddress';
 
 export const HasMembersFields = {
   members: {
-    description: 'Get all members (admins, members, backers, followers)',
+    description: 'Get all members (admins, members, backers)',
     type: new GraphQLNonNull(GraphQLMemberCollection),
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },

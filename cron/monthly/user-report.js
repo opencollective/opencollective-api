@@ -9,7 +9,6 @@ import { groupBy, isEmpty, pick, uniq } from 'lodash';
 import moment from 'moment';
 
 import ORDER_STATUS from '../../server/constants/order-status';
-import roles from '../../server/constants/roles';
 import emailLib from '../../server/lib/email';
 import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
 import { reportErrorToSentry } from '../../server/lib/sentry';
@@ -210,12 +209,7 @@ const processEvents = events => {
   };
 
   events.forEach(event => {
-    event.stats = { confirmed: 0, interested: 0 };
-    event.members.forEach(member => {
-      if (member.role === roles.FOLLOWER) {
-        event.stats.interested++;
-      }
-    });
+    event.stats = { confirmed: 0 };
     event.orders.forEach(order => {
       if (order.processedAt !== null) {
         event.stats.confirmed++;
@@ -271,10 +265,7 @@ const processCollective = async CollectiveId => {
     collective.getEvents({
       where: { startsAt: { [Op.gte]: startDate } },
       order: [['startsAt', 'DESC']],
-      include: [
-        { model: models.Member, as: 'members' },
-        { model: models.Order, as: 'orders' },
-      ],
+      include: [{ model: models.Order, as: 'orders' }],
     }),
     models.Update.findAll({
       where: {
