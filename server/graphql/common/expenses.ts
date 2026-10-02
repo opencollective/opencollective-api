@@ -348,7 +348,7 @@ const isAdminOfCollectiveAndExpenseIsAVirtualCardButNotManuallyCreated = async (
 export type ExpensePermissionEvaluator = (
   req: express.Request,
   expense: Expense,
-  options?: { throw?: boolean },
+  options?: { throw?: boolean; payoutMethodId?: number },
 ) => Promise<boolean>;
 
 /**
@@ -445,10 +445,19 @@ export async function assertExpenseAccessibleForPrivateCollective(
 }
 
 /** Checks if the user can see expense's payout method private details (account number, PayPal email, ...etc) */
-export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator = async (req, expense) => {
+export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator = async (
+  req,
+  expense,
+  options: { throw?: boolean; payoutMethodId?: number } = {},
+) => {
   if (!validateExpenseScope(req)) {
     return false;
-  } else if (getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, expense.PayoutMethodId)) {
+  }
+
+  // Authorize against the given payout method, so historical snapshots embedded in
+  // activities are each evaluated by their own method identity (see #8702).
+  const payoutMethodId = options.payoutMethodId ?? expense.PayoutMethodId;
+  if (payoutMethodId && getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethodId)) {
     return true;
   }
 
@@ -463,8 +472,8 @@ export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator
   ];
 
   // Submitter can see own information until the expense is paid
-  if (expense.status === expenseStatus.PAID && expense.PayoutMethodId) {
-    const payoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
+  if (expense.status === expenseStatus.PAID && payoutMethodId) {
+    const payoutMethod = await req.loaders.PayoutMethod.byId.load(payoutMethodId);
     if (payoutMethod && !payoutMethod.isSaved) {
       allowedRoles = allowedRoles.filter(role => role !== isOwner && role !== isOwnerAccountant);
     }

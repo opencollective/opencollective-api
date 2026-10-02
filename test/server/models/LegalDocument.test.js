@@ -7,7 +7,7 @@ import emailLib from '../../../server/lib/email';
 import models from '../../../server/models';
 import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_TYPE } from '../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
-import { fakeActiveHost, fakeExpense, fakePayoutMethod, fakeUser } from '../../test-helpers/fake-data';
+import { fakeActiveHost, fakeCollective, fakeExpense, fakePayoutMethod, fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const { LegalDocument, User, Collective } = models;
@@ -349,6 +349,43 @@ describe('server/models/LegalDocument', () => {
       await legalDocument.reload();
       expect(emailSendMessageSpy.callCount).to.equal(0);
       expect(legalDocument.data.reminderSentAt).to.equal(reminderSentAt.toISOString());
+    });
+  });
+
+  describe('createExpenseActivitiesForTaxFormChange', () => {
+    let hostWithTaxForms;
+
+    beforeEach(async () => {
+      hostWithTaxForms = await fakeActiveHost();
+      await hostWithTaxForms.createRequiredLegalDocument({ type: LEGAL_DOCUMENT_TYPE.US_TAX_FORM });
+    });
+
+    const createHostedExpense = async (payee, host) => {
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id });
+      return createExpenseSubjectToTaxForm(payee, hostedCollective);
+    };
+
+    it('fans out only to expenses under hosts that require tax forms', async () => {
+      const hostWithoutTaxForms = await fakeActiveHost();
+      const payeeUser = await fakeUser();
+      const expenseUnderTaxHost = await createHostedExpense(payeeUser.collective, hostWithTaxForms);
+      const expenseUnderOtherHost = await createHostedExpense(payeeUser.collective, hostWithoutTaxForms);
+
+      await LegalDocument.createTaxFormRequestToCollectiveIfNone(payeeUser.collective, payeeUser, {
+        HostCollectiveId: hostWithTaxForms.id,
+        ExpenseId: expenseUnderTaxHost.id,
+      });
+
+      const taxHostActivities = await models.Activity.findAll({
+        where: { type: 'collective.expense.updated', ExpenseId: expenseUnderTaxHost.id },
+      });
+      expect(taxHostActivities.length).to.be.greaterThan(0);
+      expect(taxHostActivities[0].data.newData.taxFormStatus).to.equal('REQUESTED');
+
+      const otherHostActivities = await models.Activity.findAll({
+        where: { type: 'collective.expense.updated', ExpenseId: expenseUnderOtherHost.id },
+      });
+      expect(otherHostActivities).to.have.length(0);
     });
   });
 });
