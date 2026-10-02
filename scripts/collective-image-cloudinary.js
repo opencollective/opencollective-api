@@ -10,6 +10,15 @@ const FIELDS = [
   { name: 'backgroundImage', kind: 'ACCOUNT_BANNER' },
 ];
 
+const isCloudinaryUrl = url => {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === 'cloudinary.com' || hostname.endsWith('.cloudinary.com');
+  } catch {
+    return false;
+  }
+};
+
 async function main() {
   console.log(`Running in ${DRY_RUN ? 'DRY RUN' : 'REAL RUN'} mode`);
 
@@ -21,6 +30,10 @@ async function main() {
     for (const collective of collectives) {
       const url = collective[name];
       console.log(`Processing ${name} for ${collective.slug} (${collective.id}): ${url}`);
+      if (!isCloudinaryUrl(url)) {
+        console.log('Skipping, not hosted on Cloudinary');
+        continue;
+      }
       try {
         const response = await fetch(url);
         if (!response.ok) {
