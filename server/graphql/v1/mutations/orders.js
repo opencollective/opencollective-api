@@ -473,7 +473,7 @@ export async function createOrder(order, req) {
       tier?.interval &&
       tier.interval !== INTERVALS.FLEXIBLE &&
       tier.interval !== order.interval &&
-      order.amount > 0
+      order.totalAmount > 0
     ) {
       throw new ValidationFailed(`This tier only accepts contributions with a "${tier.interval}" interval`);
     }

@@ -527,6 +527,32 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(result.errors[0].message).to.eq('This tier only accepts contributions with a "month" interval');
         });
 
+        it('rejects a mismatched frequency when only the platform tip is paid', async () => {
+          const tier = await fakeTier({
+            CollectiveId: toCollective.id,
+            amount: 0,
+            amountType: 'FLEXIBLE',
+            presets: [0, 500],
+            minimumAmount: 0,
+            interval: 'month',
+          });
+          const result = await callCreateOrder(
+            {
+              order: {
+                ...validOrderParams,
+                frequency: 'ONETIME',
+                tier: { legacyId: tier.id },
+                amount: { valueInCents: 0 },
+                platformTipAmount: { valueInCents: 500 },
+              },
+            },
+            fromUser,
+          );
+
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq('This tier only accepts contributions with a "month" interval');
+        });
+
         it('accepts any frequency for a flexible interval tier', async () => {
           const tier = await fakeTier({
             CollectiveId: toCollective.id,
