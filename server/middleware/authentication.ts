@@ -478,7 +478,7 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
       req.remoteUser = personalToken.user;
 
       if (!req.remoteUser.isAdminOfCollective(personalToken.collective)) {
-        next(new Unauthorized(`Invalid personal token for collective: ${apiKey || token}`));
+        next(new Unauthorized('Invalid personal token for collective'));
         return;
       } else if (req.remoteUser.isLimited()) {
         next(new Unauthorized(`Your account has been limited. Please contact support to reactivate it.`));
@@ -489,8 +489,8 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
       next();
     } else {
       clearRedirectCookie(res);
-      debug(`Invalid Personal Token (Api Key): ${apiKey || token}`);
-      next(new Unauthorized(`Invalid Personal Token (Api Key): ${apiKey || token}`));
+      debug('Invalid Personal Token (Api Key)');
+      next(new Unauthorized('Invalid Personal Token (Api Key)'));
     }
   } else {
     clearRedirectCookie(res);
@@ -533,15 +533,29 @@ export function authorizeClient(req: Request, res: Response, next: NextFunction)
   const body = req.body || {};
   const apiKey = req.get('Api-Key') || query.apiKey || query.api_key || body.api_key;
   if (apiKey === config.keys.opencollective.apiKey) {
-    debug(`Valid API key: ${apiKey}`);
+    debug('Valid API key');
     next();
   } else if (apiKey) {
-    debug(`Invalid API key: ${apiKey}`);
-    next(new Unauthorized(`Invalid API key: ${apiKey}`));
+    debug('Invalid API key');
+    next(new Unauthorized('Invalid API key'));
   } else {
     debug('Missing API key');
     next();
   }
+}
+
+/**
+ * OAuth and personal tokens are scoped for the GraphQL API. REST routes that
+ * authenticate via `req.remoteUser` would otherwise grant full user privileges
+ * and bypass GraphQL scope checks (e.g. connecting Stripe, paying Wise batches).
+ */
+export function rejectOAuthAndPersonalTokenAuth(req: Request, res: Response, next: NextFunction) {
+  if (req.userToken || req.personalToken) {
+    return next(
+      new Unauthorized('OAuth and personal tokens cannot be used on this endpoint. Please use the GraphQL API.'),
+    );
+  }
+  next();
 }
 
 /**
