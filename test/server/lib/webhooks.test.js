@@ -252,6 +252,21 @@ describe('server/lib/webhooks', () => {
       expect(sanitized.data.user).to.not.exist;
     });
 
+    it('Sanitizes COLLECTIVE_APPROVED, without leaking the reviewer email', () => {
+      const sanitized = sanitizeActivityForWebhookPayload({
+        type: activities.COLLECTIVE_APPROVED,
+        data: {
+          collective: { id: 42, slug: 'babel' },
+          host: { id: 43, slug: 'europe' },
+          user: { email: 'admin@opencollective.com' },
+        },
+      });
+
+      expect(sanitized.data.collective.id).to.eq(42);
+      expect(sanitized.data.host.id).to.eq(43);
+      expect(sanitized.data.user).to.not.exist;
+    });
+
     it('Sanitizes COLLECTIVE_APPLY, without leaking the applicant email', () => {
       const sanitized = sanitizeActivityForWebhookPayload({
         type: activities.COLLECTIVE_APPLY,
