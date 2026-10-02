@@ -2474,6 +2474,25 @@ export const checkCanReceiveExpense = (account: Collective): void => {
   }
 };
 
+/**
+ * Enforces the `disablePublicExpenseSubmission` collective setting for expense creation.
+ * When public submission is disabled, only members of the collective, collective/host admins
+ * and root users may create expenses (including drafts).
+ * Shared by `createExpense` and `draftExpenseAndInviteUser` to keep the guards in sync.
+ */
+export const checkCanCreateExpenseForCollective = (collective: Collective, remoteUser: User): void => {
+  // If the collective has public expense submission disabled, only members can create expenses
+  const isMember = Boolean(remoteUser.rolesByCollectiveId[String(collective.id)]);
+  if (
+    collective.settings?.['disablePublicExpenseSubmission'] &&
+    !isMember &&
+    !remoteUser.isAdminOfCollectiveOrHost(collective) &&
+    !remoteUser.isRoot()
+  ) {
+    throw new Error('You must be a member of the collective to create new expense');
+  }
+};
+
 export async function createExpense(
   req: express.Request,
   expenseData: ExpenseData,
@@ -2504,16 +2523,7 @@ export async function createExpense(
     throw new ValidationFailed('Payee not found');
   }
 
-  // If the collective has public expense submission disabled, only members can create expenses
-  const isMember = Boolean(remoteUser.rolesByCollectiveId[String(collective.id)]);
-  if (
-    collective.settings?.['disablePublicExpenseSubmission'] &&
-    !isMember &&
-    !remoteUser.isAdminOfCollectiveOrHost(collective) &&
-    !remoteUser.isRoot()
-  ) {
-    throw new Error('You must be a member of the collective to create new expense');
-  }
+  checkCanCreateExpenseForCollective(collective, remoteUser);
 
   // Let submitter customize the currency
   let expenseCurrency = collective.currency;
@@ -2873,6 +2883,30 @@ export async function submitExpenseDraft(
     ],
   });
   checkCanReceiveExpense(collective);
+
+  // Defensive check for restricted collectives (`disablePublicExpenseSubmission`): legacy drafts
+  // created before the creation-time guard must not be laundered to PENDING.
+  // - Author-driven submissions require the author (current user) to be authorized.
+  // - Invited-payee submissions (correct draft key or original-payee identity) require the draft
+  //   author to have been authorized, preserving legitimate invitations where the invitee is a
+  //   non-member. The submitter itself may be a non-member in that flow.
+  if (collective.settings?.['disablePublicExpenseSubmission']) {
+    const hasCorrectKey = Boolean(existingExpense.data?.draftKey) && existingExpense.data.draftKey === args.draftKey;
+    if (userIsAuthor) {
+      if (!req.remoteUser) {
+        throw new Unauthorized('You need to be logged in to submit an expense');
+      }
+      checkCanCreateExpenseForCollective(collective, req.remoteUser);
+    } else if (hasCorrectKey || userIsOriginalPayee) {
+      const draftAuthor = existingExpense.UserId ? await models.User.findByPk(existingExpense.UserId) : null;
+      if (!draftAuthor) {
+        throw new Error('You must be a member of the collective to create new expense');
+      }
+      await draftAuthor.populateRoles();
+      checkCanCreateExpenseForCollective(collective, draftAuthor);
+    }
+  }
+
   const fromCollective = expenseData.fromCollective || requestedPayee || existingExpense.fromCollective;
   await checkExpenseType(
     expenseData.type || existingExpense.type,
@@ -3083,6 +3117,12 @@ export async function editExpenseDraft(
   }
   if (!req.remoteUser || req.remoteUser?.id !== existingExpense.UserId) {
     throw new Unauthorized('Only the author of the draft can edit it');
+  }
+
+  // Defensive check for restricted collectives: legacy drafts created by unauthorized authors
+  // must not be editable (including payee changes) when public submission is disabled.
+  if (existingExpense.collective?.settings?.['disablePublicExpenseSubmission']) {
+    checkCanCreateExpenseForCollective(existingExpense.collective, req.remoteUser);
   }
 
   if (expenseData.type && existingExpense.type !== expenseData.type) {
