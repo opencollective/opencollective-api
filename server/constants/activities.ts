@@ -170,8 +170,6 @@ enum ActivityTypes {
   // Webhooks
   WEBHOOK_STRIPE_RECEIVED = 'webhook.stripe.received',
   WEBHOOK_PAYPAL_RECEIVED = 'webhook.paypal.received',
-  // Reports
-  COLLECTIVE_MONTHLY_REPORT = 'collective.monthlyreport',
   // Host
   ACTIVATED_COLLECTIVE_AS_HOST = 'activated.collective.as.host', // deprecated
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT = 'activated.collective.as.independent', // deprecated
@@ -242,7 +240,6 @@ export enum ActivityClasses {
   ACTIVITIES_UPDATES = 'activitiesUpdates',
   VIRTUAL_CARDS = 'virtualCards',
   FUND_EVENTS = 'fundsEvents',
-  REPORTS = 'reports',
 }
 
 export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
@@ -348,7 +345,6 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.VIRTUAL_CARD_REQUESTED,
     ActivityTypes.VIRTUAL_CARD_PURCHASE,
   ],
-  [ActivityClasses.REPORTS]: [ActivityTypes.COLLECTIVE_MONTHLY_REPORT],
 };
 
 export default ActivityTypes;
