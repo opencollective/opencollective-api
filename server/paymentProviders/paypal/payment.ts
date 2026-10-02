@@ -5,8 +5,9 @@ import { RefundKind } from '../../constants/refund-kind';
 import * as constants from '../../constants/transactions';
 import { floatAmountToCents, getFxRate, roundCentsAmount } from '../../lib/currency';
 import {
+  calcFee,
   createRefundTransaction,
-  getHostFee,
+  getHostFeePercent,
   getHostFeeSharePercent,
   getPlatformTip,
   isPlatformTipEligible,
@@ -49,11 +50,21 @@ const recordTransaction = async (
   const amountInHostCurrency = roundCentsAmount(amount * hostCurrencyFxRate, hostCurrency);
   const paymentProcessorFeeInHostCurrency = roundCentsAmount(hostCurrencyFxRate * paypalFee, hostCurrency);
 
-  const hostFee = await getHostFee(order);
+  // PayPal can bundle multiple billing cycles in a single charge when a subscription has
+  // outstanding balance (e.g. a missed month retried later: $5/mo billed as $10). In that case
+  // `amount` is a multiple of `order.totalAmount` and per-cycle fees must be scaled accordingly.
+  // See https://github.com/opencollective/opencollective/issues/6600
+  const hostFeePercent = (await getHostFeePercent(order)) || 0;
+  const orderPlatformTip = getPlatformTip(order);
+  const orderTotalAmount = order.totalAmount || 0;
+  const chargeRatio = orderTotalAmount ? amount / orderTotalAmount : 1;
+  const taxAmount = Math.round((order.taxAmount || 0) * chargeRatio);
+  const platformTip = Math.round(orderPlatformTip * chargeRatio);
+  const hostFee = calcFee(amount - taxAmount - platformTip, hostFeePercent, currency);
+
   const hostFeeInHostCurrency = roundCentsAmount(hostFee * hostCurrencyFxRate, hostCurrency);
 
   const platformTipEligible = await isPlatformTipEligible(order);
-  const platformTip = getPlatformTip(order);
   const platformTipInHostCurrency = roundCentsAmount(platformTip * hostCurrencyFxRate, hostCurrency);
 
   const transactionData = {
@@ -70,7 +81,7 @@ const recordTransaction = async (
     hostCurrencyFxRate,
     hostFeeInHostCurrency,
     paymentProcessorFeeInHostCurrency,
-    taxAmount: order.taxAmount,
+    taxAmount,
     description: order.description,
     clearedAt,
     createdAt,
@@ -110,7 +121,7 @@ export function recordPaypalTransaction(
 ): Promise<Transaction> {
   const currency = paypalTransaction.amount_with_breakdown.gross_amount.currency_code;
   const amount = floatAmountToCents(parseFloat(paypalTransaction.amount_with_breakdown.gross_amount.value));
-  const fee = parseFloat(get(paypalTransaction.amount_with_breakdown, 'fee_amount.value', '0.0'));
+  const fee = floatAmountToCents(parseFloat(get(paypalTransaction.amount_with_breakdown, 'fee_amount.value', '0.0')));
   return recordTransaction(order, amount, currency, fee, {
     data: { ...data, paypalTransaction, paypalCaptureId: paypalTransaction.id },
     createdAt,

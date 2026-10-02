@@ -6,15 +6,18 @@ import config from 'config';
 import nock from 'nock';
 import { assert, createSandbox } from 'sinon';
 
+import INTERVALS from '../../../../server/constants/intervals';
 import OrderStatuses from '../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import * as PaypalAPI from '../../../../server/paymentProviders/paypal/api';
 import {
   cancelPaypalSubscription,
+  getOrCreatePlan,
   setupPaypalSubscriptionForOrder,
 } from '../../../../server/paymentProviders/paypal/subscription';
 import { randEmail } from '../../../stores';
 import {
+  fakeCollective,
   fakeConnectedAccount,
   fakeHost,
   fakeOrder,
@@ -255,6 +258,21 @@ describe('server/paymentProviders/paypal/subscription', () => {
         assert.calledWith(paypalRequestStub, `${oldSubscriptionUrl}/cancel`);
         assert.callCount(paypalRequestStub, 2); // Must NOT call activate if cancellation fails
       });
+    });
+  });
+
+  describe('getOrCreatePlan', () => {
+    it('disables PayPal outstanding bundling (https://github.com/opencollective/opencollective/issues/6600)', async () => {
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest');
+      paypalRequestStub.withArgs('catalogs/products').resolves({ id: 'PROD-123' });
+      paypalRequestStub.withArgs('billing/plans').resolves({ id: 'PLAN-123' });
+
+      await getOrCreatePlan(host, collective, INTERVALS.MONTH, 500, 'USD', null);
+
+      const planCall = paypalRequestStub.getCalls().find(call => call.args[0] === 'billing/plans');
+      expect(planCall).to.exist;
+      expect(planCall.args[1].payment_preferences.auto_bill_outstanding).to.eq(false);
     });
   });
 
