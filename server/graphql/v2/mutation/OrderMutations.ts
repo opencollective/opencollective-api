@@ -495,6 +495,11 @@ const orderMutations = {
         throw new Error('Order must be active to be updated');
       } else if (args.paypalSubscriptionId && args.paymentMethod) {
         throw new Error('paypalSubscriptionId and paymentMethod are mutually exclusive');
+      } else if (hasPaymentMethodChanged && isBalanceOnlyCollectiveType(order.fromCollective.type)) {
+        // Hosted collectives (and their events/projects/funds) can only contribute from their own balance.
+        // Checked before any write: `paypalSubscriptionId` may come with amount/tier changes, and rejecting
+        // it after `updateSubscriptionDetails` would leave those changes applied.
+        throw new ValidationFailed('Changing the payment method is not allowed for this contribution');
       } else if (haveDetailsChanged && !isUndefined(args.paymentMethod)) {
         // For non-paypal contributions, there's no transaction/rollback strategy if updating the payment method fails
         // after updating the order. We could end up with partially migrated subscriptions
@@ -566,10 +571,6 @@ const orderMutations = {
       }
 
       if (hasPaymentMethodChanged) {
-        if (isBalanceOnlyCollectiveType(order.fromCollective.type)) {
-          throw new ValidationFailed('Changing the payment method is not allowed for this contribution');
-        }
-
         const previousOrderStatus = order.status;
         if (args.paypalSubscriptionId) {
           // Update from PayPal subscription ID
