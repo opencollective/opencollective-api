@@ -500,6 +500,39 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
 }
 
 /**
+ * The internal API key (`config.keys.opencollective.apiKey`), shared by Open Collective's
+ * own services (frontend, images, rest, pdf…). It doesn't authenticate a user: it marks a
+ * request as coming from one of our services, which `authorizeClient` checks and the
+ * GraphQL rate limiter exempts (server/routes.ts).
+ *
+ * Where a service can send it, in order:
+ * - the `Service-Key` header: the preferred way. Headers don't end up in URLs, so the key
+ *   stays out of router and access logs. It has its own name because `Api-Key` is also
+ *   read by `checkPersonalToken`, which runs first and looks it up as a personal token:
+ *   the internal key isn't one, so a request sending it as `Api-Key` fails with 401;
+ * - `api_key` (or `apiKey`) in the query string, or `api_key` in the body: the legacy
+ *   ways, still accepted;
+ * - the `Api-Key` header: kept for compatibility, see above.
+ *
+ * @returns the key the request carries, or undefined. Only one value: a key repeated in the
+ *   query string (an array) isn't taken.
+ */
+export function getInternalApiKey(req: Request): string | undefined {
+  const query = req.query || {};
+  const body = req.body || {};
+  const apiKey = req.get('Service-Key') || req.get('Api-Key') || query.apiKey || query.api_key || body.api_key;
+  return typeof apiKey === 'string' ? apiKey : undefined;
+}
+
+/**
+ * Whether the request carries the internal API key (see `getInternalApiKey`).
+ */
+export function hasValidInternalApiKey(req: Request): boolean {
+  const apiKey = getInternalApiKey(req);
+  return Boolean(apiKey) && apiKey === config.keys.opencollective.apiKey;
+}
+
+/**
  * Authorize api_key
  */
 export function authorizeClient(req: Request, res: Response, next: NextFunction) {
@@ -529,10 +562,8 @@ export function authorizeClient(req: Request, res: Response, next: NextFunction)
     return;
   }
 
-  const query = req.query || {};
-  const body = req.body || {};
-  const apiKey = req.get('Api-Key') || query.apiKey || query.api_key || body.api_key;
-  if (apiKey === config.keys.opencollective.apiKey) {
+  const apiKey = getInternalApiKey(req);
+  if (hasValidInternalApiKey(req)) {
     debug(`Valid API key: ${apiKey}`);
     next();
   } else if (apiKey) {

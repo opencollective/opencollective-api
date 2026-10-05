@@ -5,6 +5,7 @@ import moment from 'moment';
 import request from 'supertest';
 
 import { sessionCache } from '../../../server/lib/cache';
+import { getInternalApiKey, hasValidInternalApiKey } from '../../../server/middleware/authentication';
 import { fakePersonalToken, fakeUser, fakeUserToken } from '../../test-helpers/fake-data';
 import { startTestServer, stopTestServer } from '../../test-helpers/server';
 import { resetTestDB } from '../../utils';
@@ -379,6 +380,38 @@ describe('server/middleware/authentication', () => {
     });
   });
 
+  describe('getInternalApiKey / hasValidInternalApiKey', () => {
+    // A minimal Express request: headers (case-insensitive via get), query and body
+    const fakeRequest = ({ headers = {}, query = {}, body = undefined }: Record<string, any>) =>
+      ({
+        get: (name: string) => headers[name.toLowerCase()],
+        query,
+        body,
+      }) as any;
+    const key = () => config.keys.opencollective.apiKey;
+
+    it('reads the Service-Key header first', () => {
+      // eslint-disable-next-line camelcase
+      const req = fakeRequest({ headers: { 'service-key': key() }, query: { api_key: 'other' } });
+      expect(getInternalApiKey(req)).to.equal(key());
+      expect(hasValidInternalApiKey(req)).to.be.true;
+    });
+
+    it('still reads the legacy places: api_key in the query or the body', () => {
+      // eslint-disable-next-line camelcase
+      expect(hasValidInternalApiKey(fakeRequest({ query: { api_key: key() } }))).to.be.true;
+      // eslint-disable-next-line camelcase
+      expect(hasValidInternalApiKey(fakeRequest({ body: { api_key: key() } }))).to.be.true;
+    });
+
+    it('is false for a wrong, missing or repeated key', () => {
+      expect(hasValidInternalApiKey(fakeRequest({ headers: { 'service-key': 'wrong' } }))).to.be.false;
+      expect(hasValidInternalApiKey(fakeRequest({}))).to.be.false;
+      // eslint-disable-next-line camelcase
+      expect(getInternalApiKey(fakeRequest({ query: { api_key: [key(), key()] } }))).to.be.undefined;
+    });
+  });
+
   describe('authorizeClient', () => {
     it('should allow requests with valid API key in header', async () => {
       // Note: checkPersonalToken runs before authorizeClient, so if the API key
@@ -413,6 +446,36 @@ describe('server/middleware/authentication', () => {
       expect(response.body.status).to.equal('ok');
       // API key doesn't authenticate a user, just authorizes the request
       expect(response.body.authenticated).to.be.false;
+    });
+
+    it('should allow requests with the internal API key in the Service-Key header', async () => {
+      // Unlike Api-Key, Service-Key isn't read by checkPersonalToken
+      const response = await request(expressApp)
+        .get('/status')
+        .set('Service-Key', config.keys.opencollective.apiKey)
+        .expect(200);
+
+      expect(response.body.status).to.equal('ok');
+      expect(response.body.authenticated).to.be.false;
+    });
+
+    it('should reject requests with an invalid Service-Key header', async () => {
+      const response = await request(expressApp).get('/status').set('Service-Key', 'invalid-key').expect(401);
+
+      expect(response.body.error.message).to.equal('Invalid API key: invalid-key');
+    });
+
+    it('should authenticate a Personal Token sent with the Service-Key header', async () => {
+      const user = await fakeUser();
+      const personalToken = await fakePersonalToken({ user });
+
+      const response = await request(expressApp)
+        .get('/status')
+        .set('Personal-Token', personalToken.token)
+        .set('Service-Key', config.keys.opencollective.apiKey)
+        .expect(200);
+
+      expect(response.body.authenticated).to.be.true;
     });
 
     it('should reject requests with invalid API key', async () => {

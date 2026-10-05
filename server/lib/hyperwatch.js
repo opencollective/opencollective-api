@@ -7,6 +7,22 @@ import { get, pick } from 'lodash';
 
 import { md5, parseToBoolean } from './utils';
 
+// Request headers that carry credentials: never sent to Hyperwatch (Open Collective Watch
+// keeps the logs in its history and persistence)
+const CREDENTIAL_HEADERS = ['authorization', 'cookie', 'personal-token', 'api-key', 'service-key'];
+
+/**
+ * Removes credentials from a log before it's sent to Hyperwatch: the credential headers,
+ * and the internal API key a client may send in the GraphQL body (`api_key`), which is
+ * otherwise logged with the query under `graphql`.
+ */
+export const removeCredentials = log => {
+  for (const header of CREDENTIAL_HEADERS) {
+    log = log.deleteIn(['request', 'headers', header]);
+  }
+  return log.deleteIn(['graphql', 'api_key']);
+};
+
 const computeMask = req => {
   const maskHeaders = pick(req.headers, [
     'accept',
@@ -90,15 +106,14 @@ const load = (app, server) => {
         const executionTime = req.endAt - req.startAt;
         let log = hyperwatch.util.createLog(req, res).set('executionTime', executionTime);
 
-        log = log.deleteIn(['request', 'headers', 'authorization']);
-        log = log.deleteIn(['request', 'headers', 'cookie']);
-
         if (req.body && req.body.query) {
           log = log.set('graphql', req.body);
           if (res.servedFromGraphqlCache) {
             log = log.setIn(['graphql', 'servedFromCache'], true);
           }
         }
+
+        log = removeCredentials(log);
 
         if (req.personalToken) {
           log = log.setIn(['opencollective', 'personalToken', 'id'], req.personalToken.id);

@@ -120,9 +120,8 @@ export default async (app: express.Application) => {
         return next();
       },
       whitelist: function (req: express.Request) {
-        const apiKey = req.query.api_key || req.body?.api_key;
-        // No limit with internal API Key
-        return apiKey === config.keys.opencollective.apiKey;
+        // No limit with the internal API key (Service-Key header, api_key in the query or body)
+        return authentication.hasValidInternalApiKey(req);
       },
       onRateLimited: function (req: express.Request, res: express.Response) {
         let message;
