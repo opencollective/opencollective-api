@@ -100,6 +100,24 @@ Sentry.init({
   },
   // Proportion of SDK sessions that are profiled (absolute rate, not relative to tracesSampler)
   profileSessionSampleRate: PROFILES_SAMPLE_RATE,
+  // Sentry v11 collects user info, cookies, headers, request/response bodies, GraphQL variables and
+  // database query data by default. Keep the v10 baseline (sendDefaultPii unset): our redaction above only
+  // covers event.request. From https://docs.sentry.io/platforms/javascript/guides/node/migration/v10-to-v11/
+  dataCollection: {
+    userInfo: false,
+    cookies: false,
+    httpHeaders: {
+      request: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+      response: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+    },
+    httpBodies: [],
+    urlQueryParams: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+    genAI: { inputs: false, outputs: false },
+    databaseQueryData: false,
+    graphQL: { document: false, variables: false },
+  },
+  // v11 streams spans by default, and beforeSendTransaction (our redaction) only runs on transactions
+  traceLifecycle: 'static',
   release: process.env.HEROKU_SLUG_COMMIT,
   dist: config.env,
 });
