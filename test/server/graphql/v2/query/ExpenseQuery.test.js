@@ -389,6 +389,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
     });
 
     it('redacts taxes idNumber in draft for unauthorized viewers (singular read)', async () => {
+      const draftPayeeUser = await fakeUser();
       const draftWithTaxes = await fakeExpense({
         UserId: ownerUser.id,
         FromCollectiveId: ownerUser.collective.id,
@@ -396,6 +397,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
         status: 'DRAFT',
         data: {
           draftKey: 'tax-draft-key-singular',
+          payee: { email: draftPayeeUser.email },
           taxes: [
             { type: 'VAT', rate: 0.2, idNumber: SECRET_TAX_ID },
             { type: 'GST', rate: 0.1, idNumber: 'GST-SECRET-123' },
@@ -420,12 +422,13 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       const resultAsRandomUser = await graphqlQueryV2(draftTaxesQuery, queryParams, randomUser);
       const resultAsOwner = await graphqlQueryV2(draftTaxesQuery, queryParams, ownerUser);
       const resultAsHostAdmin = await graphqlQueryV2(draftTaxesQuery, queryParams, hostAdminUser);
+      const resultAsDraftPayee = await graphqlQueryV2(draftTaxesQuery, queryParams, draftPayeeUser);
 
       expect(resultUnauthenticated.errors).to.not.exist;
       expect(resultAsRandomUser.errors).to.not.exist;
 
-      // Public viewers keep type/rate but must not receive the tax ID
-      for (const result of [resultUnauthenticated, resultAsRandomUser]) {
+      // Viewers without invoice-info access keep type/rate but must not receive the tax ID
+      for (const result of [resultUnauthenticated, resultAsRandomUser, resultAsDraftPayee]) {
         expect(result.data.expense.draft.taxes).to.have.length(2);
         expect(result.data.expense.draft.taxes[0].type).to.eq('VAT');
         expect(result.data.expense.draft.taxes[0].rate).to.eq(0.2);
@@ -436,6 +439,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
         // Structured field stays permission-gated
         expect(result.data.expense.taxes[0].idNumber).to.be.null;
       }
+      expect(resultAsDraftPayee.data.expense.draft.payee.email).to.eq(draftPayeeUser.email);
 
       // Authorized viewers keep the full draft tax objects through the authorized path
       expect(resultAsOwner.errors).to.not.exist;

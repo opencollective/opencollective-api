@@ -646,10 +646,8 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
 
             const draftData = pick(expense.data, draftFields);
 
-            // Taxes `idNumber` is sensitive: strip it from the public draft payload unless
-            // the viewer can see private draft details. The structured `Expense.taxes`
-            // resolver keeps its own `canSeeExpenseInvoiceInfo` check unchanged.
-            if (Array.isArray(draftData.taxes) && !canSeeExpenseDraftPrivateDetails) {
+            // Keep tax IDs consistent with the structured `Expense.taxes` resolver.
+            if (Array.isArray(draftData.taxes) && !(await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense))) {
               draftData.taxes = (draftData.taxes as ExpenseTaxDefinition[]).map(tax => {
                 if (tax && typeof tax === 'object' && 'idNumber' in tax) {
                   return omit(tax, 'idNumber');
