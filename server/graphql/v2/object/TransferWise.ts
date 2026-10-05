@@ -114,8 +114,13 @@ export const GraphQLTransferWise = new GraphQLObjectType({
     },
     balances: {
       type: new GraphQLList(GraphQLAmount),
-      description: 'Transferwise balances. Returns null if Transferwise account is not connected.',
-      resolve: async host => {
+      description:
+        'Transferwise balances. Returns null if Transferwise account is not connected or if the user is not an admin of the account.',
+      resolve: async (host, _, req) => {
+        if (!req.remoteUser?.isAdminOfCollective(host)) {
+          return null;
+        }
+
         return transferwise
           .getAccountBalances(host)
           .then(balances => {

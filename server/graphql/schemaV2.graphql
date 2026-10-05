@@ -18680,7 +18680,7 @@ type TransferWise {
   ): [JSONObject]
 
   """
-  Transferwise balances. Returns null if Transferwise account is not connected.
+  Transferwise balances. Returns null if Transferwise account is not connected or if the user is not an admin of the account.
   """
   balances: [Amount]
   amountBatched: Amount
