@@ -297,7 +297,7 @@ export async function createOrder(order, req) {
   let orderCreated, isGuest, guestToken;
   try {
     // ---- Set defaults ----
-    order.quantity = order.quantity || 1;
+    order.quantity = order.quantity ?? 1;
     order.taxAmount = order.taxAmount || 0;
     order.collective = collective;
 
@@ -452,7 +452,7 @@ export async function createOrder(order, req) {
     // A new order must never credit the collective with a negative net amount, even if
     // `quantity × unitAmount` happens to be self-consistent with a negative quantity.
     if (netAmountForCollective < 0) {
-      throw new Error(`Invalid net amount for collective: ${netAmountForCollective}`);
+      throw new ValidationFailed(`Invalid net amount for collective: ${netAmountForCollective}`);
     }
     const expectedAmountForCollective = roundCentsAmount(order.quantity * expectedGrossUnitAmount, currency); // order.amount is always set when called from GraphQL v2
     const expectedTaxAmount = calcFee(expectedAmountForCollective, taxPercent, currency);

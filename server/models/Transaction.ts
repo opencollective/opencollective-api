@@ -775,6 +775,23 @@ class Transaction extends ModelWithPublicId<
       transaction,
     );
 
+    // If we have platformTipInHostCurrency available, we trust it, otherwise we compute it
+    const platformTipInHostCurrency = roundCentsAmount(
+      transaction.data?.platformTipInHostCurrency || amount * transaction.hostCurrencyFxRate,
+      transaction.hostCurrency,
+    );
+    const remainingAmountInHostCurrency = roundCentsAmount(
+      transaction.amountInHostCurrency - platformTipInHostCurrency,
+      transaction.hostCurrency,
+    );
+    const remainingAmount = roundCentsAmount(transaction.amount - amount, transaction.currency);
+
+    // Defense-in-depth: a platform tip must never drive the parent transaction negative.
+    // Validate before creating the double entry to prevent creating orphaned records if this check fails.
+    if (remainingAmount < 0 || remainingAmountInHostCurrency < 0) {
+      throw new Error('Platform tip amount cannot exceed the transaction amount');
+    }
+
     let tipCollectiveId: number;
     let tipHostCollectiveId: number;
     if (hostHasNewPlatformTipsLedger) {
@@ -858,23 +875,9 @@ class Transaction extends ModelWithPublicId<
       );
     }
 
-    // If we have platformTipInHostCurrency available, we trust it, otherwise we compute it
-    const platformTipInHostCurrency = roundCentsAmount(
-      transaction.data?.platformTipInHostCurrency || amount * transaction.hostCurrencyFxRate,
-      transaction.hostCurrency,
-    );
-
     // Recalculate amount
-    transaction.amountInHostCurrency = roundCentsAmount(
-      transaction.amountInHostCurrency - platformTipInHostCurrency,
-      transaction.hostCurrency,
-    );
-    transaction.amount = roundCentsAmount(transaction.amount - amount, transaction.currency);
-
-    // Defense-in-depth: a platform tip must never drive the parent transaction negative.
-    if (transaction.amount < 0 || transaction.amountInHostCurrency < 0) {
-      throw new Error('Platform tip amount cannot exceed the transaction amount');
-    }
+    transaction.amountInHostCurrency = remainingAmountInHostCurrency;
+    transaction.amount = remainingAmount;
 
     // Reset the platformFee because we're accounting for this value in a separate set of transactions
     // This way of passing tips is deprecated but still used in some older tests
