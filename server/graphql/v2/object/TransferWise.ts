@@ -113,7 +113,7 @@ export const GraphQLTransferWise = new GraphQLObjectType({
       },
     },
     balances: {
-      type: new GraphQLList(GraphQLAmount),
+      type: new GraphQLList(new GraphQLNonNull(GraphQLAmount)),
       description:
         'Transferwise balances. Returns null if Transferwise account is not connected or if the user is not an admin of the account.',
       resolve: async (host, _, req) => {
