@@ -435,19 +435,19 @@ function buildGitHubCallbackUrl(context?: string, CollectiveId?: string): string
  */
 export async function checkPersonalToken(req: Request, res: Response, next: NextFunction) {
   const apiKey = req.get('Api-Key') || req.query.apiKey || req.apiKey;
-  const token = req.get('Personal-Token') || req.query.personalToken;
+  const personalToken = req.get('Personal-Token') || req.query.personalToken;
 
-  if (apiKey || token) {
+  if (apiKey || personalToken) {
     const now = moment();
     if (Array.isArray(apiKey)) {
       return next(new errors.ValidationFailed(undefined, 'apiKey', 'Please provide a single apiKey'));
-    } else if (Array.isArray(token)) {
+    } else if (Array.isArray(personalToken)) {
       return next(new errors.ValidationFailed(undefined, 'token', 'Please provide a single token'));
     }
 
     // The explicit Personal-Token first: a legacy Api-Key sent along may be the service key
-    const personalToken = await models.PersonalToken.findOne({
-      where: { token: token || apiKey },
+    const foundPersonalToken = await models.PersonalToken.findOne({
+      where: { token: personalToken || apiKey },
       include: [
         {
           association: 'user',
@@ -461,12 +461,12 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
       ],
     });
 
-    if (personalToken) {
-      if (personalToken.expiresAt && now.diff(moment(personalToken.expiresAt), 'seconds') > 0) {
-        debug(`Expired Personal Token (Api Key): ${personalToken.id}`);
+    if (foundPersonalToken) {
+      if (foundPersonalToken.expiresAt && now.diff(moment(foundPersonalToken.expiresAt), 'seconds') > 0) {
+        debug(`Expired Personal Token (Api Key): ${foundPersonalToken.id}`);
         next(new Unauthorized(`Expired Personal Token (Api Key)`));
         return;
-      } else if (personalToken.data?.isSuspended) {
+      } else if (foundPersonalToken.data?.isSuspended) {
         debug(`Suspended Personal Token (Api Key)`);
         next(
           new Unauthorized(
@@ -478,17 +478,17 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
 
       debug('Valid Personal Token (Api Key)');
       // Update lastUsedAt if lastUsedAt older than 1 minute ago
-      if (!personalToken.lastUsedAt || now.diff(moment(personalToken.lastUsedAt), 'minutes') > 1) {
+      if (!foundPersonalToken.lastUsedAt || now.diff(moment(foundPersonalToken.lastUsedAt), 'minutes') > 1) {
         if (!parseToBoolean(config.database.readOnly)) {
-          await personalToken.update({ lastUsedAt: new Date() });
+          await foundPersonalToken.update({ lastUsedAt: new Date() });
         }
       }
 
-      req.personalToken = personalToken;
-      req.remoteUser = personalToken.user;
+      req.personalToken = foundPersonalToken;
+      req.remoteUser = foundPersonalToken.user;
 
-      if (!req.remoteUser.isAdminOfCollective(personalToken.collective)) {
-        next(new Unauthorized(`Invalid personal token for collective: ${token || apiKey}`));
+      if (!req.remoteUser.isAdminOfCollective(foundPersonalToken.collective)) {
+        next(new Unauthorized(`Invalid personal token for collective: ${personalToken || apiKey}`));
         return;
       } else if (req.remoteUser.isLimited()) {
         next(new Unauthorized(`Your account has been limited. Please contact support to reactivate it.`));
@@ -497,15 +497,15 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
 
       await req.remoteUser.populateRoles();
       next();
-    } else if (!token) {
+    } else if (!personalToken) {
       // Only a legacy Api-Key / apiKey, and it's not a personal token: it may be the service
       // key, checkServiceKey decides (see above)
       debug('Api Key is not a Personal Token, left to checkServiceKey');
       next();
     } else {
       clearRedirectCookie(res);
-      debug(`Invalid Personal Token: ${token}`);
-      next(new Unauthorized(`Invalid Personal Token (Api Key): ${token}`));
+      debug(`Invalid Personal Token: ${personalToken}`);
+      next(new Unauthorized(`Invalid Personal Token (Api Key): ${personalToken}`));
     }
   } else {
     clearRedirectCookie(res);
