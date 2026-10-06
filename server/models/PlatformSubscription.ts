@@ -487,6 +487,7 @@ class PlatformSubscription extends Model<
    * (inclusive), less the amount refunded before `refundedBefore`. Only contributions whose order was
    * not subject to platform tips are counted, so host-created pending contributions (expected
    * funds) and added funds never count while orders still carrying a tip are not double charged.
+   * Legacy orders created before `platformTipEligible` existed (NULL) count, unless they carry a tip.
    * Returns the total in USD cents, converted with the FX rates of `fxDate`.
    */
   static async sumCrowdfundingContributions(
@@ -512,7 +513,10 @@ class PlatformSubscription extends Model<
       AND t."createdAt" BETWEEN :startDate AND :endDate
       AND t."deletedAt" IS NULL
       AND (pm."service" IN (:crowdfundingServices) OR o."ManualPaymentProviderId" IS NOT NULL)
-      AND o."platformTipEligible" IS FALSE
+      AND (
+        o."platformTipEligible" IS FALSE
+        OR (o."platformTipEligible" IS NULL AND COALESCE(o."platformTipAmount", 0) = 0)
+      )
       GROUP BY t."hostCurrency"
     `,
       {

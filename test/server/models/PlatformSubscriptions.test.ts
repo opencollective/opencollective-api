@@ -1528,12 +1528,25 @@ describe('server/models/PlatformSubscriptions', () => {
           createdAt: new Date(Date.UTC(2016, 0, 10)),
         });
 
-        // Contribution from a legacy order where eligibility is unknown: ignored
+        // Contribution from a legacy order carrying a tip, from before eligibility was recorded: ignored
+        const legacyTipOrder = await fakeOrder({
+          CollectiveId: collective.id,
+          platformTipEligible: null,
+          platformTipAmount: 500,
+        });
+        await fakeTransaction({
+          ...contribution,
+          OrderId: legacyTipOrder.id,
+          amount: 10000,
+          createdAt: new Date(Date.UTC(2016, 0, 10)),
+        });
+
+        // Contribution from a legacy order without a tip, from before eligibility was recorded: charged
         const legacyOrder = await fakeOrder({ CollectiveId: collective.id, platformTipEligible: null });
         await fakeTransaction({
           ...contribution,
           OrderId: legacyOrder.id,
-          amount: 10000,
+          amount: 3000,
           createdAt: new Date(Date.UTC(2016, 0, 10)),
         });
 
@@ -1541,7 +1554,7 @@ describe('server/models/PlatformSubscriptions', () => {
         await fakeTransaction({ ...contribution, amount: 10000, createdAt: new Date(Date.UTC(2016, 0, 20)) });
 
         const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
-        expect(billing.crowdfunding).to.deep.equal({ totalAmount: 10000, feePercent: 5, fee: 500 });
+        expect(billing.crowdfunding).to.deep.equal({ totalAmount: 13000, feePercent: 5, fee: 650 });
       });
 
       it('includes contributor bank transfers but not host-created pending contributions', async () => {
