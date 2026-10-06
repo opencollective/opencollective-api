@@ -393,15 +393,22 @@ export default async (app: express.Application) => {
   app.post('/images', upload.single('file'), uploadImage);
 
   // backward compatibility
-  app.get('/connected-accounts/:service', noCache, authentication.rejectOAuthAndPersonalTokenAuth, (req, res, next) => {
-    if (!oauthServiceAllowlist.has(req.params.service)) {
-      return next(new errors.NotFound('Service not supported'));
-    }
-    return authentication.authenticateService(req, res, next);
-  });
+  app.get(
+    '/connected-accounts/:service',
+    noCache,
+    authentication.rateLimitServiceAuthentication,
+    authentication.rejectOAuthAndPersonalTokenAuth,
+    (req, res, next) => {
+      if (!oauthServiceAllowlist.has(req.params.service)) {
+        return next(new errors.NotFound('Service not supported'));
+      }
+      return authentication.authenticateService(req, res, next);
+    },
+  );
   app.get(
     '/connected-accounts/:service/oauthUrl',
     noCache,
+    authentication.rateLimitServiceAuthentication,
     authentication.rejectOAuthAndPersonalTokenAuth,
     (req, res, next) => {
       if (!oauthServiceAllowlist.has(req.params.service)) {

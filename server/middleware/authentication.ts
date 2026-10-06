@@ -276,7 +276,7 @@ export function authenticateUser(req: Request, res: Response, next: NextFunction
   _authenticateUserByJwt(req, res, next);
 }
 
-export const authenticateService = async (req: Request, res: Response, next: NextFunction) => {
+export const rateLimitServiceAuthentication = async (req: Request, res: Response, next: NextFunction) => {
   // How many times a user can call this endpoint in a minute.
   const rateLimit = new RateLimit(`connected-accounts-authenticate-${req.ip}`, 60, 10);
   try {
@@ -285,6 +285,10 @@ export const authenticateService = async (req: Request, res: Response, next: Nex
     return next(new errors.RateLimitExceeded());
   }
 
+  return next();
+};
+
+export const authenticateService = async (req: Request, res: Response, next: NextFunction) => {
   const { service } = req.params;
   const { context, CollectiveId } = req.query || {};
 
