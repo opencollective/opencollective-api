@@ -16,11 +16,11 @@ const CREDENTIAL_HEADERS = ['authorization', 'cookie', 'personal-token', 'api-ke
 const CREDENTIAL_QUERY_PARAMS = /([?&](?:api_key|apiKey|personalToken)=)[^&#]*/g;
 
 /**
- * Removes credentials from a log before it's sent to Hyperwatch: the credential headers, their
+ * Redacts credentials from a log before it's sent to Hyperwatch: the credential headers, their
  * values in the URL's query string, and the service key a client may send in the GraphQL body
  * (`api_key`), which is otherwise logged with the query under `graphql`.
  */
-export const removeCredentials = log => {
+export const redactCredentials = log => {
   for (const header of CREDENTIAL_HEADERS) {
     log = log.deleteIn(['request', 'headers', header]);
   }
@@ -121,7 +121,7 @@ const load = (app, server) => {
           }
         }
 
-        log = removeCredentials(log);
+        log = redactCredentials(log);
 
         if (req.personalToken) {
           log = log.setIn(['opencollective', 'personalToken', 'id'], req.personalToken.id);

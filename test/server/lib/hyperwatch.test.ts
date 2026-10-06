@@ -1,7 +1,7 @@
 import hyperwatch from '@hyperwatch/hyperwatch';
 import { expect } from 'chai';
 
-import { removeCredentials } from '../../../server/lib/hyperwatch';
+import { redactCredentials } from '../../../server/lib/hyperwatch';
 
 // Logs built like the middleware does: createLog from the request, then the GraphQL body
 const createLog = ({
@@ -18,9 +18,9 @@ const createLog = ({
 };
 
 describe('server/lib/hyperwatch', () => {
-  describe('removeCredentials', () => {
+  describe('redactCredentials', () => {
     it('removes the credential headers and keeps the others', () => {
-      const log = removeCredentials(
+      const log = redactCredentials(
         createLog({
           headers: {
             authorization: 'Bearer jwt',
@@ -41,7 +41,7 @@ describe('server/lib/hyperwatch', () => {
     });
 
     it('replaces the credentials in the query string and keeps the rest of the URL', () => {
-      const log = removeCredentials(
+      const log = redactCredentials(
         createLog({ url: '/graphql/v2?api_key=key&foo=a%20b&apiKey=key&personalToken=personal#x' }),
       );
 
@@ -52,7 +52,7 @@ describe('server/lib/hyperwatch', () => {
 
     it('removes the service key from the GraphQL body', () => {
       // eslint-disable-next-line camelcase
-      const log = removeCredentials(createLog({ body: { query: '{ me { id } }', variables: {}, api_key: 'key' } }));
+      const log = redactCredentials(createLog({ body: { query: '{ me { id } }', variables: {}, api_key: 'key' } }));
 
       expect(log.getIn(['graphql', 'api_key'])).to.be.undefined;
       expect(log.getIn(['graphql', 'query'])).to.equal('{ me { id } }');
@@ -64,7 +64,7 @@ describe('server/lib/hyperwatch', () => {
         headers: { 'user-agent': 'curl' },
         body: { query: '{ me { id } }' },
       });
-      expect(removeCredentials(log).equals(log)).to.be.true;
+      expect(redactCredentials(log).equals(log)).to.be.true;
     });
   });
 });
