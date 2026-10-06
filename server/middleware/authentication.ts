@@ -250,7 +250,7 @@ const _authenticateUserByJwt = async (req: Request, res: Response, next: NextFun
  * @POST: req.remoteUser is set to the logged in user or null if authentication failed
  * @ERROR: Will return an error if a JWT token is provided and invalid
  */
-export function authenticateUser(req: Request, res: Response, next: NextFunction) {
+export function checkJwt(req: Request, res: Response, next: NextFunction) {
   if (req.remoteUser && req.remoteUser.id) {
     return next();
   }
@@ -429,7 +429,7 @@ function buildGitHubCallbackUrl(context?: string, CollectiveId?: string): string
  *   Strict: a value that isn't a valid personal token is rejected (401).
  * - `Api-Key` header / `apiKey` query parameter / the key in the GraphQL URL path: legacy
  *   places shared with the service key (see `getServiceKey`). They're tried as a personal
- *   token for compatibility, but a value that isn't one is left to `authorizeClient`, which
+ *   token for compatibility, but a value that isn't one is left to `checkServiceKey`, which
  *   accepts the service key and rejects anything else (401 "Invalid API key"). That lets our
  *   services keep sending the service key as `Api-Key` while they move to `Service-Key`.
  */
@@ -499,8 +499,8 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
       next();
     } else if (!token) {
       // Only a legacy Api-Key / apiKey, and it's not a personal token: it may be the service
-      // key, authorizeClient decides (see above)
-      debug('Api Key is not a Personal Token, left to authorizeClient');
+      // key, checkServiceKey decides (see above)
+      debug('Api Key is not a Personal Token, left to checkServiceKey');
       next();
     } else {
       clearRedirectCookie(res);
@@ -518,7 +518,7 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
  * The service key (`config.keys.opencollective.apiKey`), shared by Open Collective's own
  * services (frontend, images, rest, pdf…). Historically called the API key, hence the
  * config name and the `api_key` parameter. It doesn't authenticate a user: it marks a
- * request as coming from one of our services, which `authorizeClient` checks and the
+ * request as coming from one of our services, which `checkServiceKey` checks and the
  * GraphQL rate limiter exempts (server/routes.ts).
  *
  * Where a service can send it, in order:
@@ -550,9 +550,10 @@ export function hasValidServiceKey(req: Request): boolean {
 }
 
 /**
- * Authorize api_key
+ * Check the service key (see `getServiceKey`): a valid one lets the request through, an
+ * invalid one is rejected (401 "Invalid API key"), none is fine (the key is optional).
  */
-export function authorizeClient(req: Request, res: Response, next: NextFunction) {
+export function checkServiceKey(req: Request, res: Response, next: NextFunction) {
   // TODO: we should remove those exceptions
   // those routes should only be accessed via the website (which automatically adds the api_key)
   const exceptions = [
@@ -597,7 +598,7 @@ export function authorizeClient(req: Request, res: Response, next: NextFunction)
  * If we cannot authenticate the user, we directly return an Unauthorized error.
  */
 export function mustBeLoggedIn(req: Request, res: Response, next: NextFunction) {
-  authenticateUser(req, res, e => {
+  checkJwt(req, res, e => {
     if (e) {
       return next(e);
     }

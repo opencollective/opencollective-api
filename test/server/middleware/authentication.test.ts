@@ -26,7 +26,7 @@ describe('server/middleware/authentication', () => {
     await resetTestDB();
   });
 
-  describe('authenticateUser', () => {
+  describe('checkJwt', () => {
     it('should authenticate user with valid JWT in Authorization header', async () => {
       const user = await fakeUser();
       const token = user.jwt({ scope: 'session' });
@@ -413,10 +413,10 @@ describe('server/middleware/authentication', () => {
     });
   });
 
-  describe('authorizeClient', () => {
+  describe('checkServiceKey', () => {
     it('should allow requests with valid API key in header', async () => {
       // checkPersonalToken tries Api-Key as a personal token first, then leaves it to
-      // authorizeClient, which accepts the service key
+      // checkServiceKey, which accepts the service key
       const response = await request(expressApp)
         .get('/status')
         .set('Api-Key', config.keys.opencollective.apiKey)
@@ -482,7 +482,7 @@ describe('server/middleware/authentication', () => {
     it('should reject requests with invalid API key', async () => {
       const response = await request(expressApp).get('/status').set('Api-Key', 'invalid-key').expect(401);
 
-      // Neither a personal token nor the service key: rejected by authorizeClient
+      // Neither a personal token nor the service key: rejected by checkServiceKey
       expect(response.body.error.message).to.equal('Invalid API key: invalid-key');
     });
 
