@@ -2525,6 +2525,13 @@ export async function createExpense(
 
   checkCanCreateExpenseForCollective(collective, remoteUser);
 
+  // Validate description length
+  if (expenseData.description && expenseData.description.length > 255) {
+    throw new ValidationFailed(
+      'Expense description is too long (max 255 characters). Use the "Long description" field for additional details.',
+    );
+  }
+
   // Let submitter customize the currency
   let expenseCurrency = collective.currency;
   if (expenseData.currency && expenseData.currency !== expenseCurrency) {
@@ -3440,6 +3447,13 @@ export async function editExpense(
   const { host } = collective;
   const expenseType = expenseData.type || expense.type;
   const isPaidCreditCardCharge = isPaidVirtualCardCharge(expense);
+
+  // Validate description length
+  if (expenseData.description && expenseData.description.length > 255) {
+    throw new ValidationFailed(
+      'Expense description is too long (max 255 characters). Use the "Long description" field for additional details.',
+    );
+  }
 
   // Check category only if it's changing
   if (expenseData.accountingCategory) {
