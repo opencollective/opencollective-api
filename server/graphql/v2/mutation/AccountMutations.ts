@@ -10,7 +10,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
-import { cloneDeep, defaultsDeep, isEmpty, isEqual, isNull, keys, omitBy, pick, set } from 'lodash';
+import { cloneDeep, defaultsDeep, isEmpty, isEqual, isNull, isUndefined, keys, omitBy, pick, set, union } from 'lodash';
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
@@ -807,14 +807,27 @@ const accountMutations = {
 
       // Check host only policies
       const previousPolicies = account.data?.policies || {};
-      const shouldIgnorePolicy = (value, key) => isNull(value) || isEqual(value, previousPolicies[key]);
+      // Policies explicitly removed by this mutation: sent as `null` while they exist on the account. Removals must be
+      // authorized just like additions/updates, otherwise sending `null` bypasses the `canEditPolicy` check below.
+      const removedPoliciesKeys = (Object.keys(args.policies) as POLICIES[]).filter(
+        key => isNull(args.policies[key]) && !isUndefined(previousPolicies[key]),
+      );
+      // Policies that are added or changed. Only unchanged values are ignored here: `null` removals are not exempted
+      // from authorization (they are covered by `removedPoliciesKeys`), and submitting `null` for a policy that is not
+      // set is a no-op.
+      const shouldIgnorePolicy = (value, key) =>
+        isNull(value) ? isUndefined(previousPolicies[key]) : isEqual(value, previousPolicies[key]);
       const newPoliciesKeys = Object.keys(omitBy(args.policies, shouldIgnorePolicy)) as POLICIES[];
-      const forbiddenPolicies = newPoliciesKeys.filter(policy => !canEditPolicy(req.remoteUser, account, policy));
+      const policiesToEdit = union(newPoliciesKeys, removedPoliciesKeys);
+      const forbiddenPolicies = policiesToEdit.filter(policy => !canEditPolicy(req.remoteUser, account, policy));
       if (forbiddenPolicies.length > 0) {
         throw new Forbidden(`You are not allowed to edit the following policies: ${forbiddenPolicies.join(', ')}`);
       }
 
-      if (newPoliciesKeys.includes(POLICIES.TAX_FORM_THRESHOLDS)) {
+      const isSettingTaxFormThresholds =
+        newPoliciesKeys.includes(POLICIES.TAX_FORM_THRESHOLDS) &&
+        !removedPoliciesKeys.includes(POLICIES.TAX_FORM_THRESHOLDS);
+      if (isSettingTaxFormThresholds) {
         await checkFeatureAccess(account, FEATURE.TAX_FORMS, { loaders: req.loaders });
         const taxFormThresholds = args.policies[POLICIES.TAX_FORM_THRESHOLDS];
         if (taxFormThresholds) {
