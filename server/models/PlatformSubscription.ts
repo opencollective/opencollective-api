@@ -390,6 +390,8 @@ class PlatformSubscription extends Model<
     // contributions still carrying a tip) are not double charged. The sum is also bounded to the
     // days each tips-off subscription was active: contributions received before the subscription
     // started may already be charged as legacy Platform Share (see `cron/monthly/host-settlement`).
+    // Refunds only count against the contribution they reverse, when recorded before the end of the
+    // billing period: later refunds never change a bill.
     const crowdfunding: Billing['crowdfunding'] = { totalAmount: 0, feePercent: 0, fee: 0 };
     const tipsOffSubscriptions = subscriptions.filter(sub => sub.plan.pricing?.platformTips === false);
     if (tipsOffSubscriptions.length > 0) {
@@ -414,7 +416,7 @@ class PlatformSubscription extends Model<
           collectiveId,
           subBillingStart,
           subBillingEnd,
-          fxDate,
+          { refundedBefore: billingPeriodEnd, fxDate },
         );
         feePercents.push(feePercent);
         amount += subAmount;
@@ -422,9 +424,8 @@ class PlatformSubscription extends Model<
       }
 
       if (feePercents.length > 0) {
-        // Refunds can make the net amount negative, never credit the organization for those
-        crowdfunding.totalAmount = Math.max(0, amount);
-        crowdfunding.fee = Math.max(0, roundCentsAmount(fee, 'USD'));
+        crowdfunding.totalAmount = amount;
+        crowdfunding.fee = roundCentsAmount(fee, 'USD');
         // When the rate changed during the period, report the effective rate so that it matches the fee
         crowdfunding.feePercent =
           uniq(feePercents).length === 1 || !crowdfunding.totalAmount
@@ -483,7 +484,7 @@ class PlatformSubscription extends Model<
   /**
    * Sums crowdfunding contributions (Stripe, PayPal and contributor-initiated bank transfers)
    * received by the collectives hosted by `collectiveId` between `startDate` and `endDate`
-   * (inclusive), net of refunds recorded in the same window. Only contributions whose order was
+   * (inclusive), less the amount refunded before `refundedBefore`. Only contributions whose order was
    * not subject to platform tips are counted, so host-created pending contributions (expected
    * funds) and added funds never count while orders still carrying a tip are not double charged.
    * Returns the total in USD cents, converted with the FX rates of `fxDate`.
@@ -492,17 +493,22 @@ class PlatformSubscription extends Model<
     collectiveId: number,
     startDate: Date,
     endDate: Date,
-    fxDate: Date,
+    { refundedBefore, fxDate }: { refundedBefore: Date; fxDate: Date },
   ): Promise<number> {
     const rows: { currency: SupportedCurrency; amount: string }[] = await sequelize.query(
       `
-      SELECT t."hostCurrency" AS "currency", SUM(t."amountInHostCurrency") AS "amount"
+      SELECT
+        t."hostCurrency" AS "currency",
+        SUM(t."amountInHostCurrency" + COALESCE(r."amountInHostCurrency", 0)) AS "amount"
       FROM "Transactions" t
       INNER JOIN "Orders" o ON o.id = t."OrderId"
       LEFT JOIN "PaymentMethods" pm ON pm.id = t."PaymentMethodId"
+      LEFT JOIN "Transactions" r
+        ON r.id = t."RefundTransactionId" AND r."deletedAt" IS NULL AND r."createdAt" <= :refundedBefore
       WHERE t."HostCollectiveId" = :HostCollectiveId
       AND t."kind" = 'CONTRIBUTION'
-      AND ((t."type" = 'CREDIT' AND t."isRefund" IS NOT TRUE) OR (t."type" = 'DEBIT' AND t."isRefund" IS TRUE))
+      AND t."type" = 'CREDIT'
+      AND t."isRefund" IS NOT TRUE
       AND t."createdAt" BETWEEN :startDate AND :endDate
       AND t."deletedAt" IS NULL
       AND (pm."service" IN (:crowdfundingServices) OR o."ManualPaymentProviderId" IS NOT NULL)
@@ -516,6 +522,7 @@ class PlatformSubscription extends Model<
           HostCollectiveId: collectiveId,
           startDate,
           endDate,
+          refundedBefore,
           crowdfundingServices: [PAYMENT_METHOD_SERVICE.STRIPE, PAYMENT_METHOD_SERVICE.PAYPAL],
         },
       },

@@ -1457,19 +1457,35 @@ describe('server/models/PlatformSubscriptions', () => {
         };
       }
 
+      // Refunds `contribution` with a refund transaction linked to it, like `createRefundTransaction`
+      async function fakeRefund(contribution, amount: number, createdAt: Date) {
+        const refund = await fakeTransaction({
+          kind: contribution.kind,
+          HostCollectiveId: contribution.HostCollectiveId,
+          CollectiveId: contribution.CollectiveId,
+          PaymentMethodId: contribution.PaymentMethodId,
+          OrderId: contribution.OrderId,
+          amount: -amount,
+          isRefund: true,
+          RefundTransactionId: contribution.id,
+          createdAt,
+        });
+        await contribution.update({ RefundTransactionId: refund.id });
+        return refund;
+      }
+
       it('charges the fee on crowdfunding contributions, net of refunds', async () => {
         const { host, contribution } = await fakeCrowdfundedHost(tipsOffPlan);
 
         // Two Stripe contributions in the period: $100 + $50
         await fakeTransaction({ ...contribution, amount: 10000, createdAt: new Date(Date.UTC(2016, 0, 10)) });
-        await fakeTransaction({ ...contribution, amount: 5000, createdAt: new Date(Date.UTC(2016, 0, 12)) });
-        // A $20 refund in the period
-        await fakeTransaction({
+        const refunded = await fakeTransaction({
           ...contribution,
-          amount: -2000,
-          isRefund: true,
-          createdAt: new Date(Date.UTC(2016, 0, 15)),
+          amount: 5000,
+          createdAt: new Date(Date.UTC(2016, 0, 12)),
         });
+        // A $20 partial refund in the period
+        await fakeRefund(refunded, 2000, new Date(Date.UTC(2016, 0, 15)));
         // Outside the billing period: ignored
         await fakeTransaction({ ...contribution, amount: 99900, createdAt: new Date(Date.UTC(2015, 11, 15)) });
         // Added Funds: ignored
@@ -1594,18 +1610,55 @@ describe('server/models/PlatformSubscriptions', () => {
         expect(billing.crowdfunding).to.deep.equal({ totalAmount: 14000, feePercent: 6.43, fee: 900 });
       });
 
-      it('never credits the organization when refunds exceed contributions', async () => {
-        const { host, contribution } = await fakeCrowdfundedHost(tipsOffPlan);
+      it('does not charge a contribution refunded in the period, whatever the rate', async () => {
+        const { admin, host, contribution } = await fakeCrowdfundedHost({
+          ...tipsOffPlan,
+          pricing: { ...tipsOffPlan.pricing, crowdfundingFeePercent: 10 },
+        });
+        await PlatformSubscription.replaceCurrentSubscription(
+          host,
+          new Date(Date.UTC(2016, 0, 15)),
+          tipsOffPlan,
+          admin,
+        );
 
-        await fakeTransaction({
+        // Received at 10%, refunded after the switch to 5%
+        const refunded = await fakeTransaction({
           ...contribution,
-          amount: -10000,
-          isRefund: true,
+          amount: 10000,
           createdAt: new Date(Date.UTC(2016, 0, 10)),
         });
+        await fakeRefund(refunded, 10000, new Date(Date.UTC(2016, 0, 20)));
 
         const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
         expect(billing.crowdfunding).to.deep.equal({ totalAmount: 0, feePercent: 5, fee: 0 });
+      });
+
+      it('ignores refunds recorded after the billing period', async () => {
+        const { host, contribution } = await fakeCrowdfundedHost(tipsOffPlan, new Date(Date.UTC(2015, 11, 1)));
+
+        // Received in December, refunded in January: billed in December, not credited in January
+        const december = await fakeTransaction({
+          ...contribution,
+          amount: 10000,
+          createdAt: new Date(Date.UTC(2015, 11, 20)),
+        });
+        await fakeRefund(december, 10000, new Date(Date.UTC(2016, 0, 10)));
+        // Received in January, refunded in February: billed in January
+        const january = await fakeTransaction({
+          ...contribution,
+          amount: 4000,
+          createdAt: new Date(Date.UTC(2016, 0, 20)),
+        });
+        await fakeRefund(january, 4000, new Date(Date.UTC(2016, 1, 5)));
+
+        const decemberBilling = await PlatformSubscription.calculateBilling(host.id, {
+          year: 2015,
+          month: BillingMonth.DECEMBER,
+        });
+        expect(decemberBilling.crowdfunding).to.deep.equal({ totalAmount: 10000, feePercent: 5, fee: 500 });
+        const januaryBilling = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+        expect(januaryBilling.crowdfunding).to.deep.equal({ totalAmount: 4000, feePercent: 5, fee: 200 });
       });
     });
   });
