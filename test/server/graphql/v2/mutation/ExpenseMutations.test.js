@@ -7790,6 +7790,59 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(draftedExpense.lockedFields).to.deep.equal(['AMOUNT', 'TYPE']);
     });
 
+    it('persists tax idNumbers but redacts them from the public draft payload', async () => {
+      const taxIdNumber = 'FRXX-INVITE-123';
+      const secondTaxIdNumber = 'GST-INVITE-456';
+      const expenseWithTaxIds = cloneDeep(invoice);
+      expenseWithTaxIds.tax = [
+        { type: 'VAT', rate: 0.21, idNumber: taxIdNumber },
+        { type: 'GST', rate: 0.1, idNumber: secondTaxIdNumber },
+      ];
+
+      const result = await graphqlQueryV2(
+        draftExpenseAndInviteUserMutation,
+        { expense: expenseWithTaxIds, account: { legacyId: collective.id }, skipInvite: true },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      // Persisted JSON still accepts tax IDs
+      const draftedExpense = await models.Expense.findByPk(result.data.draftExpenseAndInviteUser.legacyId);
+      expect(draftedExpense.data.taxes).to.have.length(2);
+      expect(draftedExpense.data.taxes[0].idNumber).to.eq(taxIdNumber);
+      expect(draftedExpense.data.taxes[1].idNumber).to.eq(secondTaxIdNumber);
+
+      // Creator (authorized) sees the full draft tax objects
+      expect(result.data.draftExpenseAndInviteUser.draft.taxes).to.have.length(2);
+      expect(result.data.draftExpenseAndInviteUser.draft.taxes[0].idNumber).to.eq(taxIdNumber);
+      expect(result.data.draftExpenseAndInviteUser.draft.taxes[1].idNumber).to.eq(secondTaxIdNumber);
+
+      // Anonymous and unrelated viewers receive only non-sensitive tax fields
+      const draftQuery = gql`
+        query DraftTaxes($id: Int!) {
+          expense(expense: { legacyId: $id }) {
+            id
+            draft
+          }
+        }
+      `;
+      const randomUser = await fakeUser();
+      for (const viewer of [undefined, randomUser]) {
+        const publicResult = await graphqlQueryV2(draftQuery, { id: draftedExpense.id }, viewer);
+        publicResult.errors && console.error(publicResult.errors);
+        expect(publicResult.errors).to.not.exist;
+        expect(publicResult.data.expense.draft.taxes).to.have.length(2);
+        expect(publicResult.data.expense.draft.taxes[0].type).to.eq('VAT');
+        expect(publicResult.data.expense.draft.taxes[0].rate).to.eq(0.21);
+        expect(publicResult.data.expense.draft.taxes[0]).to.not.have.property('idNumber');
+        expect(publicResult.data.expense.draft.taxes[1].type).to.eq('GST');
+        expect(publicResult.data.expense.draft.taxes[1].rate).to.eq(0.1);
+        expect(publicResult.data.expense.draft.taxes[1]).to.not.have.property('idNumber');
+      }
+    });
+
     describe('draft invite item description sanitization', () => {
       let grantCollective;
 
