@@ -71,12 +71,16 @@ export const executePayouts = async (
     return await executeRequest<PayoutRequestResult>(connectedAccount, request);
   } catch (e) {
     if (e.statusCode) {
+      // Try to parse and return PayoutError
       try {
         const parsedError = JSON.parse(e.message);
-        return parsedError;
+        if (parsedError !== null && typeof parsedError === 'object') {
+          return parsedError;
+        }
       } catch {
-        throw e;
+        // Not an expected PayoutError, fallback to probable runtime error
       }
+      throw e;
     }
     throw e;
   }
