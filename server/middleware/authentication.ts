@@ -500,8 +500,9 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
 }
 
 /**
- * The internal API key (`config.keys.opencollective.apiKey`), shared by Open Collective's
- * own services (frontend, images, rest, pdf…). It doesn't authenticate a user: it marks a
+ * The service key (`config.keys.opencollective.apiKey`), shared by Open Collective's own
+ * services (frontend, images, rest, pdf…). Historically called the API key, hence the
+ * config name and the `api_key` parameter. It doesn't authenticate a user: it marks a
  * request as coming from one of our services, which `authorizeClient` checks and the
  * GraphQL rate limiter exempts (server/routes.ts).
  *
@@ -509,7 +510,7 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
  * - the `Service-Key` header: the preferred way. Headers don't end up in URLs, so the key
  *   stays out of router and access logs. It has its own name because `Api-Key` is also
  *   read by `checkPersonalToken`, which runs first and looks it up as a personal token:
- *   the internal key isn't one, so a request sending it as `Api-Key` fails with 401;
+ *   the service key isn't one, so a request sending it as `Api-Key` fails with 401;
  * - `api_key` (or `apiKey`) in the query string, or `api_key` in the body: the legacy
  *   ways, still accepted;
  * - the `Api-Key` header: kept for compatibility, see above.
@@ -517,19 +518,19 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
  * @returns the key the request carries, or undefined. Only one value: a key repeated in the
  *   query string (an array) isn't taken.
  */
-export function getInternalApiKey(req: Request): string | undefined {
+export function getServiceKey(req: Request): string | undefined {
   const query = req.query || {};
   const body = req.body || {};
-  const apiKey = req.get('Service-Key') || req.get('Api-Key') || query.apiKey || query.api_key || body.api_key;
-  return typeof apiKey === 'string' ? apiKey : undefined;
+  const serviceKey = req.get('Service-Key') || req.get('Api-Key') || query.apiKey || query.api_key || body.api_key;
+  return typeof serviceKey === 'string' ? serviceKey : undefined;
 }
 
 /**
- * Whether the request carries the internal API key (see `getInternalApiKey`).
+ * Whether the request carries the service key (see `getServiceKey`).
  */
-export function hasValidInternalApiKey(req: Request): boolean {
-  const apiKey = getInternalApiKey(req);
-  return Boolean(apiKey) && apiKey === config.keys.opencollective.apiKey;
+export function hasValidServiceKey(req: Request): boolean {
+  const serviceKey = getServiceKey(req);
+  return Boolean(serviceKey) && serviceKey === config.keys.opencollective.apiKey;
 }
 
 /**
@@ -562,8 +563,8 @@ export function authorizeClient(req: Request, res: Response, next: NextFunction)
     return;
   }
 
-  const apiKey = getInternalApiKey(req);
-  if (hasValidInternalApiKey(req)) {
+  const apiKey = getServiceKey(req);
+  if (hasValidServiceKey(req)) {
     debug(`Valid API key: ${apiKey}`);
     next();
   } else if (apiKey) {

@@ -11,14 +11,22 @@ import { md5, parseToBoolean } from './utils';
 // keeps the logs in its history and persistence)
 const CREDENTIAL_HEADERS = ['authorization', 'cookie', 'personal-token', 'api-key', 'service-key'];
 
+// Query parameters that carry credentials (the service key as `api_key` / `apiKey`, a personal
+// token as `personalToken`): their values are replaced, the rest of the URL is kept as is
+const CREDENTIAL_QUERY_PARAMS = /([?&](?:api_key|apiKey|personalToken)=)[^&#]*/g;
+
 /**
- * Removes credentials from a log before it's sent to Hyperwatch: the credential headers,
- * and the internal API key a client may send in the GraphQL body (`api_key`), which is
- * otherwise logged with the query under `graphql`.
+ * Removes credentials from a log before it's sent to Hyperwatch: the credential headers, their
+ * values in the URL's query string, and the service key a client may send in the GraphQL body
+ * (`api_key`), which is otherwise logged with the query under `graphql`.
  */
 export const removeCredentials = log => {
   for (const header of CREDENTIAL_HEADERS) {
     log = log.deleteIn(['request', 'headers', header]);
+  }
+  const url = log.getIn(['request', 'url']);
+  if (typeof url === 'string') {
+    log = log.setIn(['request', 'url'], url.replace(CREDENTIAL_QUERY_PARAMS, '$1[Filtered]'));
   }
   return log.deleteIn(['graphql', 'api_key']);
 };

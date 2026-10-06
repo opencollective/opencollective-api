@@ -120,8 +120,8 @@ export default async (app: express.Application) => {
         return next();
       },
       whitelist: function (req: express.Request) {
-        // No limit with the internal API key (Service-Key header, api_key in the query or body)
-        return authentication.hasValidInternalApiKey(req);
+        // No limit with the service key (Service-Key header, api_key in the query or body)
+        return authentication.hasValidServiceKey(req);
       },
       onRateLimited: function (req: express.Request, res: express.Response) {
         let message;
