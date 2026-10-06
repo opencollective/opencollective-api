@@ -217,6 +217,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: Unit
+          files: test-results.xml
           report_type: test_results
 
   test-graphql:
@@ -301,6 +302,7 @@ jobs:
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: test-results.xml
           report_type: test_results
 
   schema-update:
