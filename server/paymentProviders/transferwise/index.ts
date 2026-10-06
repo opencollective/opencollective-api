@@ -362,7 +362,7 @@ async function createTransfer(
     const user = await User.findByPk(expense.lastEditedById);
     let error: TransferwiseErrorObject | { message: string; details: string };
     try {
-      error = sanitizeObjectForJSON(e) as TransferwiseErrorObject;
+      error = { ...sanitizeObjectForJSON(e), message: e.message } as TransferwiseErrorObject;
     } catch {
       error = { message: e.message, details: safeJsonStringify(e) };
     }

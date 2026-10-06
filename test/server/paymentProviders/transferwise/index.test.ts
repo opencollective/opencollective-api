@@ -486,6 +486,18 @@ describe('server/paymentProviders/transferwise/index', () => {
           'x-trace-id': '2fdedcd616024b0e0eb294952e68c351',
         });
       });
+
+      it('preserves the message of plain errors in the error activity', async () => {
+        // `Error.message` is not enumerable, so sanitizing a plain Error must not drop it
+        createTransfer.rejects(new Error('Network error: socket hang up'));
+
+        await transferwise.payExpense(connectedAccount, payoutMethod, testExpense).catch(noop);
+
+        const activities = await testExpense.getActivities();
+        const errorActivity = activities[activities.length - 1];
+        expect(errorActivity.type).to.equal('collective.expense.payment.error');
+        expect(errorActivity.data.error).to.have.property('message', 'Network error: socket hang up');
+      });
     });
   });
 
