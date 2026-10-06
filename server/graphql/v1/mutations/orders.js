@@ -446,6 +446,10 @@ export async function createOrder(order, req) {
       throw new Error(`Invalid total amount: ${order.totalAmount}`);
     }
 
+    if (order.platformTipAmount < 0) {
+      throw new ValidationFailed('Platform tip amount cannot be negative');
+    }
+
     const tipAmount = order.platformTipAmount || 0;
     const expectedGrossUnitAmount = tier?.amountType === 'FIXED' ? tier.amount || 0 : order.amount;
     const netAmountForCollective = roundCentsAmount(order.totalAmount - order.taxAmount - tipAmount, currency);

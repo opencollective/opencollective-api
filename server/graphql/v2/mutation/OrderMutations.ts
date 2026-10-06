@@ -558,6 +558,9 @@ const orderMutations = {
         const platformTipAmount = isNil(args.platformTipAmount)
           ? order.platformTipAmount
           : getValueInCentsFromAmountInput(args.platformTipAmount, { expectedCurrency });
+        if (platformTipAmount < 0) {
+          throw new ValidationFailed('Platform tip amount cannot be negative');
+        }
         const newTotalAmount = amountWithoutTip + platformTipAmount;
         ({ previousOrderValues, previousSubscriptionValues } = await updateSubscriptionDetails(
           order,
@@ -803,6 +806,9 @@ const orderMutations = {
           if (!isNil(amount)) {
             const amountInCents = getValueInCentsFromAmountInput(amount);
             const platformTipInCents = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+            if (platformTipInCents < 0) {
+              throw new ValidationFailed('Platform tip amount cannot be negative');
+            }
             const totalAmount = amountInCents + platformTipInCents;
             order.set('totalAmount', totalAmount);
           }
@@ -830,6 +836,9 @@ const orderMutations = {
           }
           if (!isNil(platformTip)) {
             const platformTipInCents = getValueInCentsFromAmountInput(platformTip);
+            if (platformTipInCents < 0) {
+              throw new ValidationFailed('Platform tip amount cannot be negative');
+            }
             order.set('platformTipAmount', platformTipInCents);
           }
           if (!isNil(hostFeePercent)) {
@@ -1576,6 +1585,9 @@ const orderMutations = {
       const tax = !isUndefined(args.order.tax) ? args.order.tax : order.data?.tax;
       const platformTip = args.order.platformTipAmount;
       const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+      if (platformTipAmount < 0) {
+        throw new ValidationFailed('Platform tip amount cannot be negative');
+      }
 
       const valuesByRole = {
         ...(order.data?.valuesByRole || {}),
