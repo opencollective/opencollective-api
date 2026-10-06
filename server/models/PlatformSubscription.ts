@@ -1,5 +1,5 @@
 import DataLoader from 'dataloader';
-import { keyBy, sum } from 'lodash';
+import { keyBy, round, sum, uniq } from 'lodash';
 import moment from 'moment';
 import {
   BelongsToGetAssociationMixin,
@@ -393,22 +393,43 @@ class PlatformSubscription extends Model<
     const crowdfunding: Billing['crowdfunding'] = { totalAmount: 0, feePercent: 0, fee: 0 };
     const tipsOffSubscriptions = subscriptions.filter(sub => sub.plan.pricing?.platformTips === false);
     if (tipsOffSubscriptions.length > 0) {
-      // Like the additional utilization pricing above, the latest plan sets the rate
-      const feePercent = tipsOffSubscriptions[0].plan.pricing.crowdfundingFeePercent ?? CROWDFUNDING_FEE_PERCENT;
-      if (feePercent) {
-        let amount = 0;
-        for (const sub of tipsOffSubscriptions) {
-          const [subBillingStart, subBillingEnd] = sub.overlapWith(billingPeriod);
-          amount += await PlatformSubscription.sumCrowdfundingContributions(
-            collectiveId,
-            subBillingStart,
-            subBillingEnd,
-          );
+      // A single FX date for the whole bill: the end of the billing period (capped to today for the
+      // current period), so that recomputing a past bill gives the same amounts
+      const billingPeriodEnd = PlatformSubscription.periodEndDate(
+        PlatformSubscription.getBillingPeriodRange(billingPeriod),
+      );
+      const fxDate = moment.min(moment.utc(billingPeriodEnd), moment.utc()).toDate();
+      // Each subscription window is charged at its own plan's rate
+      const feePercents: number[] = [];
+      let amount = 0;
+      let fee = 0;
+      for (const sub of tipsOffSubscriptions) {
+        const feePercent = sub.plan.pricing.crowdfundingFeePercent ?? CROWDFUNDING_FEE_PERCENT;
+        if (!feePercent) {
+          continue;
         }
+
+        const [subBillingStart, subBillingEnd] = sub.overlapWith(billingPeriod);
+        const subAmount = await PlatformSubscription.sumCrowdfundingContributions(
+          collectiveId,
+          subBillingStart,
+          subBillingEnd,
+          fxDate,
+        );
+        feePercents.push(feePercent);
+        amount += subAmount;
+        fee += (subAmount * feePercent) / 100;
+      }
+
+      if (feePercents.length > 0) {
         // Refunds can make the net amount negative, never credit the organization for those
         crowdfunding.totalAmount = Math.max(0, amount);
-        crowdfunding.feePercent = feePercent;
-        crowdfunding.fee = Math.max(0, roundCentsAmount((amount * feePercent) / 100, 'USD'));
+        crowdfunding.fee = Math.max(0, roundCentsAmount(fee, 'USD'));
+        // When the rate changed during the period, report the effective rate so that it matches the fee
+        crowdfunding.feePercent =
+          uniq(feePercents).length === 1 || !crowdfunding.totalAmount
+            ? feePercents[0]
+            : round((crowdfunding.fee * 100) / crowdfunding.totalAmount, 2);
       }
     }
 
@@ -465,9 +486,14 @@ class PlatformSubscription extends Model<
    * (inclusive), net of refunds recorded in the same window. Only contributions whose order was
    * not subject to platform tips are counted, so host-created pending contributions (expected
    * funds) and added funds never count while orders still carrying a tip are not double charged.
-   * Returns the total in USD cents.
+   * Returns the total in USD cents, converted with the FX rates of `fxDate`.
    */
-  static async sumCrowdfundingContributions(collectiveId: number, startDate: Date, endDate: Date): Promise<number> {
+  static async sumCrowdfundingContributions(
+    collectiveId: number,
+    startDate: Date,
+    endDate: Date,
+    fxDate: Date,
+  ): Promise<number> {
     const rows: { currency: SupportedCurrency; amount: string }[] = await sequelize.query(
       `
       SELECT t."hostCurrency" AS "currency", SUM(t."amountInHostCurrency") AS "amount"
@@ -496,7 +522,7 @@ class PlatformSubscription extends Model<
     );
 
     const amounts = await Promise.all(
-      rows.map(row => convertToCurrency(parseInt(row.amount, 10) || 0, row.currency, 'USD')),
+      rows.map(row => convertToCurrency(parseInt(row.amount, 10) || 0, row.currency, 'USD', fxDate)),
     );
 
     return roundCentsAmount(sum(amounts), 'USD');

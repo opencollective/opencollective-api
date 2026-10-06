@@ -1577,6 +1577,23 @@ describe('server/models/PlatformSubscriptions', () => {
         expect(billing.crowdfunding).to.deep.equal({ totalAmount: 4000, feePercent: 5, fee: 200 });
       });
 
+      it('charges each subscription window at its own rate', async () => {
+        const { admin, host, contribution } = await fakeCrowdfundedHost(tipsOffPlan);
+        await PlatformSubscription.replaceCurrentSubscription(
+          host,
+          new Date(Date.UTC(2016, 0, 15)),
+          { ...tipsOffPlan, pricing: { ...tipsOffPlan.pricing, crowdfundingFeePercent: 10 } },
+          admin,
+        );
+
+        await fakeTransaction({ ...contribution, amount: 10000, createdAt: new Date(Date.UTC(2016, 0, 10)) });
+        await fakeTransaction({ ...contribution, amount: 4000, createdAt: new Date(Date.UTC(2016, 0, 20)) });
+
+        // 5% of $100 + 10% of $40, reported as the effective rate
+        const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+        expect(billing.crowdfunding).to.deep.equal({ totalAmount: 14000, feePercent: 6.43, fee: 900 });
+      });
+
       it('never credits the organization when refunds exceed contributions', async () => {
         const { host, contribution } = await fakeCrowdfundedHost(tipsOffPlan);
 
