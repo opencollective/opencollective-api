@@ -219,6 +219,43 @@ const isHostAccountant = async (req: express.Request, expense: Expense): Promise
   return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.collective.HostCollectiveId);
 };
 
+/**
+ * Host admins/accountants must keep access to payout method details of past expenses, even if the
+ * collective/project was archived (host ids wiped) or inherits its host from its parent.
+ */
+const isHostAdminOrAccountantIncludingInheritedHost = async (
+  req: express.Request,
+  expense: Expense,
+): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  }
+
+  if (!expense.collective) {
+    expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+    if (!expense.collective) {
+      return false;
+    }
+  }
+
+  const hostIds = new Set<number>();
+  const addHostId = id => id && hostIds.add(id);
+  addHostId(expense.HostCollectiveId);
+  addHostId(expense.collective.HostCollectiveId);
+  if (expense.collective.ParentCollectiveId) {
+    const parent = await req.loaders.Collective.byId.load(expense.collective.ParentCollectiveId);
+    addHostId(parent?.HostCollectiveId);
+  }
+  addHostId(await Collective.getHostCollectiveId(expense.collective.ParentCollectiveId || expense.CollectiveId));
+
+  for (const hostId of hostIds) {
+    if (req.remoteUser.isAdmin(hostId) || req.remoteUser.hasRole(roles.ACCOUNTANT, hostId)) {
+      return true;
+    }
+  }
+  return false;
+};
+
 const isCollectiveOrHostAccountant = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
@@ -457,6 +494,7 @@ export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator
     isOwnerAccountant,
     isHostAdmin,
     isHostAccountant,
+    isHostAdminOrAccountantIncludingInheritedHost,
     isAdminOrAccountantOfHostWhoPaidExpense,
     isAdminOfCollectiveWithPermissivePayoutMethodPermissions, // Some fiscal hosts rely on the collective admins to do some verifications on the payout method
     isAdminOfCollectiveAndExpenseIsAVirtualCardButNotManuallyCreated, // Virtual cards are created by the collective admins, but manually created ones are managed by host admins
