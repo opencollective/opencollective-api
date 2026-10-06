@@ -218,7 +218,6 @@ export const notifyByEmail = async (activity: Activity) => {
 
     case ActivityTypes.OAUTH_APPLICATION_AUTHORIZED:
     case ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED:
-    case ActivityTypes.USER_CARD_CLAIMED:
     case ActivityTypes.EXPORT_REQUEST_COMPLETED:
     case ActivityTypes.EXPORT_REQUEST_FAILED:
       await notify.user(activity);
@@ -290,10 +289,6 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     // Custom Notification Logic
-    case ActivityTypes.USER_CARD_INVITED:
-      emailLib.send(activity.type, activity.data.email, activity.data);
-      break;
-
     case ActivityTypes.TICKET_CONFIRMED: {
       const user = await models.User.findByPk(activity.UserId);
       const event = await models.Collective.findByPk(activity.data.EventCollectiveId, {

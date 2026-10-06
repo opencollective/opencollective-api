@@ -33,27 +33,6 @@ import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { CollectiveInterfaceType } from './CollectiveInterface';
 import { TransactionInterfaceType } from './TransactionInterface';
 
-/**
- * Take a graphql type and return a wrapper type that adds pagination. The pagination
- * object has limit, offset and total keys to manage pages and stores the result
- * of the query under the `values` key.
- *
- * @param {object} GraphQL type to paginate
- * @param {string} The name of the type, used to generate name and description.
- */
-const paginatedList = (type, typeName, valuesKey = 'nodes') => {
-  return new GraphQLObjectType({
-    name: `Paginated${typeName}`,
-    description: `A list of ${typeName} with pagination info`,
-    fields: {
-      [valuesKey]: { type: new GraphQLList(type) },
-      total: { type: GraphQLInt },
-      limit: { type: GraphQLInt },
-      offset: { type: GraphQLInt },
-    },
-  });
-};
-
 export const DateString = new GraphQLScalarType({
   name: 'DateString',
   serialize: value => {
@@ -1354,18 +1333,3 @@ export const SubscriptionType = new GraphQLObjectType({
     };
   },
 });
-
-export const PaymentMethodBatchInfo = new GraphQLObjectType({
-  name: 'PaymentMethodBatchInfo',
-  description: 'Provides rich information about a payment methods batch',
-  fields: () => ({
-    id: { type: new GraphQLNonNull(GraphQLString) }, // For caching
-    count: { type: new GraphQLNonNull(GraphQLInt) },
-    name: {
-      type: GraphQLString,
-      description: 'The batch name, or null for unbatched payment methods',
-    },
-  }),
-});
-
-export const PaginatedPaymentMethodsType = paginatedList(PaymentMethodType, 'PaymentMethod', 'paymentMethods');

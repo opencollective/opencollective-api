@@ -63,9 +63,6 @@ enum FEATURE {
   /** Whether an account can add and use payment methods */
   USE_PAYMENT_METHODS = 'USE_PAYMENT_METHODS',
 
-  /** Whether an account can emit gift cards */
-  EMIT_GIFT_CARDS = 'EMIT_GIFT_CARDS',
-
   /** @deprecated Whether an account tweak email notifications or not */
   EMAIL_NOTIFICATIONS_PANEL = 'EMAIL_NOTIFICATIONS_PANEL',
 
