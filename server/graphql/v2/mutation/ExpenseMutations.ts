@@ -34,6 +34,7 @@ import {
   canEditPaidBy,
   canPayExpense,
   canVerifyDraftExpense,
+  checkCanCreateExpenseForCollective,
   checkCanReceiveExpense,
   checkExpenseType,
   createExpense,
@@ -727,6 +728,7 @@ const expenseMutations = {
       });
 
       checkCanReceiveExpense(collective);
+      checkCanCreateExpenseForCollective(collective, remoteUser);
 
       const collectiveWithAccounts = await models.Collective.findByPk(collective.id, {
         include: [

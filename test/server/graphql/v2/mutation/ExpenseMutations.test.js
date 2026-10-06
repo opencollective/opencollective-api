@@ -8010,6 +8010,190 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
   });
 
+  describe('restricted collective (disablePublicExpenseSubmission)', () => {
+    let sandbox;
+
+    before(() => {
+      sandbox = createSandbox();
+      sandbox.stub(emailLib, 'sendMessage').resolves();
+    });
+
+    after(() => {
+      sandbox.restore();
+    });
+
+    const draftInviteMutation = gql`
+      mutation DraftExpenseAndInviteUser(
+        $expense: ExpenseInviteDraftInput!
+        $account: AccountReferenceInput!
+        $skipInvite: Boolean
+      ) {
+        draftExpenseAndInviteUser(expense: $expense, account: $account, skipInvite: $skipInvite) {
+          id
+          legacyId
+          status
+          draft
+        }
+      }
+    `;
+
+    const getValidCreateData = payeeCollectiveId => ({
+      description: 'A valid expense',
+      type: 'INVOICE',
+      payoutMethod: { type: 'PAYPAL', data: { email: randEmail(), currency: 'USD' } },
+      payeeLocation: { address: '123 Potatoes street', country: 'BE' },
+      payee: { legacyId: payeeCollectiveId },
+      items: [{ description: 'A first item', amount: 4200 }],
+    });
+
+    const getDraftInviteData = payeeEmail => ({
+      description: 'A valid draft invite',
+      type: 'INVOICE',
+      payee: { name: 'Invited Payee', email: payeeEmail },
+      items: [{ amount: 4200, incurredAt: '2020-10-08', description: 'Item' }],
+      payeeLocation: { address: '123 Potatoes street', country: 'BE' },
+      currency: 'USD',
+    });
+
+    const makeRestrictedCollective = async (extra = {}) => {
+      return fakeCollective({ settings: { disablePublicExpenseSubmission: true }, ...extra });
+    };
+
+    it('rejects non-member createExpense when public submission is disabled', async () => {
+      const collective = await makeRestrictedCollective();
+      const nonMember = await fakeUser();
+      await nonMember.populateRoles();
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        {
+          expense: getValidCreateData(nonMember.CollectiveId),
+          account: { legacyId: collective.id },
+        },
+        nonMember,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('You must be a member of the collective to create new expense');
+    });
+
+    it('rejects non-member draftExpenseAndInviteUser under the same setting', async () => {
+      const collective = await makeRestrictedCollective();
+      const nonMember = await fakeUser();
+      await nonMember.populateRoles();
+      const result = await graphqlQueryV2(
+        draftInviteMutation,
+        {
+          expense: getDraftInviteData(randEmail()),
+          account: { legacyId: collective.id },
+          skipInvite: true,
+        },
+        nonMember,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('You must be a member of the collective to create new expense');
+    });
+
+    it('allows collective admin, host admin and root users to create drafts', async () => {
+      // Collective admin
+      const collectiveAdmin = await fakeUser();
+      await collectiveAdmin.populateRoles();
+      const adminCollective = await makeRestrictedCollective({ admin: collectiveAdmin.collective });
+      await collectiveAdmin.populateRoles({ force: true });
+      const adminResult = await graphqlQueryV2(
+        draftInviteMutation,
+        {
+          expense: getDraftInviteData(randEmail()),
+          account: { legacyId: adminCollective.id },
+          skipInvite: true,
+        },
+        collectiveAdmin,
+      );
+      expect(adminResult.errors).to.not.exist;
+      expect(adminResult.data.draftExpenseAndInviteUser.status).to.eq(expenseStatus.DRAFT);
+
+      // Host admin
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin.collective });
+      await hostAdmin.populateRoles({ force: true });
+      const hostedCollective = await makeRestrictedCollective({ HostCollectiveId: host.id });
+      const hostResult = await graphqlQueryV2(
+        draftInviteMutation,
+        {
+          expense: getDraftInviteData(randEmail()),
+          account: { legacyId: hostedCollective.id },
+          skipInvite: true,
+        },
+        hostAdmin,
+      );
+      expect(hostResult.errors).to.not.exist;
+      expect(hostResult.data.draftExpenseAndInviteUser.status).to.eq(expenseStatus.DRAFT);
+
+      // Root user
+      const rootUser = await fakeUser({ data: { isRoot: true } });
+      const platform = await getOrCreatePlatformAccount();
+      await platform.addUserWithRole(rootUser, 'ADMIN');
+      await rootUser.populateRoles({ force: true });
+      const rootCollective = await makeRestrictedCollective();
+      const rootResult = await graphqlQueryV2(
+        draftInviteMutation,
+        {
+          expense: getDraftInviteData(randEmail()),
+          account: { legacyId: rootCollective.id },
+          skipInvite: true,
+        },
+        rootUser,
+      );
+      expect(rootResult.errors).to.not.exist;
+      expect(rootResult.data.draftExpenseAndInviteUser.status).to.eq(expenseStatus.DRAFT);
+    });
+
+    it('allows an authorized member to invite a non-member who can submit with the draft key', async () => {
+      const memberUser = await fakeUser();
+      const collective = await makeRestrictedCollective();
+      await collective.addUserWithRole(memberUser, 'MEMBER');
+      await memberUser.populateRoles({ force: true });
+
+      const payeeEmail = randEmail();
+      const draftResult = await graphqlQueryV2(
+        draftInviteMutation,
+        {
+          expense: getDraftInviteData(payeeEmail),
+          account: { legacyId: collective.id },
+          skipInvite: true,
+        },
+        memberUser,
+      );
+
+      expect(draftResult.errors).to.not.exist;
+      const draftedExpense = await models.Expense.findByPk(draftResult.data.draftExpenseAndInviteUser.legacyId);
+      expect(draftedExpense.status).to.eq(expenseStatus.DRAFT);
+      expect(draftedExpense.UserId).to.eq(memberUser.id);
+      const draftKey = draftedExpense.data.draftKey;
+      expect(draftKey).to.exist;
+
+      const submitter = await fakeUser();
+      const submitResult = await graphqlQueryV2(
+        editExpenseMutation,
+        {
+          expense: {
+            id: idEncode(draftedExpense.id, IDENTIFIER_TYPES.EXPENSE),
+            description: 'Submitted by invitee',
+            payee: { name: 'Invited Payee', email: payeeEmail },
+            payoutMethod: { type: 'PAYPAL', data: { email: randEmail(), currency: 'USD' } },
+            items: [{ amount: 4200, incurredAt: '2020-10-08T00:00:00.000Z', description: 'Item' }],
+          },
+          draftKey,
+        },
+        submitter,
+      );
+
+      expect(submitResult.errors).to.not.exist;
+      await draftedExpense.reload();
+      expect(draftedExpense.status).to.eq(expenseStatus.PENDING);
+    });
+  });
+
   describe('createExpenseStripePaymentIntent', () => {
     let sandbox;
 
