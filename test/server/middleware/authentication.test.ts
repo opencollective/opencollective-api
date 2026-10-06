@@ -397,7 +397,8 @@ describe('server/middleware/authentication', () => {
       expect(hasValidServiceKey(req)).to.be.true;
     });
 
-    it('still reads the legacy places: api_key in the query or the body', () => {
+    it('still reads the legacy places: api_key in the query or the body, the GraphQL URL path', () => {
+      expect(hasValidServiceKey({ ...fakeRequest({}), apiKey: key() })).to.be.true;
       // eslint-disable-next-line camelcase
       expect(hasValidServiceKey(fakeRequest({ query: { api_key: key() } }))).to.be.true;
       // eslint-disable-next-line camelcase
@@ -414,11 +415,11 @@ describe('server/middleware/authentication', () => {
 
   describe('authorizeClient', () => {
     it('should allow requests with valid API key in header', async () => {
-      // Note: checkPersonalToken runs before authorizeClient, so if the API key
-      // is not a personal token, it will be rejected. API keys should be passed
-      // in query params or body, not headers, to avoid checkPersonalToken.
+      // checkPersonalToken tries Api-Key as a personal token first, then leaves it to
+      // authorizeClient, which accepts the service key
       const response = await request(expressApp)
-        .get(`/status?api_key=${config.keys.opencollective.apiKey}`)
+        .get('/status')
+        .set('Api-Key', config.keys.opencollective.apiKey)
         .expect(200);
 
       expect(response.body.status).to.equal('ok');
@@ -481,10 +482,40 @@ describe('server/middleware/authentication', () => {
     it('should reject requests with invalid API key', async () => {
       const response = await request(expressApp).get('/status').set('Api-Key', 'invalid-key').expect(401);
 
-      expect(response.body.error).to.exist;
-      // Invalid API key should be rejected, but checkPersonalToken runs first
-      // so it might try to validate as personal token first
-      expect(response.body.error.message).to.match(/Invalid (API key|Personal Token)/);
+      // Neither a personal token nor the service key: rejected by authorizeClient
+      expect(response.body.error.message).to.equal('Invalid API key: invalid-key');
+    });
+
+    it('should still authenticate a Personal Token sent as Api-Key', async () => {
+      const user = await fakeUser();
+      const personalToken = await fakePersonalToken({ user });
+
+      const response = await request(expressApp).get('/status').set('Api-Key', personalToken.token).expect(200);
+
+      expect(response.body.authenticated).to.be.true;
+    });
+
+    it('should authenticate a Personal-Token sent with the service key as Api-Key', async () => {
+      const user = await fakeUser();
+      const personalToken = await fakePersonalToken({ user });
+
+      const response = await request(expressApp)
+        .get('/status')
+        .set('Personal-Token', personalToken.token)
+        .set('Api-Key', config.keys.opencollective.apiKey)
+        .expect(200);
+
+      expect(response.body.authenticated).to.be.true;
+    });
+
+    it('should reject an invalid Personal-Token even with the service key', async () => {
+      const response = await request(expressApp)
+        .get('/status')
+        .set('Personal-Token', 'invalid-token')
+        .set('Service-Key', config.keys.opencollective.apiKey)
+        .expect(401);
+
+      expect(response.body.error.message).to.include('Invalid Personal Token');
     });
 
     it('should allow requests with valid Personal Token (bypasses API key)', async () => {

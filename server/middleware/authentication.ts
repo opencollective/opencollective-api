@@ -423,6 +423,15 @@ function buildGitHubCallbackUrl(context?: string, CollectiveId?: string): string
 
 /**
  * Check Personal Token
+ *
+ * Two kinds of places carry a personal token:
+ * - `Personal-Token` header / `personalToken` query parameter: explicitly a personal token.
+ *   Strict: a value that isn't a valid personal token is rejected (401).
+ * - `Api-Key` header / `apiKey` query parameter / the key in the GraphQL URL path: legacy
+ *   places shared with the service key (see `getServiceKey`). They're tried as a personal
+ *   token for compatibility, but a value that isn't one is left to `authorizeClient`, which
+ *   accepts the service key and rejects anything else (401 "Invalid API key"). That lets our
+ *   services keep sending the service key as `Api-Key` while they move to `Service-Key`.
  */
 export async function checkPersonalToken(req: Request, res: Response, next: NextFunction) {
   const apiKey = req.get('Api-Key') || req.query.apiKey || req.apiKey;
@@ -436,8 +445,9 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
       return next(new errors.ValidationFailed(undefined, 'token', 'Please provide a single token'));
     }
 
+    // The explicit Personal-Token first: a legacy Api-Key sent along may be the service key
     const personalToken = await models.PersonalToken.findOne({
-      where: { token: apiKey || token },
+      where: { token: token || apiKey },
       include: [
         {
           association: 'user',
@@ -478,7 +488,7 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
       req.remoteUser = personalToken.user;
 
       if (!req.remoteUser.isAdminOfCollective(personalToken.collective)) {
-        next(new Unauthorized(`Invalid personal token for collective: ${apiKey || token}`));
+        next(new Unauthorized(`Invalid personal token for collective: ${token || apiKey}`));
         return;
       } else if (req.remoteUser.isLimited()) {
         next(new Unauthorized(`Your account has been limited. Please contact support to reactivate it.`));
@@ -487,10 +497,15 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
 
       await req.remoteUser.populateRoles();
       next();
+    } else if (!token) {
+      // Only a legacy Api-Key / apiKey, and it's not a personal token: it may be the service
+      // key, authorizeClient decides (see above)
+      debug('Api Key is not a Personal Token, left to authorizeClient');
+      next();
     } else {
       clearRedirectCookie(res);
-      debug(`Invalid Personal Token (Api Key): ${apiKey || token}`);
-      next(new Unauthorized(`Invalid Personal Token (Api Key): ${apiKey || token}`));
+      debug(`Invalid Personal Token: ${token}`);
+      next(new Unauthorized(`Invalid Personal Token (Api Key): ${token}`));
     }
   } else {
     clearRedirectCookie(res);
@@ -508,12 +523,12 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
  *
  * Where a service can send it, in order:
  * - the `Service-Key` header: the preferred way. Headers don't end up in URLs, so the key
- *   stays out of router and access logs. It has its own name because `Api-Key` is also
- *   read by `checkPersonalToken`, which runs first and looks it up as a personal token:
- *   the service key isn't one, so a request sending it as `Api-Key` fails with 401;
- * - `api_key` (or `apiKey`) in the query string, or `api_key` in the body: the legacy
- *   ways, still accepted;
- * - the `Api-Key` header: kept for compatibility, see above.
+ *   stays out of router and access logs. It has its own name so it's never mistaken for a
+ *   personal token, unlike `Api-Key`, which also carries personal tokens;
+ * - `api_key` (or `apiKey`) in the query string, `api_key` in the body, or the key in the
+ *   GraphQL URL path (`/graphql/v2/<key>`): the legacy ways, still accepted;
+ * - the `Api-Key` header: kept for compatibility. `checkPersonalToken` tries it as a
+ *   personal token first, and leaves it here when it isn't one.
  *
  * @returns the key the request carries, or undefined. Only one value: a key repeated in the
  *   query string (an array) isn't taken.
@@ -521,7 +536,8 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
 export function getServiceKey(req: Request): string | undefined {
   const query = req.query || {};
   const body = req.body || {};
-  const serviceKey = req.get('Service-Key') || req.get('Api-Key') || query.apiKey || query.api_key || body.api_key;
+  const serviceKey =
+    req.get('Service-Key') || req.get('Api-Key') || query.apiKey || query.api_key || body.api_key || req.apiKey;
   return typeof serviceKey === 'string' ? serviceKey : undefined;
 }
 
