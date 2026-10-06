@@ -3815,12 +3815,14 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
 
       it('rejects a negative platform tip amount', async () => {
+        await order2.reload();
         const totalAmountBefore = order2.totalAmount;
+        const platformTipAmountBefore = order2.platformTipAmount;
         const result = await graphqlQueryV2(
           updateOrderMutation,
           {
             order: { id: idEncode(order2.id, 'order') },
-            platformTipAmount: { valueInCents: -100, currency: 'USD' },
+            platformTipAmount: { valueInCents: -100, currency: order2.currency },
           },
           user,
         );
@@ -3829,6 +3831,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
         await order2.reload();
         expect(order2.totalAmount).to.eq(totalAmountBefore);
+        expect(order2.platformTipAmount).to.eq(platformTipAmountBefore);
       });
 
       it('rejects amount/tier change for PayPal-managed subscription without paypalSubscriptionId', async () => {

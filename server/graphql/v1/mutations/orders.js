@@ -305,6 +305,10 @@ export async function createOrder(order, req) {
       throw new ValidationFailed('Quantity must be at least 1');
     }
 
+    if (order.platformTipAmount < 0) {
+      throw new ValidationFailed('Platform tip amount cannot be negative');
+    }
+
     let tier;
     if (order.tier) {
       tier = await models.Tier.findByPk(order.tier.id);
@@ -444,10 +448,6 @@ export async function createOrder(order, req) {
     // ---- Checks on totalAmount ----
     if (order.totalAmount < 0 || isNil(order.totalAmount)) {
       throw new Error(`Invalid total amount: ${order.totalAmount}`);
-    }
-
-    if (order.platformTipAmount < 0) {
-      throw new ValidationFailed('Platform tip amount cannot be negative');
     }
 
     const tipAmount = order.platformTipAmount || 0;
