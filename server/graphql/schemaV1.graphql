@@ -4376,26 +4376,6 @@ type Mutation {
     """
     notifications: [NotificationInputType]
   ): [NotificationType]
-
-  """
-  Activate a collective as Host.
-  """
-  activateCollectiveAsHost(
-    """
-    ID of the collective (Organization or User)
-    """
-    id: Int!
-  ): CollectiveInterface
-
-  """
-  Deactivate a collective as Host.
-  """
-  deactivateCollectiveAsHost(
-    """
-    ID of the collective (Organization or User)
-    """
-    id: Int!
-  ): CollectiveInterface
 }
 
 """
