@@ -5,6 +5,7 @@ import { pick } from 'lodash';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
+import { checkRemoteUserCanUseApplications } from '../../common/scope-check';
 import { Unauthorized } from '../../errors';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
@@ -62,6 +63,7 @@ export const GraphQLHostApplication = new GraphQLObjectType({
     },
     message: {
       type: GraphQLString,
+      description: 'The application message. Scope: "applications".',
       async resolve(application, _, req) {
         if (
           !req.remoteUser?.isAdmin(application.HostCollectiveId) &&
@@ -71,17 +73,20 @@ export const GraphQLHostApplication = new GraphQLObjectType({
             'You need to be logged in as an admin of the host or the collective to see the host application message',
           );
         }
+        checkRemoteUserCanUseApplications(req);
         return application.message;
       },
     },
     customData: {
       type: GraphQLJSON,
+      description: 'Application custom data. Unfiltered for admins with scope "applications", allow-listed otherwise.',
       async resolve(application, _, req) {
         // Unfiltered
         if (
           req.remoteUser?.isAdmin(application.HostCollectiveId) ||
           req.remoteUser?.isAdmin(application.CollectiveId)
         ) {
+          checkRemoteUserCanUseApplications(req);
           return application.customData;
         }
         // Allow-list to support the OSC / GitHub case
@@ -91,7 +96,7 @@ export const GraphQLHostApplication = new GraphQLObjectType({
     comments: {
       type: CommentCollection,
       description:
-        'Returns the list of comments for this host application, or `null` if user is not allowed to see them',
+        'Returns the list of comments for this host application, or `null` if user is not allowed to see them. Scope: "applications".',
       args: {
         ...CollectionArgs,
         orderBy: {
@@ -106,6 +111,7 @@ export const GraphQLHostApplication = new GraphQLObjectType({
         ) {
           return null;
         }
+        checkRemoteUserCanUseApplications(req);
 
         const type = [CommentType.COMMENT];
         if (req.remoteUser?.isAdmin(hostApplication.HostCollectiveId)) {
