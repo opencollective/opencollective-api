@@ -529,7 +529,6 @@ export const fakePayoutMethod = async ({
     } else if (type === PayoutMethodTypes.STRIPE) {
       return {
         stripeAccountId: 'stripeAccountId',
-        connectedAccountId: 'connectedAccountId',
         ...data,
       };
     } else if (type === PayoutMethodTypes.CREDIT_CARD) {
@@ -543,6 +542,10 @@ export const fakePayoutMethod = async ({
   };
 
   type = type || PayoutMethodTypes.PAYPAL;
+  CollectiveId = CollectiveId || (await fakeCollective()).id;
+  if (type === PayoutMethodTypes.STRIPE && !props.ConnectedAccountId) {
+    props.ConnectedAccountId = (await fakeConnectedAccount({ service: 'stripe', CollectiveId }, { hooks: false })).id;
+  }
   return models.PayoutMethod.create({
     name: randStr('Fake Payout Method '),
     data: generateData(type),
