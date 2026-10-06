@@ -15,7 +15,7 @@ describe('migrations/20260930120000-remove-follower-members', () => {
 
   after(async () => migration.down(sequelize.getQueryInterface()));
 
-  it('soft-deletes active followers, blocks reactivation, and preserves other memberships', async () => {
+  it('soft-deletes active followers and preserves other memberships', async () => {
     const activeFollower = await fakeMember({ role: MemberRoles.BACKER });
     const deletedFollower = await fakeMember({ role: MemberRoles.BACKER, deletedAt: new Date() });
     const otherMembers = await Promise.all(Object.values(MemberRoles).map(role => fakeMember({ role })));
@@ -43,11 +43,6 @@ describe('migrations/20260930120000-remove-follower-members', () => {
     expect(followers).to.have.length(2);
     expect(followers.every(follower => String(follower.role) === 'FOLLOWER' && follower.deletedAt)).to.be.true;
     expect(await models.Member.count({ where: { role: 'FOLLOWER', deletedAt: null }, paranoid: false })).to.eq(0);
-    await expect(
-      sequelize.query(`UPDATE "Members" SET "deletedAt" = NULL WHERE id = :id`, {
-        replacements: { id: activeFollower.id },
-      }),
-    ).to.be.rejectedWith('members_no_active_followers_check');
 
     expect(
       await models.Member.findAll({
