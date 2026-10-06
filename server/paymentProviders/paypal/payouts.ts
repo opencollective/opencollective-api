@@ -92,10 +92,16 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
   let parsedErrorResponse: PayoutError | undefined;
   try {
     response = await paypal.executePayouts(connectedAccount, requestBody);
+    // Detect and throw parsed PayoutError
     if (!('batch_header' in response) && 'name' in response) {
       parsedErrorResponse = response;
       throw response;
     }
+    // Safeguard against unexpected responses.
+    assert(
+      'batch_header' in response && response.batch_header.payout_batch_id,
+      'PayPal Payouts response failed to return batch_header',
+    );
   } catch (error) {
     reportErrorToSentry(error, { feature: FEATURE.PAYPAL_PAYOUTS });
     // Parsed PayPal error responses are persisted as-is so their structured `details` items reach
@@ -123,10 +129,6 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
     return Promise.all(updateExpenses);
   }
 
-  assert(
-    'batch_header' in response && response.batch_header.payout_batch_id,
-    'PayPal Payouts response failed to return batch_header',
-  );
   const updateExpenses = expenses.map(async e => {
     await e.update({ data: { ...e.data, ...response.batch_header }, status: status.PROCESSING });
     const user = await models.User.findByPk(e.lastEditedById);

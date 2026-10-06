@@ -198,15 +198,19 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       expect(errorActivities[0].data.error).to.deep.equal(payoutError);
     });
 
-    it('should throw when executePayouts returns an unexpected response', async () => {
+    it('should mark expenses as ERROR and record an activity when executePayouts returns an unexpected response', async () => {
       paypalLib.executePayouts.resolves({ unexpected: 'response' });
 
-      await expect(paypalPayouts.payExpensesBatch([expense])).to.be.rejectedWith(
+      await paypalPayouts.payExpensesBatch([expense]);
+      await expense.reload();
+
+      expect(expense).to.have.property('status', status.ERROR);
+      const errorActivities = await expense.getActivities({ where: { type: 'collective.expense.error' } });
+      expect(errorActivities).to.have.length(1);
+      expect(errorActivities[0].data.error).to.have.property(
+        'message',
         'PayPal Payouts response failed to return batch_header',
       );
-
-      await expense.reload();
-      expect(expense).to.have.property('status', status.SCHEDULED_FOR_PAYMENT);
     });
   });
 
