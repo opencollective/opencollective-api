@@ -28545,11 +28545,6 @@ type Mutation {
   ): Account!
 
   """
-  Send In-App Survey response
-  """
-  sendSurveyResponse(surveyKey: String!, responseId: String!, score: Int!, text: String, okToContact: Boolean): Boolean
-
-  """
   Requests an account to be verified using a KYC provider
   """
   requestKYCVerification(

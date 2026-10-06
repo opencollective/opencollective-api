@@ -32,7 +32,6 @@ import personalTokenMutations from './PersonalTokenMutations';
 import { plaidMutations } from './PlaidMutations';
 import platformSubscriptionMutations from './PlatformSubscriptionsMutations';
 import rootMutations from './RootMutations';
-import { sendSurveyResponseMutation } from './SendSurveyResponseMutation';
 import socialLinkMutations from './SocialLinkMutations';
 import { stripeMutations } from './StripeMutations';
 import tagMutations from './TagMutations';
@@ -92,7 +91,6 @@ const mutation = {
   ...agreementMutations,
   ...vendorMutations,
   ...platformSubscriptionMutations,
-  sendSurveyResponse: sendSurveyResponseMutation,
   ...kycMutations,
 };
 
