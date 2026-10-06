@@ -71,10 +71,42 @@ describe('server/lib/url-validation', () => {
       const envStub = stub(config, 'env').value('production');
       try {
         expect(areHttpRedirectUrisAllowed()).to.equal(false);
-        expect(() => assertOAuthRedirectUri('http://localhost:3000/callback'))
+        expect(() => assertOAuthRedirectUri('http://example.com/callback'))
           .to.throw(ValidationFailed)
-          .with.property('message', 'URL must use HTTPS: http://localhost:3000/callback');
+          .with.property('message', 'URL must use HTTPS: http://example.com/callback');
         expect(assertOAuthRedirectUri('https://example.com/callback')).to.equal('https://example.com/callback');
+      } finally {
+        envStub.restore();
+      }
+    });
+
+    it('allows http loopback redirect URIs in production', () => {
+      const envStub = stub(config, 'env').value('production');
+      try {
+        expect(assertOAuthRedirectUri('http://localhost:5173/auth/callback')).to.equal(
+          'http://localhost:5173/auth/callback',
+        );
+        expect(assertOAuthRedirectUri('http://127.0.0.1:8080/callback')).to.equal('http://127.0.0.1:8080/callback');
+        expect(assertOAuthRedirectUri('http://[::1]:8080/callback')).to.equal('http://[::1]:8080/callback');
+      } finally {
+        envStub.restore();
+      }
+    });
+
+    it('rejects http hosts that only look like loopback in production', () => {
+      const envStub = stub(config, 'env').value('production');
+      try {
+        const invalid = [
+          'http://localhost.example.com/callback',
+          'http://127.0.0.1.example.com/callback',
+          'http://localhost@example.com/callback',
+          'http://example.com/localhost',
+        ];
+        for (const value of invalid) {
+          expect(() => assertOAuthRedirectUri(value))
+            .to.throw(ValidationFailed)
+            .with.property('message', `URL must use HTTPS: ${value}`);
+        }
       } finally {
         envStub.restore();
       }
