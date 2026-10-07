@@ -155,7 +155,7 @@ jobs:
       PG_DATABASE: opencollective_test
     services:
       redis:
-        image: redis@sha256:8aee6591ee8c2b26e9e01ad4913fbc804ea6b79a9bc675ee1824d80ea5dd9856
+        image: redis@sha256:c94085d298b738be22c9ccdc0ac3761fa6649df7dd82ad1d42367f3cb9714935
         ports:
           - 6379:6379
         options: --entrypoint redis-server
@@ -229,7 +229,7 @@ jobs:
 
     services:
       redis:
-        image: redis@sha256:8aee6591ee8c2b26e9e01ad4913fbc804ea6b79a9bc675ee1824d80ea5dd9856
+        image: redis@sha256:c94085d298b738be22c9ccdc0ac3761fa6649df7dd82ad1d42367f3cb9714935
         ports:
           - 6379:6379
         options: --entrypoint redis-server
@@ -311,7 +311,7 @@ jobs:
 
     services:
       redis:
-        image: redis@sha256:8aee6591ee8c2b26e9e01ad4913fbc804ea6b79a9bc675ee1824d80ea5dd9856
+        image: redis@sha256:c94085d298b738be22c9ccdc0ac3761fa6649df7dd82ad1d42367f3cb9714935
         ports:
           - 6379:6379
         options: --entrypoint redis-server
