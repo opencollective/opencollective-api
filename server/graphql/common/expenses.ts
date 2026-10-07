@@ -2474,6 +2474,25 @@ export const checkCanReceiveExpense = (account: Collective): void => {
   }
 };
 
+/**
+ * Enforces the `disablePublicExpenseSubmission` collective setting for expense creation.
+ * When public submission is disabled, only members of the collective, collective/host admins
+ * and root users may create expenses (including drafts).
+ * Shared by `createExpense` and `draftExpenseAndInviteUser` to keep the guards in sync.
+ */
+export const checkCanCreateExpenseForCollective = (collective: Collective, remoteUser: User): void => {
+  // If the collective has public expense submission disabled, only members can create expenses
+  const isMember = Boolean(remoteUser.rolesByCollectiveId[String(collective.id)]);
+  if (
+    collective.settings?.['disablePublicExpenseSubmission'] &&
+    !isMember &&
+    !remoteUser.isAdminOfCollectiveOrHost(collective) &&
+    !remoteUser.isRoot()
+  ) {
+    throw new Forbidden('You must be a member of the collective to create new expense');
+  }
+};
+
 export async function createExpense(
   req: express.Request,
   expenseData: ExpenseData,
@@ -2504,16 +2523,7 @@ export async function createExpense(
     throw new ValidationFailed('Payee not found');
   }
 
-  // If the collective has public expense submission disabled, only members can create expenses
-  const isMember = Boolean(remoteUser.rolesByCollectiveId[String(collective.id)]);
-  if (
-    collective.settings?.['disablePublicExpenseSubmission'] &&
-    !isMember &&
-    !remoteUser.isAdminOfCollectiveOrHost(collective) &&
-    !remoteUser.isRoot()
-  ) {
-    throw new Error('You must be a member of the collective to create new expense');
-  }
+  checkCanCreateExpenseForCollective(collective, remoteUser);
 
   // Let submitter customize the currency
   let expenseCurrency = collective.currency;

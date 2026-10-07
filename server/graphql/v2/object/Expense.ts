@@ -9,7 +9,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { findLast, pick, round, takeRightWhile, toString, uniq } from 'lodash';
+import { findLast, omit, pick, round, takeRightWhile, toString, uniq } from 'lodash';
 import { WhereOptions } from 'sequelize';
 
 import { roles } from '../../../constants';
@@ -645,6 +645,16 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
             }
 
             const draftData = pick(expense.data, draftFields);
+
+            // Keep tax IDs consistent with the structured `Expense.taxes` resolver.
+            if (Array.isArray(draftData.taxes) && !(await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense))) {
+              draftData.taxes = (draftData.taxes as ExpenseTaxDefinition[]).map(tax => {
+                if (tax && typeof tax === 'object' && 'idNumber' in tax) {
+                  return omit(tax, 'idNumber');
+                }
+                return tax;
+              });
+            }
             const items = ((expense.data.items as { url?: string }[]) || []).map(item => pick(item, itemsFields));
             for (const item of items) {
               if (item.url) {

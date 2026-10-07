@@ -297,9 +297,13 @@ export async function createOrder(order, req) {
   let orderCreated, isGuest, guestToken;
   try {
     // ---- Set defaults ----
-    order.quantity = order.quantity || 1;
+    order.quantity = order.quantity ?? 1;
     order.taxAmount = order.taxAmount || 0;
     order.collective = collective;
+
+    if (!Number.isInteger(order.quantity) || order.quantity < 1) {
+      throw new ValidationFailed('Quantity must be at least 1');
+    }
 
     let tier;
     if (order.tier) {
@@ -445,6 +449,11 @@ export async function createOrder(order, req) {
     const tipAmount = order.platformTipAmount || 0;
     const expectedGrossUnitAmount = tier?.amountType === 'FIXED' ? tier.amount || 0 : order.amount;
     const netAmountForCollective = roundCentsAmount(order.totalAmount - order.taxAmount - tipAmount, currency);
+    // A new order must never credit the collective with a negative net amount, even if
+    // `quantity × unitAmount` happens to be self-consistent with a negative quantity.
+    if (netAmountForCollective < 0) {
+      throw new ValidationFailed(`Invalid net amount for collective: ${netAmountForCollective}`);
+    }
     const expectedAmountForCollective = roundCentsAmount(order.quantity * expectedGrossUnitAmount, currency); // order.amount is always set when called from GraphQL v2
     const expectedTaxAmount = calcFee(expectedAmountForCollective, taxPercent, currency);
 

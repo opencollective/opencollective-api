@@ -492,6 +492,16 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
         });
 
+        it('rejects order with non-positive quantity', async () => {
+          let result = await callCreateOrder({ order: { ...validOrderParams, quantity: 0 } }, fromUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.include('Quantity must be at least 1');
+
+          result = await callCreateOrder({ order: { ...validOrderParams, quantity: -1 } }, fromUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.include('Quantity must be at least 1');
+        });
+
         it('cannot create an order with a credit card on behalf of a collective', async () => {
           const fromCollective = await fakeCollective({ HostCollectiveId: host.id });
           const collectiveAdmin = await fakeUser();

@@ -614,5 +614,56 @@ describe('server/graphql/v1/mutation', () => {
       const order = await models.Order.findOne({ where: { CollectiveId: collective.id } });
       expect(order.status).to.eq('REQUIRE_CLIENT_CONFIRMATION');
     });
+
+    it('rejects order with non-positive quantity', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+
+      await expect(
+        createOrder(
+          {
+            collective: { id: collective.id },
+            amount: 1000,
+            quantity: 0,
+            totalAmount: 1000,
+            currency: 'USD',
+          },
+          utils.makeRequest(user),
+        ),
+      ).to.be.rejectedWith('Quantity must be at least 1');
+
+      await expect(
+        createOrder(
+          {
+            collective: { id: collective.id },
+            amount: 1000,
+            quantity: -2,
+            totalAmount: 1000,
+            currency: 'USD',
+          },
+          utils.makeRequest(user),
+        ),
+      ).to.be.rejectedWith('Quantity must be at least 1');
+    });
+
+    it('rejects order with negative net amount for collective', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+
+      await expect(
+        createOrder(
+          {
+            collective: { id: collective.id },
+            paymentMethod: fakeCreditCardPaymentMethodInput(),
+            amount: 1000,
+            quantity: 1,
+            totalAmount: 500,
+            platformTipAmount: 1000,
+            currency: 'USD',
+          },
+          utils.makeRequest(user),
+        ),
+      ).to.be.rejectedWith('Invalid net amount for collective');
+    });
   });
 });

@@ -213,10 +213,12 @@ jobs:
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: Unit
+          files: test-results.xml
+          report_type: test_results
 
   test-graphql:
     runs-on: ubuntu-26.04
@@ -297,9 +299,11 @@ jobs:
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: test-results.xml
+          report_type: test_results
 
   schema-update:
     runs-on: ubuntu-26.04

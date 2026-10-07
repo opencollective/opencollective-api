@@ -239,7 +239,10 @@ const orderMutations = {
       });
 
       const amountInCents = getValueInCentsFromAmountInput(order.amount);
-      const quantity = order.quantity || 1;
+      const quantity = order.quantity ?? 1;
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        throw new ValidationFailed('Quantity must be at least 1');
+      }
       const legacyOrderObj = {
         quantity,
         amount: amountInCents,
