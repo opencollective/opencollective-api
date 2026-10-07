@@ -9,7 +9,10 @@ import { TransactionTypes } from '../../../server/constants/transactions';
 import {
   getBalances,
   getCurrentCollectiveBalances,
+  getCurrentCollectiveTransactionStats,
   getHistoricalCollectiveBalances,
+  getSumCollectivesAmountSpent,
+  getTotalAmountSpentTimeSeries,
   getTotalMoneyManagedAmount,
   getYearlyBudgets,
   sumCollectivesTransactions,
@@ -17,7 +20,7 @@ import {
 import * as libcurrency from '../../../server/lib/currency';
 import { sequelize } from '../../../server/models';
 import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import { makeRequest, resetTestDB } from '../../utils';
 
 describe('server/lib/budget', () => {
   before(resetTestDB);
@@ -510,6 +513,304 @@ describe('server/lib/budget', () => {
 
       expect(balances[collective.id]).to.exist;
       expect(balances[collective.id].value).to.eq(20e2);
+    });
+  });
+
+  describe('getSumCollectivesAmountSpent', () => {
+    let collective;
+
+    beforeEach(async () => {
+      await resetTestDB();
+      collective = await fakeCollective({ currency: 'USD' });
+    });
+
+    const createSpendTransactions = async () => {
+      await fakeTransaction(
+        {
+          type: 'DEBIT',
+          kind: TransactionKind.EXPENSE,
+          CollectiveId: collective.id,
+          amount: -50e2,
+          createdAt: new Date('2025-06-15'),
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: 'DEBIT',
+          kind: TransactionKind.EXPENSE,
+          CollectiveId: collective.id,
+          amount: -30e2,
+          createdAt: new Date('2025-07-10'),
+        },
+        { createDoubleEntry: true },
+      );
+    };
+
+    it('sums spent amounts as negative values', async () => {
+      await createSpendTransactions();
+
+      const results = await getSumCollectivesAmountSpent([collective.id]);
+      expect(results[collective.id].value).to.equal(-80e2);
+      expect(results[collective.id].currency).to.equal('USD');
+    });
+
+    it('excludes refunded transactions', async () => {
+      await createSpendTransactions();
+      const refunded = await fakeTransaction(
+        {
+          type: 'DEBIT',
+          kind: TransactionKind.EXPENSE,
+          CollectiveId: collective.id,
+          amount: -20e2,
+          createdAt: new Date('2025-07-15'),
+        },
+        { createDoubleEntry: true },
+      );
+      await refunded.update({ isRefund: true });
+
+      const results = await getSumCollectivesAmountSpent([collective.id]);
+      expect(results[collective.id].value).to.equal(-80e2);
+    });
+
+    it('skips the fast stats path when groupByAttributes is provided', async () => {
+      await createSpendTransactions();
+      await sequelize.query('REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"');
+
+      // Precondition: the fast path *does* have data for this collective, so a
+      // fast-path return would silently drop the grouping
+      const fastResults = await getCurrentCollectiveTransactionStats([collective.id], {
+        column: 'totalAmountSpentInHostCurrency',
+      });
+      expect(fastResults[collective.id]).to.exist;
+
+      const results = await getSumCollectivesAmountSpent([collective.id], {
+        groupByAttributes: [[sequelize.fn('DATE_TRUNC', 'month', sequelize.col('Transaction.createdAt')), 'date']],
+      });
+
+      expect(results[collective.id].value).to.equal(-80e2);
+      expect(results[collective.id].groupBy).to.exist;
+    });
+
+    it('buckets amounts per period with groupByAttributes', async () => {
+      await createSpendTransactions();
+
+      const results = await getSumCollectivesAmountSpent([collective.id], {
+        groupByAttributes: [[sequelize.fn('DATE_TRUNC', 'month', sequelize.col('Transaction.createdAt')), 'date']],
+      });
+
+      const buckets = Object.values(
+        results[collective.id].groupBy.date as Record<string, { amount: number; date: Date }>,
+      )
+        .map(bucket => ({ date: bucket.date.toISOString(), amount: bucket.amount }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      expect(buckets).to.deep.equal([
+        { date: '2025-06-01T00:00:00.000Z', amount: -50e2 },
+        { date: '2025-07-01T00:00:00.000Z', amount: -30e2 },
+      ]);
+    });
+
+    it('returns net amounts when net is true', async () => {
+      await fakeTransaction(
+        {
+          type: 'DEBIT',
+          kind: TransactionKind.EXPENSE,
+          CollectiveId: collective.id,
+          amount: -50e2,
+          paymentProcessorFeeInHostCurrency: -2e2,
+          createdAt: new Date('2025-06-15'),
+        },
+        { createDoubleEntry: true },
+      );
+
+      const gross = await getSumCollectivesAmountSpent([collective.id]);
+      const net = await getSumCollectivesAmountSpent([collective.id], { net: true });
+      expect(gross[collective.id].value).to.equal(-50e2);
+      expect(net[collective.id].value).to.equal(-52e2);
+    });
+  });
+
+  describe('getTotalAmountSpentTimeSeries', () => {
+    let collective;
+    let project;
+
+    beforeEach(async () => {
+      await resetTestDB();
+      collective = await fakeCollective({ currency: 'USD' });
+      project = await fakeCollective({ currency: 'USD', type: 'PROJECT', ParentCollectiveId: collective.id });
+
+      await fakeTransaction(
+        {
+          type: 'DEBIT',
+          kind: TransactionKind.EXPENSE,
+          CollectiveId: collective.id,
+          amount: -50e2,
+          createdAt: new Date('2025-06-15'),
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: 'DEBIT',
+          kind: TransactionKind.EXPENSE,
+          CollectiveId: collective.id,
+          amount: -30e2,
+          createdAt: new Date('2025-07-10'),
+        },
+        { createDoubleEntry: true },
+      );
+    });
+
+    const getNodesByDate = (series: { nodes: { date: Date | string; amount: { value: number } }[] }) =>
+      series.nodes
+        .map(node => ({ date: new Date(node.date).toISOString(), value: node.amount.value }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+    it('returns one absolute node per period', async () => {
+      const series = await getTotalAmountSpentTimeSeries(collective, {
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-08-01'),
+        timeUnit: 'MONTH',
+      });
+
+      expect(series.dateFrom).to.deep.equal(new Date('2025-06-01'));
+      expect(series.dateTo).to.deep.equal(new Date('2025-08-01'));
+      expect(series.timeUnit).to.equal('MONTH');
+      expect(getNodesByDate(series)).to.deep.equal([
+        { date: '2025-06-01T00:00:00.000Z', value: 50e2 },
+        { date: '2025-07-01T00:00:00.000Z', value: 30e2 },
+      ]);
+    });
+
+    it('returns signed values when absoluteAmounts is false', async () => {
+      const series = await getTotalAmountSpentTimeSeries(collective, {
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-08-01'),
+        timeUnit: 'MONTH',
+        absoluteAmounts: false,
+      });
+
+      expect(getNodesByDate(series)).to.deep.equal([
+        { date: '2025-06-01T00:00:00.000Z', value: -50e2 },
+        { date: '2025-07-01T00:00:00.000Z', value: -30e2 },
+      ]);
+    });
+
+    it('returns the same nodes through the loaders path', async () => {
+      const options = {
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-08-01'),
+        timeUnit: 'MONTH',
+      };
+      const direct = await getTotalAmountSpentTimeSeries(collective, options);
+      const viaLoaders = await getTotalAmountSpentTimeSeries(collective, {
+        ...options,
+        loaders: makeRequest().loaders,
+      });
+
+      expect(getNodesByDate(viaLoaders)).to.deep.equal(getNodesByDate(direct));
+    });
+
+    it('includes children transactions when includeChildren is true', async () => {
+      await fakeTransaction(
+        {
+          type: 'DEBIT',
+          kind: TransactionKind.EXPENSE,
+          CollectiveId: project.id,
+          amount: -10e2,
+          createdAt: new Date('2025-06-20'),
+        },
+        { createDoubleEntry: true },
+      );
+
+      const withoutChildren = await getTotalAmountSpentTimeSeries(collective, {
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-08-01'),
+        timeUnit: 'MONTH',
+      });
+      const withChildren = await getTotalAmountSpentTimeSeries(collective, {
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-08-01'),
+        timeUnit: 'MONTH',
+        includeChildren: true,
+      });
+
+      expect(getNodesByDate(withoutChildren)).to.deep.equal([
+        { date: '2025-06-01T00:00:00.000Z', value: 50e2 },
+        { date: '2025-07-01T00:00:00.000Z', value: 30e2 },
+      ]);
+      expect(getNodesByDate(withChildren)).to.deep.equal([
+        { date: '2025-06-01T00:00:00.000Z', value: 60e2 },
+        { date: '2025-07-01T00:00:00.000Z', value: 30e2 },
+      ]);
+    });
+
+    it('filters by transaction kind', async () => {
+      await fakeTransaction(
+        {
+          type: 'DEBIT',
+          kind: TransactionKind.PREPAID_EXPENSE,
+          CollectiveId: collective.id,
+          amount: -25e2,
+          createdAt: new Date('2025-06-20'),
+        },
+        { createDoubleEntry: true },
+      );
+
+      const series = await getTotalAmountSpentTimeSeries(collective, {
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-08-01'),
+        timeUnit: 'MONTH',
+        kind: [TransactionKind.EXPENSE],
+      });
+
+      expect(getNodesByDate(series)).to.deep.equal([
+        { date: '2025-06-01T00:00:00.000Z', value: 50e2 },
+        { date: '2025-07-01T00:00:00.000Z', value: 30e2 },
+      ]);
+    });
+
+    it('restricts nodes to the startDate/endDate window', async () => {
+      const series = await getTotalAmountSpentTimeSeries(collective, {
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-07-01'),
+        timeUnit: 'MONTH',
+      });
+
+      expect(getNodesByDate(series)).to.deep.equal([{ date: '2025-06-01T00:00:00.000Z', value: 50e2 }]);
+    });
+
+    it('converts amounts to the requested currency', async () => {
+      const sandbox = createSandbox();
+      try {
+        sandbox.stub(libcurrency, 'getFxRate').withArgs('USD', 'USD').resolves(1).withArgs('USD', 'EUR').resolves(0.9);
+
+        const series = await getTotalAmountSpentTimeSeries(collective, {
+          startDate: new Date('2025-06-01'),
+          endDate: new Date('2025-08-01'),
+          timeUnit: 'MONTH',
+          currency: 'EUR',
+        });
+
+        expect(series.nodes.every(node => node.amount.currency === 'EUR')).to.be.true;
+        expect(getNodesByDate(series)).to.deep.equal([
+          { date: '2025-06-01T00:00:00.000Z', value: 45e2 },
+          { date: '2025-07-01T00:00:00.000Z', value: 27e2 },
+        ]);
+      } finally {
+        sandbox.restore();
+      }
+    });
+
+    it('returns empty nodes when there are no transactions', async () => {
+      const emptyCollective = await fakeCollective({ currency: 'USD' });
+      const series = await getTotalAmountSpentTimeSeries(emptyCollective, {
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-08-01'),
+        timeUnit: 'MONTH',
+      });
+
+      expect(series.nodes).to.deep.equal([]);
     });
   });
 });
