@@ -3,7 +3,7 @@ import { URL } from 'url';
 
 import config from 'config';
 import fastRedact from 'fast-redact';
-import { filter, get, isObject, omit, padStart, sumBy } from 'lodash';
+import { filter, get, isNil, isObject, omit, padStart, sumBy } from 'lodash';
 import moment from 'moment';
 
 export function addParamsToUrl(url, obj) {
@@ -396,7 +396,7 @@ export function fillTimeSeriesWithNodes({ nodes, initialData, startDate = undefi
 
   const sortedNodes = nodes.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  const dateFrom = startDate ? moment(startDate).utc() : moment(sortedNodes[0].date).utc();
+  const dateFrom = startDate ? moment(startDate).startOf(timeUnit).utc() : moment(sortedNodes[0].date).utc();
   let dateTo = endDate ? moment(endDate).utc() : moment().utc();
   if (endDate) {
     const now = moment().utc();
@@ -421,7 +421,7 @@ export function fillTimeSeriesWithNodes({ nodes, initialData, startDate = undefi
     const { date, ...data } = sortedNodes[i];
     const dateString = moment(date).utc().toISOString();
 
-    if (keyedData[dateString]) {
+    if (!isNil(keyedData[dateString])) {
       keyedData[dateString] = {
         ...keyedData[dateString],
         ...data,
