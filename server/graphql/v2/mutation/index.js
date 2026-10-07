@@ -28,6 +28,7 @@ import orderMutations from './OrderMutations';
 import organizationMutations from './OrganizationMutations';
 import paymentMethodMutations from './PaymentMethodMutations';
 import payoutMethodMutations from './PayoutMethodMutations';
+import { paypalMutations } from './PaypalMutations';
 import personalTokenMutations from './PersonalTokenMutations';
 import { plaidMutations } from './PlaidMutations';
 import platformSubscriptionMutations from './PlatformSubscriptionsMutations';
@@ -76,6 +77,7 @@ const mutation = {
   ...plaidMutations,
   ...goCardlessMutations,
   ...stripeMutations,
+  ...paypalMutations,
   ...transferwiseMutations,
   ...rootMutations,
   ...transactionMutations,
