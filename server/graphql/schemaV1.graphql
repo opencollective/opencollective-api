@@ -4137,25 +4137,6 @@ type Query {
     includeHostedCollectivesTransactions: Boolean
   ): [Transaction] @deprecated(reason: "2025-07-10: Please use GraphQL V2")
   Transaction(id: Int, uuid: String): Transaction @deprecated(reason: "2025-07-10: Please use GraphQL V2")
-
-  """
-  Returns all public hosts that are open for applications
-  """
-  allHosts(
-    """
-    Fetch all collectives that match at least one of the tags
-    """
-    tags: [String]
-
-    """
-    Filter hosts by currency
-    """
-    currency: String
-    limit: Int = 10
-    offset: Int = 0
-    onlyOpenHosts: Boolean = true
-    minNbCollectivesHosted: Int! = 0
-  ): CollectiveSearchResults @deprecated(reason: "2025-07-10: Please use GraphQL V2")
   allMembers(
     CollectiveId: Int
     collectiveSlug: String
