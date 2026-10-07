@@ -70,6 +70,7 @@ import {
   getTotalAmountReceivedAmount,
   getTotalAmountReceivedTimeSeries,
   getTotalAmountSpentAmount,
+  getTotalAmountSpentTimeSeries,
   getTotalMoneyManagedAmount,
   getYearlyBudgetAmount,
 } from '../lib/budget';
@@ -3129,6 +3130,10 @@ class Collective extends ModelWithPublicId<
 
   getTotalAmountReceivedTimeSeries = function (options) {
     return getTotalAmountReceivedTimeSeries(this, options);
+  };
+
+  getTotalAmountSpentTimeSeries = function (options) {
+    return getTotalAmountSpentTimeSeries(this, options);
   };
 
   getBalanceTimeSeries = function (options) {

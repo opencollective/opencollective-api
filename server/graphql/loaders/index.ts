@@ -518,6 +518,50 @@ export const generateLoaders = req => {
         },
       },
 
+      // // Collective -  Amount Spent Time Series
+      amountSpentTimeSeries: {
+        buildLoader({
+          net,
+          kind,
+          startDate,
+          endDate,
+          includeChildren,
+          timeUnit,
+        }: {
+          net?: boolean;
+          kind?: string;
+          startDate?: Date;
+          endDate?: Date;
+          includeChildren?: boolean;
+          timeUnit?: string;
+        } = {}) {
+          const key = `amountSpentTimeSeries-${net}-${kind}-${startDate}-${endDate}-${includeChildren}-${timeUnit}`;
+          if (!cachedLoaders[key]) {
+            cachedLoaders[key] = new DataLoader<number, { CollectiveId: number; value: number; currency: string }>(
+              ids =>
+                getSumCollectivesAmountSpent(ids, {
+                  net,
+                  kind,
+                  startDate,
+                  endDate,
+                  includeChildren,
+                  groupByAttributes: [
+                    [sequelize.fn('DATE_TRUNC', timeUnit, sequelize.col('Transaction.createdAt')), 'date'],
+                  ],
+                }).then(
+                  results =>
+                    sortResults(ids, Object.values(results), 'CollectiveId') as {
+                      CollectiveId: number;
+                      value: number;
+                      currency: string;
+                    }[],
+                ),
+            );
+          }
+          return cachedLoaders[key] as DataLoader<number, { CollectiveId: number; value: number; currency: string }>;
+        },
+      },
+
       // // Collective -  Count of contributions and contributors
       contributionsAndContributorsCount: {
         buildLoader({
