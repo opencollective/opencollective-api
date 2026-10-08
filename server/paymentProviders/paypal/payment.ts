@@ -66,27 +66,27 @@ const recordTransaction = async (
   const amountInHostCurrency = roundCentsAmount(amount * hostCurrencyFxRate, hostCurrency);
   const paymentProcessorFeeInHostCurrency = roundCentsAmount(hostCurrencyFxRate * paypalFee, hostCurrency);
 
+  // PayPal subscriptions can bundle multiple billing cycles in a single charge when the subscription
+  // has outstanding balance (e.g. a missed month retried later: $5/mo billed as $10). In that case
+  // `amount` is a multiple of `order.totalAmount` and per-cycle fees must be scaled accordingly.
+  // This never happens for one-time payments. See https://github.com/opencollective/opencollective/issues/6600
+  const orderTotalAmount = order.totalAmount || 0;
+  const chargeRatio = orderTotalAmount ? amount / orderTotalAmount : 1;
+
   let hostFee: number;
   let taxAmount: number;
   let platformTip: number;
-  if (await isPaypalSubscriptionOrder(order)) {
-    // PayPal can bundle multiple billing cycles in a single charge when a subscription has
-    // outstanding balance (e.g. a missed month retried later: $5/mo billed as $10). In that case
-    // `amount` is a multiple of `order.totalAmount` and per-cycle fees must be scaled accordingly.
-    // See https://github.com/opencollective/opencollective/issues/6600
-    //
+  if (chargeRatio !== 1 && (await isPaypalSubscriptionOrder(order))) {
     // TODO: consolidate this with `getHostFee` (which always computes fees on `order.totalAmount`) so
     // that all payment providers scale their fees to the amount actually charged. Kept separate for
-    // now to preserve the legacy behavior of non-PayPal-subscription payments.
+    // now to preserve the legacy behavior of single-cycle and non-PayPal-subscription payments.
     const hostFeePercent = (await getHostFeePercent(order)) || 0;
-    const orderTotalAmount = order.totalAmount || 0;
-    const chargeRatio = orderTotalAmount ? amount / orderTotalAmount : 1;
     taxAmount = order.taxAmount ? Math.round(order.taxAmount * chargeRatio) : order.taxAmount;
     platformTip = Math.round(getPlatformTip(order) * chargeRatio);
     hostFee = calcFee(amount - (taxAmount || 0) - platformTip, hostFeePercent, currency);
   } else {
-    // Legacy behavior for non-PayPal-subscription payments: fees are computed on the order amounts,
-    // whatever the amount actually charged is.
+    // Legacy behavior (single-cycle charges and non-PayPal-subscription payments): fees are computed
+    // on the order amounts, whatever the amount actually charged is.
     hostFee = await getHostFee(order);
     taxAmount = order.taxAmount;
     platformTip = getPlatformTip(order);

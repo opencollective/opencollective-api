@@ -261,6 +261,28 @@ describe('server/paymentProviders/paypal/payment', () => {
         expect(await getHostFeeCreditAmount(order.id)).to.eq(100);
       });
 
+      it('keeps the legacy host fee computation for single-cycle charges', async () => {
+        const tipHost = await fakeHost();
+        await tipHost.update({ settings: { ...tipHost.settings, newPlatformTipsLedger: true } });
+        const tipCollective = await fakeCollective({ HostCollectiveId: tipHost.id, hostFeePercent: 10 });
+        // Legacy tip form (`data.platformTip` without `platformTipAmount`, see `getPlatformTip`): this is
+        // the only case where the legacy `getHostFee` base differs from the scaled one, since `getHostFee`
+        // reads `order.platformTipAmount` only.
+        const order = await createPaypalSubscriptionOrder({
+          CollectiveId: tipCollective.id,
+          totalAmount: 1000,
+          data: { platformTip: 100 },
+        });
+        const transaction = await paypalPayment.recordPaypalSale(order, {
+          id: `SALE-SINGLE-LEGACY-TIP-${order.id}`,
+          amount: { total: '10.00', currency: 'USD' },
+          transaction_fee: { value: '0.00' },
+        });
+        expect(transaction.amount).to.eq(900); // Tip is separated into its own transaction
+        // 10% of the full $10 order (tip not deducted from the base), as computed before #12233
+        expect(await getHostFeeCreditAmount(order.id)).to.eq(100);
+      });
+
       it('scales host fee when PayPal bundles two cycles in a single charge', async () => {
         const order = await createPaypalSubscriptionOrder({ totalAmount: 500 });
         const transaction = await paypalPayment.recordPaypalSale(order, {
