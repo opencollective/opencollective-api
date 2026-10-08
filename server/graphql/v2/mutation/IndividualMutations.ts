@@ -9,7 +9,7 @@ import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 import * as auth from '../../../lib/auth';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { checkRemoteUserCanUseAccount, rejectOAuthAndPersonalTokenAuth } from '../../common/scope-check';
 import { confirmUserEmail } from '../../common/user';
 import { RateLimitExceeded, Unauthorized } from '../../errors';
 import { GraphQLIndividual } from '../object/Individual';
@@ -56,7 +56,7 @@ const individualMutations = {
   },
   setPassword: {
     type: new GraphQLNonNull(GraphQLSetPasswordResponse),
-    description: 'Set password to Individual. Scope: "account". 2FA.',
+    description: 'Set password to Individual. Session only (OAuth/Personal tokens are not allowed). 2FA.',
     args: {
       password: {
         type: new GraphQLNonNull(GraphQLString),
@@ -68,7 +68,11 @@ const individualMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      checkRemoteUserCanUseAccount(req);
+      // This mutation is session-only: we don't want OAuth/Personal Tokens to be able to change credentials,
+      // nor to be exchanged against a session token.
+      rejectOAuthAndPersonalTokenAuth(req, 'OAuth and Personal Tokens are not allowed to set passwords.');
+      
+      // No need to check the scope, since personal/oauth tokens are rejected.
 
       const rateLimitKey = `individual_set_password_${req.remoteUser.id}`;
       const rateLimitMax = config.limits.setPasswordPerUserPerHour;
@@ -98,21 +102,16 @@ const individualMutations = {
       // If we're there, it's a success, we can reset the rate limit count
       await rateLimit.reset();
 
-      const user = await req.remoteUser.setPassword(args.password, { userToken: req.userToken });
+      const user = await req.remoteUser.setPassword(args.password);
       const individual = await user.getCollective({ loaders: req.loaders });
 
-      let token;
-
-      // We don't want OAuth/Personal tokens to be exchanged against a session token
-      if (!req.userToken && !req.personalToken) {
-        // Context: this is token generation when updating password
-        token = await user.generateSessionToken({
-          sessionId: req.jwtPayload?.sessionId,
-          createActivity: false,
-          updateLastLoginAt: false,
-        });
-        auth.setAuthCookie(req.res, token);
-      }
+      // Context: this is token generation when updating password
+      const token = await user.generateSessionToken({
+        sessionId: req.jwtPayload?.sessionId,
+        createActivity: false,
+        updateLastLoginAt: false,
+      });
+      auth.setAuthCookie(req.res, token);
 
       return { individual, token };
     },
