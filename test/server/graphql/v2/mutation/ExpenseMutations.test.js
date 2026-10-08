@@ -4990,6 +4990,65 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           await expense.reload();
           expect(expense.amount).to.equal(2000);
         });
+
+        it('requires 2FA on a paid manually-created charge when the account policy demands it', async () => {
+          // The 2FA skip from #8601 is scoped to charges that came from a real card transaction
+          // (`VirtualCardId`), so a manually created charge must not inherit it.
+          const policyAdmin = await fakeUser();
+          const policyCollective = await fakeCollective({
+            admin: policyAdmin,
+            currency: 'USD',
+            data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+          });
+          const expense = await fakeExpense({
+            data: { isManualVirtualCardCharge: true },
+            status: expenseStatus.PAID,
+            type: expenseTypes.CHARGE,
+            amount: 2000,
+            CollectiveId: policyCollective.id,
+            UserId: policyAdmin.id,
+            items: [{ amount: 2000, description: 'Card charge', url: null }],
+          });
+
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: 'Renamed' } },
+            policyAdmin,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+          await expense.reload();
+          expect(expense.description).to.not.equal('Renamed');
+        });
+
+        it('does not require 2FA on a paid virtual card charge', async () => {
+          // #8601: charges generated from real card transactions keep the 2FA skip.
+          const policyAdmin = await fakeUser();
+          const policyCollective = await fakeCollective({
+            admin: policyAdmin,
+            currency: 'USD',
+            data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+          });
+          const virtualCard = await fakeVirtualCard();
+          const expense = await fakeExpense({
+            data: { missingDetails: true },
+            status: expenseStatus.PAID,
+            type: expenseTypes.CHARGE,
+            VirtualCardId: virtualCard.id,
+            amount: 2000,
+            CollectiveId: policyCollective.id,
+            UserId: policyAdmin.id,
+            items: [{ amount: 2000, description: 'Card charge', url: null }],
+          });
+
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: attachReceiptsPayload(expense, randUrl()) },
+            policyAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+        });
       });
     });
   });

@@ -3455,9 +3455,10 @@ export async function editExpense(
     return editOnlyTagsAndAccountingCategory(expense, modifiedFields, req);
   }
 
-  // Check if 2FA is enforced on any of the account remote user is admin of, unless it's a paid credit card charge
-  // since we strictly limit the fields that can be updated in that case
-  if (req.remoteUser && !isPaidChargeExpense) {
+  // Check if 2FA is enforced on any of the account remote user is admin of. It is skipped only for charges that
+  // came from a real card transaction (see #8601), where the record is system-created and we strictly limit the
+  // fields that can be updated. Manually created charges have no such anchor, so they keep the normal 2FA policy.
+  if (req.remoteUser && !(isPaidChargeExpense && expense.VirtualCardId)) {
     const accountsFor2FA = [expenseData.fromCollective, expense.fromCollective, collective, host].filter(Boolean);
     await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
   }
