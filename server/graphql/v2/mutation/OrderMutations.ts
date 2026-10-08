@@ -211,6 +211,9 @@ const orderMutations = {
       const tax = order.tax || order.taxes?.[0];
       const platformTip = order.platformTipAmount;
       const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+      if (platformTipAmount < 0) {
+        throw new ValidationFailed('Platform tip amount cannot be negative');
+      }
       const loadersParams = { loaders: req.loaders, throwIfMissing: true };
       const loadAccount = account => fetchAccountWithReference(account, loadersParams);
       const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
