@@ -1256,6 +1256,83 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       });
     });
 
+    it('should fail if user is not authorized to remove a policy', async () => {
+      // Set the policy first
+      await graphqlQueryV2(
+        setPoliciesMutation,
+        {
+          account: { legacyId: collective.id },
+          policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } },
+        },
+        adminUser,
+      );
+
+      // Try to remove it with `null` from an account that is not an admin of the collective
+      const mutationParams = {
+        account: { legacyId: collective.id },
+        policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: null },
+      };
+      const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, hostAdminUser);
+      expect(result.errors).to.have.lengthOf(1);
+      expect(result.errors[0].message).to.include('You are not allowed to edit the following policies');
+
+      // The policy must be retained
+      await collective.reload();
+      expect(collective.data.policies[POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]).to.deep.equal({ enabled: true });
+    });
+
+    it('should fail if a hosted collective admin tries to remove a policy from its host', async () => {
+      const host = await collective.getHostCollective();
+
+      // Set the policy on the host first
+      await graphqlQueryV2(
+        setPoliciesMutation,
+        {
+          account: { legacyId: host.id },
+          policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } },
+        },
+        hostAdminUser,
+      );
+
+      // Try to remove it with `null` as an admin of the hosted collective
+      const mutationParams = {
+        account: { legacyId: host.id },
+        policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: null },
+      };
+      const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
+      expect(result.errors).to.have.lengthOf(1);
+      expect(result.errors[0].message).to.include('You are not allowed to edit the following policies');
+
+      // The policy must be retained
+      await host.reload();
+      expect(host.data.policies[POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]).to.deep.equal({ enabled: true });
+    });
+
+    it('should fail if a collective admin tries to remove a host-only policy', async () => {
+      // Set the host-only policy first
+      await graphqlQueryV2(
+        setPoliciesMutation,
+        {
+          account: { legacyId: collective.id },
+          policies: { [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: true },
+        },
+        hostAdminUser,
+      );
+
+      // Try to remove it with `null` as a collective admin
+      const mutationParams = {
+        account: { legacyId: collective.id },
+        policies: { [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: null },
+      };
+      const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
+      expect(result.errors).to.have.lengthOf(1);
+      expect(result.errors[0].message).to.include('You are not allowed to edit the following policies');
+
+      // The policy must be retained
+      await collective.reload();
+      expect(collective.data.policies[POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]).to.be.true;
+    });
+
     describe('TAX_FORM_THRESHOLDS policy', () => {
       const setTaxFormThresholdsMutation = gql`
         mutation SetPolicies($account: AccountReferenceInput!, $policies: PoliciesInput!) {
