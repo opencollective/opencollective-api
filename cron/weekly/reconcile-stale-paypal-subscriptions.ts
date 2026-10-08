@@ -12,6 +12,8 @@
  * Contributors are never emailed: this is a background reconciliation, not a user action. A
  * `SUBSCRIPTION_CANCELED` activity is still recorded (with `data.notify: false`) for the timeline
  * when the cancellation happened recently (see `ACTIVITY_LOOKBACK_DAYS`).
+ *
+ * Set `CRON_DISABLE_RECONCILE_STATE_PAYPAL_SUBSCRIPTIONS=true` to prevent the job from running.
  */
 import '../../server/env';
 
@@ -186,6 +188,11 @@ const reconcileStaleContribution = async (
 };
 
 export const run = async (options: RunOptions = {}): Promise<void> => {
+  if (parseToBoolean(process.env.CRON_DISABLE_RECONCILE_STATE_PAYPAL_SUBSCRIPTIONS)) {
+    logger.info('PayPal subscriptions state reconciliation is disabled, skipping...');
+    return;
+  }
+
   const dryRun = options.dryRun ?? (process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : false);
   const graceDays = process.env.PAYPAL_STALE_SUBSCRIPTION_GRACE_DAYS
     ? parseInt(process.env.PAYPAL_STALE_SUBSCRIPTION_GRACE_DAYS, 10)

@@ -242,4 +242,27 @@ describe('cron/weekly/reconcile-stale-paypal-subscriptions', () => {
     await order.reload();
     expect(order.status).to.eq('ACTIVE');
   });
+
+  it('does not run when CRON_DISABLE_RECONCILE_STATE_PAYPAL_SUBSCRIPTIONS is set', async () => {
+    const { order } = await createStaleContribution();
+    paypalRequestStub.resolves({
+      id: order.Subscription.paypalSubscriptionId,
+      status: 'CANCELLED',
+      status_update_time: moment().subtract(1, 'day').toISOString(),
+    });
+
+    process.env.CRON_DISABLE_RECONCILE_STATE_PAYPAL_SUBSCRIPTIONS = 'true';
+    try {
+      const sentEmails = await runAndIsolateEmails({ limitedToOrderIds: [order.id] });
+      expect(sentEmails).to.eq(0);
+    } finally {
+      delete process.env.CRON_DISABLE_RECONCILE_STATE_PAYPAL_SUBSCRIPTIONS;
+    }
+
+    expect(paypalRequestStub.called).to.be.false;
+
+    await order.reload();
+    expect(order.status).to.eq('ACTIVE');
+    expect(await models.Activity.count({ where: { OrderId: order.id } })).to.eq(0);
+  });
 });
