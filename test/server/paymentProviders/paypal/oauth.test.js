@@ -363,6 +363,8 @@ describe('server/paymentProviders/paypal/oauth', () => {
       });
       expect(payoutMethod).to.exist;
       expect(payoutMethod.data?.email).to.equal('john@example.com');
+      expect(payoutMethod.ConnectedAccountId).to.equal(connectedAccount.id);
+      expect(payoutMethod.data).not.to.have.property('connectedAccountId');
     });
 
     it('returns error when PayPal account has no confirmed email', async () => {

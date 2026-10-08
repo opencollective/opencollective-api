@@ -220,6 +220,9 @@ export const updateSubscriptionDetails = async (
   amountInCents: number,
   platformTipAmount: number = order.platformTipAmount,
 ): Promise<OrderSubscriptionUpdate> => {
+  if (platformTipAmount < 0) {
+    throw new ValidationFailed('Platform tip amount cannot be negative');
+  }
   // Make sure the new details are ok values, that match tier's minimum amount if there's one.
   // Validate against the contribution amount excluding the platform tip, since the tip goes to
   // the platform rather than the tier/collective.

@@ -289,7 +289,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       members: {
         type: new GraphQLList(MemberType),
         description:
-          'List of all collectives that are related to this collective with their membership relationship. Can filter by role (BACKER/MEMBER/ADMIN/HOST/FOLLOWER)',
+          'List of all collectives that are related to this collective with their membership relationship. Can filter by role (BACKER/MEMBER/ADMIN/HOST)',
         args: {
           limit: { type: GraphQLInt, defaultValue: 100 },
           offset: { type: GraphQLInt, defaultValue: 0 },
@@ -306,7 +306,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       memberOf: {
         type: new GraphQLList(MemberType),
         description:
-          'List of all collectives that this collective is a member of with their membership relationship. Can filter by role (BACKER/MEMBER/ADMIN/HOST/FOLLOWER)',
+          'List of all collectives that this collective is a member of with their membership relationship. Can filter by role (BACKER/MEMBER/ADMIN/HOST)',
         args: {
           limit: { type: GraphQLInt },
           offset: { type: GraphQLInt },
@@ -869,7 +869,7 @@ const CollectiveFields = () => {
       },
     },
     members: {
-      description: 'Get all the members of this collective (admins, members, backers, followers)',
+      description: 'Get all the members of this collective (admins, members, backers)',
       type: new GraphQLList(MemberType),
       args: {
         limit: { type: GraphQLInt, defaultValue: 100 },
@@ -943,7 +943,7 @@ const CollectiveFields = () => {
       },
     },
     memberOf: {
-      description: 'Get all the collective this collective is a member of (as a member, backer, follower, etc.)',
+      description: 'Get all the collective this collective is a member of (as a member, backer, etc.)',
       type: new GraphQLList(MemberType),
       args: {
         limit: { type: GraphQLInt },

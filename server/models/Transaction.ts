@@ -750,6 +750,10 @@ class Transaction extends ModelWithPublicId<
       return;
     }
 
+    if (platformTip < 0) {
+      throw new Error('Platform tip amount cannot be negative');
+    }
+
     const host = await Transaction.fetchHost(transaction, { sqlTransaction: sequelizeTransaction });
     const hostHasNewPlatformTipsLedger = Boolean(host?.hasNewPlatformTipsLedger?.());
 

@@ -105,8 +105,6 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'ProcessHostApplicationResponse.account': 'no-private',
   'SetPasswordResponse.individual': 'no-private',
   'IndividualConfirmEmailResponse.individual': 'no-private',
-  'FollowAccountResult.individual': 'no-private',
-  'UnfollowAccountResult.individual': 'no-private',
   'MergeAccountsResponse.account': 'admin-only',
   'BanAccountResponse.accounts': 'admin-only',
   'TransactionsImportEditResponse.host': 'admin-only',

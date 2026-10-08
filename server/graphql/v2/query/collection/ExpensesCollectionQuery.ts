@@ -799,6 +799,7 @@ export const ExpensesCollectionQueryResolver = async (
       assert(args.amount.gte.currency === args.amount.lte.currency, 'Amount range must have the same currency');
     }
     const currency = args.amount.gte?.currency || args.amount.lte?.currency;
+    assert(currency, 'A currency must be provided when filtering by amount');
     const gte = args.amount.gte && getValueInCentsFromAmountInput(args.amount.gte);
     const lte = args.amount.lte && getValueInCentsFromAmountInput(args.amount.lte);
     const operator =
