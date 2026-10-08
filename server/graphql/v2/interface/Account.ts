@@ -26,7 +26,7 @@ import { getContextPermission, PERMISSION_TYPE } from '../../common/context-perm
 import { getFeatureStatusResolver } from '../../common/features';
 import {
   checkRemoteUserCanUseAccount,
-  checkRemoteUserCanUseHost,
+  checkRemoteUserCanUseApplications,
   checkRemoteUserCanUseKYC,
   checkScope,
   rejectOAuthAndPersonalTokenAuth,
@@ -169,6 +169,57 @@ const accountFieldsDefinition = () => ({
         }
       } else {
         return account.legalName;
+      }
+    },
+  },
+  isUSEntity: {
+    type: GraphQLBoolean,
+    description: 'Whether the account is a US person or entity. Scope: "account".',
+    resolve: async (account: Collective, _, req) => {
+      if (!checkScope(req, 'account')) {
+        return null;
+      }
+      if (
+        !req.remoteUser?.isAdminOfCollective(account) &&
+        !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
+      ) {
+        return null;
+      } else if (account.isIncognito) {
+        if (!checkScope(req, 'incognito')) {
+          return null;
+        }
+        const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(account.id);
+        if (mainProfile) {
+          return mainProfile.data?.isUSEntity ?? null;
+        }
+      } else {
+        return account.data?.isUSEntity ?? null;
+      }
+    },
+  },
+  taxableCountry: {
+    type: GraphQLString,
+    description:
+      'The country the account is taxable in (residence for individuals, incorporation for organizations), set from the US tax form (W-9 / W-8BEN / W-8BEN-E) submitted by the account. Scope: "account".',
+    resolve: async (account: Collective, _, req) => {
+      if (!checkScope(req, 'account')) {
+        return null;
+      }
+      if (
+        !req.remoteUser?.isAdminOfCollective(account) &&
+        !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
+      ) {
+        return null;
+      } else if (account.isIncognito) {
+        if (!checkScope(req, 'incognito')) {
+          return null;
+        }
+        const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(account.id);
+        if (mainProfile) {
+          return mainProfile.data?.taxableCountry ?? null;
+        }
+      } else {
+        return account.data?.taxableCountry ?? null;
       }
     },
   },
@@ -968,7 +1019,7 @@ const accountFieldsDefinition = () => ({
   },
   hostApplicationRequests: {
     type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-    description: 'Host application requests. Scope: "host".',
+    description: 'Host application requests. Scope: "applications".',
     args: {
       ...CollectionArgs,
       orderBy: {
@@ -1611,7 +1662,7 @@ export const AccountFields = {
   },
   hostApplicationRequests: {
     type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-    description: 'Host application requests. Scope: "host".',
+    description: 'Host application requests. Scope: "applications".',
     args: {
       ...CollectionArgs,
       orderBy: {
@@ -1625,7 +1676,7 @@ export const AccountFields = {
       },
     },
     async resolve(account: Collective, args, req: Express.Request) {
-      checkRemoteUserCanUseHost(req);
+      checkRemoteUserCanUseApplications(req);
       if (!req.remoteUser?.isAdmin(account.id)) {
         throw new Unauthorized(
           'You need to be logged in as an admin of the collective to see its host applications requests',

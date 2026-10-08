@@ -12,7 +12,7 @@ import { Request } from 'express';
 import { graphql } from 'graphql';
 import Upload from 'graphql-upload/Upload.mjs';
 import { cloneDeep, get, groupBy, isArray, omit, values } from 'lodash';
-import markdownTable from 'markdown-table';
+import { markdownTable } from 'markdown-table';
 import nock from 'nock';
 import { generateSync } from 'otplib';
 import sinon, { assert } from 'sinon';

@@ -10,12 +10,13 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
-import { cloneDeep, defaultsDeep, isEmpty, isEqual, isNull, keys, omitBy, pick, set } from 'lodash';
+import { cloneDeep, defaultsDeep, isEmpty, isEqual, isNull, isUndefined, keys, omitBy, pick, set, union } from 'lodash';
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import POLICIES from '../../../constants/policies';
 import { assertSettingsChangeAllowed } from '../../../lib/account-settings';
+import { checkFeatureAccess, FEATURE } from '../../../lib/allowed-features';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { duplicateAccount } from '../../../lib/duplicate-account';
@@ -728,8 +729,19 @@ const accountMutations = {
             if (args.account.privateInstructions !== account.data?.privateInstructions) {
               previousData['data.privateInstructions'] = account.data?.privateInstructions;
               newData['data.privateInstructions'] = args.account.privateInstructions;
-              account.data = { ...account.data, privateInstructions: args.account.privateInstructions };
-              await account.save();
+              updateParams.data = {
+                ...account.data,
+                ...updateParams.data,
+                privateInstructions: args.account.privateInstructions,
+              };
+            }
+            break;
+          }
+          case 'isUSEntity': {
+            if (args.account.isUSEntity !== account.data?.isUSEntity) {
+              previousData['data.isUSEntity'] = account.data?.isUSEntity;
+              newData['data.isUSEntity'] = args.account.isUSEntity;
+              updateParams.data = { ...account.data, ...updateParams.data, isUSEntity: args.account.isUSEntity };
             }
             break;
           }
@@ -795,11 +807,41 @@ const accountMutations = {
 
       // Check host only policies
       const previousPolicies = account.data?.policies || {};
-      const shouldIgnorePolicy = (value, key) => isNull(value) || isEqual(value, previousPolicies[key]);
+      // Policies explicitly removed by this mutation: sent as `null` while they exist on the account. Removals must be
+      // authorized just like additions/updates, otherwise sending `null` bypasses the `canEditPolicy` check below.
+      const removedPoliciesKeys = (Object.keys(args.policies) as POLICIES[]).filter(
+        key => isNull(args.policies[key]) && !isUndefined(previousPolicies[key]),
+      );
+      // Policies that are added or changed. Only unchanged values are ignored here: `null` removals are not exempted
+      // from authorization (they are covered by `removedPoliciesKeys`), and submitting `null` for a policy that is not
+      // set is a no-op.
+      const shouldIgnorePolicy = (value, key) =>
+        isNull(value) ? isUndefined(previousPolicies[key]) : isEqual(value, previousPolicies[key]);
       const newPoliciesKeys = Object.keys(omitBy(args.policies, shouldIgnorePolicy)) as POLICIES[];
-      const forbiddenPolicies = newPoliciesKeys.filter(policy => !canEditPolicy(req.remoteUser, account, policy));
+      const policiesToEdit = union(newPoliciesKeys, removedPoliciesKeys);
+      const forbiddenPolicies = policiesToEdit.filter(policy => !canEditPolicy(req.remoteUser, account, policy));
       if (forbiddenPolicies.length > 0) {
         throw new Forbidden(`You are not allowed to edit the following policies: ${forbiddenPolicies.join(', ')}`);
+      }
+
+      const isSettingTaxFormThresholds =
+        newPoliciesKeys.includes(POLICIES.TAX_FORM_THRESHOLDS) &&
+        !removedPoliciesKeys.includes(POLICIES.TAX_FORM_THRESHOLDS);
+      if (isSettingTaxFormThresholds) {
+        await checkFeatureAccess(account, FEATURE.TAX_FORMS, { loaders: req.loaders });
+        const taxFormThresholds = args.policies[POLICIES.TAX_FORM_THRESHOLDS];
+        if (taxFormThresholds) {
+          if (taxFormThresholds.US !== undefined && taxFormThresholds.US !== null && taxFormThresholds.US < 0) {
+            throw new ValidationFailed('US threshold must be greater than or equal to 0');
+          }
+          if (
+            taxFormThresholds.NON_US !== undefined &&
+            taxFormThresholds.NON_US !== null &&
+            taxFormThresholds.NON_US < 0
+          ) {
+            throw new ValidationFailed('Non-US threshold must be greater than or equal to 0');
+          }
+        }
       }
 
       // Merge submitted policies with existing ones

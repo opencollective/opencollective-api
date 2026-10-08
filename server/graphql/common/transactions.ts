@@ -146,7 +146,7 @@ export const canRefund = async (transaction: Transaction, _: void, req: Express.
     const order = await req.loaders.Order.byId.load(transaction.OrderId);
 
     // Not including rejected status since some orders can be rejected without all their transactions being refunded
-    if ([orderStatus.REFUNDED].includes(order.status)) {
+    if (!order || [orderStatus.REFUNDED].includes(order.status)) {
       return false;
     }
   }
@@ -201,7 +201,7 @@ export const canDownloadInvoice = async (transaction: Transaction, _: void, req:
 
   if (transaction.OrderId) {
     const order = await req.loaders.Order.byId.load(transaction.OrderId);
-    if (order.status === orderStatus.REJECTED) {
+    if (!order || order.status === orderStatus.REJECTED) {
       return false;
     }
   }

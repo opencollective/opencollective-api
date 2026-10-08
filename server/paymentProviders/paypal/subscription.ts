@@ -78,6 +78,55 @@ export const cancelPaypalSubscription = async (
   }
 };
 
+/**
+ * Marks an order and its subscription as cancelled in the database. Used when PayPal is the source
+ * of truth for the cancellation (a `BILLING.SUBSCRIPTION.CANCELLED` webhook or a reconciliation with
+ * the PayPal API): the subscription is therefore **not** cancelled on PayPal and the contributor is
+ * **not** notified.
+ */
+export const markPaypalSubscriptionAsCancelledInDb = async (
+  order: Order,
+  {
+    statusChangeNote = undefined,
+    statusUpdateTime = undefined,
+    orderData = undefined,
+    subscriptionData = undefined,
+  }: {
+    /** The reason provided by PayPal when the subscription was cancelled (`status_change_note`) */
+    statusChangeNote?: string;
+    /** When the subscription was cancelled on PayPal. Defaults to now. */
+    statusUpdateTime?: Date | string;
+    /** Extra fields to store in `Order.data` */
+    orderData?: Record<string, unknown>;
+    /** Extra fields to store in `Subscription.data` */
+    subscriptionData?: Record<string, unknown>;
+  } = {},
+): Promise<void> => {
+  const subscription = order.Subscription || (await order.getSubscription());
+
+  if (order.status !== ORDER_STATUS.CANCELLED) {
+    // A contribution that was paused before being cancelled stays paused (see CONTRIBUTION_PAUSED_MSG)
+    const shouldKeepPaused = statusChangeNote === CONTRIBUTION_PAUSED_MSG;
+    await order.update({
+      status: order.status === ORDER_STATUS.PAUSED && shouldKeepPaused ? ORDER_STATUS.PAUSED : ORDER_STATUS.CANCELLED,
+      data: {
+        ...order.data,
+        ...(statusChangeNote ? { paypalStatusChangeNote: statusChangeNote } : null),
+        ...orderData,
+      },
+    });
+  }
+
+  if (subscription && (subscription.isActive || !subscription.deactivatedAt)) {
+    await subscription.update({
+      isActive: false,
+      deactivatedAt: statusUpdateTime ? new Date(statusUpdateTime) : new Date(),
+      nextChargeDate: null,
+      data: { ...subscription.data, ...subscriptionData },
+    });
+  }
+};
+
 const createPaypalPaymentMethodForSubscription = async (
   order: Order,
   user: User,

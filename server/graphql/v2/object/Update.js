@@ -4,7 +4,6 @@ import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { CollectiveType } from '../../../constants/collectives';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
-import { UpdateChannel } from '../../../models/Update';
 import { canSeeUpdate, hasUpdatesScopeForNonPublicUpdate } from '../../common/update';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLUpdateAudienceType } from '../enum';
@@ -106,7 +105,7 @@ const GraphQLUpdate = new GraphQLObjectType({
           }
 
           if (audience !== 'COLLECTIVE_ADMINS') {
-            membersStats = await update.getAudienceMembersStats(audience, UpdateChannel.EMAIL);
+            membersStats = await update.getAudienceMembersStats(audience);
           }
 
           if (update.collective.hasMoneyManagement && (audience === 'ALL' || audience === 'COLLECTIVE_ADMINS')) {
@@ -120,7 +119,7 @@ const GraphQLUpdate = new GraphQLObjectType({
             collectives: membersStats[CollectiveType.COLLECTIVE] || 0,
             coreContributors: membersStats['CORE_CONTRIBUTOR'] || 0,
             hosted: hostedCollectivesCount || 0,
-            total: await update.countUsersToNotify(audience, UpdateChannel.EMAIL),
+            total: await update.countUsersToNotify(audience),
           };
         },
       },
