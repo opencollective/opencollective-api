@@ -75,9 +75,9 @@ export async function createCollective(_, args, req: express.Request) {
     parentCollective = await req.loaders.Collective.byId.load(args.collective.ParentCollectiveId);
     if (!parentCollective) {
       return Promise.reject(new Error(`Parent collective with id ${args.collective.ParentCollectiveId} not found`));
-    } else if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parentCollective.id)) {
+    } else if (!req.remoteUser.hasRole([roles.ADMIN], parentCollective.id)) {
       throw new Unauthorized(
-        `You must be logged in as a member of the ${parentCollective.slug} collective to create an event`,
+        `You must be logged in as an admin of the ${parentCollective.slug} collective to create an account under it`,
       );
     }
 
