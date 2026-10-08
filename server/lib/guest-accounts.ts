@@ -44,22 +44,23 @@ export const getOrCreateGuestProfile = async (
   }
 
   return sequelize.transaction(async transaction => {
-    // Create (or fetch) the user associated with the email
-    let user, collective;
-    user = await models.User.findOne({ where: { email }, transaction });
-    if (!user) {
-      user = await models.User.create(
-        {
-          email,
-          confirmedAt: null,
-          emailConfirmationToken,
-          data: {
-            creationRequest,
-          },
+    // Create (or fetch) the user associated with the email.
+    // Use findOrCreate to recover from a unique-constraint conflict when
+    // concurrent requests both try to create the same user.
+    let collective;
+    const [user, created] = await models.User.findOrCreate({
+      where: { email },
+      defaults: {
+        confirmedAt: null,
+        emailConfirmationToken,
+        data: {
+          creationRequest,
         },
-        { transaction },
-      );
-    } else if (user.CollectiveId) {
+      },
+      transaction,
+    });
+
+    if (!created && user.CollectiveId) {
       collective = await models.Collective.findByPk(user.CollectiveId, {
         transaction,
         include: [{ association: 'location' }],
