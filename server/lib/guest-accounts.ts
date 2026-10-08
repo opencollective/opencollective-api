@@ -44,7 +44,6 @@ export const getOrCreateGuestProfile = async (
   }
 
   return sequelize.transaction(async transaction => {
-    // Create (or fetch) the user associated with the email.
     // Use findOrCreate to recover from a unique-constraint conflict when
     // concurrent requests both try to create the same user.
     let collective;
