@@ -238,9 +238,16 @@ const isHostAdminOrAccountantIncludingInheritedHost = async (
     }
   }
 
+  // If the expense has a host, it's the only source of truth: new hosts must not access past expenses they didn't manage
+  if (expense.HostCollectiveId) {
+    return (
+      req.remoteUser.isAdmin(expense.HostCollectiveId) ||
+      req.remoteUser.hasRole(roles.ACCOUNTANT, expense.HostCollectiveId)
+    );
+  }
+
   const hostIds = new Set<number>();
   const addHostId = id => id && hostIds.add(id);
-  addHostId(expense.HostCollectiveId);
   addHostId(expense.collective.HostCollectiveId);
   if (expense.collective.ParentCollectiveId) {
     const parent = await req.loaders.Collective.byId.load(expense.collective.ParentCollectiveId);
