@@ -71,8 +71,11 @@ const individualMutations = {
       // This mutation is session-only: we don't want OAuth/Personal Tokens to be able to change credentials,
       // nor to be exchanged against a session token.
       rejectOAuthAndPersonalTokenAuth(req, 'OAuth and Personal Tokens are not allowed to set passwords.');
-      
+
       // No need to check the scope, since personal/oauth tokens are rejected.
+      if (!req.remoteUser) {
+        throw new Unauthorized('You need to be logged in to manage account.');
+      }
 
       const rateLimitKey = `individual_set_password_${req.remoteUser.id}`;
       const rateLimitMax = config.limits.setPasswordPerUserPerHour;
