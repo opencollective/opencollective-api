@@ -616,6 +616,57 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(order.platformTipEligible).to.eq(true);
         });
 
+        it('rejects a negative platform tip (card path)', async () => {
+          const result = await callCreateOrder(
+            {
+              order: {
+                ...validOrderParams,
+                platformTipAmount: {
+                  valueInCents: -100,
+                },
+              },
+            },
+            fromUser,
+          );
+
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
+        });
+
+        it('rejects a negative platform tip (balance transfer path)', async () => {
+          const result = await callCreateOrder(
+            {
+              order: {
+                ...validOrderParams,
+                isBalanceTransfer: true,
+                platformTipAmount: {
+                  valueInCents: -100,
+                },
+              },
+            },
+            fromUser,
+          );
+
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
+        });
+
+        it('rejects an order that offsets the contribution with a negative platform tip', async () => {
+          const result = await callCreateOrder(
+            {
+              order: {
+                ...validOrderParams,
+                amount: { valueInCents: 1000 },
+                platformTipAmount: { valueInCents: -999 },
+              },
+            },
+            fromUser,
+          );
+
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
+        });
+
         it('respects the isSavedForLater param', async () => {
           const orderData = {
             ...validOrderParams,
@@ -2459,6 +2510,20 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       );
     });
 
+    it('rejects a negative platform tip amount', async () => {
+      const result = await callEditPendingOrder(
+        {
+          order: {
+            ...validEditOrderParams,
+            platformTipAmount: { valueInCents: -100, currency: 'USD' },
+          },
+        },
+        hostAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
+    });
+
     it('edits a pending order', async () => {
       const result = await callEditPendingOrder({ order: validEditOrderParams }, hostAdmin);
 
@@ -3749,6 +3814,26 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(orderWithTaxes.Subscription.amount).to.eq(1200);
       });
 
+      it('rejects a negative platform tip amount', async () => {
+        await order2.reload();
+        const totalAmountBefore = order2.totalAmount;
+        const platformTipAmountBefore = order2.platformTipAmount;
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(order2.id, 'order') },
+            platformTipAmount: { valueInCents: -100, currency: order2.currency },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
+        await order2.reload();
+        expect(order2.totalAmount).to.eq(totalAmountBefore);
+        expect(order2.platformTipAmount).to.eq(platformTipAmountBefore);
+      });
+
       it('rejects amount/tier change for PayPal-managed subscription without paypalSubscriptionId', async () => {
         const paypalPm = await fakePaymentMethod({
           service: PAYMENT_METHOD_SERVICE.PAYPAL,
@@ -4095,6 +4180,45 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         const tip = transactions.find(t => t.kind === 'PLATFORM_TIP');
         expect(tip).to.have.property('amount').equal(100);
+      });
+
+      it('rejects a negative platform tip when marking as paid', async () => {
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            action: 'MARK_AS_PAID',
+            order: {
+              id: idEncode(order.id, 'order'),
+              amount: { valueInCents: 10000, currency: order.currency },
+              platformTip: { valueInCents: -100, currency: order.currency },
+            },
+          },
+          hostAdminUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.PENDING);
+      });
+
+      it('rejects a negative platform tip edit without an amount change', async () => {
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            action: 'MARK_AS_PAID',
+            order: {
+              id: idEncode(order.id, 'order'),
+              platformTip: { valueInCents: -50, currency: order.currency },
+            },
+          },
+          hostAdminUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.PENDING);
       });
     });
 

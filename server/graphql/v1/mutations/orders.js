@@ -305,6 +305,10 @@ export async function createOrder(order, req) {
       throw new ValidationFailed('Quantity must be at least 1');
     }
 
+    if (order.platformTipAmount < 0) {
+      throw new ValidationFailed('Platform tip amount cannot be negative');
+    }
+
     let tier;
     if (order.tier) {
       tier = await models.Tier.findByPk(order.tier.id);
