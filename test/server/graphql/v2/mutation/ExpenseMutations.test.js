@@ -4951,6 +4951,22 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           expect(expense.amount).to.equal(2000);
         });
 
+        it('does not attempt to resume a virtual card on a charge that has none', async () => {
+          // The auto-resume step is shared by all posted charges. A manually created charge has no
+          // virtual card, so the card must be checked for before the resume logic runs.
+          await host.update({ settings: { ...host.settings, virtualcards: { autopause: true } } });
+          const expense = await createPaidCharge();
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: 'Renamed' } },
+            collectiveAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          await expense.reload();
+          expect(expense.description).to.equal('Renamed');
+        });
+
         it('cannot change the amount of a paid manually-created card charge', async () => {
           const expense = await createPaidCharge();
           const result = await graphqlQueryV2(
