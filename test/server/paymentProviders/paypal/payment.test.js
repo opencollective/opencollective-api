@@ -219,7 +219,7 @@ describe('server/paymentProviders/paypal/payment', () => {
       });
     });
 
-    describe('#recordPaypalSale bundled charges (https://github.com/opencollective/opencollective/issues/6600)', () => {
+    describe('Bundled PayPal subscription charges (https://github.com/opencollective/opencollective/issues/6600)', () => {
       let host, collective;
 
       before(async () => {
@@ -235,13 +235,23 @@ describe('server/paymentProviders/paypal/payment', () => {
         return hostFeeTransaction.amount;
       };
 
+      const createPaypalSubscriptionOrder = async (params = {}) => {
+        const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'subscription' });
+        return fakeOrder(
+          {
+            CollectiveId: collective.id,
+            currency: 'USD',
+            taxAmount: 0,
+            PaymentMethodId: paymentMethod.id,
+            subscription: { paypalSubscriptionId: paymentMethod.token },
+            ...params,
+          },
+          { withSubscription: true },
+        );
+      };
+
       it('charges single-cycle host fee when amount matches order', async () => {
-        const order = await fakeOrder({
-          CollectiveId: collective.id,
-          totalAmount: 1000,
-          currency: 'USD',
-          taxAmount: 0,
-        });
+        const order = await createPaypalSubscriptionOrder({ totalAmount: 1000 });
         const transaction = await paypalPayment.recordPaypalSale(order, {
           id: `SALE-SINGLE-${order.id}`,
           amount: { total: '10.00', currency: 'USD' },
@@ -252,12 +262,7 @@ describe('server/paymentProviders/paypal/payment', () => {
       });
 
       it('scales host fee when PayPal bundles two cycles in a single charge', async () => {
-        const order = await fakeOrder({
-          CollectiveId: collective.id,
-          totalAmount: 500,
-          currency: 'USD',
-          taxAmount: 0,
-        });
+        const order = await createPaypalSubscriptionOrder({ totalAmount: 500 });
         const transaction = await paypalPayment.recordPaypalSale(order, {
           id: `SALE-BUNDLED-${order.id}`,
           amount: { total: '10.00', currency: 'USD' },
@@ -270,12 +275,7 @@ describe('server/paymentProviders/paypal/payment', () => {
 
       it('reproduces the $5/mo issue example (5.75% host fee)', async () => {
         const collective575 = await fakeCollective({ HostCollectiveId: host.id, hostFeePercent: 5.75 });
-        const order = await fakeOrder({
-          CollectiveId: collective575.id,
-          totalAmount: 500,
-          currency: 'USD',
-          taxAmount: 0,
-        });
+        const order = await createPaypalSubscriptionOrder({ CollectiveId: collective575.id, totalAmount: 500 });
         const transaction = await paypalPayment.recordPaypalSale(order, {
           id: `SALE-ISSUE-6600-${order.id}`,
           amount: { total: '10.00', currency: 'USD' },
@@ -289,10 +289,9 @@ describe('server/paymentProviders/paypal/payment', () => {
         const tipHost = await fakeHost();
         await tipHost.update({ settings: { ...tipHost.settings, newPlatformTipsLedger: true } });
         const tipCollective = await fakeCollective({ HostCollectiveId: tipHost.id, hostFeePercent: 10 });
-        const order = await fakeOrder({
+        const order = await createPaypalSubscriptionOrder({
           CollectiveId: tipCollective.id,
           totalAmount: 1000,
-          currency: 'USD',
           taxAmount: 100,
           platformTipAmount: 100,
         });
@@ -312,13 +311,8 @@ describe('server/paymentProviders/paypal/payment', () => {
         expect(await getHostFeeCreditAmount(order.id)).to.eq(160);
       });
 
-      it('scales host fee for captures with bundled amounts', async () => {
-        const order = await fakeOrder({
-          CollectiveId: collective.id,
-          totalAmount: 500,
-          currency: 'USD',
-          taxAmount: 0,
-        });
+      it('scales host fee for captures of bundled subscription charges', async () => {
+        const order = await createPaypalSubscriptionOrder({ totalAmount: 500 });
         const transaction = await paypalPayment.recordPaypalCapture(order, {
           id: `CAPTURE-BUNDLED-${order.id}`,
           amount: { value: '10.00', currency_code: 'USD' },
@@ -329,12 +323,7 @@ describe('server/paymentProviders/paypal/payment', () => {
       });
 
       it('scales host fee for PayPal transactions and records processor fee in cents', async () => {
-        const order = await fakeOrder({
-          CollectiveId: collective.id,
-          totalAmount: 500,
-          currency: 'USD',
-          taxAmount: 0,
-        });
+        const order = await createPaypalSubscriptionOrder({ totalAmount: 500 });
         const transaction = await paypalPayment.recordPaypalTransaction(
           order,
           {
@@ -349,6 +338,23 @@ describe('server/paymentProviders/paypal/payment', () => {
         expect(transaction.amount).to.eq(1000);
         expect(await getHostFeeCreditAmount(order.id)).to.eq(100);
         expect(transaction.paymentProcessorFeeInHostCurrency).to.eq(-30);
+      });
+
+      it('keeps the legacy host fee for non-subscription payments', async () => {
+        const order = await fakeOrder({
+          CollectiveId: collective.id,
+          totalAmount: 500,
+          currency: 'USD',
+          taxAmount: 0,
+        });
+        const transaction = await paypalPayment.recordPaypalCapture(order, {
+          id: `CAPTURE-ONE-TIME-${order.id}`,
+          amount: { value: '10.00', currency_code: 'USD' },
+          seller_receivable_breakdown: { paypal_fee: { value: '0.00' } },
+        });
+        expect(transaction.amount).to.eq(1000);
+        // Not scaled: the host fee stays on the order amount (10% of $5), not the charged amount
+        expect(await getHostFeeCreditAmount(order.id)).to.eq(50);
       });
     });
 

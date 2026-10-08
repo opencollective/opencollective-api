@@ -7,6 +7,7 @@ import { floatAmountToCents, getFxRate, roundCentsAmount } from '../../lib/curre
 import {
   calcFee,
   createRefundTransaction,
+  getHostFee,
   getHostFeePercent,
   getHostFeeSharePercent,
   getPlatformTip,
@@ -24,6 +25,21 @@ import { PaypalCapture, PaypalRefund, PaypalSale, PaypalTransaction } from '../.
 import { BasePaymentProviderService, PaymentProviderServiceWithoutRecurring } from '../types';
 
 import { paypalRequestV2 } from './api';
+import { isPaypalSubscriptionPaymentMethod } from './subscription';
+
+/**
+ * Returns true if the order is a recurring contribution managed by a PayPal subscription
+ * (billing agreement), which is the only flow where PayPal can charge more than `order.totalAmount`
+ * in a single payment (see `recordTransaction`).
+ */
+const isPaypalSubscriptionOrder = async (order: Order): Promise<boolean> => {
+  if (order.paymentMethod && isPaypalSubscriptionPaymentMethod(order.paymentMethod)) {
+    return true;
+  }
+
+  const subscription = order.Subscription || (order.SubscriptionId ? await order.getSubscription() : null);
+  return Boolean(subscription?.paypalSubscriptionId);
+};
 
 /** Create transaction in our database to reflect a PayPal charge */
 const recordTransaction = async (
@@ -50,17 +66,31 @@ const recordTransaction = async (
   const amountInHostCurrency = roundCentsAmount(amount * hostCurrencyFxRate, hostCurrency);
   const paymentProcessorFeeInHostCurrency = roundCentsAmount(hostCurrencyFxRate * paypalFee, hostCurrency);
 
-  // PayPal can bundle multiple billing cycles in a single charge when a subscription has
-  // outstanding balance (e.g. a missed month retried later: $5/mo billed as $10). In that case
-  // `amount` is a multiple of `order.totalAmount` and per-cycle fees must be scaled accordingly.
-  // See https://github.com/opencollective/opencollective/issues/6600
-  const hostFeePercent = (await getHostFeePercent(order)) || 0;
-  const orderPlatformTip = getPlatformTip(order);
-  const orderTotalAmount = order.totalAmount || 0;
-  const chargeRatio = orderTotalAmount ? amount / orderTotalAmount : 1;
-  const taxAmount = Math.round((order.taxAmount || 0) * chargeRatio);
-  const platformTip = Math.round(orderPlatformTip * chargeRatio);
-  const hostFee = calcFee(amount - taxAmount - platformTip, hostFeePercent, currency);
+  let hostFee: number;
+  let taxAmount: number;
+  let platformTip: number;
+  if (await isPaypalSubscriptionOrder(order)) {
+    // PayPal can bundle multiple billing cycles in a single charge when a subscription has
+    // outstanding balance (e.g. a missed month retried later: $5/mo billed as $10). In that case
+    // `amount` is a multiple of `order.totalAmount` and per-cycle fees must be scaled accordingly.
+    // See https://github.com/opencollective/opencollective/issues/6600
+    //
+    // TODO: consolidate this with `getHostFee` (which always computes fees on `order.totalAmount`) so
+    // that all payment providers scale their fees to the amount actually charged. Kept separate for
+    // now to preserve the legacy behavior of non-PayPal-subscription payments.
+    const hostFeePercent = (await getHostFeePercent(order)) || 0;
+    const orderTotalAmount = order.totalAmount || 0;
+    const chargeRatio = orderTotalAmount ? amount / orderTotalAmount : 1;
+    taxAmount = order.taxAmount ? Math.round(order.taxAmount * chargeRatio) : order.taxAmount;
+    platformTip = Math.round(getPlatformTip(order) * chargeRatio);
+    hostFee = calcFee(amount - (taxAmount || 0) - platformTip, hostFeePercent, currency);
+  } else {
+    // Legacy behavior for non-PayPal-subscription payments: fees are computed on the order amounts,
+    // whatever the amount actually charged is.
+    hostFee = await getHostFee(order);
+    taxAmount = order.taxAmount;
+    platformTip = getPlatformTip(order);
+  }
 
   const hostFeeInHostCurrency = roundCentsAmount(hostFee * hostCurrencyFxRate, hostCurrency);
 

@@ -177,6 +177,8 @@ async function createPaypalPlan(host, collective, productId, interval, amount, c
         },
       ],
       payment_preferences: {
+        // Never bill the outstanding balance in the next cycle: bundled charges break fees accounting
+        // (see https://github.com/opencollective/opencollective/issues/6600)
         auto_bill_outstanding: false,
         payment_failure_threshold: 4, // Will fail up to 4 times, after that the subscription gets cancelled
       },
