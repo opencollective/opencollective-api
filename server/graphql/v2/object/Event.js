@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { roles } from '../../../constants';
@@ -18,18 +18,6 @@ export const GraphQLEvent = new GraphQLObjectType({
       ...AccountWithHostFields,
       ...AccountWithContributionsFields,
       ...AccountWithParentFields,
-      isApproved: {
-        description: "Returns whether it's approved by the Fiscal Host",
-        type: new GraphQLNonNull(GraphQLBoolean),
-        async resolve(event, _, req) {
-          if (!event.ParentCollectiveId) {
-            return false;
-          } else {
-            const parent = await req.loaders.Collective.byId.load(event.ParentCollectiveId);
-            return Boolean(parent?.isApproved());
-          }
-        },
-      },
       startsAt: {
         description: 'The Event start date and time',
         type: GraphQLDateTime,

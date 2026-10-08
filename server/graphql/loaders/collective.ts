@@ -80,6 +80,39 @@ export default {
     });
   },
   /**
+   * Whether an account is approved by its fiscal host. Events, projects and any other account with a parent
+   * inherit their host from it, so we always defer to the parent when there is one.
+   */
+  isApproved: (): DataLoader<number, boolean> => {
+    return new DataLoader(async (collectiveIds: number[]): Promise<boolean[]> => {
+      // Load the accounts, then their ancestors since children inherit their host from their parent
+      const accountsById = new Map<number, Collective>();
+      const requestedIds = new Set<number>();
+      let idsToLoad = uniq(collectiveIds.filter(Boolean));
+      while (idsToLoad.length) {
+        idsToLoad.forEach(id => requestedIds.add(id));
+        const accounts: Collective[] = await Collective.findAll({ where: { id: { [Op.in]: idsToLoad } } });
+        accounts.forEach(account => accountsById.set(account.id, account));
+        idsToLoad = uniq(accounts.map(account => account.ParentCollectiveId).filter(id => id && !requestedIds.has(id)));
+      }
+
+      const isApproved = (account: Collective | undefined, seenIds: Set<number> = new Set()): boolean => {
+        if (!account || seenIds.has(account.id)) {
+          return false;
+        } else if (account.ParentCollectiveId) {
+          seenIds.add(account.id);
+          return isApproved(accountsById.get(account.ParentCollectiveId), seenIds);
+        } else if (account.id === account.HostCollectiveId) {
+          return true; // Self-hosted
+        }
+
+        return Boolean(account.HostCollectiveId && account.isActive && account.approvedAt);
+      };
+
+      return collectiveIds.map(id => isApproved(accountsById.get(id)));
+    });
+  },
+  /**
    * To check if remoteUser has access to user's private info (email, legal name, etc). `remoteUser` must either:
    * - be the user himself
    * - be an admin of a collective where user is a member (even as incognito, and regardless of the role)

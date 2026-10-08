@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLObjectType } from 'graphql';
 
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
@@ -16,18 +16,6 @@ export const GraphQLProject = new GraphQLObjectType({
       ...AccountWithHostFields,
       ...AccountWithContributionsFields,
       ...AccountWithParentFields,
-      isApproved: {
-        description: "Returns whether it's approved by the Fiscal Host",
-        type: new GraphQLNonNull(GraphQLBoolean),
-        async resolve(project, _, req) {
-          if (!project.ParentCollectiveId) {
-            return false;
-          } else {
-            const parent = await req.loaders.Collective.byId.load(project.ParentCollectiveId);
-            return Boolean(parent?.isApproved());
-          }
-        },
-      },
       location: {
         ...AccountFields.location,
         async resolve(project, _, req) {
