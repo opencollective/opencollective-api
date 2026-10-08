@@ -4787,6 +4787,177 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           await expense.reload();
           expect(expense.amount).to.equal(2000);
         });
+
+        // Payload sent by the frontend `AttachReceipts` dialog (see EditExpenseDialog.tsx):
+        // items are re-submitted with their locked amounts/dates and a receipt attached.
+        const attachReceiptsPayload = (expense, receiptUrl) => ({
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          items: [...expense.items]
+            .sort((a, b) => a.id - b.id)
+            .map((item, index) => ({
+              id: idEncode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
+              description: item.description,
+              amountV2: { valueInCents: item.amount, currency: item.currency },
+              incurredAt: item.incurredAt,
+              url: index === 0 ? receiptUrl : item.url,
+            })),
+        });
+
+        const createPaidCharge = ({ ...extra } = {}) =>
+          fakeExpense({
+            data: { isManualVirtualCardCharge: true },
+            status: expenseStatus.PAID,
+            type: expenseTypes.CHARGE,
+            amount: 2000,
+            CollectiveId: collective.id,
+            UserId: owner.id,
+            // Charge items are created without receipts, they are attached later
+            items: [{ amount: 2000, description: 'Card charge', url: null }],
+            ...extra,
+          });
+
+        it('collective admin can attach receipts to a paid virtual card charge', async () => {
+          const virtualCard = await fakeVirtualCard();
+          const expense = await createPaidCharge({
+            data: { missingDetails: true },
+            VirtualCardId: virtualCard.id,
+          });
+
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: attachReceiptsPayload(expense, randUrl()) },
+            collectiveAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          await expense.reload();
+          expect(expense.amount).to.equal(2000);
+          expect(expense).to.have.nested.property('data.missingDetails').eq(false);
+        });
+
+        it('collective admin can attach receipts to a paid manually-created card charge', async () => {
+          const expense = await createPaidCharge();
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: attachReceiptsPayload(expense, randUrl()) },
+            collectiveAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          await expense.reload();
+          expect(expense.amount).to.equal(2000);
+        });
+
+        it('host admin and owner can attach receipts to a paid manually-created card charge', async () => {
+          for (const user of [hostAdmin, owner]) {
+            const expense = await createPaidCharge();
+            const result = await graphqlQueryV2(
+              editExpenseMutation,
+              { expense: attachReceiptsPayload(expense, randUrl()) },
+              user,
+            );
+            result.errors && console.error(result.errors);
+            expect(result.errors).to.not.exist;
+          }
+        });
+
+        it('can attach a receipt to a single item of a multi-item charge', async () => {
+          const virtualCard = await fakeVirtualCard();
+          const expense = await createPaidCharge({
+            data: { missingDetails: true },
+            VirtualCardId: virtualCard.id,
+            amount: 3000,
+            items: [
+              { amount: 1000, description: 'Item 1', url: null },
+              { amount: 2000, description: 'Item 2', url: null },
+            ],
+          });
+
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: attachReceiptsPayload(expense, randUrl()) },
+            collectiveAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          await expense.reload();
+          expect(expense.amount).to.equal(3000);
+        });
+
+        it('keeps existing attached files when re-submitting them', async () => {
+          const virtualCard = await fakeVirtualCard();
+          const expense = await createPaidCharge({
+            data: { missingDetails: true },
+            VirtualCardId: virtualCard.id,
+          });
+          await fakeExpenseAttachedFile({ ExpenseId: expense.id });
+          await expense.reload();
+          expense.attachedFiles = await expense.getAttachedFiles();
+
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                ...attachReceiptsPayload(expense, randUrl()),
+                attachedFiles: expense.attachedFiles.map(file => ({ url: file.url })),
+              },
+            },
+            collectiveAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+        });
+
+        it('can edit the item description while attaching a receipt', async () => {
+          const virtualCard = await fakeVirtualCard();
+          const expense = await createPaidCharge({
+            data: { missingDetails: true },
+            VirtualCardId: virtualCard.id,
+          });
+
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                ...attachReceiptsPayload(expense, randUrl()),
+                items: expense.items.map(item => ({
+                  id: idEncode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
+                  description: 'Beer and pizza',
+                  amountV2: { valueInCents: item.amount, currency: item.currency },
+                  incurredAt: item.incurredAt,
+                  url: randUrl(),
+                })),
+              },
+            },
+            collectiveAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+        });
+
+        it('cannot change the amount of a paid manually-created card charge', async () => {
+          const expense = await createPaidCharge();
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                ...attachReceiptsPayload(expense, randUrl()),
+                items: expense.items.map(item => ({
+                  id: idEncode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
+                  description: item.description,
+                  amountV2: { valueInCents: 1000, currency: item.currency },
+                  incurredAt: item.incurredAt,
+                  url: randUrl(),
+                })),
+              },
+            },
+            collectiveAdmin,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(/cannot change the amount of a paid card charge/i);
+          await expense.reload();
+          expect(expense.amount).to.equal(2000);
+        });
       });
     });
   });

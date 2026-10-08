@@ -2763,6 +2763,15 @@ const isPaidVirtualCardCharge = (expense: Expense): boolean =>
   ['PAID', 'PROCESSING'].includes(expense.status) &&
   Boolean(expense.VirtualCardId);
 
+/**
+ * A card charge whose money already moved (`PAID`/`PROCESSING`). This is the exact predicate used by
+ * `canEditExpense`, `canAttachReceipts` and `canEditItemDescription`: whether the charge is linked to a
+ * virtual card or was created manually (`createExpense` with type `CHARGE`, e.g. from the host dashboard or
+ * a bank transactions import) does not change who may document it.
+ */
+const isPostedCardCharge = (expense: Expense): boolean =>
+  expense.type === ExpenseType.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status);
+
 /** Returns true if the expense should by put back to PENDING after this update */
 export const changesRequireStatusUpdate = (
   expense: Expense,
@@ -3385,7 +3394,7 @@ const assertExpenseFieldEditPermissions = async (
   expense: Expense,
   changes: ExpenseEditChanges,
 ): Promise<void> => {
-  if (isPaidVirtualCardCharge(expense)) {
+  if (isPostedCardCharge(expense)) {
     await assertPaidChargeEditPermissions(req, expense, changes);
   } else {
     await assertRegularExpenseEditPermissions(req, expense, changes);
