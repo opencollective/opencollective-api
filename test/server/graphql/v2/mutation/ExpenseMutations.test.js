@@ -4935,6 +4935,22 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           expect(result.errors).to.not.exist;
         });
 
+        it('can edit metadata without touching the items on a paid manually-created card charge', async () => {
+          // A manually created charge already has its items: editing only its description must not
+          // demand item changes (that requirement is for charges that came in with `data.missingDetails`).
+          const expense = await createPaidCharge();
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: 'Renamed' } },
+            collectiveAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          await expense.reload();
+          expect(expense.description).to.equal('Renamed');
+          expect(expense.amount).to.equal(2000);
+        });
+
         it('cannot change the amount of a paid manually-created card charge', async () => {
           const expense = await createPaidCharge();
           const result = await graphqlQueryV2(
