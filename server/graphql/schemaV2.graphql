@@ -2013,7 +2013,6 @@ enum MemberRole {
   MEMBER
   COMMUNITY_MANAGER
   FUNDRAISER @deprecated(reason: "2022-09-12: This role does not exist anymore")
-  FOLLOWER
   ACCOUNTANT
   CONNECTED_ACCOUNT
 }
@@ -3158,7 +3157,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -10682,7 +10681,7 @@ type Bot implements Account {
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -11751,7 +11750,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -13410,7 +13409,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -14778,7 +14777,7 @@ type Individual implements Account {
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -16172,7 +16171,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -17643,7 +17642,7 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -18821,7 +18820,7 @@ type Vendor implements Account & AccountWithContributions {
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -23190,7 +23189,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -24416,7 +24415,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -27175,26 +27174,6 @@ type Mutation {
     """
     providers: [ManualPaymentProviderReferenceInput!]!
   ): [ManualPaymentProvider!]!
-
-  """
-  Follows a given Collective. Scope: "account"
-  """
-  followAccount(
-    """
-    user will follow this account
-    """
-    account: AccountReferenceInput!
-  ): FollowAccountResult!
-
-  """
-  Unfollows a given Collective. Scope: "account"
-  """
-  unfollowAccount(
-    """
-    account to unfollow
-    """
-    account: AccountReferenceInput!
-  ): UnfollowAccountResult!
 
   """
   Edit the public message for the given Member of a Collective. Scope: "account".
@@ -30086,16 +30065,6 @@ input ManualPaymentProviderUpdateInput {
   The balance/clearing accounting category to attribute payments through this provider to. Pass null to unset.
   """
   balanceAccountingCategory: AccountingCategoryReferenceInput
-}
-
-type FollowAccountResult {
-  individual: Individual!
-  member: Member!
-}
-
-type UnfollowAccountResult {
-  individual: Individual!
-  member: Member
 }
 
 input OAuthAuthorizationReferenceInput {
