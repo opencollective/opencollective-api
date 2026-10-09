@@ -26164,7 +26164,7 @@ type Mutation {
   ): Account!
 
   """
-  Create WebAuthn public key registration request options
+  Create WebAuthn public key registration request options. Session only (OAuth/Personal tokens are not allowed).
   """
   createWebAuthnRegistrationOptions(
     """
@@ -26174,7 +26174,7 @@ type Mutation {
   ): JSON!
 
   """
-  Add 2FA to the Individual if it does not have it. Scope: "account".
+  Add 2FA to the Individual if it does not have it. Session only (OAuth/Personal tokens are not allowed).
   """
   addTwoFactorAuthTokenToIndividual(
     """
@@ -26194,7 +26194,7 @@ type Mutation {
   ): AddTwoFactorAuthTokenToIndividualResponse!
 
   """
-  Remove 2FA from the Individual if it has been enabled. Scope: "account".
+  Remove 2FA from the Individual if it has been enabled. Session only (OAuth/Personal tokens are not allowed).
   """
   removeTwoFactorAuthTokenFromIndividual(
     """
@@ -26220,7 +26220,7 @@ type Mutation {
   ): Individual!
 
   """
-  Edit 2FA method
+  Edit 2FA method. Session only (OAuth/Personal tokens are not allowed).
   """
   editTwoFactorAuthenticationMethod(
     """
@@ -26286,7 +26286,7 @@ type Mutation {
   ): SendMessageResult
 
   """
-  Regenerate two factor authentication recovery codes
+  Regenerate two factor authentication recovery codes. Session only (OAuth/Personal tokens are not allowed).
   """
   regenerateRecoveryCodes: [String!]
 
