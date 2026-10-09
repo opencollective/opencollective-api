@@ -1,6 +1,5 @@
 /** @module lib/payments */
 import config from 'config';
-import DataLoader from 'dataloader';
 import debugLib from 'debug';
 import { escape, find, get, includes, isNil, isNumber, omit, pick, truncate } from 'lodash';
 import moment from 'moment';
@@ -18,6 +17,7 @@ import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
+import type { Loaders } from '../graphql/loaders';
 import { ManualPaymentProvider, Op, sequelize } from '../models';
 import Activity from '../models/Activity';
 import { ManualPaymentProviderTypes, sanitizeManualPaymentProviderInstructions } from '../models/ManualPaymentProvider';
@@ -38,11 +38,17 @@ import { applyBalanceAccountingCategory } from './accounting/categorization/bala
 import { applyContributionAccountingCategoryRules } from './accounting/categorization/contribution-rules';
 import { notify } from './notifications/email';
 import { syncPaymentIntentFromRefund } from './payment-intents/sync';
+import {
+  MetricEvent,
+  MetricFlow,
+  MetricProvider,
+  paymentServiceToMetricProvider,
+  recordPaymentOutcome,
+} from './sentry/metrics';
 import { getFxRate, roundCentsAmount } from './currency';
 import emailLib from './email';
 import { toNegative } from './math';
 import { getTransactionPdf } from './pdf';
-import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
 import { optsSanitizeOnlyTextFormatting, sanitizeHTML } from './sanitize-html';
 import { reportMessageToSentry } from './sentry';
@@ -55,7 +61,7 @@ const { CREDIT, DEBIT } = TransactionTypes;
 
 const debug = debugLib('payments');
 
-type loaders = Record<string, Record<string, DataLoader<number | string, any>>>;
+type loaders = Loaders;
 
 /** Check if paymentMethod has a given fully qualified name
  *
@@ -1090,6 +1096,21 @@ export const executeOrder = async (
       data: omit(order.data, ['stripePaymentIntent']),
     });
 
+    // Terminal outcome for synchronous payments. Async methods (SEPA, payment intents) settle later
+    // and are counted by the webhooks, after their idempotency/dedupe guards. PayPal is counted where
+    // its transaction is recorded (sync capture in the provider, async capture in the webhook) to
+    // avoid double-counting the race between the two. Internal flows (opencollective service:
+    // balance, gift card, prepaid, manual) are out of scope.
+    const provider = paymentServiceToMetricProvider(order.paymentMethod?.service);
+    if (provider === MetricProvider.STRIPE) {
+      recordPaymentOutcome({
+        provider,
+        flow: MetricFlow.CONTRIBUTION,
+        method: order.paymentMethod.type,
+        outcome: MetricEvent.SUCCEEDED,
+      });
+    }
+
     await applyContributionAccountingCategoryRules(order);
     await applyBalanceAccountingCategory(order);
 
@@ -1106,11 +1127,6 @@ export const executeOrder = async (
     // Or in the case of tickets register the user as an ATTENDEE
     if (order.fromCollective?.ParentCollectiveId !== order.collective.id) {
       await order.getOrCreateMembers();
-    }
-
-    // Create a Pre-Paid Payment Method for the prepaid budget
-    if (isPrepaidBudgetOrder(order)) {
-      await createPrepaidPaymentMethod(transaction);
     }
   }
 

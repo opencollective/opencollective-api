@@ -24,6 +24,7 @@ import Transaction, { MERCHANT_ID_PATHS } from '../../../../models/Transaction';
 import { checkScope, enforceScope } from '../../../common/scope-check';
 import { BadRequest, Forbidden, NotFound } from '../../../errors';
 import {
+  type AnyPaymentMethodType,
   GraphQLTransactionCollection,
   GraphQLTransactionsCollectionReturnType,
 } from '../../collection/TransactionCollection';
@@ -811,7 +812,7 @@ const getCacheKey = (resource, condition) => {
   }
 };
 
-const fetchWithCache = async (resource: string, condition, fetchFunction: () => Promise<any>) => {
+const fetchWithCache = async <T>(resource: string, condition, fetchFunction: () => Promise<T>): Promise<T> => {
   let cacheKey;
   if (condition) {
     cacheKey = getCacheKey(resource, condition);
@@ -829,7 +830,7 @@ const fetchWithCache = async (resource: string, condition, fetchFunction: () => 
   return results;
 };
 
-const fetchTransactionsKinds = async whereKinds => {
+const fetchTransactionsKinds = async (whereKinds): Promise<TransactionKind[]> => {
   const condition = whereKinds.length === 1 ? whereKinds[0] : null;
 
   return fetchWithCache('kinds', condition, () =>
@@ -842,7 +843,7 @@ const fetchTransactionsKinds = async whereKinds => {
   );
 };
 
-const fetchTransactionsPaymentMethodTypes = async whereKinds => {
+const fetchTransactionsPaymentMethodTypes = async (whereKinds): Promise<AnyPaymentMethodType[]> => {
   const condition = whereKinds.length === 1 ? whereKinds[0] : null;
 
   return fetchWithCache('paymentMethodTypes', condition, () =>
@@ -852,7 +853,7 @@ const fetchTransactionsPaymentMethodTypes = async whereKinds => {
       include: [{ model: PaymentMethod, required: false, attributes: [] }],
       group: ['PaymentMethod.type'],
       raw: true,
-    }).then(results => results.map(result => result.type || null)),
+    }).then(results => results.map(result => (result.type as AnyPaymentMethodType) || null)),
   );
 };
 

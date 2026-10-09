@@ -13,13 +13,44 @@ import { ExportRequestStatus } from '../../models/ExportRequest';
 
 import type { ExportProcessor } from './types';
 
+/**
+ * The transaction search filter as provided by the REST service, translated to URL search params.
+ * Fields not listed here are ignored.
+ */
+type TransactionExportRequestVariables = {
+  account?: AccountReferenceInput;
+  excludeAccount?: AccountReferenceInput;
+  expense?: ExpenseReferenceInputFields;
+  order?: OrderReferenceInputGraphQLType;
+  expenseType?: string | string[];
+  kind?: string | string[];
+  amount?: {
+    gte?: { valueInCents: number; currency?: string };
+    lte?: { valueInCents: number; currency?: string };
+  };
+  paymentMethodService?: string | string[];
+  paymentMethodType?: string | string[];
+  type?: string;
+  searchTerm?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  clearedFrom?: string;
+  clearedTo?: string;
+  isRefund?: boolean;
+  hasDebt?: boolean;
+  includeEditedReversedTransactions?: boolean;
+  merchantId?: string;
+  accountingCategory?: string | string[];
+  group?: string | string[];
+};
+
 type TransactionExportRequestParameters = {
   fields?: string[];
   useFieldNames?: boolean;
   isHostReport?: boolean;
   flattenTaxesAndPaymentProcessorFees?: boolean;
   fetchAll?: boolean;
-  variables?: Record<string, any>;
+  variables?: TransactionExportRequestVariables;
 };
 
 const safeJoinString = (value: string[] | string) => (Array.isArray(value) ? value.join(',') : value);
@@ -40,10 +71,10 @@ const makeUrl = ({
 
   if (isHostReport) {
     if (queryFilter.variables.account) {
-      url.searchParams.set('account', (queryFilter.variables.account as AccountReferenceInput).slug);
+      url.searchParams.set('account', queryFilter.variables.account.slug);
     }
     if (queryFilter.variables.excludeAccount) {
-      url.searchParams.set('excludeAccount', (queryFilter.variables.excludeAccount as AccountReferenceInput).slug);
+      url.searchParams.set('excludeAccount', queryFilter.variables.excludeAccount.slug);
     }
   }
   if (fetchAll) {
@@ -105,13 +136,13 @@ const makeUrl = ({
     );
   }
   if (queryFilter.variables.order) {
-    url.searchParams.set('orderId', String((queryFilter.variables.order as OrderReferenceInputGraphQLType).legacyId));
+    url.searchParams.set('orderId', String(queryFilter.variables.order.legacyId));
   }
   if (queryFilter.variables.expense) {
-    url.searchParams.set('expenseId', String((queryFilter.variables.expense as ExpenseReferenceInputFields).legacyId));
+    url.searchParams.set('expenseId', String(queryFilter.variables.expense.legacyId));
   }
   if (queryFilter.variables.merchantId) {
-    url.searchParams.set('merchantId', queryFilter.variables.merchantId as string);
+    url.searchParams.set('merchantId', queryFilter.variables.merchantId);
   }
   if (queryFilter.variables.accountingCategory) {
     url.searchParams.set('accountingCategory', safeJoinString(queryFilter.variables.accountingCategory));

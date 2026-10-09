@@ -1296,3 +1296,55 @@ describe('Transaction collection visibility for private organizations', () => {
     });
   });
 });
+
+describe('server/graphql/v2/collection/TransactionCollection - archived prepaid payment methods', () => {
+  let collective;
+
+  before(async () => {
+    await resetTestDB();
+
+    const host = await fakeHost();
+    collective = await fakeCollective({ HostCollectiveId: host.id });
+
+    const activePrepaidPm = await fakePaymentMethod({
+      service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+      type: PAYMENT_METHOD_TYPE.PREPAID,
+      CollectiveId: collective.id,
+      name: 'Prepaid Budget',
+      initialBalance: 100000,
+    });
+    const archivedPrepaidPm = await fakePaymentMethod({
+      service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+      type: PAYMENT_METHOD_TYPE.PREPAID,
+      CollectiveId: collective.id,
+      name: 'Spent Prepaid Budget',
+      initialBalance: 0,
+      archivedAt: new Date(),
+    });
+
+    await fakeTransaction({
+      CollectiveId: collective.id,
+      PaymentMethodId: activePrepaidPm.id,
+      kind: TransactionKind.PREPAID_PAYMENT_METHOD,
+      amount: 10000,
+    });
+    await fakeTransaction({
+      CollectiveId: collective.id,
+      PaymentMethodId: archivedPrepaidPm.id,
+      kind: TransactionKind.PREPAID_PAYMENT_METHOD,
+      amount: -5000,
+    });
+  });
+
+  it('still returns their transactions when filtering by payment method type', async () => {
+    const result = await graphqlQueryV2(transactionsCollectionQuery, {
+      slug: collective.slug,
+      paymentMethodType: ['PREPAID'],
+    });
+    expect(result.errors).to.not.exist;
+    expect(result.data.transactions.totalCount).to.eq(2);
+    expect(result.data.transactions.kinds).to.eqInAnyOrder([TransactionKind.PREPAID_PAYMENT_METHOD]);
+    expect(result.data.transactions.paymentMethodTypes).to.eqInAnyOrder(['PREPAID']);
+    expect(result.data.transactions.nodes).to.containSubset([{ paymentMethod: { type: 'PREPAID' } }]);
+  });
+});

@@ -7,6 +7,7 @@ import { createSandbox } from 'sinon';
 import { activities as ACTIVITY, roles } from '../../../../../server/constants';
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import FEATURE from '../../../../../server/constants/feature';
+import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import OrderStatuses from '../../../../../server/constants/order-status';
 import { PlatformSubscriptionTiers } from '../../../../../server/constants/plans';
 import POLICIES from '../../../../../server/constants/policies';
@@ -25,13 +26,22 @@ import {
   fakeLocation,
   fakeMember,
   fakeOrder,
+  fakePersonalToken,
+  fakePlatformSubscription,
   fakeProject,
   fakeTier,
   fakeUser,
+  fakeUserToken,
   fakeUserTwoFactorMethod,
   randStr,
 } from '../../../../test-helpers/fake-data';
-import { getOrCreatePlatformAccount, graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
+import {
+  getOrCreatePlatformAccount,
+  graphqlQueryV2,
+  resetCaches,
+  resetTestDB,
+  waitForCondition,
+} from '../../../../utils';
 
 const editSettingsMutation = gql`
   mutation EditSettings($account: AccountReferenceInput!, $key: AccountSettingsKey!, $value: JSON!) {
@@ -90,6 +100,12 @@ const createWebAuthnRegistrationOptionsMutation = gql`
   }
 `;
 
+const regenerateRecoveryCodesMutation = gql`
+  mutation RegenerateRecoveryCodes {
+    regenerateRecoveryCodes
+  }
+`;
+
 const duplicateAccountMutation = gql`
   mutation DuplicateAccount(
     $account: AccountReferenceInput!
@@ -119,6 +135,44 @@ const duplicateAccountMutation = gql`
 
 describe('server/graphql/v2/mutation/AccountMutations', () => {
   let adminUser, secondAdminUser, randomUser, hostAdminUser, backerUser, collective;
+
+  const TWO_FACTOR_TOKEN_REJECTION_MESSAGE =
+    'OAuth and Personal Tokens are not allowed to manage two-factor authentication.';
+
+  /**
+   * 2FA management is session-only: these mutations must reject OAuth and personal tokens, even when the token
+   * has the "account" scope. Returns the user owning the tokens so that callers can assert nothing was changed.
+   */
+  const expectTwoFactorMutationsToRejectTokens = async (
+    mutation,
+    getVariables: (user) => Record<string, unknown>,
+    setup?: (user) => Promise<void>,
+  ) => {
+    const user = await fakeUser();
+    if (setup) {
+      await setup(user);
+    }
+
+    const userToken = await fakeUserToken({ type: 'OAUTH', UserId: user.id, scope: [OAuthScopes.account] });
+    const oAuthResult = await graphqlQueryV2(mutation, getVariables(user), user, null, null, userToken);
+    expect(oAuthResult.errors).to.exist;
+    expect(oAuthResult.errors[0].message).to.equal(TWO_FACTOR_TOKEN_REJECTION_MESSAGE);
+
+    const personalToken = await fakePersonalToken({ user, scope: [OAuthScopes.account] });
+    const personalTokenResult = await graphqlQueryV2(
+      mutation,
+      getVariables(user),
+      user,
+      null,
+      null,
+      null,
+      personalToken,
+    );
+    expect(personalTokenResult.errors).to.exist;
+    expect(personalTokenResult.errors[0].message).to.equal(TWO_FACTOR_TOKEN_REJECTION_MESSAGE);
+
+    return user;
+  };
 
   before(async () => {
     await resetTestDB();
@@ -413,6 +467,15 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
     });
 
+    it('cannot be used with OAuth or personal tokens', async () => {
+      const user = await expectTwoFactorMutationsToRejectTokens(addTwoFactorAuthTokenMutation, user => ({
+        account: { id: idEncode(user.collective.id, 'account') },
+        token: secret,
+      }));
+
+      expect(await models.UserTwoFactorMethod.count({ where: { UserId: user.id } })).to.eq(0);
+    });
+
     it('adds 2FA to the user', async () => {
       const result = await graphqlQueryV2(
         addTwoFactorAuthTokenMutation,
@@ -616,6 +679,18 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(result.errors).to.not.exist;
       expect(result.data.removeTwoFactorAuthTokenFromIndividual.hasTwoFactorAuth).to.eq(false);
+    });
+
+    it('cannot be used with OAuth or personal tokens', async () => {
+      const tokenUser = await expectTwoFactorMutationsToRejectTokens(
+        removeTwoFactorAuthTokenMutation,
+        user => ({ account: { id: idEncode(user.collective.id, 'account') }, type: 'TOTP' }),
+        async user => {
+          await fakeUserTwoFactorMethod({ UserId: user.id });
+        },
+      );
+
+      expect(await models.UserTwoFactorMethod.count({ where: { UserId: tokenUser.id } })).to.eq(1);
     });
   });
 
@@ -1248,6 +1323,158 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         },
       });
     });
+
+    it('should fail if user is not authorized to remove a policy', async () => {
+      // Set the policy first
+      await graphqlQueryV2(
+        setPoliciesMutation,
+        {
+          account: { legacyId: collective.id },
+          policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } },
+        },
+        adminUser,
+      );
+
+      // Try to remove it with `null` from an account that is not an admin of the collective
+      const mutationParams = {
+        account: { legacyId: collective.id },
+        policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: null },
+      };
+      const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, hostAdminUser);
+      expect(result.errors).to.have.lengthOf(1);
+      expect(result.errors[0].message).to.include('You are not allowed to edit the following policies');
+
+      // The policy must be retained
+      await collective.reload();
+      expect(collective.data.policies[POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]).to.deep.equal({ enabled: true });
+    });
+
+    it('should fail if a hosted collective admin tries to remove a policy from its host', async () => {
+      const host = await collective.getHostCollective();
+
+      // Set the policy on the host first
+      await graphqlQueryV2(
+        setPoliciesMutation,
+        {
+          account: { legacyId: host.id },
+          policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } },
+        },
+        hostAdminUser,
+      );
+
+      // Try to remove it with `null` as an admin of the hosted collective
+      const mutationParams = {
+        account: { legacyId: host.id },
+        policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: null },
+      };
+      const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
+      expect(result.errors).to.have.lengthOf(1);
+      expect(result.errors[0].message).to.include('You are not allowed to edit the following policies');
+
+      // The policy must be retained
+      await host.reload();
+      expect(host.data.policies[POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]).to.deep.equal({ enabled: true });
+    });
+
+    it('should fail if a collective admin tries to remove a host-only policy', async () => {
+      // Set the host-only policy first
+      await graphqlQueryV2(
+        setPoliciesMutation,
+        {
+          account: { legacyId: collective.id },
+          policies: { [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: true },
+        },
+        hostAdminUser,
+      );
+
+      // Try to remove it with `null` as a collective admin
+      const mutationParams = {
+        account: { legacyId: collective.id },
+        policies: { [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: null },
+      };
+      const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
+      expect(result.errors).to.have.lengthOf(1);
+      expect(result.errors[0].message).to.include('You are not allowed to edit the following policies');
+
+      // The policy must be retained
+      await collective.reload();
+      expect(collective.data.policies[POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]).to.be.true;
+    });
+
+    describe('TAX_FORM_THRESHOLDS policy', () => {
+      const setTaxFormThresholdsMutation = gql`
+        mutation SetPolicies($account: AccountReferenceInput!, $policies: PoliciesInput!) {
+          setPolicies(account: $account, policies: $policies) {
+            id
+            policies {
+              TAX_FORM_THRESHOLDS {
+                US
+                NON_US
+                includePayPalExpenses
+              }
+            }
+          }
+        }
+      `;
+
+      it('should fail if host does not have access to TAX_FORMS feature', async () => {
+        const otherHost = await fakeActiveHost({ admin: hostAdminUser, countryISO: 'FR' });
+        const mutationParams = {
+          account: { legacyId: otherHost.id },
+          policies: { [POLICIES.TAX_FORM_THRESHOLDS]: { US: 0, NON_US: 50000 } },
+        };
+        const result = await graphqlQueryV2(setTaxFormThresholdsMutation, mutationParams, hostAdminUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('This feature is not supported for your account');
+      });
+
+      it('should fail if threshold is negative', async () => {
+        const usHost = await fakeActiveHost({
+          admin: hostAdminUser,
+          countryISO: 'US',
+        });
+        await fakePlatformSubscription({
+          CollectiveId: usHost.id,
+          plan: { features: { [FEATURE.TAX_FORMS]: true } },
+        });
+        const mutationParams = {
+          account: { legacyId: usHost.id },
+          policies: { [POLICIES.TAX_FORM_THRESHOLDS]: { US: -100 } },
+        };
+        const result = await graphqlQueryV2(setTaxFormThresholdsMutation, mutationParams, hostAdminUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('US threshold must be greater than or equal to 0');
+      });
+
+      it('should succeed for host with TAX_FORMS feature', async () => {
+        const usHost = await fakeActiveHost({
+          admin: hostAdminUser,
+          countryISO: 'US',
+        });
+        await fakePlatformSubscription({
+          CollectiveId: usHost.id,
+          plan: { features: { [FEATURE.TAX_FORMS]: true } },
+        });
+        const mutationParams = {
+          account: { legacyId: usHost.id },
+          policies: { [POLICIES.TAX_FORM_THRESHOLDS]: { US: 0, NON_US: 100000, includePayPalExpenses: false } },
+        };
+        const result = await graphqlQueryV2(setTaxFormThresholdsMutation, mutationParams, hostAdminUser);
+        expect(result.errors).to.not.exist;
+        expect(result.data.setPolicies.policies.TAX_FORM_THRESHOLDS).to.deep.equal({
+          US: 0,
+          NON_US: 100000,
+          includePayPalExpenses: false,
+        });
+
+        await usHost.reload();
+        expect(usHost.data.policies.TAX_FORM_THRESHOLDS).to.deep.equal({
+          US: 0,
+          NON_US: 100000,
+          includePayPalExpenses: false,
+        });
+      });
+    });
   });
 
   describe('sendMessage', () => {
@@ -1264,6 +1491,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     let sandbox, sendEmailSpy, collectiveWithContact, collectiveWithoutContact;
 
     before(async () => {
+      await resetCaches();
       sandbox = createSandbox();
       collectiveWithContact = await fakeCollective({
         name: 'Test Collective',
@@ -1296,6 +1524,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         randomUser,
       );
 
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.sendMessage.success).to.equal(true);
 
@@ -1513,6 +1742,12 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
+    });
+
+    it('cannot be used with OAuth or personal tokens', async () => {
+      await expectTwoFactorMutationsToRejectTokens(createWebAuthnRegistrationOptionsMutation, user => ({
+        account: { id: idEncode(user.collective.id, 'account') },
+      }));
     });
 
     it('creates a public key request options', async () => {
@@ -1790,6 +2025,41 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.data.editTwoFactorAuthenticationMethod.twoFactorMethods).to.have.lengthOf(1);
       expect(result.data.editTwoFactorAuthenticationMethod.twoFactorMethods[0].name).to.equal('New name');
     });
+
+    it('cannot be used with OAuth or personal tokens', async () => {
+      let method;
+      await expectTwoFactorMutationsToRejectTokens(
+        editTwoFactorAuthenticationMethodMutation,
+        () => ({
+          userTwoFactorMethod: { id: idEncode(method.id, 'user-two-factor-method') },
+          name: 'Hacked name',
+        }),
+        async user => {
+          method = await fakeUserTwoFactorMethod({ UserId: user.id, name: 'Authenticator' });
+        },
+      );
+
+      await method.reload();
+      expect(method.name).to.equal('Authenticator');
+    });
+  });
+
+  describe('regenerateRecoveryCodes', () => {
+    it('cannot be used with OAuth or personal tokens', async () => {
+      let initialRecoveryCodes;
+      const user = await expectTwoFactorMutationsToRejectTokens(
+        regenerateRecoveryCodesMutation,
+        () => ({}),
+        async user => {
+          await fakeUserTwoFactorMethod({ UserId: user.id });
+          initialRecoveryCodes = [crypto.hash('initial-code-1'), crypto.hash('initial-code-2')];
+          await user.update({ twoFactorAuthRecoveryCodes: initialRecoveryCodes });
+        },
+      );
+
+      await user.reload();
+      expect(user.twoFactorAuthRecoveryCodes).to.deep.equal(initialRecoveryCodes);
+    });
   });
 
   describe('convertAccountToOrganization', () => {
@@ -2017,6 +2287,150 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         expect(subscription.plan.id).to.equal(PlatformSubscriptionTiers[0].id);
         // Since the subscription starts today, it is immediately provisioned
         expect(subscription.featureProvisioningStatus).to.equal('PROVISIONED');
+      });
+    });
+  });
+
+  describe('editAccount', () => {
+    const editAccountMutation = gql`
+      mutation EditAccount($account: AccountUpdateInput!) {
+        editAccount(account: $account) {
+          id
+          isUSEntity
+        }
+      }
+    `;
+
+    it('can update isUSEntity', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+
+      expect(collective.data?.isUSEntity).to.be.undefined;
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: true,
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccount.isUSEntity).to.be.true;
+
+      await collective.reload();
+      expect(collective.data.isUSEntity).to.be.true;
+
+      // Update to false
+      const result2 = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: false,
+          },
+        },
+        user,
+      );
+
+      expect(result2.errors).to.not.exist;
+      expect(result2.data.editAccount.isUSEntity).to.be.false;
+
+      await collective.reload();
+      expect(collective.data.isUSEntity).to.be.false;
+    });
+
+    it('must be an admin to update isUSEntity', async () => {
+      const user = await fakeUser();
+      const otherUser = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: true,
+          },
+        },
+        otherUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
+    });
+
+    it('creates a COLLECTIVE_EDITED activity when isUSEntity is updated standalone', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+
+      expect(collective.data?.isUSEntity).to.be.undefined;
+
+      // Reset activities for this user so we can count new ones precisely
+      await models.Activity.destroy({ where: { UserId: user.id, type: ACTIVITY.COLLECTIVE_EDITED } });
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: true,
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccount.isUSEntity).to.be.true;
+
+      const activities = await models.Activity.findAll({
+        where: { UserId: user.id, CollectiveId: collective.id, type: ACTIVITY.COLLECTIVE_EDITED },
+      });
+      expect(activities.length).to.equal(1);
+
+      const activity = activities[0];
+      expect(activity.data).to.containSubset({
+        previousData: { 'data.isUSEntity': undefined },
+        newData: { 'data.isUSEntity': true },
+      });
+    });
+
+    it('persists both data fields when privateInstructions and isUSEntity are updated in the same mutation', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+
+      expect(collective.data?.privateInstructions).to.be.undefined;
+      expect(collective.data?.isUSEntity).to.be.undefined;
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            privateInstructions: 'Please invoice monthly',
+            isUSEntity: true,
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+
+      await collective.reload();
+      expect(collective.data.privateInstructions).to.equal('Please invoice monthly');
+      expect(collective.data.isUSEntity).to.be.true;
+
+      // The activity must record both changes
+      const activities = await models.Activity.findAll({
+        where: { UserId: user.id, CollectiveId: collective.id, type: ACTIVITY.COLLECTIVE_EDITED },
+      });
+      expect(activities.length).to.equal(1);
+      expect(activities[0].data).to.containSubset({
+        previousData: { 'data.privateInstructions': undefined, 'data.isUSEntity': undefined },
+        newData: { 'data.privateInstructions': 'Please invoice monthly', 'data.isUSEntity': true },
       });
     });
   });

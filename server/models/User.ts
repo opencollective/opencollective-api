@@ -179,7 +179,7 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     }
   };
 
-  setPassword = async function (password, { userToken = null } = {}) {
+  setPassword = async function (password) {
     const passwordBuffer = Buffer.from(password);
     if (passwordBuffer.length > 72) {
       throw new Error('Password is too long, should not be more than 72 bytes.');
@@ -196,7 +196,6 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
       UserId: this.id,
       FromCollectiveId: this.CollectiveId,
       CollectiveId: this.CollectiveId,
-      UserTokenId: userToken?.id,
     });
 
     return this;

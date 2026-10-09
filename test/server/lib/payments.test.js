@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
 import nock from 'nock';
@@ -68,7 +69,7 @@ const SNAPSHOT_COLUMNS = [
 ];
 
 describe('server/lib/payments', () => {
-  let host, user, user2, collective, order, collective2, sandbox, emailSendSpy;
+  let host, user, user2, collective, order, collective2, sandbox, emailSendSpy, metricsCountStub;
 
   before(() => {
     nock('https://data.fixer.io', { encodedQueryParams: true })
@@ -93,6 +94,8 @@ describe('server/lib/payments', () => {
 
   beforeEach(() => {
     sandbox = createSandbox();
+    sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+    metricsCountStub = sandbox.stub(Sentry.metrics, 'count');
     sandbox.stub(stripe.customers, 'create').callsFake(() => Promise.resolve({ id: 'cus_BM7mGwp1Ea8RtL' }));
     sandbox.stub(stripe.customers, 'retrieve').callsFake(() => Promise.resolve({ id: 'cus_BM7mGwp1Ea8RtL' }));
     sandbox.stub(stripe.tokens, 'retrieve').callsFake(async id => ({ id }));
@@ -160,7 +163,7 @@ describe('server/lib/payments', () => {
       TierId: tier.id,
     });
 
-    order = await o.setPaymentMethod({ token: STRIPE_TOKEN });
+    order = await o.setPaymentMethod({ token: STRIPE_TOKEN, type: PAYMENT_METHOD_TYPE.CREDITCARD });
   });
   beforeEach('add host to collective', () => collective.addHost(host, user, { shouldAutomaticallyApprove: true }));
   beforeEach('add host to collective2', () => collective2.addHost(host, user, { shouldAutomaticallyApprove: true }));
@@ -270,6 +273,15 @@ describe('server/lib/payments', () => {
               await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
             });
 
+            it('records a thirdparty payment outcome metric for the successful charge', () => {
+              expect(metricsCountStub).to.have.been.calledOnce;
+              expect(metricsCountStub.firstCall.args).to.deep.equal([
+                'thirdparty.stripe.payment.succeeded',
+                1,
+                { attributes: { flow: 'contribution', method: 'creditcard' } },
+              ]);
+            });
+
             it('successfully adds the user as a backer', () =>
               models.Member.findOne({
                 where: {
@@ -367,6 +379,56 @@ describe('server/lib/payments', () => {
           });
         });
       });
+    });
+  });
+
+  describe('prepaid budgets', () => {
+    it('does not create a prepaid payment method for orders on the prepaid-budget tier', async () => {
+      // Given a host with a "Prepaid Budget" tier (the legacy way to get a prepaid payment method)
+      const prepaidBudgetHost = await fakeActiveHost({ currency: CURRENCY });
+      const prepaidBudgetCollective = await fakeCollective({
+        slug: 'opensource',
+        currency: CURRENCY,
+        HostCollectiveId: prepaidBudgetHost.id,
+      });
+      const tier = await models.Tier.create({
+        name: 'Prepaid Budget',
+        slug: 'prepaid-budget',
+        type: 'TIER',
+        amount: AMOUNT,
+        currency: CURRENCY,
+        CollectiveId: prepaidBudgetCollective.id,
+      });
+
+      const prepaidPaymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.PREPAID,
+        CollectiveId: user.CollectiveId,
+        CreatedByUserId: user.id,
+        currency: CURRENCY,
+        initialBalance: AMOUNT * 10,
+        data: { HostCollectiveId: prepaidBudgetHost.id },
+      });
+
+      // When an order on that tier is executed
+      const prepaidBudgetOrder = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: prepaidBudgetCollective.id,
+        TierId: tier.id,
+        PaymentMethodId: prepaidPaymentMethod.id,
+        totalAmount: AMOUNT,
+        currency: CURRENCY,
+        status: status.PENDING,
+      });
+      await executeOrder(user, prepaidBudgetOrder);
+
+      // Then no new prepaid payment method is created
+      const prepaidPaymentMethods = await models.PaymentMethod.findAll({
+        where: { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.PREPAID },
+      });
+      expect(prepaidPaymentMethods).to.have.length(1);
+      expect(prepaidPaymentMethods[0].id).to.eq(prepaidPaymentMethod.id);
     });
   });
 

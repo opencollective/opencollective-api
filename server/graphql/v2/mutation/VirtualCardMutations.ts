@@ -285,8 +285,14 @@ const virtualCardMutations = {
         throw new NotFound('Could not find Virtual Card');
       }
 
-      if (args.limitAmount && !req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
-        throw new Unauthorized("You don't have permission to update this Virtual Card's limit");
+      if (args.limitAmount) {
+        if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
+          throw new Unauthorized("You don't have permission to update this Virtual Card's limit");
+        }
+
+        // A limit change is a host-scoped financial action: always step up against the host,
+        // regardless of any additional collective-admin role (see resumeVirtualCard).
+        await twoFactorAuthLib.enforceForAccount(req, virtualCard.host);
       } else if (req.remoteUser.isAdminOfCollective(virtualCard.collective)) {
         await twoFactorAuthLib.enforceForAccount(req, virtualCard.collective);
       } else if (req.remoteUser.isAdminOfCollective(virtualCard.host)) {

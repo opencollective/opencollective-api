@@ -148,9 +148,9 @@ describe('server/paymentProviders/paypal/api', () => {
     });
 
     after(() => {
-      configPaypalStub.restore();
       nock.enableNetConnect();
       nock.cleanAll();
+      configPaypalStub.restore();
     });
 
     describe('#paypalConnectAuthorizeUrl', () => {

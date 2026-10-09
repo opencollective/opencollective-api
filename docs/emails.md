@@ -140,7 +140,7 @@ Email templates can be viewed locally by running `npm run compile:email <templat
   - Content:
     - “Contribute as” guidance for org vs self
     - Submit expenses as an Organization
-    - Gift cards; bulk contributions and Funds
+    - Bulk contributions and Funds
     - Team contribution limits; manage recurring contributions
     - Invoices/receipts (transactions page)
     - Org-specific docs; Discord

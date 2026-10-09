@@ -9,6 +9,7 @@ import { Collective, ConnectedAccount, Op, sequelize } from '../models';
 import { paypalRequest } from '../paymentProviders/paypal/api';
 import {
   PayoutBatchDetails,
+  PayoutError,
   PayoutRequestBody,
   PayoutRequestResult,
   PaypalTransactionSearchResult,
@@ -51,22 +52,38 @@ const getPayPalClient = ({
   return new paypal.core.PayPalHttpClient(environment);
 };
 
-const executeRequest = async (
+const executeRequest = async <T>(
   connectedAccount: ConnectedAccount,
   request: PayoutRequestBody | Record<string, unknown>,
-): Promise<any> => {
+): Promise<T> => {
   const client = getPayPalClient(connectedAccount);
   const response = await client.execute(request);
-  return response.result;
+  return response.result as T;
 };
 
 export const executePayouts = async (
   connectedAccount: ConnectedAccount,
   requestBody: PayoutRequestBody,
-): Promise<PayoutRequestResult> => {
+): Promise<PayoutRequestResult | PayoutError> => {
   const request = new paypal.payouts.PayoutsPostRequest();
   request.requestBody(requestBody);
-  return executeRequest(connectedAccount, request);
+  try {
+    return await executeRequest<PayoutRequestResult>(connectedAccount, request);
+  } catch (e) {
+    if (e.statusCode) {
+      // Try to parse and return PayoutError
+      try {
+        const parsedError = JSON.parse(e.message);
+        if (parsedError !== null && typeof parsedError === 'object') {
+          return parsedError;
+        }
+      } catch {
+        // Not an expected PayoutError, fallback to probable runtime error
+      }
+      throw e;
+    }
+    throw e;
+  }
 };
 
 export const getBatchInfo = async (
@@ -77,7 +94,7 @@ export const getBatchInfo = async (
   request.page(1);
   request.pageSize(100);
   request.totalRequired(true);
-  return executeRequest(connectedAccount, request);
+  return executeRequest<PayoutBatchDetails>(connectedAccount, request);
 };
 
 export const validateConnectedAccount = async ({ token, clientId }: Partial<ConnectedAccount>): Promise<void> => {

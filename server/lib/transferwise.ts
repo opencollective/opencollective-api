@@ -166,14 +166,17 @@ const errorMessages = {
   'balance.insufficient-funds': 'You do not have enough funds in your Wise balance to complete this transfer.',
 };
 
+/** Shape of the error payloads returned by the Wise API */
+type WiseErrorData = {
+  errorCode?: TransferwiseErrorCodes | string;
+  errorMessage?: string;
+  errors?: Record<string, unknown>[];
+  error?: string;
+  error_description?: string;
+};
+
 const parseError = (
-  error: AxiosError<{
-    errorCode?: TransferwiseErrorCodes | string;
-    errorMessage?: string;
-    errors?: Record<string, unknown>[];
-    error?: string;
-    error_description?: string;
-  }>,
+  error: AxiosError<WiseErrorData>,
   defaultMessage?: string,
   defaultCode?: string,
 ): string | Error => {
@@ -224,7 +227,12 @@ export async function getToken(connectedAccount: ConnectedAccount, refresh = fal
     try {
       const newToken = await getOrRefreshToken({
         refreshToken: connectedAccount.refreshToken,
-        errorMeta: { extra: { CollectiveId: connectedAccount.CollectiveId, connectedAccountId: connectedAccount.id } },
+        errorMeta: {
+          extra: {
+            CollectiveId: connectedAccount.CollectiveId,
+            connectedAccountId: connectedAccount.id,
+          },
+        },
       });
       if (!newToken) {
         Activity.create({
@@ -284,8 +292,8 @@ export async function getToken(connectedAccount: ConnectedAccount, refresh = fal
   }
 }
 
-export const requestDataAndThrowParsedError = async (
-  fn: (url, data?, options?) => Promise<AxiosResponse>,
+export const requestDataAndThrowParsedError = async <T extends { data?: Record<string, unknown> } = AxiosResponse>(
+  fn: (url, data?, options?) => Promise<AxiosResponse<T>>,
   url: string,
   {
     data,
@@ -303,7 +311,7 @@ export const requestDataAndThrowParsedError = async (
     retries?: number;
   },
   defaultErrorMessage?: string,
-): Promise<any> => {
+): Promise<T['data']> => {
   const start = process.hrtime.bigint();
 
   if (connectedAccount) {
@@ -326,11 +334,12 @@ export const requestDataAndThrowParsedError = async (
     const pRequest = data ? fn(url, requestData, options) : fn(url, options);
     const response = await pRequest;
     return getData(response);
-  } catch (e: any) {
-    const signatureFailed = e?.response?.headers?.['x-2fa-approval-result'] === 'REJECTED';
+  } catch (e) {
+    const error = e as AxiosError<WiseErrorData>;
+    const signatureFailed = error?.response?.headers?.['x-2fa-approval-result'] === 'REJECTED';
     const hadSignature = options.headers?.['X-Signature'];
     if (signatureFailed && !hadSignature) {
-      const ott = e.response.headers['x-2fa-approval'];
+      const ott = error.response.headers['x-2fa-approval'];
       const signature = signString(ott);
       options.headers = { ...options.headers, 'X-Signature': signature, 'x-2fa-approval': ott };
       return requestDataAndThrowParsedError(
@@ -342,8 +351,8 @@ export const requestDataAndThrowParsedError = async (
     } else if (
       connectedAccount &&
       retries < 4 &&
-      e?.response?.status === 401 &&
-      e?.response?.data?.['error'] === 'invalid_token'
+      error?.response?.status === 401 &&
+      error?.response?.data?.['error'] === 'invalid_token'
     ) {
       const delay = retries * 300;
       debug(`invalid_token: waiting ${delay}ms, refreshing the token and trying again (retries: ${retries})...`);
@@ -356,11 +365,11 @@ export const requestDataAndThrowParsedError = async (
         defaultErrorMessage,
       );
     } else {
-      debug(JSON.stringify(e.response?.data, null, 2) || e);
-      const error = parseError(e, defaultErrorMessage);
-      logger.error(error.toString());
-      reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE, requestPath });
-      throw error;
+      debug(JSON.stringify(error.response?.data, null, 2) || error);
+      const parsedError = parseError(error, defaultErrorMessage);
+      logger.error(parsedError.toString());
+      reportErrorToSentry(error, { feature: FEATURE.TRANSFERWISE, requestPath });
+      throw parsedError;
     }
   } finally {
     const end = process.hrtime.bigint();
@@ -1033,7 +1042,7 @@ export const createApplicationWebhook = async (webhookInfo: WebhookCreateInput):
   }
 };
 
-export const deleteApplicationWebhook = async (id: string | number): Promise<any> => {
+export const deleteApplicationWebhook = async (id: string | number): Promise<Record<string, unknown>> => {
   const { access_token } = await getOrRefreshToken({ application: true });
   debug(`deleteApplicationWebhook: id ${id}`);
   try {

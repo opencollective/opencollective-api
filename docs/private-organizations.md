@@ -47,20 +47,19 @@ Several product areas assume a **public** profile. For private organizations the
 
 Features called out as **not relevant** for private accounts and candidates for `UNSUPPORTED` (or equivalent enforcement):
 
-| Area                                  | Notes                                                                                  |
-| ------------------------------------- | -------------------------------------------------------------------------------------- |
-| **Updates**                           | Public-style updates and discovery do not apply.                                       |
-| **Contribution flow**                 | No public donate / checkout to arbitrary visitors.                                     |
-| **Tiers**                             | Public tier selection and marketing tied to tiers.                                     |
-| **Goal**                              | Public funding goals on the profile.                                                   |
-| **Profile page personalization**      | Public profile customization surfaces.                                                 |
-| **Contribution policies**             | Policies aimed at public contributors.                                                 |
-| **Conversations**                     | Community conversations tied to public visibility.                                     |
-| **Manage host**                       | Moving a private tree between hosts is out of scope or restricted.                     |
-| **Cross-host expenses**               | Already blocked in expense mutations (see above).                                      |
-| **Cross-host added funds**            | Same host-tree constraint as add funds for private hosts (see above).                  |
-| **Adding funds from public profiles** | Tightened when the host is private (`canAddFundsFromAccount`).                         |
-| **Gift cards**                        | Public / cross-profile gift card flows are not appropriate without a dedicated design. |
+| Area                                  | Notes                                                                 |
+| ------------------------------------- | --------------------------------------------------------------------- |
+| **Updates**                           | Public-style updates and discovery do not apply.                      |
+| **Contribution flow**                 | No public donate / checkout to arbitrary visitors.                    |
+| **Tiers**                             | Public tier selection and marketing tied to tiers.                    |
+| **Goal**                              | Public funding goals on the profile.                                  |
+| **Profile page personalization**      | Public profile customization surfaces.                                |
+| **Contribution policies**             | Policies aimed at public contributors.                                |
+| **Conversations**                     | Community conversations tied to public visibility.                    |
+| **Manage host**                       | Moving a private tree between hosts is out of scope or restricted.    |
+| **Cross-host expenses**               | Already blocked in expense mutations (see above).                     |
+| **Cross-host added funds**            | Same host-tree constraint as add funds for private hosts (see above). |
+| **Adding funds from public profiles** | Tightened when the host is private (`canAddFundsFromAccount`).        |
 
 **Adapted behavior (not only OFF):**
 

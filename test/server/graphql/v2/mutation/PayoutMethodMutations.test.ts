@@ -114,6 +114,7 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
         order: [['id', 'DESC']],
       });
       expect(created?.data?.['connectedAccountId']).to.be.undefined;
+      expect(created.ConnectedAccountId).to.be.null;
 
       await otherConnectedAccount.reload({ paranoid: false });
       expect(otherConnectedAccount.deletedAt).to.be.null;
@@ -157,6 +158,7 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       });
       expect(created?.type).to.equal(PayoutMethodTypes.PAYPAL);
       expect(created?.data?.['connectedAccountId']).to.be.undefined;
+      expect(created.ConnectedAccountId).to.be.null;
 
       const removeResult = await graphqlQueryV2(
         removeLinkedPayPalPayoutMutation,
@@ -275,12 +277,12 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
           CollectiveId: paypalAdminUser.CollectiveId,
           type: PayoutMethodTypes.PAYPAL,
           isSaved: true,
+          ConnectedAccountId: connectedAccount.id,
           data: {
             email: 'user@paypal.com',
             currency: 'USD',
             isPayPalOAuth: true,
             verifiedAt: new Date().toISOString(),
-            connectedAccountId: connectedAccount.id,
             // eslint-disable-next-line camelcase
             paypalUserInfo: { payer_id: 'PAYERID123' },
           },
@@ -307,7 +309,7 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
         const paypalData = pm.data as PaypalPayoutMethodData;
         expect(paypalData.verifiedAt).to.exist;
         expect(paypalData.email).to.equal('user@paypal.com');
-        expect(paypalData.connectedAccountId).to.equal(connectedAccount.id);
+        expect(pm.ConnectedAccountId).to.equal(connectedAccount.id);
       });
 
       it('soft-deletes the linked ConnectedAccount when hard-deleting (payout method never used)', async () => {
@@ -321,12 +323,12 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
           CollectiveId: paypalAdminUser.CollectiveId,
           type: PayoutMethodTypes.PAYPAL,
           isSaved: true,
+          ConnectedAccountId: connectedAccount.id,
           data: {
             email: 'user@paypal.com',
             currency: 'USD',
             isPayPalOAuth: true,
             verifiedAt: new Date().toISOString(),
-            connectedAccountId: connectedAccount.id,
           },
         });
 
@@ -644,9 +646,11 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
         const pm = await fakePayoutMethod({
           CollectiveId: adminUser.CollectiveId,
           type: PayoutMethodTypes.PAYPAL,
-          data: { ...paypalOAuthData, currency: 'USD', connectedAccountId: 4242 },
+          ConnectedAccountId: (await fakeConnectedAccount({ CollectiveId: adminUser.CollectiveId })).id,
+          data: { ...paypalOAuthData, currency: 'USD' },
           isSaved: true,
         });
+        const originalConnectedAccountId = pm.ConnectedAccountId;
         const result = await graphqlQueryV2(
           editPayoutMethodMutation,
           {
@@ -664,7 +668,7 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
         expect(result.data.editPayoutMethod.data.currency).to.equal('EUR');
         await pm.reload();
         expect(pm.data.currency).to.equal('EUR');
-        expect((pm.data as PaypalPayoutMethodData).connectedAccountId).to.equal(4242);
+        expect(pm.ConnectedAccountId).to.equal(originalConnectedAccountId);
       });
     });
 
@@ -695,7 +699,8 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
         const pm = await fakePayoutMethod({
           CollectiveId: collective.id,
           type: PayoutMethodTypes.PAYPAL,
-          data: { ...paypalOAuthData, connectedAccountId: legitCa.id },
+          ConnectedAccountId: legitCa.id,
+          data: paypalOAuthData,
           isSaved: true,
         });
 
@@ -716,7 +721,32 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
 
         expect(result.errors, JSON.stringify(result.errors)).to.not.exist;
         await pm.reload();
-        expect(pm.data?.['connectedAccountId']).to.equal(legitCa.id);
+        expect(pm.ConnectedAccountId).to.equal(legitCa.id);
+      });
+
+      it('preserves the connected account when a used OAuth payout method is replaced', async () => {
+        const user = await fakeUser();
+        const account = await fakeConnectedAccount({ service: 'paypal', CollectiveId: user.CollectiveId });
+        const pm = await fakePayoutMethod({
+          CollectiveId: user.CollectiveId,
+          ConnectedAccountId: account.id,
+          data: { email: 'verified@paypal.com', currency: 'USD', isPayPalOAuth: true },
+        });
+        await fakeExpense({ PayoutMethodId: pm.id, status: 'PAID' });
+        const pendingExpense = await fakeExpense({ PayoutMethodId: pm.id, status: 'PENDING' });
+
+        const result = await graphqlQueryV2(
+          editPayoutMethodMutation,
+          { payoutMethod: { id: idEncode(pm.id, IDENTIFIER_TYPES.PAYOUT_METHOD), name: 'Updated' } },
+          user,
+        );
+        expect(result.errors, JSON.stringify(result.errors)).not.to.exist;
+        await pm.reload();
+        await pendingExpense.reload();
+        const replacement = await models.PayoutMethod.findByPk(pendingExpense.PayoutMethodId);
+        expect(pm.isSaved).to.be.false;
+        expect(replacement.id).not.to.equal(pm.id);
+        expect(replacement.ConnectedAccountId).to.equal(account.id);
       });
 
       it('does not set connectedAccountId on manual PayPal when client submits a foreign connectedAccountId', async () => {
@@ -754,6 +784,7 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
         expect(result.errors, JSON.stringify(result.errors)).to.not.exist;
         await pm.reload();
         expect(pm.data?.['connectedAccountId']).to.be.undefined;
+        expect(pm.ConnectedAccountId).to.be.null;
       });
     });
 

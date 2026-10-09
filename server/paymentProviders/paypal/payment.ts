@@ -13,6 +13,7 @@ import {
 } from '../../lib/payments';
 import { paypalAmountToCents } from '../../lib/paypal';
 import { reportErrorToSentry } from '../../lib/sentry';
+import { MetricEvent, MetricFlow, MetricProvider, recordPaymentOutcome } from '../../lib/sentry/metrics';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 import Order from '../../models/Order';
@@ -205,6 +206,16 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<Transaction | u
 
       if (!transaction) {
         transaction = await recordPaypalCapture(order, captureDetails);
+
+        // Terminal success of the synchronous PayPal capture. Emitted only when this flow records the
+        // transaction: if the capture-completed webhook won the race (see the lock above), it created
+        // the transaction and already emitted, and we must not count the payment twice.
+        recordPaymentOutcome({
+          provider: MetricProvider.PAYPAL,
+          flow: MetricFlow.CONTRIBUTION,
+          method: order.paymentMethod.type,
+          outcome: MetricEvent.SUCCEEDED,
+        });
       }
     },
     {

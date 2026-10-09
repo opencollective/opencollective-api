@@ -441,8 +441,8 @@ export default async (app: express.Application) => {
   /**
    * File downloads
    */
-  app.get('/legal-documents/:id/download', LegalDocumentsController.download as any);
-  app.get('/files/:uploadedFileId', filesController.getFile as any);
+  app.get('/legal-documents/:id/download', (req, res) => LegalDocumentsController.download(req, res));
+  app.get('/files/:uploadedFileId', filesController.getFile);
 
   /**
    * Gitbook Search API

@@ -155,12 +155,12 @@ jobs:
       PG_DATABASE: opencollective_test
     services:
       redis:
-        image: redis@sha256:718f745deb7dfefeac6eed7041fc7ec9476b50e61b247932682457c41adafa0e
+        image: valkey/valkey:9.1
         ports:
           - 6379:6379
-        options: --entrypoint redis-server
+        options: --entrypoint valkey-server
       postgres:
-        image: postgres:16.15@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+        image: postgres:16.15
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -187,14 +187,10 @@ jobs:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
       # The ubuntu-26.04 image ships PostgreSQL 18 client tools, whose pg_restore emits
-      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Install the 16 client from PGDG.
-      - name: Install PostgreSQL 16 client
-        run: |
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get install -y postgresql-client-16
-          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
-
+      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Run them from the postgres:16 image.
       - run: npm run db:restore:test
+        env:
+          USE_DOCKER: true
 
       - name: Test
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'
@@ -213,10 +209,12 @@ jobs:
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: Unit
+          files: test-results.xml
+          report_type: test_results
 
   test-graphql:
     runs-on: ubuntu-26.04
@@ -227,12 +225,12 @@ jobs:
 
     services:
       redis:
-        image: redis@sha256:718f745deb7dfefeac6eed7041fc7ec9476b50e61b247932682457c41adafa0e
+        image: valkey/valkey:9.1
         ports:
           - 6379:6379
-        options: --entrypoint redis-server
+        options: --entrypoint valkey-server
       postgres:
-        image: postgres:16.15@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+        image: postgres:16.15
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -241,7 +239,7 @@ jobs:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 5
       opensearch:
-        image: opensearchproject/opensearch:3@sha256:fafe3fc3587088674669235575aa166228c48bdb940294a8cdbbc1da75236a40
+        image: opensearchproject/opensearch:3
         ports:
           - 9200:9200
         env:
@@ -271,14 +269,10 @@ jobs:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
       # The ubuntu-26.04 image ships PostgreSQL 18 client tools, whose pg_restore emits
-      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Install the 16 client from PGDG.
-      - name: Install PostgreSQL 16 client
-        run: |
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get install -y postgresql-client-16
-          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
-
+      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Run them from the postgres:16 image.
       - run: npm run db:restore:test
+        env:
+          USE_DOCKER: true
 
       - name: Test
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'
@@ -297,9 +291,11 @@ jobs:
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: test-results.xml
+          report_type: test_results
 
   schema-update:
     runs-on: ubuntu-26.04
@@ -307,12 +303,12 @@ jobs:
 
     services:
       redis:
-        image: redis@sha256:718f745deb7dfefeac6eed7041fc7ec9476b50e61b247932682457c41adafa0e
+        image: valkey/valkey:9.1
         ports:
           - 6379:6379
-        options: --entrypoint redis-server
+        options: --entrypoint valkey-server
       postgres:
-        image: postgres:16.15@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+        image: postgres:16.15
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres

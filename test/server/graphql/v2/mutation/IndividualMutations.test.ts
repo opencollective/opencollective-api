@@ -7,6 +7,7 @@ import { generateSecret } from 'otplib';
 import { createSandbox } from 'sinon';
 import request from 'supertest';
 
+import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import roles from '../../../../../server/constants/roles';
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { crypto } from '../../../../../server/lib/encryption';
@@ -206,15 +207,15 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
       });
     });
 
-    describe('using OAuth tokens', () => {
-      it('must have the account scope', async () => {
+    describe('using OAuth or Personal Tokens', () => {
+      it('is not allowed with an OAuth token, even with the account scope', async () => {
         const application = await fakeApplication({ type: 'oAuth' });
         const user = await fakeUser({ passwordHash: null });
         const userToken = await fakeUserToken({
           type: 'OAUTH',
           ApplicationId: application.id,
           UserId: user.id,
-          scope: ['expenses'],
+          scope: [OAuthScopes.account],
         });
 
         const result = await graphqlQueryV2(
@@ -227,18 +228,15 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
         );
 
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.equal('The User Token is not allowed for operations in scope "account".');
+        expect(result.errors[0].message).to.equal('OAuth and Personal Tokens are not allowed to set passwords.');
+
+        await user.reload();
+        expect(user.passwordHash).to.be.null;
       });
 
-      it('should change not password but not generate a session token', async () => {
-        const application = await fakeApplication({ type: 'oAuth' });
+      it('is not allowed with a personal token, even with the account scope', async () => {
         const user = await fakeUser({ passwordHash: null });
-        const userToken = await fakeUserToken({
-          type: 'OAUTH',
-          ApplicationId: application.id,
-          UserId: user.id,
-          scope: ['account'],
-        });
+        const personalToken = await fakePersonalToken({ user, scope: [OAuthScopes.account] });
 
         const result = await graphqlQueryV2(
           setPasswordMutation,
@@ -246,16 +244,15 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
           user,
           null,
           null,
-          userToken,
+          null,
+          personalToken,
         );
 
-        expect(result.errors).to.not.exist;
-        expect(result.data.setPassword.token).to.not.exist;
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('OAuth and Personal Tokens are not allowed to set passwords.');
 
         await user.reload();
-        expect(user.passwordHash).to.not.be.empty;
-        expect(user.passwordUpdatedAt).to.exist;
-        expect(await bcrypt.compare('newpassword', user.passwordHash)).to.be.true;
+        expect(user.passwordHash).to.be.null;
       });
     });
   });

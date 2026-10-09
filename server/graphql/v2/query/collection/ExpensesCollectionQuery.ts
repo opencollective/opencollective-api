@@ -482,9 +482,10 @@ const loadAllAccountsFromArgs = async (
 
 export const ExpensesCollectionQueryResolver = async (
   _: void,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GraphQL resolver args bag, shaped by graphql-js at runtime
   args: Record<string, any> & { amount?: AmountRangeInputType },
   req: express.Request,
-): Promise<CollectionReturnType & { totalAmount?: any; payees?: any }> => {
+): Promise<CollectionReturnType & { totalAmount?: unknown; payees?: unknown }> => {
   const where = { [Op.and]: [] };
   const include = [];
 
@@ -766,7 +767,7 @@ export const ExpensesCollectionQueryResolver = async (
     }
   } else {
     if (req.remoteUser) {
-      const userClause: any[] = [{ status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } }];
+      const userClause: WhereOptions[] = [{ status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } }];
 
       if (accounts.every(account => req.remoteUser.isAdminOfCollectiveOrHost(account))) {
         userClause.push({ status: expenseStatus.DRAFT });
@@ -798,6 +799,7 @@ export const ExpensesCollectionQueryResolver = async (
       assert(args.amount.gte.currency === args.amount.lte.currency, 'Amount range must have the same currency');
     }
     const currency = args.amount.gte?.currency || args.amount.lte?.currency;
+    assert(currency, 'A currency must be provided when filtering by amount');
     const gte = args.amount.gte && getValueInCentsFromAmountInput(args.amount.gte);
     const lte = args.amount.lte && getValueInCentsFromAmountInput(args.amount.lte);
     const operator =

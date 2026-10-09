@@ -760,7 +760,7 @@ export const TransactionFields = () => {
       async resolve(transaction, _, req) {
         if (transaction.OrderId) {
           const order = await req.loaders.Order.byId.load(transaction.OrderId);
-          return order.status === orderStatus.REJECTED;
+          return order?.status === orderStatus.REJECTED;
         } else {
           return false;
         }

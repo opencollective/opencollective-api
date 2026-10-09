@@ -1,5 +1,6 @@
 /* eslint-disable camelcase */
 import { isNil, omit, round, toNumber, truncate } from 'lodash';
+import assert from 'node:assert';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
@@ -13,10 +14,19 @@ import logger from '../../lib/logger';
 import * as paypal from '../../lib/paypal';
 import { safeJsonStringify } from '../../lib/safe-json-stringify';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
+import {
+  ErrorType,
+  mapErrorToType,
+  MetricEvent,
+  MetricFlow,
+  MetricProvider,
+  recordPaymentOutcome,
+} from '../../lib/sentry/metrics';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import models, { Collective } from '../../models';
 import Expense from '../../models/Expense';
-import { PayoutItemDetails } from '../../types/paypal';
+import { PayoutMethodTypes } from '../../models/PayoutMethod';
+import { PayoutError, PayoutItemDetails, PayoutRequestResult } from '../../types/paypal';
 
 const PROVIDER_NAME = Service.PAYPAL;
 
@@ -78,28 +88,56 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
     items,
   };
 
+  let response: PayoutRequestResult | PayoutError;
+  let parsedErrorResponse: PayoutError | undefined;
   try {
-    const response = await paypal.executePayouts(connectedAccount, requestBody);
-    const updateExpenses = expenses.map(async e => {
-      await e.update({ data: { ...e.data, ...response.batch_header }, status: status.PROCESSING });
-      const user = await models.User.findByPk(e.lastEditedById);
-      await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user, { payoutResponse: response.batch_header });
-      return e;
-    });
-    return Promise.all(updateExpenses);
+    response = await paypal.executePayouts(connectedAccount, requestBody);
+    // Detect and throw parsed PayoutError
+    if (!('batch_header' in response) && 'name' in response) {
+      parsedErrorResponse = response;
+      throw response;
+    }
+    // Safeguard against unexpected responses.
+    assert(
+      'batch_header' in response && response.batch_header.payout_batch_id,
+      'PayPal Payouts response failed to return batch_header',
+    );
   } catch (error) {
     reportErrorToSentry(error, { feature: FEATURE.PAYPAL_PAYOUTS });
+    // Parsed PayPal error responses are persisted as-is so their structured `details` items reach
+    // host admins. Anything else is stringified.
+    const activityError = parsedErrorResponse ?? { message: error.message, details: safeJsonStringify(error) };
     const updateExpenses = expenses.map(async e => {
       await e.update({ status: status.ERROR, data: { ...e.data, error } });
       const user = await models.User.findByPk(e.lastEditedById);
       await e.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
-        error: { message: error.message, details: safeJsonStringify(error) },
+        error: activityError,
         isSystem: true,
       });
+
+      // Terminal failure of each payout attempt (batch submit)
+      recordPaymentOutcome({
+        provider: MetricProvider.PAYPAL,
+        flow: MetricFlow.PAYOUT,
+        method: e.PayoutMethod?.type ?? PayoutMethodTypes.PAYPAL,
+        outcome: MetricEvent.FAILED,
+        errorType: mapErrorToType(error),
+      });
+
       return e;
     });
     return Promise.all(updateExpenses);
   }
+
+  const updateExpenses = expenses.map(async e => {
+    await e.update({ data: { ...e.data, ...response.batch_header }, status: status.PROCESSING });
+    const user = await models.User.findByPk(e.lastEditedById);
+    await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user, {
+      payoutResponse: response.batch_header,
+    });
+    return e;
+  });
+  return Promise.all(updateExpenses);
 };
 
 export const checkBatchItemStatus = async (
@@ -158,6 +196,14 @@ export const checkBatchItemStatus = async (
         });
         // Mark Expense as Paid, create activity and send notifications
         await expense.markAsPaid({ paidAt: clearedAt, activityData: { payoutItem: item } });
+
+        // Terminal success of the payout attempt (the PAID guard above makes redeliveries no-ops)
+        recordPaymentOutcome({
+          provider: MetricProvider.PAYPAL,
+          flow: MetricFlow.PAYOUT,
+          method: expense.PayoutMethod?.type ?? PayoutMethodTypes.PAYPAL,
+          outcome: MetricEvent.SUCCEEDED,
+        });
       }
       break;
     case 'FAILED':
@@ -174,6 +220,15 @@ export const checkBatchItemStatus = async (
           { id: expense.lastEditedById },
           { error: item.errors, isSystem: true, payoutItem: item },
         );
+
+        // Terminal failure of the payout attempt (the ERROR guard above makes redeliveries no-ops)
+        recordPaymentOutcome({
+          provider: MetricProvider.PAYPAL,
+          flow: MetricFlow.PAYOUT,
+          method: expense.PayoutMethod?.type ?? PayoutMethodTypes.PAYPAL,
+          outcome: MetricEvent.FAILED,
+          errorType: item.transaction_status === 'REFUNDED' ? ErrorType.FUNDS_REFUNDED : ErrorType.PROVIDER_ERROR,
+        });
       }
       break;
     // Ignore cases

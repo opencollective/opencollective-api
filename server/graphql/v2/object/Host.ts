@@ -607,7 +607,7 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       hostApplications: {
         type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-        description: 'Applications for this host',
+        description: 'Applications for this host. Scope: "applications".',
         args: {
           ...CollectionArgs,
           searchTerm: {
@@ -629,7 +629,6 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         resolve: async (host, args, req) => {
-          checkRemoteUserCanUseHost(req);
           checkRemoteUserCanUseApplications(req);
           if (!req.remoteUser.isAdminOfCollective(host)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its applications');
@@ -701,7 +700,7 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       pendingApplications: {
         type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-        description: 'Pending applications for this host',
+        description: 'Pending applications for this host. Scope: "applications".',
         deprecationReason: '2023-08-25: Deprecated in favour of host.hostApplications(status: PENDING).',
         args: {
           ...CollectionArgs,
@@ -717,7 +716,6 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         resolve: async (host, args, req) => {
-          checkRemoteUserCanUseHost(req);
           checkRemoteUserCanUseApplications(req);
           if (!req.remoteUser.isAdminOfCollective(host)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its pending applications');

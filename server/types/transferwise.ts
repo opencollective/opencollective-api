@@ -472,7 +472,7 @@ export type BatchGroup = {
   sourceCurrency: string;
   status: 'NEW' | 'COMPLETED' | 'MARKED_FOR_CANCELLATION' | 'PROCESSING_CANCEL' | 'CANCELLED';
   transferIds: Array<WiseId>;
-  payInDetails?: Array<Record<string, any>>;
+  payInDetails?: Array<Record<string, unknown>>;
   alreadyPaid?: boolean;
 };
 
@@ -501,4 +501,16 @@ export type TransactionRequirementsType = {
   type: string;
   title: string;
   fields: Array<TransactionRequiredFields>;
+};
+
+export type TransferwiseErrorObject = {
+  message: string;
+  extensions: {
+    tracing: {
+      'x-trace-id': string;
+      'cf-ray': string;
+    };
+    id: string;
+    code: string;
+  };
 };

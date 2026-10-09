@@ -15,13 +15,17 @@ import { wiseIdsEqual } from '../lib/wise-id';
 import models, { Op } from '../models';
 import transferwise from '../paymentProviders/transferwise';
 import { handleTransferStateChange } from '../paymentProviders/transferwise/webhook';
-import { BatchGroup } from '../types/transferwise';
+import { BatchGroup, TransferStateChangeEvent } from '../types/transferwise';
 
-const getErrorStatusCode = (e: any): number => {
-  if (typeof e.code === 'number') {
+const getErrorStatusCode = (e: unknown): number => {
+  if (typeof e === 'object' && e !== null && 'code' in e && typeof e.code === 'number') {
     return e.code;
   }
-  switch (e.extensions?.code) {
+  const extensionsCode =
+    typeof e === 'object' && e !== null && 'extensions' in e
+      ? (e.extensions as { code?: unknown } | undefined)?.code
+      : undefined;
+  switch (extensionsCode) {
     case 'Unauthorized':
       return 401;
     case 'Forbidden':
@@ -54,7 +58,7 @@ const processPaidExpense = (host, remoteUser, batchGroup: BatchGroup) => async e
 };
 
 export async function payBatch(
-  req: Express.Request<any, any, { expenseIds: Array<string>; hostId: string }>,
+  req: Express.Request<Record<string, string>, unknown, { expenseIds: Array<string>; hostId: string }>,
   res: Express.Response,
 ): Promise<void> {
   try {
@@ -135,7 +139,7 @@ export async function payBatch(
             await handleTransferStateChange({
               // eslint-disable-next-line camelcase
               data: { resource: response, current_state: 'outgoing_payment_sent' },
-            } as any);
+            } as unknown as TransferStateChangeEvent);
           }
         }
       }

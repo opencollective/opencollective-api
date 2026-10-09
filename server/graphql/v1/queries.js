@@ -4,7 +4,6 @@ import { isEmail } from 'validator';
 
 import { roles } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { MemberRolesForPrivateAccounts } from '../../constants/roles';
 import { fetchCollectiveId } from '../../lib/cache';
 import logger from '../../lib/logger';
@@ -461,15 +460,14 @@ const queries = {
   },
 
   /*
-   * Given a prepaid code, return validity and amount
-   * Still used by the "Update Payment Method" page + redeemed gift card page.
+   * Given an id, return a payment method
+   * Still used by the "Update Payment Method" page.
    */
   PaymentMethod: {
     type: PaymentMethodType,
     deprecationReason: '2025-07-10: Please use GraphQL V2',
     args: {
       id: { type: GraphQLInt },
-      code: { type: GraphQLString },
     },
     async resolve(_, args, req) {
       if (args.id) {
@@ -482,23 +480,8 @@ const queries = {
         } else {
           return paymentMethod;
         }
-      } else if (args.code) {
-        const redeemCodeRegex = /^[a-zA-Z0-9]{8}$/;
-        if (!redeemCodeRegex.test(args.code)) {
-          throw Error(`Code "${args.code}" has invalid format`);
-        }
-
-        return models.PaymentMethod.findOne({
-          where: sequelize.and(
-            sequelize.where(sequelize.cast(sequelize.col('uuid'), 'text'), {
-              [Op.like]: `${args.code}%`,
-            }),
-            { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE },
-            { type: PAYMENT_METHOD_TYPE.GIFTCARD },
-          ),
-        });
       } else {
-        return new Error('Please provide an id or a code.');
+        return new Error('Please provide an id.');
       }
     },
   },

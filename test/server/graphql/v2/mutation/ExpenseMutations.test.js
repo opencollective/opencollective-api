@@ -4787,6 +4787,268 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           await expense.reload();
           expect(expense.amount).to.equal(2000);
         });
+
+        // Payload sent by the frontend `AttachReceipts` dialog (see EditExpenseDialog.tsx):
+        // items are re-submitted with their locked amounts/dates and a receipt attached.
+        const attachReceiptsPayload = (expense, receiptUrl) => ({
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          items: [...expense.items]
+            .sort((a, b) => a.id - b.id)
+            .map((item, index) => ({
+              id: idEncode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
+              description: item.description,
+              amountV2: { valueInCents: item.amount, currency: item.currency },
+              incurredAt: item.incurredAt,
+              url: index === 0 ? receiptUrl : item.url,
+            })),
+        });
+
+        const createPaidCharge = ({ ...extra } = {}) =>
+          fakeExpense({
+            data: { isManualVirtualCardCharge: true },
+            status: expenseStatus.PAID,
+            type: expenseTypes.CHARGE,
+            amount: 2000,
+            CollectiveId: collective.id,
+            UserId: owner.id,
+            // Charge items are created without receipts, they are attached later
+            items: [{ amount: 2000, description: 'Card charge', url: null }],
+            ...extra,
+          });
+
+        it('collective admin can attach receipts to a paid virtual card charge', async () => {
+          const virtualCard = await fakeVirtualCard();
+          const expense = await createPaidCharge({
+            data: { missingDetails: true },
+            VirtualCardId: virtualCard.id,
+          });
+
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: attachReceiptsPayload(expense, randUrl()) },
+            collectiveAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          await expense.reload();
+          expect(expense.amount).to.equal(2000);
+          expect(expense).to.have.nested.property('data.missingDetails').eq(false);
+        });
+
+        it('collective admin can attach receipts to a paid manually-created card charge', async () => {
+          const expense = await createPaidCharge();
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: attachReceiptsPayload(expense, randUrl()) },
+            collectiveAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          await expense.reload();
+          expect(expense.amount).to.equal(2000);
+        });
+
+        it('host admin and owner can attach receipts to a paid manually-created card charge', async () => {
+          for (const user of [hostAdmin, owner]) {
+            const expense = await createPaidCharge();
+            const result = await graphqlQueryV2(
+              editExpenseMutation,
+              { expense: attachReceiptsPayload(expense, randUrl()) },
+              user,
+            );
+            result.errors && console.error(result.errors);
+            expect(result.errors).to.not.exist;
+          }
+        });
+
+        it('can attach a receipt to a single item of a multi-item charge', async () => {
+          const virtualCard = await fakeVirtualCard();
+          const expense = await createPaidCharge({
+            data: { missingDetails: true },
+            VirtualCardId: virtualCard.id,
+            amount: 3000,
+            items: [
+              { amount: 1000, description: 'Item 1', url: null },
+              { amount: 2000, description: 'Item 2', url: null },
+            ],
+          });
+
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: attachReceiptsPayload(expense, randUrl()) },
+            collectiveAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          await expense.reload();
+          expect(expense.amount).to.equal(3000);
+        });
+
+        it('keeps existing attached files when re-submitting them', async () => {
+          const virtualCard = await fakeVirtualCard();
+          const expense = await createPaidCharge({
+            data: { missingDetails: true },
+            VirtualCardId: virtualCard.id,
+          });
+          await fakeExpenseAttachedFile({ ExpenseId: expense.id });
+          await expense.reload();
+          expense.attachedFiles = await expense.getAttachedFiles();
+
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                ...attachReceiptsPayload(expense, randUrl()),
+                attachedFiles: expense.attachedFiles.map(file => ({ url: file.url })),
+              },
+            },
+            collectiveAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+        });
+
+        it('can edit the item description while attaching a receipt', async () => {
+          const virtualCard = await fakeVirtualCard();
+          const expense = await createPaidCharge({
+            data: { missingDetails: true },
+            VirtualCardId: virtualCard.id,
+          });
+
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                ...attachReceiptsPayload(expense, randUrl()),
+                items: expense.items.map(item => ({
+                  id: idEncode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
+                  description: 'Beer and pizza',
+                  amountV2: { valueInCents: item.amount, currency: item.currency },
+                  incurredAt: item.incurredAt,
+                  url: randUrl(),
+                })),
+              },
+            },
+            collectiveAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+        });
+
+        it('can edit metadata without touching the items on a paid manually-created card charge', async () => {
+          // A manually created charge already has its items: editing only its description must not
+          // demand item changes (that requirement is for charges that came in with `data.missingDetails`).
+          const expense = await createPaidCharge();
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: 'Renamed' } },
+            collectiveAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          await expense.reload();
+          expect(expense.description).to.equal('Renamed');
+          expect(expense.amount).to.equal(2000);
+        });
+
+        it('does not attempt to resume a virtual card on a charge that has none', async () => {
+          // The auto-resume step is shared by all posted charges. A manually created charge has no
+          // virtual card, so the card must be checked for before the resume logic runs.
+          await host.update({ settings: { ...host.settings, virtualcards: { autopause: true } } });
+          const expense = await createPaidCharge();
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: 'Renamed' } },
+            collectiveAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          await expense.reload();
+          expect(expense.description).to.equal('Renamed');
+        });
+
+        it('cannot change the amount of a paid manually-created card charge', async () => {
+          const expense = await createPaidCharge();
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            {
+              expense: {
+                ...attachReceiptsPayload(expense, randUrl()),
+                items: expense.items.map(item => ({
+                  id: idEncode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
+                  description: item.description,
+                  amountV2: { valueInCents: 1000, currency: item.currency },
+                  incurredAt: item.incurredAt,
+                  url: randUrl(),
+                })),
+              },
+            },
+            collectiveAdmin,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(/cannot change the amount of a paid card charge/i);
+          await expense.reload();
+          expect(expense.amount).to.equal(2000);
+        });
+
+        it('requires 2FA on a paid manually-created charge when the account policy demands it', async () => {
+          // The 2FA skip from #8601 is scoped to charges that came from a real card transaction
+          // (`VirtualCardId`), so a manually created charge must not inherit it.
+          const policyAdmin = await fakeUser();
+          const policyCollective = await fakeCollective({
+            admin: policyAdmin,
+            currency: 'USD',
+            data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+          });
+          const expense = await fakeExpense({
+            data: { isManualVirtualCardCharge: true },
+            status: expenseStatus.PAID,
+            type: expenseTypes.CHARGE,
+            amount: 2000,
+            CollectiveId: policyCollective.id,
+            UserId: policyAdmin.id,
+            items: [{ amount: 2000, description: 'Card charge', url: null }],
+          });
+
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: 'Renamed' } },
+            policyAdmin,
+          );
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+          await expense.reload();
+          expect(expense.description).to.not.equal('Renamed');
+        });
+
+        it('does not require 2FA on a paid virtual card charge', async () => {
+          // #8601: charges generated from real card transactions keep the 2FA skip.
+          const policyAdmin = await fakeUser();
+          const policyCollective = await fakeCollective({
+            admin: policyAdmin,
+            currency: 'USD',
+            data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+          });
+          const virtualCard = await fakeVirtualCard();
+          const expense = await fakeExpense({
+            data: { missingDetails: true },
+            status: expenseStatus.PAID,
+            type: expenseTypes.CHARGE,
+            VirtualCardId: virtualCard.id,
+            amount: 2000,
+            CollectiveId: policyCollective.id,
+            UserId: policyAdmin.id,
+            items: [{ amount: 2000, description: 'Card charge', url: null }],
+          });
+
+          const result = await graphqlQueryV2(
+            editExpenseMutation,
+            { expense: attachReceiptsPayload(expense, randUrl()) },
+            policyAdmin,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+        });
       });
     });
   });
@@ -7790,6 +8052,59 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(draftedExpense.lockedFields).to.deep.equal(['AMOUNT', 'TYPE']);
     });
 
+    it('persists tax idNumbers but redacts them from the public draft payload', async () => {
+      const taxIdNumber = 'FRXX-INVITE-123';
+      const secondTaxIdNumber = 'GST-INVITE-456';
+      const expenseWithTaxIds = cloneDeep(invoice);
+      expenseWithTaxIds.tax = [
+        { type: 'VAT', rate: 0.21, idNumber: taxIdNumber },
+        { type: 'GST', rate: 0.1, idNumber: secondTaxIdNumber },
+      ];
+
+      const result = await graphqlQueryV2(
+        draftExpenseAndInviteUserMutation,
+        { expense: expenseWithTaxIds, account: { legacyId: collective.id }, skipInvite: true },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      // Persisted JSON still accepts tax IDs
+      const draftedExpense = await models.Expense.findByPk(result.data.draftExpenseAndInviteUser.legacyId);
+      expect(draftedExpense.data.taxes).to.have.length(2);
+      expect(draftedExpense.data.taxes[0].idNumber).to.eq(taxIdNumber);
+      expect(draftedExpense.data.taxes[1].idNumber).to.eq(secondTaxIdNumber);
+
+      // Creator (authorized) sees the full draft tax objects
+      expect(result.data.draftExpenseAndInviteUser.draft.taxes).to.have.length(2);
+      expect(result.data.draftExpenseAndInviteUser.draft.taxes[0].idNumber).to.eq(taxIdNumber);
+      expect(result.data.draftExpenseAndInviteUser.draft.taxes[1].idNumber).to.eq(secondTaxIdNumber);
+
+      // Anonymous and unrelated viewers receive only non-sensitive tax fields
+      const draftQuery = gql`
+        query DraftTaxes($id: Int!) {
+          expense(expense: { legacyId: $id }) {
+            id
+            draft
+          }
+        }
+      `;
+      const randomUser = await fakeUser();
+      for (const viewer of [undefined, randomUser]) {
+        const publicResult = await graphqlQueryV2(draftQuery, { id: draftedExpense.id }, viewer);
+        publicResult.errors && console.error(publicResult.errors);
+        expect(publicResult.errors).to.not.exist;
+        expect(publicResult.data.expense.draft.taxes).to.have.length(2);
+        expect(publicResult.data.expense.draft.taxes[0].type).to.eq('VAT');
+        expect(publicResult.data.expense.draft.taxes[0].rate).to.eq(0.21);
+        expect(publicResult.data.expense.draft.taxes[0]).to.not.have.property('idNumber');
+        expect(publicResult.data.expense.draft.taxes[1].type).to.eq('GST');
+        expect(publicResult.data.expense.draft.taxes[1].rate).to.eq(0.1);
+        expect(publicResult.data.expense.draft.taxes[1]).to.not.have.property('idNumber');
+      }
+    });
+
     describe('draft invite item description sanitization', () => {
       let grantCollective;
 
@@ -8007,6 +8322,190 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await draftExpense.reload();
         expect(draftExpense.status).to.eq(expenseStatus.DRAFT);
       });
+    });
+  });
+
+  describe('restricted collective (disablePublicExpenseSubmission)', () => {
+    let sandbox;
+
+    before(() => {
+      sandbox = createSandbox();
+      sandbox.stub(emailLib, 'sendMessage').resolves();
+    });
+
+    after(() => {
+      sandbox.restore();
+    });
+
+    const draftInviteMutation = gql`
+      mutation DraftExpenseAndInviteUser(
+        $expense: ExpenseInviteDraftInput!
+        $account: AccountReferenceInput!
+        $skipInvite: Boolean
+      ) {
+        draftExpenseAndInviteUser(expense: $expense, account: $account, skipInvite: $skipInvite) {
+          id
+          legacyId
+          status
+          draft
+        }
+      }
+    `;
+
+    const getValidCreateData = payeeCollectiveId => ({
+      description: 'A valid expense',
+      type: 'INVOICE',
+      payoutMethod: { type: 'PAYPAL', data: { email: randEmail(), currency: 'USD' } },
+      payeeLocation: { address: '123 Potatoes street', country: 'BE' },
+      payee: { legacyId: payeeCollectiveId },
+      items: [{ description: 'A first item', amount: 4200 }],
+    });
+
+    const getDraftInviteData = payeeEmail => ({
+      description: 'A valid draft invite',
+      type: 'INVOICE',
+      payee: { name: 'Invited Payee', email: payeeEmail },
+      items: [{ amount: 4200, incurredAt: '2020-10-08', description: 'Item' }],
+      payeeLocation: { address: '123 Potatoes street', country: 'BE' },
+      currency: 'USD',
+    });
+
+    const makeRestrictedCollective = async (extra = {}) => {
+      return fakeCollective({ settings: { disablePublicExpenseSubmission: true }, ...extra });
+    };
+
+    it('rejects non-member createExpense when public submission is disabled', async () => {
+      const collective = await makeRestrictedCollective();
+      const nonMember = await fakeUser();
+      await nonMember.populateRoles();
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        {
+          expense: getValidCreateData(nonMember.CollectiveId),
+          account: { legacyId: collective.id },
+        },
+        nonMember,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('You must be a member of the collective to create new expense');
+    });
+
+    it('rejects non-member draftExpenseAndInviteUser under the same setting', async () => {
+      const collective = await makeRestrictedCollective();
+      const nonMember = await fakeUser();
+      await nonMember.populateRoles();
+      const result = await graphqlQueryV2(
+        draftInviteMutation,
+        {
+          expense: getDraftInviteData(randEmail()),
+          account: { legacyId: collective.id },
+          skipInvite: true,
+        },
+        nonMember,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('You must be a member of the collective to create new expense');
+    });
+
+    it('allows collective admin, host admin and root users to create drafts', async () => {
+      // Collective admin
+      const collectiveAdmin = await fakeUser();
+      await collectiveAdmin.populateRoles();
+      const adminCollective = await makeRestrictedCollective({ admin: collectiveAdmin.collective });
+      await collectiveAdmin.populateRoles({ force: true });
+      const adminResult = await graphqlQueryV2(
+        draftInviteMutation,
+        {
+          expense: getDraftInviteData(randEmail()),
+          account: { legacyId: adminCollective.id },
+          skipInvite: true,
+        },
+        collectiveAdmin,
+      );
+      expect(adminResult.errors).to.not.exist;
+      expect(adminResult.data.draftExpenseAndInviteUser.status).to.eq(expenseStatus.DRAFT);
+
+      // Host admin
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin.collective });
+      await hostAdmin.populateRoles({ force: true });
+      const hostedCollective = await makeRestrictedCollective({ HostCollectiveId: host.id });
+      const hostResult = await graphqlQueryV2(
+        draftInviteMutation,
+        {
+          expense: getDraftInviteData(randEmail()),
+          account: { legacyId: hostedCollective.id },
+          skipInvite: true,
+        },
+        hostAdmin,
+      );
+      expect(hostResult.errors).to.not.exist;
+      expect(hostResult.data.draftExpenseAndInviteUser.status).to.eq(expenseStatus.DRAFT);
+
+      // Root user
+      const rootUser = await fakeUser({ data: { isRoot: true } });
+      const platform = await getOrCreatePlatformAccount();
+      await platform.addUserWithRole(rootUser, 'ADMIN');
+      await rootUser.populateRoles({ force: true });
+      const rootCollective = await makeRestrictedCollective();
+      const rootResult = await graphqlQueryV2(
+        draftInviteMutation,
+        {
+          expense: getDraftInviteData(randEmail()),
+          account: { legacyId: rootCollective.id },
+          skipInvite: true,
+        },
+        rootUser,
+      );
+      expect(rootResult.errors).to.not.exist;
+      expect(rootResult.data.draftExpenseAndInviteUser.status).to.eq(expenseStatus.DRAFT);
+    });
+
+    it('allows an authorized member to invite a non-member who can submit with the draft key', async () => {
+      const memberUser = await fakeUser();
+      const collective = await makeRestrictedCollective();
+      await collective.addUserWithRole(memberUser, 'MEMBER');
+      await memberUser.populateRoles({ force: true });
+
+      const payeeEmail = randEmail();
+      const draftResult = await graphqlQueryV2(
+        draftInviteMutation,
+        {
+          expense: getDraftInviteData(payeeEmail),
+          account: { legacyId: collective.id },
+          skipInvite: true,
+        },
+        memberUser,
+      );
+
+      expect(draftResult.errors).to.not.exist;
+      const draftedExpense = await models.Expense.findByPk(draftResult.data.draftExpenseAndInviteUser.legacyId);
+      expect(draftedExpense.status).to.eq(expenseStatus.DRAFT);
+      expect(draftedExpense.UserId).to.eq(memberUser.id);
+      const draftKey = draftedExpense.data.draftKey;
+      expect(draftKey).to.exist;
+
+      const submitter = await fakeUser();
+      const submitResult = await graphqlQueryV2(
+        editExpenseMutation,
+        {
+          expense: {
+            id: idEncode(draftedExpense.id, IDENTIFIER_TYPES.EXPENSE),
+            description: 'Submitted by invitee',
+            payee: { name: 'Invited Payee', email: payeeEmail },
+            payoutMethod: { type: 'PAYPAL', data: { email: randEmail(), currency: 'USD' } },
+            items: [{ amount: 4200, incurredAt: '2020-10-08T00:00:00.000Z', description: 'Item' }],
+          },
+          draftKey,
+        },
+        submitter,
+      );
+
+      expect(submitResult.errors).to.not.exist;
+      await draftedExpense.reload();
+      expect(draftedExpense.status).to.eq(expenseStatus.PENDING);
     });
   });
 

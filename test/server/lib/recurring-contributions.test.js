@@ -1,3 +1,5 @@
+/* eslint-disable camelcase */
+import * as Sentry from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
 import moment from 'moment';
@@ -6,6 +8,7 @@ import { createSandbox, useFakeTimers } from 'sinon';
 import activities from '../../../server/constants/activities';
 import status from '../../../server/constants/order-status';
 import emailLib from '../../../server/lib/email';
+import * as paymentsLib from '../../../server/lib/payments';
 import {
   getChargeRetryCount,
   getNextChargeAndPeriodStartDates,
@@ -18,7 +21,7 @@ import {
 import models from '../../../server/models';
 import collective from '../../../server/paymentProviders/opencollective/collective';
 import { randEmail } from '../../stores';
-import { fakeCollective, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeOrder, fakePaymentMethod, fakeTransaction } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 async function createOrderWithSubscription(interval, date, quantity = 1) {
@@ -332,6 +335,67 @@ describe('server/lib/recurring-contributions', () => {
       expect(entry.status).to.equal('unattempted');
       expect(order.Subscription.save.called).to.equal(false);
       expect(sendSpy.called).to.equal(false);
+    });
+
+    describe('payment outcome metrics', () => {
+      let metricsCountStub;
+
+      beforeEach(async () => {
+        await utils.resetTestDB();
+        sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+        metricsCountStub = sandbox.stub(Sentry.metrics, 'count');
+      });
+
+      it('records a successful thirdparty payment outcome when a recurring charge succeeds', async () => {
+        const { order } = await createOrderWithSubscription('month', '2018-01-27');
+        order.paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+        sandbox.stub(paymentsLib, 'processOrder').resolves(await fakeTransaction({ OrderId: order.id }));
+
+        await processOrderWithSubscription(order, { dryRun: false });
+
+        expect(metricsCountStub).to.have.been.calledOnce;
+        expect(metricsCountStub.firstCall.args).to.deep.equal([
+          'thirdparty.stripe.payment.succeeded',
+          1,
+          { attributes: { flow: 'contribution', method: 'creditcard' } },
+        ]);
+      });
+
+      it('records a failed thirdparty payment outcome when a recurring charge fails', async () => {
+        const { order } = await createOrderWithSubscription('month', '2018-01-27');
+        order.paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+        sandbox.stub(paymentsLib, 'processOrder').rejects(new Error('Your card was declined.'));
+
+        await processOrderWithSubscription(order, { dryRun: false });
+
+        expect(metricsCountStub).to.have.been.calledOnce;
+        expect(metricsCountStub.firstCall.args).to.deep.equal([
+          'thirdparty.stripe.payment.failed',
+          1,
+          { attributes: { flow: 'contribution', method: 'creditcard', error_type: 'card_declined' } },
+        ]);
+      });
+
+      it('does not record metrics when the charge requires 3D Secure confirmation', async () => {
+        const { order } = await createOrderWithSubscription('month', '2018-01-27');
+        order.paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+        const error = new Error('Payment Intent require action');
+        error['stripeResponse'] = { paymentIntent: { id: 'pi_1', status: 'requires_action' } };
+        sandbox.stub(paymentsLib, 'processOrder').rejects(error);
+
+        await processOrderWithSubscription(order, { dryRun: false });
+
+        expect(metricsCountStub.called).to.be.false;
+      });
+
+      it('does not record thirdparty metrics for internal (opencollective) payment methods', async () => {
+        const { order } = await createOrderWithSubscription('month', '2018-01-27');
+        processOrderStub.resolves(await fakeTransaction({ OrderId: order.id }));
+
+        await processOrderWithSubscription(order, { dryRun: false });
+
+        expect(metricsCountStub.called).to.be.false;
+      });
     });
 
     describe('Update dates after processing an order @database', () => {

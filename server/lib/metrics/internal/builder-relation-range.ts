@@ -33,7 +33,7 @@ function bucketIntervalSql(unit: TimeUnit): RawBuilder<unknown> {
 }
 
 function rangeOverlapPredicate(
-  s: RangeRelationMetricSource<any>,
+  s: RangeRelationMetricSource<never>,
   fromExpr: RawBuilder<unknown>,
   toExpr: RawBuilder<unknown>,
 ): RawBuilder<unknown> {
@@ -42,13 +42,13 @@ function rangeOverlapPredicate(
   return sql`${start} < ${toExpr} AND (${end} IS NULL OR ${end} >= ${fromExpr})`;
 }
 
-function rangeWhereBody<S extends RangeRelationMetricSource<any>>(q: MetricQuery<S>, s: S): RawBuilder<unknown> {
+function rangeWhereBody<S extends RangeRelationMetricSource<never>>(q: MetricQuery<S>, s: S): RawBuilder<unknown> {
   const from = sql`${toIsoStringIfDate(q.dateFrom)}::timestamptz`;
   const to = sql`${toIsoStringIfDate(q.dateTo)}::timestamptz`;
   return joinAnd([rangeOverlapPredicate(s, from, to), ...filterPredicates(q)]);
 }
 
-function bucketSeriesSubquery<S extends RangeRelationMetricSource<any>>(
+function bucketSeriesSubquery<S extends RangeRelationMetricSource<never>>(
   q: MetricQuery<S>,
   unit: TimeUnit,
 ): RawBuilder<unknown> {
@@ -64,7 +64,7 @@ function bucketSeriesSubquery<S extends RangeRelationMetricSource<any>>(
   `;
 }
 
-function rangeBucketJoinOn<S extends RangeRelationMetricSource<any>>(
+function rangeBucketJoinOn<S extends RangeRelationMetricSource<never>>(
   q: MetricQuery<S>,
   s: S,
   unit: TimeUnit,
@@ -74,7 +74,7 @@ function rangeBucketJoinOn<S extends RangeRelationMetricSource<any>>(
   return joinAnd([rangeOverlapPredicate(s, bucketStart, bucketEnd), ...filterPredicates(q)]);
 }
 
-function rangeSelectColumns<S extends RangeRelationMetricSource<any>>(
+function rangeSelectColumns<S extends RangeRelationMetricSource<never>>(
   q: MetricQuery<S>,
   shape: QueryShape,
 ): RawBuilder<unknown> {
@@ -91,7 +91,7 @@ function rangeSelectColumns<S extends RangeRelationMetricSource<any>>(
   return joinComma(cols);
 }
 
-function rangeGroupByColumns<S extends RangeRelationMetricSource<any>>(
+function rangeGroupByColumns<S extends RangeRelationMetricSource<never>>(
   q: MetricQuery<S>,
   shape: QueryShape,
 ): RawBuilder<unknown> {
@@ -105,7 +105,7 @@ function rangeGroupByColumns<S extends RangeRelationMetricSource<any>>(
   return joinComma(cols);
 }
 
-function rangeOrderByClause<S extends RangeRelationMetricSource<any>>(
+function rangeOrderByClause<S extends RangeRelationMetricSource<never>>(
   q: MetricQuery<S>,
   shape: QueryShape,
 ): RawBuilder<unknown> {
@@ -120,7 +120,7 @@ function rangeOrderByClause<S extends RangeRelationMetricSource<any>>(
   return orderByClause(q.source, q.orderBy, fallback);
 }
 
-function buildRangeBaseQuery<S extends RangeRelationMetricSource<any>>(
+function buildRangeBaseQuery<S extends RangeRelationMetricSource<never>>(
   q: MetricQuery<S>,
   s: S,
   shape: QueryShape,
@@ -164,8 +164,8 @@ function buildRangeBaseQuery<S extends RangeRelationMetricSource<any>>(
 }
 
 function buildRangeTopNQuery(
-  q: MetricQuery<RangeRelationMetricSource<any>>,
-  s: RangeRelationMetricSource<any>,
+  q: MetricQuery<RangeRelationMetricSource<never>>,
+  s: RangeRelationMetricSource<never>,
   shape: QueryShape,
 ): RawBuilder<Record<string, unknown>> {
   if (!q.bucket || !q.groupBy?.length || !q.limit) {
@@ -207,7 +207,7 @@ function buildRangeTopNQuery(
 }
 
 export function buildRangeQuery(
-  q: MetricQuery<RangeRelationMetricSource<any>>,
+  q: MetricQuery<RangeRelationMetricSource<never>>,
   shape: QueryShape,
 ): RawBuilder<Record<string, unknown>> {
   const useTopN = !!(q.bucket && q.groupBy?.length && q.limit);

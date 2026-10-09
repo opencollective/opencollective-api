@@ -2073,6 +2073,26 @@ type ExpenseData = {
   isNewExpenseFlow?: boolean;
 };
 
+/**
+ * The subset of the `editExpense` GraphQL arguments that the draft flows (`editExpenseDraft` /
+ * `submitExpenseDraft`) rely on.
+ */
+type ExpenseDraftArgs = {
+  draftKey?: string;
+  expense: {
+    payee?: {
+      email: string;
+      name?: string;
+      legalName?: string;
+      newsletterOptIn?: boolean;
+      organization?: Record<string, unknown>;
+      id?: string;
+      legacyId?: number;
+      slug?: string;
+    };
+  };
+};
+
 const EXPENSE_EDITABLE_FIELDS = [
   'currency',
   'description',
@@ -2454,6 +2474,25 @@ export const checkCanReceiveExpense = (account: Collective): void => {
   }
 };
 
+/**
+ * Enforces the `disablePublicExpenseSubmission` collective setting for expense creation.
+ * When public submission is disabled, only members of the collective, collective/host admins
+ * and root users may create expenses (including drafts).
+ * Shared by `createExpense` and `draftExpenseAndInviteUser` to keep the guards in sync.
+ */
+export const checkCanCreateExpenseForCollective = (collective: Collective, remoteUser: User): void => {
+  // If the collective has public expense submission disabled, only members can create expenses
+  const isMember = Boolean(remoteUser.rolesByCollectiveId[String(collective.id)]);
+  if (
+    collective.settings?.['disablePublicExpenseSubmission'] &&
+    !isMember &&
+    !remoteUser.isAdminOfCollectiveOrHost(collective) &&
+    !remoteUser.isRoot()
+  ) {
+    throw new Forbidden('You must be a member of the collective to create new expense');
+  }
+};
+
 export async function createExpense(
   req: express.Request,
   expenseData: ExpenseData,
@@ -2484,15 +2523,13 @@ export async function createExpense(
     throw new ValidationFailed('Payee not found');
   }
 
-  // If the collective has public expense submission disabled, only members can create expenses
-  const isMember = Boolean(remoteUser.rolesByCollectiveId[String(collective.id)]);
-  if (
-    collective.settings?.['disablePublicExpenseSubmission'] &&
-    !isMember &&
-    !remoteUser.isAdminOfCollectiveOrHost(collective) &&
-    !remoteUser.isRoot()
-  ) {
-    throw new Error('You must be a member of the collective to create new expense');
+  checkCanCreateExpenseForCollective(collective, remoteUser);
+
+  // Validate description length
+  if (expenseData.description && expenseData.description.length > 255) {
+    throw new ValidationFailed(
+      'Expense description is too long (max 255 characters). Use the "Long description" field for additional details.',
+    );
   }
 
   // Let submitter customize the currency
@@ -2728,10 +2765,8 @@ export async function createExpense(
   return expense;
 }
 
-const isPaidVirtualCardCharge = (expense: Expense): boolean =>
-  expense.type === ExpenseType.CHARGE &&
-  ['PAID', 'PROCESSING'].includes(expense.status) &&
-  Boolean(expense.VirtualCardId);
+const isPaidCharge = (expense: Expense): boolean =>
+  expense.type === ExpenseType.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status);
 
 /** Returns true if the expense should by put back to PENDING after this update */
 export const changesRequireStatusUpdate = (
@@ -2743,10 +2778,7 @@ export const changesRequireStatusUpdate = (
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
   const hasCurrencyChanges = Boolean(newExpenseData.currency && newExpenseData.currency !== expense.currency);
-  const isPaidOrProcessingCharge =
-    expense.type === ExpenseType.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status);
-
-  if (isPaidOrProcessingCharge) {
+  if (isPaidCharge(expense)) {
     // Receipts are attached to card charges after the money moved, so those edits never need a new review
     return false;
   }
@@ -2808,7 +2840,7 @@ export async function submitExpenseDraft(
     originalPayee,
     isNewExpenseFlow,
   }: {
-    args?: Record<string, any> & { draftKey?: string };
+    args?: ExpenseDraftArgs;
     originalPayee?: Collective;
     requestedPayee?: Collective;
     isNewExpenseFlow?: boolean;
@@ -3037,7 +3069,7 @@ export async function sendDraftExpenseInvite(
 export async function editExpenseDraft(
   req: express.Request,
   expenseData: ExpenseData,
-  args: Record<string, any>,
+  args: ExpenseDraftArgs,
   opts?: { isNewExpenseFlow?: boolean },
 ) {
   const existingExpense = await models.Expense.findByPk(expenseData.id, {
@@ -3080,10 +3112,15 @@ export async function editExpenseDraft(
 
   const currency = expenseData.currency || existingExpense.currency;
   const items =
-    (await prepareExpenseItemInputs(req, currency, expenseData.items || (existingExpense.data.items as any), {
-      isEditing: true,
-      expenseType: expenseData.type || existingExpense.type,
-    })) || existingExpense.items;
+    (await prepareExpenseItemInputs(
+      req,
+      currency,
+      expenseData.items || (existingExpense.data.items as Array<Record<string, unknown> & { url?: string }>),
+      {
+        isEditing: true,
+        expenseType: expenseData.type || existingExpense.type,
+      },
+    )) || existingExpense.items;
 
   const attachedFiles =
     (await prepareAttachedFiles(req, expenseData.attachedFiles)) || existingExpense.data.attachedFiles;
@@ -3350,7 +3387,7 @@ const assertExpenseFieldEditPermissions = async (
   expense: Expense,
   changes: ExpenseEditChanges,
 ): Promise<void> => {
-  if (isPaidVirtualCardCharge(expense)) {
+  if (isPaidCharge(expense)) {
     await assertPaidChargeEditPermissions(req, expense, changes);
   } else {
     await assertRegularExpenseEditPermissions(req, expense, changes);
@@ -3404,7 +3441,14 @@ export async function editExpense(
   const { collective } = expense;
   const { host } = collective;
   const expenseType = expenseData.type || expense.type;
-  const isPaidCreditCardCharge = isPaidVirtualCardCharge(expense);
+  const isPaidChargeExpense = isPaidCharge(expense);
+
+  // Validate description length
+  if (expenseData.description && expenseData.description.length > 255) {
+    throw new ValidationFailed(
+      'Expense description is too long (max 255 characters). Use the "Long description" field for additional details.',
+    );
+  }
 
   // Check category only if it's changing
   if (expenseData.accountingCategory) {
@@ -3425,9 +3469,10 @@ export async function editExpense(
     return editOnlyTagsAndAccountingCategory(expense, modifiedFields, req);
   }
 
-  // Check if 2FA is enforced on any of the account remote user is admin of, unless it's a paid credit card charge
-  // since we strictly limit the fields that can be updated in that case
-  if (req.remoteUser && !isPaidCreditCardCharge) {
+  // Check if 2FA is enforced on any of the account remote user is admin of. It is skipped only for charges that
+  // came from a real card transaction (see #8601), where the record is system-created and we strictly limit the
+  // fields that can be updated. Manually created charges have no such anchor, so they keep the normal 2FA policy.
+  if (req.remoteUser && !(isPaidChargeExpense && expense.VirtualCardId)) {
     const accountsFor2FA = [expenseData.fromCollective, expense.fromCollective, collective, host].filter(Boolean);
     await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
   }
@@ -3476,7 +3521,10 @@ export async function editExpense(
     await assertExpenseFieldEditPermissions(req, expense, changes);
   }
 
-  if (isPaidCreditCardCharge && !hasItemChanges) {
+  // The premise is "adding missing information": only charges that came in as a stub (`missingDetails`)
+  // require the real items to be supplied. A charge created manually already has its items, so editing
+  // its metadata must not demand item changes.
+  if (isPaidChargeExpense && expense.data?.missingDetails && !hasItemChanges) {
     throw new ValidationFailed(
       'You need to include Expense Items when adding missing information to card charge expenses',
     );
@@ -3512,7 +3560,7 @@ export async function editExpense(
 
   const cleanExpenseData = {
     ...(<Pick<ExpenseData, ExpenseEditableFieldsUnion>>(
-      pick(expenseData, isPaidCreditCardCharge ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS)
+      pick(expenseData, isPaidChargeExpense ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS)
     )),
     data: !expense.data ? null : cloneDeep(omit(expense.data, ['items', 'draftKey', 'recipient', 'quote'])), // Make sure we omit draft key and items
   };
@@ -3569,7 +3617,7 @@ export async function editExpense(
 
     // Update payout method if we get new data from one of the param for it
     if (
-      !isPaidCreditCardCharge &&
+      !isPaidChargeExpense &&
       expenseData.payoutMethod !== undefined &&
       (!expenseData.payoutMethod?.id || // This represents a new payout method without an id
         expenseData.payoutMethod?.id !== expense.PayoutMethodId)
@@ -3705,7 +3753,7 @@ export async function editExpense(
       tags: cleanExpenseData.tags,
     };
 
-    if (isPaidCreditCardCharge) {
+    if (isPaidChargeExpense && expense.data?.missingDetails) {
       set(updatedExpenseProps, 'data.missingDetails', false);
     }
     if (!isEqual(expense.data?.taxes, taxes)) {
@@ -3719,7 +3767,7 @@ export async function editExpense(
     return expense.update(updatedExpenseProps, { transaction });
   });
 
-  if (isPaidCreditCardCharge) {
+  if (isPaidChargeExpense) {
     if (cleanExpenseData.description) {
       await models.Transaction.update(
         { description: cleanExpenseData.description },
@@ -3730,13 +3778,15 @@ export async function editExpense(
     // Auto Resume Virtual Card (only when pause was automatic, e.g. missing receipts - not host manual pause)
     if (host?.settings?.virtualcards?.autopause) {
       const virtualCard = await expense.getVirtualCard();
-      const expensesMissingReceipts = await virtualCard.getExpensesMissingDetails();
-      if (
-        virtualCard.isPaused() &&
-        virtualCard.data?.pauseReason !== 'MANUAL' &&
-        expensesMissingReceipts.length === 0
-      ) {
-        await virtualCard.resume();
+      if (virtualCard) {
+        const expensesMissingReceipts = await virtualCard.getExpensesMissingDetails();
+        if (
+          virtualCard.isPaused() &&
+          virtualCard.data?.pauseReason !== 'MANUAL' &&
+          expensesMissingReceipts.length === 0
+        ) {
+          await virtualCard.resume();
+        }
       }
     }
   }

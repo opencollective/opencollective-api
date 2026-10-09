@@ -548,7 +548,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       .find(Boolean);
 
     if (!payoutMethod) {
-      throw new Error('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
+      throw new Error('No Payout Method found, the platform account needs to have at least one payout method.');
     }
 
     const hostToUsdFxRate = await getFxRate(host.currency, 'USD');

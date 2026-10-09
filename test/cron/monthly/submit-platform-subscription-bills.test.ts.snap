@@ -4,6 +4,7 @@ exports[`submit-platform-subscription-bills should submit Expenses for active su
 "
 | id | type             | CollectiveId | description                                       | amount | currency |
 | -- | ---------------- | ------------ | ------------------------------------------------- | ------ | -------- |
+| 5  | PLATFORM_BILLING | 31           | Platform subscription payment for September, 2023 | 9000   | USD      |
 | 4  | PLATFORM_BILLING | 22           | Platform subscription payment for September, 2023 | 70500  | USD      |
 | 3  | PLATFORM_BILLING | 18           | Platform subscription payment for September, 2023 | 16000  | USD      |
 | 2  | PLATFORM_BILLING | 14           | Platform subscription payment for September, 2023 | 8000   | USD      |
@@ -14,6 +15,8 @@ exports[`submit-platform-subscription-bills should submit Expenses for active su
 "
 | ExpenseId | description                                                | amount | currency |
 | --------- | ---------------------------------------------------------- | ------ | -------- |
+| 5         | Crowdfunding Fee: 5% of $1000.00                           | 5000   | USD      |
+| 5         | Base subscription Discover 5 - 01-Sep-2023 to 30-Sep-2023  | 4000   | USD      |
 | 4         | Additional Paid Expenses Utilization: 180                  | 27000  | USD      |
 | 4         | Additional Active Collective Utilization: 25               | 37500  | USD      |
 | 4         | Base subscription Basic 5 - 01-Sep-2023 to 30-Sep-2023     | 6000   | USD      |

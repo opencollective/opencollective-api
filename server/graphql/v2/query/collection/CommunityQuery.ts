@@ -2,10 +2,12 @@ import assert from 'assert';
 
 import type Express from 'express';
 import { GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { sql } from 'kysely';
+import { type SelectQueryBuilder, sql } from 'kysely';
 import { isNil } from 'lodash';
 
-import { getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
+import { roles } from '../../../../constants';
+import { CollectiveType } from '../../../../constants/collectives';
+import { type DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
 import { assertCanSeeAccount } from '../../../../lib/private-accounts';
 import { parseSearchTerm, sanitizeSearchTermForILike } from '../../../../lib/sql-search';
 import { Collective } from '../../../../models';
@@ -25,7 +27,7 @@ const DEFAULT_LIMIT = 100;
 type CommunitySummaryArgs = {
   limit: number;
   offset: number;
-  type?: string[];
+  type?: CollectiveType[];
   HostCollectiveId?: number;
   CollectiveId?: number;
   searchTerm?: string;
@@ -33,6 +35,27 @@ type CommunitySummaryArgs = {
   totalExpendedExpression?: string;
   totalContributedExpression?: string;
 };
+
+/**
+ * Query builder with every conditionally-joined table in scope, so dynamic
+ * joins and filters typecheck without per-clause casts. Table aliases are
+ * mapped to their row types, mirroring what Kysely infers for each join.
+ *
+ * The base builder is cast to this once: from there on, column names and
+ * comparison values are still checked, but the select list is not tracked
+ * (the final selection depends on the dynamic joins above).
+ */
+type CommunitySummaryQueryBuilder = SelectQueryBuilder<
+  DatabaseWithViews & {
+    cas: DatabaseWithViews['AdminCommunityActivitySummary'];
+    fc: DatabaseWithViews['Collectives'];
+    u: DatabaseWithViews['Users'];
+    m: DatabaseWithViews['Members'];
+    chts: DatabaseWithViews['AdminCommunityHostTransactionSummary'];
+  },
+  'cas' | 'fc' | 'u' | 'm' | 'chts',
+  DatabaseWithViews['AdminCommunityActivitySummary']
+>;
 
 type CommunitySummaryOptions = {
   orderBy?: {
@@ -64,7 +87,7 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
       .selectFrom('AdminCommunityActivitySummary as cas')
       .innerJoin('Collectives as fc', join =>
         join.onRef('fc.id', '=', 'cas.FromCollectiveId').on('fc.deletedAt', 'is', null),
-      );
+      ) as unknown as CommunitySummaryQueryBuilder;
 
     // Users join for search
     if (parsed?.term) {
@@ -74,11 +97,11 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
             .onRef('u.CollectiveId', '=', 'fc.id')
             .on('u.deletedAt', 'is', null)
             .on('u.email', '=', parsed.term.toString().toLowerCase()),
-        ) as any;
+        );
       } else if (needsUsersJoin) {
         query = query.leftJoin('Users as u', join =>
           join.onRef('u.CollectiveId', '=', 'fc.id').on('u.deletedAt', 'is', null),
-        ) as any;
+        );
       }
     }
 
@@ -87,10 +110,10 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
       query = query.innerJoin('Members as m', join =>
         join
           .onRef('m.CollectiveId', '=', 'cas.CollectiveId')
-          .onRef('m.MemberCollectiveId', '=', 'cas.FromCollectiveId' as any)
-          .on('m.role' as any, '=', 'ADMIN')
+          .onRef('m.MemberCollectiveId', '=', 'cas.FromCollectiveId')
+          .on('m.role', '=', roles.ADMIN)
           .on('m.deletedAt', 'is', null),
-      ) as any;
+      );
     }
 
     // CommunityHostTransactionSummary join
@@ -100,54 +123,47 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
           .onRef('chts.FromCollectiveId', '=', 'cas.FromCollectiveId')
           .onRef('chts.HostCollectiveId', '=', 'cas.HostCollectiveId')
           .on('chts.kind', 'is', null),
-      ) as any;
+      );
     }
 
     // WHERE conditions
     if ('HostCollectiveId' in replacements && replacements.HostCollectiveId !== undefined) {
-      query = query.where('cas.HostCollectiveId', '=', replacements.HostCollectiveId) as any;
+      query = query.where('cas.HostCollectiveId', '=', replacements.HostCollectiveId);
     }
     if ('CollectiveId' in replacements && replacements.CollectiveId !== undefined) {
-      query = query.where('cas.CollectiveId', '=', replacements.CollectiveId) as any;
+      query = query.where('cas.CollectiveId', '=', replacements.CollectiveId);
     }
     if ('type' in replacements && replacements.type && replacements.type.length > 0) {
-      query = query.where('fc.type' as any, 'in', replacements.type as any) as any;
+      query = query.where('fc.type', 'in', replacements.type);
     }
     if ('relation' in replacements && replacements.relation && replacements.relation.length > 0) {
-      query = query.where(({ eb }) => eb(sql`cas."relations"`, '@>', sql`${replacements.relation}::jsonb`)) as any;
+      query = query.where(({ eb }) => eb(sql`cas."relations"`, '@>', sql`${replacements.relation}::jsonb`));
     }
     if (replacements.totalExpendedExpression) {
-      query = query.where(sql<boolean>`chts."debitTotal" ${sql.raw(replacements.totalExpendedExpression)}`) as any;
+      query = query.where(sql<boolean>`chts."debitTotal" ${sql.raw(replacements.totalExpendedExpression)}`);
     }
     if (replacements.totalContributedExpression) {
-      query = query.where(sql<boolean>`chts."creditTotal" ${sql.raw(replacements.totalContributedExpression)}`) as any;
+      query = query.where(sql<boolean>`chts."creditTotal" ${sql.raw(replacements.totalContributedExpression)}`);
     }
 
     // Search WHERE conditions
     if (parsed?.term) {
       if (parsed.type === 'slug') {
         const sanitizedSlug = sanitizeSearchTermForILike(parsed.term.toString());
-        query = query.where('fc.slug', 'ilike', `%${sanitizedSlug}%`) as any;
+        query = query.where('fc.slug', 'ilike', `%${sanitizedSlug}%`);
       } else if (parsed.type === 'id' || parsed.type === 'number') {
         query = query.where(({ eb, or }) =>
-          or([
-            eb('cas.CollectiveId' as any, '=', Number(parsed.term)),
-            eb('cas.FromCollectiveId' as any, '=', Number(parsed.term)),
-          ]),
-        ) as any;
+          or([eb('cas.CollectiveId', '=', Number(parsed.term)), eb('cas.FromCollectiveId', '=', Number(parsed.term))]),
+        );
       } else if (parsed.type === 'publicId') {
-        query = query.where('fc.publicId' as any, '=', parsed.term) as any;
+        query = query.where(sql.ref('fc.publicId'), '=', parsed.term);
       } else if (parsed.type !== 'email') {
         // Generic text search (email case is handled by the INNER JOIN above)
         const sanitizedTerm = sanitizeSearchTermForILike(parsed.term.toString());
         const pattern = `%${sanitizedTerm}%`;
         query = query.where(({ eb, or }) =>
-          or([
-            eb('fc.name' as any, 'ilike', pattern),
-            eb('fc.slug' as any, 'ilike', pattern),
-            eb('u.email' as any, 'ilike', pattern),
-          ]),
-        ) as any;
+          or([eb('fc.name', 'ilike', pattern), eb('fc.slug', 'ilike', pattern), eb('u.email', 'ilike', pattern)]),
+        );
       }
     }
 
@@ -198,21 +214,21 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
 
   const nodes = async () => {
     let query = buildBaseQuery()
-      .select(sql`fc.*` as any)
+      .selectAll('fc')
       .groupBy(['cas.FromCollectiveId', 'fc.id', ...extraGroupBy.map(f => sql.raw(f))]);
 
     for (const ob of orderBy) {
       if (ob.direction === 'desc') {
-        query = query.orderBy(sql.raw(`${ob.field} DESC NULLS LAST`)) as any;
+        query = query.orderBy(sql.raw(`${ob.field} DESC NULLS LAST`));
       } else {
-        query = query.orderBy(sql.raw(`${ob.field} ASC`)) as any;
+        query = query.orderBy(sql.raw(`${ob.field} ASC`));
       }
     }
 
     query = query.limit(replacements.limit).offset(replacements.offset);
 
     const result = await query.execute();
-    return kyselyToSequelizeModels(Collective)(result as any[]);
+    return kyselyToSequelizeModels(Collective)(result);
   };
 
   const totalCount = async () => {

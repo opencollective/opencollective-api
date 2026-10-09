@@ -33,7 +33,14 @@ import { applyBalanceAccountingCategoryFromConnectedAccount } from '../../lib/ac
 import cache, { sessionCache } from '../../lib/cache';
 import { centsAmountToFloat, getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
-import { safeJsonStringify } from '../../lib/safe-json-stringify';
+import { safeJsonStringify, sanitizeObjectForJSON } from '../../lib/safe-json-stringify';
+import {
+  mapErrorToType,
+  MetricEvent,
+  MetricFlow,
+  MetricProvider,
+  recordPaymentOutcome,
+} from '../../lib/sentry/metrics';
 import * as transferwise from '../../lib/transferwise';
 import {
   normalizeWiseId,
@@ -56,6 +63,7 @@ import {
   TransactionRequiredFieldsGroup,
   TransactionRequirementsType,
   Transfer,
+  TransferwiseErrorObject,
   Webhook,
 } from '../../types/transferwise';
 import { hashObject, validateRedirectUrl } from '../utils';
@@ -352,10 +360,27 @@ async function createTransfer(
       await expense.update({ status: status.ERROR });
     }
     const user = await User.findByPk(expense.lastEditedById);
+    let error: TransferwiseErrorObject | { message: string; details: string };
+    try {
+      error = { ...sanitizeObjectForJSON(e), message: e.message } as TransferwiseErrorObject;
+    } catch {
+      error = { message: e.message, details: safeJsonStringify(e) };
+    }
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAYMENT_ERROR, user, {
-      error: { message: e.message, details: safeJsonStringify(e) },
+      error,
       isSystem: true,
     });
+
+    // Terminal failure of the payout attempt (submit phase), including `INSUFFICIENT_BALANCE`
+    // which is counted with its own error type even though it does not set the expense to ERROR.
+    recordPaymentOutcome({
+      provider: MetricProvider.WISE,
+      flow: MetricFlow.PAYOUT,
+      method: payoutMethod.type,
+      outcome: MetricEvent.FAILED,
+      errorType: mapErrorToType(e),
+    });
+
     throw e;
   }
 }
@@ -394,13 +419,41 @@ async function payExpense(
       // In development mode we don't have webhooks set up, so we need to manually trigger the event handler.
       if (config.env === 'development') {
         await handleTransferStateChange({
-          data: { resource: response, current_state: 'outgoing_payment_sent' },
-        } as any);
+          subscription_id: '',
+          event_type: 'transfers#state-change',
+          schema_version: '2.0.0',
+          sent_at: new Date().toISOString(),
+          data: {
+            // `handleTransferStateChange` only reads `resource.id`, but we fill the event shape from the transfer we
+            // just fetched so this stays a faithful simulation of Wise's webhook payload.
+            resource: {
+              id: response.id,
+              profile_id: response.user,
+              account_id: response.targetAccount,
+              type: 'transfer',
+            },
+            current_state: 'outgoing_payment_sent',
+            previous_state: 'funds_converted',
+            occurred_at: new Date().toISOString(),
+          },
+        });
       }
     }
   } catch (e) {
     logger.error(`Wise: Error paying expense ${expense.id}`, e);
+
+    // Terminal failure of the payout attempt (funding phase). Recorded before cancelling the transfer,
+    // which can itself throw and would otherwise skip the metric.
+    recordPaymentOutcome({
+      provider: MetricProvider.WISE,
+      flow: MetricFlow.PAYOUT,
+      method: payoutMethod.type,
+      outcome: MetricEvent.FAILED,
+      errorType: mapErrorToType(e),
+    });
+
     await transferwise.cancelTransfer(connectedAccount, transfer.id);
+
     throw e;
   }
 

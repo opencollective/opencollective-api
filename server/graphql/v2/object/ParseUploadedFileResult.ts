@@ -23,7 +23,7 @@ const GraphQLExpenseItemParsedFileInfo = new GraphQLObjectType({
   name: 'ExpenseItemParsedFileInfo',
   fields: (): Record<
     keyof ParseUploadedFileResult['expense']['items'][0],
-    GraphQLFieldConfig<any, Express.Request>
+    GraphQLFieldConfig<ParseUploadedFileResult['expense']['items'][0], Express.Request>
   > => ({
     description: { type: GraphQLString },
     amount: { type: GraphQLAmount },
@@ -36,7 +36,7 @@ const GraphQLExpenseParsedFileInfo = new GraphQLObjectType({
   name: 'ExpenseParsedFileInfo',
   fields: (): Record<
     keyof Omit<ParseUploadedFileResult['expense'], 'raw'>,
-    GraphQLFieldConfig<any, Express.Request>
+    GraphQLFieldConfig<Omit<ParseUploadedFileResult['expense'], 'raw'>, Express.Request>
   > => ({
     confidence: { type: GraphQLStrictPercentage },
     description: { type: GraphQLString },
@@ -50,7 +50,7 @@ const GraphQLExpenseParsedFileInfo = new GraphQLObjectType({
 
 export const GraphQLParseUploadedFileResult = new GraphQLObjectType({
   name: 'ParseUploadedFileResult',
-  fields: (): Record<keyof ParseUploadedFileResult, GraphQLFieldConfig<any, any>> => ({
+  fields: (): Record<keyof ParseUploadedFileResult, GraphQLFieldConfig<ParseUploadedFileResult, Express.Request>> => ({
     success: {
       description: 'Whether the parsing was successful',
       type: new GraphQLNonNull(GraphQLBoolean),

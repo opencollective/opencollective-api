@@ -41,8 +41,8 @@ async function createProject(_, args, req) {
     throw new NotFound('Parent not found');
   } else if (!(await canSeePrivateAccount(req, parent))) {
     throw new Unauthorized('You are not authorized to create a project under this parent account');
-  } else if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parent.id)) {
-    throw new Forbidden(`You must be logged in as a member of the ${parent.slug} collective to create a Project`);
+  } else if (!req.remoteUser.hasRole([roles.ADMIN], parent.id)) {
+    throw new Forbidden(`You must be logged in as an admin of the ${parent.slug} collective to create a Project`);
   } else if (!PROJECTS_ALLOWED_ACCOUNT_TYPES.includes(parent.type)) {
     throw new BadRequest('This account can not be used to create a project');
   } else if (parent.isFrozen()) {

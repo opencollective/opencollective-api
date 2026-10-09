@@ -213,9 +213,6 @@ describe('server/graphql/v2/query/UpdateQuery', () => {
       ]);
       hostAdmins = await Promise.all([addFakeUserMember(host, 'ADMIN', { name: 'Host admin' })]);
       notAllowedUsers = await Promise.all([
-        addFakeUserMember(project, 'FOLLOWER', { name: 'Project follower' }),
-        addFakeUserMember(parentCollective, 'FOLLOWER', { name: 'Parent Collective follower' }),
-        addFakeUserMember(host, 'FOLLOWER', { name: 'Host follower' }),
         fakeUser({ name: 'Random user' }), // Random user
         null, // Unauthenticated
       ]);

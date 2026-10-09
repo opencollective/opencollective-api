@@ -1,4 +1,5 @@
 /* eslint-disable camelcase */
+import * as Sentry from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
 import nock from 'nock';
@@ -41,6 +42,17 @@ describe('server/paymentProviders/paypal/payment', () => {
 
     describe('#processOrder', () => {
       let paymentMethod, order, host, collective;
+      let metricsCountStub, sentryConfigStub;
+
+      beforeEach(() => {
+        sentryConfigStub = stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+        metricsCountStub = stub(Sentry.metrics, 'count');
+      });
+
+      afterEach(() => {
+        sentryConfigStub.restore();
+        metricsCountStub.restore();
+      });
 
       const mockPaypalOrderDetail = ({
         amount = '10.00',
@@ -162,6 +174,42 @@ describe('server/paymentProviders/paypal/payment', () => {
         const transaction = await paypalPayment.processOrder(order);
         expect(transaction).to.not.exist;
         expect(order.data.paypalCaptureId).to.equal('fake-capture-id');
+      });
+
+      it('records a successful payment outcome metric when the capture completes synchronously', async () => {
+        mockPaypalOrderDetail();
+        await paypalPayment.processOrder(order);
+
+        expect(metricsCountStub).to.have.been.calledOnce;
+        expect(metricsCountStub.firstCall.args).to.deep.equal([
+          'thirdparty.paypal.payment.succeeded',
+          1,
+          { attributes: { flow: 'contribution', method: 'payment' } },
+        ]);
+      });
+
+      it('does not record the metric when the webhook already recorded the capture', async () => {
+        // Simulate the capture-completed webhook winning the race: the transaction already exists,
+        // so processOrder reuses it and must not record a second success.
+        await fakeTransaction({
+          OrderId: order.id,
+          type: 'CREDIT',
+          kind: 'CONTRIBUTION',
+          data: { paypalCaptureId: 'fake-capture-id' },
+        });
+        mockPaypalOrderDetail();
+
+        const transaction = await paypalPayment.processOrder(order);
+
+        expect(transaction).to.exist;
+        expect(metricsCountStub.called).to.be.false;
+      });
+
+      it('does not record a success metric when the capture is not completed', async () => {
+        mockPaypalOrderDetail({ captureStatus: 'PENDING' });
+        await paypalPayment.processOrder(order);
+
+        expect(metricsCountStub.called).to.be.false;
       });
 
       it('Handles nicely the case where the capture succeeds but we somehow fail to get the details', async () => {

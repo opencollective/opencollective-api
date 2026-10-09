@@ -824,8 +824,16 @@ export const buildSearchConditions = (
 
 type KyselySearchField = string | Expression<unknown> | RawBuilder<unknown>;
 
+/**
+ * Resolves a dynamic search field to something `eb()` accepts. Plain strings are parsed
+ * with `sql.ref`, which uses the same parser as Kysely string references, so the
+ * generated SQL is unchanged.
+ */
+const toKyselyReference = (field: KyselySearchField): Expression<unknown> =>
+  typeof field === 'string' ? sql.ref(field) : field;
+
 export const buildKyselySearchConditions =
-  <T>(
+  (
     searchTerm: string,
     {
       slugFields = [],
@@ -854,7 +862,7 @@ export const buildKyselySearchConditions =
       }[];
     },
   ) =>
-  (q: SelectQueryBuilder<any, any, T>): SelectQueryBuilder<any, any, T> => {
+  <DB, TB extends keyof DB, O>(q: SelectQueryBuilder<DB, TB, O>): SelectQueryBuilder<DB, TB, O> => {
     const parsedTerm = parseSearchTerm(searchTerm);
 
     // Empty search => no condition
@@ -864,13 +872,13 @@ export const buildKyselySearchConditions =
 
     // Exclusive conditions: if an ID, slug, or email is searched, don't search other attributes.
     if (parsedTerm.type === 'slug' && slugFields?.length) {
-      return q.where(({ eb, or }) => or(slugFields.map(field => eb(field, '=', parsedTerm.term))));
+      return q.where(({ eb, or }) => or(slugFields.map(field => eb(toKyselyReference(field), '=', parsedTerm.term))));
     }
     if (parsedTerm.type === 'id' && idFields?.length) {
-      return q.where(({ eb, or }) => or(idFields.map(field => eb(field, '=', parsedTerm.term))));
+      return q.where(({ eb, or }) => or(idFields.map(field => eb(toKyselyReference(field), '=', parsedTerm.term))));
     }
     if (parsedTerm.type === 'email' && emailFields?.length) {
-      return q.where(({ eb, or }) => or(emailFields.map(field => eb(field, '=', parsedTerm.term))));
+      return q.where(({ eb, or }) => or(emailFields.map(field => eb(toKyselyReference(field), '=', parsedTerm.term))));
     }
     if (parsedTerm.type === 'publicId' && publicIdFields?.length) {
       const fields = publicIdFields
@@ -882,7 +890,7 @@ export const buildKyselySearchConditions =
           return [...acc, field.field];
         }, []);
       if (fields.length) {
-        return q.where(({ eb, or }) => or(fields.map(field => eb(field, '=', parsedTerm.term))));
+        return q.where(({ eb, or }) => or(fields.map(field => eb(toKyselyReference(field), '=', parsedTerm.term))));
       }
     }
 
@@ -896,16 +904,18 @@ export const buildKyselySearchConditions =
       const allTextFields = [...(slugFields || []), ...(textFields || [])];
 
       // Partial match on slug + free-text columns (also used for multi-word queries).
-      allTextFields.forEach(field => conditions.push(eb(field, 'ilike', `%${sanitizeSearchTermForILike(strTerm)}%`)));
+      allTextFields.forEach(field =>
+        conditions.push(eb(toKyselyReference(field), 'ilike', `%${sanitizeSearchTermForILike(strTerm)}%`)),
+      );
 
       // Tag / string-array overlap
       if (stringArrayFields?.length) {
         const preparedTerm = stringArrayTransformFn ? stringArrayTransformFn(strTerm) : strTerm;
         stringArrayFields.forEach(field => {
           if (castStringArraysToVarchar) {
-            conditions.push(eb(field, '&&', sql`CAST(ARRAY[${preparedTerm}] AS varchar[])`));
+            conditions.push(eb(toKyselyReference(field), '&&', sql`CAST(ARRAY[${preparedTerm}] AS varchar[])`));
           } else {
-            conditions.push(eb(field, '&&', sql`ARRAY[${preparedTerm}]::varchar[]`));
+            conditions.push(eb(toKyselyReference(field), '&&', sql`ARRAY[${preparedTerm}]::varchar[]`));
           }
         });
       }
@@ -922,16 +932,18 @@ export const buildKyselySearchConditions =
         // canonicalized so `007` still matches a stored `7`.
         const dataTerm =
           parsedTerm.type === 'number' ? canonicalizeIntegerSearchText(parsedTerm.text) : toString(parsedTerm.term);
-        dataFields.forEach(field => conditions.push(eb(field, '=', dataTerm)));
+        dataFields.forEach(field => conditions.push(eb(toKyselyReference(field), '=', dataTerm)));
       }
 
       // Bare numbers (not #id): match integer id columns and/or amount columns (stored in cents).
       if (parsedTerm.type === 'number') {
         if (!parsedTerm.isFloat && idFields?.length) {
-          idFields.forEach(field => conditions.push(eb(field, '=', parsedTerm.term)));
+          idFields.forEach(field => conditions.push(eb(toKyselyReference(field), '=', parsedTerm.term)));
         }
         if (amountFields?.length) {
-          amountFields.forEach(field => conditions.push(eb(field, '=', floatAmountToCents(parsedTerm.term as number))));
+          amountFields.forEach(field =>
+            conditions.push(eb(toKyselyReference(field), '=', floatAmountToCents(parsedTerm.term as number))),
+          );
         }
       }
 

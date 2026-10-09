@@ -1,6 +1,7 @@
 import config from 'config';
 import debugLib from 'debug';
 import { cloneDeep, compact, get, uniq } from 'lodash';
+import type { SendMailOptions } from 'nodemailer';
 import PQueue from 'p-queue';
 
 import { roles } from '../../constants';
@@ -15,7 +16,6 @@ import { TransactionTypes } from '../../constants/transactions';
 import models, { Activity, Collective } from '../../models';
 import { CommentType } from '../../models/Comment';
 import { ExpenseStatus } from '../../models/Expense';
-import { UpdateChannel } from '../../models/Update';
 import User from '../../models/User';
 import emailLib from '../email';
 import logger from '../logger';
@@ -30,7 +30,7 @@ const debug = debugLib('notifications');
 const VENDOR_SUBSCRIBED_ACTIVITIES = [ActivityTypes.ORDER_PROCESSED];
 
 type NotifySubscribersOptions = {
-  attachments?: any[];
+  attachments?: NonNullable<SendMailOptions['attachments']>;
   bcc?: string;
   cc?: string;
   collective?: Collective;
@@ -41,7 +41,7 @@ type NotifySubscribersOptions = {
   template?: string;
   to?: string;
   unsubscribed?: Array<User>;
-  customEmailHeaders?: Record<string, any>;
+  customEmailHeaders?: Record<string, string>;
 };
 
 export const notify = {
@@ -217,7 +217,6 @@ export const notifyByEmail = async (activity: Activity) => {
 
     case ActivityTypes.OAUTH_APPLICATION_AUTHORIZED:
     case ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED:
-    case ActivityTypes.USER_CARD_CLAIMED:
     case ActivityTypes.EXPORT_REQUEST_COMPLETED:
     case ActivityTypes.EXPORT_REQUEST_FAILED:
       await notify.user(activity);
@@ -289,10 +288,6 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     // Custom Notification Logic
-    case ActivityTypes.USER_CARD_INVITED:
-      emailLib.send(activity.type, activity.data.email, activity.data);
-      break;
-
     case ActivityTypes.TICKET_CONFIRMED: {
       const user = await models.User.findByPk(activity.UserId);
       const event = await models.Collective.findByPk(activity.data.EventCollectiveId, {
@@ -360,7 +355,7 @@ export const notifyByEmail = async (activity: Activity) => {
       activity.data.update.html = replaceVideosByImagePreviews(activity.data.update.html);
 
       // Updates can have many subscribers (e.g. OSC has 6000+). We only load the ID and defer the rest to the email functions.
-      const usersIdsToNotify = await update.getUsersIdsToNotify(UpdateChannel.EMAIL);
+      const usersIdsToNotify = await update.getUsersIdsToNotify();
       const emailOpts = { from: activity.data.fromEmail };
       await notify.users(usersIdsToNotify, activity, emailOpts);
       break;

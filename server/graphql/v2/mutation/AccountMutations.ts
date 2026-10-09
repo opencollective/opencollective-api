@@ -10,12 +10,13 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
-import { cloneDeep, defaultsDeep, isEmpty, isEqual, isNull, keys, omitBy, pick, set } from 'lodash';
+import { cloneDeep, defaultsDeep, isEmpty, isEqual, isNull, isUndefined, keys, omitBy, pick, set, union } from 'lodash';
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import POLICIES from '../../../constants/policies';
 import { assertSettingsChangeAllowed } from '../../../lib/account-settings';
+import { checkFeatureAccess, FEATURE } from '../../../lib/allowed-features';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { duplicateAccount } from '../../../lib/duplicate-account';
@@ -31,7 +32,11 @@ import { HostApplicationStatus } from '../../../models/HostApplication';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { PAYPAL_SUSPEND_MAX_REASON_LENGTH } from '../../../paymentProviders/paypal/subscription';
 import { sendMessage } from '../../common/collective';
-import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
+import {
+  checkRemoteUserCanUseAccount,
+  checkRemoteUserCanUseHost,
+  rejectOAuthAndPersonalTokenAuth,
+} from '../../common/scope-check';
 import { BadRequest, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -349,7 +354,8 @@ const accountMutations = {
   },
   createWebAuthnRegistrationOptions: {
     type: new GraphQLNonNull(GraphQLJSON),
-    description: 'Create WebAuthn public key registration request options',
+    description:
+      'Create WebAuthn public key registration request options. Session only (OAuth/Personal tokens are not allowed).',
     args: {
       account: {
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),
@@ -357,6 +363,11 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request) {
+      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
+      rejectOAuthAndPersonalTokenAuth(
+        req,
+        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
+      );
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
@@ -377,7 +388,8 @@ const accountMutations = {
   },
   addTwoFactorAuthTokenToIndividual: {
     type: new GraphQLNonNull(GraphQLAddTwoFactorAuthTokenToIndividualResponse),
-    description: 'Add 2FA to the Individual if it does not have it. Scope: "account".',
+    description:
+      'Add 2FA to the Individual if it does not have it. Session only (OAuth/Personal tokens are not allowed).',
     args: {
       account: {
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),
@@ -397,6 +409,11 @@ const accountMutations = {
       args: { account: Record<string, unknown>; type?: TwoFactorMethod; token: string },
       req: express.Request,
     ): Promise<Record<string, unknown>> {
+      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
+      rejectOAuthAndPersonalTokenAuth(
+        req,
+        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
+      );
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
@@ -506,7 +523,8 @@ const accountMutations = {
   },
   removeTwoFactorAuthTokenFromIndividual: {
     type: new GraphQLNonNull(GraphQLIndividual),
-    description: 'Remove 2FA from the Individual if it has been enabled. Scope: "account".',
+    description:
+      'Remove 2FA from the Individual if it has been enabled. Session only (OAuth/Personal tokens are not allowed).',
     args: {
       userTwoFactorMethod: {
         type: GraphQLUserTwoFactorMethodReferenceInput,
@@ -528,6 +546,11 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
+      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
+      rejectOAuthAndPersonalTokenAuth(
+        req,
+        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
+      );
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
@@ -582,7 +605,6 @@ const accountMutations = {
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: user.CollectiveId,
-        UserTokenId: req.userToken?.id,
         data: {
           userTwoFactorMethod: userTwoFactorMethod?.info,
         },
@@ -593,7 +615,7 @@ const accountMutations = {
   },
   editTwoFactorAuthenticationMethod: {
     type: new GraphQLNonNull(GraphQLIndividual),
-    description: 'Edit 2FA method',
+    description: 'Edit 2FA method. Session only (OAuth/Personal tokens are not allowed).',
     args: {
       userTwoFactorMethod: {
         type: new GraphQLNonNull(GraphQLUserTwoFactorMethodReferenceInput),
@@ -605,6 +627,11 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request) {
+      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
+      rejectOAuthAndPersonalTokenAuth(
+        req,
+        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
+      );
       checkRemoteUserCanUseAccount(req);
 
       const userTwoFactorMethod = await fetchUserTwoFactorMethodWithReference(args.userTwoFactorMethod, {
@@ -728,8 +755,19 @@ const accountMutations = {
             if (args.account.privateInstructions !== account.data?.privateInstructions) {
               previousData['data.privateInstructions'] = account.data?.privateInstructions;
               newData['data.privateInstructions'] = args.account.privateInstructions;
-              account.data = { ...account.data, privateInstructions: args.account.privateInstructions };
-              await account.save();
+              updateParams.data = {
+                ...account.data,
+                ...updateParams.data,
+                privateInstructions: args.account.privateInstructions,
+              };
+            }
+            break;
+          }
+          case 'isUSEntity': {
+            if (args.account.isUSEntity !== account.data?.isUSEntity) {
+              previousData['data.isUSEntity'] = account.data?.isUSEntity;
+              newData['data.isUSEntity'] = args.account.isUSEntity;
+              updateParams.data = { ...account.data, ...updateParams.data, isUSEntity: args.account.isUSEntity };
             }
             break;
           }
@@ -795,11 +833,41 @@ const accountMutations = {
 
       // Check host only policies
       const previousPolicies = account.data?.policies || {};
-      const shouldIgnorePolicy = (value, key) => isNull(value) || isEqual(value, previousPolicies[key]);
+      // Policies explicitly removed by this mutation: sent as `null` while they exist on the account. Removals must be
+      // authorized just like additions/updates, otherwise sending `null` bypasses the `canEditPolicy` check below.
+      const removedPoliciesKeys = (Object.keys(args.policies) as POLICIES[]).filter(
+        key => isNull(args.policies[key]) && !isUndefined(previousPolicies[key]),
+      );
+      // Policies that are added or changed. Only unchanged values are ignored here: `null` removals are not exempted
+      // from authorization (they are covered by `removedPoliciesKeys`), and submitting `null` for a policy that is not
+      // set is a no-op.
+      const shouldIgnorePolicy = (value, key) =>
+        isNull(value) ? isUndefined(previousPolicies[key]) : isEqual(value, previousPolicies[key]);
       const newPoliciesKeys = Object.keys(omitBy(args.policies, shouldIgnorePolicy)) as POLICIES[];
-      const forbiddenPolicies = newPoliciesKeys.filter(policy => !canEditPolicy(req.remoteUser, account, policy));
+      const policiesToEdit = union(newPoliciesKeys, removedPoliciesKeys);
+      const forbiddenPolicies = policiesToEdit.filter(policy => !canEditPolicy(req.remoteUser, account, policy));
       if (forbiddenPolicies.length > 0) {
         throw new Forbidden(`You are not allowed to edit the following policies: ${forbiddenPolicies.join(', ')}`);
+      }
+
+      const isSettingTaxFormThresholds =
+        newPoliciesKeys.includes(POLICIES.TAX_FORM_THRESHOLDS) &&
+        !removedPoliciesKeys.includes(POLICIES.TAX_FORM_THRESHOLDS);
+      if (isSettingTaxFormThresholds) {
+        await checkFeatureAccess(account, FEATURE.TAX_FORMS, { loaders: req.loaders });
+        const taxFormThresholds = args.policies[POLICIES.TAX_FORM_THRESHOLDS];
+        if (taxFormThresholds) {
+          if (taxFormThresholds.US !== undefined && taxFormThresholds.US !== null && taxFormThresholds.US < 0) {
+            throw new ValidationFailed('US threshold must be greater than or equal to 0');
+          }
+          if (
+            taxFormThresholds.NON_US !== undefined &&
+            taxFormThresholds.NON_US !== null &&
+            taxFormThresholds.NON_US < 0
+          ) {
+            throw new ValidationFailed('Non-US threshold must be greater than or equal to 0');
+          }
+        }
       }
 
       // Merge submitted policies with existing ones
@@ -895,8 +963,14 @@ const accountMutations = {
   },
   regenerateRecoveryCodes: {
     type: new GraphQLList(new GraphQLNonNull(GraphQLString)),
-    description: 'Regenerate two factor authentication recovery codes',
+    description:
+      'Regenerate two factor authentication recovery codes. Session only (OAuth/Personal tokens are not allowed).',
     async resolve(_, args, req) {
+      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
+      rejectOAuthAndPersonalTokenAuth(
+        req,
+        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
+      );
       checkRemoteUserCanUseAccount(req);
 
       const hasTwoFactorEnabled = await TwoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser);

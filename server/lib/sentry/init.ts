@@ -5,7 +5,10 @@ import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import config from 'config';
 import { cloneDeep, compact } from 'lodash';
 
+import logger from '../logger';
 import * as utils from '../utils';
+
+import { METRIC_NAME_REGEX } from './metrics';
 
 const TRACES_SAMPLE_RATE = parseFloat(config.sentry.tracesSampleRate) || 0;
 const PROFILES_SAMPLE_RATE = parseFloat(config.sentry.profilesSampleRate) || 0;
@@ -55,6 +58,19 @@ export const redactSensitiveDataFromRequest = rawRequest => {
   return request;
 };
 
+/**
+ * Safety net on top of the typed metrics wrapper (`./metrics`): drops any metric whose name
+ * violates the metric name grammar (`<origin>.<provider>.<domain>.<event>`) so a bad name can
+ * never mix series, and warns so the misuse is visible.
+ */
+export const beforeSendMetric = (metric: Sentry.Metric): Sentry.Metric | null => {
+  if (!METRIC_NAME_REGEX.test(metric.name)) {
+    logger.warn(`sentry: dropping metric with invalid name: ${metric.name}`);
+    return null;
+  }
+  return metric;
+};
+
 Sentry.init({
   beforeSend(event) {
     event.request = redactSensitiveDataFromRequest(event.request);
@@ -64,6 +80,7 @@ Sentry.init({
     event.request = redactSensitiveDataFromRequest(event.request);
     return event;
   },
+  beforeSendMetric,
   dsn: config.sentry.dsn,
   environment: config.env,
   integrations: compact([
@@ -81,12 +98,11 @@ Sentry.init({
       return samplingContext.inheritOrSampleWith(TRACES_SAMPLE_RATE);
     }
   },
-  // Sentry 11 defaults to span streaming, which turns `beforeSendTransaction` (used above to redact request data)
-  // into a no-op. Keep the transaction-based model until that redaction is moved to `beforeSendSpan`.
-  traceLifecycle: 'static',
-  // Sentry 11 collects request/response bodies, cookies, unscrubbed headers, DB query data, etc. by default.
-  // This explicitly keeps the Sentry 10 baseline, see:
-  // https://github.com/getsentry/sentry-javascript/blob/11.0.0/MIGRATION.md#senddefaultpii-is-replaced-by-datacollection
+  // Proportion of SDK sessions that are profiled (absolute rate, not relative to tracesSampler)
+  profileSessionSampleRate: PROFILES_SAMPLE_RATE,
+  // Sentry v11 collects user info, cookies, headers, request/response bodies, GraphQL variables and
+  // database query data by default. Keep the v10 baseline (sendDefaultPii unset): our redaction above only
+  // covers event.request. From https://docs.sentry.io/platforms/javascript/guides/node/migration/v10-to-v11/
   dataCollection: {
     userInfo: false,
     cookies: false,
@@ -98,13 +114,10 @@ Sentry.init({
     urlQueryParams: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
     genAI: { inputs: false, outputs: false },
     databaseQueryData: false,
-    queues: false,
     graphQL: { document: false, variables: false },
   },
-  // Sentry 11 replaced the per-transaction `profilesSampleRate` with session-based profiling: the rate is evaluated
-  // once per process, and `profileLifecycle: 'trace'` then profiles every sampled trace of the sampled processes.
-  profileSessionSampleRate: PROFILES_SAMPLE_RATE,
-  profileLifecycle: 'trace',
+  // v11 streams spans by default, and beforeSendTransaction (our redaction) only runs on transactions
+  traceLifecycle: 'static',
   release: process.env.HEROKU_SLUG_COMMIT,
   dist: config.env,
 });

@@ -8,7 +8,9 @@ import { Service } from '../../../server/constants/connected-account';
 import ExpenseStatuses from '../../../server/constants/expense-status';
 import ExpenseType from '../../../server/constants/expense-type';
 import FEATURE from '../../../server/constants/feature';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import { PlatformSubscriptionPlan, PlatformSubscriptionTiers } from '../../../server/constants/plans';
+import { TransactionKind } from '../../../server/constants/transaction-kind';
 import * as GoCardlessConnect from '../../../server/lib/gocardless/connect';
 import * as PlaidClient from '../../../server/lib/plaid/client';
 import * as SentryLib from '../../../server/lib/sentry';
@@ -26,6 +28,9 @@ import {
   fakeConnectedAccount,
   fakeEvent,
   fakeExpense,
+  fakeManualPaymentProvider,
+  fakeOrder,
+  fakePaymentMethod,
   fakeProject,
   fakeRequiredLegalDocument,
   fakeTransaction,
@@ -1413,6 +1418,260 @@ describe('server/models/PlatformSubscriptions', () => {
           subscriptions: [{ amount: 2710 }],
         },
         totalAmount: 11710,
+      });
+    });
+
+    describe('crowdfunding fee', () => {
+      const billingPeriod = {
+        year: 2016,
+        month: BillingMonth.JANUARY,
+      };
+
+      const basicPlan = PlatformSubscriptionTiers.find(plan => plan.id === 'basic-5');
+      const tipsOffPlan = {
+        ...basicPlan,
+        pricing: { ...basicPlan.pricing, platformTips: false },
+      };
+
+      async function fakeCrowdfundedHost(plan, subscriptionStart = new Date(Date.UTC(2016, 0, 1))) {
+        const admin = await fakeUser();
+        const host = await fakeActiveHost({ admin });
+        await PlatformSubscription.createSubscription(host, subscriptionStart, plan, admin);
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const stripePaymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        });
+        const order = await fakeOrder({ CollectiveId: collective.id, platformTipEligible: false });
+        return {
+          admin,
+          host,
+          collective,
+          contribution: {
+            kind: TransactionKind.CONTRIBUTION,
+            HostCollectiveId: host.id,
+            CollectiveId: collective.id,
+            PaymentMethodId: stripePaymentMethod.id,
+            OrderId: order.id,
+          },
+        };
+      }
+
+      // Refunds `contribution` with a refund transaction linked to it, like `createRefundTransaction`
+      async function fakeRefund(contribution, amount: number, createdAt: Date) {
+        const refund = await fakeTransaction({
+          kind: contribution.kind,
+          HostCollectiveId: contribution.HostCollectiveId,
+          CollectiveId: contribution.CollectiveId,
+          PaymentMethodId: contribution.PaymentMethodId,
+          OrderId: contribution.OrderId,
+          amount: -amount,
+          isRefund: true,
+          RefundTransactionId: contribution.id,
+          createdAt,
+        });
+        await contribution.update({ RefundTransactionId: refund.id });
+        return refund;
+      }
+
+      it('charges the fee on crowdfunding contributions, net of refunds', async () => {
+        const { host, contribution } = await fakeCrowdfundedHost(tipsOffPlan);
+
+        // Two Stripe contributions in the period: $100 + $50
+        await fakeTransaction({ ...contribution, amount: 10000, createdAt: new Date(Date.UTC(2016, 0, 10)) });
+        const refunded = await fakeTransaction({
+          ...contribution,
+          amount: 5000,
+          createdAt: new Date(Date.UTC(2016, 0, 12)),
+        });
+        // A $20 partial refund in the period
+        await fakeRefund(refunded, 2000, new Date(Date.UTC(2016, 0, 15)));
+        // Outside the billing period: ignored
+        await fakeTransaction({ ...contribution, amount: 99900, createdAt: new Date(Date.UTC(2015, 11, 15)) });
+        // Added Funds: ignored
+        const hostPaymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.HOST,
+        });
+        await fakeTransaction({
+          ...contribution,
+          PaymentMethodId: hostPaymentMethod.id,
+          amount: 30000,
+          createdAt: new Date(Date.UTC(2016, 0, 10)),
+        });
+
+        const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+        expect(billing.crowdfunding).to.deep.equal({ totalAmount: 13000, feePercent: 5, fee: 650 });
+        expect(billing.totalAmount).to.equal(billing.base.total + billing.additional.total + 650);
+      });
+
+      it('does not charge the fee when the plan has platform tips enabled', async () => {
+        const { host, contribution } = await fakeCrowdfundedHost(basicPlan);
+
+        await fakeTransaction({ ...contribution, amount: 10000, createdAt: new Date(Date.UTC(2016, 0, 10)) });
+
+        const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+        expect(billing.crowdfunding).to.deep.equal({ totalAmount: 0, feePercent: 0, fee: 0 });
+        expect(billing.totalAmount).to.equal(billing.base.total + billing.additional.total);
+      });
+
+      it('only charges contributions that were not subject to platform tips', async () => {
+        const { host, collective, contribution } = await fakeCrowdfundedHost(tipsOffPlan);
+
+        // Contribution from an order still subject to platform tips (e.g. an older recurring
+        // contribution, or one made before a mid-month plan switch): ignored
+        const tipEligibleOrder = await fakeOrder({ CollectiveId: collective.id, platformTipEligible: true });
+        await fakeTransaction({
+          ...contribution,
+          OrderId: tipEligibleOrder.id,
+          amount: 10000,
+          createdAt: new Date(Date.UTC(2016, 0, 10)),
+        });
+
+        // Contribution from a legacy order carrying a tip, from before eligibility was recorded: ignored
+        const legacyTipOrder = await fakeOrder({
+          CollectiveId: collective.id,
+          platformTipEligible: null,
+          platformTipAmount: 500,
+        });
+        await fakeTransaction({
+          ...contribution,
+          OrderId: legacyTipOrder.id,
+          amount: 10000,
+          createdAt: new Date(Date.UTC(2016, 0, 10)),
+        });
+
+        // Contribution from a legacy order without a tip, from before eligibility was recorded: charged
+        const legacyOrder = await fakeOrder({ CollectiveId: collective.id, platformTipEligible: null });
+        await fakeTransaction({
+          ...contribution,
+          OrderId: legacyOrder.id,
+          amount: 3000,
+          createdAt: new Date(Date.UTC(2016, 0, 10)),
+        });
+
+        // Contribution from an order not subject to platform tips: charged
+        await fakeTransaction({ ...contribution, amount: 10000, createdAt: new Date(Date.UTC(2016, 0, 20)) });
+
+        const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+        expect(billing.crowdfunding).to.deep.equal({ totalAmount: 13000, feePercent: 5, fee: 650 });
+      });
+
+      it('includes contributor bank transfers but not host-created pending contributions', async () => {
+        const { host, collective, contribution } = await fakeCrowdfundedHost(tipsOffPlan);
+
+        // Contributor-initiated bank transfer: no payment method on the transaction, but the
+        // order points to the host's manual payment provider: charged
+        const manualPaymentProvider = await fakeManualPaymentProvider({ CollectiveId: host.id });
+        const bankTransferOrder = await fakeOrder({
+          CollectiveId: collective.id,
+          platformTipEligible: false,
+          ManualPaymentProviderId: manualPaymentProvider.id,
+        });
+        await fakeTransaction({
+          ...contribution,
+          PaymentMethodId: null,
+          OrderId: bankTransferOrder.id,
+          amount: 10000,
+          createdAt: new Date(Date.UTC(2016, 0, 10)),
+        });
+
+        // Host-created pending contribution (expected funds): ignored
+        const pendingOrder = await fakeOrder({
+          CollectiveId: collective.id,
+          platformTipEligible: false,
+          data: { isPendingContribution: true },
+        });
+        await fakeTransaction({
+          ...contribution,
+          PaymentMethodId: null,
+          OrderId: pendingOrder.id,
+          amount: 20000,
+          createdAt: new Date(Date.UTC(2016, 0, 12)),
+        });
+
+        const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+        expect(billing.crowdfunding).to.deep.equal({ totalAmount: 10000, feePercent: 5, fee: 500 });
+      });
+
+      it('only charges contributions received while a tips-off subscription was active', async () => {
+        // Subscription starts mid-month: contributions received before that (e.g. still charged
+        // as legacy Platform Share) are ignored
+        const { host, contribution } = await fakeCrowdfundedHost(tipsOffPlan, new Date(Date.UTC(2016, 0, 15)));
+
+        await fakeTransaction({ ...contribution, amount: 10000, createdAt: new Date(Date.UTC(2016, 0, 10)) });
+        await fakeTransaction({ ...contribution, amount: 4000, createdAt: new Date(Date.UTC(2016, 0, 20)) });
+
+        const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+        expect(billing.crowdfunding).to.deep.equal({ totalAmount: 4000, feePercent: 5, fee: 200 });
+      });
+
+      it('charges each subscription window at its own rate', async () => {
+        const { admin, host, contribution } = await fakeCrowdfundedHost(tipsOffPlan);
+        await PlatformSubscription.replaceCurrentSubscription(
+          host,
+          new Date(Date.UTC(2016, 0, 15)),
+          { ...tipsOffPlan, pricing: { ...tipsOffPlan.pricing, crowdfundingFeePercent: 10 } },
+          admin,
+        );
+
+        await fakeTransaction({ ...contribution, amount: 10000, createdAt: new Date(Date.UTC(2016, 0, 10)) });
+        await fakeTransaction({ ...contribution, amount: 4000, createdAt: new Date(Date.UTC(2016, 0, 20)) });
+
+        // 5% of $100 + 10% of $40, reported as the effective rate
+        const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+        expect(billing.crowdfunding).to.deep.equal({ totalAmount: 14000, feePercent: 6.43, fee: 900 });
+      });
+
+      it('does not charge a contribution refunded in the period, whatever the rate', async () => {
+        const { admin, host, contribution } = await fakeCrowdfundedHost({
+          ...tipsOffPlan,
+          pricing: { ...tipsOffPlan.pricing, crowdfundingFeePercent: 10 },
+        });
+        await PlatformSubscription.replaceCurrentSubscription(
+          host,
+          new Date(Date.UTC(2016, 0, 15)),
+          tipsOffPlan,
+          admin,
+        );
+
+        // Received at 10%, refunded after the switch to 5%
+        const refunded = await fakeTransaction({
+          ...contribution,
+          amount: 10000,
+          createdAt: new Date(Date.UTC(2016, 0, 10)),
+        });
+        await fakeRefund(refunded, 10000, new Date(Date.UTC(2016, 0, 20)));
+
+        const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+        expect(billing.crowdfunding).to.deep.equal({ totalAmount: 0, feePercent: 5, fee: 0 });
+      });
+
+      it('ignores refunds recorded after the billing period', async () => {
+        const { host, contribution } = await fakeCrowdfundedHost(tipsOffPlan, new Date(Date.UTC(2015, 11, 1)));
+
+        // Received in December, refunded in January: billed in December, not credited in January
+        const december = await fakeTransaction({
+          ...contribution,
+          amount: 10000,
+          createdAt: new Date(Date.UTC(2015, 11, 20)),
+        });
+        await fakeRefund(december, 10000, new Date(Date.UTC(2016, 0, 10)));
+        // Received in January, refunded in February: billed in January
+        const january = await fakeTransaction({
+          ...contribution,
+          amount: 4000,
+          createdAt: new Date(Date.UTC(2016, 0, 20)),
+        });
+        await fakeRefund(january, 4000, new Date(Date.UTC(2016, 1, 5)));
+
+        const decemberBilling = await PlatformSubscription.calculateBilling(host.id, {
+          year: 2015,
+          month: BillingMonth.DECEMBER,
+        });
+        expect(decemberBilling.crowdfunding).to.deep.equal({ totalAmount: 10000, feePercent: 5, fee: 500 });
+        const januaryBilling = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+        expect(januaryBilling.crowdfunding).to.deep.equal({ totalAmount: 4000, feePercent: 5, fee: 200 });
       });
     });
   });

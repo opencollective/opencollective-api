@@ -1,7 +1,12 @@
+/* eslint-disable camelcase, custom-errors/no-unthrown-errors */
+import * as SentrySdk from '@sentry/node';
 import { expect } from 'chai';
+import config from 'config';
+import { noop } from 'lodash';
 import moment from 'moment';
 import { assert, createSandbox } from 'sinon';
 
+import { TransferwiseError } from '../../../../server/graphql/errors';
 import cache from '../../../../server/lib/cache';
 import * as transferwiseLib from '../../../../server/lib/transferwise';
 import models from '../../../../server/models';
@@ -309,6 +314,190 @@ describe('server/paymentProviders/transferwise/index', () => {
           amount: { value: 1000000, currency },
         })),
       );
+    });
+
+    describe('payment outcome metrics', () => {
+      let metricsSandbox, metricsCountStub;
+
+      beforeEach(() => {
+        metricsSandbox = createSandbox();
+        metricsSandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+        metricsCountStub = metricsSandbox.stub(SentrySdk.metrics, 'count');
+      });
+
+      afterEach(() => metricsSandbox.restore());
+
+      const fakeWiseExpense = () =>
+        fakeExpense({
+          description: 'January Invoice',
+        });
+
+      it('records a failed payment outcome metric when the Wise account has insufficient balance', async () => {
+        const lowBalanceExpense = await fakeWiseExpense();
+        listBalancesAccount.resolves(
+          ['EUR', 'USD'].map(currency => ({ currency, type: 'STANDARD', amount: { value: 50, currency } })),
+        );
+        createTransfer.resetHistory();
+
+        await expect(transferwise.payExpense(connectedAccount, payoutMethod, lowBalanceExpense)).to.be.rejectedWith(
+          'Insufficient balance',
+        );
+
+        expect(metricsCountStub).to.have.been.calledOnce;
+        expect(metricsCountStub.firstCall.args).to.deep.equal([
+          'thirdparty.wise.payment.failed',
+          1,
+          { attributes: { flow: 'payout', method: 'BANK_ACCOUNT', error_type: 'insufficient_balance' } },
+        ]);
+
+        // Restore the default balance used by other tests
+        listBalancesAccount.resolves(
+          ['EUR', 'USD'].map(currency => ({ currency, type: 'STANDARD', amount: { value: 1000000, currency } })),
+        );
+      });
+
+      it('records a failed payment outcome metric when Wise rejects the transfer', async () => {
+        const wiseExpense = await fakeWiseExpense();
+        createTransfer.rejects(new TransferwiseError('Bad request', 'transferwise.error.badRequest'));
+
+        try {
+          await expect(transferwise.payExpense(connectedAccount, payoutMethod, wiseExpense)).to.be.rejected;
+
+          expect(metricsCountStub).to.have.been.calledOnce;
+          expect(metricsCountStub.firstCall.args).to.deep.equal([
+            'thirdparty.wise.payment.failed',
+            1,
+            { attributes: { flow: 'payout', method: 'BANK_ACCOUNT', error_type: 'provider_error' } },
+          ]);
+
+          await wiseExpense.reload();
+          expect(wiseExpense.status).to.eq('ERROR');
+        } finally {
+          createTransfer.resetBehavior();
+          createTransfer.resolves({ id: 123 });
+        }
+      });
+
+      it('records a failed payment outcome metric when funding the Wise transfer fails', async () => {
+        const wiseExpense = await fakeWiseExpense();
+        fundTransfer.rejects(new Error('Funding exploded'));
+
+        try {
+          await expect(transferwise.payExpense(connectedAccount, payoutMethod, wiseExpense)).to.be.rejected;
+
+          expect(metricsCountStub).to.have.been.calledOnce;
+          expect(metricsCountStub.firstCall.args).to.deep.equal([
+            'thirdparty.wise.payment.failed',
+            1,
+            { attributes: { flow: 'payout', method: 'BANK_ACCOUNT', error_type: 'unknown' } },
+          ]);
+        } finally {
+          fundTransfer.resetBehavior();
+          fundTransfer.resolves({ status: 'COMPLETED' });
+        }
+      });
+
+      it('records the failure metric even when cancelling the transfer fails', async () => {
+        const wiseExpense = await fakeWiseExpense();
+        fundTransfer.rejects(new Error('Funding exploded'));
+        cancelTransfer.rejects(new Error('Cancel exploded'));
+
+        try {
+          await expect(transferwise.payExpense(connectedAccount, payoutMethod, wiseExpense)).to.be.rejected;
+
+          expect(metricsCountStub).to.have.been.calledOnce;
+          expect(metricsCountStub.firstCall.args).to.deep.equal([
+            'thirdparty.wise.payment.failed',
+            1,
+            { attributes: { flow: 'payout', method: 'BANK_ACCOUNT', error_type: 'unknown' } },
+          ]);
+        } finally {
+          fundTransfer.resetBehavior();
+          fundTransfer.resolves({ status: 'COMPLETED' });
+          cancelTransfer.resetBehavior();
+          cancelTransfer.resolves();
+        }
+      });
+    });
+
+    describe('when createTransfer fails', () => {
+      let testExpense;
+
+      beforeEach(async () => {
+        testExpense = await fakeExpense({
+          payoutMethod: 'transferwise',
+          status: 'PENDING',
+          amount: 10000,
+          CollectiveId: host.id,
+          currency: 'USD',
+          FromCollectiveId: payoutMethod.id,
+          category: 'Engineering',
+          type: 'INVOICE',
+          description: 'Test Invoice for Error',
+        });
+
+        // Make createTransfer fail with a real-world Wise validation error (422 → `transferwise.error.validation`)
+        createTransfer.rejects(
+          // eslint-disable-next-line custom-errors/no-unthrown-errors
+          new TransferwiseError(
+            'Validation error: You are not allowed to send money. Please contact our support team for more details.',
+            'transferwise.error.validation',
+            { tracing: { 'x-trace-id': '2fdedcd616024b0e0eb294952e68c351', 'cf-ray': 'a3d0d62fff55311e-IAD' } },
+          ),
+        );
+      });
+
+      afterEach(() => {
+        // Restore the stub to its default behavior
+        createTransfer.resolves({ id: 123 });
+      });
+
+      it('should throw the error from createTransfer', async () => {
+        await expect(transferwise.payExpense(connectedAccount, payoutMethod, testExpense)).to.be.rejectedWith(
+          'Wise: Validation error: You are not allowed to send money. Please contact our support team for more details.',
+        );
+      });
+
+      it('should update expense status to ERROR', async () => {
+        await transferwise.payExpense(connectedAccount, payoutMethod, testExpense).catch(noop);
+
+        await testExpense.reload();
+        expect(testExpense.status).to.equal('ERROR');
+      });
+
+      it('should create an error activity', async () => {
+        const activitiesBefore = await testExpense.getActivities();
+
+        await transferwise.payExpense(connectedAccount, payoutMethod, testExpense).catch(noop);
+
+        const activitiesAfter = await testExpense.getActivities();
+        expect(activitiesAfter.length).to.be.greaterThan(activitiesBefore.length);
+
+        const errorActivity = activitiesAfter[activitiesAfter.length - 1];
+        expect(errorActivity.type).to.equal('collective.expense.payment.error');
+        expect(errorActivity.data).to.have.property('error');
+        expect(errorActivity.data.error).to.have.property(
+          'message',
+          'Wise: Validation error: You are not allowed to send money. Please contact our support team for more details.',
+        );
+        // The richer error details (not just message) must be persisted
+        expect(errorActivity.data.error.extensions).to.deep.include({ code: 'transferwise.error.validation' });
+        expect(errorActivity.data.error.extensions.tracing).to.deep.include({
+          'x-trace-id': '2fdedcd616024b0e0eb294952e68c351',
+        });
+      });
+
+      it('preserves the message of plain errors in the error activity', async () => {
+        // `Error.message` is not enumerable, so sanitizing a plain Error must not drop it
+        createTransfer.rejects(new Error('Network error: socket hang up'));
+
+        await transferwise.payExpense(connectedAccount, payoutMethod, testExpense).catch(noop);
+
+        const activities = await testExpense.getActivities();
+        const errorActivity = activities[activities.length - 1];
+        expect(errorActivity.type).to.equal('collective.expense.payment.error');
+        expect(errorActivity.data.error).to.have.property('message', 'Network error: socket hang up');
+      });
     });
   });
 

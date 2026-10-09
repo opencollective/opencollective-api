@@ -7,5 +7,7 @@ TZ=utc
 
 for FILE in `ls $FILE_PATH`; do 
   echo "Running $BIN $FILE_PATH$FILE";
+  # Sentry is initialized by the job itself (cron/utils imports server/lib/sentry). The SDK no longer
+  # has a preload entry point: since v11, it instruments through diagnostics channels without one.
   "$BIN_PATH/$BIN" ${BIN_OPTIONS} "$FILE_PATH$FILE";
 done;
