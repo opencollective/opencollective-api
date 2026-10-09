@@ -16,7 +16,7 @@ import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, Op, PlatformSubscription, sequelize } from '../../server/models';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
-import { Billing } from '../../server/models/PlatformSubscription';
+import { Billing, BillingPeriod } from '../../server/models/PlatformSubscription';
 import { runCronJob } from '../utils';
 
 const json2csv = (data, opts = undefined) => new Parser(opts).parse(data);
@@ -28,6 +28,7 @@ const defaultDate = process.env.START_DATE ? moment.utc(process.env.START_DATE) 
 const DRY = parseToBoolean(process.env.DRY);
 const isProduction = config.env === 'production';
 const SKIP_BILLING_FOR_ORGANIZATIONS = process.env.SKIP_BILLING_FOR_ORGANIZATIONS?.split(',') ?? [];
+const SKIP_ORGANIZATIONS_WITHOUT_TRANSACTIONS = parseToBoolean(process.env.SKIP_ORGANIZATIONS_WITHOUT_TRANSACTIONS);
 
 /** Skip billing when every platform subscription in the period was a short trial */
 function shouldSkipBillForShortEndedTrial(bill: Billing, asOf: moment.Moment): boolean {
@@ -52,7 +53,27 @@ function shouldSkipBillForShortEndedTrial(bill: Billing, asOf: moment.Moment): b
   return true;
 }
 
-export async function run(baseDate: Date | moment.Moment = defaultDate): Promise<void> {
+/** Whether the organization, or any account it hosts, has at least one transaction in the billing period */
+async function hasTransactionsInBillingPeriod(organization: Collective, billingPeriod: BillingPeriod) {
+  const billingRange = PlatformSubscription.getBillingPeriodRange(billingPeriod);
+  const transaction = await models.Transaction.findOne({
+    attributes: ['id'],
+    where: {
+      [Op.or]: [{ CollectiveId: organization.id }, { HostCollectiveId: organization.id }],
+      createdAt: {
+        [Op.gte]: PlatformSubscription.periodStartDate(billingRange),
+        [Op.lte]: PlatformSubscription.periodEndDate(billingRange),
+      },
+    },
+  });
+
+  return Boolean(transaction);
+}
+
+export async function run(
+  baseDate: Date | moment.Moment = defaultDate,
+  { skipOrganizationsWithoutTransactions = SKIP_ORGANIZATIONS_WITHOUT_TRANSACTIONS } = {},
+): Promise<void> {
   const momentDate = moment(baseDate);
   const billingPeriodDate = moment(momentDate).subtract(1, 'months');
   const year = billingPeriodDate.year();
@@ -121,6 +142,16 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       if (existingExpense) {
         logger.info(
           `${logPrefix} Organization ${organization.name} #${organization.id} has already been billed for this period, skipping...`,
+        );
+        continue;
+      }
+
+      if (
+        skipOrganizationsWithoutTransactions &&
+        !(await hasTransactionsInBillingPeriod(organization, bill.billingPeriod))
+      ) {
+        logger.info(
+          `${logPrefix} Skipping bill for organization ${organization.name} #${organization.id} because it has no transactions in the billing period (SKIP_ORGANIZATIONS_WITHOUT_TRANSACTIONS)`,
         );
         continue;
       }
