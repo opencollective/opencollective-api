@@ -22,6 +22,7 @@ import {
   fakeActiveHost,
   fakeCollective,
   fakeEvent,
+  fakeExpense,
   fakeHost,
   fakeLocation,
   fakeMember,
@@ -2432,6 +2433,121 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         previousData: { 'data.privateInstructions': undefined, 'data.isUSEntity': undefined },
         newData: { 'data.privateInstructions': 'Please invoice monthly', 'data.isUSEntity': true },
       });
+    });
+  });
+
+  describe('archiveAccount / unarchiveAccount', () => {
+    const archiveAccountMutation = gql`
+      mutation ArchiveAccount($account: AccountReferenceInput!) {
+        archiveAccount(account: $account) {
+          id
+          isArchived
+        }
+      }
+    `;
+
+    const unarchiveAccountMutation = gql`
+      mutation UnarchiveAccount($account: AccountReferenceInput!) {
+        unarchiveAccount(account: $account) {
+          id
+          isArchived
+        }
+      }
+    `;
+
+    it('must be authenticated', async () => {
+      const account = await fakeCollective();
+      for (const mutation of [archiveAccountMutation, unarchiveAccountMutation]) {
+        const result = await graphqlQueryV2(mutation, { account: { legacyId: account.id } });
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('Unauthorized');
+      }
+    });
+
+    it('must be an admin of the account', async () => {
+      const account = await fakeCollective();
+      const user = await fakeUser();
+      for (const mutation of [archiveAccountMutation, unarchiveAccountMutation]) {
+        const result = await graphqlQueryV2(mutation, { account: { legacyId: account.id } }, user);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('You need to be logged in as an Admin.');
+      }
+    });
+
+    it('archives the account and its children, cancels contributions and unprocessed expenses', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost();
+      const account = await fakeCollective({ admin, HostCollectiveId: host.id });
+      const project = await fakeProject({ ParentCollectiveId: account.id, HostCollectiveId: host.id });
+      const order = await fakeOrder(
+        { CollectiveId: account.id, status: OrderStatuses.ACTIVE, subscription: { isManagedExternally: true } },
+        { withSubscription: true },
+      );
+      const pendingExpense = await fakeExpense({ status: 'PENDING', CollectiveId: project.id });
+      const paidExpense = await fakeExpense({ status: 'PAID', CollectiveId: account.id });
+
+      const result = await graphqlQueryV2(archiveAccountMutation, { account: { legacyId: account.id } }, admin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.archiveAccount.isArchived).to.be.true;
+
+      await Promise.all([account, project, order, pendingExpense, paidExpense].map(e => e.reload()));
+      expect(account.isActive).to.be.false;
+      expect(account.deactivatedAt).to.be.a('date');
+      expect(account.HostCollectiveId).to.be.null;
+      expect(project.isActive).to.be.false;
+      expect(project.deactivatedAt).to.be.a('date');
+      expect(order.status).to.equal(OrderStatuses.CANCELLED);
+      expect(pendingExpense.status).to.equal('CANCELED');
+      expect(paidExpense.status).to.equal('PAID');
+
+      const activity = await models.Activity.findOne({
+        where: { type: ACTIVITY.COLLECTIVE_ARCHIVED, CollectiveId: account.id },
+      });
+      expect(activity).to.exist;
+      expect(activity.HostCollectiveId).to.equal(host.id);
+    });
+
+    it('cannot archive a host', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
+      const result = await graphqlQueryV2(archiveAccountMutation, { account: { legacyId: host.id } }, admin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include("You can't archive your collective while being a host");
+    });
+
+    it('unarchives an account', async () => {
+      const admin = await fakeUser();
+      const account = await fakeCollective({ admin, isActive: false, deactivatedAt: new Date() });
+
+      const result = await graphqlQueryV2(unarchiveAccountMutation, { account: { slug: account.slug } }, admin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.unarchiveAccount.isArchived).to.be.false;
+
+      await account.reload();
+      expect(account.deactivatedAt).to.be.null;
+    });
+
+    it('unarchives a project with the status of its parent', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost();
+      const parent = await fakeCollective({ admin, HostCollectiveId: host.id, isActive: true, approvedAt: new Date() });
+      const project = await fakeProject({
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: null,
+        isActive: false,
+        approvedAt: null,
+        deactivatedAt: new Date(),
+      });
+
+      const result = await graphqlQueryV2(unarchiveAccountMutation, { account: { legacyId: project.id } }, admin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.unarchiveAccount.isArchived).to.be.false;
+
+      await project.reload();
+      expect(project.deactivatedAt).to.be.null;
+      expect(project.isActive).to.be.true;
+      expect(project.HostCollectiveId).to.equal(host.id);
+      expect(project.approvedAt).to.be.a('date');
     });
   });
 });
