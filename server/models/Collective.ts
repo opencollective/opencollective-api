@@ -163,6 +163,7 @@ type Settings = {
   // @deprecated Use `data.features` instead
   features?: {
     contactForm?: boolean;
+    conversations?: boolean;
     paypalDonations?: boolean;
     paypalPayouts?: boolean;
     stripePaymentIntent?: boolean;
