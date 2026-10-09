@@ -15,6 +15,7 @@ import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
   fakeCollective,
   fakeConnectedAccount,
+  fakeExpense,
   fakeHost,
   fakePayoutMethod,
   fakeTransaction,
@@ -267,7 +268,7 @@ describe('submit-platform-subscription-bills', () => {
     expect(org2Body).to.contain('$80.00');
   });
 
-  it('skips organizations without transactions in the billing period when enabled', async () => {
+  it('skips organizations without transactions in the billing period that never paid a bill, when enabled', async () => {
     const orgAdmin = await fakeUser();
     const createOrgWithSubscription = async () => {
       const org = await fakeCollective({ type: CollectiveType.ORGANIZATION, isActive: true });
@@ -295,6 +296,15 @@ describe('submit-platform-subscription-bills', () => {
       createdAt: moment.utc('2023-09-15').toDate(),
     });
 
+    // No transactions in the billing period, but already paid a platform bill
+    const payingOrg = await createOrgWithSubscription();
+    await fakeExpense({
+      CollectiveId: payingOrg.id,
+      type: expenseTypes.PLATFORM_BILLING,
+      status: 'PAID',
+      createdAt: moment.utc('2023-09-01').toDate(),
+    });
+
     await run(date, { skipOrganizationsWithoutTransactions: true });
 
     const inactiveOrgExpenses = await models.Expense.findAll({
@@ -306,5 +316,10 @@ describe('submit-platform-subscription-bills', () => {
       where: { CollectiveId: activeOrg.id, type: expenseTypes.PLATFORM_BILLING },
     });
     expect(activeOrgExpenses).to.have.length(1);
+
+    const payingOrgExpenses = await models.Expense.findAll({
+      where: { CollectiveId: payingOrg.id, type: expenseTypes.PLATFORM_BILLING },
+    });
+    expect(payingOrgExpenses).to.have.length(2);
   });
 });
