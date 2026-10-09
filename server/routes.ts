@@ -20,6 +20,7 @@ import * as email from './controllers/services/email';
 import * as transferwise from './controllers/transferwise';
 import * as users from './controllers/users';
 import { paypalWebhook, plaidWebhook, stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
+import { installE2EFixtures } from './e2e/fixtures';
 import { getGraphqlCacheProperties } from './graphql/cache';
 import { IGNORED_GRAPHQL_ERROR_CODES } from './graphql/errors';
 import graphqlSchemaV1 from './graphql/v1/schema';
@@ -50,6 +51,7 @@ const noCache = (req, res, next) => {
 };
 
 export default async (app: express.Application) => {
+  await installE2EFixtures(app);
   /**
    * Extract GraphQL API Key
    */
