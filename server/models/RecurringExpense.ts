@@ -6,6 +6,7 @@ import { v4 as uuid } from 'uuid';
 
 import { activities } from '../constants';
 import expenseStatus from '../constants/expense-status';
+import { ValidationFailed } from '../graphql/errors';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
@@ -144,17 +145,37 @@ class RecurringExpense extends ModelWithPublicId<
     return draftedExpense;
   }
 
-  static async createFromExpense(expense: Expense, interval: RecurringExpenseIntervals, endsAt?: string | Date) {
-    if (typeof endsAt === 'string') {
-      endsAt = moment(endsAt).toDate();
+  /**
+   * Validates the end date of a recurring expense and returns it as a `Date`.
+   *
+   * The cron only picks up recurring expenses ending after the start of the current
+   * day. Anything earlier is dead on arrival: it can never produce a single draft,
+   * so we reject it instead of silently creating a recurring expense that never recurs.
+   */
+  static assertValidEndsAt(endsAt?: string | Date | null): Date | undefined {
+    if (endsAt === undefined || endsAt === null) {
+      return undefined;
     }
+
+    const endsAtMoment = moment(endsAt);
+    if (!endsAtMoment.isValid()) {
+      throw new ValidationFailed('Invalid end date for the recurring expense');
+    }
+    if (!endsAtMoment.isAfter(moment().startOf('day'))) {
+      throw new ValidationFailed('The end date for a recurring expense must be in the future');
+    }
+    return endsAtMoment.toDate();
+  }
+
+  static async createFromExpense(expense: Expense, interval: RecurringExpenseIntervals, endsAt?: string | Date | null) {
+    const parsedEndsAt = this.assertValidEndsAt(endsAt);
 
     const recurringExpense = await this.create({
       CollectiveId: expense.CollectiveId,
       FromCollectiveId: expense.FromCollectiveId,
       lastDraftedAt: new Date(),
       interval,
-      endsAt,
+      endsAt: parsedEndsAt,
     });
     await expense.update({ RecurringExpenseId: recurringExpense.id });
     return recurringExpense;
