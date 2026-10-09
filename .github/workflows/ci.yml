@@ -187,14 +187,10 @@ jobs:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
       # The ubuntu-26.04 image ships PostgreSQL 18 client tools, whose pg_restore emits
-      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Install the 16 client from PGDG.
-      - name: Install PostgreSQL 16 client
-        run: |
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get install -y postgresql-client-16
-          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
-
+      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Run them from the postgres:16 image.
       - run: npm run db:restore:test
+        env:
+          USE_DOCKER: true
 
       - name: Test
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'
@@ -273,14 +269,10 @@ jobs:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
       # The ubuntu-26.04 image ships PostgreSQL 18 client tools, whose pg_restore emits
-      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Install the 16 client from PGDG.
-      - name: Install PostgreSQL 16 client
-        run: |
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get install -y postgresql-client-16
-          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
-
+      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Run them from the postgres:16 image.
       - run: npm run db:restore:test
+        env:
+          USE_DOCKER: true
 
       - name: Test
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'

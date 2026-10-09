@@ -213,10 +213,6 @@ jobs:
       # man-db trigger on apt install is taking some time
       - name: Disable man-db update
         run: sudo rm -f /var/lib/man-db/auto-update
-      # postgresql-client-16 is not in the Ubuntu 26.04 archives (which ship PostgreSQL 18), get it from PGDG
-      - name: Add PGDG apt repository
-        run: sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-
       - name: Update apt
         run: sudo apt-get update || exit 0
 
@@ -224,10 +220,7 @@ jobs:
         run: |
           sudo apt-get install \
           `# Cypress dependencies - see https://docs.cypress.io/app/get-started/install-cypress#UbuntuDebian` \
-          libgtk2.0-0t64 libgtk-3-0t64 libgbm-dev libnotify-dev libnss3 libxss1 libasound2t64 libxtst6 xauth xvfb \
-          `# Postgres client` \
-          postgresql-client-16
-          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
+          libgtk2.0-0t64 libgtk-3-0t64 libgbm-dev libnotify-dev libnss3 libxss1 libasound2t64 libxtst6 xauth xvfb
 
       - name: Setup S3 bucket
         env:
@@ -360,8 +353,12 @@ jobs:
           test -e opencollective-images/dist/server
           test -f opencollective-pdf/dist/server/index.js
 
+      # The ubuntu-26.04 image ships PostgreSQL 18 client tools, whose pg_restore emits
+      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Run them from the postgres:16 image.
       - name: Setup DB
         working-directory: opencollective-frontend
+        env:
+          USE_DOCKER: true
         run: ./scripts/setup_db.sh
 
       - name: Run E2E with Cypress
