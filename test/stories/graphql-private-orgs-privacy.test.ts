@@ -123,6 +123,8 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Mutation.editTwoFactorAuthenticationMethod': 'skipped',
   'Mutation.editAccount': 'skipped',
   'Mutation.setPolicies': 'skipped',
+  'Mutation.archiveAccount': 'skipped',
+  'Mutation.unarchiveAccount': 'skipped',
   'Mutation.deleteAccount': 'skipped',
   'Mutation.convertAccountToOrganization': 'skipped',
   'Mutation.editAccountingCategories': 'skipped',
