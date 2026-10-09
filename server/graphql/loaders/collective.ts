@@ -85,31 +85,41 @@ export default {
    */
   isApproved: (): DataLoader<number, boolean> => {
     return new DataLoader(async (collectiveIds: number[]): Promise<boolean[]> => {
-      // Load the accounts, then their ancestors since children inherit their host from their parent
-      const accountsById = new Map<number, Collective>();
-      const requestedIds = new Set<number>();
-      let idsToLoad = uniq(collectiveIds.filter(Boolean));
-      while (idsToLoad.length) {
-        idsToLoad.forEach(id => requestedIds.add(id));
-        const accounts: Collective[] = await Collective.findAll({ where: { id: { [Op.in]: idsToLoad } } });
-        accounts.forEach(account => accountsById.set(account.id, account));
-        idsToLoad = uniq(accounts.map(account => account.ParentCollectiveId).filter(id => id && !requestedIds.has(id)));
+      // Load the accounts, then their direct parents since children inherit their host from their parent
+      const uniqueIds = uniq(collectiveIds.filter(Boolean));
+      const accounts: Collective[] = uniqueIds.length
+        ? await Collective.findAll({ where: { id: { [Op.in]: uniqueIds } } })
+        : [];
+      const accountsById = new Map<number, Collective>(accounts.map(account => [account.id, account]));
+      const parentIds = uniq(
+        accounts.map(account => account.ParentCollectiveId).filter(id => id && !accountsById.has(id)),
+      );
+      if (parentIds.length) {
+        const parents: Collective[] = await Collective.findAll({ where: { id: { [Op.in]: parentIds } } });
+        parents.forEach(parent => accountsById.set(parent.id, parent));
       }
 
-      const isApproved = (account: Collective | undefined, seenIds: Set<number> = new Set()): boolean => {
-        if (!account || seenIds.has(account.id)) {
+      // Only one level between child and parent: a child always defers to its direct parent,
+      // which is evaluated on its own. This also avoids any loop on corrupted parent links.
+      const isAccountApproved = (account: Collective | undefined): boolean => {
+        if (!account) {
           return false;
-        } else if (account.ParentCollectiveId) {
-          seenIds.add(account.id);
-          return isApproved(accountsById.get(account.ParentCollectiveId), seenIds);
-        } else if (account.id === account.HostCollectiveId) {
+        }
+
+        const effectiveAccount =
+          account.ParentCollectiveId && account.ParentCollectiveId !== account.id
+            ? accountsById.get(account.ParentCollectiveId)
+            : account;
+        if (!effectiveAccount) {
+          return false;
+        } else if (effectiveAccount.id === effectiveAccount.HostCollectiveId) {
           return true; // Self-hosted
         }
 
-        return Boolean(account.HostCollectiveId && account.isActive && account.approvedAt);
+        return Boolean(effectiveAccount.HostCollectiveId && effectiveAccount.isActive && effectiveAccount.approvedAt);
       };
 
-      return collectiveIds.map(id => isApproved(accountsById.get(id)));
+      return collectiveIds.map(id => isAccountApproved(accountsById.get(id)));
     });
   },
   /**
