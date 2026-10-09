@@ -155,7 +155,7 @@ jobs:
       PG_DATABASE: opencollective_test
     services:
       redis:
-        image: redis
+        image: redis:8
         ports:
           - 6379:6379
         options: --entrypoint redis-server
@@ -225,7 +225,7 @@ jobs:
 
     services:
       redis:
-        image: redis
+        image: redis:8
         ports:
           - 6379:6379
         options: --entrypoint redis-server
@@ -303,7 +303,7 @@ jobs:
 
     services:
       redis:
-        image: redis
+        image: redis:8
         ports:
           - 6379:6379
         options: --entrypoint redis-server
