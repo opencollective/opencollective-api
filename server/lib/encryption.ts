@@ -1,4 +1,10 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes as cryptoRandomBytes, timingSafeEqual } from 'crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes as cryptoRandomBytes,
+  timingSafeEqual,
+} from 'crypto';
 
 import config from 'config';
 import { secretbox as _secretbox } from 'tweetnacl';

@@ -277,7 +277,7 @@ export function authenticateUser(req: Request, res: Response, next: NextFunction
 }
 
 export const rateLimitServiceAuthentication = async (req: Request, res: Response, next: NextFunction) => {
-  // How many times a user can call this endpoint in a minute.
+  // Both initiation aliases share a limit of 60 requests per IP in a 10-second window.
   const rateLimit = new RateLimit(`connected-accounts-authenticate-${req.ip}`, 60, 10);
   try {
     await rateLimit.registerCallOrThrow();
@@ -549,9 +549,10 @@ export function authorizeClient(req: Request, res: Response, next: NextFunction)
 }
 
 /**
- * OAuth and personal tokens are scoped for the GraphQL API. REST routes that
- * authenticate via `req.remoteUser` would otherwise grant full user privileges
- * and bypass GraphQL scope checks (e.g. connecting Stripe, paying Wise batches).
+ * OAuth and personal tokens are scoped for the GraphQL API. REST connected-account
+ * initiation would otherwise grant full user privileges and bypass GraphQL scope
+ * checks. Wise batch payments also intentionally require a user session, even
+ * though the controller checks the expenses scope (see docs/wise.md).
  */
 export function rejectOAuthAndPersonalTokenAuth(req: Request, res: Response, next: NextFunction) {
   if (req.userToken || req.personalToken) {
