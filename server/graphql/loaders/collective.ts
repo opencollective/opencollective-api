@@ -112,7 +112,7 @@ export default {
           const parent = accountsById.get(account.ParentCollectiveId);
           return Boolean(parent && (parent.id === parent.HostCollectiveId || parent.approvedAt));
         }
-        
+
         return false;
       };
 
