@@ -7,6 +7,7 @@ import { createSandbox } from 'sinon';
 import { activities as ACTIVITY, roles } from '../../../../../server/constants';
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import FEATURE from '../../../../../server/constants/feature';
+import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import OrderStatuses from '../../../../../server/constants/order-status';
 import { PlatformSubscriptionTiers } from '../../../../../server/constants/plans';
 import POLICIES from '../../../../../server/constants/policies';
@@ -25,10 +26,12 @@ import {
   fakeLocation,
   fakeMember,
   fakeOrder,
+  fakePersonalToken,
   fakePlatformSubscription,
   fakeProject,
   fakeTier,
   fakeUser,
+  fakeUserToken,
   fakeUserTwoFactorMethod,
   randStr,
 } from '../../../../test-helpers/fake-data';
@@ -97,6 +100,12 @@ const createWebAuthnRegistrationOptionsMutation = gql`
   }
 `;
 
+const regenerateRecoveryCodesMutation = gql`
+  mutation RegenerateRecoveryCodes {
+    regenerateRecoveryCodes
+  }
+`;
+
 const duplicateAccountMutation = gql`
   mutation DuplicateAccount(
     $account: AccountReferenceInput!
@@ -126,6 +135,44 @@ const duplicateAccountMutation = gql`
 
 describe('server/graphql/v2/mutation/AccountMutations', () => {
   let adminUser, secondAdminUser, randomUser, hostAdminUser, backerUser, collective;
+
+  const TWO_FACTOR_TOKEN_REJECTION_MESSAGE =
+    'OAuth and Personal Tokens are not allowed to manage two-factor authentication.';
+
+  /**
+   * 2FA management is session-only: these mutations must reject OAuth and personal tokens, even when the token
+   * has the "account" scope. Returns the user owning the tokens so that callers can assert nothing was changed.
+   */
+  const expectTwoFactorMutationsToRejectTokens = async (
+    mutation,
+    getVariables: (user) => Record<string, unknown>,
+    setup?: (user) => Promise<void>,
+  ) => {
+    const user = await fakeUser();
+    if (setup) {
+      await setup(user);
+    }
+
+    const userToken = await fakeUserToken({ type: 'OAUTH', UserId: user.id, scope: [OAuthScopes.account] });
+    const oAuthResult = await graphqlQueryV2(mutation, getVariables(user), user, null, null, userToken);
+    expect(oAuthResult.errors).to.exist;
+    expect(oAuthResult.errors[0].message).to.equal(TWO_FACTOR_TOKEN_REJECTION_MESSAGE);
+
+    const personalToken = await fakePersonalToken({ user, scope: [OAuthScopes.account] });
+    const personalTokenResult = await graphqlQueryV2(
+      mutation,
+      getVariables(user),
+      user,
+      null,
+      null,
+      null,
+      personalToken,
+    );
+    expect(personalTokenResult.errors).to.exist;
+    expect(personalTokenResult.errors[0].message).to.equal(TWO_FACTOR_TOKEN_REJECTION_MESSAGE);
+
+    return user;
+  };
 
   before(async () => {
     await resetTestDB();
@@ -420,6 +467,15 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
     });
 
+    it('cannot be used with OAuth or personal tokens', async () => {
+      const user = await expectTwoFactorMutationsToRejectTokens(addTwoFactorAuthTokenMutation, user => ({
+        account: { id: idEncode(user.collective.id, 'account') },
+        token: secret,
+      }));
+
+      expect(await models.UserTwoFactorMethod.count({ where: { UserId: user.id } })).to.eq(0);
+    });
+
     it('adds 2FA to the user', async () => {
       const result = await graphqlQueryV2(
         addTwoFactorAuthTokenMutation,
@@ -623,6 +679,18 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(result.errors).to.not.exist;
       expect(result.data.removeTwoFactorAuthTokenFromIndividual.hasTwoFactorAuth).to.eq(false);
+    });
+
+    it('cannot be used with OAuth or personal tokens', async () => {
+      const tokenUser = await expectTwoFactorMutationsToRejectTokens(
+        removeTwoFactorAuthTokenMutation,
+        user => ({ account: { id: idEncode(user.collective.id, 'account') }, type: 'TOTP' }),
+        async user => {
+          await fakeUserTwoFactorMethod({ UserId: user.id });
+        },
+      );
+
+      expect(await models.UserTwoFactorMethod.count({ where: { UserId: tokenUser.id } })).to.eq(1);
     });
   });
 
@@ -1676,6 +1744,12 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
     });
 
+    it('cannot be used with OAuth or personal tokens', async () => {
+      await expectTwoFactorMutationsToRejectTokens(createWebAuthnRegistrationOptionsMutation, user => ({
+        account: { id: idEncode(user.collective.id, 'account') },
+      }));
+    });
+
     it('creates a public key request options', async () => {
       const result = await graphqlQueryV2(
         createWebAuthnRegistrationOptionsMutation,
@@ -1950,6 +2024,41 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.data.editTwoFactorAuthenticationMethod.hasTwoFactorAuth).to.eq(true);
       expect(result.data.editTwoFactorAuthenticationMethod.twoFactorMethods).to.have.lengthOf(1);
       expect(result.data.editTwoFactorAuthenticationMethod.twoFactorMethods[0].name).to.equal('New name');
+    });
+
+    it('cannot be used with OAuth or personal tokens', async () => {
+      let method;
+      await expectTwoFactorMutationsToRejectTokens(
+        editTwoFactorAuthenticationMethodMutation,
+        () => ({
+          userTwoFactorMethod: { id: idEncode(method.id, 'user-two-factor-method') },
+          name: 'Hacked name',
+        }),
+        async user => {
+          method = await fakeUserTwoFactorMethod({ UserId: user.id, name: 'Authenticator' });
+        },
+      );
+
+      await method.reload();
+      expect(method.name).to.equal('Authenticator');
+    });
+  });
+
+  describe('regenerateRecoveryCodes', () => {
+    it('cannot be used with OAuth or personal tokens', async () => {
+      let initialRecoveryCodes;
+      const user = await expectTwoFactorMutationsToRejectTokens(
+        regenerateRecoveryCodesMutation,
+        () => ({}),
+        async user => {
+          await fakeUserTwoFactorMethod({ UserId: user.id });
+          initialRecoveryCodes = [crypto.hash('initial-code-1'), crypto.hash('initial-code-2')];
+          await user.update({ twoFactorAuthRecoveryCodes: initialRecoveryCodes });
+        },
+      );
+
+      await user.reload();
+      expect(user.twoFactorAuthRecoveryCodes).to.deep.equal(initialRecoveryCodes);
     });
   });
 

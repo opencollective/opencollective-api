@@ -32,7 +32,11 @@ import { HostApplicationStatus } from '../../../models/HostApplication';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { PAYPAL_SUSPEND_MAX_REASON_LENGTH } from '../../../paymentProviders/paypal/subscription';
 import { sendMessage } from '../../common/collective';
-import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
+import {
+  checkRemoteUserCanUseAccount,
+  checkRemoteUserCanUseHost,
+  rejectOAuthAndPersonalTokenAuth,
+} from '../../common/scope-check';
 import { BadRequest, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -350,7 +354,8 @@ const accountMutations = {
   },
   createWebAuthnRegistrationOptions: {
     type: new GraphQLNonNull(GraphQLJSON),
-    description: 'Create WebAuthn public key registration request options',
+    description:
+      'Create WebAuthn public key registration request options. Session only (OAuth/Personal tokens are not allowed).',
     args: {
       account: {
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),
@@ -358,6 +363,11 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request) {
+      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
+      rejectOAuthAndPersonalTokenAuth(
+        req,
+        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
+      );
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
@@ -378,7 +388,8 @@ const accountMutations = {
   },
   addTwoFactorAuthTokenToIndividual: {
     type: new GraphQLNonNull(GraphQLAddTwoFactorAuthTokenToIndividualResponse),
-    description: 'Add 2FA to the Individual if it does not have it. Scope: "account".',
+    description:
+      'Add 2FA to the Individual if it does not have it. Session only (OAuth/Personal tokens are not allowed).',
     args: {
       account: {
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),
@@ -398,6 +409,11 @@ const accountMutations = {
       args: { account: Record<string, unknown>; type?: TwoFactorMethod; token: string },
       req: express.Request,
     ): Promise<Record<string, unknown>> {
+      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
+      rejectOAuthAndPersonalTokenAuth(
+        req,
+        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
+      );
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
@@ -507,7 +523,8 @@ const accountMutations = {
   },
   removeTwoFactorAuthTokenFromIndividual: {
     type: new GraphQLNonNull(GraphQLIndividual),
-    description: 'Remove 2FA from the Individual if it has been enabled. Scope: "account".',
+    description:
+      'Remove 2FA from the Individual if it has been enabled. Session only (OAuth/Personal tokens are not allowed).',
     args: {
       userTwoFactorMethod: {
         type: GraphQLUserTwoFactorMethodReferenceInput,
@@ -529,6 +546,11 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
+      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
+      rejectOAuthAndPersonalTokenAuth(
+        req,
+        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
+      );
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
@@ -583,7 +605,6 @@ const accountMutations = {
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: user.CollectiveId,
-        UserTokenId: req.userToken?.id,
         data: {
           userTwoFactorMethod: userTwoFactorMethod?.info,
         },
@@ -594,7 +615,7 @@ const accountMutations = {
   },
   editTwoFactorAuthenticationMethod: {
     type: new GraphQLNonNull(GraphQLIndividual),
-    description: 'Edit 2FA method',
+    description: 'Edit 2FA method. Session only (OAuth/Personal tokens are not allowed).',
     args: {
       userTwoFactorMethod: {
         type: new GraphQLNonNull(GraphQLUserTwoFactorMethodReferenceInput),
@@ -606,6 +627,11 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request) {
+      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
+      rejectOAuthAndPersonalTokenAuth(
+        req,
+        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
+      );
       checkRemoteUserCanUseAccount(req);
 
       const userTwoFactorMethod = await fetchUserTwoFactorMethodWithReference(args.userTwoFactorMethod, {
@@ -937,8 +963,14 @@ const accountMutations = {
   },
   regenerateRecoveryCodes: {
     type: new GraphQLList(new GraphQLNonNull(GraphQLString)),
-    description: 'Regenerate two factor authentication recovery codes',
+    description:
+      'Regenerate two factor authentication recovery codes. Session only (OAuth/Personal tokens are not allowed).',
     async resolve(_, args, req) {
+      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
+      rejectOAuthAndPersonalTokenAuth(
+        req,
+        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
+      );
       checkRemoteUserCanUseAccount(req);
 
       const hasTwoFactorEnabled = await TwoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser);
