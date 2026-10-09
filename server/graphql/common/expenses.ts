@@ -117,31 +117,59 @@ import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '.
 import { checkScope } from './scope-check';
 import { hasProtectedUrlPermission } from './uploaded-file';
 
+/**
+ * Returns the fiscal host that manages this expense.
+ *
+ * `Expenses.HostCollectiveId` is the source of truth once set: when an account moves to another host, the new
+ * host must not see the expenses managed by the previous one. It's only written when an expense gets paid
+ * though, so we otherwise look at the account's own host and, for accounts with a parent and for archived
+ * accounts (`changeHost(null)` wipes the host reference), at its parent's host. Both are only used once
+ * approved, so that accounts still applying for fiscal sponsorship don't grant host permissions.
+ */
 const loadHostForExpense = async (req: express.Request, expense: Expense): Promise<Collective | null> => {
   const loadCollectiveById = (id: number): Promise<Collective | null> =>
     req.loaders ? req.loaders.Collective.byId.load(id) : Collective.findByPk(id);
 
   if (expense.host) {
     return expense.host;
-  } else if (expense.HostCollectiveId) {
-    expense.host = await loadCollectiveById(expense.HostCollectiveId);
-    return expense.host;
-  } else if (expense.collective?.host) {
-    return expense.collective.host;
-  } else if (expense.collective) {
-    if (expense.collective.HostCollectiveId) {
-      expense.collective.host = await loadCollectiveById(expense.collective.HostCollectiveId);
-      return expense.collective.host;
-    }
-  } else {
+  }
+
+  // The account is required to detect stale host references and to fall back on the parent
+  if (!expense.collective) {
     expense.collective = await loadCollectiveById(expense.CollectiveId);
-    if (expense.collective && expense.collective.HostCollectiveId) {
-      expense.collective.host = await loadCollectiveById(expense.collective.HostCollectiveId);
-      return expense.collective.host;
+    if (!expense.collective) {
+      return null;
     }
   }
 
-  return null;
+  // Address the exceptional case where the expense host id would be stale after a collective rehost
+  const hasStaleExpenseHostId =
+    expense.HostCollectiveId &&
+    expense.HostCollectiveId !== expense.collective.HostCollectiveId &&
+    expense.status !== expenseStatus.PAID;
+
+  if (expense.HostCollectiveId && !hasStaleExpenseHostId) {
+    expense.host = await loadCollectiveById(expense.HostCollectiveId);
+    return expense.host;
+  }
+
+  // `collective.host` => `collective.parent.host`, only once approved. Accounts with a parent inherit their
+  // host from it, so a child without its own host resolves to its parent's.
+  const getApprovedHost = async (account: Collective | null): Promise<Collective | null> => {
+    if (!account?.HostCollectiveId || !(await req.loaders.Collective.isApproved.load(account.id))) {
+      return null;
+    }
+
+    return account.host || (await loadCollectiveById(account.HostCollectiveId));
+  };
+
+  expense.host =
+    (await getApprovedHost(expense.collective)) ||
+    (expense.collective.ParentCollectiveId
+      ? await getApprovedHost(await loadCollectiveById(expense.collective.ParentCollectiveId))
+      : null);
+
+  return expense.host;
 };
 
 const isOwner = async (req: express.Request, expense: Expense): Promise<boolean> => {
@@ -199,24 +227,8 @@ const isHostAccountant = async (req: express.Request, expense: Expense): Promise
     return false;
   }
 
-  if (!expense.collective) {
-    expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-    if (!expense.collective) {
-      return false;
-    }
-  }
-
-  // Address the exceptional case where the expense host id would be stale after a collective rehost
-  const hasStaleExpenseHostId =
-    expense.HostCollectiveId &&
-    expense.HostCollectiveId !== expense.collective.HostCollectiveId &&
-    expense.status !== expenseStatus.PAID;
-
-  if (expense.HostCollectiveId && !hasStaleExpenseHostId) {
-    return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.HostCollectiveId);
-  }
-
-  return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.collective.HostCollectiveId);
+  const host = await loadHostForExpense(req, expense);
+  return host ? req.remoteUser.hasRole(roles.ACCOUNTANT, host.id) : false;
 };
 
 const isCollectiveOrHostAccountant = async (req: express.Request, expense: Expense): Promise<boolean> => {
@@ -274,26 +286,8 @@ export const isHostAdmin = async (req: express.Request, expense: Expense): Promi
     return false;
   }
 
-  if (!expense.collective) {
-    expense.collective = req.loaders
-      ? await req.loaders.Collective.byId.load(expense.CollectiveId)
-      : await Collective.findByPk(expense.CollectiveId);
-    if (!expense.collective) {
-      return false;
-    }
-  }
-
-  // Address the exceptional case where the expense host id would be stale after a collective rehost
-  const hasStaleExpenseHostId =
-    expense.HostCollectiveId &&
-    expense.HostCollectiveId !== expense.collective.HostCollectiveId &&
-    expense.status !== expenseStatus.PAID;
-
-  if (expense.HostCollectiveId && !hasStaleExpenseHostId) {
-    return req.remoteUser.isAdmin(expense.HostCollectiveId);
-  }
-
-  return req.remoteUser.isAdmin(expense.collective.HostCollectiveId) && expense.collective.isActive;
+  const host = await loadHostForExpense(req, expense);
+  return host ? req.remoteUser.isAdmin(host.id) : false;
 };
 
 const isAdminOrAccountantOfHostWhoPaidExpense = async (req: express.Request, expense: Expense): Promise<boolean> => {

@@ -226,6 +226,7 @@ export const generateLoaders = req => {
       idByPublicId: generateEntityIdByPublicIdLoader(Collective),
       byUserId: collectiveLoaders.byUserId(),
       mainProfileFromIncognito: collectiveLoaders.mainProfileFromIncognito(),
+      isApproved: collectiveLoaders.isApproved(),
       hostByCollectiveId: new DataLoader<number, Collective>(ids =>
         Collective.findAll({
           attributes: ['id'],

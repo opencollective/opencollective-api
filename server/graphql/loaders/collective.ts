@@ -80,6 +80,46 @@ export default {
     });
   },
   /**
+   * Whether an account is approved by its fiscal host. Events, projects and any other account with a parent
+   * inherit their host from it, so we always defer to the parent when there is one.
+   */
+  isApproved: (): DataLoader<number, boolean> => {
+    return new DataLoader(async (collectiveIds: number[]): Promise<boolean[]> => {
+      // Load the accounts, then their direct parents since children inherit their host from their parent
+      const uniqueIds = uniq(collectiveIds.filter(Boolean));
+      const accounts: Collective[] = uniqueIds.length
+        ? await Collective.findAll({ where: { id: { [Op.in]: uniqueIds } } })
+        : [];
+      const accountsById = new Map<number, Collective>(accounts.map(account => [account.id, account]));
+      const parentIds = uniq(
+        accounts.map(account => account.ParentCollectiveId).filter(id => id && !accountsById.has(id)),
+      );
+      if (parentIds.length) {
+        const parents: Collective[] = await Collective.findAll({ where: { id: { [Op.in]: parentIds } } });
+        parents.forEach(parent => accountsById.set(parent.id, parent));
+      }
+
+      // Only one level between child and parent: a child always defers to its direct parent,
+      // which is evaluated on its own. This also avoids any loop on corrupted parent links.
+      const isAccountApproved = (account: Collective | undefined): boolean => {
+        if (!account) {
+          return false;
+        } else if (account.approvedAt || account.id === account.HostCollectiveId) {
+          // Approved, or host account
+          return true;
+        } else if (account.ParentCollectiveId) {
+          // Fallsback to the parent
+          const parent = accountsById.get(account.ParentCollectiveId);
+          return Boolean(parent && (parent.id === parent.HostCollectiveId || parent.approvedAt));
+        }
+
+        return false;
+      };
+
+      return collectiveIds.map(id => isAccountApproved(accountsById.get(id)));
+    });
+  },
+  /**
    * To check if remoteUser has access to user's private info (email, legal name, etc). `remoteUser` must either:
    * - be the user himself
    * - be an admin of a collective where user is a member (even as incognito, and regardless of the role)

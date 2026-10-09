@@ -1497,21 +1497,6 @@ class Collective extends ModelWithPublicId<
     return !this.isIncognito;
   };
 
-  /**
-   * Checks if the has been approved by a host.
-   * This function will throw if you try to call it with an event, as you should check the
-   * `isApproved` of the `parentCollective` instead.
-   */
-  isApproved = function () {
-    if (this.type === CollectiveType.EVENT) {
-      throw new Error("isApproved must be called on event's parent collective");
-    } else if (this.id === this.HostCollectiveId) {
-      return true;
-    } else {
-      return Boolean(this.HostCollectiveId && this.isActive && this.approvedAt);
-    }
-  };
-
   // This is quite ugly, and only needed for events.
   // I'd argue that we should store the event slug as `${parentCollectiveSlug}/events/${eventSlug}`
   getUrlPath = async function () {

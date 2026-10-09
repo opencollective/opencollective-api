@@ -21,6 +21,58 @@ describe('server/graphql/loaders/collective', () => {
     await resetTestDB();
   });
 
+  describe('isApproved', () => {
+    it('is true for an account hosted and approved by a fiscal host', async () => {
+      const collective = await fakeCollective();
+      expect(await CollectiveLoaders.isApproved().load(collective.id)).to.be.true;
+    });
+
+    it('is false for an account that is still waiting for its host to approve it', async () => {
+      const host = await fakeActiveHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id, isActive: false, approvedAt: null });
+      expect(await CollectiveLoaders.isApproved().load(collective.id)).to.be.false;
+    });
+
+    it('is true for a self-hosted account', async () => {
+      const host = await fakeActiveHost();
+      await host.update({ HostCollectiveId: host.id });
+      expect(await CollectiveLoaders.isApproved().load(host.id)).to.be.true;
+    });
+
+    it('defers to the parent for projects and events', async () => {
+      const parent = await fakeCollective();
+      const project = await fakeCollective({
+        type: CollectiveType.PROJECT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: null,
+      });
+      const event = await fakeCollective({
+        type: CollectiveType.EVENT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: null,
+      });
+
+      expect(await CollectiveLoaders.isApproved().load(project.id)).to.be.true;
+      expect(await CollectiveLoaders.isApproved().load(event.id)).to.be.true;
+    });
+
+    it('is false for a child whose parent is not approved', async () => {
+      const host = await fakeActiveHost();
+      const parent = await fakeCollective({ HostCollectiveId: host.id, isActive: false, approvedAt: null });
+      const project = await fakeCollective({
+        type: CollectiveType.PROJECT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: null,
+      });
+
+      expect(await CollectiveLoaders.isApproved().load(project.id)).to.be.false;
+    });
+
+    it('is false for an unknown account', async () => {
+      expect(await CollectiveLoaders.isApproved().load(123456789)).to.be.false;
+    });
+  });
+
   it('does not expose private profile information through a legacy follower membership', async () => {
     const user = await fakeUser();
     const collectiveAdmin = await fakeUser();

@@ -3,6 +3,7 @@ import { cloneDeep } from 'lodash';
 import moment from 'moment';
 
 import { expenseStatus } from '../../../../server/constants';
+import { CollectiveType } from '../../../../server/constants/collectives';
 import FEATURE from '../../../../server/constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../../../server/constants/permissions';
 import POLICIES from '../../../../server/constants/policies';
@@ -317,6 +318,101 @@ describe('server/graphql/common/expenses', () => {
           });
         });
       });
+    });
+  });
+
+  describe('canSeeExpensePayoutMethodPrivateDetails: host resolution', () => {
+    /** Creates a fiscal host with an admin and an accountant */
+    const setupHost = async () => {
+      const host = await fakeHost();
+      const hostAdmin = await fakeUser();
+      const hostAccountant = await fakeUser();
+      await host.addUserWithRole(hostAdmin, 'ADMIN');
+      await host.addUserWithRole(hostAccountant, 'ACCOUNTANT');
+      await Promise.all([hostAdmin.populateRoles(), hostAccountant.populateRoles()]);
+      return { host, hostAdmin, hostAccountant };
+    };
+
+    it('lets host admins and accountants see payout details on a project that inherits its host from its parent', async () => {
+      const { host, hostAdmin, hostAccountant } = await setupHost();
+      const parent = await fakeCollective({ HostCollectiveId: host.id });
+      const project = await fakeCollective({
+        type: CollectiveType.PROJECT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: null,
+      });
+      const expense = await fakeExpense({ CollectiveId: project.id });
+
+      expect(await canSeeExpensePayoutMethodPrivateDetails(makeRequest(hostAdmin), expense)).to.be.true;
+      expect(await canSeeExpensePayoutMethodPrivateDetails(makeRequest(hostAccountant), expense)).to.be.true;
+    });
+
+    it('lets host admins and accountants see payout details on an event that inherits its host', async () => {
+      const { host, hostAdmin, hostAccountant } = await setupHost();
+      const parent = await fakeCollective({ HostCollectiveId: host.id });
+      const event = await fakeCollective({
+        type: CollectiveType.EVENT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: null,
+      });
+      const expense = await fakeExpense({ CollectiveId: event.id });
+
+      expect(await canSeeExpensePayoutMethodPrivateDetails(makeRequest(hostAdmin), expense)).to.be.true;
+      expect(await canSeeExpensePayoutMethodPrivateDetails(makeRequest(hostAccountant), expense)).to.be.true;
+    });
+
+    it('lets host admins and accountants see payout details on an archived project', async () => {
+      const { host, hostAdmin, hostAccountant } = await setupHost();
+      const parent = await fakeCollective({ HostCollectiveId: host.id });
+      const project = await fakeCollective({
+        type: CollectiveType.PROJECT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: null,
+        isActive: false,
+        approvedAt: null,
+        deactivatedAt: new Date(),
+      });
+      const expense = await fakeExpense({ CollectiveId: project.id });
+
+      expect(await canSeeExpensePayoutMethodPrivateDetails(makeRequest(hostAdmin), expense)).to.be.true;
+      expect(await canSeeExpensePayoutMethodPrivateDetails(makeRequest(hostAccountant), expense)).to.be.true;
+    });
+
+    it('does not grant host permissions to admins or accountants while the host application is still pending', async () => {
+      const { host, hostAdmin, hostAccountant } = await setupHost();
+      const collective = await fakeCollective({
+        HostCollectiveId: host.id,
+        isActive: false,
+        approvedAt: null,
+      });
+      const expense = await fakeExpense({ CollectiveId: collective.id });
+
+      expect(await canSeeExpensePayoutMethodPrivateDetails(makeRequest(hostAdmin), expense)).to.be.false;
+      expect(await canSeeExpensePayoutMethodPrivateDetails(makeRequest(hostAccountant), expense)).to.be.false;
+    });
+
+    it('only lets the host that managed a paid expense see its payout details once the account changed hosts', async () => {
+      const previousHost = await fakeHost();
+      const newHost = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: previousHost.id });
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        HostCollectiveId: previousHost.id,
+        status: expenseStatus.PAID,
+      });
+      await collective.update({ HostCollectiveId: newHost.id, approvedAt: new Date(), isActive: true });
+
+      const previousHostAdmin = await fakeUser();
+      const newHostAdmin = await fakeUser();
+      await previousHost.addUserWithRole(previousHostAdmin, 'ADMIN');
+      await newHost.addUserWithRole(newHostAdmin, 'ADMIN');
+      await Promise.all([previousHostAdmin.populateRoles(), newHostAdmin.populateRoles()]);
+
+      // Reload the account so that the expense sees the new host
+      expense.collective = await Collective.findByPk(collective.id);
+
+      expect(await canSeeExpensePayoutMethodPrivateDetails(makeRequest(previousHostAdmin), expense)).to.be.true;
+      expect(await canSeeExpensePayoutMethodPrivateDetails(makeRequest(newHostAdmin), expense)).to.be.false;
     });
   });
 
