@@ -107,7 +107,38 @@ describe('server/models/RecurringExpense', () => {
         models.RecurringExpense.RecurringExpenseIntervals.MONTH,
         moment().subtract(1, 'day').toDate(),
       ),
-    ).to.be.rejectedWith('The end date for a recurring expense must be in the future');
+    ).to.be.rejectedWith(/The end date for a recurring expense must be later than its first recurrence/);
+  });
+
+  it('rejects an endsAt that cannot reach the first possible due run', async () => {
+    // A monthly recurring expense created now is first drafted in a month: an end date
+    // before that can never produce a single draft, even though it is in the future.
+    await expect(
+      models.RecurringExpense.createFromExpense(
+        expense,
+        models.RecurringExpense.RecurringExpenseIntervals.MONTH,
+        moment().add(2, 'weeks').toDate(),
+      ),
+    ).to.be.rejectedWith(/The end date for a recurring expense must be later than its first recurrence/);
+  });
+
+  it('uses the interval to determine the first possible due run', async () => {
+    // The same end date is valid for a weekly recurring expense (due in a week) but not
+    // for a monthly one (not due before next month).
+    const endsAt = moment().add(2, 'weeks').toDate();
+    const weeklyRecurringExpense = await models.RecurringExpense.createFromExpense(
+      expense,
+      models.RecurringExpense.RecurringExpenseIntervals.WEEK,
+      endsAt,
+    );
+    expect(weeklyRecurringExpense.endsAt.getTime()).to.eq(endsAt.getTime());
+    await expect(
+      models.RecurringExpense.createFromExpense(
+        expense,
+        models.RecurringExpense.RecurringExpenseIntervals.MONTH,
+        endsAt,
+      ),
+    ).to.be.rejectedWith(/must be later than its first recurrence/);
   });
 
   it('rejects an invalid endsAt', async () => {

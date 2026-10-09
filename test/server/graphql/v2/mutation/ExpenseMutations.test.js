@@ -703,9 +703,42 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].extensions.code).to.equal('ValidationFailed');
-      expect(result.errors[0].message).to.eq('The end date for a recurring expense must be in the future');
+      expect(result.errors[0].message).to.match(
+        /^The end date for a recurring expense must be later than its first recurrence/,
+      );
 
       // The end date is validated before the expense is created: no orphan rows
+      expect(await models.RecurringExpense.count()).to.eq(recurringExpensesCount);
+      expect(await models.Expense.count()).to.eq(expensesCount);
+    });
+
+    it('fails to create a recurring expense with an end date before its first recurrence', async () => {
+      const user = await fakeUser();
+      const collectiveAdmin = await fakeUser();
+      const collective = await fakeCollective({ admin: collectiveAdmin.collective });
+      const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, location: { address: null } });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id } };
+      const recurringExpensesCount = await models.RecurringExpense.count();
+      const expensesCount = await models.Expense.count();
+
+      const result = await graphqlQueryV2(
+        createExpenseWithRecurringMutation,
+        {
+          expense: expenseData,
+          account: { legacyId: collective.id },
+          // A monthly recurrence is first drafted in a month: ending before that can never
+          // produce a single draft, even though the end date is in the future.
+          recurring: { interval: 'month', endsAt: moment().add(2, 'weeks').toISOString() },
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('ValidationFailed');
+      expect(result.errors[0].message).to.match(
+        /^The end date for a recurring expense must be later than its first recurrence/,
+      );
+
       expect(await models.RecurringExpense.count()).to.eq(recurringExpensesCount);
       expect(await models.Expense.count()).to.eq(expensesCount);
     });
