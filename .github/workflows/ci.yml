@@ -158,7 +158,6 @@ jobs:
         image: valkey/valkey:9.1
         ports:
           - 6379:6379
-        options: --entrypoint valkey-server
       postgres:
         image: postgres:16.15
         env:
@@ -228,7 +227,6 @@ jobs:
         image: valkey/valkey:9.1
         ports:
           - 6379:6379
-        options: --entrypoint valkey-server
       postgres:
         image: postgres:16.15
         env:
@@ -306,7 +304,6 @@ jobs:
         image: valkey/valkey:9.1
         ports:
           - 6379:6379
-        options: --entrypoint valkey-server
       postgres:
         image: postgres:16.15
         env:
