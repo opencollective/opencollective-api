@@ -104,19 +104,16 @@ export default {
       const isAccountApproved = (account: Collective | undefined): boolean => {
         if (!account) {
           return false;
+        } else if (account.approvedAt || account.id === account.HostCollectiveId) {
+          // Approved, or host account
+          return true;
+        } else if (account.ParentCollectiveId) {
+          // Fallsback to the parent
+          const parent = accountsById.get(account.ParentCollectiveId);
+          return Boolean(parent && (parent.id === parent.HostCollectiveId || parent.approvedAt));
         }
-
-        const effectiveAccount =
-          account.ParentCollectiveId && account.ParentCollectiveId !== account.id
-            ? accountsById.get(account.ParentCollectiveId)
-            : account;
-        if (!effectiveAccount) {
-          return false;
-        } else if (effectiveAccount.id === effectiveAccount.HostCollectiveId) {
-          return true; // Self-hosted
-        }
-
-        return Boolean(effectiveAccount.HostCollectiveId && effectiveAccount.isActive && effectiveAccount.approvedAt);
+        
+        return false;
       };
 
       return collectiveIds.map(id => isAccountApproved(accountsById.get(id)));
