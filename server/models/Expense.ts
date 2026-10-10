@@ -273,6 +273,8 @@ class Expense extends ModelWithPublicId<
           'reference',
           'estimatedDelivery',
           'previousData',
+          'newData',
+          'taxForm',
           'payoutResponse',
           'payoutItem',
         ]),
