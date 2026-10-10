@@ -114,7 +114,7 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
     },
     canSeeInvoiceInfo: {
       type: new GraphQLNonNull(GraphQLBoolean),
-      description: 'Whether the current user can the the invoice info for this expense',
+      description: 'Whether the current user can see the invoice info for this expense',
       resolve(expense, _, req: express.Request): Promise<boolean> {
         return ExpenseLib.canSeeExpenseInvoiceInfo(req, expense);
       },

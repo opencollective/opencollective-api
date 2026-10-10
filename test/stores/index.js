@@ -1,4 +1,4 @@
-/** @module test/features/support/stores
+/** @module test/stores
  *
  * Helpers for interacting with the database models.
  */

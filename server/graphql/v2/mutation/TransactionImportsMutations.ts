@@ -322,7 +322,7 @@ const transactionImportsMutations = {
         throw new ValidationFailed('You can only import transactions in CSV or manually created imports');
       }
 
-      // Rate rate limit on the number of rows imported per hour
+      // Rate limit on the number of rows imported per hour
       const rateLimitRows = new RateLimit(`transactions-imports-rows-${req.remoteUser.id}`, maxRows);
       if (await rateLimitRows.hasReachedLimit()) {
         throw new RateLimitExceeded('You have reached the limit of transactions imports rows per hour');
