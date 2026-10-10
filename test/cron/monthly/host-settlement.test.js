@@ -34,7 +34,6 @@ describe('cron/monthly/host-settlement', () => {
   let gbpHost,
     eurHost,
     newHost,
-    migratedHost,
     smallMigratedHost,
     smallMigratedHostDebtTransactions,
     anomalyHost,
@@ -43,7 +42,6 @@ describe('cron/monthly/host-settlement', () => {
     gphHostSettlementExpense,
     eurHostSettlementExpense,
     newHostSettlementExpense,
-    migratedHostSettlementExpense,
     ocStripePayoutMethod;
 
   before(async () => {
@@ -311,34 +309,6 @@ describe('cron/monthly/host-settlement', () => {
     await newOrder.markAsPaid(newHostAdmin);
     clock.restore();
 
-    // ---- Migrated Host (switched to new platform subscription billing this month) ----
-    const migratedHostAdmin = await fakeUser();
-    migratedHost = await fakeHost({
-      name: 'migrated-host',
-      currency: 'USD',
-      plan: 'grow-plan-2021',
-      hostFeePercent: 10,
-      data: { plan: { hostFeeSharePercent: 50 } },
-      // Migration date falls within the billing period being settled.
-      settings: { automaticBillingMigration: lastMonth.toDate() },
-      admin: migratedHostAdmin,
-    });
-    await fakeConnectedAccount({ CollectiveId: migratedHost.id, service: 'transferwise' });
-    await fakePlatformSubscription({ CollectiveId: migratedHost.id, plan: { pricing: { platformTips: true } } });
-
-    const migratedCollective = await fakeCollective({ HostCollectiveId: migratedHost.id, currency: 'USD' });
-    clock = useFakeTimers({ now: lastMonth.toDate(), toFake: ['Date'] });
-    const migratedOrder = await fakeOrder({
-      description: 'Contribution on migrated host',
-      CollectiveId: migratedCollective.id,
-      currency: 'USD',
-      status: 'PENDING',
-      platformTipAmount: 300e2,
-      totalAmount: 1300e2,
-    });
-    await migratedOrder.markAsPaid(migratedHostAdmin);
-    clock.restore();
-
     // ---- Migrated Host below the MIN_AMOUNT_USD settlement threshold ----
     // Host fee share is too small to warrant an expense, but we still want to
     // mark its HOST_FEE_SHARE_DEBT settlements as SETTLED so they are not
@@ -426,10 +396,6 @@ describe('cron/monthly/host-settlement', () => {
     newHostSettlementExpense = (await newHost.getExpenses())[0];
     expect(newHostSettlementExpense).to.exist;
     newHostSettlementExpense.items = await newHostSettlementExpense.getItems();
-
-    migratedHostSettlementExpense = (await migratedHost.getExpenses())[0];
-    expect(migratedHostSettlementExpense).to.exist;
-    migratedHostSettlementExpense.items = await migratedHostSettlementExpense.getItems();
   });
 
   // Resync DB to make sure we're not touching other tests
@@ -505,7 +471,8 @@ describe('cron/monthly/host-settlement', () => {
       order: [['id', 'ASC']],
     });
 
-    expect(await countSettlements('INVOICED')).to.eq(4); // 2 contributions, each one with platform tip + host fee share
+    // Host fee share is deprecated, settlements are now platform tips only
+    expect(await countSettlements('INVOICED')).to.eq(2); // 2 contributions, platform tip only
     expect(await countSettlements('SETTLED')).to.eq(0);
   });
 
@@ -536,12 +503,11 @@ describe('cron/monthly/host-settlement', () => {
 
   it('settlement should play nicely with taxes', async () => {
     expect(eurHostSettlementExpense.currency).to.eq('EUR');
-    expect(eurHostSettlementExpense.items).to.have.length(2);
+    // Host fee share is deprecated, settlement is platform tips only
+    expect(eurHostSettlementExpense.items).to.have.length(1);
     expect(eurHostSettlementExpense.items[0].description).to.eq('Platform Tips');
     expect(eurHostSettlementExpense.items[0].amount).to.eq(600e2); // 2 contributions
-    expect(eurHostSettlementExpense.items[1].description).to.eq('Platform Share');
-    expect(eurHostSettlementExpense.items[1].amount).to.eq(100e2); // 50€ (100€ host fee * 50% host fee share)
-    expect(eurHostSettlementExpense.amount).to.eq(700e2); // Tips + shared revenue
+    expect(eurHostSettlementExpense.amount).to.eq(600e2);
   });
 
   it('collective balance reflects the taxes & host fees properly', async () => {
@@ -564,35 +530,6 @@ describe('cron/monthly/host-settlement', () => {
 
     const summary = getTaxesSummary(eurHostTransactions);
     expect(summary.VAT.collected).to.eq(420e2); // 2 contributions x 21% of 1000€
-  });
-
-  describe('last Platform Share settlement comment for migrated hosts', () => {
-    it('adds a comment on the Platform Share expense of a host migrated this month', async () => {
-      const comments = await models.Comment.findAll({
-        where: { ExpenseId: migratedHostSettlementExpense.id },
-      });
-      expect(comments).to.have.length(1);
-      const [comment] = comments;
-      expect(comment.FromCollectiveId).to.equal(PlatformConstants.PlatformCollectiveId);
-      expect(comment.CreatedByUserId).to.equal(PlatformConstants.PlatformUserId);
-      expect(comment.CollectiveId).to.equal(migratedHost.id);
-      expect(comment.html).to.include('last Platform Share settlement');
-      expect(comment.html).to.include('Platform Tips settlements will continue to be billed as usual.');
-    });
-
-    it('links to the new platform subscription dashboard in the comment', async () => {
-      const comment = await models.Comment.findOne({
-        where: { ExpenseId: migratedHostSettlementExpense.id },
-      });
-      expect(comment.html).to.include(`/dashboard/${migratedHost.slug}/platform-subscription`);
-    });
-
-    it('does not add the comment on expenses for hosts that were not migrated this month', async () => {
-      for (const expense of [gphHostSettlementExpense, eurHostSettlementExpense, newHostSettlementExpense]) {
-        const count = await models.Comment.count({ where: { ExpenseId: expense.id } });
-        expect(count, `Expense #${expense.id} should not have a comment`).to.equal(0);
-      }
-    });
   });
 
   describe('settle carried-over HOST_FEE_SHARE_DEBT for migrated hosts below the amount threshold', () => {
