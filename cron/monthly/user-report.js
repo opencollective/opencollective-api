@@ -284,6 +284,8 @@ const processCollective = async CollectiveId => {
     'id',
     'name',
     'slug',
+    'type',
+    'isPrivate',
     'website',
     'image',
     'currency',
