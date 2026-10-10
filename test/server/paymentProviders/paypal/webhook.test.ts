@@ -184,6 +184,42 @@ describe('server/paymentProviders/paypal/webhook', () => {
       expect(order.status).to.eq('ACTIVE');
     });
 
+    it('scales host fee when PayPal bundles two cycles (https://github.com/opencollective/opencollective/issues/6600)', async () => {
+      const host = await fakeHost();
+      await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, hostFeePercent: 10 });
+      const order = await createOrderWithSubscription({
+        CollectiveId: collective.id,
+        status: 'PENDING',
+        totalAmount: 500,
+        currency: 'USD',
+        taxAmount: 0,
+      });
+
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+      await callPaymentSaleCompleted(host.id, {
+        resource: {
+          id: `SALE-BUNDLED-${order.paymentMethod.token}`,
+          billing_agreement_id: order.paymentMethod.token,
+          amount: { total: '10.00', currency: 'USD' },
+          transaction_fee: { value: '0.00', currency: 'USD' },
+        },
+      });
+
+      const transaction = await models.Transaction.findOne({
+        where: { OrderId: order.id, type: 'CREDIT', kind: 'CONTRIBUTION' },
+      });
+      await models.Transaction.validate(transaction);
+      expect(transaction.amount).to.eq(1000);
+      const hostFeeTransaction = await models.Transaction.findOne({
+        where: { OrderId: order.id, type: 'CREDIT', kind: 'HOST_FEE' },
+      });
+      // 10% of the $10 actually charged, not 10% of the $5 order
+      expect(hostFeeTransaction.amount).to.eq(100);
+      await order.reload();
+      expect(order.status).to.eq('ACTIVE');
+    });
+
     it('records a thirdparty payment outcome metric for the successful recurring payment', async () => {
       const host = await fakeHost();
       await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
