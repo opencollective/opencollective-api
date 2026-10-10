@@ -186,7 +186,7 @@ jobs:
 
     services:
       redis:
-        image: valkey/valkey:9.1
+        image: valkey/valkey:9.1@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
         ports:
           - 6379:6379
       postgres:
