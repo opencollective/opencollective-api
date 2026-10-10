@@ -96,7 +96,7 @@
     "moment": "2.31.0",
     "moment-timezone": "0.6.5",
     "multer": "2.4.0",
-    "nodemailer": "10.0.13",
+    "nodemailer": "10.0.15",
     "nordigen-node": "1.4.1",
     "otplib": "13.5.0",
     "p-map": "7.0.8",
