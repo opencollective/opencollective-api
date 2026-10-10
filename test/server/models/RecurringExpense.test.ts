@@ -74,4 +74,99 @@ describe('server/models/RecurringExpense', () => {
     dueRecurringExpenses = await models.RecurringExpense.getRecurringExpensesDue();
     expect(dueRecurringExpenses).to.have.length(1);
   });
+
+  it('creates an open-ended recurring expense when endsAt is not set', async () => {
+    await recurringExpense.reload();
+    expect(recurringExpense.endsAt).to.be.null;
+  });
+
+  it('stores a future endsAt', async () => {
+    const endsAt = moment().add(1, 'year').toDate();
+    const futureRecurringExpense = await models.RecurringExpense.createFromExpense(
+      expense,
+      models.RecurringExpense.RecurringExpenseIntervals.MONTH,
+      endsAt,
+    );
+    expect(futureRecurringExpense.endsAt.getTime()).to.eq(endsAt.getTime());
+  });
+
+  it('accepts endsAt as an ISO string', async () => {
+    const endsAt = moment().add(1, 'month').toISOString();
+    const recurringExpenseWithEndDate = await models.RecurringExpense.createFromExpense(
+      expense,
+      models.RecurringExpense.RecurringExpenseIntervals.MONTH,
+      endsAt,
+    );
+    expect(recurringExpenseWithEndDate.endsAt.getTime()).to.eq(moment(endsAt).valueOf());
+  });
+
+  it('rejects a past endsAt', async () => {
+    await expect(
+      models.RecurringExpense.createFromExpense(
+        expense,
+        models.RecurringExpense.RecurringExpenseIntervals.MONTH,
+        moment().subtract(1, 'day').toDate(),
+      ),
+    ).to.be.rejectedWith(/The end date for a recurring expense must be later than its first recurrence/);
+  });
+
+  it('rejects an endsAt that cannot reach the first possible due run', async () => {
+    // A monthly recurring expense created now is first drafted in a month: an end date
+    // before that can never produce a single draft, even though it is in the future.
+    await expect(
+      models.RecurringExpense.createFromExpense(
+        expense,
+        models.RecurringExpense.RecurringExpenseIntervals.MONTH,
+        moment().add(2, 'weeks').toDate(),
+      ),
+    ).to.be.rejectedWith(/The end date for a recurring expense must be later than its first recurrence/);
+  });
+
+  it('uses the interval to determine the first possible due run', async () => {
+    // The same end date is valid for a weekly recurring expense (due in a week) but not
+    // for a monthly one (not due before next month).
+    const endsAt = moment().add(2, 'weeks').toDate();
+    const weeklyRecurringExpense = await models.RecurringExpense.createFromExpense(
+      expense,
+      models.RecurringExpense.RecurringExpenseIntervals.WEEK,
+      endsAt,
+    );
+    expect(weeklyRecurringExpense.endsAt.getTime()).to.eq(endsAt.getTime());
+    await expect(
+      models.RecurringExpense.createFromExpense(
+        expense,
+        models.RecurringExpense.RecurringExpenseIntervals.MONTH,
+        endsAt,
+      ),
+    ).to.be.rejectedWith(/must be later than its first recurrence/);
+  });
+
+  it('rejects an invalid endsAt', async () => {
+    await expect(
+      models.RecurringExpense.createFromExpense(
+        expense,
+        models.RecurringExpense.RecurringExpenseIntervals.MONTH,
+        'not-a-date',
+      ),
+    ).to.be.rejectedWith('Invalid end date for the recurring expense');
+  });
+
+  it('picks up open-ended recurring expenses as due after one interval', async () => {
+    // Regression test for https://github.com/opencollective/opencollective/issues/8907:
+    // stamping endsAt with the submission time excluded the row from
+    // getRecurringExpensesDue() forever. With endsAt null, the row becomes due.
+    await recurringExpense.update({ lastDraftedAt: moment().subtract(1, 'month').toDate() });
+    const dueRecurringExpenses = await models.RecurringExpense.getRecurringExpensesDue();
+    expect(dueRecurringExpenses.map(({ id }) => id)).to.include(recurringExpense.id);
+  });
+
+  it('does not pick up recurring expenses that already ended', async () => {
+    const endedRecurringExpense = await fakeRecurringExpense({
+      interval: 'month',
+      endsAt: moment().subtract(1, 'month').toDate(),
+      lastDraftedAt: moment().subtract(2, 'months').toDate(),
+    } as any);
+    const dueRecurringExpenses = await models.RecurringExpense.getRecurringExpensesDue();
+    expect(dueRecurringExpenses.map(({ id }) => id)).to.not.include(endedRecurringExpense.id);
+  });
 });
