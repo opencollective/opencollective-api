@@ -155,7 +155,7 @@ jobs:
       PG_DATABASE: opencollective_test
     services:
       redis:
-        image: valkey/valkey:9.1
+        image: valkey/valkey:9.2@sha256:247b5e730bdc9dc29fddb8274d1731b203a1a1a46af63eae3a9d55b4bf74853f
         ports:
           - 6379:6379
       postgres:
@@ -224,7 +224,7 @@ jobs:
 
     services:
       redis:
-        image: valkey/valkey:9.1
+        image: valkey/valkey:9.2@sha256:247b5e730bdc9dc29fddb8274d1731b203a1a1a46af63eae3a9d55b4bf74853f
         ports:
           - 6379:6379
       postgres:
@@ -301,7 +301,7 @@ jobs:
 
     services:
       redis:
-        image: valkey/valkey:9.1
+        image: valkey/valkey:9.2@sha256:247b5e730bdc9dc29fddb8274d1731b203a1a1a46af63eae3a9d55b4bf74853f
         ports:
           - 6379:6379
       postgres:
