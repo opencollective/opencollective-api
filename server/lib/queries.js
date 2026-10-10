@@ -1,5 +1,5 @@
 import config from 'config';
-import { get, pick } from 'lodash';
+import { pick } from 'lodash';
 import { QueryTypes } from 'sequelize';
 
 import { TAX_FORM_IGNORED_EXPENSE_STATUSES, TAX_FORM_IGNORED_EXPENSE_TYPES } from '../constants/tax-form';
@@ -30,60 +30,6 @@ const generateFXConversionSQL = async aggregate => {
   return `CASE ${Object.entries(fxRates)
     .map(([currency, fxRate]) => `WHEN ${currencyColumn} = '${currency}' THEN ${amountColumn} / ${fxRate}`)
     .join('\n')}ELSE 0 END`;
-};
-
-const getHosts = async args => {
-  let hostConditions = '';
-  if (args.tags && args.tags.length > 0) {
-    hostConditions = 'AND hosts.tags && $tags';
-  }
-  if (args.currency && args.currency.length === 3) {
-    hostConditions += ' AND hosts.currency=$currency';
-  }
-  if (args.onlyOpenHosts) {
-    hostConditions += ` AND hosts."settings" #>> '{apply}' IS NOT NULL AND (hosts."settings" #>> '{apply}') != 'false'`;
-  }
-
-  const query = `
-    WITH all_hosts AS (
-      SELECT hosts.id as "HostCollectiveId", count(c.id) as count
-      FROM "Collectives" hosts
-      LEFT JOIN "Members" m
-        ON m."MemberCollectiveId" = hosts.id
-        AND m.role = 'HOST'
-        AND m."deletedAt" IS NULL
-      LEFT JOIN "Collectives" c
-        ON c.id = m."CollectiveId"
-        AND c."deletedAt" IS NULL
-        AND c."isActive" = TRUE
-        AND c."type" IN ('COLLECTIVE', 'FUND')
-      WHERE hosts."deletedAt" IS NULL AND hosts."hasMoneyManagement" = TRUE ${hostConditions}
-      GROUP BY hosts.id
-      HAVING count(c.id) >= $minNbCollectivesHosted
-    ) SELECT c.*, (SELECT COUNT(*) FROM all_hosts) AS __hosts_count__, SUM(all_hosts.count) as __members_count__
-    FROM "Collectives" c INNER JOIN all_hosts ON all_hosts."HostCollectiveId" = c.id
-    GROUP BY c.id
-    ORDER BY
-      ${args.orderBy === 'collectives' ? '__members_count__' : args.orderBy} ${args.orderDirection},
-      id ASC
-    LIMIT $limit
-    OFFSET $offset
-  `;
-
-  const result = await sequelize.query(query, {
-    bind: {
-      tags: args.tags || [],
-      currency: args.currency,
-      limit: args.limit,
-      offset: args.offset,
-      minNbCollectivesHosted: args.minNbCollectivesHosted,
-    },
-    type: QueryTypes.SELECT,
-    model: models.Collective,
-    mapToModel: true,
-  });
-
-  return { collectives: result, total: get(result[0], 'dataValues.__hosts_count__', 0) };
 };
 
 const getTotalAnnualBudgetForHost = HostCollectiveId => {
@@ -996,7 +942,6 @@ const getCollectivesOrderedByMonthlySpending = memoize(getCollectivesOrderedByMo
 const queries = {
   getCollectivesOrderedByMonthlySpending,
   getCollectivesOrderedByMonthlySpendingQuery,
-  getHosts,
   getMembersOfCollectiveWithRole,
   getMembersWithBalance,
   getMembersWithTotalDonations,
