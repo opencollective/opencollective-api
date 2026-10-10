@@ -70,8 +70,14 @@ export function setAuthCookie(res, token) {
 
   const maxAge = decodedToken.exp * 1000 - new Date().getTime();
   const [header, payload, signature] = token.split('.');
-  res.cookie('accessTokenPayload', [header, payload].join('.'), { maxAge, httpOnly: false, secure: true });
-  res.cookie('accessTokenSignature', signature, { maxAge, httpOnly: true, secure: true });
+  const cookieOptions = {
+    maxAge,
+    secure: true,
+    sameSite: 'lax' as const,
+    path: '/',
+  };
+  res.cookie('accessTokenPayload', [header, payload].join('.'), { ...cookieOptions, httpOnly: false });
+  res.cookie('accessTokenSignature', signature, { ...cookieOptions, httpOnly: true });
 }
 
 export const OTP_RATE_LIMIT_WINDOW = minutesToSeconds(15);
