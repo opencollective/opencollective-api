@@ -250,7 +250,7 @@ const _authenticateUserByJwt = async (req: Request, res: Response, next: NextFun
  * @POST: req.remoteUser is set to the logged in user or null if authentication failed
  * @ERROR: Will return an error if a JWT token is provided and invalid
  */
-export function authenticateUser(req: Request, res: Response, next: NextFunction) {
+export function checkJwt(req: Request, res: Response, next: NextFunction) {
   if (req.remoteUser && req.remoteUser.id) {
     return next();
   }
@@ -423,21 +423,31 @@ function buildGitHubCallbackUrl(context?: string, CollectiveId?: string): string
 
 /**
  * Check Personal Token
+ *
+ * Two kinds of places carry a personal token:
+ * - `Personal-Token` header / `personalToken` query parameter: explicitly a personal token.
+ *   Strict: a value that isn't a valid personal token is rejected (401).
+ * - `Api-Key` header / `apiKey` query parameter / the key in the GraphQL URL path: legacy
+ *   places shared with the service key (see `getServiceKey`). They're tried as a personal
+ *   token for compatibility, but a value that isn't one is left to `checkServiceKey`, which
+ *   accepts the service key and rejects anything else (401 "Invalid API key"). That lets our
+ *   services keep sending the service key as `Api-Key` while they move to `Service-Key`.
  */
 export async function checkPersonalToken(req: Request, res: Response, next: NextFunction) {
   const apiKey = req.get('Api-Key') || req.query.apiKey || req.apiKey;
-  const token = req.get('Personal-Token') || req.query.personalToken;
+  const personalToken = req.get('Personal-Token') || req.query.personalToken;
 
-  if (apiKey || token) {
+  if (apiKey || personalToken) {
     const now = moment();
     if (Array.isArray(apiKey)) {
       return next(new errors.ValidationFailed(undefined, 'apiKey', 'Please provide a single apiKey'));
-    } else if (Array.isArray(token)) {
+    } else if (Array.isArray(personalToken)) {
       return next(new errors.ValidationFailed(undefined, 'token', 'Please provide a single token'));
     }
 
-    const personalToken = await models.PersonalToken.findOne({
-      where: { token: apiKey || token },
+    // The explicit Personal-Token first: a legacy Api-Key sent along may be the service key
+    const foundPersonalToken = await models.PersonalToken.findOne({
+      where: { token: personalToken || apiKey },
       include: [
         {
           association: 'user',
@@ -451,12 +461,12 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
       ],
     });
 
-    if (personalToken) {
-      if (personalToken.expiresAt && now.diff(moment(personalToken.expiresAt), 'seconds') > 0) {
-        debug(`Expired Personal Token (Api Key): ${personalToken.id}`);
+    if (foundPersonalToken) {
+      if (foundPersonalToken.expiresAt && now.diff(moment(foundPersonalToken.expiresAt), 'seconds') > 0) {
+        debug(`Expired Personal Token (Api Key): ${foundPersonalToken.id}`);
         next(new Unauthorized(`Expired Personal Token (Api Key)`));
         return;
-      } else if (personalToken.data?.isSuspended) {
+      } else if (foundPersonalToken.data?.isSuspended) {
         debug(`Suspended Personal Token (Api Key)`);
         next(
           new Unauthorized(
@@ -468,17 +478,17 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
 
       debug('Valid Personal Token (Api Key)');
       // Update lastUsedAt if lastUsedAt older than 1 minute ago
-      if (!personalToken.lastUsedAt || now.diff(moment(personalToken.lastUsedAt), 'minutes') > 1) {
+      if (!foundPersonalToken.lastUsedAt || now.diff(moment(foundPersonalToken.lastUsedAt), 'minutes') > 1) {
         if (!parseToBoolean(config.database.readOnly)) {
-          await personalToken.update({ lastUsedAt: new Date() });
+          await foundPersonalToken.update({ lastUsedAt: new Date() });
         }
       }
 
-      req.personalToken = personalToken;
-      req.remoteUser = personalToken.user;
+      req.personalToken = foundPersonalToken;
+      req.remoteUser = foundPersonalToken.user;
 
-      if (!req.remoteUser.isAdminOfCollective(personalToken.collective)) {
-        next(new Unauthorized(`Invalid personal token for collective: ${apiKey || token}`));
+      if (!req.remoteUser.isAdminOfCollective(foundPersonalToken.collective)) {
+        next(new Unauthorized(`Invalid personal token for collective: ${personalToken || apiKey}`));
         return;
       } else if (req.remoteUser.isLimited()) {
         next(new Unauthorized(`Your account has been limited. Please contact support to reactivate it.`));
@@ -487,10 +497,15 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
 
       await req.remoteUser.populateRoles();
       next();
+    } else if (!personalToken) {
+      // Only a legacy Api-Key / apiKey, and it's not a personal token: it may be the service
+      // key, checkServiceKey decides (see above)
+      debug('Api Key is not a Personal Token, left to checkServiceKey');
+      next();
     } else {
       clearRedirectCookie(res);
-      debug(`Invalid Personal Token (Api Key): ${apiKey || token}`);
-      next(new Unauthorized(`Invalid Personal Token (Api Key): ${apiKey || token}`));
+      debug(`Invalid Personal Token: ${personalToken}`);
+      next(new Unauthorized(`Invalid Personal Token (Api Key): ${personalToken}`));
     }
   } else {
     clearRedirectCookie(res);
@@ -500,9 +515,45 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
 }
 
 /**
- * Authorize api_key
+ * The service key (`config.keys.opencollective.apiKey`), shared by Open Collective's own
+ * services (frontend, images, rest, pdf…). Historically called the API key, hence the
+ * config name and the `api_key` parameter. It doesn't authenticate a user: it marks a
+ * request as coming from one of our services, which `checkServiceKey` checks and the
+ * GraphQL rate limiter exempts (server/routes.ts).
+ *
+ * Where a service can send it, in order:
+ * - the `Service-Key` header: the preferred way. Headers don't end up in URLs, so the key
+ *   stays out of router and access logs. It has its own name so it's never mistaken for a
+ *   personal token, unlike `Api-Key`, which also carries personal tokens;
+ * - `api_key` (or `apiKey`) in the query string, `api_key` in the body, or the key in the
+ *   GraphQL URL path (`/graphql/v2/<key>`): the legacy ways, still accepted;
+ * - the `Api-Key` header: kept for compatibility. `checkPersonalToken` tries it as a
+ *   personal token first, and leaves it here when it isn't one.
+ *
+ * @returns the key the request carries, or undefined. Only one value: a key repeated in the
+ *   query string (an array) isn't taken.
  */
-export function authorizeClient(req: Request, res: Response, next: NextFunction) {
+export function getServiceKey(req: Request): string | undefined {
+  const query = req.query || {};
+  const body = req.body || {};
+  const serviceKey =
+    req.get('Service-Key') || req.get('Api-Key') || query.apiKey || query.api_key || body.api_key || req.apiKey;
+  return typeof serviceKey === 'string' ? serviceKey : undefined;
+}
+
+/**
+ * Whether the request carries the service key (see `getServiceKey`).
+ */
+export function hasValidServiceKey(req: Request): boolean {
+  const serviceKey = getServiceKey(req);
+  return Boolean(serviceKey) && serviceKey === config.keys.opencollective.apiKey;
+}
+
+/**
+ * Check the service key (see `getServiceKey`): a valid one lets the request through, an
+ * invalid one is rejected (401 "Invalid API key"), none is fine (the key is optional).
+ */
+export function checkServiceKey(req: Request, res: Response, next: NextFunction) {
   // TODO: we should remove those exceptions
   // those routes should only be accessed via the website (which automatically adds the api_key)
   const exceptions = [
@@ -529,10 +580,8 @@ export function authorizeClient(req: Request, res: Response, next: NextFunction)
     return;
   }
 
-  const query = req.query || {};
-  const body = req.body || {};
-  const apiKey = req.get('Api-Key') || query.apiKey || query.api_key || body.api_key;
-  if (apiKey === config.keys.opencollective.apiKey) {
+  const apiKey = getServiceKey(req);
+  if (hasValidServiceKey(req)) {
     debug(`Valid API key: ${apiKey}`);
     next();
   } else if (apiKey) {
@@ -549,7 +598,7 @@ export function authorizeClient(req: Request, res: Response, next: NextFunction)
  * If we cannot authenticate the user, we directly return an Unauthorized error.
  */
 export function mustBeLoggedIn(req: Request, res: Response, next: NextFunction) {
-  authenticateUser(req, res, e => {
+  checkJwt(req, res, e => {
     if (e) {
       return next(e);
     }

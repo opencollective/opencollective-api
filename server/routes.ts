@@ -62,7 +62,9 @@ export default async (app: express.Application) => {
 
   app.use(withTiming('checkPersonalToken', authentication.checkPersonalToken));
 
-  app.use(withTiming('authorizeClient', authentication.authorizeClient));
+  // The timing labels keep the former middleware names (authorizeClient, authenticateUser) so
+  // the timing metrics stay continuous
+  app.use(withTiming('authorizeClient', authentication.checkServiceKey));
 
   /**
    * Sign In related features
@@ -83,7 +85,7 @@ export default async (app: express.Application) => {
    * Moving forward, all requests will try to authenticate the user if there is a JWT token provided
    * (an error will be returned if the JWT token is invalid, if not present it will simply continue)
    */
-  app.use(withTiming('authenticateUser', authentication.authenticateUser)); // populate req.remoteUser if JWT token provided in the request
+  app.use(withTiming('authenticateUser', authentication.checkJwt)); // populate req.remoteUser if JWT token provided in the request
 
   // OAuth server (after authentication/JWT handling, at least for authorize)
   app['oauth'] = oauth;
@@ -120,9 +122,8 @@ export default async (app: express.Application) => {
         return next();
       },
       whitelist: function (req: express.Request) {
-        const apiKey = req.query.api_key || req.body?.api_key;
-        // No limit with internal API Key
-        return apiKey === config.keys.opencollective.apiKey;
+        // No limit with the service key (Service-Key header, api_key in the query or body)
+        return authentication.hasValidServiceKey(req);
       },
       onRateLimited: function (req: express.Request, res: express.Response) {
         let message;
