@@ -253,11 +253,18 @@ export async function getSumCollectivesAmountSpent(
     includeChildren,
     includeGiftCards,
     version = DEFAULT_BUDGET_VERSION,
+    groupByAttributes,
     loaders = null,
   } = {},
 ) {
   const fastResults =
-    version === DEFAULT_BUDGET_VERSION && !kind && !startDate && !endDate && !includeChildren && !includeGiftCards
+    version === DEFAULT_BUDGET_VERSION &&
+    !kind &&
+    !startDate &&
+    !endDate &&
+    !includeChildren &&
+    !includeGiftCards &&
+    !groupByAttributes?.length
       ? await getCurrentCollectiveTransactionStats(collectiveIds, {
           loaders,
           column: net ? 'totalNetAmountSpentInHostCurrency' : 'totalAmountSpentInHostCurrency',
@@ -289,6 +296,7 @@ export async function getSumCollectivesAmountSpent(
     excludeRefunds: true, // default, make it explicit
     excludeInternals: true,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
+    groupByAttributes,
   });
 
   return { ...fastResults, ...results };
@@ -402,6 +410,62 @@ export async function getTotalAmountReceivedTimeSeries(
         date: node.date,
         amount: { value: roundCentsAmount(node.amount * fxRate, currency), currency },
       }))
+    : [];
+
+  return {
+    dateFrom: startDate,
+    dateTo: endDate,
+    timeUnit,
+    nodes,
+  };
+}
+
+export async function getTotalAmountSpentTimeSeries(
+  collective,
+  { loaders, net, startDate, endDate, timeUnit, currency, version, includeChildren, absoluteAmounts = true } = {},
+) {
+  version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
+  currency = currency || collective.currency;
+
+  let result;
+
+  const transactionArgs = {
+    net,
+    startDate,
+    endDate,
+    includeChildren,
+  };
+
+  // Optimized version using loaders
+  if (loaders && version === DEFAULT_BUDGET_VERSION) {
+    const amountSpentTimeSeriesLoader = loaders.Collective.amountSpentTimeSeries.buildLoader({
+      ...transactionArgs,
+      timeUnit,
+    });
+    result = await amountSpentTimeSeriesLoader.load(collective.id);
+  } else {
+    const results = await getSumCollectivesAmountSpent([collective.id], {
+      ...transactionArgs,
+      version,
+      groupByAttributes: [[sequelize.fn('DATE_TRUNC', timeUnit, sequelize.col('Transaction.createdAt')), 'date']],
+    });
+
+    result = results[collective.id];
+  }
+
+  const fxRate = await getFxRate(result.currency, currency);
+
+  const nodes = result.groupBy?.date
+    ? Object.values(result.groupBy.date).map(node => {
+        let value = roundCentsAmount(node.amount * fxRate, currency);
+        if (absoluteAmounts) {
+          value = Math.abs(value);
+        }
+        return {
+          date: node.date,
+          amount: { value, currency },
+        };
+      })
     : [];
 
   return {
