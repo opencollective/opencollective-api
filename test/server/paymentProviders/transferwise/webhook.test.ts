@@ -4,6 +4,7 @@ import * as SentrySdk from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
 import { defaultsDeep } from 'lodash';
+import nock from 'nock';
 import { assert, createSandbox } from 'sinon';
 import request from 'supertest';
 
@@ -43,6 +44,10 @@ describe('server/paymentProviders/transferwise/webhook', () => {
     expressApp = await app();
     api = request(expressApp);
     utils.nockFixerRates(RATES);
+  });
+
+  after(() => {
+    nock.cleanAll();
   });
 
   const sandbox = createSandbox();

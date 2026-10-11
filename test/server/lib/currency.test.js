@@ -121,6 +121,10 @@ describe('server/lib/currency', () => {
         .reply(200, { base: 'INR', date: endDate, rates: { USD: 0.014962 } });
     });
 
+    after(() => {
+      nock.cleanAll();
+    });
+
     it('converts EUR to USD', () =>
       CurrencyLib.convertToCurrency(100, 'EUR', 'USD', new Date(startDate)).then(amount =>
         expect(amount).to.equal(108),
