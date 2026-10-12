@@ -173,6 +173,7 @@ describe('server/graphql/v2/mutation/WebhookMutations', () => {
       const result = await graphqlQueryV2(deleteWebhookMutation, { webhook: { id: webhook.publicId } }, admin);
 
       expect(result.errors).to.not.exist;
+      expect(result.data.deleteWebhook.id).to.be.a('string').and.not.be.empty;
       expect(await models.Notification.findByPk(webhook.id)).to.be.null;
     });
 
