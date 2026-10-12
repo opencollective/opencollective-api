@@ -561,6 +561,37 @@ describe('server/lib/merge-accounts', () => {
       await sourceTier.reload();
       expect(sourceTier.slug).to.eq('basic-3');
     });
+
+    it('previews tier re-slugs in the simulate summary', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      await Faker.fakeTier({ CollectiveId: collective1.id, slug: 'colliding-tier' });
+      await Faker.fakeTier({ CollectiveId: collective2.id, slug: 'colliding-tier' });
+
+      const summary = await simulateMergeAccounts(collective1, collective2);
+      expect(summary).to.include('colliding-tier');
+      expect(summary).to.include('colliding-tier-2');
+    });
+
+    it('warns about stale balances and suggests refreshing the materialized views', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      await Faker.fakeTransaction({ FromCollectiveId: collective1.id, CollectiveId: collective2.id });
+
+      const summary = await simulateMergeAccounts(collective1, collective2);
+      expect(summary).to.include('npm run script cron/daily/92-refresh-daily-materialized-views.ts');
+
+      const warnings = await mergeAccounts(collective1, collective2);
+      expect(warnings.join('\n')).to.include('npm run script cron/daily/92-refresh-daily-materialized-views.ts');
+    });
+
+    it('does not warn about stale balances when no transactions move', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+
+      const warnings = await mergeAccounts(collective1, collective2);
+      expect(warnings.join('\n')).to.not.include('materialized views');
+    });
   });
 
   describe('Cross-type merges (PROJECT -> COLLECTIVE)', () => {
@@ -577,6 +608,20 @@ describe('server/lib/merge-accounts', () => {
         HostCollectiveId: host.id,
       });
       targetCollective = await Faker.fakeCollective({ slug: 'target-collective', HostCollectiveId: host.id });
+    });
+
+    describe('simulateMergeAccounts warnings', () => {
+      it('surfaces virtual-card and access-flip warnings for cross-type merges', async () => {
+        const summary = await simulateMergeAccounts(project, targetCollective);
+        expect(summary).to.include('Virtual cards');
+        expect(summary).to.include('lose access');
+      });
+
+      it('does not surface cross-type warnings for same-type merges', async () => {
+        const summary = await simulateMergeAccounts(parentCollective, targetCollective);
+        expect(summary).to.not.include('Virtual cards');
+        expect(summary).to.not.include('lose access');
+      });
     });
 
     describe('checkMergeCollective rules', () => {

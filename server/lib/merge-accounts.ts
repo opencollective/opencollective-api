@@ -48,6 +48,14 @@ export const getMovableItemsCounts = async (
   }
 };
 
+/**
+ * Moving transactions between accounts makes the balance/checkpoint materialized views stale for both accounts
+ * until they are refreshed (they are only refreshed by the daily cron). Rather than blocking the merge, we warn
+ * about it and point to the refresh command.
+ */
+const getStaleBalancesWarning = (from: Collective, into: Collective): string =>
+  `Merging ${from.slug} into ${into.slug} moves transactions: balances will be stale until the materialized views are refreshed. Run \`npm run script cron/daily/92-refresh-daily-materialized-views.ts\` to refresh them now, or wait for the next daily refresh.`;
+
 const checkMergeCollective = (from: Collective, into: Collective): void => {
   const isProjectIntoCollective = from?.type === CollectiveType.PROJECT && into?.type === CollectiveType.COLLECTIVE;
   if (!from || !into) {
@@ -97,6 +105,41 @@ export const simulateMergeAccounts = async (from: Collective, into: Collective):
   if (some(movedItemsCounts.account, count => count > 0)) {
     addLineToSummary(`The following items will be moved to @${into.slug}:`);
     addCountsToSummary(movedItemsCounts.account);
+    addLineToSummary('');
+  }
+
+  // Generate the list of warnings
+  const warnings = [];
+  if (from.type === CollectiveType.PROJECT && into.type === CollectiveType.COLLECTIVE) {
+    warnings.push(
+      `Virtual cards will be moved to @${into.slug} and can draw on its total balance (the Stripe per-charge check uses the account balance)`,
+      `Administrators of the parent of ${from.slug} will lose access to the moved data (administrators and host of @${into.slug} gain it)`,
+      `Recurring contributions will continue against @${into.slug} (subscriptions hang off orders, the host does not change)`,
+      `Old URLs for ${from.slug} will return 404 after the merge`,
+    );
+  }
+
+  const movedTransactionsCount = ['creditTransactions', 'debitTransactions', 'giftCardTransactions'].reduce(
+    (count, entity) => count + (movedItemsCounts.account[entity] || 0),
+    0,
+  );
+  if (movedTransactionsCount > 0) {
+    warnings.push(getStaleBalancesWarning(from, into));
+  }
+
+  const [targetTiers, sourceTiers] = await Promise.all([
+    models.Tier.findAll({ where: { CollectiveId: into.id }, attributes: ['id', 'slug'], raw: true }),
+    models.Tier.findAll({ where: { CollectiveId: from.id }, attributes: ['id', 'slug'], raw: true }),
+  ]);
+  getTierReslugPlan(sourceTiers, targetTiers).forEach(({ oldSlug, newSlug }) => {
+    warnings.push(
+      `The tier "${oldSlug}" of ${from.slug} will be re-sluged to "${newSlug}" to avoid a slug collision on @${into.slug}`,
+    );
+  });
+
+  if (warnings.length) {
+    addLineToSummary('Warnings:');
+    warnings.forEach(warning => addLineToSummary(`  - ${warning}`));
     addLineToSummary('');
   }
 
@@ -322,16 +365,14 @@ const getEmojiReactionsDuplicatesWarning = async (from: Collective, into: Collec
 
 /**
  * Tier slugs must be unique within a collective (they're used as filters in queries), but there is no DB
- * constraint for it. When moving tiers to the target, keep the target's tier on slug collisions and re-slug the
- * moved one with a numeric suffix. Returns notes for the merge summary.
+ * constraint for it. Compute which moved tiers must be re-sluged with a numeric suffix on collision with a
+ * tier of the target (or another moved tier).
  */
-const reslugTiersOnCollision = async (from: Collective, into: Collective, transaction): Promise<string[]> => {
-  const [targetTiers, sourceTiers] = await Promise.all([
-    models.Tier.findAll({ where: { CollectiveId: into.id }, attributes: ['id', 'slug'], raw: true, transaction }),
-    models.Tier.findAll({ where: { CollectiveId: from.id }, attributes: ['id', 'slug'], raw: true, transaction }),
-  ]);
-
-  const notes = [];
+const getTierReslugPlan = (
+  sourceTiers: Array<{ id: number; slug: string }>,
+  targetTiers: Array<{ id: number; slug: string }>,
+): Array<{ tierId: number; oldSlug: string; newSlug: string }> => {
+  const reslugs = [];
   const takenSlugs = new Set(targetTiers.map(({ slug }) => slug));
   for (const tier of sourceTiers) {
     if (!takenSlugs.has(tier.slug)) {
@@ -345,16 +386,34 @@ const reslugTiersOnCollision = async (from: Collective, into: Collective, transa
     }
 
     takenSlugs.add(newSlug);
+    reslugs.push({ tierId: tier.id, oldSlug: tier.slug, newSlug });
+  }
+
+  return reslugs;
+};
+
+/**
+ * When moving tiers to the target, keep the target's tier on slug collisions and re-slug the moved one with a
+ * numeric suffix. Returns notes for the merge summary.
+ */
+const reslugTiersOnCollision = async (from: Collective, into: Collective, transaction): Promise<string[]> => {
+  const [targetTiers, sourceTiers] = await Promise.all([
+    models.Tier.findAll({ where: { CollectiveId: into.id }, attributes: ['id', 'slug'], raw: true, transaction }),
+    models.Tier.findAll({ where: { CollectiveId: from.id }, attributes: ['id', 'slug'], raw: true, transaction }),
+  ]);
+
+  const reslugs = getTierReslugPlan(sourceTiers, targetTiers);
+  for (const { tierId, newSlug } of reslugs) {
     await models.Tier.update(
       { slug: newSlug },
-      { where: { id: tier.id }, fields: ['slug'], hooks: false, sideEffects: false, validate: false, transaction },
-    );
-    notes.push(
-      `The tier "${tier.slug}" of ${from.slug} was re-sluged to "${newSlug}" to avoid a slug collision on ${into.slug}`,
+      { where: { id: tierId }, fields: ['slug'], hooks: false, sideEffects: false, validate: false, transaction },
     );
   }
 
-  return notes;
+  return reslugs.map(
+    ({ oldSlug, newSlug }) =>
+      `The tier "${oldSlug}" of ${from.slug} was re-sluged to "${newSlug}" to avoid a slug collision on ${into.slug}`,
+  );
 };
 
 /**
@@ -753,6 +812,15 @@ export const mergeAccounts = async (
     const mergeAccountAssociationsResult = await moveCollectiveAssociations(from, into, transaction);
     const warnings = mergeAccountAssociationsResult.warnings;
     changesSummary['associations'] = mergeAccountAssociationsResult.summary;
+
+    // Moving transactions makes the balance materialized views stale for both accounts
+    const movedAssociations = mergeAccountAssociationsResult.summary;
+    const hasMovedTransactions = ['creditTransactions', 'debitTransactions', 'giftCardTransactions'].some(
+      entity => (movedAssociations[entity] || []).length > 0,
+    );
+    if (hasMovedTransactions) {
+      warnings.push(getStaleBalancesWarning(from, into));
+    }
 
     // Merge user entries
     if (fromUser) {
