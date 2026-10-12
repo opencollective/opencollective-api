@@ -49,9 +49,10 @@ export const getMovableItemsCounts = async (
 };
 
 const checkMergeCollective = (from: Collective, into: Collective): void => {
+  const isProjectIntoCollective = from?.type === CollectiveType.PROJECT && into?.type === CollectiveType.COLLECTIVE;
   if (!from || !into) {
     throw new Error('Cannot merge profiles, one of them does not exist');
-  } else if (from.type !== into.type) {
+  } else if (from.type !== into.type && !isProjectIntoCollective) {
     throw new Error('Cannot merge accounts with different types');
   } else if (from.id === into.id) {
     throw new Error('Cannot merge an account into itself');
@@ -59,6 +60,14 @@ const checkMergeCollective = (from: Collective, into: Collective): void => {
     throw new Error('You can not merge an account with its parent');
   } else if (from.id === into.HostCollectiveId) {
     throw new Error('You can not merge an account with its host');
+  } else if (isProjectIntoCollective) {
+    // Cross-type merges are only allowed for PROJECT -> COLLECTIVE, and only when both accounts
+    // share the same (non-null) host. The target must not be a fiscal host (money management account).
+    if (into.hasMoneyManagement) {
+      throw new Error('Cannot merge an account into a fiscal host');
+    } else if (!from.HostCollectiveId || from.HostCollectiveId !== into.HostCollectiveId) {
+      throw new Error('A project can only be merged into a collective hosted by the same host');
+    }
   }
 };
 

@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { mergeWith } from 'lodash';
 
+import { CollectiveType } from '../../../server/constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import { getMovableItemsCounts, mergeAccounts, simulateMergeAccounts } from '../../../server/lib/merge-accounts';
 import models from '../../../server/models';
@@ -298,6 +299,146 @@ describe('server/lib/merge-accounts', () => {
       expect(socialLinks[0].url).to.eq(socialLink1.url);
 
       expect(await models.SocialLink.findOne({ where: { CollectiveId: collective1.id } })).to.be.null;
+    });
+  });
+
+  describe('Cross-type merges (PROJECT -> COLLECTIVE)', () => {
+    let host, parentCollective, project, targetCollective;
+
+    before(async () => {
+      await resetTestDB();
+      host = await Faker.fakeActiveHost();
+      parentCollective = await Faker.fakeCollective({ slug: 'parent-collective', HostCollectiveId: host.id });
+      project = await Faker.fakeCollective({
+        slug: 'test-project',
+        type: CollectiveType.PROJECT,
+        ParentCollectiveId: parentCollective.id,
+        HostCollectiveId: host.id,
+      });
+      targetCollective = await Faker.fakeCollective({ slug: 'target-collective', HostCollectiveId: host.id });
+    });
+
+    describe('checkMergeCollective rules', () => {
+      it('allows merging a project into a collective hosted by the same host', async () => {
+        const summary = await simulateMergeAccounts(project, targetCollective);
+        expect(summary).to.include('The profiles information will be merged.');
+      });
+
+      it('allows merging a project into its own parent collective', async () => {
+        const summary = await simulateMergeAccounts(project, parentCollective);
+        expect(summary).to.include('The profiles information will be merged.');
+      });
+
+      it('rejects projects and targets hosted by different hosts', async () => {
+        const otherTarget = await Faker.fakeCollective(); // comes with its own host
+        await expect(simulateMergeAccounts(project, otherTarget)).to.be.rejectedWith(
+          'A project can only be merged into a collective hosted by the same host',
+        );
+      });
+
+      it('rejects unhosted projects', async () => {
+        const unhostedProject = await Faker.fakeCollective({
+          type: CollectiveType.PROJECT,
+          ParentCollectiveId: parentCollective.id,
+          HostCollectiveId: null,
+        });
+        await expect(simulateMergeAccounts(unhostedProject, targetCollective)).to.be.rejectedWith(
+          'A project can only be merged into a collective hosted by the same host',
+        );
+      });
+
+      it('rejects targets that are not hosted', async () => {
+        const unhostedTarget = await Faker.fakeCollective({ HostCollectiveId: null });
+        await expect(simulateMergeAccounts(project, unhostedTarget)).to.be.rejectedWith(
+          'A project can only be merged into a collective hosted by the same host',
+        );
+      });
+
+      it('rejects fiscal host targets', async () => {
+        const hostTarget = await Faker.fakeCollective({ HostCollectiveId: host.id, hasMoneyManagement: true });
+        await expect(simulateMergeAccounts(project, hostTarget)).to.be.rejectedWith(
+          'Cannot merge an account into a fiscal host',
+        );
+      });
+
+      it('keeps blocking all other cross-type pairs', async () => {
+        const event = await Faker.fakeCollective({
+          type: CollectiveType.EVENT,
+          ParentCollectiveId: parentCollective.id,
+          HostCollectiveId: host.id,
+        });
+        const organization = await Faker.fakeOrganization();
+        const pairs = [
+          [event, targetCollective],
+          [targetCollective, project],
+          [project, event],
+          [organization, targetCollective],
+          [project, organization],
+        ];
+
+        for (const [from, into] of pairs) {
+          await expect(simulateMergeAccounts(from, into)).to.be.rejectedWith(
+            'Cannot merge accounts with different types',
+          );
+        }
+      });
+
+      it('keeps enforcing the existing same-type rules', async () => {
+        const collective = await Faker.fakeCollective();
+        const child = await Faker.fakeCollective({
+          ParentCollectiveId: collective.id,
+          HostCollectiveId: collective.HostCollectiveId,
+        });
+        const hosted = await Faker.fakeCollective({ HostCollectiveId: collective.id });
+
+        await expect(simulateMergeAccounts(collective, collective)).to.be.rejectedWith(
+          'Cannot merge an account into itself',
+        );
+        await expect(simulateMergeAccounts(collective, child)).to.be.rejectedWith(
+          'You can not merge an account with its parent',
+        );
+        await expect(simulateMergeAccounts(collective, hosted)).to.be.rejectedWith(
+          'You can not merge an account with its host',
+        );
+      });
+    });
+
+    describe('mergeAccounts', () => {
+      it('merges a project into a collective hosted by the same host without touching the target parent/host', async () => {
+        const parentCollectiveIdBefore = targetCollective.ParentCollectiveId;
+        const hostCollectiveIdBefore = targetCollective.HostCollectiveId;
+
+        await mergeAccounts(project, targetCollective);
+
+        await project.reload({ paranoid: false });
+        await targetCollective.reload();
+        expect(project.deletedAt).to.not.be.null;
+        expect(project.slug).to.eq('test-project-merged');
+        expect(project.data.mergedIntoCollectiveId).to.eq(targetCollective.id);
+
+        // Regression: the target must never receive the source's parent or host
+        expect(targetCollective.ParentCollectiveId).to.eq(parentCollectiveIdBefore);
+        expect(targetCollective.HostCollectiveId).to.eq(hostCollectiveIdBefore);
+      });
+
+      it('merges a project into its own parent collective without touching the target parent/host', async () => {
+        const project2 = await Faker.fakeCollective({
+          type: CollectiveType.PROJECT,
+          ParentCollectiveId: parentCollective.id,
+          HostCollectiveId: host.id,
+        });
+
+        await mergeAccounts(project2, parentCollective);
+
+        await project2.reload({ paranoid: false });
+        await parentCollective.reload();
+        expect(project2.deletedAt).to.not.be.null;
+        expect(project2.data.mergedIntoCollectiveId).to.eq(parentCollective.id);
+
+        // Regression: the parent keeps its own parent/host (a project is never re-parented to itself)
+        expect(parentCollective.ParentCollectiveId).to.be.null;
+        expect(parentCollective.HostCollectiveId).to.eq(host.id);
+      });
     });
   });
 });
