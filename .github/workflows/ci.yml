@@ -19,6 +19,10 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
+  TURBO_TOKEN: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.TURBO_TOKEN || '' }}
+  TURBO_TEAM: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.TURBO_TEAM || '' }}
+  TURBO_AGENT_GUIDANCE: 'false'
+  TURBO_CACHE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.TURBO_TOKEN != '' && vars.TURBO_TEAM != '' && 'local:rw,remote:rw' || 'local:rw' }}
   TZ: UTC
   CI: true
   OC_ENV: ci
@@ -46,15 +50,7 @@ jobs:
         with:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
-      - name: Restore ESLint cache
-        uses: actions/cache@v6
-        with:
-          path: .eslintcache
-          key: ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-eslint-${{ hashFiles('eslint.config.mjs', 'package-lock.json') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-eslint-${{ hashFiles('eslint.config.mjs', 'package-lock.json') }}-
-
-      - run: npm run lint:check
+      - run: npm run turbo -- run lint:check
 
   prettier:
     runs-on: ubuntu-26.04
@@ -69,15 +65,7 @@ jobs:
         with:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
-      - name: Restore Prettier cache
-        uses: actions/cache@v6
-        with:
-          path: .prettiercache
-          key: ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-prettier-${{ hashFiles('.prettierrc', 'package-lock.json') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-prettier-${{ hashFiles('.prettierrc', 'package-lock.json') }}-
-
-      - run: npm run prettier:check
+      - run: npm run turbo -- run prettier:check
 
   typescript:
     runs-on: ubuntu-26.04
@@ -92,14 +80,7 @@ jobs:
         with:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
-      - name: Restore TypeScript incremental cache
-        uses: actions/cache@v6
-        with:
-          path: tsconfig.tsbuildinfo
-          # Exact commit only: restoring tsbuildinfo from another SHA corrupts incremental state and can crash tsc (stack overflow on TS 6).
-          key: ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-tsc-${{ hashFiles('tsconfig.json', 'package-lock.json') }}-${{ github.sha }}
-
-      - run: npm run type:check
+      - run: npm run turbo -- run type:check
 
   depcheck:
     runs-on: ubuntu-26.04
@@ -114,7 +95,7 @@ jobs:
         with:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
-      - run: npm run depcheck
+      - run: npm run turbo -- run depcheck
 
   ts-unused-exports:
     runs-on: ubuntu-26.04
@@ -130,7 +111,7 @@ jobs:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
       - name: Check unused exports
-        run: npm run ts-unused-exports
+        run: npm run turbo -- run ts-unused-exports
 
   build:
     runs-on: ubuntu-26.04
@@ -146,7 +127,7 @@ jobs:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
       - name: Build
-        run: npm run build
+        run: npm run turbo -- run build:finalize
 
   test:
     runs-on: ubuntu-26.04
@@ -193,11 +174,11 @@ jobs:
 
       - name: Test
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'
-        run: npm run test:ci -- --ignore "test/server/graphql/**"
+        run: npm run turbo -- run test:ci -- --ignore "test/server/graphql/**"
 
       - name: Test with coverage
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: npm run test:coverage -- --ignore "test/server/graphql/**"
+        run: npm run turbo -- run test:coverage -- --ignore "test/server/graphql/**"
 
       - name: Report coverage
         if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
@@ -274,11 +255,11 @@ jobs:
 
       - name: Test
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'
-        run: npm run test:ci test/server/graphql
+        run: npm run turbo -- run test:ci -- test/server/graphql
 
       - name: Test with coverage
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: npm run test:coverage test/server/graphql
+        run: npm run turbo -- run test:coverage -- test/server/graphql
 
       - name: Report coverage
         if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
@@ -324,7 +305,7 @@ jobs:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
       - name: Generate & check schemas
-        run: ./scripts/check-schemas.sh
+        run: npm run turbo -- run schema:check
 
   graphql-inspector:
     name: GraphQL Inspector
