@@ -523,6 +523,44 @@ describe('server/lib/merge-accounts', () => {
       // A warning is surfaced
       expect(warnings.join('\n')).to.include('emoji');
     });
+
+    it('re-slugs moved tiers on slug collision and notes it in the summary', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      const sourceTier = await Faker.fakeTier({ CollectiveId: collective1.id, slug: 'basic' });
+      const targetTier = await Faker.fakeTier({ CollectiveId: collective2.id, slug: 'basic' });
+      const movedTier = await Faker.fakeTier({ CollectiveId: collective1.id, slug: 'premium' });
+
+      const warnings = await mergeAccounts(collective1, collective2);
+
+      // The target's tier keeps its slug, the moved one is re-sluged with a numeric suffix
+      await targetTier.reload();
+      await sourceTier.reload();
+      expect(targetTier.slug).to.eq('basic');
+      expect(sourceTier.slug).to.eq('basic-2');
+      expect(sourceTier.CollectiveId).to.eq(collective2.id);
+
+      // Non-colliding tiers are moved untouched
+      await movedTier.reload();
+      expect(movedTier.slug).to.eq('premium');
+      expect(movedTier.CollectiveId).to.eq(collective2.id);
+
+      // The re-slug is noted in the summary
+      expect(warnings.join('\n')).to.include('basic-2');
+    });
+
+    it('re-slugs moved tiers to the next free suffix when the first candidate is taken', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      const sourceTier = await Faker.fakeTier({ CollectiveId: collective1.id, slug: 'basic' });
+      await Faker.fakeTier({ CollectiveId: collective2.id, slug: 'basic' });
+      await Faker.fakeTier({ CollectiveId: collective2.id, slug: 'basic-2' });
+
+      await mergeAccounts(collective1, collective2);
+
+      await sourceTier.reload();
+      expect(sourceTier.slug).to.eq('basic-3');
+    });
   });
 
   describe('Cross-type merges (PROJECT -> COLLECTIVE)', () => {

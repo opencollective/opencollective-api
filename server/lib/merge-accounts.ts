@@ -321,6 +321,43 @@ const getEmojiReactionsDuplicatesWarning = async (from: Collective, into: Collec
   `Duplicate emoji reactions for ${from.slug} were deleted as ${into.slug} already reacted with the same emoji on the same comments/updates`;
 
 /**
+ * Tier slugs must be unique within a collective (they're used as filters in queries), but there is no DB
+ * constraint for it. When moving tiers to the target, keep the target's tier on slug collisions and re-slug the
+ * moved one with a numeric suffix. Returns notes for the merge summary.
+ */
+const reslugTiersOnCollision = async (from: Collective, into: Collective, transaction): Promise<string[]> => {
+  const [targetTiers, sourceTiers] = await Promise.all([
+    models.Tier.findAll({ where: { CollectiveId: into.id }, attributes: ['id', 'slug'], raw: true, transaction }),
+    models.Tier.findAll({ where: { CollectiveId: from.id }, attributes: ['id', 'slug'], raw: true, transaction }),
+  ]);
+
+  const notes = [];
+  const takenSlugs = new Set(targetTiers.map(({ slug }) => slug));
+  for (const tier of sourceTiers) {
+    if (!takenSlugs.has(tier.slug)) {
+      takenSlugs.add(tier.slug);
+      continue;
+    }
+
+    let newSlug;
+    for (let i = 2; !newSlug || takenSlugs.has(newSlug); i++) {
+      newSlug = `${tier.slug}-${i}`;
+    }
+
+    takenSlugs.add(newSlug);
+    await models.Tier.update(
+      { slug: newSlug },
+      { where: { id: tier.id }, fields: ['slug'], hooks: false, sideEffects: false, validate: false, transaction },
+    );
+    notes.push(
+      `The tier "${tier.slug}" of ${from.slug} was re-sluged to "${newSlug}" to avoid a slug collision on ${into.slug}`,
+    );
+  }
+
+  return notes;
+};
+
+/**
  * When moving members (`MemberCollectiveId`: from -> into), if the target is already a member of the same
  * collective with the same role/TierId, do not carry the source's entry over: group by `(CollectiveId, role, TierId)`
  * and keep only the groups where both accounts are present. Returns the source-side member ids to drop.
@@ -388,6 +425,8 @@ type CollectiveFieldsConfig = Record<
     field: CollectiveField;
     getIdsToIgnore?: (from: Collective, into: Collective, sqlTransaction) => Promise<number[]>;
     fieldsToLog?: string[]; // For the migration log, defaults to ['id']
+    /** Called before moving the entity's rows. Returns notes to surface in the merge summary (e.g. tier re-slugs) */
+    onBeforeMove?: (from: Collective, into: Collective, sqlTransaction) => Promise<string[]>;
     /** Called with the duplicated ids right before they are destroyed (e.g. to re-point references to the surviving row) */
     onDuplicatesFound?: (from: Collective, into: Collective, idsToIgnore: number[], sqlTransaction) => Promise<void>;
     /** Returns a warning message surfaced in the merge summary when duplicated rows are deleted */
@@ -458,7 +497,7 @@ const collectiveFieldsConfig: CollectiveFieldsConfig = {
   personalTokens: { model: models.PersonalToken, field: 'CollectiveId' },
   requiredLegalDocuments: { model: models.RequiredLegalDocument, field: 'HostCollectiveId' },
   socialLinks: { model: models.SocialLink, field: 'CollectiveId', fieldsToLog: ['CollectiveId', 'type', 'url'] },
-  tiers: { model: models.Tier, field: 'CollectiveId' },
+  tiers: { model: models.Tier, field: 'CollectiveId', onBeforeMove: reslugTiersOnCollision },
   updates: { model: models.Update, field: 'CollectiveId' },
   updatesCreated: { model: models.Update, field: 'FromCollectiveId' },
   virtualCards: { model: models.VirtualCard, field: 'CollectiveId' },
@@ -540,6 +579,10 @@ const moveCollectiveAssociations = async (from, into, transaction) => {
       if (idsToIgnore.length) {
         updateWhere.id = { [Op.not]: idsToIgnore };
       }
+    }
+
+    if (entityConfig.onBeforeMove) {
+      warnings.push(...(await entityConfig.onBeforeMove(from, into, transaction)));
     }
 
     // Special case for location, if a location exists for both the new and old collective, soft-delete the older one
