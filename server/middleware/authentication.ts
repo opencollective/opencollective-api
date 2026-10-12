@@ -563,6 +563,19 @@ export function rejectOAuthAndPersonalTokenAuth(req: Request, res: Response, nex
   next();
 }
 
+/** Rejects all non-session tokens before reaching session-only REST endpoints. */
+export function requireSessionToken(req: Request, res: Response, next: NextFunction) {
+  rejectOAuthAndPersonalTokenAuth(req, res, error => {
+    if (error) {
+      return next(error);
+    }
+    if (req.jwtPayload?.scope && req.jwtPayload.scope !== 'session') {
+      return next(new Unauthorized('A session token is required on this endpoint. Please use the web interface.'));
+    }
+    next();
+  });
+}
+
 /**
  * Makes sure that the user is logged in and req.remoteUser is populated.
  * If we cannot authenticate the user, we directly return an Unauthorized error.

@@ -84,6 +84,18 @@ describe('REST session authentication and connected-account rate limiting', () =
         expect(state.userId).to.eq(user.id);
       });
 
+      it('rejects login tokens before creating provider state', async () => {
+        const cacheSpy = sandbox.spy(sessionCache, 'set');
+        const response = await request(expressApp)
+          .get(alias)
+          .set('X-Forwarded-For', testIps[0])
+          .set('Authorization', `Bearer ${user.jwt({ scope: 'login' })}`)
+          .expect(401);
+
+        expect(response.body.error.message).to.include('A session token is required on this endpoint');
+        expect(cacheSpy.args.some(([key]) => key.startsWith('oauth-github-state:'))).to.be.false;
+      });
+
       it('preserves the requirement to sign in before initiating GitHub OAuth', async () => {
         const response = await request(expressApp).get(alias).set('X-Forwarded-For', testIps[0]).expect(401);
         expect(response.body.error.message).to.eq('You must be logged in to connect a GitHub account');
@@ -131,6 +143,17 @@ describe('REST session authentication and connected-account rate limiting', () =
 
       expect(payBatchSpy).to.have.been.calledOnce;
       expect(payBatchSpy.firstCall.args[0].host.id).to.eq(idDecode(hostId, IDENTIFIER_TYPES.ACCOUNT));
+    });
+
+    it('rejects login tokens before reaching the payment provider', async () => {
+      const response = await request(expressApp)
+        .post('/services/transferwise/pay-batch')
+        .set('Authorization', `Bearer ${user.jwt({ scope: 'login' })}`)
+        .send({ hostId, expenseIds: [] })
+        .expect(401);
+
+      expect(response.body.error.message).to.include('A session token is required on this endpoint');
+      expect(payBatchSpy).to.not.have.been.called;
     });
   });
 

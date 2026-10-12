@@ -136,11 +136,10 @@ const duplicateAccountMutation = gql`
 describe('server/graphql/v2/mutation/AccountMutations', () => {
   let adminUser, secondAdminUser, randomUser, hostAdminUser, backerUser, collective;
 
-  const TWO_FACTOR_TOKEN_REJECTION_MESSAGE =
-    'OAuth and Personal Tokens are not allowed to manage two-factor authentication.';
+  const TWO_FACTOR_TOKEN_REJECTION_MESSAGE = 'A session token is required to manage two-factor authentication.';
 
   /**
-   * 2FA management is session-only: these mutations must reject OAuth and personal tokens, even when the token
+   * 2FA management is session-only: these mutations must reject login, reset-password, OAuth and personal tokens, even when the token
    * has the "account" scope. Returns the user owning the tokens so that callers can assert nothing was changed.
    */
   const expectTwoFactorMutationsToRejectTokens = async (
@@ -170,6 +169,13 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     );
     expect(personalTokenResult.errors).to.exist;
     expect(personalTokenResult.errors[0].message).to.equal(TWO_FACTOR_TOKEN_REJECTION_MESSAGE);
+
+    for (const scope of ['login', 'reset-password']) {
+      const result = await graphqlQueryV2(mutation, getVariables(user), user, { scope });
+      expect(result.errors, `${scope} tokens must be rejected`).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      expect(result.errors[0].message).to.equal(TWO_FACTOR_TOKEN_REJECTION_MESSAGE);
+    }
 
     return user;
   };
@@ -467,7 +473,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
     });
 
-    it('cannot be used with OAuth or personal tokens', async () => {
+    it('cannot be used with non-session tokens', async () => {
       const user = await expectTwoFactorMutationsToRejectTokens(addTwoFactorAuthTokenMutation, user => ({
         account: { id: idEncode(user.collective.id, 'account') },
         token: secret,
@@ -681,7 +687,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.data.removeTwoFactorAuthTokenFromIndividual.hasTwoFactorAuth).to.eq(false);
     });
 
-    it('cannot be used with OAuth or personal tokens', async () => {
+    it('cannot be used with non-session tokens', async () => {
       const tokenUser = await expectTwoFactorMutationsToRejectTokens(
         removeTwoFactorAuthTokenMutation,
         user => ({ account: { id: idEncode(user.collective.id, 'account') }, type: 'TOTP' }),
@@ -1744,7 +1750,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
     });
 
-    it('cannot be used with OAuth or personal tokens', async () => {
+    it('cannot be used with non-session tokens', async () => {
       await expectTwoFactorMutationsToRejectTokens(createWebAuthnRegistrationOptionsMutation, user => ({
         account: { id: idEncode(user.collective.id, 'account') },
       }));
@@ -2026,7 +2032,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.data.editTwoFactorAuthenticationMethod.twoFactorMethods[0].name).to.equal('New name');
     });
 
-    it('cannot be used with OAuth or personal tokens', async () => {
+    it('cannot be used with non-session tokens', async () => {
       let method;
       await expectTwoFactorMutationsToRejectTokens(
         editTwoFactorAuthenticationMethodMutation,
@@ -2045,7 +2051,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
   });
 
   describe('regenerateRecoveryCodes', () => {
-    it('cannot be used with OAuth or personal tokens', async () => {
+    it('cannot be used with non-session tokens', async () => {
       let initialRecoveryCodes;
       const user = await expectTwoFactorMutationsToRejectTokens(
         regenerateRecoveryCodesMutation,

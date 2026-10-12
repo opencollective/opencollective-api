@@ -32,11 +32,7 @@ import { HostApplicationStatus } from '../../../models/HostApplication';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { PAYPAL_SUSPEND_MAX_REASON_LENGTH } from '../../../paymentProviders/paypal/subscription';
 import { sendMessage } from '../../common/collective';
-import {
-  checkRemoteUserCanUseAccount,
-  checkRemoteUserCanUseHost,
-  rejectOAuthAndPersonalTokenAuth,
-} from '../../common/scope-check';
+import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost, requireSessionToken } from '../../common/scope-check';
 import { BadRequest, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -363,11 +359,8 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request) {
-      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
-      rejectOAuthAndPersonalTokenAuth(
-        req,
-        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
-      );
+      // 2FA management requires a session token to change credentials.
+      requireSessionToken(req, 'A session token is required to manage two-factor authentication.');
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
@@ -409,11 +402,8 @@ const accountMutations = {
       args: { account: Record<string, unknown>; type?: TwoFactorMethod; token: string },
       req: express.Request,
     ): Promise<Record<string, unknown>> {
-      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
-      rejectOAuthAndPersonalTokenAuth(
-        req,
-        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
-      );
+      // 2FA management requires a session token to change credentials.
+      requireSessionToken(req, 'A session token is required to manage two-factor authentication.');
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
@@ -546,11 +536,8 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
-      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
-      rejectOAuthAndPersonalTokenAuth(
-        req,
-        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
-      );
+      // 2FA management requires a session token to change credentials.
+      requireSessionToken(req, 'A session token is required to manage two-factor authentication.');
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
@@ -627,11 +614,8 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request) {
-      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
-      rejectOAuthAndPersonalTokenAuth(
-        req,
-        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
-      );
+      // 2FA management requires a session token to change credentials.
+      requireSessionToken(req, 'A session token is required to manage two-factor authentication.');
       checkRemoteUserCanUseAccount(req);
 
       const userTwoFactorMethod = await fetchUserTwoFactorMethodWithReference(args.userTwoFactorMethod, {
@@ -966,11 +950,8 @@ const accountMutations = {
     description:
       'Regenerate two factor authentication recovery codes. Session only (OAuth/Personal tokens are not allowed).',
     async resolve(_, args, req) {
-      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
-      rejectOAuthAndPersonalTokenAuth(
-        req,
-        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
-      );
+      // 2FA management requires a session token to change credentials.
+      requireSessionToken(req, 'A session token is required to manage two-factor authentication.');
       checkRemoteUserCanUseAccount(req);
 
       const hasTwoFactorEnabled = await TwoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser);

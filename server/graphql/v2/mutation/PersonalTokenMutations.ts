@@ -7,7 +7,7 @@ import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { TWO_FACTOR_SESSIONS_PARAMS } from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
 import PersonalTokenModel from '../../../models/PersonalToken';
-import { checkRemoteUserCanUseApplications, rejectOAuthAndPersonalTokenAuth } from '../../common/scope-check';
+import { checkRemoteUserCanUseApplications, requireSessionToken } from '../../common/scope-check';
 import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
 import { GraphQLPersonalTokenCreateInput } from '../input/PersonalTokenCreateInput';
 import {
@@ -25,7 +25,7 @@ const createPersonalToken = {
     },
   },
   async resolve(_: void, args, req: express.Request): Promise<PersonalTokenModel> {
-    rejectOAuthAndPersonalTokenAuth(req);
+    requireSessionToken(req);
     checkRemoteUserCanUseApplications(req);
 
     const collective = req.remoteUser.collective;
@@ -60,7 +60,7 @@ const updatePersonalToken = {
   },
   async resolve(_: void, args, req: express.Request): Promise<PersonalTokenModel> {
     checkRemoteUserCanUseApplications(req);
-    rejectOAuthAndPersonalTokenAuth(req);
+    requireSessionToken(req);
 
     const personalToken = await fetchPersonalTokenWithReference(args.personalToken, {
       include: [{ association: 'collective', required: true }],
@@ -95,7 +95,7 @@ const deletePersonalToken = {
   },
   async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
     checkRemoteUserCanUseApplications(req);
-    rejectOAuthAndPersonalTokenAuth(req);
+    requireSessionToken(req);
 
     const personalToken = await fetchPersonalTokenWithReference(args.personalToken, {
       include: [{ association: 'collective', required: true }],

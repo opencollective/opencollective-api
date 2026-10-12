@@ -59,6 +59,17 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
       expect(result.errors[0].message).to.equal('You need to be logged in to manage account.');
     });
 
+    it('rejects login tokens before setting a password or issuing a session', async () => {
+      const user = await fakeUser({ passwordHash: null });
+      const result = await graphqlQueryV2(setPasswordMutation, { password: 'newpassword' }, user, { scope: 'login' });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      expect(result.errors[0].message).to.equal('A session or reset-password token is required to set passwords.');
+      await user.reload();
+      expect(user.passwordHash).to.be.null;
+    });
+
     it('should set password directly if there is none yet', async () => {
       const user = await fakeUser({ passwordHash: null });
       const newPassword = 'newpassword';
@@ -289,7 +300,7 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
         userToken,
       );
       expect(resultOauth.errors).to.exist;
-      expect(resultOauth.errors[0].message).to.equal('OAuth and Personal Tokens are not allowed for this route');
+      expect(resultOauth.errors[0].message).to.equal('A session token is required to confirm email while signed in.');
 
       const personalToken = await fakePersonalToken({ UserId: user.id });
       const resultPersonalToken = await graphqlQueryV2(
@@ -303,9 +314,24 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
       );
       expect(resultPersonalToken.errors).to.exist;
       expect(resultPersonalToken.errors[0].message).to.equal(
-        'OAuth and Personal Tokens are not allowed for this route',
+        'A session token is required to confirm email while signed in.',
       );
     });
+
+    for (const scope of ['login', 'reset-password']) {
+      it(`cannot exchange a ${scope} token for a session by confirming email`, async () => {
+        const user = await fakeUser({ emailWaitingForValidation: randEmail(), emailConfirmationToken: randStr() });
+        const result = await graphqlQueryV2(confirmEmailMutation, { token: user.emailConfirmationToken }, user, {
+          scope,
+        });
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('Forbidden');
+        expect(result.errors[0].message).to.equal('A session token is required to confirm email while signed in.');
+        await user.reload();
+        expect(user.emailWaitingForValidation).to.exist;
+      });
+    }
 
     it('should confirm the new email', async () => {
       const newEmail = randEmail();
