@@ -673,9 +673,10 @@ export const nockFixerRates = ratesConfig => {
         return false;
       }
     })
-    .reply((req: { url: string }) => {
-      // nock 15 passes a fetch `Request` (absolute URL) to reply functions
-      const searchParams = new URL(req.url).searchParams;
+    .reply((uri: string | { url: string }) => {
+      // nock passes the request path (v14) or a fetch `Request` (absolute URL, v15) to reply functions
+      const requestUrl = typeof uri === 'string' ? uri : uri.url;
+      const searchParams = new URL(requestUrl, 'https://data.fixer.io').searchParams;
       const base = searchParams.get('base');
       const symbols = searchParams.get('symbols');
       return [
