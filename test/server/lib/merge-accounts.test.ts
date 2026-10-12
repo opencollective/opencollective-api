@@ -1,9 +1,10 @@
 import { expect } from 'chai';
 import { mergeWith } from 'lodash';
 
-import { roles } from '../../../server/constants';
+import { channels, roles } from '../../../server/constants';
 import { CollectiveType } from '../../../server/constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
+import { REACTION_EMOJI } from '../../../server/constants/reaction-emoji';
 import { getMovableItemsCounts, mergeAccounts, simulateMergeAccounts } from '../../../server/lib/merge-accounts';
 import models from '../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../server/models/LegalDocument';
@@ -368,6 +369,159 @@ describe('server/lib/merge-accounts', () => {
         where: { CollectiveId: commonCollective.id, MemberCollectiveId: collective2.id },
       });
       expect(members).to.have.length(2);
+    });
+
+    it('dedupes accounting categories and re-points expenses/orders to the surviving one', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      const sourceCategory = await Faker.fakeAccountingCategory({ CollectiveId: collective1.id, code: 'DUP-CODE' });
+      const targetCategory = await Faker.fakeAccountingCategory({ CollectiveId: collective2.id, code: 'DUP-CODE' });
+      const movedCategory = await Faker.fakeAccountingCategory({ CollectiveId: collective1.id, code: 'MOVED-CODE' });
+      const expense = await Faker.fakeExpense({
+        CollectiveId: collective1.id,
+        FromCollectiveId: collective2.id,
+        AccountingCategoryId: sourceCategory.id,
+        BalanceAccountingCategoryId: sourceCategory.id,
+      });
+      const order = await Faker.fakeOrder({
+        CollectiveId: collective1.id,
+        FromCollectiveId: collective2.id,
+        AccountingCategoryId: sourceCategory.id,
+        BalanceAccountingCategoryId: sourceCategory.id,
+      });
+
+      const warnings = await mergeAccounts(collective1, collective2);
+
+      // The target's category is kept, the source's duplicate is deleted
+      const categoriesWithCode = await models.AccountingCategory.findAll({
+        where: { CollectiveId: collective2.id, code: 'DUP-CODE' },
+      });
+      expect(categoriesWithCode).to.have.length(1);
+      expect(categoriesWithCode[0].id).to.eq(targetCategory.id);
+      expect(await models.AccountingCategory.count({ where: { id: sourceCategory.id } })).to.eq(0);
+
+      // Non-conflicting categories are moved
+      await movedCategory.reload();
+      expect(movedCategory.CollectiveId).to.eq(collective2.id);
+
+      // Expenses/orders are re-pointed to the surviving category
+      await expense.reload();
+      expect(expense.AccountingCategoryId).to.eq(targetCategory.id);
+      expect(expense.BalanceAccountingCategoryId).to.eq(targetCategory.id);
+      await order.reload();
+      expect(order.AccountingCategoryId).to.eq(targetCategory.id);
+      expect(order.BalanceAccountingCategoryId).to.eq(targetCategory.id);
+
+      // A warning is surfaced
+      expect(warnings.join('\n')).to.include('DUP-CODE');
+    });
+
+    it('dedupes notifications on merge (same webhook URL / same user and type)', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      const user = await Faker.fakeUser();
+      const otherUser = await Faker.fakeUser();
+      const webhookUrl = 'https://example.com/dedupe-webhook';
+
+      // Same webhook registered on both accounts
+      await Faker.fakeNotification({
+        CollectiveId: collective1.id,
+        UserId: null,
+        channel: channels.WEBHOOK,
+        type: 'webhook',
+        webhookUrl,
+      });
+      const targetWebhookNotification = await Faker.fakeNotification({
+        CollectiveId: collective2.id,
+        UserId: null,
+        channel: channels.WEBHOOK,
+        type: 'webhook',
+        webhookUrl,
+      });
+
+      // Same user unsubscribed from the same activity on both accounts
+      await Faker.fakeNotification({
+        CollectiveId: collective1.id,
+        UserId: user.id,
+        channel: channels.EMAIL,
+        type: 'mailinglist.backers',
+        webhookUrl: null,
+      });
+      await Faker.fakeNotification({
+        CollectiveId: collective2.id,
+        UserId: user.id,
+        channel: channels.EMAIL,
+        type: 'mailinglist.backers',
+        webhookUrl: null,
+      });
+
+      // A different user's unsubscribe for the same type must NOT be deduped
+      const otherUserNotification = await Faker.fakeNotification({
+        CollectiveId: collective1.id,
+        UserId: otherUser.id,
+        channel: channels.EMAIL,
+        type: 'mailinglist.backers',
+        webhookUrl: null,
+      });
+
+      const warnings = await mergeAccounts(collective1, collective2);
+
+      // The target's rows are kept: exactly one webhook and one (type, UserId) row remains
+      const webhookNotifications = await models.Notification.findAll({
+        where: { CollectiveId: collective2.id, webhookUrl },
+      });
+      expect(webhookNotifications).to.have.length(1);
+      expect(webhookNotifications[0].id).to.eq(targetWebhookNotification.id);
+      expect(
+        await models.Notification.count({
+          where: { CollectiveId: collective2.id, UserId: user.id, type: 'mailinglist.backers' },
+        }),
+      ).to.eq(1);
+
+      // Non-conflicting rows are moved
+      await otherUserNotification.reload();
+      expect(otherUserNotification.CollectiveId).to.eq(collective2.id);
+
+      // A warning is surfaced
+      expect(warnings.join('\n')).to.include('notification');
+    });
+
+    it('dedupes emoji reactions on merge', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      const comment = await Faker.fakeComment();
+      await Faker.fakeEmojiReaction(
+        { CommentId: comment.id, FromCollectiveId: collective1.id, emoji: REACTION_EMOJI[0] },
+        { isComment: true },
+      );
+      const targetReaction = await Faker.fakeEmojiReaction(
+        { CommentId: comment.id, FromCollectiveId: collective2.id, emoji: REACTION_EMOJI[0] },
+        { isComment: true },
+      );
+      const movedReaction = await Faker.fakeEmojiReaction(
+        { CommentId: comment.id, FromCollectiveId: collective1.id, emoji: REACTION_EMOJI[1] },
+        { isComment: true },
+      );
+
+      const warnings = await mergeAccounts(collective1, collective2);
+
+      const reactions = await models.EmojiReaction.findAll({
+        where: { CommentId: comment.id, FromCollectiveId: collective2.id },
+      });
+      expect(reactions).to.have.length(2);
+      expect(reactions.map(r => r.id)).to.include(targetReaction.id); // The target's reaction is kept
+
+      // The source's duplicate is deleted, its other reactions are moved
+      expect(
+        await models.EmojiReaction.count({
+          where: { CommentId: comment.id, emoji: REACTION_EMOJI[0], FromCollectiveId: collective2.id },
+        }),
+      ).to.eq(1);
+      await movedReaction.reload();
+      expect(movedReaction.FromCollectiveId).to.eq(collective2.id);
+
+      // A warning is surfaced
+      expect(warnings.join('\n')).to.include('emoji');
     });
   });
 
