@@ -34,6 +34,7 @@ import { PAYPAL_SUSPEND_MAX_REASON_LENGTH } from '../../../paymentProviders/payp
 import { sendMessage } from '../../common/collective';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost, requireSessionToken } from '../../common/scope-check';
 import { BadRequest, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { archiveCollective, unarchiveCollective } from '../../v1/mutations/collectives';
 import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLAccountUpdateInput } from '../input/AccountUpdateInput';
@@ -882,6 +883,37 @@ const accountMutations = {
       });
 
       return account;
+    },
+  },
+  archiveAccount: {
+    type: new GraphQLNonNull(GraphQLAccount),
+    description:
+      'Archive an account and its children: unhosts it, cancels its active contributions and its unprocessed expenses. Scope: "account".',
+    args: {
+      account: {
+        description: 'Reference to the Account to be archived.',
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+      },
+    },
+    async resolve(_, args, req: express.Request): Promise<Collective> {
+      checkRemoteUserCanUseAccount(req);
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+      return archiveCollective(_, { id: account.id }, req);
+    },
+  },
+  unarchiveAccount: {
+    type: new GraphQLNonNull(GraphQLAccount),
+    description: 'Unarchive an account. Scope: "account".',
+    args: {
+      account: {
+        description: 'Reference to the Account to be unarchived.',
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+      },
+    },
+    async resolve(_, args, req: express.Request): Promise<Collective> {
+      checkRemoteUserCanUseAccount(req);
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+      return unarchiveCollective(_, { id: account.id }, req);
     },
   },
   deleteAccount: {
