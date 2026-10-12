@@ -81,6 +81,43 @@ describe('server/lib/utils', () => {
       ]);
     });
 
+    it('aligns weekly buckets to the ISO (Monday) week start like DATE_TRUNC', () => {
+      // Regression: moment().startOf('WEEK') lands on Sunday (locale week start) while
+      // Postgres DATE_TRUNC('week') truncates to Monday, so weekly nodes failed to
+      // align with "Time series data not aligned".
+      const result = fillTimeSeriesWithNodes({
+        nodes: [
+          { date: '2025-06-02T00:00:00.000Z', value: 10 }, // Mondays, as DATE_TRUNC('week') returns them
+          { date: '2025-06-09T00:00:00.000Z', value: 20 },
+        ],
+        initialData: { value: 0 },
+        startDate: '2025-06-04T08:00:00.000Z', // mid-week: must align back to Monday 2025-06-02
+        endDate: '2025-06-23T00:00:00.000Z',
+        timeUnit: 'WEEK',
+      });
+
+      expect(result).to.deep.equal([
+        { date: '2025-06-02T00:00:00.000Z', value: 10 },
+        { date: '2025-06-09T00:00:00.000Z', value: 20 },
+        { date: '2025-06-16T00:00:00.000Z', value: 0 },
+      ]);
+    });
+
+    it('rounds the startDate in UTC so buckets match UTC-truncated nodes in any process timezone', () => {
+      // Regression: moment(startDate).startOf(unit).utc() rounds in the process' local
+      // timezone; on non-UTC hosts the generated keys drift off the UTC node dates and
+      // the merge throws. Run this suite with a non-UTC TZ to make it bite.
+      const result = fillTimeSeriesWithNodes({
+        nodes: [{ date: '2025-06-01T00:00:00.000Z', value: 10 }],
+        initialData: { value: 0 },
+        startDate: '2025-06-15T13:45:56.000Z',
+        endDate: '2025-08-01T00:00:00.000Z',
+        timeUnit: 'month',
+      });
+
+      expect(result.map(bucket => bucket.date)).to.deep.equal(['2025-06-01T00:00:00.000Z', '2025-07-01T00:00:00.000Z']);
+    });
+
     it('overwrites initialData with node values, including falsy ones', () => {
       const result = fillTimeSeriesWithNodes({
         nodes: [{ date: '2025-06-01T00:00:00.000Z', value: 0, count: 0, label: null }],

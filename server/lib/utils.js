@@ -396,7 +396,11 @@ export function fillTimeSeriesWithNodes({ nodes, initialData, startDate = undefi
 
   const sortedNodes = nodes.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  const dateFrom = startDate ? moment(startDate).startOf(timeUnit).utc() : moment(sortedNodes[0].date).utc();
+  // Buckets must match the UTC-truncated node dates (e.g. DATE_TRUNC output): round in
+  // UTC, and use the ISO (Monday) week start to match Postgres DATE_TRUNC('week').
+  const dateFrom = startDate
+    ? moment.utc(startDate).startOf(String(timeUnit).toUpperCase() === 'WEEK' ? 'isoWeek' : timeUnit)
+    : moment(sortedNodes[0].date).utc();
   let dateTo = endDate ? moment(endDate).utc() : moment().utc();
   if (endDate) {
     const now = moment().utc();
