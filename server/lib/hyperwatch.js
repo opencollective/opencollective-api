@@ -7,6 +7,30 @@ import { get, pick } from 'lodash';
 
 import { md5, parseToBoolean } from './utils';
 
+// Request headers that carry credentials: never sent to Hyperwatch (Open Collective Watch
+// keeps the logs in its history and persistence)
+const CREDENTIAL_HEADERS = ['authorization', 'cookie', 'personal-token', 'api-key', 'service-key'];
+
+// Query parameters that carry credentials (the service key as `api_key` / `apiKey`, a personal
+// token as `personalToken`): their values are replaced, the rest of the URL is kept as is
+const CREDENTIAL_QUERY_PARAMS = /([?&](?:api_key|apiKey|personalToken)=)[^&#]*/g;
+
+/**
+ * Redacts credentials from a log before it's sent to Hyperwatch: the credential headers, their
+ * values in the URL's query string, and the service key a client may send in the GraphQL body
+ * (`api_key`), which is otherwise logged with the query under `graphql`.
+ */
+export const redactCredentials = log => {
+  for (const header of CREDENTIAL_HEADERS) {
+    log = log.deleteIn(['request', 'headers', header]);
+  }
+  const url = log.getIn(['request', 'url']);
+  if (typeof url === 'string') {
+    log = log.setIn(['request', 'url'], url.replace(CREDENTIAL_QUERY_PARAMS, '$1[Filtered]'));
+  }
+  return log.deleteIn(['graphql', 'api_key']);
+};
+
 const computeMask = req => {
   const maskHeaders = pick(req.headers, [
     'accept',
@@ -90,15 +114,14 @@ const load = (app, server) => {
         const executionTime = req.endAt - req.startAt;
         let log = hyperwatch.util.createLog(req, res).set('executionTime', executionTime);
 
-        log = log.deleteIn(['request', 'headers', 'authorization']);
-        log = log.deleteIn(['request', 'headers', 'cookie']);
-
         if (req.body && req.body.query) {
           log = log.set('graphql', req.body);
           if (res.servedFromGraphqlCache) {
             log = log.setIn(['graphql', 'servedFromCache'], true);
           }
         }
+
+        log = redactCredentials(log);
 
         if (req.personalToken) {
           log = log.setIn(['opencollective', 'personalToken', 'id'], req.personalToken.id);
