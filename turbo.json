@@ -371,43 +371,6 @@
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "dev:local": {
-      "cache": false,
-      "passThroughEnv": ["*"],
-      "persistent": true,
-      "dependsOn": ["//#taxes:link:packages"]
-    },
-    "build:compile:local": {
-      "cache": false,
-      "passThroughEnv": ["*"],
-      "dependsOn": ["//#taxes:link:packages", "build:clean"]
-    },
-    "build:server:local": {
-      "cache": false,
-      "passThroughEnv": ["*"],
-      "dependsOn": ["//#taxes:link:packages"]
-    },
-    "type:check:local": {
-      "cache": false,
-      "passThroughEnv": ["*"],
-      "dependsOn": ["//#taxes:link:packages"]
-    },
-    "test:local": {
-      "cache": false,
-      "passThroughEnv": ["*"],
-      "dependsOn": ["//#taxes:link:packages"]
-    },
-    "build:local": {
-      "cache": false,
-      "passThroughEnv": ["*"],
-      "dependsOn": ["build:compile:local"]
-    },
-    "dev:environment:local": {
-      "cache": false,
-      "persistent": true,
-      "passThroughEnv": ["*"],
-      "dependsOn": ["//#taxes:link:packages"]
-    },
     "db:migrate:e2e": {
       "cache": false,
       "passThroughEnv": ["*"],
@@ -418,12 +381,6 @@
       "persistent": true,
       "passThroughEnv": ["*"],
       "dependsOn": ["db:migrate:e2e", "build:finalize"]
-    },
-    "test:watch:local": {
-      "cache": false,
-      "persistent": true,
-      "passThroughEnv": ["*"],
-      "dependsOn": ["//#taxes:link:packages"]
     }
   }
 }

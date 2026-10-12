@@ -251,19 +251,11 @@
     "build:compile": "npm run build:server",
     "build:finalize": "npm run build:updates",
     "graphql:refresh": "node -e \"\"",
-    "dev:local": "npm run dev",
-    "build:compile:local": "npm run build:compile",
-    "build:server:local": "npm run build:server",
-    "type:check:local": "npm run type:check",
-    "test:local": "npm run test",
-    "build:local": "npm run build:updates",
     "dev:environment": "EXTRA_ENV=\"$OC_DEV_ENV_API\" npm run dev",
-    "dev:environment:local": "npm run dev:environment",
     "schema:check": "./scripts/check-schemas.sh",
     "turbo": "turbo --single-package --root-turbo-json=turbo.standalone.json",
     "db:migrate:e2e": "npm run db:migrate",
-    "start:e2e:ready": "npm run start:e2e:server",
-    "test:watch:local": "npm run test:watch"
+    "start:e2e:ready": "npm run start:e2e:server"
   },
   "engines": {
     "node": "24.x",
