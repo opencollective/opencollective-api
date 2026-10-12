@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { mergeWith } from 'lodash';
 
+import { roles } from '../../../server/constants';
 import { CollectiveType } from '../../../server/constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import { getMovableItemsCounts, mergeAccounts, simulateMergeAccounts } from '../../../server/lib/merge-accounts';
@@ -300,6 +301,74 @@ describe('server/lib/merge-accounts', () => {
 
       expect(await models.SocialLink.findOne({ where: { CollectiveId: collective1.id } })).to.be.null;
     });
+
+    it('drops the source membership when both accounts are members of the same collective', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      const commonCollective = await Faker.fakeCollective();
+      await Faker.fakeMember({
+        CollectiveId: commonCollective.id,
+        MemberCollectiveId: collective1.id,
+        role: roles.BACKER,
+      });
+      await Faker.fakeMember({
+        CollectiveId: commonCollective.id,
+        MemberCollectiveId: collective2.id,
+        role: roles.BACKER,
+      });
+
+      await mergeAccounts(collective1, collective2);
+
+      const members = await models.Member.findAll({ where: { CollectiveId: commonCollective.id, role: roles.BACKER } });
+      expect(members).to.have.length(1);
+      expect(members[0].MemberCollectiveId).to.eq(collective2.id); // The target's row is the one kept
+    });
+
+    it('drops the source membership when both accounts have the same member', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      const memberCollective = await Faker.fakeCollective();
+      await Faker.fakeMember({
+        CollectiveId: collective1.id,
+        MemberCollectiveId: memberCollective.id,
+        role: roles.BACKER,
+      });
+      await Faker.fakeMember({
+        CollectiveId: collective2.id,
+        MemberCollectiveId: memberCollective.id,
+        role: roles.BACKER,
+      });
+
+      await mergeAccounts(collective1, collective2);
+
+      const members = await models.Member.findAll({
+        where: { CollectiveId: collective2.id, MemberCollectiveId: memberCollective.id, role: roles.BACKER },
+      });
+      expect(members).to.have.length(1);
+    });
+
+    it('does not dedupe members that differ by role', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      const commonCollective = await Faker.fakeCollective();
+      await Faker.fakeMember({
+        CollectiveId: commonCollective.id,
+        MemberCollectiveId: collective1.id,
+        role: roles.BACKER,
+      });
+      await Faker.fakeMember({
+        CollectiveId: commonCollective.id,
+        MemberCollectiveId: collective2.id,
+        role: roles.ADMIN,
+      });
+
+      await mergeAccounts(collective1, collective2);
+
+      const members = await models.Member.findAll({
+        where: { CollectiveId: commonCollective.id, MemberCollectiveId: collective2.id },
+      });
+      expect(members).to.have.length(2);
+    });
   });
 
   describe('Cross-type merges (PROJECT -> COLLECTIVE)', () => {
@@ -438,6 +507,26 @@ describe('server/lib/merge-accounts', () => {
         // Regression: the parent keeps its own parent/host (a project is never re-parented to itself)
         expect(parentCollective.ParentCollectiveId).to.be.null;
         expect(parentCollective.HostCollectiveId).to.eq(host.id);
+      });
+
+      it('does not duplicate the shared HOST member row on the target', async () => {
+        const dedupeTarget = await Faker.fakeCollective({ HostCollectiveId: host.id });
+        const dedupeProject = await Faker.fakeCollective({
+          type: CollectiveType.PROJECT,
+          ParentCollectiveId: parentCollective.id,
+          HostCollectiveId: host.id,
+        });
+        const targetHostRow = await models.Member.findOne({
+          where: { CollectiveId: dedupeTarget.id, MemberCollectiveId: host.id, role: roles.HOST },
+        });
+
+        await mergeAccounts(dedupeProject, dedupeTarget);
+
+        const hostRows = await models.Member.findAll({
+          where: { CollectiveId: dedupeTarget.id, MemberCollectiveId: host.id, role: roles.HOST },
+        });
+        expect(hostRows).to.have.length(1);
+        expect(hostRows[0].id).to.eq(targetHostRow.id); // The target's row is the one kept
       });
     });
   });

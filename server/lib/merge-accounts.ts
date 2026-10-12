@@ -118,7 +118,9 @@ const getLegalDocumentsToIgnore = async (from, into, transaction): Promise<numbe
 };
 
 /**
- * When moving members, if an entry already exists for this CollectiveId/MemberCollectiveId/role/TierId, do not carry it over
+ * When moving members (`MemberCollectiveId`: from -> into), if the target is already a member of the same
+ * collective with the same role/TierId, do not carry the source's entry over: group by `(CollectiveId, role, TierId)`
+ * and keep only the groups where both accounts are present. Returns the source-side member ids to drop.
  */
 const getMemberIdsToIgnore = async (
   from: Collective,
@@ -126,9 +128,11 @@ const getMemberIdsToIgnore = async (
   transaction: SQLTransaction,
 ): Promise<number[]> => {
   const results = await models.Member.findAll({
-    attributes: [[sequelize.fn('ARRAY_AGG', sequelize.fn('DISTINCT', sequelize.col('id'))), 'ids']],
+    attributes: [
+      [sequelize.literal(`ARRAY_AGG(DISTINCT "id") FILTER (WHERE "MemberCollectiveId" = ${Number(from.id)})`), 'ids'],
+    ],
     where: { MemberCollectiveId: [from.id, into.id] },
-    group: ['CollectiveId', 'MemberCollectiveId', 'role', 'TierId'],
+    group: ['CollectiveId', 'role', 'TierId'],
     transaction,
     raw: true,
     having: sequelize.where(sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('MemberCollectiveId'))), {
@@ -136,11 +140,13 @@ const getMemberIdsToIgnore = async (
     }),
   });
 
-  return flatten((results as unknown as { ids: number[] }[]).map(({ ids }) => ids));
+  return flatten((results as unknown as { ids: number[] }[]).map(({ ids }) => ids)).filter(id => id !== null);
 };
 
 /**
- * When moving memberships, if an entry already exists for this CollectiveId/MemberCollectiveId/role/TierId, do not carry it over
+ * When moving memberships (`CollectiveId`: from -> into), if the target already has the same member with the
+ * same role/TierId, do not carry the source's entry over: group by `(MemberCollectiveId, role, TierId)` and keep
+ * only the groups where both accounts are present. Returns the source-side membership ids to drop.
  */
 const getMembershipIdsToIgnore = async (
   from: Collective,
@@ -148,9 +154,11 @@ const getMembershipIdsToIgnore = async (
   transaction: SQLTransaction,
 ): Promise<number[]> => {
   const results = await models.Member.findAll({
-    attributes: [[sequelize.fn('ARRAY_AGG', sequelize.fn('DISTINCT', sequelize.col('id'))), 'ids']],
+    attributes: [
+      [sequelize.literal(`ARRAY_AGG(DISTINCT "id") FILTER (WHERE "CollectiveId" = ${Number(from.id)})`), 'ids'],
+    ],
     where: { CollectiveId: [from.id, into.id] },
-    group: ['CollectiveId', 'MemberCollectiveId', 'role', 'TierId'],
+    group: ['MemberCollectiveId', 'role', 'TierId'],
     transaction,
     raw: true,
     having: sequelize.where(sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('CollectiveId'))), {
@@ -158,7 +166,7 @@ const getMembershipIdsToIgnore = async (
     }),
   });
 
-  return flatten((results as unknown as { ids: number[] }[]).map(({ ids }) => ids));
+  return flatten((results as unknown as { ids: number[] }[]).map(({ ids }) => ids)).filter(id => id !== null);
 };
 
 // Defines the collective field names used in the DB. Useful to prevent typos in the config below
