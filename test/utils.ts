@@ -2,7 +2,6 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import querystring from 'querystring';
 import { Readable } from 'stream';
 
 import { expect } from 'chai';
@@ -674,8 +673,11 @@ export const nockFixerRates = ratesConfig => {
         return false;
       }
     })
-    .reply(url => {
-      const { base, symbols } = querystring.parse(url) as { base: string; symbols: string };
+    .reply((req: { url: string }) => {
+      // nock 15 passes a fetch `Request` (absolute URL) to reply functions
+      const searchParams = new URL(req.url).searchParams;
+      const base = searchParams.get('base');
+      const symbols = searchParams.get('symbols');
       return [
         200,
         {
