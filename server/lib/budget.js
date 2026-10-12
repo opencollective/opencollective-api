@@ -372,7 +372,7 @@ export async function getContributionsAndContributorsCount(
 
 export async function getTotalAmountReceivedTimeSeries(
   collective,
-  { loaders, net, startDate, endDate, timeUnit, currency, version, includeChildren } = {},
+  { loaders, net, kind, startDate, endDate, timeUnit, currency, version, includeChildren } = {},
 ) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
@@ -381,6 +381,7 @@ export async function getTotalAmountReceivedTimeSeries(
 
   const transactionArgs = {
     net,
+    kind,
     startDate,
     endDate,
     includeChildren,
@@ -422,7 +423,7 @@ export async function getTotalAmountReceivedTimeSeries(
 
 export async function getTotalAmountSpentTimeSeries(
   collective,
-  { loaders, net, startDate, endDate, timeUnit, currency, version, includeChildren, absoluteAmounts = true } = {},
+  { loaders, net, kind, startDate, endDate, timeUnit, currency, version, includeChildren, absoluteAmounts = true } = {},
 ) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
@@ -431,6 +432,7 @@ export async function getTotalAmountSpentTimeSeries(
 
   const transactionArgs = {
     net,
+    kind,
     startDate,
     endDate,
     includeChildren,

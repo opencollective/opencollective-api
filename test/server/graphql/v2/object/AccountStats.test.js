@@ -254,7 +254,7 @@ describe('server/graphql/v2/object/AccountStats', () => {
       await fakeTransaction(
         {
           type: 'DEBIT',
-          kind: TransactionKind.PREPAID_EXPENSE,
+          kind: TransactionKind.PREPAID_PAYMENT_METHOD,
           CollectiveId: spendCollective.id,
           amount: -25e2,
           createdAt: new Date('2025-06-20'),

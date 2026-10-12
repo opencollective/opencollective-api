@@ -749,7 +749,7 @@ describe('server/lib/budget', () => {
       await fakeTransaction(
         {
           type: 'DEBIT',
-          kind: TransactionKind.PREPAID_EXPENSE,
+          kind: TransactionKind.PREPAID_PAYMENT_METHOD,
           CollectiveId: collective.id,
           amount: -25e2,
           createdAt: new Date('2025-06-20'),
