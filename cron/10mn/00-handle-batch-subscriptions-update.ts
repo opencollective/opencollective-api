@@ -155,7 +155,13 @@ export async function run() {
             logger.debug('Creating the activity and sending email');
             const activityType =
               reason.code === 'PAUSED' ? activities.SUBSCRIPTION_PAUSED : activities.SUBSCRIPTION_CANCELED;
-            await createActivity(order, reason, activityType, { isOCFShutdown: order.data.isOCFShutdown });
+            await createActivity(order, reason, activityType, {
+              isOCFShutdown: order.data.isOCFShutdown,
+              // `createStatusChangeActivity: false` means "keep it invisible" (bulk cancellations applied
+              // retroactively, freezes): the activity is still recorded for the timeline, but `data.notify: false`
+              // suppresses every dispatch - see `Activity.create`'s `data.notify !== false` guard.
+              ...(order.data.createStatusChangeActivity === false && { notify: false }),
+            });
           }
         } else if (order.data.needsAsyncReactivation) {
           logger.debug(
