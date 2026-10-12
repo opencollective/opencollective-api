@@ -7,6 +7,7 @@ import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
+import OrderStatuses from '../../../constants/order-status';
 import roles from '../../../constants/roles';
 import { assertSettingsChangeAllowed } from '../../../lib/account-settings';
 import { purgeCacheForCollective } from '../../../lib/cache';
@@ -593,9 +594,14 @@ export async function archiveCollective(_, args, req) {
     },
   });
 
-  // Cancel all subscriptions which the collective is contributing
+  // Cancel all recurring contributions the account (and its children) is making. The subscriptions are
+  // deactivated asynchronously by `cron/10mn/00-handle-batch-subscriptions-update.ts`, which also calls the
+  // payment provider for externally managed subscriptions (e.g. PayPal).
   const allAccountIds = [collective.id, ...children.map(c => c.id)];
-  await models.Order.cancelActiveOrdersByCollective(allAccountIds);
+  await models.Order.stopActiveSubscriptionsFromAccounts(allAccountIds, OrderStatuses.CANCELLED, {
+    messageSource: 'PLATFORM',
+    messageForContributors: 'We are archiving this Collective.',
+  });
 
   // Cancel all unprocessed expenses
   await cancelUnprocessedExpenses(allAccountIds, req.remoteUser);

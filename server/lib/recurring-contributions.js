@@ -1,14 +1,14 @@
 import config from 'config';
 import { get, omit } from 'lodash';
 import moment from 'moment';
-import { Op } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
 
 import activities from '../constants/activities';
 import intervals from '../constants/intervals';
 import status from '../constants/order-status';
 import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import roles from '../constants/roles';
-import models from '../models';
+import models, { sequelize } from '../models';
 
 import { notify } from './notifications/email';
 import {
@@ -39,7 +39,11 @@ export const MAX_RETRIES = 6;
 export async function ordersWithPendingCharges({ limit, startDate, limitedToOrderIds = undefined } = {}) {
   return models.Order.findAndCountAll({
     where: {
-      status: { [Op.notIn]: [status.PAUSED, status.PROCESSING] },
+      // CANCELLED orders must never be charged again: a bulk cancellation (tier deletion, account archive)
+      // flips the order to CANCELLED and deactivates the subscription asynchronously, and a successful charge
+      // would otherwise flip the order back to ACTIVE. See `findCancelledOrdersWithActiveSubscriptions` for
+      // the detection of that inconsistent state.
+      status: { [Op.notIn]: [status.PAUSED, status.PROCESSING, status.CANCELLED] },
       SubscriptionId: { [Op.ne]: null },
       deletedAt: null,
       ...(limitedToOrderIds && { id: { [Op.in]: limitedToOrderIds } }),
@@ -76,6 +80,52 @@ export async function ordersWithPendingCharges({ limit, startDate, limitedToOrde
       },
     ],
   });
+}
+
+/**
+ * Detects orders marked `CANCELLED` that still have an active subscription **and** are not pending deactivation.
+ * This state should never happen: every cancellation path flags the order for asynchronous deactivation (see
+ * `Order.stopActiveSubscriptions`) and `ordersWithPendingCharges` refuses to charge a CANCELLED order. When rows do
+ * show up here, a cancellation path forgot to flag the order and the contribution is still live on the payment
+ * provider side.
+ *
+ * Orders flagged for deactivation/pause are excluded on purpose: they are a normal transient state while
+ * `cron/10mn/00-handle-batch-subscriptions-update` drains them.
+ *
+ * Used as a tripwire by `cron/hourly/00-charge-recurring-contributions.js`: it never blocks charging, it only
+ * makes the inconsistency visible.
+ */
+export async function findCancelledOrdersWithActiveSubscriptions({ limit = 100 } = {}) {
+  const where = `
+    "Orders"."status" = 'CANCELLED'
+    AND "Orders"."deletedAt" IS NULL
+    AND "Subscriptions"."deletedAt" IS NULL
+    AND "Subscriptions"."isActive" IS TRUE
+    AND COALESCE(("Orders"."data" ->> 'needsAsyncDeactivation')::BOOLEAN, FALSE) IS NOT TRUE
+    AND COALESCE(("Orders"."data" ->> 'needsAsyncPause')::BOOLEAN, FALSE) IS NOT TRUE
+    AND COALESCE(("Orders"."data" ->> 'needsAsyncReactivation')::BOOLEAN, FALSE) IS NOT TRUE
+  `;
+
+  const [countRows, rows] = await Promise.all([
+    sequelize.query(
+      `SELECT COUNT(*)::int AS count
+       FROM "Orders"
+       INNER JOIN "Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
+       WHERE ${where}`,
+      { type: QueryTypes.SELECT },
+    ),
+    sequelize.query(
+      `SELECT "Orders".id
+       FROM "Orders"
+       INNER JOIN "Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
+       WHERE ${where}
+       ORDER BY "Orders"."updatedAt" DESC
+       LIMIT :limit`,
+      { type: QueryTypes.SELECT, replacements: { limit } },
+    ),
+  ]);
+
+  return { count: countRows[0].count, orderIds: rows.map(row => row.id) };
 }
 
 /** Process order and trigger result handlers.
