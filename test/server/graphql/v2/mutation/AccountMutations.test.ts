@@ -2121,6 +2121,52 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors[0].message).to.equal("Can't convert an hosted Collective.");
     });
 
+    it('must not be archived', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({
+        admin: user,
+        HostCollectiveId: null,
+        deactivatedAt: new Date(),
+        isActive: false,
+      });
+
+      const result = await graphqlQueryV2(
+        convertAccountToOrganizationMutation,
+        {
+          account: { legacyId: collective.id },
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal("Can't convert an archived account. Please unarchive it first.");
+
+      // Verify the account was left untouched
+      await collective.reload();
+      expect(collective.type).to.equal(CollectiveType.COLLECTIVE);
+    });
+
+    it('converts a COLLECTIVE that is not active', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user, HostCollectiveId: null, isActive: false });
+
+      expect(collective.deactivatedAt).to.not.exist;
+
+      const result = await graphqlQueryV2(
+        convertAccountToOrganizationMutation,
+        {
+          account: { legacyId: collective.id },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.convertAccountToOrganization.type).to.equal('ORGANIZATION');
+
+      await collective.reload();
+      expect(collective.type).to.equal(CollectiveType.ORGANIZATION);
+    });
+
     it('converts a COLLECTIVE to ORGANIZATION', async () => {
       const user = await fakeUser();
       const collective = await fakeCollective({ admin: user, HostCollectiveId: null });

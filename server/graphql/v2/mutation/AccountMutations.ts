@@ -1031,6 +1031,11 @@ const accountMutations = {
         throw new Forbidden();
       }
 
+      // Disallow if archived
+      if (account.deactivatedAt) {
+        throw new ValidationFailed("Can't convert an archived account. Please unarchive it first.");
+      }
+
       // Disallow if not Collective or Fund
       if (![COLLECTIVE, FUND].includes(account.type)) {
         throw new Error('Mutation only available to COLLECTIVEs and FUNDs.');
