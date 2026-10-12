@@ -1,10 +1,6 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "tasks": {
-    "build": {
-      "cache": false,
-      "passThroughEnv": ["*"]
-    },
     "build:clean": {
       "cache": false,
       "passThroughEnv": ["*"]
@@ -73,18 +69,14 @@
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "depcheck": {
+    "depcheck:task": {
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "dev": {
+    "dev:task": {
       "cache": false,
       "passThroughEnv": ["*"],
       "persistent": true
-    },
-    "graphql:update": {
-      "cache": false,
-      "passThroughEnv": ["*"]
     },
     "graphql:updateV1": {
       "cache": false,
@@ -94,7 +86,7 @@
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "lint": {
+    "lint:task": {
       "inputs": [
         "$TURBO_DEFAULT$",
         "package-lock.json",
@@ -116,7 +108,7 @@
       "outputs": [],
       "cache": true
     },
-    "lint:check": {
+    "lint:check:task": {
       "inputs": [
         "$TURBO_DEFAULT$",
         "package-lock.json",
@@ -138,11 +130,11 @@
       "outputs": [],
       "cache": true
     },
-    "lint:check:simplified": {
+    "lint:check:simplified:task": {
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "lint:fix": {
+    "lint:fix:task": {
       "cache": false,
       "passThroughEnv": ["*"]
     },
@@ -151,7 +143,7 @@
       "passThroughEnv": ["*"],
       "persistent": true
     },
-    "prettier:check": {
+    "prettier:check:task": {
       "inputs": [
         "$TURBO_DEFAULT$",
         "package-lock.json",
@@ -179,34 +171,29 @@
       "persistent": true,
       "dependsOn": ["build:finalize"]
     },
-    "start:e2e": {
-      "cache": false,
-      "passThroughEnv": ["*"],
-      "persistent": true
-    },
     "start:e2e:server": {
       "cache": false,
       "passThroughEnv": ["*"],
       "persistent": true
     },
-    "test:watch": {
+    "test:watch:task": {
       "cache": false,
       "passThroughEnv": ["*"],
       "persistent": true
     },
-    "test": {
+    "test:task": {
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "test:ci": {
+    "test:ci:task": {
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "test:coverage": {
+    "test:coverage:task": {
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "test:update": {
+    "test:update:task": {
       "cache": false,
       "passThroughEnv": ["*"]
     },
@@ -226,35 +213,35 @@
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "test:graphql": {
+    "test:graphql:task": {
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "test:lib": {
+    "test:lib:task": {
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "test:models": {
+    "test:models:task": {
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "test:payment-providers": {
+    "test:payment-providers:task": {
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "test:routes": {
+    "test:routes:task": {
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "test:scripts": {
+    "test:scripts:task": {
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "test:sql": {
+    "test:sql:task": {
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "ts-unused-exports": {
+    "ts-unused-exports:task": {
       "inputs": [
         "$TURBO_DEFAULT$",
         "package-lock.json",
@@ -276,7 +263,7 @@
       "outputs": [],
       "cache": true
     },
-    "type:check": {
+    "type:check:task": {
       "inputs": [
         "$TURBO_DEFAULT$",
         "package-lock.json",
@@ -302,7 +289,7 @@
       "cache": false,
       "passThroughEnv": ["*"]
     },
-    "format:check": {
+    "format:check:task": {
       "inputs": [
         "$TURBO_DEFAULT$",
         "package-lock.json",
@@ -324,7 +311,7 @@
       "outputs": [],
       "cache": true
     },
-    "format": {
+    "format:task": {
       "cache": false,
       "passThroughEnv": ["*"]
     },
@@ -380,6 +367,14 @@
       "persistent": true,
       "passThroughEnv": ["*"],
       "dependsOn": ["db:migrate:e2e", "build:finalize"]
+    },
+    "prettier:write:task": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "prettier:task": {
+      "cache": false,
+      "passThroughEnv": ["*"]
     }
   },
   "agentGuidance": false,

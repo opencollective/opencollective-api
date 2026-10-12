@@ -4,7 +4,7 @@
 # Ensure we are on root folder
 cd -- "$(dirname $0)/.."
 
-npm run dev &
+npm run dev:task &
 API_PID=$!
 
 # Wait for a service to be up
@@ -24,7 +24,7 @@ function wait_for_service() {
 wait_for_service API 127.0.0.1 3060
 
 # Build schema files
-npm run graphql:update || exit 1
+npm run graphql:updateV1 && npm run graphql:updateV2 || exit 1
 
 # Check if files changed
 CHANGED=$(git status --porcelain -- server/graphql/schemaV1.graphql server/graphql/schemaV2.graphql)

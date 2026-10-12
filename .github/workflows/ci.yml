@@ -53,7 +53,7 @@ jobs:
         with:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
-      - run: npm run turbo -- run lint:check
+      - run: npm run lint:check
 
   prettier:
     runs-on: ubuntu-26.04
@@ -68,7 +68,7 @@ jobs:
         with:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
-      - run: npm run turbo -- run prettier:check
+      - run: npm run prettier:check
 
   typescript:
     runs-on: ubuntu-26.04
@@ -83,7 +83,7 @@ jobs:
         with:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
-      - run: npm run turbo -- run type:check
+      - run: npm run type:check
 
   depcheck:
     runs-on: ubuntu-26.04
@@ -98,7 +98,7 @@ jobs:
         with:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
-      - run: npm run turbo -- run depcheck
+      - run: npm run depcheck
 
   ts-unused-exports:
     runs-on: ubuntu-26.04
@@ -114,7 +114,7 @@ jobs:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
       - name: Check unused exports
-        run: npm run turbo -- run ts-unused-exports
+        run: npm run ts-unused-exports
 
   build:
     runs-on: ubuntu-26.04
@@ -177,11 +177,11 @@ jobs:
 
       - name: Test
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'
-        run: npm run turbo -- run test:ci -- --ignore "test/server/graphql/**"
+        run: npm run test:ci -- --ignore "test/server/graphql/**"
 
       - name: Test with coverage
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: npm run turbo -- run test:coverage -- --ignore "test/server/graphql/**"
+        run: npm run test:coverage -- --ignore "test/server/graphql/**"
 
       - name: Report coverage
         if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
@@ -258,11 +258,11 @@ jobs:
 
       - name: Test
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'
-        run: npm run turbo -- run test:ci -- test/server/graphql
+        run: npm run test:ci -- test/server/graphql
 
       - name: Test with coverage
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: npm run turbo -- run test:coverage -- test/server/graphql
+        run: npm run test:coverage -- test/server/graphql
 
       - name: Report coverage
         if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
