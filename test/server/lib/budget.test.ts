@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
+import { CollectiveType } from '../../../server/constants/collectives';
 import ExpenseStatuses from '../../../server/constants/expense-status';
 import OrderStatuses from '../../../server/constants/order-status';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
@@ -637,7 +638,11 @@ describe('server/lib/budget', () => {
     beforeEach(async () => {
       await resetTestDB();
       collective = await fakeCollective({ currency: 'USD' });
-      project = await fakeCollective({ currency: 'USD', type: 'PROJECT', ParentCollectiveId: collective.id });
+      project = await fakeCollective({
+        currency: 'USD',
+        type: CollectiveType.PROJECT,
+        ParentCollectiveId: collective.id,
+      });
 
       await fakeTransaction(
         {

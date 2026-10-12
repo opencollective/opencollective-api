@@ -240,8 +240,8 @@ export async function getTotalAmountSpentAmount(
 
 /**
  * @param {number[] | readonly number[]} collectiveIds
- * @param {{ net?: boolean, kind?: string, startDate?: Date, endDate?: Date, includeChildren?: boolean, includeGiftCards?: boolean, version?: string, loaders?: any }} param1
- * @returns {Promise<Record<number,{ CollectiveId number, currency: string, value: number }>>}
+ * @param {{ net?: boolean, kind?: string | string[], startDate?: Date, endDate?: Date, includeChildren?: boolean, includeGiftCards?: boolean, version?: string, loaders?: any, groupByAttributes?: Array<[unknown, string] | string> }} [param1]
+ * @returns {Promise<Record<number, { CollectiveId: number, currency: string, value: number, groupBy?: Record<string, Record<string, { amount: number, date?: Date }>> }>>}
  */
 export async function getSumCollectivesAmountSpent(
   collectiveIds,
@@ -370,6 +370,11 @@ export async function getContributionsAndContributorsCount(
   return { contributionsCount: result.count ?? 0, contributorsCount: result.countDistinctFromCollective ?? 0 };
 }
 
+/**
+ * @param {any} collective
+ * @param {{ loaders?: any, net?: boolean, kind?: string | string[], startDate?: Date, endDate?: Date, timeUnit?: string, currency?: string, version?: string, includeChildren?: boolean }} [param1]
+ * @returns {Promise<{ dateFrom?: Date, dateTo?: Date, timeUnit?: string, nodes: Array<{ date: Date, amount: { value: number, currency: string } }> }>}
+ */
 export async function getTotalAmountReceivedTimeSeries(
   collective,
   { loaders, net, kind, startDate, endDate, timeUnit, currency, version, includeChildren } = {},
@@ -421,6 +426,11 @@ export async function getTotalAmountReceivedTimeSeries(
   };
 }
 
+/**
+ * @param {any} collective
+ * @param {{ loaders?: any, net?: boolean, kind?: string | string[], startDate?: Date, endDate?: Date, timeUnit?: string, currency?: string, version?: string, includeChildren?: boolean, absoluteAmounts?: boolean }} [param1]
+ * @returns {Promise<{ dateFrom?: Date, dateTo?: Date, timeUnit?: string, nodes: Array<{ date: Date, amount: { value: number, currency: string } }> }>}
+ */
 export async function getTotalAmountSpentTimeSeries(
   collective,
   { loaders, net, kind, startDate, endDate, timeUnit, currency, version, includeChildren, absoluteAmounts = true } = {},
@@ -1195,6 +1205,10 @@ export async function getCurrentCollectiveBalances(collectiveIds, { loaders = nu
   return totals;
 }
 
+/**
+ * @param {number[] | readonly number[]} collectiveIds
+ * @param {{ loaders?: any, column?: string }} [param1]
+ */
 export async function getCurrentCollectiveTransactionStats(collectiveIds, { loaders = null, column } = {}) {
   const results = loaders
     ? await Promise.all(
