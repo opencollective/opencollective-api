@@ -80,3 +80,22 @@ If you have any questions, ping us on [Discord](https://discord.opencollective.c
 ## License
 
 [MIT](LICENSE)
+
+### Turborepo tasks and CI cache
+
+Run tasks locally with `npm run turbo -- run lint type:check format:check`,
+`npm run turbo -- run test`, or `npm run build`. The build command runs the
+Turbo compilation graph and always refreshes Cloudflare IP ranges afterward.
+Development and database/E2E tasks are not cached. Standalone `npm ci` and Heroku
+entrypoints remain supported; the parent workspace keeps separate installs.
+
+To enable Vercel Remote Cache, add a GitHub Actions repository/organization secret
+`TURBO_TOKEN` containing a Vercel token authorized for Remote Cache, and the Actions
+variable `TURBO_TEAM` containing the team's slug. Both repositories can use the
+same team. Trusted pushes to `main` read and write the remote cache; PRs (including
+forks and Dependabot) run without remote credentials. Missing credentials use local
+caching. No Vercel project deployment is required. Cache entries include source,
+lockfile, environment configuration, and declared outputs.
+
+See https://turborepo.dev/docs/crafting-your-repository/constructing-ci and
+https://vercel.com/docs/monorepos/remote-caching.

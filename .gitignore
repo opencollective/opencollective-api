@@ -61,3 +61,8 @@ scripts/dev/bin
 .eslintcache
 .prettiercache
 tsconfig.tsbuildinfo
+
+# Turborepo task logs and local cache
+.turbo/
+
+/node_modules

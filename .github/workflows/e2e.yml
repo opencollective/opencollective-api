@@ -12,6 +12,10 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
+  TURBO_TOKEN: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.TURBO_TOKEN || '' }}
+  TURBO_TEAM: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.TURBO_TEAM || '' }}
+  TURBO_AGENT_GUIDANCE: 'false'
+  TURBO_CACHE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.TURBO_TOKEN != '' && vars.TURBO_TEAM != '' && 'local:rw,remote:rw' || 'local:rw' }}
   TZ: UTC
   OC_ENV: ci
   NODE_ENV: test
@@ -122,13 +126,13 @@ jobs:
         run: |
           set -eu
           fail=0
-          npm run build &
+          npm run turbo -- run build:finalize &
           api_pid=$!
-          (cd opencollective-frontend && PRESERVE_NEXT_CACHE=true npm run build) &
+          (cd opencollective-frontend && PRESERVE_NEXT_CACHE=true npm run turbo -- run build:finalize) &
           frontend_pid=$!
-          (cd opencollective-images && npm run build) &
+          (cd opencollective-images && npm run turbo -- run build:finalize) &
           images_pid=$!
-          (cd opencollective-pdf && npm run build) &
+          (cd opencollective-pdf && npm run turbo -- run build:finalize) &
           pdf_pid=$!
           wait "$api_pid" || { echo "API build failed"; fail=1; }
           wait "$frontend_pid" || { echo "Frontend build failed"; fail=1; }

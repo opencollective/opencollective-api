@@ -1,0 +1,386 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "build:clean": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "build:server": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "build:updates": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "db:clean": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "db:copy:staging": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "db:dump:dev": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "db:migrate": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "db:migrate:undo": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "db:migration:create": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "db:migration:archive": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "db:restore": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "db:restore:e2e": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "db:restore:test": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "db:sanitize": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "db:sanitize-collective-tags": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "db:seed": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "db:setup": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "depcheck": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "dev": {
+      "cache": false,
+      "passThroughEnv": ["*"],
+      "persistent": true
+    },
+    "graphql:update": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "graphql:updateV1": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "graphql:updateV2": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "lint": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "package-lock.json",
+        ".env*",
+        "!dist/**",
+        "!.next/**",
+        "!coverage/**",
+        "!.nyc_output/**",
+        "!.turbo/**",
+        "!*.tsbuildinfo",
+        "!test-results.xml",
+        "!test-report.junit.xml",
+        "!junit.xml",
+        "!.eslintcache",
+        "!.prettiercache",
+        "!_sidebar.md"
+      ],
+      "env": ["CI", "NODE_ENV", "OC_ENV", "TZ", "NODE_OPTIONS", "OC_LOCKFILE_HASH_API"],
+      "outputs": [],
+      "cache": true
+    },
+    "lint:check": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "package-lock.json",
+        ".env*",
+        "!dist/**",
+        "!.next/**",
+        "!coverage/**",
+        "!.nyc_output/**",
+        "!.turbo/**",
+        "!*.tsbuildinfo",
+        "!test-results.xml",
+        "!test-report.junit.xml",
+        "!junit.xml",
+        "!.eslintcache",
+        "!.prettiercache",
+        "!_sidebar.md"
+      ],
+      "env": ["CI", "NODE_ENV", "OC_ENV", "TZ", "NODE_OPTIONS", "OC_LOCKFILE_HASH_API"],
+      "outputs": [],
+      "cache": true
+    },
+    "lint:check:simplified": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "lint:fix": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "mail:preview": {
+      "cache": false,
+      "passThroughEnv": ["*"],
+      "persistent": true
+    },
+    "prettier:check": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "package-lock.json",
+        ".env*",
+        "!dist/**",
+        "!.next/**",
+        "!coverage/**",
+        "!.nyc_output/**",
+        "!.turbo/**",
+        "!*.tsbuildinfo",
+        "!test-results.xml",
+        "!test-report.junit.xml",
+        "!junit.xml",
+        "!.eslintcache",
+        "!.prettiercache",
+        "!_sidebar.md"
+      ],
+      "env": ["CI", "NODE_ENV", "OC_ENV", "TZ", "NODE_OPTIONS", "OC_LOCKFILE_HASH_API"],
+      "outputs": [],
+      "cache": true
+    },
+    "start": {
+      "cache": false,
+      "passThroughEnv": ["*"],
+      "persistent": true,
+      "dependsOn": ["build:finalize"]
+    },
+    "start:e2e": {
+      "cache": false,
+      "passThroughEnv": ["*"],
+      "persistent": true
+    },
+    "start:e2e:server": {
+      "cache": false,
+      "passThroughEnv": ["*"],
+      "persistent": true
+    },
+    "test:watch": {
+      "cache": false,
+      "passThroughEnv": ["*"],
+      "persistent": true
+    },
+    "test": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "test:ci": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "test:coverage": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "test:update": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "test:clean-db-snapshots": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "test:update-db-snapshots": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "test:clean": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "test:generate": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "test:graphql": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "test:lib": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "test:models": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "test:payment-providers": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "test:routes": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "test:scripts": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "test:sql": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "ts-unused-exports": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "package-lock.json",
+        ".env*",
+        "!dist/**",
+        "!.next/**",
+        "!coverage/**",
+        "!.nyc_output/**",
+        "!.turbo/**",
+        "!*.tsbuildinfo",
+        "!test-results.xml",
+        "!test-report.junit.xml",
+        "!junit.xml",
+        "!.eslintcache",
+        "!.prettiercache",
+        "!_sidebar.md"
+      ],
+      "env": ["CI", "NODE_ENV", "OC_ENV", "TZ", "NODE_OPTIONS", "OC_LOCKFILE_HASH_API"],
+      "outputs": [],
+      "cache": true
+    },
+    "type:check": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "package-lock.json",
+        ".env*",
+        "!dist/**",
+        "!.next/**",
+        "!coverage/**",
+        "!.nyc_output/**",
+        "!.turbo/**",
+        "!*.tsbuildinfo",
+        "!test-results.xml",
+        "!test-report.junit.xml",
+        "!junit.xml",
+        "!.eslintcache",
+        "!.prettiercache",
+        "!_sidebar.md"
+      ],
+      "env": ["CI", "NODE_ENV", "OC_ENV", "TZ", "NODE_OPTIONS", "OC_LOCKFILE_HASH_API"],
+      "outputs": [],
+      "cache": true
+    },
+    "lint-staged": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "format:check": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "package-lock.json",
+        ".env*",
+        "!dist/**",
+        "!.next/**",
+        "!coverage/**",
+        "!.nyc_output/**",
+        "!.turbo/**",
+        "!*.tsbuildinfo",
+        "!test-results.xml",
+        "!test-report.junit.xml",
+        "!junit.xml",
+        "!.eslintcache",
+        "!.prettiercache",
+        "!_sidebar.md"
+      ],
+      "env": ["CI", "NODE_ENV", "OC_ENV", "TZ", "NODE_OPTIONS", "OC_LOCKFILE_HASH_API"],
+      "outputs": [],
+      "cache": true
+    },
+    "format": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "build:compile": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "package-lock.json",
+        ".env*",
+        "!dist/**",
+        "!.next/**",
+        "!coverage/**",
+        "!.nyc_output/**",
+        "!.turbo/**",
+        "!*.tsbuildinfo",
+        "!test-results.xml",
+        "!test-report.junit.xml",
+        "!junit.xml",
+        "!.eslintcache",
+        "!.prettiercache",
+        "!_sidebar.md"
+      ],
+      "env": ["CI", "NODE_ENV", "OC_ENV", "TZ", "NODE_OPTIONS", "BABEL_ENV", "OC_LOCKFILE_HASH_API"],
+      "outputs": ["dist/**", "!dist/.next/cache/**", "!dist/.next/dev/**"],
+      "cache": true,
+      "dependsOn": ["build:clean"]
+    },
+    "build:finalize": {
+      "cache": false,
+      "passThroughEnv": ["*"],
+      "dependsOn": ["build:compile"]
+    },
+    "graphql:refresh": {
+      "cache": false,
+      "passThroughEnv": ["*"],
+      "dependsOn": ["graphql:updateV1", "graphql:updateV2"]
+    },
+    "dev:environment": {
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": ["*"]
+    },
+    "schema:check": {
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
+    "db:migrate:e2e": {
+      "cache": false,
+      "passThroughEnv": ["*"],
+      "dependsOn": ["db:restore:e2e"]
+    },
+    "start:e2e:ready": {
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": ["*"],
+      "dependsOn": ["db:migrate:e2e", "build:finalize"]
+    }
+  }
+}

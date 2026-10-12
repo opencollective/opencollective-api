@@ -159,7 +159,6 @@
     "nock": "14.0.17",
     "node-mocks-http": "^1.16.1",
     "nodemon": "^3.0.2",
-    "npm-run-all2": "^9.0.0",
     "nyc": "^18.0.0",
     "prettier": "3.9.9",
     "sinon": "^22.0.0",
@@ -169,10 +168,11 @@
     "typescript": "npm:typescript@~6.0.3",
     "typescript-7": "npm:typescript@rc",
     "typescript-eslint": "^8.68.0",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "turbo": "2.11.7"
   },
   "scripts": {
-    "build": "npm run build:clean && npm run build:server && npm run build:updates",
+    "build": "npm run turbo -- run build:finalize",
     "build:clean": "rm -rf dist && mkdir dist",
     "build:server": "babel server --copy-files --source-maps true --extensions .js,.ts --ignore \"**/*.d.ts\" -d ./dist",
     "build:updates": "babel-node --extensions .js,.ts scripts/update-cloudflare-ips.ts dist/lib/cloudflare-ips.json",
@@ -204,7 +204,7 @@
     "deploy:staging": "./scripts/pre-deploy.sh staging && git push -f staging main",
     "dev": "nodemon server/index.ts -x \"babel-node --extensions .js,.ts\" . -e js,hbs,ts",
     "docs:generate:oauth": "babel-node --extensions .js,.ts ./scripts/docs/oauth.ts",
-    "graphql:update": "npm-run-all graphql:updateV1 graphql:updateV2",
+    "graphql:update": "npm run turbo -- run graphql:refresh",
     "graphql:updateV1": "npm run script scripts/update-gql-schemas.ts http://localhost:3060/graphql/v1 server/graphql/schemaV1.graphql && prettier server/graphql/schemaV1.graphql --write",
     "graphql:updateV2": "npm run script scripts/update-gql-schemas.ts http://localhost:3060/graphql/v2 server/graphql/schemaV2.graphql && prettier server/graphql/schemaV2.graphql --write",
     "lint": "eslint . --cache --cache-strategy content",
@@ -222,7 +222,7 @@
     "search": "./scripts/dev/run-docker-compose.sh -f docker-compose/search.yml up",
     "sequelize": "babel-node --extensions .js,.ts -- ./node_modules/.bin/sequelize --config config/sequelize-cli.js",
     "start": "node ./dist/index.js",
-    "start:e2e": "TZ=UTC NODE_ENV=production OC_ENV=e2e E2E_TEST=1 npm-run-all db:restore:e2e db:migrate build start:e2e:server",
+    "start:e2e": "TZ=UTC NODE_ENV=production OC_ENV=e2e E2E_TEST=1 npm run turbo -- run start:e2e:ready",
     "start:e2e:server": "node ./dist/e2e.js",
     "test:watch": "NODE_ENV=test TZ=UTC mocha --watch --extension hbs,js,ts,cjs,mjs",
     "test": "NODE_ENV=test TZ=UTC mocha",
@@ -245,7 +245,17 @@
     "prepare": "husky",
     "lint-staged": "lint-staged",
     "heroku-postbuild": "npm run build && ./scripts/upload-sourcemaps.sh",
-    "uploads": "./scripts/dev/run-docker.sh compose -f docker-compose/uploads.yml up"
+    "uploads": "./scripts/dev/run-docker.sh compose -f docker-compose/uploads.yml up",
+    "format:check": "npm run prettier:check",
+    "format": "npm run prettier:write",
+    "build:compile": "npm run build:server",
+    "build:finalize": "npm run build:updates",
+    "graphql:refresh": "node -e \"\"",
+    "dev:environment": "EXTRA_ENV=\"$OC_DEV_ENV_API\" npm run dev",
+    "schema:check": "./scripts/check-schemas.sh",
+    "turbo": "turbo --single-package --root-turbo-json=turbo.standalone.json",
+    "db:migrate:e2e": "npm run db:migrate",
+    "start:e2e:ready": "npm run start:e2e:server"
   },
   "engines": {
     "node": "24.x",
@@ -283,7 +293,9 @@
     "ignores": [
       "eslint-import-resolver-typescript",
       "typescript-eslint",
-      "@sentry/cli"
+      "@sentry/cli",
+      "turbo"
     ]
-  }
+  },
+  "packageManager": "npm@11.19.0"
 }
