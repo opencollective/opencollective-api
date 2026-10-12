@@ -11,8 +11,7 @@ import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-fac
 import { fakePersonalToken, fakeUser, fakeUserToken } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, oAuthGraphqlQueryV2, personalTokenGraphqlQueryV2, resetTestDB } from '../../../../utils';
 
-const TOKEN_AUTH_FORBIDDEN_MESSAGE =
-  'OAuth and personal tokens cannot be used to manage tokens. Please use the web interface.';
+const TOKEN_AUTH_FORBIDDEN_MESSAGE = 'A session token is required. Please use the web interface.';
 
 const CREATE_PERSONAL_TOKEN_MUTATION = gql`
   mutation CreatePersonalToken($personalToken: PersonalTokenCreateInput!) {

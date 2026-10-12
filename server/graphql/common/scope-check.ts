@@ -211,3 +211,17 @@ export const rejectOAuthAndPersonalTokenAuth = (
     throw new Forbidden(message);
   }
 };
+
+/**
+ * Rejects scoped credentials other than sessions. Legacy session JWTs have no explicit scope.
+ * Authentication and account permissions must still be checked by the caller.
+ */
+export const requireSessionToken = (
+  req: Express.Request,
+  message = 'A session token is required. Please use the web interface.',
+): void => {
+  rejectOAuthAndPersonalTokenAuth(req, message);
+  if (req.jwtPayload?.scope && req.jwtPayload.scope !== 'session') {
+    throw new Forbidden(message);
+  }
+};

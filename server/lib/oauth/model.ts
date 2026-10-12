@@ -23,6 +23,7 @@ import Application from '../../models/Application';
 import type OAuthAuthorizationCode from '../../models/OAuthAuthorizationCode';
 import User from '../../models/User';
 import UserToken, { TokenType } from '../../models/UserToken';
+import { timingSafeEqualString } from '../encryption';
 
 const debug = debugLib('oAuth');
 
@@ -256,7 +257,7 @@ const model: OauthModel = {
     const application = await models.Application.findOne({ where: { clientId } });
     if (!application) {
       throw new InvalidClientError('Invalid client');
-    } else if (clientSecret && application.clientSecret !== clientSecret) {
+    } else if (clientSecret && !timingSafeEqualString(application.clientSecret, clientSecret)) {
       throw new InvalidClientError('Invalid client credentials');
     }
 

@@ -2,7 +2,14 @@ import { expect } from 'chai';
 import config from 'config';
 import nacl from 'tweetnacl';
 
-import { crypto, decryptWithCipher, encryptWithCipher, generateKey, secretbox } from '../../../server/lib/encryption';
+import {
+  crypto,
+  decryptWithCipher,
+  encryptWithCipher,
+  generateKey,
+  secretbox,
+  timingSafeEqualString,
+} from '../../../server/lib/encryption';
 
 describe('server/lib/encryption', () => {
   describe('secretbox', () => {
@@ -200,6 +207,22 @@ describe('server/lib/encryption', () => {
     it('produces payloads in the OpenSSL "enc" format', () => {
       const encrypted = encryptWithCipher('OpenCollective Rules', SECRET_KEY, config.dbEncryption.cipher);
       expect(Buffer.from(encrypted, 'base64').subarray(0, 8).toString('utf8')).to.eq('Salted__');
+    });
+  });
+
+  describe('timingSafeEqualString', () => {
+    it('returns true for matching strings', () => {
+      expect(timingSafeEqualString('secret-value', 'secret-value')).to.be.true;
+    });
+
+    it('returns false for different strings', () => {
+      expect(timingSafeEqualString('secret-value', 'other-value')).to.be.false;
+    });
+
+    it('returns false for null or non-strings', () => {
+      expect(timingSafeEqualString(null, 'secret-value')).to.be.false;
+      expect(timingSafeEqualString('secret-value', undefined)).to.be.false;
+      expect(timingSafeEqualString(undefined, undefined)).to.be.false;
     });
   });
 });

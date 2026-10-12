@@ -29,7 +29,7 @@ import {
   checkRemoteUserCanUseApplications,
   checkRemoteUserCanUseKYC,
   checkScope,
-  rejectOAuthAndPersonalTokenAuth,
+  requireSessionToken,
 } from '../../common/scope-check';
 import { BadRequest, ContentNotReady, Forbidden, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
@@ -622,7 +622,7 @@ const accountFieldsDefinition = () => ({
       if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'applications')) {
         return null;
       }
-      rejectOAuthAndPersonalTokenAuth(req);
+      requireSessionToken(req);
 
       const { limit, offset } = args;
       const where = { CollectiveId: collective.id, type: 'oAuth' };

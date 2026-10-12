@@ -1,7 +1,7 @@
 import express from 'express';
 
 import PersonalTokenModel from '../../../models/PersonalToken';
-import { checkRemoteUserCanUseApplications, rejectOAuthAndPersonalTokenAuth } from '../../common/scope-check';
+import { checkRemoteUserCanUseApplications, requireSessionToken } from '../../common/scope-check';
 import { Forbidden, NotFound } from '../../errors';
 import { fetchPersonalTokenWithReference, PersonalTokenReferenceFields } from '../input/PersonalTokenReferenceInput';
 import { GraphQLPersonalToken } from '../object/PersonalToken';
@@ -14,7 +14,7 @@ const PersonalTokenQuery = {
   },
   async resolve(_: void, args, req: express.Request): Promise<PersonalTokenModel> {
     checkRemoteUserCanUseApplications(req);
-    rejectOAuthAndPersonalTokenAuth(req);
+    requireSessionToken(req);
 
     const personalToken = await fetchPersonalTokenWithReference(args, {
       include: [{ association: 'collective', required: true }],
