@@ -1,16 +1,16 @@
 name: Checkout E2E stack
-description: Checkout frontend (matching branch or pinned ref), images, and PDF for API E2E
+description: Checkout frontend, images, and PDF using pinned refs or matching branches
 inputs:
   frontend-ref:
     description: Pin frontend checkout to this SHA or ref. If empty, resolve a matching branch then main.
     required: false
     default: ''
   images-ref:
-    description: Pin images checkout to this SHA or ref. If empty, use the default branch.
+    description: Pin images checkout to this SHA or ref. If empty, resolve a matching branch then main.
     required: false
     default: ''
   pdf-ref:
-    description: Pin PDF checkout to this SHA or ref. If empty, use the default branch.
+    description: Pin PDF checkout to this SHA or ref. If empty, resolve a matching branch then main.
     required: false
     default: ''
   github-token:
@@ -30,86 +30,73 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Resolve frontend ref
-      id: resolve-frontend-ref
+    - name: Resolve stack refs
+      id: resolve-refs
       shell: bash
       env:
         FRONTEND_REF_INPUT: ${{ inputs.frontend-ref }}
+        IMAGES_REF_INPUT: ${{ inputs.images-ref }}
+        PDF_REF_INPUT: ${{ inputs.pdf-ref }}
       run: |
         set -euo pipefail
-        if [ -n "${FRONTEND_REF_INPUT}" ]; then
-          echo "frontend-ref=${FRONTEND_REF_INPUT}" >> "${GITHUB_OUTPUT}"
-          echo "Using pinned frontend ref ${FRONTEND_REF_INPUT}"
-          exit 0
-        fi
-
         BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
-        REPO_URL="https://github.com/opencollective/opencollective-frontend.git"
 
-        # Do not add another Authorization extraheader: actions/checkout already
-        # sets one on the runner, and a second header makes GitHub return 400.
-        resolve() {
-          git ls-remote --heads "${REPO_URL}" "refs/heads/${1}" \
-            | awk -v ref="refs/heads/${1}" '$2 == ref { print $1 }'
+        # actions/checkout already configures authentication; do not add another
+        # Authorization extraheader when resolving companion branches.
+        resolve_head() {
+          git ls-remote --heads "$1" "refs/heads/${2}" \
+            | awk -v ref="refs/heads/${2}" '$2 == ref { print $1 }'
         }
 
-        SHA="$(resolve "${BRANCH}")"
-        if [ -z "${SHA}" ] && [ "${BRANCH}" != "main" ]; then
-          echo "No matching frontend branch '${BRANCH}', falling back to main"
-          SHA="$(resolve main)"
-        fi
-        if [ -z "${SHA}" ]; then
-          echo "Failed to resolve opencollective-frontend ref" >&2
-          exit 1
-        fi
+        resolve_ref() {
+          local service="$1" repository="$2" pinned="$3"
+          local sha
+          if [ -n "$pinned" ]; then
+            sha="$pinned"
+            echo "Using pinned $service ref $sha"
+          else
+            sha="$(resolve_head "$repository" "$BRANCH")"
+            if [ -z "$sha" ] && [ "$BRANCH" != "main" ]; then
+              echo "No matching $service branch '$BRANCH', falling back to main"
+              sha="$(resolve_head "$repository" main)"
+            fi
+            if [ -z "$sha" ]; then
+              echo "Failed to resolve opencollective-$service ref" >&2
+              return 1
+            fi
+            echo "Resolved $service ref $sha"
+          fi
+          echo "$service-ref=$sha" >> "$GITHUB_OUTPUT"
+        }
 
-        echo "frontend-ref=${SHA}" >> "${GITHUB_OUTPUT}"
-        echo "Resolved frontend ref ${SHA}"
+        resolve_ref frontend https://github.com/opencollective/opencollective-frontend.git "$FRONTEND_REF_INPUT"
+        resolve_ref images https://github.com/opencollective/opencollective-images.git "$IMAGES_REF_INPUT"
+        resolve_ref pdf https://github.com/opencollective/opencollective-pdf.git "$PDF_REF_INPUT"
 
     - name: Checkout (frontend)
       uses: actions/checkout@v7
       with:
         repository: opencollective/opencollective-frontend
         path: opencollective-frontend
-        ref: ${{ steps.resolve-frontend-ref.outputs.frontend-ref }}
+        ref: ${{ steps.resolve-refs.outputs.frontend-ref }}
         token: ${{ inputs.github-token }}
         persist-credentials: false
 
     - name: Checkout (images)
-      if: ${{ inputs.images-ref == '' }}
       uses: actions/checkout@v7
       with:
         repository: opencollective/opencollective-images
         path: opencollective-images
-        token: ${{ inputs.github-token }}
-        persist-credentials: false
-
-    - name: Checkout (images - pinned)
-      if: ${{ inputs.images-ref != '' }}
-      uses: actions/checkout@v7
-      with:
-        repository: opencollective/opencollective-images
-        path: opencollective-images
-        ref: ${{ inputs.images-ref }}
+        ref: ${{ steps.resolve-refs.outputs.images-ref }}
         token: ${{ inputs.github-token }}
         persist-credentials: false
 
     - name: Checkout (PDF)
-      if: ${{ inputs.pdf-ref == '' }}
       uses: actions/checkout@v7
       with:
         repository: opencollective/opencollective-pdf
         path: opencollective-pdf
-        token: ${{ inputs.github-token }}
-        persist-credentials: false
-
-    - name: Checkout (PDF - pinned)
-      if: ${{ inputs.pdf-ref != '' }}
-      uses: actions/checkout@v7
-      with:
-        repository: opencollective/opencollective-pdf
-        path: opencollective-pdf
-        ref: ${{ inputs.pdf-ref }}
+        ref: ${{ steps.resolve-refs.outputs.pdf-ref }}
         token: ${{ inputs.github-token }}
         persist-credentials: false
 
