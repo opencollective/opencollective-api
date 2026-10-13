@@ -8,7 +8,9 @@ import { ApolloError } from '../../../../server/graphql/errors';
 import { sessionCache } from '../../../../server/lib/cache';
 import { crypto } from '../../../../server/lib/encryption';
 import errors from '../../../../server/lib/errors';
+import { lockUntilResolved } from '../../../../server/lib/mutex';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../../server/lib/rate-limit';
+import { createRedisClient, RedisInstanceType } from '../../../../server/lib/redis';
 import twoFactorAuthLib, { TwoFactorMethod } from '../../../../server/lib/two-factor-authentication';
 import { TwoFactorAuthenticationHeader } from '../../../../server/lib/two-factor-authentication/lib';
 import recoveryCodeProvider from '../../../../server/lib/two-factor-authentication/recovery-code';
@@ -16,6 +18,7 @@ import totpProvider from '../../../../server/lib/two-factor-authentication/totp'
 import * as webauthnProvider from '../../../../server/lib/two-factor-authentication/webauthn';
 import yubikeyOTPProvider from '../../../../server/lib/two-factor-authentication/yubikey-otp';
 import { fakeUser } from '../../../test-helpers/fake-data';
+import { getResumableSleep, waitForCondition } from '../../../utils';
 
 describe('lib/two-factor-authentication/validateRequest rate limiting', () => {
   const sandbox = createSandbox();
@@ -133,6 +136,84 @@ describe('lib/two-factor-authentication/validateRequest rate limiting', () => {
     await expect(twoFactorAuthLib.validateRequest(second.req)).to.eventually.equal(true);
     expect(await first.rateLimit.getCallsCount()).to.equal(10);
     expect(await second.rateLimit.getCallsCount()).to.equal(1);
+  });
+
+  it('admits only 10 failed validations from 50 concurrent requests', async () => {
+    const { req, rateLimit } = await makeRequest();
+    const validateTokenStub = sandbox.stub(totpProvider, 'validateToken').callsFake(async () => {
+      await new Promise(resolve => setImmediate(resolve));
+      throw new ApolloError('Invalid code', 'INVALID_2FA_CODE');
+    });
+
+    const results = await Promise.allSettled(
+      Array.from({ length: 50 }, () => twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true })),
+    );
+    const failures = results.filter(result => result.status === 'rejected').map(result => result.reason);
+    expect(failures).to.have.length(50);
+    expect(failures.filter(error => error.extensions?.code === 'INVALID_2FA_CODE')).to.have.length(10);
+    expect(failures.filter(error => error instanceof errors.TooManyRequests)).to.have.length(40);
+    expect(validateTokenStub.callCount).to.equal(10);
+    expect(await rateLimit.getCallsCount()).to.equal(10);
+  });
+
+  it('does not hold up another user while a validation is in progress', async () => {
+    const first = await makeRequest();
+    const second = await makeRequest();
+    const started = getResumableSleep();
+    const hold = getResumableSleep();
+    sandbox.stub(totpProvider, 'validateToken').callsFake(async user => {
+      if (user.id === first.req.remoteUser.id) {
+        started.resume();
+        await hold.promise;
+        throw new ApolloError('Invalid code', 'INVALID_2FA_CODE');
+      }
+    });
+
+    const firstResult = twoFactorAuthLib.validateRequest(first.req).catch(error => error);
+    try {
+      await started.promise;
+      await expect(twoFactorAuthLib.validateRequest(second.req)).to.eventually.equal(true);
+      expect(await second.rateLimit.getCallsCount()).to.equal(0);
+    } finally {
+      hold.resume();
+      await firstResult;
+    }
+    expect(await firstResult).to.have.nested.property('extensions.code', 'INVALID_2FA_CODE');
+    expect(await first.rateLimit.getCallsCount()).to.equal(1);
+  });
+
+  it('rechecks the budget after acquiring the Redis lock held by another worker', async function () {
+    const redis = await createRedisClient(RedisInstanceType.SESSION);
+    if (!redis) {
+      this.skip();
+    }
+
+    const { req, rateLimit } = await makeRequest();
+    await failAttempts(req, 9);
+    const validateTokenSpy = sandbox.spy(totpProvider, 'validateToken');
+    const lockSetSpy = sandbox.spy(redis, 'set');
+    const rateLimitKey = `user_2FA_graphql_${req.remoteUser.id}`;
+    const started = getResumableSleep();
+    const hold = getResumableSleep();
+    const otherWorker = lockUntilResolved(rateLimitKey, async () => {
+      started.resume();
+      await hold.promise;
+      await rateLimit.registerCall();
+    });
+    await started.promise;
+
+    const result = twoFactorAuthLib.validateRequest(req).catch(error => error);
+    try {
+      await waitForCondition(() => lockSetSpy.withArgs(`lock:${rateLimitKey}`).callCount >= 2);
+      expect(validateTokenSpy).not.to.have.been.called;
+    } finally {
+      hold.resume();
+      await otherWorker;
+      await result;
+    }
+    expect(await result).to.be.instanceOf(errors.TooManyRequests);
+    expect(validateTokenSpy).not.to.have.been.called;
+    expect(await rateLimit.getCallsCount()).to.equal(10);
   });
 
   it('does not count requests for a 2FA challenge as failed validations', async () => {
