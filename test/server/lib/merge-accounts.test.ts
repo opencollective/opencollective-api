@@ -416,6 +416,44 @@ describe('server/lib/merge-accounts', () => {
       expect(warnings.join('\n')).to.include('DUP-CODE');
     });
 
+    it('moves accounting category rules and re-points rules of deleted categories', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      const sourceCategory = await Faker.fakeAccountingCategory({ CollectiveId: collective1.id, code: 'RULE-DUP' });
+      const targetCategory = await Faker.fakeAccountingCategory({ CollectiveId: collective2.id, code: 'RULE-DUP' });
+      const movedCategory = await Faker.fakeAccountingCategory({ CollectiveId: collective1.id, code: 'RULE-MOVED' });
+      const ruleOnDuplicate = await models.AccountingCategoryRule.create({
+        CollectiveId: collective1.id,
+        AccountingCategoryId: sourceCategory.id,
+        name: 'rule-on-duplicate',
+        enabled: true,
+        type: 'CONTRIBUTION',
+        order: 0,
+        predicates: [],
+      });
+      const ruleOnMoved = await models.AccountingCategoryRule.create({
+        CollectiveId: collective1.id,
+        AccountingCategoryId: movedCategory.id,
+        name: 'rule-on-moved',
+        enabled: true,
+        type: 'CONTRIBUTION',
+        order: 1,
+        predicates: [],
+      });
+
+      await mergeAccounts(collective1, collective2);
+
+      // Rules are moved to the target
+      await ruleOnDuplicate.reload();
+      await ruleOnMoved.reload();
+      expect(ruleOnDuplicate.CollectiveId).to.eq(collective2.id);
+      expect(ruleOnMoved.CollectiveId).to.eq(collective2.id);
+
+      // The rule of the deleted duplicate category is re-pointed to the surviving category (not cascade-deleted)
+      expect(ruleOnDuplicate.AccountingCategoryId).to.eq(targetCategory.id);
+      expect(ruleOnMoved.AccountingCategoryId).to.eq(movedCategory.id);
+    });
+
     it('dedupes notifications on merge (same webhook URL / same user and type)', async () => {
       const collective1 = await Faker.fakeCollective();
       const collective2 = await Faker.fakeCollective();

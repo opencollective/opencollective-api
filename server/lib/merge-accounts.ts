@@ -187,7 +187,8 @@ const getAccountingCategoriesToIgnore = async (from: Collective, into: Collectiv
 
 /**
  * Before deleting duplicate accounting categories, re-point everything that references them to the surviving
- * category. Without this, the FK constraints (`ON DELETE SET NULL`) would silently clear the references.
+ * category. Without this, the FK constraints (`ON DELETE SET NULL` / `ON DELETE CASCADE`) would silently clear
+ * or destroy the references.
  */
 const rePointAccountingCategoryReferences = async (
   from: Collective,
@@ -255,6 +256,19 @@ const rePointAccountingCategoryReferences = async (
         {
           where: { BalanceAccountingCategoryId: duplicate.id },
           fields: ['BalanceAccountingCategoryId'],
+          paranoid: false, // Also update soft-deleted entries
+          hooks: false,
+          sideEffects: false,
+          validate: false,
+          transaction,
+        },
+      );
+
+      await models.AccountingCategoryRule.update(
+        { AccountingCategoryId: survivingCategory.id },
+        {
+          where: { AccountingCategoryId: duplicate.id },
+          fields: ['AccountingCategoryId'],
           paranoid: false, // Also update soft-deleted entries
           hooks: false,
           sideEffects: false,
@@ -510,6 +524,7 @@ const collectiveFieldsConfig: CollectiveFieldsConfig = {
     onDuplicatesFound: rePointAccountingCategoryReferences,
     getDuplicatesWarning: getAccountingCategoriesDuplicatesWarning,
   },
+  accountingCategoryRules: { model: models.AccountingCategoryRule, field: 'CollectiveId' },
   agreements: { model: models.Agreement, field: 'CollectiveId' },
   activities: { model: models.Activity, field: 'CollectiveId' },
   applications: { model: models.Application, field: 'CollectiveId' },

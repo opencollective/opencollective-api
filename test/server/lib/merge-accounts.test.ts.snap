@@ -3,6 +3,7 @@
 exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges a user profile 1`] = `
 Object {
   "accountingCategories": 1,
+  "accountingCategoryRules": 0,
   "activities": 1,
   "agreements": 1,
   "applications": 1,
@@ -54,6 +55,7 @@ Object {
 exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges a user profile 2`] = `
 Object {
   "accountingCategories": 1,
+  "accountingCategoryRules": 0,
   "activities": 1,
   "agreements": 1,
   "applications": 1,
@@ -169,6 +171,7 @@ Object {
 exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges a user profile 5`] = `
 Object {
   "accountingCategories": 2,
+  "accountingCategoryRules": 0,
   "activities": 2,
   "agreements": 2,
   "applications": 2,
@@ -220,6 +223,7 @@ Object {
 exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges an organization 1`] = `
 Object {
   "accountingCategories": 1,
+  "accountingCategoryRules": 0,
   "activities": 1,
   "agreements": 1,
   "applications": 1,
@@ -271,6 +275,7 @@ Object {
 exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges an organization 2`] = `
 Object {
   "accountingCategories": 1,
+  "accountingCategoryRules": 0,
   "activities": 1,
   "agreements": 1,
   "applications": 1,
@@ -322,6 +327,7 @@ Object {
 exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges an organization 3`] = `
 Object {
   "accountingCategories": 2,
+  "accountingCategoryRules": 0,
   "activities": 2,
   "agreements": 2,
   "applications": 2,
