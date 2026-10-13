@@ -33,6 +33,7 @@ const deleteWebhookMutation = gql`
   mutation DeleteWebhook($webhook: WebhookReferenceInput!) {
     deleteWebhook(webhook: $webhook) {
       id
+      publicId
     }
   }
 `;
@@ -174,6 +175,7 @@ describe('server/graphql/v2/mutation/WebhookMutations', () => {
 
       expect(result.errors).to.not.exist;
       expect(result.data.deleteWebhook.id).to.be.a('string').and.not.be.empty;
+      expect(result.data.deleteWebhook.publicId).to.equal(webhook.publicId);
       expect(await models.Notification.findByPk(webhook.id)).to.be.null;
     });
 
