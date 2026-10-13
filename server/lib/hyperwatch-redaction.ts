@@ -24,10 +24,10 @@ const SENSITIVE_HEADER_PATTERN = /token|secret|password|session|api[-_]?key|auth
 // Service verification key, kept on purpose
 const ALLOWED_HEADERS = new Set(['oc-secret']);
 
-// Keys whose value is redacted in GraphQL variables and query strings. A key matches when one of its
-// segments (camelCase, snake_case or kebab-case) equals one of these words or their plural, e.g. `legalName`,
-// `newPassword`, `guestInfo.captcha.token`, `postal_code`, `emails`. `name` and `description` are public data
-// and stay in the logs.
+// Keys whose value is redacted in GraphQL variables and query strings. A key matches when a run of its
+// segments (camelCase, snake_case or kebab-case) spells one of these words or their plural, e.g. `legalName`,
+// `legal_name`, `payeeLegalName`, `newPassword`, `guestInfo.captcha.token`, `postal_code`, `emails`,
+// `addresses`. `name` and `description` are public data and stay in the logs.
 const SENSITIVE_KEY_WORDS = new Set([
   'email',
   'legalname',
@@ -55,13 +55,36 @@ const SENSITIVE_KEY_WORDS = new Set([
   'swift',
   'cardnumber',
   'cvc',
+  'cvv',
+  // Bank account details (see `IDENTIFIABLE_DATA_FIELDS` in models/PayoutMethod.ts)
+  'abartn',
+  'bankcode',
+  'billercode',
+  'branchcode',
+  'bsbcode',
+  'customerreferencenumber',
+  'iddocumentnumber',
+  'iddocumenttype',
+  'identificationnumber',
+  'ifsccode',
+  'institutionnumber',
+  'interacaccount',
+  'sortcode',
+  'transitnumber',
+  // Grants access to a draft expense and its attachments
+  'draftkey',
   'message',
   'privatemessage',
   'html',
 ]);
 
 // Matched anywhere in the key, e.g. `twoFactorAuthenticatorCode`, `accessToken`, `clientSecret`, `apiKey`
-const SENSITIVE_KEY_PATTERN = /twofactor|token|secret|password|captcha|otp|iban|cvc|api_?key|session/;
+const SENSITIVE_KEY_PATTERN = /twofactor|token|secret|password|captcha|otp|iban|cvc|cvv|api_?key|session/;
+
+// Query string parameters redacted in URLs only: `key` grants access to a draft expense on its permalink
+// (`/:collectiveSlug/expenses/:id?key=`, logged through the referer), while GraphQL variables named `key` are not
+// secrets (e.g. `editAccountSetting`)
+const SENSITIVE_QUERY_PARAMS = new Set(['key']);
 
 // Routes with credentials or personal data in the path
 const SENSITIVE_PATHS: Array<[RegExp, string]> = [
@@ -81,15 +104,25 @@ export const isSensitiveHeader = (name: string): boolean => {
 
 const isSensitiveWord = (segment: string): boolean => {
   const word = segment.toLowerCase();
-  return SENSITIVE_KEY_WORDS.has(word) || (word.endsWith('s') && SENSITIVE_KEY_WORDS.has(word.slice(0, -1)));
+  return [word, word.replace(/s$/, ''), word.replace(/es$/, ''), word.replace(/ies$/, 'y')].some(singular =>
+    SENSITIVE_KEY_WORDS.has(singular),
+  );
 };
 
 const isSensitiveKey = (key: string): boolean => {
-  if (isSensitiveWord(key) || SENSITIVE_KEY_PATTERN.test(key.toLowerCase())) {
+  if (SENSITIVE_KEY_PATTERN.test(key.toLowerCase())) {
     return true;
   }
-  const segments = key.split(/[_\-\s.]+|(?<=[a-z0-9])(?=[A-Z])/);
-  return segments.some(isSensitiveWord);
+  // Every run of consecutive segments, so that compound words match inside longer keys (`contactFirstName`)
+  const segments = key.split(/[_\-\s.]+|(?<=[a-z0-9])(?=[A-Z])/).filter(Boolean);
+  for (let start = 0; start < segments.length; start++) {
+    for (let end = start + 1; end <= segments.length; end++) {
+      if (isSensitiveWord(segments.slice(start, end).join(''))) {
+        return true;
+      }
+    }
+  }
+  return false;
 };
 
 /**
@@ -132,16 +165,17 @@ export const redactUrl = (url: string): string => {
   const params = new URLSearchParams(url.slice(queryStart + 1));
   let redacted = false;
   for (const key of new Set(params.keys())) {
-    if (isSensitiveKey(key)) {
+    if (isSensitiveKey(key) || SENSITIVE_QUERY_PARAMS.has(key)) {
       params.set(key, REDACTED);
       redacted = true;
     } else if (key === 'variables') {
       try {
         params.set(key, JSON.stringify(redactVariables(JSON.parse(params.get(key)))));
-        redacted = true;
       } catch {
-        // Not JSON, Apollo will reject it anyway
+        // Apollo rejects it, but it would still be logged as is
+        params.set(key, REDACTED);
       }
+      redacted = true;
     }
   }
 

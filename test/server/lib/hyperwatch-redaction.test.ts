@@ -113,6 +113,78 @@ describe('server/lib/hyperwatch-redaction', () => {
       expect(variables).to.deep.equal(original);
     });
 
+    it('redacts compound and plural keys', () => {
+      expect(
+        redactVariables({
+          'legal-name': 'Jane Doe Inc',
+          contactFirstName: 'Jane',
+          payeeLegalName: 'Jane Doe Inc',
+          addresses: ['1 Main St'],
+          cities: ['Paris'],
+          name: 'Jane',
+          description: 'Public',
+        }),
+      ).to.deep.equal({
+        'legal-name': '[redacted]',
+        contactFirstName: '[redacted]',
+        payeeLegalName: '[redacted]',
+        addresses: '[redacted]',
+        cities: '[redacted]',
+        name: 'Jane',
+        description: 'Public',
+      });
+    });
+
+    it('redacts draft keys and the financial fields mutations accept', () => {
+      expect(
+        redactVariables({
+          draftKey: 'draft-key',
+          virtualCard: { privateData: { cardNumber: '4242', expiryDate: '12/30', cvv: '123' } },
+          payoutMethod: {
+            data: {
+              currency: 'USD',
+              details: {
+                abartn: '026009593',
+                bankCode: 'xxx',
+                bsbCode: 'xxx',
+                customerReferenceNumber: 'xxx',
+                idDocumentNumber: 'xxx',
+                idDocumentType: 'passport',
+                identificationNumber: 'xxx',
+                ifscCode: 'xxx',
+                institutionNumber: 'xxx',
+                interacAccount: 'xxx',
+                sortCode: 'xxx',
+                transitNumber: 'xxx',
+              },
+            },
+          },
+        }),
+      ).to.deep.equal({
+        draftKey: '[redacted]',
+        virtualCard: { privateData: { cardNumber: '[redacted]', expiryDate: '12/30', cvv: '[redacted]' } },
+        payoutMethod: {
+          data: {
+            currency: 'USD',
+            details: {
+              abartn: '[redacted]',
+              bankCode: '[redacted]',
+              bsbCode: '[redacted]',
+              customerReferenceNumber: '[redacted]',
+              idDocumentNumber: '[redacted]',
+              idDocumentType: '[redacted]',
+              identificationNumber: '[redacted]',
+              ifscCode: '[redacted]',
+              institutionNumber: '[redacted]',
+              interacAccount: '[redacted]',
+              sortCode: '[redacted]',
+              transitNumber: '[redacted]',
+            },
+          },
+        },
+      });
+    });
+
     it('leaves non-objects untouched', () => {
       expect(redactVariables(undefined)).to.be.undefined;
       expect(redactVariables(null)).to.be.null;
@@ -137,6 +209,24 @@ describe('server/lib/hyperwatch-redaction', () => {
       const variables = encodeURIComponent(JSON.stringify({ slug: 'webpack', email: 'jane@example.com' }));
       expect(redactUrl(`/graphql/v2?operationName=Account&variables=${variables}`)).to.equal(
         '/graphql/v2?operationName=Account&variables=%7B%22slug%22%3A%22webpack%22%2C%22email%22%3A%22%5Bredacted%5D%22%7D',
+      );
+    });
+
+    it('redacts GraphQL variables that are not valid JSON', () => {
+      expect(redactUrl('/graphql/v2?operationName=Account&variables=%7B%22email%22%3A%22jane%40example.com')).to.equal(
+        '/graphql/v2?operationName=Account&variables=%5Bredacted%5D',
+      );
+    });
+
+    it('redacts draft keys and expense permalink keys', () => {
+      expect(redactUrl('/search?legal_name=Jane&slug=webpack')).to.equal(
+        '/search?legal_name=%5Bredacted%5D&slug=webpack',
+      );
+      expect(redactUrl('/files/abc?expenseId=1&draftKey=xxx')).to.equal(
+        '/files/abc?expenseId=1&draftKey=%5Bredacted%5D',
+      );
+      expect(redactUrl('https://opencollective.com/webpack/expenses/1?key=xxx&edit=1')).to.equal(
+        'https://opencollective.com/webpack/expenses/1?key=%5Bredacted%5D&edit=1',
       );
     });
 
