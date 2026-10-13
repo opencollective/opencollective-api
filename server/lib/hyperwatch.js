@@ -5,7 +5,7 @@ import config from 'config';
 import expressBasicAuth from 'express-basic-auth';
 import { get, pick } from 'lodash';
 
-import { isSensitiveHeader, redactUrl, redactVariables } from './hyperwatch-redaction';
+import { isSensitiveHeader, redactRequestVariables, redactUrl } from './hyperwatch-redaction';
 import { md5, parseToBoolean } from './utils';
 
 const computeMask = req => {
@@ -102,7 +102,7 @@ const load = (app, server) => {
         if (req.body && req.body.query) {
           log = log.set('graphql', {
             ...pick(req.body, ['operationName', 'query']),
-            variables: redactVariables(req.body.variables),
+            variables: redactRequestVariables(req.body.variables),
           });
           if (res.servedFromGraphqlCache) {
             log = log.setIn(['graphql', 'servedFromCache'], true);

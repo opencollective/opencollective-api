@@ -1,6 +1,12 @@
 import { expect } from 'chai';
 
-import { isSensitiveHeader, redactHeaders, redactUrl, redactVariables } from '../../../server/lib/hyperwatch-redaction';
+import {
+  isSensitiveHeader,
+  redactHeaders,
+  redactRequestVariables,
+  redactUrl,
+  redactVariables,
+} from '../../../server/lib/hyperwatch-redaction';
 
 describe('server/lib/hyperwatch-redaction', () => {
   describe('headers', () => {
@@ -211,6 +217,28 @@ describe('server/lib/hyperwatch-redaction', () => {
       expect(redactVariables(undefined)).to.be.undefined;
       expect(redactVariables(null)).to.be.null;
       expect(redactVariables('string')).to.equal('string');
+    });
+  });
+
+  describe('request body variables', () => {
+    it('redacts objects and variables sent as a JSON string', () => {
+      expect(redactRequestVariables({ email: 'a@b.c', slug: 'opencollective' })).to.deep.equal({
+        email: '[redacted]',
+        slug: 'opencollective',
+      });
+      expect(JSON.parse(redactRequestVariables('{"email":"a@b.c","slug":"opencollective"}') as string)).to.deep.equal({
+        email: '[redacted]',
+        slug: 'opencollective',
+      });
+    });
+
+    it('redacts anything else but keeps missing variables', () => {
+      expect(redactRequestVariables('a@b.c')).to.equal('[redacted]');
+      expect(redactRequestVariables('"a@b.c"')).to.equal('[redacted]');
+      expect(redactRequestVariables(['a@b.c'])).to.equal('[redacted]');
+      expect(redactRequestVariables(42)).to.equal('[redacted]');
+      expect(redactRequestVariables(null)).to.equal(null);
+      expect(redactRequestVariables(undefined)).to.equal(undefined);
     });
   });
 
