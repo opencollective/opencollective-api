@@ -728,7 +728,7 @@ const expenseMutations = {
       });
 
       checkCanReceiveExpense(collective);
-      checkCanCreateExpenseForCollective(collective, remoteUser);
+      checkCanCreateExpenseForCollective(collective, req);
 
       const collectiveWithAccounts = await models.Collective.findByPk(collective.id, {
         include: [

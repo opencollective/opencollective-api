@@ -11,7 +11,7 @@ import { roundCentsAmount } from '../../lib/currency';
 import { executeOrder } from '../../lib/payments';
 import { canSeePrivateAccount } from '../../lib/private-accounts';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../lib/sanitize-html';
-import models, { AccountingCategory, Collective, sequelize, Tier, TransactionsImportRow, User } from '../../models';
+import models, { AccountingCategory, Collective, sequelize, Tier, TransactionsImportRow } from '../../models';
 import { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 import Order from '../../models/Order';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
@@ -98,10 +98,11 @@ export const assertTierBelongsToAccount = (tier: Tier | null | undefined, accoun
   }
 };
 
-export const canAddFundsFromAccount = (fromCollective: Collective, host: Collective, remoteUser: User) => {
+export const canAddFundsFromAccount = (fromCollective: Collective, host: Collective, req: express.Request) => {
+  const { remoteUser } = req;
   if (!remoteUser) {
     return false;
-  } else if (remoteUser.isRoot()) {
+  } else if (remoteUser.isRoot() && checkScope(req, 'root')) {
     return true;
   } else if (!remoteUser.isAdmin(host.id)) {
     return false;
@@ -124,7 +125,8 @@ export const canAddFundsFromAccount = (fromCollective: Collective, host: Collect
   }
 };
 
-export async function addFunds(order: AddFundsInput, remoteUser: User) {
+export async function addFunds(order: AddFundsInput, req: express.Request) {
+  const { remoteUser } = req;
   if (!remoteUser) {
     throw new Error('You need to be logged in to add fund to collective');
   }
@@ -139,7 +141,7 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     throw new Error('Host not found');
   } else if (!remoteUser.isAdmin(host.id)) {
     throw new Error("You don't have the permission to add funds to this host");
-  } else if (!canAddFundsFromAccount(fromCollective, host, remoteUser)) {
+  } else if (!canAddFundsFromAccount(fromCollective, host, req)) {
     throw new Error(
       "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
     );
@@ -361,7 +363,7 @@ export const canCancelOrder = async (
   const fromCollective = order.fromCollective || (await req.loaders.Collective.byId.load(order.FromCollectiveId));
   const isContributor = Boolean(fromCollective && req.remoteUser.isAdminOfCollective(fromCollective));
   const isHostAdmin = await isOrderHostAdmin(req, order);
-  const isRootAdmin = req.remoteUser.isRoot();
+  const isRootAdmin = req.remoteUser.isRoot() && checkScope(req, 'root');
 
   if (!isHostAdmin && !isContributor && !isRootAdmin) {
     if (options.throw) {

@@ -18,7 +18,7 @@ import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Order } from '../../../models';
 import { checkIsValidBalanceAccountingCategory } from '../../common/balance-accounting-categories';
 import { addFunds, canAddFundsFromAccount, checkCanUseAccountingCategoryForOrder } from '../../common/orders';
-import { checkRemoteUserCanUseHost } from '../../common/scope-check';
+import { checkRemoteUserCanRoot, checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { refundTransaction } from '../../common/transactions';
 import { ValidationFailed } from '../../errors';
 import { getOrderTaxInfoFromTaxInput } from '../../v1/mutations/orders';
@@ -113,8 +113,8 @@ const validateAddFundsArgs = ({
   if (!host) {
     throw new ValidationFailed('Adding funds is only possible for account with a host or independent.');
   }
-  if (!req.remoteUser.isAdmin(host.id) && !req.remoteUser.isRoot()) {
-    throw new Error('Only an site admin or collective host admin can add fund');
+  if (!req.remoteUser.isAdmin(host.id)) {
+    checkRemoteUserCanRoot(req, { rootOnlyMessage: 'Only an site admin or collective host admin can add fund' });
   }
   if (fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId !== host.id) {
     throw new Error('You can only add funds from a vendor account that belongs to the same host');
@@ -257,7 +257,7 @@ export default {
           accountingCategory,
           balanceAccountingCategory,
         },
-        req.remoteUser,
+        req,
       );
     },
   },
@@ -366,7 +366,7 @@ export default {
         req,
       });
 
-      if (!canAddFundsFromAccount(fromAccount, host, req.remoteUser)) {
+      if (!canAddFundsFromAccount(fromAccount, host, req)) {
         throw new Error(
           "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
         );
