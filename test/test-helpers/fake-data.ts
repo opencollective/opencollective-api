@@ -798,7 +798,6 @@ export const fakeOrder = async (
       interval: order.interval || 'month',
       currency: order.currency,
       isActive: true,
-      quantity: order.quantity,
       ...orderData.subscription,
     };
 
@@ -871,7 +870,6 @@ export const fakeSubscription = (params = {}) => {
     currency: sample<SupportedCurrency>(['USD', 'EUR']),
     interval: <'month' | 'year'>sample(['month', 'year']),
     isActive: true,
-    quantity: 1,
     ...params,
   });
 };
