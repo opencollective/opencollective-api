@@ -57,6 +57,7 @@ export const TypeOfCollectiveType = new GraphQLEnumType({
     PROJECT: {},
     FUND: {},
     VENDOR: {},
+    PLATFORM: {},
   },
 });
 
