@@ -294,9 +294,9 @@ const getNotificationsToIgnore = async (from: Collective, into: Collective, tran
         target =>
           // Same user already has this notification type on the target (unique (type, CollectiveId, UserId))
           (source.UserId && source.UserId === target.UserId && source.type === target.type) ||
-          // Same webhook/slack entry already registered on the target
-          (!source.UserId &&
-            !target.UserId &&
+          // Same webhook/slack destination (channel/type/webhook URL) already registered on the target, even
+          // when added by a different user: such duplicates would deliver the same event twice
+          (source.webhookUrl &&
             source.channel === target.channel &&
             source.type === target.type &&
             source.webhookUrl === target.webhookUrl),

@@ -486,6 +486,51 @@ describe('server/lib/merge-accounts', () => {
       expect(warnings.join('\n')).to.include('notification');
     });
 
+    it('dedupes webhooks with the same URL and activity regardless of who added them', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      const user1 = await Faker.fakeUser();
+      const user2 = await Faker.fakeUser();
+      const webhookUrl = 'https://example.com/shared-webhook';
+
+      // Same webhook URL + activity registered by different users on both accounts
+      await Faker.fakeNotification({
+        CollectiveId: collective1.id,
+        UserId: user1.id,
+        channel: channels.WEBHOOK,
+        type: 'webhook',
+        webhookUrl,
+      });
+      const targetWebhook = await Faker.fakeNotification({
+        CollectiveId: collective2.id,
+        UserId: user2.id,
+        channel: channels.WEBHOOK,
+        type: 'webhook',
+        webhookUrl,
+      });
+
+      // A different URL + activity must NOT be deduped
+      const movedWebhook = await Faker.fakeNotification({
+        CollectiveId: collective1.id,
+        UserId: user1.id,
+        channel: channels.WEBHOOK,
+        type: 'webhook.monthly',
+        webhookUrl: 'https://example.com/other-webhook',
+      });
+
+      const warnings = await mergeAccounts(collective1, collective2);
+
+      // Only the target's webhook remains for this URL + activity
+      const webhooks = await models.Notification.findAll({ where: { CollectiveId: collective2.id, webhookUrl } });
+      expect(webhooks).to.have.length(1);
+      expect(webhooks[0].id).to.eq(targetWebhook.id);
+
+      // Non-conflicting webhooks are moved
+      await movedWebhook.reload();
+      expect(movedWebhook.CollectiveId).to.eq(collective2.id);
+      expect(warnings.join('\n')).to.include('notification');
+    });
+
     it('dedupes emoji reactions on merge', async () => {
       const collective1 = await Faker.fakeCollective();
       const collective2 = await Faker.fakeCollective();
