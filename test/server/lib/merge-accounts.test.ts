@@ -487,6 +487,33 @@ describe('server/lib/merge-accounts', () => {
       expect(ruleOnMoved.AccountingCategoryId).to.eq(movedCategory.id);
     });
 
+    it('moves manual payment providers to the target', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      const sourcePaymentProvider = await Faker.fakeManualPaymentProvider({
+        CollectiveId: collective1.id,
+        name: 'Source bank transfer',
+      });
+      const targetPaymentProvider = await Faker.fakeManualPaymentProvider({
+        CollectiveId: collective2.id,
+        name: 'Target bank transfer',
+      });
+
+      await mergeAccounts(collective1, collective2);
+
+      // The source's payment provider moves to the target, the target's own provider is untouched
+      await sourcePaymentProvider.reload();
+      expect(sourcePaymentProvider.CollectiveId).to.eq(collective2.id);
+      await targetPaymentProvider.reload();
+      expect(targetPaymentProvider.CollectiveId).to.eq(collective2.id);
+
+      const providers = await models.ManualPaymentProvider.findAll({
+        where: { CollectiveId: collective2.id },
+        order: [['name', 'ASC']],
+      });
+      expect(providers.map(provider => provider.name)).to.deep.eq(['Source bank transfer', 'Target bank transfer']);
+    });
+
     it('dedupes notifications on merge (same webhook URL / same user and type)', async () => {
       const collective1 = await Faker.fakeCollective();
       const collective2 = await Faker.fakeCollective();

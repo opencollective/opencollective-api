@@ -647,6 +647,7 @@ const collectiveFieldsConfig: CollectiveFieldsConfig = {
   hostedVirtualCardRequests: { model: models.VirtualCardRequest, field: 'HostCollectiveId' },
   legalDocuments: { model: models.LegalDocument, field: 'CollectiveId', getIdsToIgnore: getLegalDocumentsToIgnore },
   location: { model: models.Location, field: 'CollectiveId' },
+  manualPaymentProviders: { model: models.ManualPaymentProvider, field: 'CollectiveId' },
   memberInvitations: { model: models.MemberInvitation, field: 'MemberCollectiveId' },
   members: { model: models.Member, field: 'MemberCollectiveId', getIdsToIgnore: getMemberIdsToIgnore },
   membershipInvitations: { model: models.MemberInvitation, field: 'CollectiveId' },
