@@ -8,6 +8,9 @@ import { createAccountAdminMembers } from '../lib/account-admins';
 import { TOKEN_EXPIRATION_SESSION } from '../lib/auth';
 import { Collective, sequelize, User } from '../models';
 
+import { defineRecipe, type Recipe } from './builders';
+import { expenseRecipes } from './expense-recipes';
+
 const identifier = z.string().regex(/^[a-zA-Z0-9_.:-]{1,100}$/);
 const requestSchema = z
   .object({
@@ -21,10 +24,67 @@ const requestSchema = z
       })
       .strict(),
     requestId: identifier,
-    recipe: z.enum(['account-profile', 'account-conversation']),
-    inputs: z.object({ name: z.string().trim().min(1).max(1000) }).strict(),
+    recipe: z.string(),
+    inputs: z.unknown(),
   })
   .strict();
+
+/** One user administering one unhosted Account: no host or payment graph. */
+const accountRecipe = (conversations: boolean) =>
+  defineRecipe({
+    inputs: z.object({ name: z.string().trim().min(1).max(1000) }).strict(),
+    build: async (ctx, inputs) => {
+      const { transaction } = ctx;
+      const slug = `pw-${ctx.key.slice(0, 32)}`;
+      const user = await User.createUserWithCollective(
+        {
+          email: `testuser+${slug}@opencollective.com`,
+          name: `Fixture admin ${ctx.key.slice(0, 12)}`,
+          slug: `${slug}-admin`,
+          data: { requiresProfileCompletion: false },
+        },
+        transaction,
+      );
+      ctx.checkConnection();
+      const account = await Collective.create(
+        {
+          type: CollectiveType.COLLECTIVE,
+          name: inputs.name,
+          slug,
+          description: 'An independent Playwright scenario',
+          currency: 'USD',
+          HostCollectiveId: null,
+          CreatedByUserId: user.id,
+          isActive: false,
+          settings: { features: { conversations } },
+          data: { e2eAttempt: ctx.attempt, e2eRequestId: ctx.requestId },
+        },
+        { transaction },
+      );
+      ctx.checkConnection();
+      await createAccountAdminMembers(account, [user], { transaction });
+      return {
+        account: { id: account.publicId, slug: account.slug, name: account.name },
+        user: { id: user.collective.publicId, email: user.email, slug: user.collective.slug },
+        urls: {
+          profile: `/${slug}`,
+          info: `/dashboard/${slug}/info`,
+          conversations: `/${slug}/conversations`,
+          newConversation: `/${slug}/conversations/new`,
+        },
+        // Session auth avoids global sign-in rate counters and tokens in browser
+        // navigation URLs. Only safe to return after commit.
+        auth: { token: user.jwt({ scope: 'session' }, TOKEN_EXPIRATION_SESSION) },
+      };
+    },
+  });
+
+// Add a recipe by registering it here and describing its inputs in the frontend transport.
+const recipes: Record<string, Recipe> = {
+  'account-profile': accountRecipe(false),
+  'account-conversation': accountRecipe(true),
+  ...expenseRecipes,
+};
 
 class FixtureError extends Error {
   constructor(
@@ -56,19 +116,20 @@ export async function initializeFixtures(database: string): Promise<void> {
 // ts-unused-exports:disable-next-line
 export async function arrangeFixture(ownerRunId: string, body: unknown, disconnected: () => boolean) {
   const parsed = requestSchema.safeParse(body);
-  if (!parsed.success) {
+  const recipe = parsed.success && Object.hasOwn(recipes, parsed.data.recipe) ? recipes[parsed.data.recipe] : null;
+  const inputs = recipe?.inputs.safeParse(parsed.data.inputs);
+  if (!parsed.success || !inputs?.success) {
     throw new FixtureError(
       400,
       'INVALID_REQUEST',
       'Provide a named recipe, valid inputs, requestId and complete attempt identity.',
     );
   }
-  const request = parsed.data;
+  const request = { ...parsed.data, inputs: inputs.data };
   const key = createHash('sha256')
     .update(JSON.stringify([ownerRunId, request.attempt, request.requestId]))
     .digest('hex');
   const payload = JSON.stringify({ recipe: request.recipe, inputs: request.inputs });
-  const slug = `pw-${key.slice(0, 32)}`;
   const checkConnection = () => {
     if (disconnected()) {
       throw new FixtureError(
@@ -107,49 +168,21 @@ export async function arrangeFixture(ownerRunId: string, body: unknown, disconne
         return receipt.result;
       }
       checkConnection();
-      const user = await User.createUserWithCollective(
+      const references = await recipe.build(
         {
-          email: `testuser+${slug}@opencollective.com`,
-          name: `Fixture admin ${key.slice(0, 12)}`,
-          slug: `${slug}-admin`,
-          data: { requiresProfileCompletion: false },
+          transaction,
+          key,
+          attempt: request.attempt,
+          requestId: request.requestId,
+          slug: label => `pw-${key.slice(0, 24)}-${label}`,
+          tag: key.slice(0, 12),
+          checkConnection,
         },
-        transaction,
+        request.inputs,
       );
-      checkConnection();
-      const account = await Collective.create(
-        {
-          type: CollectiveType.COLLECTIVE,
-          name: request.inputs.name,
-          slug,
-          description: 'An independent Playwright scenario',
-          currency: 'USD',
-          HostCollectiveId: null,
-          CreatedByUserId: user.id,
-          isActive: false,
-          settings: { features: { conversations: request.recipe === 'account-conversation' } },
-          data: { e2eAttempt: request.attempt, e2eRequestId: request.requestId },
-        },
-        { transaction },
-      );
-      checkConnection();
-      await createAccountAdminMembers(account, [user], { transaction });
-      // These handles are safe to return only after commit. Session auth avoids
-      // global sign-in rate counters and tokens in browser navigation URLs.
-      const result = {
-        recipe: request.recipe,
-        attempt: request.attempt,
-        requestId: request.requestId,
-        account: { id: account.publicId, slug: account.slug, name: account.name },
-        user: { id: user.collective.publicId, email: user.email, slug: user.collective.slug },
-        urls: {
-          profile: `/${slug}`,
-          info: `/dashboard/${slug}/info`,
-          conversations: `/${slug}/conversations`,
-          newConversation: `/${slug}/conversations/new`,
-        },
-        auth: { token: user.jwt({ scope: 'session' }, TOKEN_EXPIRATION_SESSION) },
-      };
+      // The receipt commits with the prerequisites, so handles are only ever
+      // returned for a graph that exists.
+      const result = { recipe: request.recipe, attempt: request.attempt, requestId: request.requestId, ...references };
       await sequelize.query(
         'INSERT INTO "E2EFixtureRequests" ("key", "payload", "result") VALUES (:key, CAST(:payload AS jsonb), CAST(:result AS jsonb))',
         {
@@ -165,7 +198,7 @@ export async function arrangeFixture(ownerRunId: string, body: unknown, disconne
       throw new FixtureError(
         422,
         'INVALID_PREREQUISITE',
-        `Account validation failed (${error.errors.map(e => e.path).join(', ')}). Setup rolled back.`,
+        `Prerequisite validation failed (${error.errors.map(e => e.path).join(', ')}). Setup rolled back.`,
       );
     }
     throw error;
