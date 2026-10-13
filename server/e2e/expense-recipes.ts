@@ -20,6 +20,21 @@ import {
 
 const item = z.object({ description: z.string().trim().min(1).max(255), amount: z.number().int().positive() }).strict();
 
+/** A pending expense `submitter` already sent to `account`, payable to their own profile through a saved payout method. */
+const createExpenseWithSavedPayout = async (
+  ctx: Parameters<typeof createSubmittedExpense>[0],
+  { submitter, ...expense }: Omit<Parameters<typeof createSubmittedExpense>[1], 'payoutMethod'>,
+) =>
+  createSubmittedExpense(ctx, {
+    ...expense,
+    submitter,
+    payoutMethod: await createPayoutMethod(ctx, {
+      account: submitter.collective,
+      creator: submitter,
+      name: `Saved payout ${ctx.tag}`,
+    }),
+  });
+
 /**
  * Graph recipes share one result shape, keyed by role label:
  * `actors` (with a private session token each), `accounts`, `expenses`, `urls`.
@@ -73,14 +88,9 @@ export const expenseRecipes: Record<string, Recipe> = {
       const inviteeOrganization = inviteeAdmin && (await createOrganization(ctx, 'invitee-organization', inviteeAdmin));
       const priorExpense =
         inputs.priorExpense &&
-        (await createSubmittedExpense(ctx, {
+        (await createExpenseWithSavedPayout(ctx, {
           account: collective,
           submitter,
-          payoutMethod: await createPayoutMethod(ctx, {
-            account: submitter.collective,
-            creator: submitter,
-            name: `Saved payout ${ctx.tag}`,
-          }),
           description: `Prior expense ${ctx.tag}`,
           items: [{ description: 'Some stuff', amount: 1000 }],
           type: inputs.priorExpenseType,
@@ -136,14 +146,9 @@ export const expenseRecipes: Record<string, Recipe> = {
       const project = inputs.project && (await createProject(ctx, 'project', { parent: collective, creator: admin }));
       const expense =
         inputs.expense &&
-        (await createSubmittedExpense(ctx, {
+        (await createExpenseWithSavedPayout(ctx, {
           account: collective,
           submitter: admin,
-          payoutMethod: await createPayoutMethod(ctx, {
-            account: admin.collective,
-            creator: admin,
-            name: `Saved payout ${ctx.tag}`,
-          }),
           ...inputs.expense,
         }));
       return {

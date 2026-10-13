@@ -51,6 +51,24 @@ export const defineRecipe = <Schema extends z.ZodType>(recipe: {
 
 type AccountSettings = Record<string, unknown>;
 
+/** Stored on every arranged Account, so a retained row names the attempt and request that created it. */
+export const arrangedBy = (ctx: Pick<FixtureContext, 'attempt' | 'requestId'>) => ({
+  e2eAttempt: ctx.attempt,
+  e2eRequestId: ctx.requestId,
+});
+
+/** The membership that makes an Account's fiscal host its host, as hosting leaves it. */
+const addHostMember = (ctx: FixtureContext, account: Collective, creator: User) =>
+  Member.create(
+    {
+      CollectiveId: account.id,
+      MemberCollectiveId: account.HostCollectiveId,
+      role: roles.HOST,
+      CreatedByUserId: creator.id,
+    },
+    { transaction: ctx.transaction },
+  );
+
 export const actorHandle = (user: User) => ({
   id: user.collective.publicId,
   legacyId: user.collective.id,
@@ -96,7 +114,8 @@ export async function createActor(ctx: FixtureContext, label: string): Promise<U
 }
 
 /**
- * An active fiscal host owned by this request, with the money-management setup of `createOrganization`.
+ * An active fiscal host owned by this request, set up for money management the way the product's
+ * organization-creation mutation does it (unlike the unhosted payee profile `createOrganization` below arranges).
  * `label` distinguishes a second host of the same request; `useVendorPolicy` sets who may use the host's
  * vendors (left unset, the host has no policies and the product default applies).
  */
@@ -119,7 +138,7 @@ export async function createHost(
       description: 'An independent Playwright fiscal host',
       currency,
       CreatedByUserId: admin.id,
-      data: { e2eAttempt: ctx.attempt, e2eRequestId: ctx.requestId },
+      data: arrangedBy(ctx),
     },
     { transaction },
   );
@@ -138,9 +157,10 @@ export async function createHost(
 }
 
 /**
- * A vendor of a host, as `createVendor` stores it: usable with every Account of the host unless
- * `usableWith` names some (each must be the host or hosted by it), and following the host's vendor
- * policy unless `useVendorPolicy` overrides it. Records no activity.
+ * A vendor of a host, as the product's vendor-creation mutation stores it: usable with every Account of the
+ * host unless `usableWith` names some, and following the host's vendor policy unless `useVendorPolicy`
+ * overrides it. `usableWith` must only hold the host or Accounts it hosts; the recipe checks that on its
+ * inputs, where a mistake is answered as an invalid request. Records no activity.
  */
 export async function createVendor(
   ctx: FixtureContext,
@@ -163,9 +183,6 @@ export async function createVendor(
   },
 ): Promise<Collective> {
   ctx.checkConnection();
-  if (!usableWith.every(account => account.id === host.id || account.HostCollectiveId === host.id)) {
-    throw new Error(`Vendor ${label} can only be scoped to its host or Accounts hosted by it.`);
-  }
   const slug = ctx.slug(label);
   const vendor = await Collective.create(
     {
@@ -181,8 +198,7 @@ export async function createVendor(
         vendorInfo: {},
         canBeUsedWithAccountIds: [...new Set(usableWith.map(account => account.id))],
         useVendorPolicy,
-        e2eAttempt: ctx.attempt,
-        e2eRequestId: ctx.requestId,
+        ...arrangedBy(ctx),
       },
     },
     { transaction: ctx.transaction },
@@ -223,14 +239,11 @@ export async function createHostedCollective(
       approvedAt: new Date(),
       CreatedByUserId: creator.id,
       settings,
-      data: { e2eAttempt: ctx.attempt, e2eRequestId: ctx.requestId },
+      data: arrangedBy(ctx),
     },
     { transaction },
   );
-  await Member.create(
-    { CollectiveId: account.id, MemberCollectiveId: host.id, role: roles.HOST, CreatedByUserId: creator.id },
-    { transaction },
-  );
+  await addHostMember(ctx, account, creator);
   if (country) {
     await account.setLocation({ country }, transaction);
   }
@@ -264,19 +277,11 @@ export async function createProject(
       isActive: parent.isActive,
       approvedAt: parent.approvedAt,
       CreatedByUserId: creator.id,
-      data: { e2eAttempt: ctx.attempt, e2eRequestId: ctx.requestId },
+      data: arrangedBy(ctx),
     },
     { transaction },
   );
-  await Member.create(
-    {
-      CollectiveId: project.id,
-      MemberCollectiveId: parent.HostCollectiveId,
-      role: roles.HOST,
-      CreatedByUserId: creator.id,
-    },
-    { transaction },
-  );
+  await addHostMember(ctx, project, creator);
   return project;
 }
 
@@ -294,7 +299,7 @@ export async function createOrganization(ctx: FixtureContext, label: string, adm
       HostCollectiveId: null,
       isActive: false,
       CreatedByUserId: admin.id,
-      data: { e2eAttempt: ctx.attempt, e2eRequestId: ctx.requestId },
+      data: arrangedBy(ctx),
     },
     { transaction },
   );
@@ -330,8 +335,8 @@ export async function createPayoutMethod(
 type ItemInput = { description: string; amount: number };
 
 /**
- * The receipt of one reimbursement item: a real image in the uploads bucket with its `UploadedFiles` row,
- * as an upload through the product leaves it. Storage is outside the request transaction, so the object
+ * The receipt of one reimbursement item: a real image in the uploads bucket and the `UploadedFiles` row
+ * that makes the product accept and serve it. Storage is outside the request transaction, so the object
  * key derives from the request identity: a repeated request overwrites its own object, and a rolled-back
  * one leaves a file nothing refers to under a `pw-` prefix that names it.
  */
