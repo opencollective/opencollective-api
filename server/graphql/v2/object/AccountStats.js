@@ -450,6 +450,36 @@ export const GraphQLAccountStats = new GraphQLObjectType({
           });
         },
       },
+      totalAmountSpentTimeSeries: {
+        description: 'Total amount spent time series',
+        type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
+        args: {
+          ...TimeSeriesArgs, // dateFrom / dateTo / timeUnit
+          ...pick(TransactionArgs, ['net', 'kind', 'periodInMonths', 'includeChildren', 'currency']),
+        },
+        async resolve(collective, args, req) {
+          const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
+          let { dateFrom, dateTo } = args;
+
+          if (args.periodInMonths) {
+            dateFrom = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
+            dateTo = null;
+          }
+
+          const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
+
+          return collective.getTotalAmountSpentTimeSeries({
+            loaders: req.loaders,
+            net: args.net,
+            kind,
+            startDate: dateFrom,
+            endDate: dateTo,
+            timeUnit,
+            includeChildren: args.includeChildren,
+            currency: args.currency,
+          });
+        },
+      },
       balanceTimeSeries: {
         description: 'Balance time series',
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
