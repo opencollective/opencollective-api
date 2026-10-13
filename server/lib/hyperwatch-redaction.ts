@@ -156,6 +156,37 @@ export const redactVariables = <T>(variables: T, depth = 0): T => {
   }
 };
 
+const isPlainObject = (value: unknown): value is object =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * Redacts GraphQL variables serialized as JSON. Anything but an object is rejected by Apollo, but would still be
+ * logged as is, so it is replaced with "[redacted]".
+ */
+const redactVariablesJson = (json: string): string => {
+  try {
+    const variables = JSON.parse(json);
+    return isPlainObject(variables) ? JSON.stringify(redactVariables(variables)) : REDACTED;
+  } catch {
+    return REDACTED;
+  }
+};
+
+/**
+ * Redacts the `variables` of a GraphQL request body. Clients can also send them as a JSON string.
+ */
+export const redactRequestVariables = (variables: unknown): unknown => {
+  if (variables === null || variables === undefined) {
+    return variables;
+  } else if (typeof variables === 'string') {
+    return redactVariablesJson(variables);
+  } else if (isPlainObject(variables)) {
+    return redactVariables(variables);
+  } else {
+    return REDACTED;
+  }
+};
+
 /**
  * Redacts credentials and personal data from the path (see `SENSITIVE_PATHS`) and from the query string: the
  * values of sensitive parameters (e.g. `?token=`, `?email=`, `?code=`) are replaced with "[redacted]", and GraphQL
@@ -178,14 +209,7 @@ export const redactUrl = (url: string): string => {
       params.set(key, REDACTED);
       redacted = true;
     } else if (key === 'variables') {
-      try {
-        const variables = JSON.parse(params.get(key));
-        // Anything but an object is rejected by Apollo, but would still be logged as is
-        const isObject = variables !== null && typeof variables === 'object' && !Array.isArray(variables);
-        params.set(key, isObject ? JSON.stringify(redactVariables(variables)) : REDACTED);
-      } catch {
-        params.set(key, REDACTED);
-      }
+      params.set(key, redactVariablesJson(params.get(key)));
       redacted = true;
     }
   }
