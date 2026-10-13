@@ -185,6 +185,28 @@ describe('server/lib/hyperwatch-redaction', () => {
       });
     });
 
+    it('handles long keys in linear time', () => {
+      const key = Array.from({ length: 3000 }, () => 'aB').join('');
+      const start = Date.now();
+      expect(redactVariables({ [key]: 'x' })).to.deep.equal({ [key]: 'x' });
+      expect(Date.now() - start).to.be.below(1000);
+    });
+
+    it('redacts what is nested too deep to inspect', () => {
+      let variables: Record<string, unknown> = { slug: 'webpack' };
+      for (let i = 0; i < 20000; i++) {
+        variables = { input: variables };
+      }
+      let result = redactVariables(variables);
+      let depth = 0;
+      while (result && typeof result === 'object' && 'input' in result) {
+        result = result.input as Record<string, unknown>;
+        depth++;
+      }
+      expect(result).to.equal('[redacted]');
+      expect(depth).to.be.below(100);
+    });
+
     it('leaves non-objects untouched', () => {
       expect(redactVariables(undefined)).to.be.undefined;
       expect(redactVariables(null)).to.be.null;
@@ -216,6 +238,19 @@ describe('server/lib/hyperwatch-redaction', () => {
       expect(redactUrl('/graphql/v2?operationName=Account&variables=%7B%22email%22%3A%22jane%40example.com')).to.equal(
         '/graphql/v2?operationName=Account&variables=%5Bredacted%5D',
       );
+    });
+
+    it('redacts GraphQL variables that are valid JSON but not an object', () => {
+      expect(redactUrl('/graphql/v2?variables=%22token%3Dsecret%22')).to.equal('/graphql/v2?variables=%5Bredacted%5D');
+      expect(redactUrl('/graphql/v2?variables=%5B%22secret%22%5D')).to.equal('/graphql/v2?variables=%5Bredacted%5D');
+      expect(redactUrl('/graphql/v2?variables=null')).to.equal('/graphql/v2?variables=%5Bredacted%5D');
+    });
+
+    it('redacts kebab-case API key parameters', () => {
+      expect(redactUrl('/webpack.json?api-key=secret&limit=10')).to.equal(
+        '/webpack.json?api-key=%5Bredacted%5D&limit=10',
+      );
+      expect(redactUrl('/webpack.json?apiKey=secret')).to.equal('/webpack.json?apiKey=%5Bredacted%5D');
     });
 
     it('redacts draft keys and expense permalink keys', () => {

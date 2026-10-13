@@ -79,7 +79,7 @@ const SENSITIVE_KEY_WORDS = new Set([
 ]);
 
 // Matched anywhere in the key, e.g. `twoFactorAuthenticatorCode`, `accessToken`, `clientSecret`, `apiKey`
-const SENSITIVE_KEY_PATTERN = /twofactor|token|secret|password|captcha|otp|iban|cvc|cvv|api_?key|session/;
+const SENSITIVE_KEY_PATTERN = /twofactor|token|secret|password|captcha|otp|iban|cvc|cvv|api[-_]?key|session/;
 
 // Query string parameters redacted in URLs only: `key` grants access to a draft expense on its permalink
 // (`/:collectiveSlug/expenses/:id?key=`, logged through the referer), while GraphQL variables named `key` are not
@@ -102,6 +102,13 @@ export const isSensitiveHeader = (name: string): boolean => {
   return SENSITIVE_HEADERS.has(lowerCaseName) || SENSITIVE_HEADER_PATTERN.test(lowerCaseName);
 };
 
+// The longest sensitive words span 3 segments (`customerReferenceNumber`). Bounding the runs keeps the matching
+// linear in the key length, whatever the request sends.
+const MAX_SEGMENTS_PER_WORD = 4;
+
+// Deeper values are redacted rather than inspected, so crafted inputs cannot overflow the stack
+const MAX_VARIABLES_DEPTH = 32;
+
 const isSensitiveWord = (segment: string): boolean => {
   const word = segment.toLowerCase();
   return [word, word.replace(/s$/, ''), word.replace(/es$/, ''), word.replace(/ies$/, 'y')].some(singular =>
@@ -116,7 +123,7 @@ const isSensitiveKey = (key: string): boolean => {
   // Every run of consecutive segments, so that compound words match inside longer keys (`contactFirstName`)
   const segments = key.split(/[_\-\s.]+|(?<=[a-z0-9])(?=[A-Z])/).filter(Boolean);
   for (let start = 0; start < segments.length; start++) {
-    for (let end = start + 1; end <= segments.length; end++) {
+    for (let end = start + 1; end <= Math.min(segments.length, start + MAX_SEGMENTS_PER_WORD); end++) {
       if (isSensitiveWord(segments.slice(start, end).join(''))) {
         return true;
       }
@@ -129,16 +136,18 @@ const isSensitiveKey = (key: string): boolean => {
  * Returns a deep copy of the GraphQL variables where the values of sensitive keys are replaced with "[redacted]",
  * recursing into arrays and nested inputs. The input is not mutated.
  */
-export const redactVariables = <T>(variables: T): T => {
-  if (Array.isArray(variables)) {
-    return variables.map(item => redactVariables(item)) as T;
+export const redactVariables = <T>(variables: T, depth = 0): T => {
+  if (variables && typeof variables === 'object' && depth >= MAX_VARIABLES_DEPTH) {
+    return REDACTED as T;
+  } else if (Array.isArray(variables)) {
+    return variables.map(item => redactVariables(item, depth + 1)) as T;
   } else if (variables && typeof variables === 'object') {
     const result = {};
     for (const [key, value] of Object.entries(variables)) {
       if (isSensitiveKey(key)) {
         result[key] = value === null || value === undefined ? value : REDACTED;
       } else {
-        result[key] = redactVariables(value);
+        result[key] = redactVariables(value, depth + 1);
       }
     }
     return result as T;
@@ -170,9 +179,11 @@ export const redactUrl = (url: string): string => {
       redacted = true;
     } else if (key === 'variables') {
       try {
-        params.set(key, JSON.stringify(redactVariables(JSON.parse(params.get(key)))));
+        const variables = JSON.parse(params.get(key));
+        // Anything but an object is rejected by Apollo, but would still be logged as is
+        const isObject = variables !== null && typeof variables === 'object' && !Array.isArray(variables);
+        params.set(key, isObject ? JSON.stringify(redactVariables(variables)) : REDACTED);
       } catch {
-        // Apollo rejects it, but it would still be logged as is
         params.set(key, REDACTED);
       }
       redacted = true;
