@@ -18,6 +18,48 @@ type AdminCommunityActivitySummaryRow = {
   relations: string[];
 };
 
+/** Fetch memberships that grant access to private info, excluding unapproved host links. */
+async function getAdministratedMemberRowsForPrivateInfo(
+  req: Pick<express.Request, 'remoteUser'>,
+  targetIds: number[],
+  { hostAdminsOnly = false } = {},
+): Promise<{ MemberCollectiveId: number }[]> {
+  const remoteUser = req.remoteUser;
+  const otherAccountIds = uniq(targetIds.filter(id => id && id !== remoteUser.CollectiveId));
+  if (!otherAccountIds.length) {
+    return [];
+  }
+
+  await remoteUser.populateRoles();
+  const adminOfCollectiveIds = remoteUser.getAdministratedCollectiveIds();
+  return models.Member.findAll({
+    attributes: ['MemberCollectiveId'],
+    group: ['MemberCollectiveId'],
+    raw: true,
+    mapToModel: false,
+    where: {
+      MemberCollectiveId: otherAccountIds,
+      // Pending applications create HOST memberships before approval. Ordinary members
+      // remain visible even when their collective is independent or awaiting approval.
+      [Op.or]: [{ role: { [Op.ne]: roles.HOST } }, { '$collective.approvedAt$': { [Op.ne]: null } }],
+    },
+    include: {
+      association: 'collective',
+      required: true,
+      attributes: [],
+      where: hostAdminsOnly
+        ? { HostCollectiveId: adminOfCollectiveIds }
+        : {
+            [Op.or]: [
+              { id: adminOfCollectiveIds },
+              { ParentCollectiveId: adminOfCollectiveIds },
+              { HostCollectiveId: adminOfCollectiveIds },
+            ],
+          },
+    },
+  });
+}
+
 export default {
   /**
    * Returns the collective (account) for this user ID, including incognito profiles
@@ -124,6 +166,7 @@ export default {
    * - be the user himself
    * - be an admin of a collective where user is a member (even as incognito, and regardless of the role)
    * - be an admin of the host of a collective where user is a member (even as incognito, and regardless of the role)
+   * HOST memberships only grant access once the collective is approved by its host.
    */
   canSeePrivateProfileInfo: (req): DataLoader<number, boolean> => {
     return new DataLoader(async (collectiveIds: number[]) => {
@@ -132,39 +175,7 @@ export default {
         return collectiveIds.map(() => false);
       }
 
-      let administratedMembers: { MemberCollectiveId: number }[] = [];
-
-      // Aggregates all the profiles linked to users
-      const uniqueCollectiveIds = uniq(collectiveIds.filter(Boolean));
-      const otherAccountsCollectiveIds = uniqueCollectiveIds.filter(
-        collectiveId => collectiveId !== remoteUser.CollectiveId,
-      );
-
-      // Fetch all the admin memberships of `remoteUser` to collectives or collective's hosts
-      // that are linked to users`
-      if (otherAccountsCollectiveIds.length) {
-        await remoteUser.populateRoles();
-        const adminOfCollectiveIds = remoteUser.getAdministratedCollectiveIds();
-        administratedMembers = await models.Member.findAll({
-          attributes: ['MemberCollectiveId'],
-          group: ['MemberCollectiveId'],
-          raw: true,
-          mapToModel: false,
-          where: { MemberCollectiveId: otherAccountsCollectiveIds },
-          include: {
-            association: 'collective',
-            required: true,
-            attributes: [],
-            where: {
-              [Op.or]: [
-                { id: adminOfCollectiveIds }, // Either `remoteUser` is an admin of the collective
-                { ParentCollectiveId: adminOfCollectiveIds }, // Or an admin of the parent collective
-                { HostCollectiveId: adminOfCollectiveIds }, // Or `remoteUser` is an admin of the collective's host
-              ],
-            },
-          },
-        });
-      }
+      const administratedMembers = await getAdministratedMemberRowsForPrivateInfo(req, collectiveIds);
 
       // User must be self or directly administered by remoteUser
       const administratedMemberCollectiveIds = new Set(administratedMembers.map(m => m.MemberCollectiveId));
@@ -181,6 +192,7 @@ export default {
    * To check if remoteUser has access to user's private location. `remoteUser` must either:
    * - be the user himself
    * - be an admin of the host of a collective where user is a member (even as incognito, and regardless of the role)
+   * HOST memberships only grant access once the collective is approved by its host.
    */
   canSeePrivateLocation: (req): DataLoader<number, boolean> => {
     return new DataLoader(async (collectiveIds: number[]) => {
@@ -189,33 +201,9 @@ export default {
         return collectiveIds.map(() => false);
       }
 
-      let administratedMembers = [];
-
-      // Aggregates all the profiles linked to users
-      const uniqueCollectiveIds = uniq(collectiveIds.filter(Boolean));
-      const otherAccountsCollectiveIds = uniqueCollectiveIds.filter(
-        collectiveId => collectiveId !== remoteUser.CollectiveId,
-      );
-
-      // Fetch all the admin memberships of `remoteUser` to collectives or collective's hosts
-      // that are linked to users`
-      if (otherAccountsCollectiveIds.length) {
-        await remoteUser.populateRoles();
-        const adminOfCollectiveIds = remoteUser.getAdministratedCollectiveIds();
-        administratedMembers = await models.Member.findAll({
-          attributes: ['MemberCollectiveId'],
-          group: ['MemberCollectiveId'],
-          raw: true,
-          mapToModel: false,
-          where: { MemberCollectiveId: otherAccountsCollectiveIds },
-          include: {
-            association: 'collective',
-            required: true,
-            attributes: [],
-            where: { HostCollectiveId: adminOfCollectiveIds }, // `remoteUser` is an admin of the collective's host
-          },
-        });
-      }
+      const administratedMembers = await getAdministratedMemberRowsForPrivateInfo(req, collectiveIds, {
+        hostAdminsOnly: true,
+      });
 
       // User must be self or directly administered by remoteUser
       const administratedMemberCollectiveIds = new Set(administratedMembers.map(m => m.MemberCollectiveId));

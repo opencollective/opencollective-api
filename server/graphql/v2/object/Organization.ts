@@ -308,7 +308,12 @@ export const getOrganizationFields = () => ({
             .where('m.deletedAt', 'is', null)
             .where('ac.deletedAt', 'is', null)
             // filter by host or collectives hosted by this host
-            .where(({ or, eb }) => or([eb('ac.HostCollectiveId', '=', host.id), eb('ac.id', '=', host.id)]))
+            .where(({ or, and, eb }) =>
+              or([
+                and([eb('ac.HostCollectiveId', '=', host.id), eb('ac.approvedAt', 'is not', null)]),
+                eb('ac.id', '=', host.id),
+              ]),
+            )
             .select('m.CollectiveId as id')
             .union(
               // children accounts that the user can view vendors for given that vendors attached to parents
@@ -325,7 +330,12 @@ export const getOrganizationFields = () => ({
                 .where('m.role', '=', MemberRoles.ADMIN)
                 .where('m.deletedAt', 'is', null)
                 .where('parent.deletedAt', 'is', null)
-                .where(({ or, eb }) => or([eb('parent.HostCollectiveId', '=', host.id), eb('parent.id', '=', host.id)]))
+                .where(({ or, and, eb }) =>
+                  or([
+                    and([eb('parent.HostCollectiveId', '=', host.id), eb('parent.approvedAt', 'is not', null)]),
+                    eb('parent.id', '=', host.id),
+                  ]),
+                )
                 .select('c.id'),
             ),
         );
