@@ -1,4 +1,4 @@
-import { flatten, isEmpty, keyBy, mapValues, some } from 'lodash';
+import { flatten, groupBy, isEmpty, keyBy, mapValues, some } from 'lodash';
 import { DestroyOptions, Model, ModelStatic, Transaction as SQLTransaction } from 'sequelize';
 
 import { CollectiveType } from '../constants/collectives';
@@ -280,43 +280,106 @@ const rePointAccountingCategoryReferences = async (
   }
 };
 
+/** A duplicate notification must be dropped: the move would otherwise break the (type, CollectiveId, UserId) unique key */
+const hasNotificationUserTypeConflict = (source, target): boolean =>
+  Boolean(source.UserId) && source.UserId === target.UserId && source.type === target.type;
+
+/**
+ * Decides which duplicate notification rows must be dropped when moving `CollectiveId` (from -> into).
+ * The target's rows are kept by default, except for webhook destination duplicates where the source's row is
+ * active and the target's matching rows are all inactive: the active row is then preserved on the source side
+ * and the inactive target rows are dropped instead (never delete the only active destination).
+ *
+ * `active` is not considered for `(type, UserId)` conflicts: on email rows it encodes subscribe/unsubscribe
+ * preferences, where the target's row must win.
+ */
+const getNotificationsDedupPlan = (
+  sourceRows: Array<{ id: number; channel: string; type: string; webhookUrl: string; UserId: number; active: boolean }>,
+  targetRows: Array<{ id: number; channel: string; type: string; webhookUrl: string; UserId: number; active: boolean }>,
+): { sourceIdsToDrop: number[]; targetIdsToDrop: number[] } => {
+  const sourceIdsToDrop = [];
+  const targetIdsToDrop = [];
+
+  // Conflicts with the (type, CollectiveId, UserId) unique key: the target's row survives
+  const conflictingSourceRows = sourceRows.filter(source =>
+    targetRows.some(target => hasNotificationUserTypeConflict(source, target)),
+  );
+  conflictingSourceRows.forEach(({ id }) => sourceIdsToDrop.push(id));
+
+  // Webhook destination duplicates: group webhook-style rows by channel/type/webhook URL and pick the
+  // survivor per destination (rows without a webhook URL are preferences, not destinations)
+  const remainingSourceRows = sourceRows.filter(({ id }) => !sourceIdsToDrop.includes(id));
+  const sourcesByDestination = groupBy(
+    remainingSourceRows.filter(row => row.webhookUrl),
+    row => `${row.channel}|${row.type}|${row.webhookUrl}`,
+  );
+  const targetsByDestination = groupBy(
+    targetRows.filter(row => row.webhookUrl),
+    row => `${row.channel}|${row.type}|${row.webhookUrl}`,
+  );
+  for (const [destination, sources] of Object.entries(sourcesByDestination)) {
+    const targets = targetsByDestination[destination];
+    if (!targets?.length) {
+      continue;
+    }
+
+    const activeSource = sources.find(source => source.active);
+    if (activeSource && targets.every(target => !target.active)) {
+      // Preserve the only active destination: drop the target's inactive rows and the extra source rows
+      targets.forEach(({ id }) => targetIdsToDrop.push(id));
+      sources.filter(({ id }) => id !== activeSource.id).forEach(({ id }) => sourceIdsToDrop.push(id));
+    } else {
+      sources.forEach(({ id }) => sourceIdsToDrop.push(id));
+    }
+  }
+
+  return { sourceIdsToDrop, targetIdsToDrop };
+};
+
+const getNotificationRowsForDedup = async (from: Collective, into: Collective, transaction) => {
+  const attributes = ['id', 'channel', 'type', 'webhookUrl', 'UserId', 'active'];
+  const [targetRows, sourceRows] = await Promise.all([
+    models.Notification.findAll({ attributes, where: { CollectiveId: into.id }, raw: true, transaction }),
+    models.Notification.findAll({ attributes, where: { CollectiveId: from.id }, raw: true, transaction }),
+  ]);
+  return { sourceRows, targetRows };
+};
+
 /**
  * Notifications have a unique key on (type, CollectiveId, UserId) and are logically duplicated by
  * (channel, type, webhookUrl) for webhook-style rows. When moving `CollectiveId` (from -> into), drop the
- * source's rows that already exist on the target so we neither break the unique key nor register the same
- * webhook twice.
+ * duplicates so we neither break the unique key nor register the same webhook twice. Returns the source-side
+ * ids to drop - the ones on the target are handled by `dropInactiveDuplicateNotifications`.
  */
 const getNotificationsToIgnore = async (from: Collective, into: Collective, transaction): Promise<number[]> => {
-  const [targetRows, sourceRows] = await Promise.all([
-    models.Notification.findAll({
-      attributes: ['id', 'channel', 'type', 'webhookUrl', 'UserId'],
-      where: { CollectiveId: into.id },
-      raw: true,
-      transaction,
-    }),
-    models.Notification.findAll({
-      attributes: ['id', 'channel', 'type', 'webhookUrl', 'UserId'],
-      where: { CollectiveId: from.id },
-      raw: true,
-      transaction,
-    }),
-  ]);
+  const { sourceRows, targetRows } = await getNotificationRowsForDedup(from, into, transaction);
+  return getNotificationsDedupPlan(sourceRows, targetRows).sourceIdsToDrop;
+};
 
-  return sourceRows
-    .filter(source =>
-      targetRows.some(
-        target =>
-          // Same user already has this notification type on the target (unique (type, CollectiveId, UserId))
-          (source.UserId && source.UserId === target.UserId && source.type === target.type) ||
-          // Same webhook/slack destination (channel/type/webhook URL) already registered on the target, even
-          // when added by a different user: such duplicates would deliver the same event twice
-          (source.webhookUrl &&
-            source.channel === target.channel &&
-            source.type === target.type &&
-            source.webhookUrl === target.webhookUrl),
-      ),
-    )
-    .map(({ id }) => id);
+/**
+ * Before moving notifications, delete the target's inactive rows that duplicate an active source row: keeping
+ * them would drop the active destination to an inactive one. Returns notes for the merge summary.
+ */
+const dropInactiveDuplicateNotifications = async (
+  from: Collective,
+  into: Collective,
+  transaction,
+): Promise<string[]> => {
+  const { sourceRows, targetRows } = await getNotificationRowsForDedup(from, into, transaction);
+  const { targetIdsToDrop } = getNotificationsDedupPlan(sourceRows, targetRows);
+  if (!targetIdsToDrop.length) {
+    return [];
+  }
+
+  await models.Notification.destroy({
+    where: { CollectiveId: into.id, id: targetIdsToDrop },
+    transaction,
+    hooks: false,
+    sideEffects: false,
+    validate: false,
+  } as DestroyOptions);
+
+  return [`Inactive duplicate notifications of ${into.slug} were deleted to preserve the active ones of ${from.slug}`];
 };
 
 /**
@@ -561,6 +624,7 @@ const collectiveFieldsConfig: CollectiveFieldsConfig = {
     model: models.Notification,
     field: 'CollectiveId',
     getIdsToIgnore: getNotificationsToIgnore,
+    onBeforeMove: dropInactiveDuplicateNotifications,
     getDuplicatesWarning: getNotificationsDuplicatesWarning,
   },
   ordersCreated: { model: models.Order, field: 'FromCollectiveId' },

@@ -569,6 +569,71 @@ describe('server/lib/merge-accounts', () => {
       expect(warnings.join('\n')).to.include('notification');
     });
 
+    it('preserves the active source webhook when the matching target webhook is inactive', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      const user1 = await Faker.fakeUser();
+      const user2 = await Faker.fakeUser();
+      const webhookUrl = 'https://example.com/inactive-target-webhook';
+
+      const sourceWebhook = await Faker.fakeNotification({
+        CollectiveId: collective1.id,
+        UserId: user1.id,
+        channel: channels.WEBHOOK,
+        type: 'webhook',
+        webhookUrl,
+        active: true,
+      });
+      await Faker.fakeNotification({
+        CollectiveId: collective2.id,
+        UserId: user2.id,
+        channel: channels.WEBHOOK,
+        type: 'webhook',
+        webhookUrl,
+        active: false,
+      });
+
+      await mergeAccounts(collective1, collective2);
+
+      // The active source webhook survives and the inactive duplicate on the target is deleted
+      const webhooks = await models.Notification.findAll({ where: { CollectiveId: collective2.id, webhookUrl } });
+      expect(webhooks).to.have.length(1);
+      expect(webhooks[0].id).to.eq(sourceWebhook.id);
+      expect(webhooks[0].active).to.be.true;
+    });
+
+    it('keeps the active target webhook when the matching source webhook is inactive', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      const user1 = await Faker.fakeUser();
+      const user2 = await Faker.fakeUser();
+      const webhookUrl = 'https://example.com/inactive-source-webhook';
+
+      await Faker.fakeNotification({
+        CollectiveId: collective1.id,
+        UserId: user1.id,
+        channel: channels.WEBHOOK,
+        type: 'webhook',
+        webhookUrl,
+        active: false,
+      });
+      const targetWebhook = await Faker.fakeNotification({
+        CollectiveId: collective2.id,
+        UserId: user2.id,
+        channel: channels.WEBHOOK,
+        type: 'webhook',
+        webhookUrl,
+        active: true,
+      });
+
+      await mergeAccounts(collective1, collective2);
+
+      const webhooks = await models.Notification.findAll({ where: { CollectiveId: collective2.id, webhookUrl } });
+      expect(webhooks).to.have.length(1);
+      expect(webhooks[0].id).to.eq(targetWebhook.id);
+      expect(webhooks[0].active).to.be.true;
+    });
+
     it('dedupes emoji reactions on merge', async () => {
       const collective1 = await Faker.fakeCollective();
       const collective2 = await Faker.fakeCollective();
