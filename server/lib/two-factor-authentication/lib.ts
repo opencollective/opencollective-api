@@ -1,3 +1,4 @@
+import { Mutex } from 'async-mutex';
 import type Express from 'express';
 import { isNil, pick } from 'lodash';
 
@@ -7,6 +8,7 @@ import { ApolloError, Unauthorized } from '../../graphql/errors';
 import { Activity, Collective, User, UserTwoFactorMethod } from '../../models';
 import { sessionCache } from '../cache';
 import errors from '../errors';
+import { lockUntilResolved } from '../mutex';
 import { getPolicy } from '../policies';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../rate-limit';
 import { reportMessageToSentry } from '../sentry';
@@ -20,6 +22,9 @@ import yubikeyOTP from './yubikey-otp';
 export { TwoFactorMethod };
 
 const DEFAULT_TWO_FACTOR_AUTH_SESSION_DURATION = 24 * 60 * 60; // 24 hour
+
+// Keep same-user requests serialized even when the session cache uses in-memory storage.
+const tokenValidationLocks = new Map<number, Mutex>();
 
 type ValidateRequestOptions = {
   // require user configured 2FA
@@ -233,22 +238,36 @@ async function validateRequest(
   }
 
   // All methods and GraphQL operations share a per-user budget of 10 failed attempts per hour.
-  const rateLimit = new RateLimit(`user_2FA_graphql_${remoteUser.id}`, 10, ONE_HOUR_IN_SECONDS);
-  if (await rateLimit.hasReachedLimit()) {
-    throw new errors.TooManyRequests('Too many attempts. Please try again in an hour');
-  }
-
+  const rateLimitKey = `user_2FA_graphql_${remoteUser.id}`;
+  const mutex = tokenValidationLocks.get(remoteUser.id) || new Mutex();
+  tokenValidationLocks.set(remoteUser.id, mutex);
   try {
-    await validateToken(remoteUser, token, req);
-  } catch (error) {
-    await rateLimit.registerCall();
-    throw error;
+    return await mutex.runExclusive(() =>
+      // The Redis lock also coordinates validation across API workers. Check and update the
+      // budget under the same lock so concurrent failures cannot overwrite each other's counts.
+      lockUntilResolved(rateLimitKey, async () => {
+        const rateLimit = new RateLimit(rateLimitKey, 10, ONE_HOUR_IN_SECONDS);
+        if (await rateLimit.hasReachedLimit()) {
+          throw new errors.TooManyRequests('Too many attempts. Please try again in an hour');
+        }
+
+        try {
+          await validateToken(remoteUser, token, req);
+        } catch (error) {
+          await rateLimit.registerCall();
+          throw error;
+        }
+
+        // Successful validations neither consume nor reset the failed-attempt budget.
+        await storeTwoFactorSession(req, options);
+        return true;
+      }),
+    );
+  } finally {
+    if (!mutex.isLocked()) {
+      tokenValidationLocks.delete(remoteUser.id);
+    }
   }
-
-  // Successful validations neither consume nor reset the failed-attempt budget.
-  await storeTwoFactorSession(req, options);
-
-  return true;
 }
 
 async function twoFactorMethodsSupportedByUser(remoteUser: User): Promise<TwoFactorMethod[]> {
