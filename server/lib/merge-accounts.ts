@@ -188,7 +188,8 @@ const getAccountingCategoriesToIgnore = async (from: Collective, into: Collectiv
 /**
  * Before deleting duplicate accounting categories, re-point everything that references them to the surviving
  * category. Without this, the FK constraints (`ON DELETE SET NULL` / `ON DELETE CASCADE`) would silently clear
- * or destroy the references.
+ * or destroy the references. JSON references (payment rail defaults, bank import settings) are not
+ * FK-constrained but are re-pointed as well to avoid dangling category ids.
  */
 const rePointAccountingCategoryReferences = async (
   from: Collective,
@@ -275,6 +276,36 @@ const rePointAccountingCategoryReferences = async (
           validate: false,
           transaction,
         },
+      );
+
+      // JSON fields reference categories without FK constraints: re-point them too, or later operations
+      // (see balance-accounts.ts) would write deleted ids into FK columns
+      const replacements = {
+        transaction,
+        replacements: { duplicateId: duplicate.id, survivingId: survivingCategory.id },
+      };
+      await sequelize.query(
+        `UPDATE "ConnectedAccounts" SET "data" = jsonb_set("data", '{BalanceAccountingCategoryId}', to_jsonb(:survivingId))
+         WHERE ("data" ->> 'BalanceAccountingCategoryId')::integer = :duplicateId`,
+        replacements,
+      );
+      await sequelize.query(
+        `UPDATE "ManualPaymentProviders" SET "data" = jsonb_set("data", '{BalanceAccountingCategoryId}', to_jsonb(:survivingId))
+         WHERE ("data" ->> 'BalanceAccountingCategoryId')::integer = :duplicateId`,
+        replacements,
+      );
+      await sequelize.query(
+        `UPDATE "TransactionsImports" SET "settings" = jsonb_set(
+           "settings",
+           '{balanceAccountingCategories}',
+           (SELECT COALESCE(jsonb_object_agg(key, CASE WHEN value = to_jsonb(:duplicateId) THEN to_jsonb(:survivingId) ELSE value END), '{}'::jsonb)
+            FROM jsonb_each("settings"->'balanceAccountingCategories') AS entries(key, value))
+         )
+         WHERE EXISTS (
+           SELECT 1 FROM jsonb_each("settings"->'balanceAccountingCategories') AS entries(key, value)
+           WHERE entries.value = to_jsonb(:duplicateId)
+         )`,
+        replacements,
       );
     }
   }

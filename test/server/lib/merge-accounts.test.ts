@@ -416,6 +416,39 @@ describe('server/lib/merge-accounts', () => {
       expect(warnings.join('\n')).to.include('DUP-CODE');
     });
 
+    it('re-points JSON references of deleted categories on payment rails and import settings', async () => {
+      const collective1 = await Faker.fakeCollective();
+      const collective2 = await Faker.fakeCollective();
+      const sourceCategory = await Faker.fakeAccountingCategory({ CollectiveId: collective1.id, code: 'JSON-DUP' });
+      const targetCategory = await Faker.fakeAccountingCategory({ CollectiveId: collective2.id, code: 'JSON-DUP' });
+
+      const connectedAccount = await Faker.fakeConnectedAccount({
+        CollectiveId: collective1.id,
+        data: { BalanceAccountingCategoryId: sourceCategory.id },
+      });
+      const manualPaymentProvider = await Faker.fakeManualPaymentProvider({
+        CollectiveId: collective1.id,
+        data: { BalanceAccountingCategoryId: sourceCategory.id },
+      });
+      const transactionsImport = await Faker.fakeTransactionsImport({
+        CollectiveId: collective1.id,
+        settings: { balanceAccountingCategories: { acc1: sourceCategory.id, acc2: sourceCategory.id } },
+      });
+
+      await mergeAccounts(collective1, collective2);
+
+      // JSON references are re-pointed to the surviving category instead of dangling on the deleted one
+      await connectedAccount.reload();
+      expect(connectedAccount.data.BalanceAccountingCategoryId).to.eq(targetCategory.id);
+      await manualPaymentProvider.reload();
+      expect(manualPaymentProvider.data.BalanceAccountingCategoryId).to.eq(targetCategory.id);
+      await transactionsImport.reload();
+      expect(transactionsImport.settings.balanceAccountingCategories).to.deep.eq({
+        acc1: targetCategory.id,
+        acc2: targetCategory.id,
+      });
+    });
+
     it('moves accounting category rules and re-points rules of deleted categories', async () => {
       const collective1 = await Faker.fakeCollective();
       const collective2 = await Faker.fakeCollective();
