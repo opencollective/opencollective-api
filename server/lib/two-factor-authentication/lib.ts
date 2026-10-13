@@ -6,7 +6,9 @@ import POLICIES from '../../constants/policies';
 import { ApolloError, Unauthorized } from '../../graphql/errors';
 import { Activity, Collective, User, UserTwoFactorMethod } from '../../models';
 import { sessionCache } from '../cache';
+import errors from '../errors';
 import { getPolicy } from '../policies';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../rate-limit';
 import { reportMessageToSentry } from '../sentry';
 
 import recoveryCode from './recovery-code';
@@ -230,8 +232,20 @@ async function validateRequest(
     });
   }
 
-  await validateToken(remoteUser, token, req);
+  // All methods and GraphQL operations share a per-user budget of 10 failed attempts per hour.
+  const rateLimit = new RateLimit(`user_2FA_graphql_${remoteUser.id}`, 10, ONE_HOUR_IN_SECONDS);
+  if (await rateLimit.hasReachedLimit()) {
+    throw new errors.TooManyRequests('Too many attempts. Please try again in an hour');
+  }
 
+  try {
+    await validateToken(remoteUser, token, req);
+  } catch (error) {
+    await rateLimit.registerCall();
+    throw error;
+  }
+
+  // Successful validations neither consume nor reset the failed-attempt budget.
   await storeTwoFactorSession(req, options);
 
   return true;
