@@ -413,7 +413,6 @@ const createSubscription = async (order: Order, paypalSubscriptionId) => {
     amount: order.totalAmount,
     currency: order.currency,
     interval: order.interval,
-    quantity: order.quantity,
     isActive: false, // Will be activated when the payment hits
     isManagedExternally: true,
     nextChargeDate: new Date(), // It's supposed to be charged now
