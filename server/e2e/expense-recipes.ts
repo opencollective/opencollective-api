@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import expenseType from '../constants/expense-type';
+
 import {
   accountHandle,
   actorHandle,
@@ -44,8 +46,10 @@ export const expenseRecipes: Record<string, Recipe> = {
         secondCollective: z.boolean().default(false),
         /** An Organization the submitter administers, usable as payee. */
         payeeOrganization: z.boolean().default(false),
-        /** One pending invoice the submitter already sent to `collective`, with a saved payout method. */
+        /** One pending expense the submitter already sent to `collective`, with a saved payout method. */
         priorExpense: z.boolean().default(false),
+        /** What the prior expense is: an invoice, or a reimbursement whose item has a stored receipt. */
+        priorExpenseType: z.enum([expenseType.INVOICE, expenseType.RECEIPT]).default(expenseType.INVOICE),
         /** An unrelated user the submitter can invite by profile. */
         invitee: z.boolean().default(false),
         /** An unrelated Organization with its own admin, which the submitter can invite by profile. */
@@ -79,6 +83,7 @@ export const expenseRecipes: Record<string, Recipe> = {
           }),
           description: `Prior expense ${ctx.tag}`,
           items: [{ description: 'Some stuff', amount: 1000 }],
+          type: inputs.priorExpenseType,
         }));
       return {
         actors: {

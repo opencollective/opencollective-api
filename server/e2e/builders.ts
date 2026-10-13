@@ -1,4 +1,6 @@
+import config from 'config';
 import type { Transaction } from 'sequelize';
+import sharp from 'sharp';
 import type { z } from 'zod';
 
 import { CollectiveType } from '../constants/collectives';
@@ -9,7 +11,8 @@ import POLICIES, { type UseVendorPolicyValue } from '../constants/policies';
 import roles from '../constants/roles';
 import { createAccountAdminMembers } from '../lib/account-admins';
 import { TOKEN_EXPIRATION_SESSION } from '../lib/auth';
-import { Collective, Expense, ExpenseItem, Member, PayoutMethod, User } from '../models';
+import { checkS3Configured, uploadToS3 } from '../lib/awsS3';
+import { Collective, Expense, ExpenseItem, Member, PayoutMethod, UploadedFile, User } from '../models';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 /**
@@ -326,7 +329,48 @@ export async function createPayoutMethod(
 
 type ItemInput = { description: string; amount: number };
 
-/** An already submitted (pending) invoice: prior history, never the submission a journey is testing. */
+/**
+ * The receipt of one reimbursement item: a real image in the uploads bucket with its `UploadedFiles` row,
+ * as an upload through the product leaves it. Storage is outside the request transaction, so the object
+ * key derives from the request identity: a repeated request overwrites its own object, and a rolled-back
+ * one leaves a file nothing refers to under a `pw-` prefix that names it.
+ */
+async function createStoredReceipt(ctx: FixtureContext, name: string, creator: User): Promise<UploadedFile> {
+  ctx.checkConnection();
+  if (!checkS3Configured()) {
+    throw new Error('Receipts need the file storage the browser stack is launched with.');
+  }
+  const fileName = `${name}.png`;
+  const image = await sharp({ create: { width: 15, height: 15, channels: 3, background: '#297eff' } })
+    .png()
+    .toBuffer();
+  const { url } = await uploadToS3({
+    Bucket: config.aws.s3.bucket,
+    Key: `expense-item/${ctx.slug('fixture')}/${fileName}`,
+    Body: image,
+    ACL: 'public-read',
+    ContentLength: image.length,
+    ContentType: 'image/png',
+    Metadata: { CreatedByUserId: `${creator.id}`, FileKind: 'EXPENSE_ITEM' },
+  });
+  return UploadedFile.create(
+    {
+      kind: 'EXPENSE_ITEM',
+      fileName,
+      fileSize: image.length,
+      fileType: 'image/png',
+      url,
+      data: { recordedFrom: 'e2e-fixture' },
+      CreatedByUserId: creator.id,
+    },
+    { transaction: ctx.transaction },
+  );
+}
+
+/**
+ * An already submitted (pending) expense: prior history, never the submission a journey is testing.
+ * An invoice unless `type` says otherwise; every item of a reimbursement carries a stored receipt.
+ */
 export async function createSubmittedExpense(
   ctx: FixtureContext,
   {
@@ -335,14 +379,22 @@ export async function createSubmittedExpense(
     payoutMethod,
     description,
     items,
-  }: { account: Collective; submitter: User; payoutMethod: PayoutMethod; description: string; items: ItemInput[] },
+    type = expenseType.INVOICE,
+  }: {
+    account: Collective;
+    submitter: User;
+    payoutMethod: PayoutMethod;
+    description: string;
+    items: ItemInput[];
+    type?: expenseType.INVOICE | expenseType.RECEIPT;
+  },
 ): Promise<Expense> {
   ctx.checkConnection();
   const { transaction } = ctx;
   const incurredAt = new Date();
   const expense = await Expense.create(
     {
-      type: expenseType.INVOICE,
+      type,
       status: expenseStatus.PENDING,
       description,
       tags: ['engineering'],
@@ -360,6 +412,7 @@ export async function createSubmittedExpense(
     { transaction },
   );
   for (const [order, item] of items.entries()) {
+    const receipt = type === expenseType.RECEIPT && (await createStoredReceipt(ctx, `receipt-${order}`, submitter));
     await ExpenseItem.create(
       {
         ...item,
@@ -369,6 +422,8 @@ export async function createSubmittedExpense(
         incurredAt,
         ExpenseId: expense.id,
         CreatedByUserId: submitter.id,
+        // The item holds the storage address, as after a real upload; reading `url` would give the protected link.
+        ...(receipt && { url: receipt.getDataValue('url') }),
       },
       { transaction },
     );
