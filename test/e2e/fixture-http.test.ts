@@ -104,6 +104,28 @@ const ownerFile = process.env.PLAYWRIGHT_FIXTURE_OWNER_FILE;
     assert.equal((await post(submission('graph', { ...inputs, invitee: true }))).status, 409);
   });
 
+  it('arranges an invitable Organization with its own admin and no activity that would notify them', async () => {
+    const response = await post({
+      attempt,
+      requestId: 'invitable-organization',
+      recipe: 'expense-submission',
+      inputs: { inviteeOrganization: true },
+    });
+    assert.equal(response.status, 200);
+    const graph = await response.json();
+    assert.deepEqual(Object.keys(graph.actors).sort(), ['hostAdmin', 'inviteeAdmin', 'submitter']);
+    assert.deepEqual(Object.keys(graph.accounts).sort(), ['collective', 'host', 'inviteeOrganization']);
+    assert.equal(graph.accounts.inviteeOrganization.type, 'ORGANIZATION');
+    const [stored] = await sequelize.query<{ admins: number[]; activities: number }>(
+      `SELECT ARRAY(SELECT m."MemberCollectiveId" FROM "Members" m
+          WHERE m."CollectiveId" = :organization AND m.role = 'ADMIN' AND m."deletedAt" IS NULL) AS admins,
+        (SELECT COUNT(*)::int FROM "Activities" a WHERE a."CollectiveId" = :organization) AS activities`,
+      { type: QueryTypes.SELECT, replacements: { organization: graph.accounts.inviteeOrganization.legacyId } },
+    );
+    // Only its own admin manages it. Activities drive notification mail: the journey's invitation must be the first.
+    assert.deepEqual(stored, { admins: [graph.actors.inviteeAdmin.legacyId], activities: 0 });
+  });
+
   it('recovers a committed result after the client discards the HTTP response', async () => {
     const payload = body('lost-response', 'Recoverable Account');
     await new Promise<void>((resolve, reject) => {
