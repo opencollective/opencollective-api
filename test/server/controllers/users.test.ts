@@ -96,38 +96,44 @@ describe('server/controllers/users', () => {
   };
 
   describe('signin', () => {
-    it('does not honor privilege flags in the user payload (security regression)', async () => {
+    it('rejects unknown emails without creating a user or sending an email', async () => {
+      const sendStub = sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+
+      const response = await makeSignInRequest(email, randIPV4());
+
+      expect(response._getStatusCode()).to.eql(400);
+      expect(response._getData().errorCode).to.eql('EMAIL_DOES_NOT_EXIST');
+      expect(await models.User.findOne({ where: { email } })).to.not.exist;
+      expect(sendStub.called).to.be.false;
+    });
+
+    it('ignores createProfile: true for unknown emails', async () => {
       sandbox.stub(emailLib, 'send').resolves();
       const email = randEmail();
       const request = httpMocks.createRequest({
         method: 'POST',
         url: `/users/signin`,
-        body: {
-          user: {
-            email,
-            hasMoneyManagement: true,
-            hasHosting: true,
-            data: { isRoot: true },
-            settings: { disableGrants: true },
-          },
-        },
+        body: { user: { email }, createProfile: true },
         ip: randIPV4(),
       });
       request.loaders = generateLoaders({});
       const response = httpMocks.createResponse();
 
       await signin(request, response, () => {});
-      expect(response._getStatusCode()).to.eql(200);
 
-      const user = await models.User.findOne({
-        where: { email },
-        include: [{ model: models.Collective, as: 'collective' }],
-      });
-      expect(user).to.exist;
-      expect(user.collective.hasMoneyManagement).to.equal(false);
-      expect(user.collective.hasHosting).to.equal(false);
-      expect(user.collective.data).to.not.have.property('isRoot');
-      expect(user.collective.settings || {}).to.not.have.property('disableGrants');
+      expect(response._getStatusCode()).to.eql(400);
+      expect(await models.User.findOne({ where: { email } })).to.not.exist;
+    });
+
+    it('still signs in existing users', async () => {
+      const sendStub = sandbox.stub(emailLib, 'send').resolves();
+      const user = await fakeUser({ confirmedAt: new Date() });
+
+      const response = await makeSignInRequest(user.email, randIPV4());
+
+      expect(response._getStatusCode()).to.eql(200);
+      expect(sendStub.calledWith(ActivityTypes.USER_NEW_TOKEN)).to.be.true;
     });
   });
 
