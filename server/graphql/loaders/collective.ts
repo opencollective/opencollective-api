@@ -40,7 +40,7 @@ async function getAdministratedMemberRowsForPrivateInfo(
     where: {
       MemberCollectiveId: otherAccountIds,
       [Op.or]: [
-        // These memberships grant access even when the collective is independent or awaiting approval.
+        // These memberships always grant direct access
         {
           role: [
             roles.ADMIN,
