@@ -4273,6 +4273,7 @@ enum TypeOfCollective {
   PROJECT
   FUND
   VENDOR
+  PLATFORM
 }
 
 """
