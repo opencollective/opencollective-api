@@ -39,9 +39,22 @@ async function getAdministratedMemberRowsForPrivateInfo(
     mapToModel: false,
     where: {
       MemberCollectiveId: otherAccountIds,
-      // Pending applications create HOST memberships before approval. Ordinary members
-      // remain visible even when their collective is independent or awaiting approval.
-      [Op.or]: [{ role: { [Op.ne]: roles.HOST } }, { '$collective.approvedAt$': { [Op.ne]: null } }],
+      [Op.or]: [
+        // These memberships grant access even when the collective is independent or awaiting approval.
+        {
+          role: [
+            roles.ADMIN,
+            roles.MEMBER,
+            roles.COMMUNITY_MANAGER,
+            roles.CONTRIBUTOR,
+            roles.BACKER,
+            roles.ATTENDEE,
+            roles.ACCOUNTANT,
+          ],
+        },
+        // Pending applications create HOST memberships before approval.
+        { role: roles.HOST, '$collective.approvedAt$': { [Op.ne]: null } },
+      ],
     },
     include: {
       association: 'collective',
@@ -164,9 +177,9 @@ export default {
   /**
    * To check if remoteUser has access to user's private info (email, legal name, etc). `remoteUser` must either:
    * - be the user himself
-   * - be an admin of a collective where user is a member (even as incognito, and regardless of the role)
-   * - be an admin of the host of a collective where user is a member (even as incognito, and regardless of the role)
-   * HOST memberships only grant access once the collective is approved by its host.
+   * - be an admin of a collective where user is a member (even as incognito)
+   * - be an admin of the host of a collective where user is a member (even as incognito)
+   * Only explicitly permitted membership roles grant access; HOST memberships require host approval.
    */
   canSeePrivateProfileInfo: (req): DataLoader<number, boolean> => {
     return new DataLoader(async (collectiveIds: number[]) => {
@@ -191,8 +204,8 @@ export default {
   /**
    * To check if remoteUser has access to user's private location. `remoteUser` must either:
    * - be the user himself
-   * - be an admin of the host of a collective where user is a member (even as incognito, and regardless of the role)
-   * HOST memberships only grant access once the collective is approved by its host.
+   * - be an admin of the host of a collective where user is a member (even as incognito)
+   * Only explicitly permitted membership roles grant access; HOST memberships require host approval.
    */
   canSeePrivateLocation: (req): DataLoader<number, boolean> => {
     return new DataLoader(async (collectiveIds: number[]) => {
