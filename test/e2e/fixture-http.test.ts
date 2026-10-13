@@ -231,7 +231,11 @@ const ownerFile = process.env.PLAYWRIGHT_FIXTURE_OWNER_FILE;
       'outsider',
     ]);
     const { host, collective, collective2, project, otherHost, otherCollective } = graph.accounts;
-    assert.equal(graph.urls.hostedCollectives, `/dashboard/${host.slug}/hosted-collectives`);
+    assert.deepEqual(graph.urls, {
+      hostedCollectives: `/dashboard/${host.slug}/hosted-collectives`,
+      vendors: `/dashboard/${host.slug}/vendors`,
+      expectedFunds: `/dashboard/${host.slug}/expected-funds`,
+    });
     const stored = await sequelize.query<Record<string, unknown>>(
       `SELECT v.name, v.type, v."ParentCollectiveId" AS host, v."isActive" AS active,
         v.data->'canBeUsedWithAccountIds' AS scope, v.data->'useVendorPolicy' AS policy,
