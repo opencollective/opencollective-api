@@ -9,6 +9,7 @@ import {
   createInvitedDraftExpense,
   createOrganization,
   createPayoutMethod,
+  createProject,
   createSubmittedExpense,
   defineRecipe,
   expenseHandle,
@@ -98,6 +99,60 @@ export const expenseRecipes: Record<string, Recipe> = {
           collective: `/${collective.slug}`,
           newExpense: `/${collective.slug}/expenses/new`,
           submittedExpenses: `/dashboard/${submitter.collective.slug}/submitted-expenses`,
+        },
+      };
+    },
+  }),
+
+  /**
+   * A Collective admin facing their own Collective on an attempt-owned host:
+   * the party who approves, rejects and deletes expenses and writes the
+   * expense policy. Options add a pending invoice the admin submitted to the
+   * Collective and a Project under it. Policies start empty; every transition,
+   * deletion and policy edit is the journey's own behavior.
+   */
+  'expense-management': defineRecipe({
+    inputs: z
+      .object({
+        /** One pending invoice by `admin` (also its payee) on `collective`, with a saved payout method. */
+        expense: z
+          .object({ description: z.string().trim().min(1).max(255), items: z.array(item).min(1).max(5) })
+          .strict()
+          .optional(),
+        /** A Project under `collective`. */
+        project: z.boolean().default(false),
+      })
+      .strict(),
+    build: async (ctx, inputs) => {
+      const hostAdmin = await createActor(ctx, 'host-admin');
+      const admin = await createActor(ctx, 'admin');
+      const host = await createHost(ctx, hostAdmin);
+      const collective = await createHostedCollective(ctx, 'collective', { host, creator: admin, admins: [admin] });
+      const project = inputs.project && (await createProject(ctx, 'project', { parent: collective, creator: admin }));
+      const expense =
+        inputs.expense &&
+        (await createSubmittedExpense(ctx, {
+          account: collective,
+          submitter: admin,
+          payoutMethod: await createPayoutMethod(ctx, {
+            account: admin.collective,
+            creator: admin,
+            name: `Saved payout ${ctx.tag}`,
+          }),
+          ...inputs.expense,
+        }));
+      return {
+        actors: { hostAdmin: actorHandle(hostAdmin), admin: actorHandle(admin) },
+        accounts: {
+          host: accountHandle(host),
+          collective: accountHandle(collective),
+          ...(project && { project: accountHandle(project) }),
+        },
+        expenses: { ...(expense && { pending: expenseHandle(expense, collective) }) },
+        urls: {
+          expenses: `/${collective.slug}/expenses`,
+          policies: `/dashboard/${collective.slug}/policies`,
+          ...(project && { projectNewExpense: `/${project.slug}/expenses/new` }),
         },
       };
     },

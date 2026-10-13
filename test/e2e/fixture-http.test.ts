@@ -126,6 +126,58 @@ const ownerFile = process.env.PLAYWRIGHT_FIXTURE_OWNER_FILE;
     assert.deepEqual(stored, { admins: [graph.actors.inviteeAdmin.legacyId], activities: 0 });
   });
 
+  it('arranges a Collective admin with a pending expense and a Project under the same host, without policies', async () => {
+    const management = (requestId: string, inputs: unknown) => ({
+      attempt,
+      requestId,
+      recipe: 'expense-management',
+      inputs,
+    });
+    assert.equal((await post(management('no-items', { expense: { description: 'Empty', items: [] } }))).status, 400);
+    const bare = await (await post(management('bare', {}))).json();
+    assert.deepEqual(Object.keys(bare.accounts).sort(), ['collective', 'host']);
+    assert.deepEqual(bare.expenses, {});
+
+    const response = await post(
+      management('managed', {
+        expense: { description: 'Expense for E2E tests', items: [{ description: 'Some stuff', amount: 1000 }] },
+        project: true,
+      }),
+    );
+    assert.equal(response.status, 200);
+    const graph = await response.json();
+    assert.deepEqual(Object.keys(graph.actors).sort(), ['admin', 'hostAdmin']);
+    assert.equal(graph.accounts.project.type, 'PROJECT');
+    assert.equal(graph.expenses.pending.status, 'PENDING');
+    assert.equal(graph.urls.projectNewExpense, `/${graph.accounts.project.slug}/expenses/new`);
+    const [stored] = await sequelize.query<Record<string, unknown>>(
+      `SELECT p."ParentCollectiveId" AS parent, p."HostCollectiveId" AS host, p."isActive" AS active,
+        c.data->'policies' AS policies,
+        ARRAY(SELECT m."MemberCollectiveId" FROM "Members" m
+          WHERE m."CollectiveId" = c.id AND m.role = 'ADMIN' AND m."deletedAt" IS NULL) AS admins,
+        e."FromCollectiveId" AS payee, e.amount AS amount, e.type AS type
+      FROM "Collectives" p
+      JOIN "Collectives" c ON c.id = p."ParentCollectiveId"
+      JOIN "Expenses" e ON e.id = :expense
+      WHERE p.id = :project`,
+      {
+        type: QueryTypes.SELECT,
+        replacements: { project: graph.accounts.project.legacyId, expense: graph.expenses.pending.legacyId },
+      },
+    );
+    assert.deepEqual(stored, {
+      parent: graph.accounts.collective.legacyId,
+      host: graph.accounts.host.legacyId,
+      active: true,
+      // The journey writes the expense policy; the recipe must not.
+      policies: null,
+      admins: [graph.actors.admin.legacyId],
+      payee: graph.actors.admin.legacyId,
+      amount: 1000,
+      type: 'INVOICE',
+    });
+  });
+
   it('recovers a committed result after the client discards the HTTP response', async () => {
     const payload = body('lost-response', 'Recoverable Account');
     await new Promise<void>((resolve, reject) => {
