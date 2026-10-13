@@ -5,6 +5,7 @@ import { CollectiveType } from '../constants/collectives';
 import type { SupportedCurrency } from '../constants/currencies';
 import expenseStatus from '../constants/expense-status';
 import expenseType from '../constants/expense-type';
+import POLICIES, { type UseVendorPolicyValue } from '../constants/policies';
 import roles from '../constants/roles';
 import { createAccountAdminMembers } from '../lib/account-admins';
 import { TOKEN_EXPIRATION_SESSION } from '../lib/auth';
@@ -91,19 +92,27 @@ export async function createActor(ctx: FixtureContext, label: string): Promise<U
   );
 }
 
-/** An active fiscal host owned by this request, with the money-management setup of `createOrganization`. */
+/**
+ * An active fiscal host owned by this request, with the money-management setup of `createOrganization`.
+ * `label` distinguishes a second host of the same request; `useVendorPolicy` sets who may use the host's
+ * vendors (left unset, the host has no policies and the product default applies).
+ */
 export async function createHost(
   ctx: FixtureContext,
   admin: User,
-  { currency = 'USD' }: { currency?: SupportedCurrency } = {},
+  {
+    currency = 'USD',
+    label = 'host',
+    useVendorPolicy,
+  }: { currency?: SupportedCurrency; label?: string; useVendorPolicy?: UseVendorPolicyValue } = {},
 ): Promise<Collective> {
   ctx.checkConnection();
   const { transaction } = ctx;
   const host = await Collective.create(
     {
       type: CollectiveType.ORGANIZATION,
-      name: `Host ${ctx.tag}`,
-      slug: ctx.slug('host'),
+      name: label === 'host' ? `Host ${ctx.tag}` : `Host ${ctx.tag} ${label}`,
+      slug: ctx.slug(label),
       description: 'An independent Playwright fiscal host',
       currency,
       CreatedByUserId: admin.id,
@@ -114,8 +123,71 @@ export async function createHost(
   await host.activateMoneyManagement({ remoteUser: admin, silent: true, transaction });
   // `activateHosting` without its activity, which would email the admin even if this request rolls back.
   await host.update({ hasHosting: true }, { transaction });
+  if (useVendorPolicy) {
+    // What `setPolicies` stores, inside the request transaction.
+    await host.update(
+      { data: { ...host.data, policies: { [POLICIES.USE_VENDOR_POLICY]: useVendorPolicy } } },
+      { transaction },
+    );
+  }
   await createAccountAdminMembers(host, [admin], { transaction });
   return host;
+}
+
+/**
+ * A vendor of a host, as `createVendor` stores it: usable with every Account of the host unless
+ * `usableWith` names some (each must be the host or hosted by it), and following the host's vendor
+ * policy unless `useVendorPolicy` overrides it. Records no activity.
+ */
+export async function createVendor(
+  ctx: FixtureContext,
+  label: string,
+  {
+    host,
+    creator,
+    name,
+    usableWith = [],
+    useVendorPolicy = null,
+    payoutMethod = false,
+  }: {
+    host: Collective;
+    creator: User;
+    /** Pickers cut names off after about 35 characters: keep it shorter and unique to the request. */
+    name: string;
+    usableWith?: Collective[];
+    useVendorPolicy?: UseVendorPolicyValue | null;
+    payoutMethod?: boolean;
+  },
+): Promise<Collective> {
+  ctx.checkConnection();
+  if (!usableWith.every(account => account.id === host.id || account.HostCollectiveId === host.id)) {
+    throw new Error(`Vendor ${label} can only be scoped to its host or Accounts hosted by it.`);
+  }
+  const slug = ctx.slug(label);
+  const vendor = await Collective.create(
+    {
+      type: CollectiveType.VENDOR,
+      name,
+      slug,
+      currency: host.currency,
+      isActive: false,
+      ParentCollectiveId: host.id,
+      isPrivate: host.isPrivate,
+      CreatedByUserId: creator.id,
+      data: {
+        vendorInfo: {},
+        canBeUsedWithAccountIds: [...new Set(usableWith.map(account => account.id))],
+        useVendorPolicy,
+        e2eAttempt: ctx.attempt,
+        e2eRequestId: ctx.requestId,
+      },
+    },
+    { transaction: ctx.transaction },
+  );
+  if (payoutMethod) {
+    await createPayoutMethod(ctx, { account: vendor, creator, name: 'Bank' });
+  }
+  return vendor;
 }
 
 /** An approved, active Collective under a host. `admins` may be empty for a Collective nobody in the journey manages. */

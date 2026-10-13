@@ -10,6 +10,7 @@ import { Collective, sequelize, User } from '../models';
 
 import { defineRecipe, type Recipe } from './builders';
 import { expenseRecipes } from './expense-recipes';
+import { vendorRecipes } from './vendor-recipes';
 
 const identifier = z.string().regex(/^[a-zA-Z0-9_.:-]{1,100}$/);
 const requestSchema = z
@@ -84,6 +85,7 @@ const recipes: Record<string, Recipe> = {
   'account-profile': accountRecipe(false),
   'account-conversation': accountRecipe(true),
   ...expenseRecipes,
+  ...vendorRecipes,
 };
 
 class FixtureError extends Error {

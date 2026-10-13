@@ -178,6 +178,142 @@ const ownerFile = process.env.PLAYWRIGHT_FIXTURE_OWNER_FILE;
     });
   });
 
+  it('arranges vendors scoped and restricted as named, on hosts whose policy only the request sets', async () => {
+    const vendorHost = (requestId: string, inputs: unknown) => ({
+      attempt,
+      requestId: `vendor-${requestId}`,
+      recipe: 'vendor-host',
+      inputs,
+    });
+    // A vendor is scoped to its own host or to Accounts that host holds, and only to Accounts the request arranges.
+    for (const [requestId, inputs] of Object.entries({
+      'unarranged-scope': { vendors: [{ label: 'a', usableWith: ['project'] }] },
+      'foreign-scope': { otherHost: { admin: 'hostAdmin' }, vendors: [{ label: 'a', usableWith: ['otherHost'] }] },
+      'missing-host': { vendors: [{ label: 'a', host: 'otherHost' }] },
+      'duplicate-label': { vendors: [{ label: 'a' }, { label: 'a' }] },
+      'unknown-policy': { useVendorPolicy: 'EVERYONE' },
+    })) {
+      assert.equal((await post(vendorHost(requestId, inputs))).status, 400, requestId);
+    }
+
+    const bare = await (await post(vendorHost('bare', {}))).json();
+    assert.deepEqual(Object.keys(bare.actors).sort(), ['collectiveAdmin', 'hostAdmin']);
+    assert.deepEqual(Object.keys(bare.accounts).sort(), ['collective', 'host']);
+    assert.deepEqual(bare.vendors, {});
+
+    const response = await post(
+      vendorHost('graph', {
+        useVendorPolicy: 'ALL_SUBMITTERS',
+        grants: true,
+        secondCollective: true,
+        project: true,
+        outsider: true,
+        otherHost: { admin: 'otherHostAdmin', collective: true },
+        vendors: [
+          { label: 'everywhere' },
+          {
+            label: 'scoped',
+            usableWith: ['collective', 'project'],
+            useVendorPolicy: 'HOST_ADMINS',
+            payoutMethod: true,
+          },
+          { label: 'foreign', host: 'otherHost', usableWith: ['otherCollective'] },
+        ],
+      }),
+    );
+    assert.equal(response.status, 200);
+    const graph = await response.json();
+    assert.deepEqual(Object.keys(graph.actors).sort(), [
+      'collectiveAdmin',
+      'hostAdmin',
+      'otherCollectiveAdmin',
+      'otherHostAdmin',
+      'outsider',
+    ]);
+    const { host, collective, collective2, project, otherHost, otherCollective } = graph.accounts;
+    assert.equal(graph.urls.hostedCollectives, `/dashboard/${host.slug}/hosted-collectives`);
+    const stored = await sequelize.query<Record<string, unknown>>(
+      `SELECT v.name, v.type, v."ParentCollectiveId" AS host, v."isActive" AS active,
+        v.data->'canBeUsedWithAccountIds' AS scope, v.data->'useVendorPolicy' AS policy,
+        h.data->'policies' AS "hostPolicies",
+        (SELECT COUNT(*)::int FROM "PayoutMethods" p WHERE p."CollectiveId" = v.id AND p."isSaved") AS "payoutMethods",
+        (SELECT COUNT(*)::int FROM "Activities" a WHERE a."CollectiveId" = h.id) AS activities
+      FROM "Collectives" v JOIN "Collectives" h ON h.id = v."ParentCollectiveId"
+      WHERE v.id IN (:vendors) ORDER BY v.id`,
+      {
+        type: QueryTypes.SELECT,
+        replacements: { vendors: Object.values<{ legacyId: number }>(graph.vendors).map(v => v.legacyId) },
+      },
+    );
+    const vendor = { type: 'VENDOR', active: false, activities: 0 };
+    assert.deepEqual(stored, [
+      {
+        ...vendor,
+        name: graph.vendors.everywhere.name,
+        host: host.legacyId,
+        scope: [],
+        policy: null,
+        hostPolicies: { USE_VENDOR_POLICY: 'ALL_SUBMITTERS' },
+        payoutMethods: 0,
+      },
+      {
+        ...vendor,
+        name: graph.vendors.scoped.name,
+        host: host.legacyId,
+        scope: [collective.legacyId, project.legacyId],
+        policy: 'HOST_ADMINS',
+        hostPolicies: { USE_VENDOR_POLICY: 'ALL_SUBMITTERS' },
+        payoutMethods: 1,
+      },
+      {
+        ...vendor,
+        name: graph.vendors.foreign.name,
+        host: otherHost.legacyId,
+        scope: [otherCollective.legacyId],
+        policy: null,
+        // The second host keeps the product default: the request named no policy for it.
+        hostPolicies: null,
+        payoutMethods: 0,
+      },
+    ]);
+    // Names stay whole in pickers, which cut them off after about 35 characters.
+    assert.ok(Object.values<{ name: string }>(graph.vendors).every(v => v.name.length <= 33));
+    const [parties] = await sequelize.query<Record<string, unknown>>(
+      `SELECT c."settings"->'expenseTypes' AS "expenseTypes",
+        (SELECT "HostCollectiveId" FROM "Collectives" WHERE id = :collective2) AS "collective2Host",
+        ARRAY(SELECT m."MemberCollectiveId" FROM "Members" m
+          WHERE m."CollectiveId" = :otherHost AND m.role = 'ADMIN' AND m."deletedAt" IS NULL) AS "otherHostAdmins",
+        (SELECT COUNT(*)::int FROM "Members" m
+          WHERE m."MemberCollectiveId" = :outsider AND m."deletedAt" IS NULL) AS "outsiderRoles"
+      FROM "Collectives" c WHERE c.id = :collective`,
+      {
+        type: QueryTypes.SELECT,
+        replacements: {
+          collective: collective.legacyId,
+          collective2: collective2.legacyId,
+          otherHost: otherHost.legacyId,
+          outsider: graph.actors.outsider.legacyId,
+        },
+      },
+    );
+    assert.deepEqual(parties, {
+      expenseTypes: { GRANT: true },
+      collective2Host: host.legacyId,
+      otherHostAdmins: [graph.actors.otherHostAdmin.legacyId],
+      outsiderRoles: 0,
+    });
+
+    // One person can administer both hosts.
+    const shared = await (await post(vendorHost('shared-admin', { otherHost: { admin: 'hostAdmin' } }))).json();
+    assert.deepEqual(Object.keys(shared.actors).sort(), ['collectiveAdmin', 'hostAdmin']);
+    const [{ admins }] = await sequelize.query<{ admins: number[] }>(
+      `SELECT ARRAY(SELECT m."MemberCollectiveId" FROM "Members" m
+        WHERE m."CollectiveId" = :otherHost AND m.role = 'ADMIN' AND m."deletedAt" IS NULL) AS admins`,
+      { type: QueryTypes.SELECT, replacements: { otherHost: shared.accounts.otherHost.legacyId } },
+    );
+    assert.deepEqual(admins, [shared.actors.hostAdmin.legacyId]);
+  });
+
   it('recovers a committed result after the client discards the HTTP response', async () => {
     const payload = body('lost-response', 'Recoverable Account');
     await new Promise<void>((resolve, reject) => {
