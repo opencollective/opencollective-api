@@ -39,6 +39,7 @@ import {
 import {
   getOrCreatePlatformAccount,
   graphqlQueryV2,
+  oAuthGraphqlQueryV2,
   resetCaches,
   resetTestDB,
   waitForCondition,
@@ -2259,6 +2260,16 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       const platform = await getOrCreatePlatformAccount();
       await fakeMember({ MemberCollectiveId: rootUser.CollectiveId, CollectiveId: platform.id, role: roles.ADMIN });
 
+      const scopedResult = await oAuthGraphqlQueryV2(
+        convertAccountToOrganizationMutation,
+        { account: { legacyId: collective.id } },
+        await fakeUserToken({ user: rootUser, scope: ['account'] }),
+      );
+      expect(scopedResult.errors).to.not.be.empty;
+      expect(scopedResult.errors[0].extensions.code).to.equal('Forbidden');
+      expect(scopedResult.errors[0].message).to.equal('The User Token is not allowed for operations in scope "root".');
+      expect((await collective.reload()).type).to.equal(CollectiveType.COLLECTIVE);
+
       const result = await graphqlQueryV2(
         convertAccountToOrganizationMutation,
         {
@@ -2353,6 +2364,47 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         }
       }
     `;
+
+    it('requires root scope to edit an unrelated account', async () => {
+      const root = await fakeUser({ data: { isRoot: true } });
+      const platform = await getOrCreatePlatformAccount();
+      await fakeMember({ MemberCollectiveId: root.CollectiveId, CollectiveId: platform.id, role: roles.ADMIN });
+      const collective = await fakeCollective({ admin: await fakeUser() });
+      const variables = { account: { id: idEncode(collective.id, 'account'), isUSEntity: true } };
+
+      const rejected = await oAuthGraphqlQueryV2(
+        editAccountMutation,
+        variables,
+        await fakeUserToken({ user: root, scope: ['account'] }),
+      );
+      expect(rejected.errors).to.not.be.empty;
+      expect(rejected.errors[0].extensions.code).to.equal('Forbidden');
+      expect(rejected.errors[0].message).to.equal('The User Token is not allowed for operations in scope "root".');
+      expect((await collective.reload()).data?.isUSEntity).to.be.undefined;
+
+      const allowed = await oAuthGraphqlQueryV2(
+        editAccountMutation,
+        variables,
+        await fakeUserToken({ user: root, scope: ['account', 'root'] }),
+      );
+      expect(allowed.errors).to.not.exist;
+      expect((await collective.reload()).data.isUSEntity).to.be.true;
+    });
+
+    it('allows a root user to edit an administered account without root scope', async () => {
+      const root = await fakeUser({ data: { isRoot: true } });
+      const platform = await getOrCreatePlatformAccount();
+      await fakeMember({ MemberCollectiveId: root.CollectiveId, CollectiveId: platform.id, role: roles.ADMIN });
+      const collective = await fakeCollective({ admin: root });
+
+      const result = await oAuthGraphqlQueryV2(
+        editAccountMutation,
+        { account: { id: idEncode(collective.id, 'account'), isUSEntity: true } },
+        await fakeUserToken({ user: root, scope: ['account'] }),
+      );
+      expect(result.errors).to.not.exist;
+      expect((await collective.reload()).data.isUSEntity).to.be.true;
+    });
 
     it('can update isUSEntity', async () => {
       const user = await fakeUser();

@@ -138,12 +138,15 @@ export const checkRemoteUserCanUseComment = (comment: Comment, req: Express.Requ
   }
 };
 
-export const checkRemoteUserCanRoot = (req: Express.Request): void => {
+export const checkRemoteUserCanRoot = (
+  req: Express.Request,
+  { rootOnlyMessage = 'You need to be logged in as root.' } = {},
+): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in.');
   }
   if (!req.remoteUser.isRoot()) {
-    throw new Forbidden('You need to be logged in as root.');
+    throw new Forbidden(rootOnlyMessage);
   }
   enforceScope(req, 'root');
 };

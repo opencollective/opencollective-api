@@ -495,9 +495,11 @@ const orderMutations = {
 
       if (!order) {
         throw new ValidationFailed('This order does not seem to exist');
-      } else if (!req.remoteUser.isAdminOfCollective(order.fromCollective) && !req.remoteUser.isRoot()) {
-        throw new Unauthorized("You don't have permission to update this order");
-      } else if (!order.Subscription.isActive && order.status !== OrderStatuses.PAUSED) {
+      }
+      if (!req.remoteUser.isAdminOfCollective(order.fromCollective)) {
+        checkRemoteUserCanRoot(req, { rootOnlyMessage: "You don't have permission to update this order" });
+      }
+      if (!order.Subscription.isActive && order.status !== OrderStatuses.PAUSED) {
         throw new Error('Order must be active to be updated');
       } else if (args.paypalSubscriptionId && args.paymentMethod) {
         throw new Error('paypalSubscriptionId and paymentMethod are mutually exclusive');
@@ -1357,15 +1359,16 @@ const orderMutations = {
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
         throw new Unauthorized('Only host admins can create pending orders');
-      } else if (
+      }
+      if (
         fromAccount.HostCollectiveId !== host.id &&
-        !req.remoteUser.isRoot() &&
         !(fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId === host.id) &&
         !(!host.isPrivate && (host.data?.allowAddFundsFromAllAccounts || host.data?.isTrustedHost))
       ) {
-        throw new Error(
-          "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
-        );
+        checkRemoteUserCanRoot(req, {
+          rootOnlyMessage:
+            "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
+        });
       }
 
       await checkFeatureAccess(host, FEATURE.EXPECTED_FUNDS, { loaders: req.loaders });
@@ -1542,12 +1545,12 @@ const orderMutations = {
         fromAccount &&
         fromAccount.HostCollectiveId !== host.id &&
         !(fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId === host.id) &&
-        !req.remoteUser.isRoot() &&
         !(!host.isPrivate && (host.data?.allowAddFundsFromAllAccounts || host.data?.isTrustedHost))
       ) {
-        throw new Error(
-          "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
-        );
+        checkRemoteUserCanRoot(req, {
+          rootOnlyMessage:
+            "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
+        });
       }
 
       // Check accounting category
