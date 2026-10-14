@@ -6,7 +6,7 @@ import { Service } from '../../constants/connected-account';
 import logger from '../../lib/logger';
 import { getApplicationFee } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
-import stripe, { convertToStripeAmount } from '../../lib/stripe';
+import stripe, { convertToStripeAmount, type PaymentIntentCreateParams } from '../../lib/stripe';
 import models from '../../models';
 import Order from '../../models/Order';
 import { PaymentProviderServiceWithInternalRecurringManagement } from '../types';
@@ -98,7 +98,7 @@ async function processRecurringOrder(order: Order) {
       ? false
       : (host?.settings?.isPlatformRevenueDirectlyCollected ?? true);
   const applicationFee = await getApplicationFee(order);
-  const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
+  const paymentIntentParams: PaymentIntentCreateParams = {
     currency: order.currency,
     amount: convertToStripeAmount(order.currency, order.totalAmount),
     description: order.description,
