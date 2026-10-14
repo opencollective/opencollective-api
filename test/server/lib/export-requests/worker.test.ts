@@ -5,7 +5,13 @@ import moment from 'moment';
 import sinon from 'sinon';
 
 import ActivityTypes from '../../../../server/constants/activities';
-import ExportWorker, { EXPORT_PROCESSORS, getRetryBackoffMs } from '../../../../server/lib/export-requests/worker';
+import ExportWorker, {
+  EXPORT_PROCESSORS,
+  EXPORT_REQUEST_LOCK_TTL_MS,
+  getRetryBackoffMs,
+  HEARTBEAT_INTERVAL,
+} from '../../../../server/lib/export-requests/worker';
+import * as mutexLib from '../../../../server/lib/mutex';
 import { MutexLockError } from '../../../../server/lib/mutex';
 import { createRedisClient } from '../../../../server/lib/redis';
 import * as SentryLib from '../../../../server/lib/sentry';
@@ -199,9 +205,15 @@ describe('server/lib/export-requests/worker', () => {
           type: ExportRequestTypes.TRANSACTIONS,
         });
 
-        const call = ExportWorker.processRequest(exportRequest.id, new AbortController().signal);
-        await expect(call).to.be.rejectedWith(`ExportRequest is not ENQUEUED`);
+        // The INSERT notification of an already-claimed request is an expected loser race: no processing, no Sentry
+        await ExportWorker.makeTask(
+          { type: 'INSERT', table: 'ExportRequests', payload: { id: exportRequest.id } },
+          new AbortController().signal,
+        );
         expect(processTransactionsRequestStub.notCalled).to.be.true;
+        expect(sentryReportErrorStub.called).to.be.false;
+        await exportRequest.reload();
+        expect(exportRequest.status).to.equal(ExportRequestStatus.PROCESSING);
       });
 
       it('should handle abort signal', async () => {
@@ -538,6 +550,152 @@ describe('server/lib/export-requests/worker', () => {
           where: { type: ActivityTypes.EXPORT_REQUEST_FAILED, CollectiveId: request.CollectiveId },
         });
         expect(failureActivities).to.have.length(0);
+      });
+    });
+
+    describe('stuck detection (#8765)', () => {
+      beforeEach(async () => {
+        await ExportRequest.destroy({ where: {}, force: true });
+        await Activity.destroy({ where: {}, force: true });
+        await ExportWorker.stop();
+        ExportWorker.queue.clear();
+      });
+
+      const createStaleProcessingRequest = async (data?: Record<string, unknown>) => {
+        const clock = sandbox.useFakeTimers({ now: moment.utc().subtract(5, 'hours').toDate(), toFake: ['Date'] });
+        try {
+          return await fakeExportRequest({ status: ExportRequestStatus.PROCESSING, data });
+        } finally {
+          clock.restore();
+        }
+      };
+
+      it('never re-enqueues a PROCESSING request with a fresh heartbeat (#8765)', async () => {
+        const request = await fakeExportRequest({ status: ExportRequestStatus.PROCESSING });
+
+        await ExportWorker.tick();
+        await request.reload();
+
+        expect(request.status).to.equal(ExportRequestStatus.PROCESSING);
+        expect(sentryReportErrorStub.called).to.be.false;
+      });
+
+      it('fails a stale PROCESSING request and marks it retryable per canRetry', async () => {
+        const request = await createStaleProcessingRequest();
+
+        await ExportWorker.tick();
+        await request.reload();
+
+        expect(request.status).to.equal(ExportRequestStatus.FAILED);
+        expect(request.data).to.have.property('error', 'Request stuck in PROCESSING state for over an hour');
+        expect(request.data).to.have.property('shouldRetry', true);
+        expect(request.data?.retryCount ?? 0).to.equal(0);
+      });
+
+      it('fails a stale PROCESSING request without retry when retries are exhausted', async () => {
+        const request = await createStaleProcessingRequest({ retryCount: 3 });
+
+        await ExportWorker.tick();
+        await request.reload();
+
+        expect(request.status).to.equal(ExportRequestStatus.FAILED);
+        expect(request.data).to.have.property('shouldRetry', false);
+        expect(request.data).to.have.property('retryCount', 3);
+      });
+
+      it('ignores stuck requests whose lock is held by a live run', async () => {
+        const request = await createStaleProcessingRequest();
+
+        // A live run always holds the request lock: the stuck check must yield silently
+        await mutexLib.lockUntilOrThrow(`export-request-${request.id}`, async () => {
+          await ExportWorker.tick();
+        });
+
+        await request.reload();
+        expect(request.status).to.equal(ExportRequestStatus.PROCESSING);
+        expect(sentryReportErrorStub.called).to.be.false;
+      });
+
+      it('does not fail a request that completed between the stuck scan and the lock', async () => {
+        const request = await createStaleProcessingRequest();
+
+        // Simulate the live run finishing right before checkStuckTasks gets the lock
+        const originalReload = ExportRequest.prototype.reload;
+        let interposed = false;
+        sandbox.stub(ExportRequest.prototype, 'reload').callsFake(async function (...args) {
+          if (!interposed) {
+            interposed = true;
+            await ExportRequest.update({ status: ExportRequestStatus.COMPLETED }, { where: { id: this.id } });
+          }
+          return originalReload.call(this, ...args);
+        });
+
+        await ExportWorker.tick();
+        await request.reload();
+
+        expect(request.status).to.equal(ExportRequestStatus.COMPLETED);
+        const failureActivities = await Activity.findAll({
+          where: { type: ActivityTypes.EXPORT_REQUEST_FAILED, CollectiveId: request.CollectiveId },
+        });
+        expect(failureActivities).to.have.length(0);
+      });
+
+      it('bumps updatedAt as a processing heartbeat while a request is running (#8765)', async () => {
+        let keepProcessing = true;
+        const processorStub = sandbox
+          .stub(EXPORT_PROCESSORS, ExportRequestTypes.TRANSACTIONS)
+          .callsFake(async () => {
+            await waitForCondition(() => keepProcessing !== true, { timeout: 10_000 });
+          });
+        const request = await fakeExportRequest({ status: ExportRequestStatus.ENQUEUED });
+        await request.reload();
+        const initialUpdatedAt = request.updatedAt.getTime();
+
+        const clock = sandbox.useFakeTimers({ now: Date.now(), toFake: ['Date', 'setInterval', 'clearInterval'] });
+        try {
+          const processPromise = ExportWorker.processRequest(request.id, new AbortController().signal);
+          await waitForCondition(() => processorStub.calledOnce, { timeout: 4_000 });
+
+          // A long export keeps touching the request so stuck detection never selects it
+          clock.tick(HEARTBEAT_INTERVAL);
+          await waitForCondition(
+            async () => {
+              await request.reload();
+              return request.updatedAt.getTime() > initialUpdatedAt;
+            },
+            {
+              timeout: 4_000,
+              onFailure: () => expect.fail('The processing heartbeat did not bump updatedAt'),
+            },
+          );
+          expect(request.status).to.equal(ExportRequestStatus.PROCESSING);
+
+          keepProcessing = false;
+          await processPromise;
+          // The heartbeat is not left running once the attempt settles
+          expect(clock.countTimers()).to.equal(0);
+        } finally {
+          clock.restore();
+        }
+      });
+
+      it('holds export request locks longer than the stuck threshold', async () => {
+        const realLockUntilOrThrow = mutexLib.lockUntilOrThrow;
+        const lockCalls: Array<{ key: string; options: Parameters<typeof realLockUntilOrThrow>[2] }> = [];
+        sandbox.stub(mutexLib, 'lockUntilOrThrow').callsFake((key, until, options) => {
+          lockCalls.push({ key, options });
+          return realLockUntilOrThrow(key, until, options);
+        });
+        sandbox.stub(EXPORT_PROCESSORS, ExportRequestTypes.TRANSACTIONS).resolves();
+        const request = await fakeExportRequest({ status: ExportRequestStatus.ENQUEUED });
+
+        await ExportWorker.processRequest(request.id, new AbortController().signal);
+
+        expect(lockCalls).to.have.length(1);
+        expect(lockCalls[0].key).to.equal(`export-request-${request.id}`);
+        // A live run must still hold its lock when the 1-hour stuck threshold probes it
+        expect(EXPORT_REQUEST_LOCK_TTL_MS).to.be.greaterThan(60 * 60 * 1000);
+        expect(lockCalls[0].options.unlockTimeoutMs).to.equal(EXPORT_REQUEST_LOCK_TTL_MS);
       });
     });
   }

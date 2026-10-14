@@ -75,6 +75,18 @@ class ExportRequest extends ModelWithPublicId<
   declare public getUploadedFile: BelongsToGetAssociationMixin<UploadedFile>;
 
   /**
+   * Processing heartbeat: bumps `updatedAt` while the request is being processed so the worker's stuck detection
+   * (`updatedAt` older than the stuck threshold) only catches dead runs (crash, kill -9), never live ones (#8765).
+   */
+  async heartbeat(): Promise<void> {
+    // `updatedAt` is a read-only attribute that `set()` ignores and `save()` only auto-touches when another
+    // field changed: mark it dirty explicitly so a lone timestamp bump is actually written.
+    this.dataValues.updatedAt = new Date();
+    this.changed('updatedAt', true);
+    await this.save({ fields: ['updatedAt'] });
+  }
+
+  /**
    * Marks the request as FAILED. `data.retryCount` ("retries granted so far") is never touched here: the worker
    * increments it in `checkErroredTasks`, once per granted retry.
    */
