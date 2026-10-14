@@ -26,7 +26,9 @@ const refund = async transactionId => {
 
   /* Refund both charge & application fee */
   if (!IS_DRY) {
-    const charge = await stripe.charges.retrieve(chargeId as string, { stripeAccount: hostStripeAccount.username });
+    const charge = await stripe.charges.retrieve(chargeId as string, undefined, {
+      stripeAccount: hostStripeAccount.username,
+    });
     if (charge.disputed) {
       console.log('Charge is already disputed.');
       return;
