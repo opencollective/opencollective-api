@@ -9,6 +9,7 @@ import type { AccountReferenceInput } from '../../graphql/v2/input/AccountRefere
 import type { ExpenseReferenceInputFields } from '../../graphql/v2/input/ExpenseReferenceInput';
 import type { OrderReferenceInputGraphQLType } from '../../graphql/v2/input/OrderReferenceInput';
 import { UploadedFile } from '../../models';
+import { ExportRequestTypes } from '../../models/ExportRequest';
 
 import type { ExportProcessor } from './types';
 
@@ -54,7 +55,7 @@ type TransactionExportRequestParameters = {
 
 const safeJoinString = (value: string[] | string) => (Array.isArray(value) ? value.join(',') : value);
 
-const makeUrl = ({
+export const makeUrl = ({
   account,
   isHostReport,
   variables = {},
@@ -164,6 +165,12 @@ const makeUrl = ({
   return url.toString();
 };
 
+/** Set expiration date based on export type, with a 90 days fallback for unconfigured types. */
+export const getExportExpirationDate = (type: ExportRequestTypes): Date => {
+  const expirationDays = config.exports?.expirationDays?.[type] || 90;
+  return moment().add(expirationDays, 'days').toDate();
+};
+
 export const processTransactionsRequest: ExportProcessor = async (request, workerAbortSignal) => {
   const user = await request.getCreatedByUser();
   assert(user, 'ExportRequest must have a CreatedByUser');
@@ -222,10 +229,7 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
       throw uploadResult.reason;
     }
     const uploadedFile = uploadResult.value;
-
-    // Set expiration date based on export type
-    const expirationDays = config.exports?.expirationDays?.[request.type] || 90;
-    const expiresAt = moment().add(expirationDays, 'days').toDate();
+    const expiresAt = getExportExpirationDate(request.type);
 
     await request.update({
       UploadedFileId: uploadedFile.id,
