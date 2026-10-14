@@ -27,7 +27,8 @@ const ABORT_ERROR = 'Process aborted';
 const MAX_RETRIES = 3;
 /** While processing, the request is touched every `HEARTBEAT_INTERVAL` so stuck detection only catches dead runs. */
 export const HEARTBEAT_INTERVAL = 5 * 60_000;
-const STUCK_THRESHOLD = 1 * 60 * 60_000;
+/** A `PROCESSING` request without a heartbeat for this long is considered dead and failed by `checkStuckTasks`. */
+export const STUCK_THRESHOLD = 10 * 60_000;
 /**
  * How long a processing run holds its `export-request-*` lock. Must stay greater than `STUCK_THRESHOLD` so a
  * live (but slow) run always still holds its lock when `checkStuckTasks` probes it (#8765).
@@ -275,9 +276,12 @@ class ExportWorker {
                 // The run settled between the stuck scan and this lock
                 return;
               }
-              await request.fail('Request stuck in PROCESSING state for over an hour', {
-                shouldRetry: canRetry(request),
-              });
+              await request.fail(
+                `Request stuck in PROCESSING state without a heartbeat for over ${STUCK_THRESHOLD / 60_000} minutes`,
+                {
+                  shouldRetry: canRetry(request),
+                },
+              );
             },
             { unlockTimeoutMs: EXPORT_REQUEST_LOCK_TTL_MS },
           );

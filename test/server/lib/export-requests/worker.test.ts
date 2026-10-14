@@ -10,6 +10,7 @@ import ExportWorker, {
   EXPORT_REQUEST_LOCK_TTL_MS,
   getRetryBackoffMs,
   HEARTBEAT_INTERVAL,
+  STUCK_THRESHOLD,
 } from '../../../../server/lib/export-requests/worker';
 import * as mutexLib from '../../../../server/lib/mutex';
 import { MutexLockError } from '../../../../server/lib/mutex';
@@ -562,8 +563,11 @@ describe('server/lib/export-requests/worker', () => {
         ExportWorker.queue.clear();
       });
 
-      const createStaleProcessingRequest = async (data?: Record<string, unknown>) => {
-        const clock = sandbox.useFakeTimers({ now: moment.utc().subtract(5, 'hours').toDate(), toFake: ['Date'] });
+      const createStaleProcessingRequest = async ({
+        data,
+        ageInMs = STUCK_THRESHOLD + 60_000,
+      }: { data?: Record<string, unknown>; ageInMs?: number } = {}) => {
+        const clock = sandbox.useFakeTimers({ now: moment.utc().subtract(ageInMs, 'ms').toDate(), toFake: ['Date'] });
         try {
           return await fakeExportRequest({ status: ExportRequestStatus.PROCESSING, data });
         } finally {
@@ -581,6 +585,26 @@ describe('server/lib/export-requests/worker', () => {
         expect(sentryReportErrorStub.called).to.be.false;
       });
 
+      it('tolerates a delayed heartbeat before declaring a run stuck', async () => {
+        // A live run's heartbeat can be a full interval overdue before the threshold must still spare it
+        const oneBeatLate = await createStaleProcessingRequest({ ageInMs: HEARTBEAT_INTERVAL + 60_000 });
+        const missedBeat = await createStaleProcessingRequest({ ageInMs: 2 * HEARTBEAT_INTERVAL - 60_000 });
+
+        await ExportWorker.tick();
+        await oneBeatLate.reload();
+        await missedBeat.reload();
+
+        expect(oneBeatLate.status).to.equal(ExportRequestStatus.PROCESSING);
+        expect(missedBeat.status).to.equal(ExportRequestStatus.PROCESSING);
+      });
+
+      it('keeps the heartbeat, stuck threshold and lock TTL ordered', () => {
+        // The threshold must tolerate at least one missed heartbeat and stay under the lock TTL, so a live run
+        // is never reaped while it still holds its lock
+        expect(STUCK_THRESHOLD).to.be.at.least(2 * HEARTBEAT_INTERVAL);
+        expect(EXPORT_REQUEST_LOCK_TTL_MS).to.be.greaterThan(STUCK_THRESHOLD);
+      });
+
       it('fails a stale PROCESSING request and marks it retryable per canRetry', async () => {
         const request = await createStaleProcessingRequest();
 
@@ -588,13 +612,16 @@ describe('server/lib/export-requests/worker', () => {
         await request.reload();
 
         expect(request.status).to.equal(ExportRequestStatus.FAILED);
-        expect(request.data).to.have.property('error', 'Request stuck in PROCESSING state for over an hour');
+        expect(request.data).to.have.property(
+          'error',
+          `Request stuck in PROCESSING state without a heartbeat for over ${STUCK_THRESHOLD / 60_000} minutes`,
+        );
         expect(request.data).to.have.property('shouldRetry', true);
         expect(request.data?.retryCount ?? 0).to.equal(0);
       });
 
       it('fails a stale PROCESSING request without retry when retries are exhausted', async () => {
-        const request = await createStaleProcessingRequest({ retryCount: 3 });
+        const request = await createStaleProcessingRequest({ data: { retryCount: 3 } });
 
         await ExportWorker.tick();
         await request.reload();
@@ -692,9 +719,9 @@ describe('server/lib/export-requests/worker', () => {
 
         expect(lockCalls).to.have.length(1);
         expect(lockCalls[0].key).to.equal(`export-request-${request.id}`);
-        // A live run must still hold its lock when the 1-hour stuck threshold probes it
-        expect(EXPORT_REQUEST_LOCK_TTL_MS).to.be.greaterThan(60 * 60 * 1000);
+        // A live run must still hold its lock when the stuck threshold probes it
         expect(lockCalls[0].options.unlockTimeoutMs).to.equal(EXPORT_REQUEST_LOCK_TTL_MS);
+        expect(lockCalls[0].options.unlockTimeoutMs).to.be.greaterThan(STUCK_THRESHOLD);
       });
     });
   }
