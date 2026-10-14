@@ -301,6 +301,42 @@ describe('server/lib/hyperwatch-redaction', () => {
       ).to.equal('/services/email/unsubscribe/[redacted]/webpack/collective.expense.created/[redacted]');
     });
 
+    it('redacts bracketed query string parameters', () => {
+      expect(
+        redactUrl('/webpack/transactions.json?filter[email]=jane%40example.com&filter[kind]=ADDED_FUNDS'),
+      ).to.equal('/webpack/transactions.json?filter%5Bemail%5D=%5Bredacted%5D&filter%5Bkind%5D=ADDED_FUNDS');
+      expect(redactUrl('/search?emails[]=jane%40example.com')).to.equal('/search?emails%5B%5D=%5Bredacted%5D');
+    });
+
+    it('redacts the path of absolute URLs, including frontend pages seen through the referer', () => {
+      expect(redactUrl('https://api.opencollective.com/graphql/v1/0123456789abcdef?opName=Account')).to.equal(
+        'https://api.opencollective.com/graphql/v1/[redacted]?opName=Account',
+      );
+      expect(redactUrl('https://opencollective.com/signin/eyJhbGciOi.payload.signature?next=%2Fdashboard')).to.equal(
+        'https://opencollective.com/signin/[redacted]?next=%2Fdashboard',
+      );
+      expect(redactUrl('https://opencollective.com/reset-password/abc123')).to.equal(
+        'https://opencollective.com/reset-password/[redacted]',
+      );
+      expect(redactUrl('https://opencollective.com/confirm/email/abc123')).to.equal(
+        'https://opencollective.com/confirm/email/[redacted]',
+      );
+      expect(redactUrl('https://opencollective.com/confirm/guest/abc123?email=jane%40example.com')).to.equal(
+        'https://opencollective.com/confirm/guest/[redacted]?email=%5Bredacted%5D',
+      );
+      expect(
+        redactUrl(
+          'https://opencollective.com/email/unsubscribe/jane%40example.com/webpack/collective.expense.created/abc',
+        ),
+      ).to.equal(
+        'https://opencollective.com/email/unsubscribe/[redacted]/webpack/collective.expense.created/[redacted]',
+      );
+      expect(redactUrl('https://opencollective.com/signin')).to.equal('https://opencollective.com/signin');
+      expect(redactUrl('https://opencollective.com/webpack/expenses')).to.equal(
+        'https://opencollective.com/webpack/expenses',
+      );
+    });
+
     it('keeps URLs without sensitive parameters as they are', () => {
       expect(redactUrl('/graphql')).to.equal('/graphql');
       expect(redactUrl('/graphql/v2')).to.equal('/graphql/v2');

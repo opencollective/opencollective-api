@@ -94,6 +94,18 @@ const SENSITIVE_PATHS: Array<[RegExp, string]> = [
   [/^(\/services\/email\/unsubscribe\/)[^/?#]+(\/[^/?#]+\/[^/?#]+\/)[^/?#]+/, `$1${REDACTED}$2${REDACTED}`],
 ];
 
+// Frontend pages with credentials or personal data in the path. The requests they make carry the page URL in their
+// referer, so these apply to absolute URLs only (the API serves other routes under the same paths).
+const SENSITIVE_PAGE_PATHS: Array<[RegExp, string]> = [
+  // /signin/:token, /reset-password/:token, /confirm/email/:token, /confirm/guest/:token
+  [/^(\/(?:signin|reset-password|confirm\/email|confirm\/guest)\/)[^/?#]+/, `$1${REDACTED}`],
+  // /email/unsubscribe/:email/:slug/:type/:token
+  [/^(\/email\/unsubscribe\/)[^/?#]+(\/[^/?#]+\/[^/?#]+\/)[^/?#]+/, `$1${REDACTED}$2${REDACTED}`],
+];
+
+// Scheme and host of an absolute URL, e.g. the referer
+const URL_ORIGIN = /^[a-z][a-z\d+.-]*:\/\/[^/?#]*/i;
+
 export const isSensitiveHeader = (name: string): boolean => {
   const lowerCaseName = name.toLowerCase();
   if (ALLOWED_HEADERS.has(lowerCaseName)) {
@@ -121,7 +133,8 @@ const isSensitiveKey = (key: string): boolean => {
     return true;
   }
   // Every run of consecutive segments, so that compound words match inside longer keys (`contactFirstName`)
-  const segments = key.split(/[_\-\s.]+|(?<=[a-z0-9])(?=[A-Z])/).filter(Boolean);
+  // Brackets too, for query string keys like `filter[email]` or `emails[]`
+  const segments = key.split(/[_\-\s.[\]]+|(?<=[a-z0-9])(?=[A-Z])/).filter(Boolean);
   for (let start = 0; start < segments.length; start++) {
     for (let end = start + 1; end <= Math.min(segments.length, start + MAX_SEGMENTS_PER_WORD); end++) {
       if (isSensitiveWord(segments.slice(start, end).join(''))) {
@@ -188,16 +201,19 @@ export const redactRequestVariables = (variables: unknown): unknown => {
 };
 
 /**
- * Redacts credentials and personal data from the path (see `SENSITIVE_PATHS`) and from the query string: the
+ * Redacts credentials and personal data from the path (see `SENSITIVE_PATHS`, and `SENSITIVE_PAGE_PATHS` for
+ * absolute URLs) and from the query string: the
  * values of sensitive parameters (e.g. `?token=`, `?email=`, `?code=`) are replaced with "[redacted]", and GraphQL
  * variables passed in `?variables=` go through `redactVariables`.
  */
 export const redactUrl = (url: string): string => {
   const queryStart = url.indexOf('?');
-  let path = queryStart === -1 ? url : url.slice(0, queryStart);
-  for (const [pattern, replacement] of SENSITIVE_PATHS) {
+  const origin = url.match(URL_ORIGIN)?.[0] ?? '';
+  let path = queryStart === -1 ? url.slice(origin.length) : url.slice(origin.length, queryStart);
+  for (const [pattern, replacement] of origin ? [...SENSITIVE_PATHS, ...SENSITIVE_PAGE_PATHS] : SENSITIVE_PATHS) {
     path = path.replace(pattern, replacement);
   }
+  path = `${origin}${path}`;
   if (queryStart === -1) {
     return path;
   }
