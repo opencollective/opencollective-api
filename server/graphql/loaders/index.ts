@@ -1454,7 +1454,7 @@ export const generateLoaders = req => {
       totalContributedToHost: contributorsLoaders.generateTotalContributedToHost(),
     },
 
-    search: generateSearchLoaders(req),
+    search: generateSearchLoaders(),
   };
 
   return loaders;

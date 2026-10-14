@@ -1,5 +1,5 @@
 /**
- * This file contains the logic to bind the OpenSearch functionality to the GraphQL API.
+ * This file binds the provider-independent search orchestration to the GraphQL API.
  */
 
 import express from 'express';
@@ -13,7 +13,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSONObject } from 'graphql-scalars';
-import { keyBy, mapKeys, mapValues } from 'lodash';
+import { keyBy, mapValues } from 'lodash';
 
 import OAuthScopes from '../../constants/oauth-scopes';
 import { checkScope } from '../../graphql/common/scope-check';
@@ -30,38 +30,23 @@ import { AccountTypeToModelMapping, GraphQLAccountType } from '../../graphql/v2/
 import { idEncode } from '../../graphql/v2/identifiers';
 import { getCollectionArgs } from '../../graphql/v2/interface/Collection';
 import type { SearchQueryAccountsResolverArgs } from '../../graphql/v2/object/SearchResponse';
-import { Collective, User } from '../../models';
 
-import { OpenSearchIndexName, OpenSearchIndexParams } from './constants';
-
-export type GraphQLSearchParams = {
-  requestId: string;
-  searchTerm: string;
-  defaultLimit: number;
-  account: Collective;
-  host: Collective;
-  useTopHits: boolean;
-};
+import { SearchEntity, SearchEntityParams, SearchHit, SearchRequest } from './types';
 
 /**
- * Returns a unique identifier for the OpenSearch query, which can be used to batch multiple queries together.
+ * The value returned by `Query.search`, consumed by the entity fields of `SearchResults`.
  */
-export const getOpenSearchQueryId = (
-  user: User | null,
-  host: Collective,
-  account: Collective,
-  searchTerm: string,
-  useTopHits: boolean,
-) => {
-  return `${user?.id || 'public'}-host_${host?.id || 'all'}-account_${account?.id || 'all'}-${searchTerm}-${useTopHits ? 'top_hits' : 'separated_hits'}`;
+export type GraphQLSearchParams = {
+  request: SearchRequest;
+  defaultLimit: number;
 };
 
 type GraphQLSearchIndexStrategy = {
   // A loader to use for loading entities from the (optionally encoded) ID
   loadMany: (req, ids) => Array<unknown | null>;
   // A function to encode the ID for use in the GraphQL API
-  getGraphQLId: (result: Record<string, unknown>) => string;
-  // A function to get index-specific parameters from the GraphQL arguments. By default, it returns the raw arguments.
+  getGraphQLId: (hit: SearchHit) => string;
+  // A function to get entity-specific parameters from the GraphQL arguments. By default, there are none.
   prepareArguments?: (args: Record<string, unknown>) => Record<string, unknown>;
   // Scopes to enforce to access private fields/entries
   oauthScopeForPrivateFields?: OAuthScopes;
@@ -69,9 +54,9 @@ type GraphQLSearchIndexStrategy = {
   args?: GraphQLFieldConfigArgumentMap;
 };
 
-const GraphQLSearchResultsStrategy: Record<OpenSearchIndexName, GraphQLSearchIndexStrategy> = {
-  [OpenSearchIndexName.COLLECTIVES]: {
-    getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'account'),
+const GraphQLSearchResultsStrategy: Record<SearchEntity, GraphQLSearchIndexStrategy> = {
+  [SearchEntity.ACCOUNTS]: {
+    getGraphQLId: (hit: SearchHit) => idEncode(hit.id, 'account'),
     loadMany: (req, ids) => req.loaders.Collective.byId.loadMany(ids),
     oauthScopeForPrivateFields: OAuthScopes.account,
     args: {
@@ -88,43 +73,41 @@ const GraphQLSearchResultsStrategy: Record<OpenSearchIndexName, GraphQLSearchInd
         description: 'Tags to filter the accounts',
       },
     } satisfies FieldsToGraphQLFieldConfigArgumentMap<SearchQueryAccountsResolverArgs>,
-    prepareArguments: (
-      args: SearchQueryAccountsResolverArgs,
-    ): OpenSearchIndexParams[OpenSearchIndexName.COLLECTIVES] => {
+    prepareArguments: (args: SearchQueryAccountsResolverArgs): SearchEntityParams[SearchEntity.ACCOUNTS] => {
       // Convert from GraphQL enum to SQL value (INDIVIDUAL -> USER)
-      return { ...args, type: AccountTypeToModelMapping[args.type] };
+      return { type: AccountTypeToModelMapping[args.type], isHost: args.isHost, tags: args.tags };
     },
   },
-  [OpenSearchIndexName.COMMENTS]: {
-    getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'comment'),
+  [SearchEntity.COMMENTS]: {
+    getGraphQLId: (hit: SearchHit) => idEncode(hit.id, 'comment'),
     loadMany: (req, ids) => req.loaders.Comment.byId.loadMany(ids),
   },
-  [OpenSearchIndexName.EXPENSES]: {
-    getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'expense'),
+  [SearchEntity.EXPENSES]: {
+    getGraphQLId: (hit: SearchHit) => idEncode(hit.id, 'expense'),
     loadMany: (req, ids) => req.loaders.Expense.byId.loadMany(ids),
     oauthScopeForPrivateFields: OAuthScopes.expenses,
   },
-  [OpenSearchIndexName.HOST_APPLICATIONS]: {
-    getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'host-application'),
+  [SearchEntity.HOST_APPLICATIONS]: {
+    getGraphQLId: (hit: SearchHit) => idEncode(hit.id, 'host-application'),
     loadMany: (req, ids) => req.loaders.HostApplication.byId.loadMany(ids),
     oauthScopeForPrivateFields: OAuthScopes.applications,
   },
-  [OpenSearchIndexName.ORDERS]: {
-    getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'order'),
+  [SearchEntity.ORDERS]: {
+    getGraphQLId: (hit: SearchHit) => idEncode(hit.id, 'order'),
     loadMany: (req, ids) => req.loaders.Order.byId.loadMany(ids),
     oauthScopeForPrivateFields: OAuthScopes.orders,
   },
-  [OpenSearchIndexName.TIERS]: {
-    getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'tier'),
+  [SearchEntity.TIERS]: {
+    getGraphQLId: (hit: SearchHit) => idEncode(hit.id, 'tier'),
     loadMany: (req, ids) => req.loaders.Tier.byId.loadMany(ids),
   },
-  [OpenSearchIndexName.TRANSACTIONS]: {
-    getGraphQLId: (result: Record<string, unknown>) => result['uuid'] as string,
+  [SearchEntity.TRANSACTIONS]: {
+    getGraphQLId: (hit: SearchHit) => hit.uuid,
     loadMany: (req, ids) => req.loaders.Transaction.byId.loadMany(ids),
     oauthScopeForPrivateFields: OAuthScopes.transactions,
   },
-  [OpenSearchIndexName.UPDATES]: {
-    getGraphQLId: (result: Record<string, unknown>) => idEncode(parseInt(result['id'] as string), 'update'),
+  [SearchEntity.UPDATES]: {
+    getGraphQLId: (hit: SearchHit) => idEncode(hit.id, 'update'),
     loadMany: (req, ids) => req.loaders.Update.byId.loadMany(ids),
     oauthScopeForPrivateFields: OAuthScopes.updates,
   },
@@ -140,8 +123,8 @@ const getForbidPrivate = (req, strategy: GraphQLSearchIndexStrategy) => {
   }
 };
 
-const buildSearchResultsType = (index: OpenSearchIndexName, name: string, collectionType: GraphQLObjectType) => {
-  const strategy = GraphQLSearchResultsStrategy[index];
+const buildSearchResultsType = (entity: SearchEntity, name: string, collectionType: GraphQLObjectType) => {
+  const strategy = GraphQLSearchResultsStrategy[entity];
   return {
     description: `Search results for ${name}`,
     args: {
@@ -160,24 +143,25 @@ const buildSearchResultsType = (index: OpenSearchIndexName, name: string, collec
         },
       },
     }),
-    resolve: async (baseSearchParams: GraphQLSearchParams, args, req: express.Request) => {
-      if (args.offset !== 0 && baseSearchParams.useTopHits) {
+    resolve: async ({ request, defaultLimit }: GraphQLSearchParams, args, req: express.Request) => {
+      if (args.offset !== 0 && request.useTopHits) {
         throw new Error('Paginating with `offset` is not supported when `useTopHits` is true');
       }
 
-      const limit = args.limit || baseSearchParams.defaultLimit;
+      const limit = args.limit || defaultLimit;
       const offset = args.offset;
       const result = await req.loaders.search.load({
-        ...baseSearchParams,
-        index,
-        useTopHits: baseSearchParams.useTopHits,
-        indexParams: strategy.prepareArguments ? strategy.prepareArguments(args) : args,
-        forbidPrivate: getForbidPrivate(req, strategy),
-        offset,
-        limit,
+        request,
+        entityRequest: {
+          entity,
+          params: strategy.prepareArguments ? strategy.prepareArguments(args) : {},
+          forbidPrivate: getForbidPrivate(req, strategy),
+          offset,
+          limit,
+        },
       });
 
-      if (!result || result.count === 0) {
+      if (!result || result.totalCount === 0) {
         return {
           maxScore: 0,
           collection: { totalCount: 0, offset, limit, nodes: () => [] },
@@ -185,9 +169,7 @@ const buildSearchResultsType = (index: OpenSearchIndexName, name: string, collec
         };
       }
 
-      const getSQLIdFromHit = (hit: (typeof result.hits)[0]): number => hit.source['id'] as number;
-      const hitsGroupedBySQLId = keyBy(result.hits, getSQLIdFromHit);
-      const hitsGroupedByGraphQLKey = mapKeys(hitsGroupedBySQLId, result => strategy.getGraphQLId(result.source));
+      const hitsGroupedByGraphQLKey = keyBy(result.hits, strategy.getGraphQLId);
       const highlights = mapValues(hitsGroupedByGraphQLKey, hit => ({
         score: hit.score,
         fields: hit.highlight,
@@ -197,12 +179,15 @@ const buildSearchResultsType = (index: OpenSearchIndexName, name: string, collec
         maxScore: result.maxScore,
         highlights,
         collection: {
-          totalCount: result.count,
+          totalCount: result.totalCount,
           offset,
           limit,
           nodes: async () => {
-            const entries = await strategy.loadMany(req, result.hits.map(getSQLIdFromHit));
-            return entries.filter(Boolean); // Entries in OpenSearch may have been deleted in the DB
+            const entries = await strategy.loadMany(
+              req,
+              result.hits.map(hit => hit.id),
+            );
+            return entries.filter(Boolean); // Entries in the search index may have been deleted in the DB
           },
         },
       };
@@ -212,21 +197,17 @@ const buildSearchResultsType = (index: OpenSearchIndexName, name: string, collec
 
 export const getSearchResultFields = () => {
   return {
-    accounts: buildSearchResultsType(OpenSearchIndexName.COLLECTIVES, 'Accounts', GraphQLAccountCollection),
-    comments: buildSearchResultsType(OpenSearchIndexName.COMMENTS, 'Comments', CommentCollection),
-    expenses: buildSearchResultsType(OpenSearchIndexName.EXPENSES, 'Expenses', GraphQLExpenseCollection),
+    accounts: buildSearchResultsType(SearchEntity.ACCOUNTS, 'Accounts', GraphQLAccountCollection),
+    comments: buildSearchResultsType(SearchEntity.COMMENTS, 'Comments', CommentCollection),
+    expenses: buildSearchResultsType(SearchEntity.EXPENSES, 'Expenses', GraphQLExpenseCollection),
     hostApplications: buildSearchResultsType(
-      OpenSearchIndexName.HOST_APPLICATIONS,
+      SearchEntity.HOST_APPLICATIONS,
       'HostApplications',
       GraphQLHostApplicationCollection,
     ),
-    orders: buildSearchResultsType(OpenSearchIndexName.ORDERS, 'Orders', GraphQLOrderCollection),
-    tiers: buildSearchResultsType(OpenSearchIndexName.TIERS, 'Tiers', GraphQLTierCollection),
-    transactions: buildSearchResultsType(
-      OpenSearchIndexName.TRANSACTIONS,
-      'Transactions',
-      GraphQLTransactionCollection,
-    ),
-    updates: buildSearchResultsType(OpenSearchIndexName.UPDATES, 'Updates', GraphQLUpdateCollection),
+    orders: buildSearchResultsType(SearchEntity.ORDERS, 'Orders', GraphQLOrderCollection),
+    tiers: buildSearchResultsType(SearchEntity.TIERS, 'Tiers', GraphQLTierCollection),
+    transactions: buildSearchResultsType(SearchEntity.TRANSACTIONS, 'Transactions', GraphQLTransactionCollection),
+    updates: buildSearchResultsType(SearchEntity.UPDATES, 'Updates', GraphQLUpdateCollection),
   };
 };

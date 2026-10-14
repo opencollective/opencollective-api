@@ -1,12 +1,12 @@
 import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
-import { v7 as uuidV7 } from 'uuid';
 
-import { isOpenSearchConfigured } from '../../../lib/open-search/client';
-import { getOpenSearchQueryId, GraphQLSearchParams } from '../../../lib/open-search/graphql-search';
 import { assertCanSeeAllAccounts } from '../../../lib/private-accounts';
 import RateLimit from '../../../lib/rate-limit';
+import { getSearchProvider } from '../../../lib/search';
+import { GraphQLSearchParams } from '../../../lib/search/graphql-search';
+import { SearchProvider } from '../../../lib/search/types';
 import { Forbidden, RateLimitExceeded } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLSearchResponse } from '../object/SearchResponse';
@@ -66,11 +66,10 @@ const SearchQuery = {
       (!remoteUser || !remoteUser.collective?.settings?.earlyAccess?.['SEARCH_COMMAND'])
     ) {
       throw new Forbidden();
-    } else if (!isOpenSearchConfigured()) {
-      throw new Error(
-        config.env === 'development' ? 'OpenSearch is not running' : 'The search is temporarily unavailable',
-      );
     }
+
+    const provider = SearchProvider.OPENSEARCH;
+    getSearchProvider(provider).assertAvailable();
 
     // Enforce rate limiting
     const rateLimiter = getRateLimiter(req);
@@ -84,12 +83,21 @@ const SearchQuery = {
     if (account || host) {
       await assertCanSeeAllAccounts(req, [account, host].filter(Boolean));
     }
-    const defaultLimit = args.defaultLimit;
 
     // Return the base arguments that will be digested by `GraphQLSearchResponse`
-    const resolverId = uuidV7(); // To distinguish in case multiple search queries are made with aliases
-    const requestId = `${resolverId}-${getOpenSearchQueryId(remoteUser, host, account, searchTerm, useTopHits)}`;
-    return { results: { requestId, defaultLimit, searchTerm, account, host, useTopHits } };
+    return {
+      results: {
+        defaultLimit: args.defaultLimit,
+        request: {
+          provider,
+          term: searchTerm,
+          scope: { account: account || null, host: host || null },
+          remoteUser: remoteUser || null,
+          timeoutInMs: args.timeout,
+          useTopHits,
+        },
+      },
+    };
   },
 };
 
