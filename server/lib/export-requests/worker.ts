@@ -26,6 +26,9 @@ const TICK_INTERVAL = 1 * 60_000;
 const ABORT_ERROR = 'Process aborted';
 const MAX_RETRIES = 3;
 const TABLES = [{ tableName: 'ExportRequests', triggerPrefix: 'export_requests' }];
+
+/** `data.retryCount` is the number of retries granted so far: a request runs at most `1 + MAX_RETRIES` times. */
+export const canRetry = (request: ExportRequest): boolean => (request.data?.retryCount || 0) < MAX_RETRIES;
 export const EXPORT_PROCESSORS: Record<ExportRequestTypes, ExportProcessor> = {
   [ExportRequestTypes.TRANSACTIONS]: processTransactionsRequest,
   [ExportRequestTypes.HOSTED_COLLECTIVES]: processHostedCollectivesRequest,
@@ -105,7 +108,7 @@ class ExportWorker {
         })
         .catch(async error => {
           debug(`Error in processor for export request ${request.id}:`, error);
-          const shouldRetry = (request.data?.retryCount || 0) < MAX_RETRIES;
+          const shouldRetry = canRetry(request);
           await request.fail(error.message || 'Unknown error', { shouldRetry });
           reportErrorToSentry(error, { handler: HandlerType.EXPORTS_WORKER });
 

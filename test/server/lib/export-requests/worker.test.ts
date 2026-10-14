@@ -4,10 +4,12 @@ import { has } from 'lodash';
 import moment from 'moment';
 import sinon from 'sinon';
 
+import ActivityTypes from '../../../../server/constants/activities';
 import ExportWorker, { EXPORT_PROCESSORS } from '../../../../server/lib/export-requests/worker';
 import { MutexLockError } from '../../../../server/lib/mutex';
 import { createRedisClient } from '../../../../server/lib/redis';
 import * as SentryLib from '../../../../server/lib/sentry';
+import Activity from '../../../../server/models/Activity';
 import ExportRequest, { ExportRequestStatus, ExportRequestTypes } from '../../../../server/models/ExportRequest';
 import { fakeExportRequest, sequelize } from '../../../test-helpers/fake-data';
 import { waitForCondition } from '../../../utils';
@@ -223,7 +225,8 @@ describe('server/lib/export-requests/worker', () => {
         await exportRequest.reload();
         expect(exportRequest.status).to.equal(ExportRequestStatus.FAILED);
         expect(exportRequest.data).to.have.property('shouldRetry', true);
-        expect(exportRequest.data).to.have.property('retryCount', 1);
+        // `retryCount` only counts granted retries (incremented by `checkErroredTasks`), never failures
+        expect(exportRequest.data?.retryCount ?? 0).to.equal(0);
         expect(exportRequest.data).to.have.property('error', 'Process aborted');
         expect(exportRequest.data).to.have.property('lastAttemptAt');
       });
@@ -251,6 +254,73 @@ describe('server/lib/export-requests/worker', () => {
         });
 
         await expect(secondCall).to.be.rejectedWith(MutexLockError);
+      });
+    });
+
+    describe('retry accounting', () => {
+      beforeEach(async () => {
+        await ExportRequest.destroy({ where: {}, force: true });
+        await ExportWorker.stop();
+        ExportWorker.queue.clear();
+      });
+
+      it('does not increment retryCount in ExportRequest.fail()', async () => {
+        const request = await fakeExportRequest();
+        await request.fail('Something went wrong', { shouldRetry: true });
+
+        await request.reload();
+        expect(request.status).to.equal(ExportRequestStatus.FAILED);
+        expect(request.data).to.have.property('error', 'Something went wrong');
+        expect(request.data).to.have.property('shouldRetry', true);
+        expect(request.data?.retryCount ?? 0).to.equal(0);
+      });
+
+      it('grants exactly MAX_RETRIES retries with a single retryCount increment per granted retry', async () => {
+        // Start 2 hours in the past so the whole fail -> retry cycle can be aged past the backoff windows
+        const clock = sandbox.useFakeTimers({ now: moment.utc().subtract(2, 'hours').toDate(), toFake: ['Date'] });
+        try {
+          const request = await fakeExportRequest({ status: ExportRequestStatus.ENQUEUED });
+          const processorStub = sandbox
+            .stub(EXPORT_PROCESSORS, ExportRequestTypes.TRANSACTIONS)
+            .rejects(new Error('Export failed'));
+
+          // 1 initial run + 3 retries = 4 runs with MAX_RETRIES = 3
+          for (let attempt = 1; attempt <= 4; attempt++) {
+            await ExportWorker.processRequest(request.id, new AbortController().signal);
+            await request.reload();
+            expect(request.status).to.equal(ExportRequestStatus.FAILED);
+            expect(request.data).to.have.property('error', 'Export failed');
+            // `retryCount` is the number of retries granted so far: failures never increment it
+            expect(request.data?.retryCount ?? 0).to.equal(attempt - 1);
+            expect(request.data).to.have.property('shouldRetry', attempt < 4);
+
+            // Age the failure past its backoff window before ticking
+            clock.tick(45 * 60_000);
+            await ExportWorker.tick();
+            await request.reload();
+            if (attempt < 4) {
+              expect(request.status).to.equal(ExportRequestStatus.ENQUEUED);
+              expect(request.data).to.have.property('retryCount', attempt); // one increment per granted retry
+            } else {
+              // Exhausted requests stay terminal: no resurrection
+              expect(request.status).to.equal(ExportRequestStatus.FAILED);
+            }
+          }
+
+          expect(processorStub.callCount).to.equal(4);
+
+          // The failure activity is only created on terminal failure, and the request is never completed
+          const failureActivities = await Activity.findAll({
+            where: { type: ActivityTypes.EXPORT_REQUEST_FAILED, CollectiveId: request.CollectiveId },
+          });
+          expect(failureActivities).to.have.length(1);
+          const completionActivities = await Activity.findAll({
+            where: { type: ActivityTypes.EXPORT_REQUEST_COMPLETED, CollectiveId: request.CollectiveId },
+          });
+          expect(completionActivities).to.have.length(0);
+        } finally {
+          clock.restore();
+        }
       });
     });
   }

@@ -74,11 +74,14 @@ class ExportRequest extends ModelWithPublicId<
   declare public uploadedFile?: UploadedFile;
   declare public getUploadedFile: BelongsToGetAssociationMixin<UploadedFile>;
 
+  /**
+   * Marks the request as FAILED. `data.retryCount` ("retries granted so far") is never touched here: the worker
+   * increments it in `checkErroredTasks`, once per granted retry.
+   */
   async fail(error: string, options?: { shouldRetry?: boolean }): Promise<void> {
     const newData: ExportRequest['data'] = Object.assign({}, this.data, {
       lastAttemptAt: new Date().toISOString(),
       shouldRetry: options?.shouldRetry || false,
-      retryCount: (this.data?.retryCount || 0) + 1,
       error,
     });
     await this.update({ status: ExportRequestStatus.FAILED, data: newData });
