@@ -138,6 +138,7 @@ export const makeRequest = (
     get: a => {
       return headers[a];
     },
+    setTimeout: () => {}, // Express `req.setTimeout` - the timeout itself is not relevant in tests
     userToken,
     personalToken,
     res: {

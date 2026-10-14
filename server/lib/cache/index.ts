@@ -142,6 +142,11 @@ export async function fetchCollectiveId(collectiveSlug) {
   }
 }
 
+/** Removes the cached slug -> id mapping (e.g. after a merge renames the account's slug) */
+export async function purgeCollectiveIdCacheForSlug(collectiveSlug: string) {
+  await cache.delete(`collective_id_with_slug_${collectiveSlug}`);
+}
+
 export function memoize(func, { key, maxAge = 0, serialize = JSON.stringify, unserialize = JSON.parse }) {
   const cacheKey = args => {
     return args.length ? `${key}_${md5(JSON.stringify(args))}` : key;
