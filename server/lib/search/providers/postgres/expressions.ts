@@ -88,3 +88,15 @@ export const HostApplicationExpressions = {
   /** Searchable fields: message (index `host_applications_pg_search_message`) */
   vector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(message, ''))`,
 } as const;
+
+/**
+ * Orders/Contributions. Same conventions as `AccountExpressions` (unqualified columns of "Orders").
+ */
+export const OrderExpressions = {
+  /** Live contributions (receiving Account rules: `isOwnedByEligibleAccount`) */
+  eligible: `"deletedAt" IS NULL`,
+  /** Description words (index `orders_pg_search_description`, not partial so that the planner has statistics) */
+  descriptionVector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(description, ''))`,
+  /** Exact description (index `orders_pg_search_description_label`, not partial) */
+  normalizedDescription: `public.oc_search_normalize(description)`,
+} as const;
