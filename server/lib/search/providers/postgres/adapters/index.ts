@@ -1,20 +1,24 @@
 import { SearchEntity } from '../../../types';
 
 import { AccountsAdapter } from './accounts';
+import { ExpensesAdapter } from './expenses';
 import { HostApplicationsAdapter } from './host-applications';
 import { OrdersAdapter } from './orders';
 import { TiersAdapter } from './tiers';
 import { TransactionsAdapter } from './transactions';
 import type { PostgresSearchAdapter } from './types';
+import { UpdatesAdapter } from './updates';
 
 /**
  * Entities supported by the PostgreSQL provider. Add one adapter file per entity.
  */
 const PostgresSearchAdapters: Partial<Record<SearchEntity, PostgresSearchAdapter>> = {
   [SearchEntity.ACCOUNTS]: AccountsAdapter,
+  [SearchEntity.EXPENSES]: ExpensesAdapter,
   [SearchEntity.TIERS]: TiersAdapter,
   [SearchEntity.HOST_APPLICATIONS]: HostApplicationsAdapter,
   [SearchEntity.ORDERS]: OrdersAdapter,
+  [SearchEntity.UPDATES]: UpdatesAdapter,
   [SearchEntity.TRANSACTIONS]: TransactionsAdapter,
 };
 

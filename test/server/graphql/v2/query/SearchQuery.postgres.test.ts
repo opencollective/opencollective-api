@@ -207,7 +207,7 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
                     totalCount
                   }
                 }
-                expenses {
+                comments {
                   collection {
                     totalCount
                   }
@@ -220,9 +220,9 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
       );
 
       expect(result.errors).to.have.length(1);
-      expect(result.errors[0].message).to.eq('Searching expenses is not supported by the PostgreSQL search yet');
+      expect(result.errors[0].message).to.eq('Searching comments is not supported by the PostgreSQL search yet');
       expect(result.errors[0].extensions.code).to.eq('SearchEntityNotSupported');
-      expect(result.errors[0].path).to.deep.eq(['search', 'results', 'expenses']);
+      expect(result.errors[0].path).to.deep.eq(['search', 'results', 'comments']);
       expect(result.data.search.results.accounts.collection.totalCount).to.eq(1);
     });
 
@@ -271,7 +271,7 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
       expect((await getAccounts('quokkaville', { limit: 50, offset: 5000 })).collection.totalCount).to.eq(1);
 
       let result = await searchAccounts('quokkaville', { limit: 51 });
-      expect(result.errors[0].message).to.eq('The search limit must be between 1 and 50');
+      expect(result.errors[0].message).to.eq('The search limit must be between 0 and 50');
       result = await searchAccounts('quokkaville', { offset: 5001 });
       expect(result.errors[0].message).to.match(/only available up to offset 5000. Narrow your search/);
       expect(result.errors[0].extensions.code).to.eq('SearchOffsetTooDeep');
