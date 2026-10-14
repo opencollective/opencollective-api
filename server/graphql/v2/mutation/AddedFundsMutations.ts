@@ -17,7 +17,12 @@ import { executeOrder } from '../../../lib/payments';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Order } from '../../../models';
 import { checkIsValidBalanceAccountingCategory } from '../../common/balance-accounting-categories';
-import { addFunds, canAddFundsFromAccount, checkCanUseAccountingCategoryForOrder } from '../../common/orders';
+import {
+  addFunds,
+  assertOrderAmountMatchesTier,
+  canAddFundsFromAccount,
+  checkCanUseAccountingCategoryForOrder,
+} from '../../common/orders';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { refundTransaction } from '../../common/transactions';
 import { ValidationFailed } from '../../errors';
@@ -123,6 +128,18 @@ const validateAddFundsArgs = ({
     if (tier.CollectiveId !== account.id) {
       throw new Error(`Tier #${tier.id} is not part of collective #${account.id}`);
     }
+
+    // The amount must match the tier (fixed amount or minimum). Added funds amounts include taxes:
+    // tier amounts are pre-tax, so we compare the net amount for the collective.
+    const taxRate = args.tax?.rate || 0;
+    const baseAmountInCents = taxRate ? roundCentsAmount(totalAmount / (1 + taxRate), account.currency) : totalAmount;
+    assertOrderAmountMatchesTier(tier, {
+      baseAmountInCents,
+      totalAmountInCents: totalAmount,
+      quantity: 1,
+      currency: account.currency,
+      taxPercentage: taxRate * 100,
+    });
   }
   if (accountingCategory) {
     checkCanUseAccountingCategoryForOrder(accountingCategory, host, account);
@@ -333,6 +350,9 @@ export default {
       const account: Collective = await fetchAccountWithReference(args.account, { throwIfMissing: true });
       const fromAccount: Collective = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
       const tier = args.tier && (await fetchTierWithReference(args.tier, { throwIfMissing: true }));
+      // When `tier` is not specified the order keeps its current tier: validate the amounts against it as well
+      const effectiveTier =
+        tier === undefined ? (order.TierId ? await req.loaders.Tier.byId.load(order.TierId) : null) : tier;
       const host = await account.getHostCollective({ loaders: req.loaders });
       const accountingCategory =
         args.accountingCategory &&
@@ -361,7 +381,7 @@ export default {
         paymentProcessorFee,
         totalAmount,
         host,
-        tier,
+        tier: effectiveTier,
         accountingCategory,
         req,
       });
