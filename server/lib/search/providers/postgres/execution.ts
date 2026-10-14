@@ -3,7 +3,9 @@
  *
  * Every entity query runs in its own read-only transaction on the shared pool, with transaction-local settings
  * (`set_config(..., true)` = `SET LOCAL`): they are reset on COMMIT/ROLLBACK, before the connection is returned to
- * the pool. `statement_timeout` is what actually cancels the work in PostgreSQL (a JS timeout alone would leave the
+ * the pool. JIT compilation is disabled: on large tables, the planner's cost estimates enable it for searches that
+ * then take a millisecond, and compiling costs 300+ ms (measured on Transactions merchant ID lookups).
+ * `statement_timeout` is what actually cancels the work in PostgreSQL (a JS timeout alone would leave the
  * query running and holding a connection).
  */
 
@@ -101,7 +103,8 @@ export const runWithSearchBudget = async <T>(
           SELECT
             set_config('statement_timeout', ${String(remainingMs)}, true),
             set_config('work_mem', ${workMem}, true),
-            set_config('pg_trgm.word_similarity_threshold', ${typoSimilarityThreshold}, true)
+            set_config('pg_trgm.word_similarity_threshold', ${typoSimilarityThreshold}, true),
+            set_config('jit', 'off', true)
         `.execute(trx);
 
         return fn(trx);

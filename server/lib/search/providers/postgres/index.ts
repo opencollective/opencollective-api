@@ -13,6 +13,7 @@ import { SearchEntityRequest, SearchEntityResult, SearchProviderImplementation, 
 import type { PostgresSearchAccess } from './adapters/types';
 import { getPostgresSearchAdapter } from './adapters';
 import { SearchTooBroadError, UnsupportedSearchEntityError } from './errors';
+import { assertEstimatedMatchesWithinBudget } from './estimates';
 import { runWithSearchBudget, SearchBudgetExceeded } from './execution';
 import {
   assertValidSearchPage,
@@ -51,7 +52,7 @@ const searchEntity = async (
   }
 
   try {
-    return await runWithSearchBudget({ deadline }, trx => {
+    return await runWithSearchBudget({ deadline }, async trx => {
       const arms = adapter.buildArms(trx, {
         input,
         scope: { accountId: request.scope.account?.id ?? null, hostId: request.scope.host?.id ?? null },
@@ -59,7 +60,15 @@ const searchEntity = async (
         params: entityRequest.params,
       });
 
-      return executeRankedSearchQuery(trx, arms, entityRequest);
+      if (adapter.estimatedMatchesPerSecond) {
+        await assertEstimatedMatchesWithinBudget(trx, arms, {
+          matchesPerSecond: adapter.estimatedMatchesPerSecond,
+          deadline,
+        });
+      }
+
+      const result = await executeRankedSearchQuery(trx, arms, entityRequest);
+      return adapter.decorateHits ? { ...result, hits: await adapter.decorateHits(trx, result.hits) } : result;
     });
   } catch (error) {
     if (error instanceof SearchBudgetExceeded) {
