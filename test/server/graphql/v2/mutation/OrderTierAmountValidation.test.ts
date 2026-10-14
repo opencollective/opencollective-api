@@ -277,6 +277,25 @@ describe('Order amount vs. tier validation', () => {
       expect(order.totalAmount).to.eq(10000);
     });
 
+    it('accepts orders with a null quantity', async () => {
+      const order = await createRecurringOrder(10000);
+      await order.update({ quantity: null }); // Legacy orders can have no quantity
+
+      const result = await graphqlQueryV2(
+        UPDATE_ORDER_MUTATION,
+        {
+          order: { id: idEncode(order.id, 'order') },
+          tier: { legacyId: fixedTier.id },
+          amount: { valueInCents: 10000 },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      await order.reload();
+      expect(order.TierId).to.eq(fixedTier.id);
+    });
+
     it('accepts an amount matching the fixed tier when taxes apply', async () => {
       const order = await createRecurringOrder(12000);
       await order.update({ taxAmount: 2000, data: { tax: { id: 'VAT', percentage: 20 } } });
@@ -327,20 +346,6 @@ describe('Order amount vs. tier validation', () => {
   });
 
   describe('editPendingOrder', () => {
-    const createPendingContribution = (amountInCents: number) =>
-      graphqlQueryV2(
-        CREATE_PENDING_ORDER_MUTATION,
-        {
-          order: {
-            fromAccount: { legacyId: sameHostAccount.id },
-            toAccount: { legacyId: collective.id },
-            amount: { valueInCents: amountInCents, currency: 'USD' },
-            description: 'Pending contribution',
-          },
-        },
-        hostAdmin,
-      );
-
     const callEditPendingOrder = (order, amountInCents, tier) =>
       graphqlQueryV2(
         EDIT_PENDING_ORDER_MUTATION,
@@ -356,16 +361,18 @@ describe('Order amount vs. tier validation', () => {
         hostAdmin,
       );
 
-    it('rejects attributing a fixed tier to an amount below the tier price', async () => {
-      await createPendingContribution(100); // $1 contribution without tier
-      const order = await fakeOrder({
+    const createPendingContribution = (amountInCents: number) =>
+      fakeOrder({
         status: OrderStatuses.PENDING,
         FromCollectiveId: contributor.CollectiveId,
         CollectiveId: collective.id,
-        totalAmount: 100,
+        totalAmount: amountInCents,
         currency: 'USD',
         data: { isPendingContribution: true },
       });
+
+    it('rejects attributing a fixed tier to an amount below the tier price', async () => {
+      const order = await createPendingContribution(100); // $1 contribution without tier
 
       const result = await callEditPendingOrder(order, 100, fixedTier); // $1 for a $100 tier
       expect(result.errors).to.exist;
@@ -376,14 +383,7 @@ describe('Order amount vs. tier validation', () => {
     });
 
     it('accepts attributing a fixed tier when the amount matches', async () => {
-      const order = await fakeOrder({
-        status: OrderStatuses.PENDING,
-        FromCollectiveId: contributor.CollectiveId,
-        CollectiveId: collective.id,
-        totalAmount: 100,
-        currency: 'USD',
-        data: { isPendingContribution: true },
-      });
+      const order = await createPendingContribution(100);
 
       const result = await callEditPendingOrder(order, 10000, fixedTier);
       expect(result.errors).to.not.exist;
@@ -405,6 +405,36 @@ describe('Order amount vs. tier validation', () => {
       const result = await callEditPendingOrder(order, 100, flexibleTier); // $1 for a $100-minimum tier
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/below minimum tier value/);
+      await order.reload();
+      expect(order.totalAmount).to.eq(10000);
+    });
+
+    it('validates against the existing tier when the tier input is omitted', async () => {
+      const order = await fakeOrder({
+        status: OrderStatuses.PENDING,
+        FromCollectiveId: contributor.CollectiveId,
+        CollectiveId: collective.id,
+        totalAmount: 10000,
+        TierId: fixedTier.id,
+        currency: 'USD',
+        data: { isPendingContribution: true },
+      });
+
+      const result = await graphqlQueryV2(
+        EDIT_PENDING_ORDER_MUTATION,
+        {
+          order: {
+            legacyId: order.id,
+            fromAccount: { legacyId: sameHostAccount.id },
+            amount: { valueInCents: 100, currency: 'USD' },
+            description: 'Edited pending contribution',
+          },
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/This tier uses a fixed amount/);
       await order.reload();
       expect(order.totalAmount).to.eq(10000);
     });

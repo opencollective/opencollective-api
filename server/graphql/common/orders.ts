@@ -136,10 +136,11 @@ export const assertOrderAmountMatchesTier = (
     taxPercentage = 0,
   }: OrderAmountValidationParams,
 ): void => {
+  const quantityOrOne = quantity ?? 1; // `Order.quantity` is nullable
   const expectedUnitAmount = tier?.amountType === 'FIXED' ? tier.amount || 0 : unitAmountInCents;
 
   if (!isNil(expectedUnitAmount)) {
-    const expectedBaseAmount = roundCentsAmount(expectedUnitAmount * quantity, currency);
+    const expectedBaseAmount = roundCentsAmount(expectedUnitAmount * quantityOrOne, currency);
     const expectedTaxAmount = calcFee(expectedBaseAmount, taxPercentage, currency);
     const hasInvalidTaxAmount = !isNil(taxAmountInCents) && taxAmountInCents !== expectedTaxAmount;
     if (baseAmountInCents !== expectedBaseAmount || hasInvalidTaxAmount) {
@@ -150,15 +151,16 @@ export const assertOrderAmountMatchesTier = (
         2,
       );
       const taxInfoStr = expectedTaxAmount ? ` + ${formatCurrency(expectedTaxAmount, currency, 2)} tax` : '';
+      const prefix = tier?.amountType === 'FIXED' ? 'This tier uses a fixed amount. ' : 'Invalid order amount. ';
       throw new ValidationFailed(
-        `This tier uses a fixed amount. Order total must be ${prettyExpectedAmount}${taxInfoStr}. You set: ${prettyTotalAmount}`,
+        `${prefix}Order total must be ${prettyExpectedAmount}${taxInfoStr}. You set: ${prettyTotalAmount}`,
       );
     }
   }
 
   // If using a named tier, amount can never be less than the minimum amount
   if (tier?.minimumAmount) {
-    const minBaseAmount = roundCentsAmount(tier.minimumAmount * quantity, currency);
+    const minBaseAmount = roundCentsAmount(tier.minimumAmount * quantityOrOne, currency);
     if (baseAmountInCents < minBaseAmount) {
       const minTotalAmount = taxPercentage
         ? roundCentsAmount(minBaseAmount * (1 + taxPercentage / 100), currency)

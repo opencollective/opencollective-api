@@ -1074,7 +1074,10 @@ const orderMutations = {
               taxPercentage: order.data?.tax?.percentage || 0,
             });
           } catch (error) {
-            throw new ValidationFailed(`Order #${order.id}: ${error.message}`);
+            if (error instanceof ValidationFailed) {
+              throw new ValidationFailed(`Order #${order.id}: ${error.message}`);
+            }
+            throw error;
           }
         }
       }
@@ -1568,7 +1571,7 @@ const orderMutations = {
         : await req.loaders.Collective.byId.load(order.FromCollectiveId);
       const tier = args.order.tier
         ? await fetchTierWithReference(args.order.tier, { throwIfMissing: true })
-        : order.tier;
+        : order.Tier; // The `Order.belongsTo(Tier)` association is populated as `order.Tier`
       OrdersLib.assertTierBelongsToAccount(tier, order.collective);
 
       if (
