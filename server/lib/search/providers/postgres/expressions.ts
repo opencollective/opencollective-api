@@ -100,3 +100,30 @@ export const OrderExpressions = {
   /** Exact description (index `orders_pg_search_description_label`, not partial) */
   normalizedDescription: `public.oc_search_normalize(description)`,
 } as const;
+
+/**
+ * Accounts hidden from search (`data.hideFromSearch`): their Updates are not searchable, even for root. Index
+ * `collectives_pg_search_hidden` (on `id`) covers exactly these rows, for an index-only anti-join (see
+ * `isOwnedByEligibleAccount`).
+ */
+const HiddenAccountExpressions = {
+  hidden: `(data ->> 'hideFromSearch')::boolean IS TRUE`,
+} as const;
+
+/** The account referenced by `accountIdColumn` is not hidden from search */
+export const isOwnedByAccountShownInSearch = (accountIdColumn: string): RawBuilder<boolean> =>
+  sql<boolean>`NOT EXISTS (SELECT 1 FROM "Collectives" hidden_account WHERE hidden_account.id = ${sql.ref(accountIdColumn)} AND ${sql.raw(HiddenAccountExpressions.hidden)})`;
+
+/**
+ * Updates. Same conventions as `AccountExpressions` (unqualified columns of "Updates").
+ */
+export const UpdateExpressions = {
+  /** Live Updates (owning Account rules: `isOwnedByEligibleAccount` + `isOwnedByAccountShownInSearch`) */
+  eligible: `"deletedAt" IS NULL`,
+  /** Updates that everyone who can see the Account can see */
+  publiclyVisible: `("isPrivate" = false AND "publishedAt" IS NOT NULL)`,
+  /** Title, slug words and HTML-stripped body (index `updates_pg_search_text`, not partial: see its migration) */
+  vector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(title, '') || ' ' || replace(coalesce(slug, ''), '-', ' ') || ' ' || public.oc_search_html_to_text(coalesce(html, '')))`,
+  /** Exact title (index `updates_pg_search_title`) */
+  normalizedTitle: `public.oc_search_normalize(title)`,
+} as const;
