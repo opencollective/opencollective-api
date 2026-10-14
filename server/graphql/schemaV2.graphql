@@ -27522,6 +27522,11 @@ type Mutation {
     If true, the orders will be moved to the incognito account of "fromAccount"
     """
     makeIncognito: Boolean
+
+    """
+    Bypass the tier amount validation when moving orders to a tier that does not match their amount (root only, for data repair)
+    """
+    force: Boolean
   ): [Order]!
 
   """

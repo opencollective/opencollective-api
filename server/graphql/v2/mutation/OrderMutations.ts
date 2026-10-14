@@ -963,6 +963,11 @@ const orderMutations = {
         type: GraphQLBoolean,
         description: 'If true, the orders will be moved to the incognito account of "fromAccount"',
       },
+      force: {
+        type: GraphQLBoolean,
+        description:
+          'Bypass the tier amount validation when moving orders to a tier that does not match their amount (root only, for data repair)',
+      },
     },
     async resolve(_, args, req) {
       checkRemoteUserCanRoot(req);
@@ -1056,6 +1061,21 @@ const orderMutations = {
         // Can't move to another collective tier
         if (tier && tier !== 'custom' && orders.some(o => o.CollectiveId !== tier.CollectiveId)) {
           throw new ValidationFailed(`Can't move orders to a different collective tier`);
+        }
+
+        // The order amount must match the tier it's moved to (can be bypassed for data repair)
+        if (tier && tier !== 'custom' && !args.force) {
+          try {
+            OrdersLib.assertOrderAmountMatchesTier(tier, {
+              baseAmountInCents: getOrderBaseAmount(order),
+              totalAmountInCents: order.totalAmount,
+              quantity: order.quantity,
+              currency: order.currency,
+              taxPercentage: order.data?.tax?.percentage || 0,
+            });
+          } catch (error) {
+            throw new ValidationFailed(`Order #${order.id}: ${error.message}`);
+          }
         }
       }
 
@@ -1156,6 +1176,7 @@ const orderMutations = {
               orders: updatedOrders.map(o => o.id),
               fromAccount: fromAccount?.id,
               tier: tier?.id,
+              force: args.force || undefined,
               paymentMethods: updatedPaymentMethods.map(pm => pm.id),
               members: updatedMembers.map(m => m.id),
               transactions: [...updatedCredits.map(t => t.id), ...updatedDebits.map(t => t.id)],
@@ -1409,6 +1430,15 @@ const orderMutations = {
 
       const baseAmountInCents = getValueInCentsFromAmountInput(args.order.amount);
 
+      // The amount must match the tier (fixed amount or minimum) if there's one
+      OrdersLib.assertOrderAmountMatchesTier(tier, {
+        baseAmountInCents,
+        totalAmountInCents: getTotalAmountForOrderInput(baseAmountInCents, null, args.order.tax, expectedCurrency),
+        quantity,
+        currency: expectedCurrency,
+        taxPercentage: taxInfo?.percentage || 0,
+      });
+
       const valuesByRole = {
         ...(accountingCategory
           ? {
@@ -1594,6 +1624,15 @@ const orderMutations = {
       if (platformTipAmount < 0) {
         throw new ValidationFailed('Platform tip amount cannot be negative');
       }
+
+      // The amount must match the tier (fixed amount or minimum) if there's one
+      OrdersLib.assertOrderAmountMatchesTier(tier, {
+        baseAmountInCents,
+        totalAmountInCents: getTotalAmountForOrderInput(baseAmountInCents, platformTipAmount, tax, expectedCurrency),
+        quantity,
+        currency: expectedCurrency,
+        taxPercentage: taxInfo?.percentage || 0,
+      });
 
       const valuesByRole = {
         ...(order.data?.valuesByRole || {}),
