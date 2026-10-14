@@ -410,5 +410,107 @@ describe('server/lib/export-requests/worker', () => {
         expect(request.data).to.have.property('retryCount', 3);
       });
     });
+
+    describe('failure transitions', () => {
+      beforeEach(async () => {
+        await ExportRequest.destroy({ where: {}, force: true });
+        await Activity.destroy({ where: {}, force: true });
+        await ExportWorker.stop();
+        ExportWorker.queue.clear();
+      });
+
+      it('settles an aborted attempt with exactly one failure write and a deterministic error', async () => {
+        let rejectProcessor: (error: Error) => void;
+        const processorStub = sandbox
+          .stub(EXPORT_PROCESSORS, ExportRequestTypes.TRANSACTIONS)
+          .callsFake(() => new Promise((_, reject) => (rejectProcessor = reject)));
+        const failSpy = sandbox.spy(ExportRequest.prototype, 'fail');
+        const request = await fakeExportRequest({ status: ExportRequestStatus.ENQUEUED });
+
+        const abortController = new AbortController();
+        const processPromise = ExportWorker.processRequest(request.id, abortController.signal);
+        await waitForCondition(() => processorStub.calledOnce, { timeout: 4_000 });
+
+        // The abort lands first, then the processor rejects like a real canceled request
+        abortController.abort();
+        rejectProcessor(new Error('Download canceled'));
+
+        await processPromise;
+        await request.reload();
+        expect(failSpy.calledOnce).to.be.true;
+        expect(request.status).to.equal(ExportRequestStatus.FAILED);
+        expect(request.data).to.have.property('error', 'Process aborted');
+        expect(request.data).to.have.property('shouldRetry', true);
+        expect(request.data?.retryCount ?? 0).to.equal(0);
+
+        const completionActivities = await Activity.findAll({
+          where: { type: ActivityTypes.EXPORT_REQUEST_COMPLETED, CollectiveId: request.CollectiveId },
+        });
+        expect(completionActivities).to.have.length(0);
+        // Aborted attempts are expected, not errors
+        expect(sentryReportErrorStub.called).to.be.false;
+      });
+
+      it('does not complete an aborted attempt even when the processor succeeds', async () => {
+        let keepProcessing = true;
+        const processorStub = sandbox
+          .stub(EXPORT_PROCESSORS, ExportRequestTypes.TRANSACTIONS)
+          .callsFake(async () => {
+            await waitForCondition(() => keepProcessing !== true, { timeout: 10_000 });
+          });
+        const failSpy = sandbox.spy(ExportRequest.prototype, 'fail');
+        const request = await fakeExportRequest({ status: ExportRequestStatus.ENQUEUED });
+
+        const abortController = new AbortController();
+        const processPromise = ExportWorker.processRequest(request.id, abortController.signal);
+        await waitForCondition(() => processorStub.calledOnce, { timeout: 4_000 });
+
+        abortController.abort();
+        setImmediate(() => {
+          keepProcessing = false;
+        });
+
+        await processPromise;
+        await request.reload();
+        expect(failSpy.calledOnce).to.be.true;
+        expect(request.status).to.equal(ExportRequestStatus.FAILED);
+        const completionActivities = await Activity.findAll({
+          where: { type: ActivityTypes.EXPORT_REQUEST_COMPLETED, CollectiveId: request.CollectiveId },
+        });
+        expect(completionActivities).to.have.length(0);
+      });
+
+      it('keeps an aborted request terminal when retries are exhausted', async () => {
+        let rejectProcessor: (error: Error) => void;
+        const processorStub = sandbox
+          .stub(EXPORT_PROCESSORS, ExportRequestTypes.TRANSACTIONS)
+          .callsFake(() => new Promise((_, reject) => (rejectProcessor = reject)));
+        const request = await fakeExportRequest({
+          status: ExportRequestStatus.ENQUEUED,
+          data: { retryCount: 3 },
+        });
+
+        const abortController = new AbortController();
+        const processPromise = ExportWorker.processRequest(request.id, abortController.signal);
+        await waitForCondition(() => processorStub.calledOnce, {
+          timeout: 4_000,
+          onFailure: () => expect.fail('Processor was not called'),
+        });
+
+        abortController.abort();
+        rejectProcessor(new Error('Download canceled'));
+        await processPromise;
+        await request.reload();
+        expect(request.status).to.equal(ExportRequestStatus.FAILED);
+        expect(request.data).to.have.property('error', 'Process aborted');
+        expect(request.data).to.have.property('shouldRetry', false);
+        expect(request.data).to.have.property('retryCount', 3);
+
+        // No resurrection: exhausted requests stay terminal even on the next tick
+        await ExportWorker.tick();
+        await request.reload();
+        expect(request.status).to.equal(ExportRequestStatus.FAILED);
+      });
+    });
   }
 });
