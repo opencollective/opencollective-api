@@ -505,6 +505,13 @@ const accountFieldsDefinition = () => ({
       ...OrdersCollectionArgs,
     },
   },
+  webhooks: {
+    type: new GraphQLNonNull(GraphQLWebhookCollection),
+    description: 'Webhooks registered on this account. Only available to admins. Scope: "webhooks".',
+    args: {
+      ...omit(WebhookCollectionArgs, ['account']),
+    },
+  },
   expenses: {
     type: new GraphQLNonNull(GraphQLExpenseCollection),
     args: {
