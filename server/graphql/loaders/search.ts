@@ -23,17 +23,22 @@ export const generateSearchLoaders = () => {
         throw new Error('Too many concurrent search requests');
       }
 
-      const results = new Map<SearchLoaderKey, SearchEntityResult | null>();
+      const results = new Map<SearchLoaderKey, SearchEntityResult | null | Error>();
       const keysBySearch = groupBy(keys, key => getSearchRequestKey(key.request));
       for (const searchKeys of Object.values(keysBySearch)) {
         const { request } = searchKeys[0];
         const provider = getSearchProvider(request.provider);
-        const searchResults = await provider.search(
-          request,
-          searchKeys.map(key => key.entityRequest),
-        );
+        try {
+          const searchResults = await provider.search(
+            request,
+            searchKeys.map(key => key.entityRequest),
+          );
 
-        searchKeys.forEach((key, idx) => results.set(key, searchResults[idx] ?? null));
+          searchKeys.forEach((key, idx) => results.set(key, searchResults[idx] ?? null));
+        } catch (error) {
+          // A failing search must not fail the other searches (aliases, providers) of the same batch
+          searchKeys.forEach(key => results.set(key, error));
+        }
       }
 
       return keys.map(key => results.get(key) ?? null);

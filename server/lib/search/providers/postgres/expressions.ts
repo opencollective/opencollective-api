@@ -1,0 +1,54 @@
+/**
+ * SQL expressions shared by PostgreSQL search queries and the indexes that serve them.
+ *
+ * The planner only uses an expression/partial index when the query repeats the indexed expression and predicate
+ * exactly (same functions, casts, `coalesce`, configuration and argument order). Migrations can't import app code,
+ * so they copy these literals: when changing one, write a migration that rebuilds the matching index, and verify
+ * the plan with `EXPLAIN`.
+ *
+ * Normalization primitives (see `migrations/20261014120000-add-postgres-search-normalization.ts`):
+ * - `public.oc_search_unaccent(text)`: immutable accent folding
+ * - `public.oc_search_normalize(text)`: accent folding + lowercase + collapsed whitespace, for exact labels
+ * - `public.oc_search_html_to_text(text)`: bounded HTML-to-text for HTML bodies
+ * - `public.oc_search_english`: accent-folding, stemming text search configuration (prose, ordinary words)
+ * - `public.oc_search_simple`: accent-folding text search configuration without stemming (labels, prefixes)
+ */
+
+import { RawBuilder, sql } from 'kysely';
+
+const SEARCH_CONFIG_ENGLISH = `'public.oc_search_english'::regconfig`;
+const SEARCH_CONFIG_SIMPLE = `'public.oc_search_simple'::regconfig`;
+
+/** Ordinary words: every word of the input is required (AND), with stemming and accent folding */
+export const wordsTsQuery = (term: string): RawBuilder<unknown> =>
+  sql`plainto_tsquery(${sql.raw(SEARCH_CONFIG_ENGLISH)}, ${term})`;
+
+/** Word prefixes, built from sanitized tokens only (see `input.ts`) */
+export const prefixTsQuery = (prefixQuery: string): RawBuilder<unknown> =>
+  sql`to_tsquery(${sql.raw(SEARCH_CONFIG_SIMPLE)}, ${prefixQuery})`;
+
+/** Exact label comparison: apply the same normalization to the input as to the indexed column */
+export const normalizedValue = (term: string): RawBuilder<string> => sql`public.oc_search_normalize(${term})`;
+
+/** Typo matching: pg_trgm already lowercases and splits words, only accents need folding */
+export const unaccentedValue = (term: string): RawBuilder<string> => sql`public.oc_search_unaccent(${term})`;
+
+/**
+ * Accounts (`Collectives`). Column references are unqualified so that the same text can be used in index
+ * definitions; queries must select from "Collectives" without another table exposing these column names.
+ */
+export const AccountExpressions = {
+  /** Rows that can be searched by anyone, including root (matches the OpenSearch indexing rules) */
+  eligible: `"deletedAt" IS NULL AND "isPrivate" = false AND "isIncognito" = false AND "deactivatedAt" IS NULL AND (data ->> 'hideFromSearch')::boolean IS NOT TRUE AND (data ->> 'isGuest')::boolean IS NOT TRUE AND name <> 'incognito' AND name <> 'anonymous'`,
+  /** Public searchable fields (index `collectives_pg_search_public`) */
+  publicVector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(name, '') || ' ' || replace(coalesce(slug, ''), '-', ' ') || ' ' || coalesce(description, '') || ' ' || coalesce(website, '') || ' ' || public.array_to_string_immutable(coalesce(tags, '{}')::text[], ' ') || ' ' || public.oc_search_html_to_text(coalesce("longDescription", '')))`,
+  /** Public + restricted fields (index `collectives_pg_search_restricted`, only rows with a legal name) */
+  restrictedVector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(name, '') || ' ' || replace(coalesce(slug, ''), '-', ' ') || ' ' || coalesce(description, '') || ' ' || coalesce(website, '') || ' ' || public.array_to_string_immutable(coalesce(tags, '{}')::text[], ' ') || ' ' || public.oc_search_html_to_text(coalesce("longDescription", '')) || ' ' || coalesce("legalName", ''))`,
+  restrictedPredicate: `"legalName" IS NOT NULL`,
+  /** Name and slug words, without stemming, for prefixes (index `collectives_pg_search_label`) */
+  labelVector: `to_tsvector('public.oc_search_simple'::regconfig, coalesce(name, '') || ' ' || replace(coalesce(slug, ''), '-', ' '))`,
+  /** Exact name (index `collectives_pg_search_name`) */
+  normalizedName: `public.oc_search_normalize(name)`,
+  /** Name typos (trigram index `collectives_pg_search_name_trgm`) */
+  unaccentedName: `public.oc_search_unaccent(name)`,
+} as const;

@@ -8,11 +8,11 @@ import { CollectiveType } from '../../constants/collectives';
 import type { Collective, User } from '../../models';
 
 /**
- * Search backends. Only providers that are fully implemented are listed here: this enum is internal and is not
- * exposed in the GraphQL schema yet.
+ * Search backends, exposed in GraphQL as `SearchBackend`.
  */
 export enum SearchProvider {
   OPENSEARCH = 'OPENSEARCH',
+  POSTGRES = 'POSTGRES',
 }
 
 /**
@@ -93,9 +93,15 @@ export type SearchEntityResult = {
 export interface SearchProviderImplementation {
   /** Throws if the provider cannot serve requests (e.g. not configured) */
   assertAvailable(): void;
+  /** Throws if the request is not supported by this provider (e.g. input too long). Called before any search. */
+  validateRequest?(request: SearchRequest): void;
   /**
    * Searches all the entity requests that share the same `SearchRequest`. Must resolve with one result per
-   * entity request, in the same order (`null` when the entity can't be searched with this access context).
+   * entity request, in the same order (`null` when the entity can't be searched with this access context, an
+   * `Error` when this entity request failed: it is reported on its own GraphQL field).
    */
-  search(request: SearchRequest, entityRequests: SearchEntityRequest[]): Promise<Array<SearchEntityResult | null>>;
+  search(
+    request: SearchRequest,
+    entityRequests: SearchEntityRequest[],
+  ): Promise<Array<SearchEntityResult | null | Error>>;
 }

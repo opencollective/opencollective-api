@@ -6,8 +6,9 @@ import { assertCanSeeAllAccounts } from '../../../lib/private-accounts';
 import RateLimit from '../../../lib/rate-limit';
 import { getSearchProvider } from '../../../lib/search';
 import { GraphQLSearchParams } from '../../../lib/search/graphql-search';
-import { SearchProvider } from '../../../lib/search/types';
+import { SearchProvider, SearchRequest } from '../../../lib/search/types';
 import { Forbidden, RateLimitExceeded } from '../../errors';
+import { GraphQLSearchBackend } from '../enum/SearchBackend';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLSearchResponse } from '../object/SearchResponse';
 
@@ -27,13 +28,20 @@ const SearchQuery = {
       type: new GraphQLNonNull(GraphQLString),
       description: 'The search term to search for',
     },
+    backend: {
+      type: new GraphQLNonNull(GraphQLSearchBackend),
+      description: 'The backend to use for this search',
+      defaultValue: SearchProvider.OPENSEARCH,
+    },
     account: {
       type: GraphQLAccountReferenceInput,
-      description: 'Limit the scope of the search to this account and its children',
+      description:
+        'Limit the scope of the search to this account and its children. When used with `host`, results must match both.',
     },
     host: {
       type: GraphQLAccountReferenceInput,
-      description: 'Limit the scope of the search to this host and its hosted accounts',
+      description:
+        'Limit the scope of the search to this host and its hosted accounts. When used with `account`, results must match both.',
     },
     useTopHits: {
       type: new GraphQLNonNull(GraphQLBoolean),
@@ -55,7 +63,7 @@ const SearchQuery = {
   },
   async resolve(
     _: void,
-    { searchTerm, useTopHits, ...args },
+    { searchTerm, useTopHits, backend, ...args },
     req: express.Request,
   ): Promise<{
     results: GraphQLSearchParams;
@@ -68,8 +76,9 @@ const SearchQuery = {
       throw new Forbidden();
     }
 
-    const provider = SearchProvider.OPENSEARCH;
-    getSearchProvider(provider).assertAvailable();
+    const provider: SearchProvider = backend;
+    const providerImplementation = getSearchProvider(provider);
+    providerImplementation.assertAvailable();
 
     // Enforce rate limiting
     const rateLimiter = getRateLimiter(req);
@@ -85,19 +94,17 @@ const SearchQuery = {
     }
 
     // Return the base arguments that will be digested by `GraphQLSearchResponse`
-    return {
-      results: {
-        defaultLimit: args.defaultLimit,
-        request: {
-          provider,
-          term: searchTerm,
-          scope: { account: account || null, host: host || null },
-          remoteUser: remoteUser || null,
-          timeoutInMs: args.timeout,
-          useTopHits,
-        },
-      },
+    const request: SearchRequest = {
+      provider,
+      term: searchTerm,
+      scope: { account: account || null, host: host || null },
+      remoteUser: remoteUser || null,
+      timeoutInMs: args.timeout,
+      useTopHits,
     };
+
+    providerImplementation.validateRequest?.(request);
+    return { results: { defaultLimit: args.defaultLimit, request } };
   },
 };
 

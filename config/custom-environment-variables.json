@@ -11,6 +11,14 @@
     "smtpPort": "MAILPIT_SMTP_PORT",
     "host": "MAILPIT_HOST"
   },
+  "search": {
+    "postgres": {
+      "concurrencyPerRequest": "SEARCH_POSTGRES_CONCURRENCY_PER_REQUEST",
+      "maxConcurrentQueries": "SEARCH_POSTGRES_MAX_CONCURRENT_QUERIES",
+      "workMem": "SEARCH_POSTGRES_WORK_MEM",
+      "typoSimilarityThreshold": "SEARCH_POSTGRES_TYPO_SIMILARITY_THRESHOLD"
+    }
+  },
   "opensearch": {
     "url": "OPENSEARCH_URL",
     "maxSyncDelay": "OPENSEARCH_MAX_SYNC_DELAY",

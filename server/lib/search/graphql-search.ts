@@ -30,6 +30,7 @@ import { AccountTypeToModelMapping, GraphQLAccountType } from '../../graphql/v2/
 import { idEncode } from '../../graphql/v2/identifiers';
 import { getCollectionArgs } from '../../graphql/v2/interface/Collection';
 import type { SearchQueryAccountsResolverArgs } from '../../graphql/v2/object/SearchResponse';
+import { GraphQLSearchResultScore } from '../../graphql/v2/object/SearchResultScore';
 
 import { SearchEntity, SearchEntityParams, SearchHit, SearchRequest } from './types';
 
@@ -135,7 +136,14 @@ const buildSearchResultsType = (entity: SearchEntity, name: string, collectionTy
       name: `SearchResults${name}`,
       fields: {
         collection: { type: new GraphQLNonNull(collectionType) },
-        maxScore: { type: new GraphQLNonNull(GraphQLFloat) },
+        maxScore: {
+          type: new GraphQLNonNull(GraphQLFloat),
+          description: 'Highest score among all the matching results, regardless of the requested page',
+        },
+        scores: {
+          type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLSearchResultScore))),
+          description: 'Score of each result of the page, in the same order as the collection nodes',
+        },
         highlights: {
           type: GraphQLJSONObject,
           description:
@@ -164,6 +172,7 @@ const buildSearchResultsType = (entity: SearchEntity, name: string, collectionTy
       if (!result || result.totalCount === 0) {
         return {
           maxScore: 0,
+          scores: [],
           collection: { totalCount: 0, offset, limit, nodes: () => [] },
           highlights: {},
         };
@@ -177,6 +186,7 @@ const buildSearchResultsType = (entity: SearchEntity, name: string, collectionTy
 
       return {
         maxScore: result.maxScore,
+        scores: result.hits.map(hit => ({ id: strategy.getGraphQLId(hit), score: hit.score })),
         highlights,
         collection: {
           totalCount: result.totalCount,
