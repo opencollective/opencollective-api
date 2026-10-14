@@ -1,6 +1,7 @@
 import { SearchEntity } from '../../../types';
 
 import { AccountsAdapter } from './accounts';
+import { ExpensesAdapter } from './expenses';
 import { HostApplicationsAdapter } from './host-applications';
 import { OrdersAdapter } from './orders';
 import { TiersAdapter } from './tiers';
@@ -12,6 +13,7 @@ import { UpdatesAdapter } from './updates';
  */
 const PostgresSearchAdapters: Partial<Record<SearchEntity, PostgresSearchAdapter>> = {
   [SearchEntity.ACCOUNTS]: AccountsAdapter,
+  [SearchEntity.EXPENSES]: ExpensesAdapter,
   [SearchEntity.TIERS]: TiersAdapter,
   [SearchEntity.HOST_APPLICATIONS]: HostApplicationsAdapter,
   [SearchEntity.ORDERS]: OrdersAdapter,

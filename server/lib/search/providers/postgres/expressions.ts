@@ -54,6 +54,30 @@ export const AccountExpressions = {
 } as const;
 
 /**
+ * Expenses. Column references are unqualified (see `AccountExpressions`): queries use them on "Expenses" without
+ * another table exposing these column names. `currency` and `status` are plain strings (not enums), so they can be
+ * part of the vectors.
+ */
+export const ExpenseExpressions = {
+  /** Rows that can be searched (the owning account's eligibility is checked separately) */
+  eligible: `"deletedAt" IS NULL`,
+  /** Public searchable fields (index `expenses_pg_search_public`) */
+  publicVector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(description, '') || ' ' || coalesce(currency, '') || ' ' || coalesce(status, '') || ' ' || public.oc_search_html_to_text(coalesce("longDescription", '')))`,
+  /** Public + restricted fields (index `expenses_pg_search_restricted`, only rows with restricted information) */
+  restrictedVector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(description, '') || ' ' || coalesce(currency, '') || ' ' || coalesce(status, '') || ' ' || public.oc_search_html_to_text(coalesce("longDescription", '')) || ' ' || public.oc_search_html_to_text(coalesce("privateMessage", '')) || ' ' || coalesce("invoiceInfo", '') || ' ' || coalesce(reference, ''))`,
+  restrictedPredicate: `("privateMessage" IS NOT NULL OR "invoiceInfo" IS NOT NULL OR reference IS NOT NULL)`,
+  /** Exact description (index `expenses_pg_search_description`) */
+  normalizedDescription: `public.oc_search_normalize(description)`,
+} as const;
+
+/** Expense items, searched as part of their Expense. Descriptions may contain HTML. */
+export const ExpenseItemExpressions = {
+  eligible: `"deletedAt" IS NULL`,
+  /** Index `expense_items_pg_search` */
+  vector: `to_tsvector('public.oc_search_english'::regconfig, public.oc_search_html_to_text(coalesce(description, '')))`,
+} as const;
+
+/**
  * Accounts that make their dependent rows (tiers, applications...) unsearchable for everyone: deleted or private.
  * Index `collectives_pg_search_excluded` (on `id`) covers exactly these rows, so that dependent entities can exclude
  * them with an anti-join (`NOT EXISTS`) that never reads the wide "Collectives" heap. It is much cheaper than looking up
