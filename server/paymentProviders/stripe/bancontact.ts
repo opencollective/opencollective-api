@@ -64,7 +64,7 @@ const processOrder = async (order: Order): Promise<void> => {
       data: { ...order.data, stripePaymentIntent: paymentIntentSnapshot },
     });
 
-    stripePaymentIntent = await stripe.paymentIntents.confirm(stripePaymentIntent.id, {
+    stripePaymentIntent = await stripe.paymentIntents.confirm(stripePaymentIntent.id, undefined, {
       stripeAccount: hostStripeAccount.username,
     });
 
