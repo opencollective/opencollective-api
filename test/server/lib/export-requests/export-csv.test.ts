@@ -59,7 +59,11 @@ describe('server/lib/export-requests/export-csv', () => {
 
     it('always includes gift card, incognito and children transactions', () => {
       const url = parseUrl();
-      for (const param of ['includeGiftCardTransactions', 'includeIncognitoTransactions', 'includeChildrenTransactions']) {
+      for (const param of [
+        'includeGiftCardTransactions',
+        'includeIncognitoTransactions',
+        'includeChildrenTransactions',
+      ]) {
         expect(url.searchParams.get(param)).to.equal('1');
       }
     });

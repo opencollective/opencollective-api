@@ -147,7 +147,10 @@ describe('server/lib/export-requests/worker', () => {
           status: ExportRequestStatus.PROCESSING,
         });
         stuckClock.restore();
-        const retryClock = sandbox.useFakeTimers({ now: moment.utc().subtract(6, 'minutes').toDate(), toFake: ['Date'] });
+        const retryClock = sandbox.useFakeTimers({
+          now: moment.utc().subtract(6, 'minutes').toDate(),
+          toFake: ['Date'],
+        });
         const abortedRequest = await fakeExportRequest({
           status: ExportRequestStatus.FAILED,
           data: {
@@ -465,11 +468,9 @@ describe('server/lib/export-requests/worker', () => {
 
       it('does not complete an aborted attempt even when the processor succeeds', async () => {
         let keepProcessing = true;
-        const processorStub = sandbox
-          .stub(EXPORT_PROCESSORS, ExportRequestTypes.TRANSACTIONS)
-          .callsFake(async () => {
-            await waitForCondition(() => keepProcessing !== true, { timeout: 10_000 });
-          });
+        const processorStub = sandbox.stub(EXPORT_PROCESSORS, ExportRequestTypes.TRANSACTIONS).callsFake(async () => {
+          await waitForCondition(() => keepProcessing !== true, { timeout: 10_000 });
+        });
         const failSpy = sandbox.spy(ExportRequest.prototype, 'fail');
         const request = await fakeExportRequest({ status: ExportRequestStatus.ENQUEUED });
 
@@ -642,11 +643,9 @@ describe('server/lib/export-requests/worker', () => {
 
       it('bumps updatedAt as a processing heartbeat while a request is running (#8765)', async () => {
         let keepProcessing = true;
-        const processorStub = sandbox
-          .stub(EXPORT_PROCESSORS, ExportRequestTypes.TRANSACTIONS)
-          .callsFake(async () => {
-            await waitForCondition(() => keepProcessing !== true, { timeout: 10_000 });
-          });
+        const processorStub = sandbox.stub(EXPORT_PROCESSORS, ExportRequestTypes.TRANSACTIONS).callsFake(async () => {
+          await waitForCondition(() => keepProcessing !== true, { timeout: 10_000 });
+        });
         const request = await fakeExportRequest({ status: ExportRequestStatus.ENQUEUED });
         await request.reload();
         const initialUpdatedAt = request.updatedAt.getTime();

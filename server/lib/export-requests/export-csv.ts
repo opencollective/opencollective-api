@@ -196,13 +196,14 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
       mimetype: 'text/csv',
       abortController,
     });
-    const pDownload = axios.get(url, {
-      responseType: 'stream',
-      signal: abortController.signal,
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
+    const pDownload = axios
+      .get(url, {
+        responseType: 'stream',
+        signal: abortController.signal,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
       .then(
         response =>
           new Promise<void>((resolve, reject) => {
