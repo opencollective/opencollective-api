@@ -107,7 +107,7 @@
     "pg-connection-string": "2.14.1",
     "pg-format": "1.0.4",
     "pg-listen": "1.7.0",
-    "plaid": "47.0.0",
+    "plaid": "48.0.0",
     "redis": "6.3.0",
     "sanitize-html": "2.18.0",
     "sequelize": "6.37.8",
