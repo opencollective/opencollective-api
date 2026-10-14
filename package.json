@@ -161,7 +161,7 @@
     "nodemon": "^3.0.2",
     "npm-run-all2": "^9.0.0",
     "nyc": "^18.0.0",
-    "prettier": "3.9.9",
+    "prettier": "3.9.10",
     "sinon": "^22.0.0",
     "sinon-chai": "^4.0.1",
     "supertest": "^7.0.0",
