@@ -178,39 +178,62 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
 
   const abortController = new AbortController();
   // Propagate worker abort signal to the upload and download stream
-  workerAbortSignal.addEventListener('abort', () => {
-    abortController.abort();
-  });
+  const propagateAbort = () => abortController.abort();
+  workerAbortSignal.addEventListener('abort', propagateAbort, { once: true });
 
-  const fileName = kebabCase(request.name) || `transactions-export`;
-  const stream = new Stream.PassThrough();
-  const pUpload = UploadedFile.uploadStream(stream, 'TRANSACTIONS_CSV_EXPORT', user, {
-    fileName: `${fileName}-${Date.now()}.csv`,
-    mimetype: 'text/csv',
-    abortController,
-  });
-  const pDownload = axios
-    .get(url, {
+  try {
+    const fileName = kebabCase(request.name) || `transactions-export`;
+    const stream = new Stream.PassThrough();
+    const pUpload = UploadedFile.uploadStream(stream, 'TRANSACTIONS_CSV_EXPORT', user, {
+      fileName: `${fileName}-${Date.now()}.csv`,
+      mimetype: 'text/csv',
+      abortController,
+    });
+    const pDownload = axios.get(url, {
       responseType: 'stream',
       signal: abortController.signal,
       headers: {
         Authorization: `Bearer ${token}`,
       },
     })
-    .then(response => {
-      response.data.pipe(stream);
+      .then(
+        response =>
+          new Promise<void>((resolve, reject) => {
+            // The S3 upload only completes when the pass-through ends: forward download stream failures and tear
+            // the pass-through down so the upload settles instead of hanging open on a stream that never ends
+            response.data.on('error', error => {
+              stream.destroy();
+              reject(error);
+            });
+            response.data.on('end', resolve);
+            response.data.pipe(stream);
+          }),
+        error => {
+          stream.destroy();
+          throw error;
+        },
+      );
+
+    // Wait for both legs to settle so a failed download can never leave the S3 upload running
+    const [uploadResult, downloadResult] = await Promise.allSettled([pUpload, pDownload]);
+    if (downloadResult.status === 'rejected') {
+      throw downloadResult.reason;
+    } else if (uploadResult.status === 'rejected') {
+      throw uploadResult.reason;
+    }
+    const uploadedFile = uploadResult.value;
+
+    // Set expiration date based on export type
+    const expirationDays = config.exports?.expirationDays?.[request.type] || 90;
+    const expiresAt = moment().add(expirationDays, 'days').toDate();
+
+    await request.update({
+      UploadedFileId: uploadedFile.id,
+      expiresAt,
     });
-
-  const [uploadedFile] = await Promise.all([pUpload, pDownload]);
-
-  // Set expiration date based on export type
-  const expirationDays = config.exports?.expirationDays?.[request.type] || 90;
-  const expiresAt = moment().add(expirationDays, 'days').toDate();
-
-  await request.update({
-    UploadedFileId: uploadedFile.id,
-    expiresAt,
-  });
+  } finally {
+    workerAbortSignal.removeEventListener('abort', propagateAbort);
+  }
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
