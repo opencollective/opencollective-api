@@ -124,6 +124,11 @@ const MAX_SEGMENTS_PER_WORD = 4;
 // Deeper values are redacted rather than inspected, so crafted inputs cannot overflow the stack
 const MAX_VARIABLES_DEPTH = 32;
 
+// Redaction runs synchronously and request bodies can reach 50 MB: past these bounds, values are redacted rather than
+// inspected, so a large payload cannot block the event loop. Real variables stay far below them.
+const MAX_VARIABLES_VALUES = 10000;
+const MAX_VARIABLES_JSON_LENGTH = 1000000;
+
 const isSensitiveWord = (segment: string): boolean => {
   const word = segment.toLowerCase();
   return [word, word.replace(/s$/, ''), word.replace(/es$/, ''), word.replace(/ies$/, 'y')].some(singular =>
@@ -150,26 +155,38 @@ const isSensitiveKey = (key: string): boolean => {
 
 /**
  * Returns a deep copy of the GraphQL variables where the values of sensitive keys are replaced with "[redacted]",
- * recursing into arrays and nested inputs. The input is not mutated.
+ * recursing into arrays and nested inputs. Values beyond the depth and size bounds are redacted without being
+ * inspected. The input is not mutated.
  */
-export const redactVariables = <T>(variables: T, depth = 0): T => {
-  if (variables && typeof variables === 'object' && depth >= MAX_VARIABLES_DEPTH) {
-    return REDACTED as T;
-  } else if (Array.isArray(variables)) {
-    return variables.map(item => redactVariables(item, depth + 1)) as T;
-  } else if (variables && typeof variables === 'object') {
-    const result = {};
-    for (const [key, value] of Object.entries(variables)) {
-      if (isSensitiveKey(key)) {
-        result[key] = value === null || value === undefined ? value : REDACTED;
-      } else {
-        result[key] = redactVariables(value, depth + 1);
+export const redactVariables = <T>(variables: T): T => {
+  // Values left to inspect, shared by the whole traversal
+  const budget = { values: MAX_VARIABLES_VALUES };
+  const redact = (value: unknown, depth: number): unknown => {
+    if (value && typeof value === 'object' && (depth >= MAX_VARIABLES_DEPTH || budget.values <= 0)) {
+      return REDACTED;
+    } else if (Array.isArray(value)) {
+      budget.values -= value.length;
+      return budget.values < 0 ? REDACTED : value.map(item => redact(item, depth + 1));
+    } else if (value && typeof value === 'object') {
+      const entries = Object.entries(value);
+      budget.values -= entries.length;
+      if (budget.values < 0) {
+        return REDACTED;
       }
+      const result = {};
+      for (const [key, item] of entries) {
+        if (isSensitiveKey(key)) {
+          result[key] = item === null || item === undefined ? item : REDACTED;
+        } else {
+          result[key] = redact(item, depth + 1);
+        }
+      }
+      return result;
+    } else {
+      return value;
     }
-    return result as T;
-  } else {
-    return variables;
-  }
+  };
+  return redact(variables, 0) as T;
 };
 
 const isPlainObject = (value: unknown): value is object =>
@@ -180,6 +197,9 @@ const isPlainObject = (value: unknown): value is object =>
  * logged as is, so it is replaced with "[redacted]".
  */
 const redactVariablesJson = (json: string): string => {
+  if (json.length > MAX_VARIABLES_JSON_LENGTH) {
+    return REDACTED;
+  }
   try {
     const variables = JSON.parse(json);
     return isPlainObject(variables) ? JSON.stringify(redactVariables(variables)) : REDACTED;
