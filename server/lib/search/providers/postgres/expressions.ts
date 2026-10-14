@@ -52,3 +52,39 @@ export const AccountExpressions = {
   /** Name typos (trigram index `collectives_pg_search_name_trgm`) */
   unaccentedName: `public.oc_search_unaccent(name)`,
 } as const;
+
+/**
+ * Accounts that make their dependent rows (tiers, applications...) unsearchable for everyone: deleted or private.
+ * Index `collectives_pg_search_excluded` (on `id`) covers exactly these rows, so that dependent entities can exclude
+ * them with an anti-join (`NOT EXISTS`) that never reads the wide "Collectives" heap. It is much cheaper than looking up
+ * the owning Account of every candidate on broad terms (measured: 77 s vs 3 s cold for 55k candidates).
+ */
+const ExcludedAccountExpressions = {
+  excluded: `"deletedAt" IS NOT NULL OR "isPrivate" = true`,
+} as const;
+
+/** The account referenced by `accountIdColumn` (e.g. `Tiers.CollectiveId`) is neither deleted nor private */
+export const isOwnedByEligibleAccount = (accountIdColumn: string): RawBuilder<boolean> =>
+  sql<boolean>`NOT EXISTS (SELECT 1 FROM "Collectives" excluded_account WHERE excluded_account.id = ${sql.ref(accountIdColumn)} AND (${sql.raw(ExcludedAccountExpressions.excluded)}))`;
+
+/**
+ * Tiers. Same conventions as `AccountExpressions` (unqualified columns of "Tiers").
+ */
+export const TierExpressions = {
+  /** Live tiers (owning Account rules: `isOwnedByEligibleAccount`) */
+  eligible: `"deletedAt" IS NULL`,
+  /** Searchable fields: name, slug, description and long description (index `tiers_pg_search_vector`) */
+  vector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(name, '') || ' ' || replace(coalesce(slug, ''), '-', ' ') || ' ' || coalesce(description, '') || ' ' || public.oc_search_html_to_text(coalesce("longDescription", '')))`,
+  /** Exact name (index `tiers_pg_search_name`) */
+  normalizedName: `public.oc_search_normalize(name)`,
+} as const;
+
+/**
+ * Host applications. Same conventions as `AccountExpressions` (unqualified columns of "HostApplications").
+ */
+export const HostApplicationExpressions = {
+  /** Live applications (owning Account rules: `isOwnedByEligibleAccount`) */
+  eligible: `"deletedAt" IS NULL`,
+  /** Searchable fields: message (index `host_applications_pg_search_message`) */
+  vector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(message, ''))`,
+} as const;
