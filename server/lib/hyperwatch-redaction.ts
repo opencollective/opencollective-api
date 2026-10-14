@@ -71,6 +71,9 @@ const SENSITIVE_KEY_WORDS = new Set([
   'interacaccount',
   'sortcode',
   'transitnumber',
+  // Free-form payout instructions of an `OTHER` payout method (`data.content`), often bank details. No GraphQL
+  // input has a `content` field, so this only matches JSON payloads.
+  'content',
   // Grants access to a draft expense and its attachments
   'draftkey',
   'message',
