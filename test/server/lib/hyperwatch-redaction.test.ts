@@ -221,6 +221,24 @@ describe('server/lib/hyperwatch-redaction', () => {
       expect(depth).to.be.below(100);
     });
 
+    it('redacts what is too large to inspect, without walking it', () => {
+      const wide = Object.fromEntries(Array.from({ length: 200000 }, (_, i) => [`k${i}`, i]));
+      const start = Date.now();
+      expect(redactVariables({ slug: 'webpack', wide })).to.deep.equal({ slug: 'webpack', wide: '[redacted]' });
+      expect(redactVariables({ slug: 'webpack', items: Array(200000).fill({ email: 'a@b.c' }) })).to.deep.equal({
+        slug: 'webpack',
+        items: '[redacted]',
+      });
+      expect(Date.now() - start).to.be.below(1000);
+    });
+
+    it('bounds the values inspected across the whole payload, not per object', () => {
+      const items = Array.from({ length: 50 }, () => ({ values: Array(500).fill(1) }));
+      const result = redactVariables({ items }) as { items: Array<{ values: unknown }> };
+      expect(result.items[0].values).to.have.length(500);
+      expect(result.items[49]).to.equal('[redacted]');
+    });
+
     it('leaves non-objects untouched', () => {
       expect(redactVariables(undefined)).to.be.undefined;
       expect(redactVariables(null)).to.be.null;
@@ -241,6 +259,9 @@ describe('server/lib/hyperwatch-redaction', () => {
     });
 
     it('redacts anything else but keeps missing variables', () => {
+      expect(redactRequestVariables(JSON.stringify({ slug: 'webpack', padding: 'x'.repeat(2000000) }))).to.equal(
+        '[redacted]',
+      );
       expect(redactRequestVariables('a@b.c')).to.equal('[redacted]');
       expect(redactRequestVariables('"a@b.c"')).to.equal('[redacted]');
       expect(redactRequestVariables(['a@b.c'])).to.equal('[redacted]');
