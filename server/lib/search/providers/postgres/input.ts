@@ -95,12 +95,12 @@ export const assertValidSearchTimeout = (timeoutInMs: number): void => {
 };
 
 /**
- * Throws if an entity page exceeds the supported depth.
+ * Throws if an entity page exceeds the supported depth. A limit of 0 only returns the total and the maximum score.
  */
 export const assertValidSearchPage = ({ limit, offset }: { limit: number; offset: number }): void => {
-  if (!Number.isInteger(limit) || limit < 1 || limit > PostgresSearchLimits.MAX_RESULTS_PER_PAGE) {
+  if (!Number.isInteger(limit) || limit < 0 || limit > PostgresSearchLimits.MAX_RESULTS_PER_PAGE) {
     throw new BadRequest(
-      `The search limit must be between 1 and ${PostgresSearchLimits.MAX_RESULTS_PER_PAGE}`,
+      `The search limit must be between 0 and ${PostgresSearchLimits.MAX_RESULTS_PER_PAGE}`,
       'SearchInvalidLimit',
     );
   } else if (!Number.isInteger(offset) || offset < 0 || offset > PostgresSearchLimits.MAX_OFFSET) {
