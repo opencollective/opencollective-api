@@ -5,7 +5,7 @@ import moment from 'moment';
 import sinon from 'sinon';
 
 import ActivityTypes from '../../../../server/constants/activities';
-import ExportWorker, { EXPORT_PROCESSORS } from '../../../../server/lib/export-requests/worker';
+import ExportWorker, { EXPORT_PROCESSORS, getRetryBackoffMs } from '../../../../server/lib/export-requests/worker';
 import { MutexLockError } from '../../../../server/lib/mutex';
 import { createRedisClient } from '../../../../server/lib/redis';
 import * as SentryLib from '../../../../server/lib/sentry';
@@ -136,19 +136,21 @@ describe('server/lib/export-requests/worker', () => {
       });
 
       it('should regenerate stuck and error tasks', async () => {
-        const clock = sandbox.useFakeTimers({ now: moment.utc().subtract(5, 'hours').toDate(), toFake: ['Date'] });
+        const stuckClock = sandbox.useFakeTimers({ now: moment.utc().subtract(5, 'hours').toDate(), toFake: ['Date'] });
         const stuckRequest = await fakeExportRequest({
           status: ExportRequestStatus.PROCESSING,
         });
-        clock.restore();
-        const activeRequest = await fakeExportRequest({
-          status: ExportRequestStatus.PROCESSING,
-        });
+        stuckClock.restore();
+        const retryClock = sandbox.useFakeTimers({ now: moment.utc().subtract(6, 'minutes').toDate(), toFake: ['Date'] });
         const abortedRequest = await fakeExportRequest({
           status: ExportRequestStatus.FAILED,
           data: {
             shouldRetry: true,
           },
+        });
+        retryClock.restore();
+        const activeRequest = await fakeExportRequest({
+          status: ExportRequestStatus.PROCESSING,
         });
         const failedRequest = await fakeExportRequest({
           status: ExportRequestStatus.FAILED,
@@ -164,8 +166,11 @@ describe('server/lib/export-requests/worker', () => {
         await abortedRequest.reload();
         await failedRequest.reload();
 
-        expect(stuckRequest.status).to.equal(ExportRequestStatus.ENQUEUED);
+        // Stuck requests are marked FAILED here and only re-enqueued on a later tick, once their backoff window elapsed
+        expect(stuckRequest.status).to.equal(ExportRequestStatus.FAILED);
+        expect(stuckRequest.data).to.have.property('shouldRetry', true);
         expect(abortedRequest.status).to.equal(ExportRequestStatus.ENQUEUED);
+        expect(abortedRequest.data).to.have.property('retryCount', 1);
         expect(activeRequest.status).to.equal(ExportRequestStatus.PROCESSING);
         expect(failedRequest.status).to.equal(ExportRequestStatus.FAILED);
       });
@@ -321,6 +326,88 @@ describe('server/lib/export-requests/worker', () => {
         } finally {
           clock.restore();
         }
+      });
+    });
+
+    describe('retry backoff', () => {
+      beforeEach(async () => {
+        await ExportRequest.destroy({ where: {}, force: true });
+        await ExportWorker.stop();
+        ExportWorker.queue.clear();
+      });
+
+      const createFailedRequest = async ({ ageInMs, retryCount }: { ageInMs: number; retryCount: number }) => {
+        const clock = sandbox.useFakeTimers({ now: moment.utc().subtract(ageInMs, 'ms').toDate(), toFake: ['Date'] });
+        try {
+          return await fakeExportRequest({
+            status: ExportRequestStatus.FAILED,
+            data: { shouldRetry: true, retryCount, error: 'Export failed' },
+          });
+        } finally {
+          clock.restore();
+        }
+      };
+
+      it('does not re-enqueue a request before its backoff window has elapsed', async () => {
+        const request = await createFailedRequest({ ageInMs: 1 * 60_000, retryCount: 0 });
+
+        await ExportWorker.tick();
+        await request.reload();
+
+        expect(request.status).to.equal(ExportRequestStatus.FAILED);
+        expect(request.data).to.have.property('retryCount', 0);
+      });
+
+      it('re-enqueues a request once its backoff window has elapsed', async () => {
+        const request = await createFailedRequest({ ageInMs: 6 * 60_000, retryCount: 0 });
+
+        await ExportWorker.tick();
+        await request.reload();
+
+        expect(request.status).to.equal(ExportRequestStatus.ENQUEUED);
+        expect(request.data).to.have.property('retryCount', 1);
+      });
+
+      it('doubles the backoff window for each granted retry', async () => {
+        // With 2 retries already granted the window is 5 min * 2^2 = 20 min
+        const tooEarly = await createFailedRequest({ ageInMs: 18 * 60_000, retryCount: 2 });
+        const ready = await createFailedRequest({ ageInMs: 25 * 60_000, retryCount: 2 });
+
+        await ExportWorker.tick();
+        await tooEarly.reload();
+        await ready.reload();
+
+        expect(tooEarly.status).to.equal(ExportRequestStatus.FAILED);
+        expect(ready.status).to.equal(ExportRequestStatus.ENQUEUED);
+        expect(ready.data).to.have.property('retryCount', 3);
+      });
+
+      it('caps the backoff window at one hour', () => {
+        expect(getRetryBackoffMs(0)).to.equal(5 * 60_000);
+        expect(getRetryBackoffMs(1)).to.equal(10 * 60_000);
+        expect(getRetryBackoffMs(2)).to.equal(20 * 60_000);
+        expect(getRetryBackoffMs(5)).to.equal(60 * 60_000);
+        expect(getRetryBackoffMs(10)).to.equal(60 * 60_000);
+      });
+
+      it('keeps the one-day ceiling on retries', async () => {
+        const request = await createFailedRequest({ ageInMs: 25 * 60 * 60_000, retryCount: 0 });
+
+        await ExportWorker.tick();
+        await request.reload();
+
+        expect(request.status).to.equal(ExportRequestStatus.FAILED);
+        expect(request.data).to.have.property('retryCount', 0);
+      });
+
+      it('never re-enqueues a request that has exhausted its retries', async () => {
+        const request = await createFailedRequest({ ageInMs: 2 * 60 * 60_000, retryCount: 3 });
+
+        await ExportWorker.tick();
+        await request.reload();
+
+        expect(request.status).to.equal(ExportRequestStatus.FAILED);
+        expect(request.data).to.have.property('retryCount', 3);
       });
     });
   }

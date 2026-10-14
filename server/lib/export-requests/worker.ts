@@ -29,6 +29,13 @@ const TABLES = [{ tableName: 'ExportRequests', triggerPrefix: 'export_requests' 
 
 /** `data.retryCount` is the number of retries granted so far: a request runs at most `1 + MAX_RETRIES` times. */
 export const canRetry = (request: ExportRequest): boolean => (request.data?.retryCount || 0) < MAX_RETRIES;
+
+const RETRY_BACKOFF_BASE_MS = 5 * 60_000;
+const RETRY_BACKOFF_MAX_MS = 60 * 60_000;
+
+/** Exponential backoff between retries: `min(5 min * 2^retryCount, 1 h)`. */
+export const getRetryBackoffMs = (retryCount = 0): number =>
+  Math.min(RETRY_BACKOFF_BASE_MS * 2 ** Math.max(retryCount, 0), RETRY_BACKOFF_MAX_MS);
 export const EXPORT_PROCESSORS: Record<ExportRequestTypes, ExportProcessor> = {
   [ExportRequestTypes.TRANSACTIONS]: processTransactionsRequest,
   [ExportRequestTypes.HOSTED_COLLECTIVES]: processHostedCollectivesRequest,
@@ -163,9 +170,20 @@ class ExportWorker {
     if (erroredRequests.length === 0) {
       return;
     }
-    logger.info(`Export Worker: Found ${erroredRequests.length} errored requests ready to retry`);
+    debug(`Found ${erroredRequests.length} errored requests`);
+    // Grant a retry only if one remains and the exponential backoff window has elapsed since the last attempt
+    const now = moment.utc();
+    const requestsToRetry = erroredRequests.filter(
+      request =>
+        canRetry(request) &&
+        moment.utc(request.updatedAt).isBefore(now.clone().subtract(getRetryBackoffMs(request.data?.retryCount), 'ms')),
+    );
+    if (requestsToRetry.length === 0) {
+      return;
+    }
+    logger.info(`Export Worker: Found ${requestsToRetry.length} errored requests ready to retry`);
     await Promise.all(
-      erroredRequests.map(async request =>
+      requestsToRetry.map(async request =>
         request.update({
           status: ExportRequestStatus.ENQUEUED,
           data: Object.assign({}, request.data, {
