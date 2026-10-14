@@ -136,6 +136,8 @@ class ExportWorker {
             }
             settled = true;
             settleWrite = (async () => {
+              // The worker is the sole writer of `ExportRequest.status`: processors only return their result
+              await request.update({ status: ExportRequestStatus.COMPLETED });
               // Create activity on successful completion
               const collective = await request.getCollective();
               await Activity.create({

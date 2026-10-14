@@ -70,7 +70,8 @@ describe('server/lib/export-requests/export-csv', () => {
 
       // Verify the export request was updated
       await exportRequest.reload();
-      expect(exportRequest.status).to.equal(ExportRequestStatus.COMPLETED);
+      // The worker is the sole writer of `status`: the processor only records the result
+      expect(exportRequest.status).to.equal(ExportRequestStatus.ENQUEUED);
       expect(exportRequest.UploadedFileId).to.equal(uploadedFile.id);
       expect(exportRequest.expiresAt).to.not.be.null;
     });

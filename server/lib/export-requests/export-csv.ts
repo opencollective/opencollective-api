@@ -9,7 +9,6 @@ import type { AccountReferenceInput } from '../../graphql/v2/input/AccountRefere
 import type { ExpenseReferenceInputFields } from '../../graphql/v2/input/ExpenseReferenceInput';
 import type { OrderReferenceInputGraphQLType } from '../../graphql/v2/input/OrderReferenceInput';
 import { UploadedFile } from '../../models';
-import { ExportRequestStatus } from '../../models/ExportRequest';
 
 import type { ExportProcessor } from './types';
 
@@ -210,7 +209,6 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
 
   await request.update({
     UploadedFileId: uploadedFile.id,
-    status: ExportRequestStatus.COMPLETED,
     expiresAt,
   });
 };

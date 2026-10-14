@@ -512,5 +512,33 @@ describe('server/lib/export-requests/worker', () => {
         expect(request.status).to.equal(ExportRequestStatus.FAILED);
       });
     });
+
+    describe('status ownership', () => {
+      beforeEach(async () => {
+        await ExportRequest.destroy({ where: {}, force: true });
+        await Activity.destroy({ where: {}, force: true });
+        await ExportWorker.stop();
+        ExportWorker.queue.clear();
+      });
+
+      it('marks the request COMPLETED and creates the completion activity on success', async () => {
+        // The processor only returns its result: the worker is the sole writer of `status`
+        sandbox.stub(EXPORT_PROCESSORS, ExportRequestTypes.TRANSACTIONS).resolves();
+        const request = await fakeExportRequest({ status: ExportRequestStatus.ENQUEUED });
+
+        await ExportWorker.processRequest(request.id, new AbortController().signal);
+        await request.reload();
+
+        expect(request.status).to.equal(ExportRequestStatus.COMPLETED);
+        const completionActivities = await Activity.findAll({
+          where: { type: ActivityTypes.EXPORT_REQUEST_COMPLETED, CollectiveId: request.CollectiveId },
+        });
+        expect(completionActivities).to.have.length(1);
+        const failureActivities = await Activity.findAll({
+          where: { type: ActivityTypes.EXPORT_REQUEST_FAILED, CollectiveId: request.CollectiveId },
+        });
+        expect(failureActivities).to.have.length(0);
+      });
+    });
   }
 });
