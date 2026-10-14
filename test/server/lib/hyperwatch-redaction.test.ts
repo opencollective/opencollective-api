@@ -191,6 +191,14 @@ describe('server/lib/hyperwatch-redaction', () => {
       });
     });
 
+    it('redacts custom payout instructions, whatever the variable is called', () => {
+      expect(
+        redactVariables({ pm: { type: 'OTHER', data: { content: 'IBAN FR76 ... / BIC ...', currency: 'EUR' } } }),
+      ).to.deep.equal({
+        pm: { type: 'OTHER', data: { content: '[redacted]', currency: 'EUR' } },
+      });
+    });
+
     it('handles long keys in linear time', () => {
       const key = Array.from({ length: 3000 }, () => 'aB').join('');
       const start = Date.now();
