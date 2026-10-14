@@ -135,7 +135,7 @@ async function processRecurringOrder(order: Order) {
       },
     });
 
-    stripePaymentIntent = await stripe.paymentIntents.confirm(stripePaymentIntent.id, {
+    stripePaymentIntent = await stripe.paymentIntents.confirm(stripePaymentIntent.id, undefined, {
       stripeAccount: hostStripeAccount.username,
     });
 
