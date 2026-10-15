@@ -262,6 +262,22 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
       expect(result.errors).to.exist;
       expect(result.errors[0].extensions.code).to.eq('Forbidden');
     });
+
+    it('requires the explicit PostgreSQL preview opt-in in production', async () => {
+      sandbox.stub(config, 'env').value('production');
+      const searchPreviewUser = await fakeUser({}, { settings: { earlyAccess: { SEARCH_COMMAND: true } } });
+      const forbidden = await searchAccounts('zanzibar', {}, searchPreviewUser);
+      expect(forbidden.errors).to.exist;
+      expect(forbidden.errors[0].extensions.code).to.eq('Forbidden');
+      expect(forbidden.errors[0].message).to.include('PostgreSQL search backend');
+
+      const optedInUser = await fakeUser(
+        {},
+        { settings: { earlyAccess: { SEARCH_COMMAND: true, SEARCH_POSTGRES_BACKEND: true } } },
+      );
+      const accounts = await getAccounts('zanzibar', {}, optedInUser);
+      expect(accounts.collection.totalCount).to.eq(1);
+    });
   });
 
   describe('input', () => {

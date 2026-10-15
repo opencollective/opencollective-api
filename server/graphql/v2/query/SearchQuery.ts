@@ -76,6 +76,15 @@ const SearchQuery = {
       throw new Forbidden();
     }
 
+    // The PostgreSQL backend is a team preview: it must be explicitly enabled (preview feature of the frontend)
+    if (
+      config.env === 'production' &&
+      backend === SearchProvider.POSTGRES &&
+      !remoteUser.collective?.settings?.earlyAccess?.['SEARCH_POSTGRES_BACKEND']
+    ) {
+      throw new Forbidden('The PostgreSQL search backend is only available to users who enabled its preview');
+    }
+
     const provider: SearchProvider = backend;
     const providerImplementation = getSearchProvider(provider);
     providerImplementation.assertAvailable();
