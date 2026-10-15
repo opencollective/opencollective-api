@@ -151,3 +151,13 @@ export const UpdateExpressions = {
   /** Exact title (index `updates_pg_search_title`) */
   normalizedTitle: `public.oc_search_normalize(title)`,
 } as const;
+
+/**
+ * Comments. Same conventions as `AccountExpressions` (unqualified columns of "Comments").
+ */
+export const CommentExpressions = {
+  /** Live Comments (owning Account and parent rules are checked separately) */
+  eligible: `"deletedAt" IS NULL`,
+  /** HTML body as plain text (index `comments_pg_search_text`, not partial so that the planner has statistics) */
+  vector: `to_tsvector('public.oc_search_english'::regconfig, public.oc_search_html_to_text(coalesce(html, '')))`,
+} as const;

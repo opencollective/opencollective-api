@@ -51,6 +51,8 @@ type GraphQLSearchIndexStrategy = {
   prepareArguments?: (args: Record<string, unknown>) => Record<string, unknown>;
   // Scopes to enforce to access private fields/entries
   oauthScopeForPrivateFields?: OAuthScopes;
+  // Scopes required by some rows only (e.g. Comments on Expenses), passed to the provider when the request lacks them
+  oauthScopesForRestrictedRows?: OAuthScopes[];
   // Definition of the GraphQL arguments for the search query
   args?: GraphQLFieldConfigArgumentMap;
 };
@@ -82,6 +84,7 @@ const GraphQLSearchResultsStrategy: Record<SearchEntity, GraphQLSearchIndexStrat
   [SearchEntity.COMMENTS]: {
     getGraphQLId: (hit: SearchHit) => idEncode(hit.id, 'comment'),
     loadMany: (req, ids) => req.loaders.Comment.byId.loadMany(ids),
+    oauthScopesForRestrictedRows: [OAuthScopes.expenses, OAuthScopes.orders, OAuthScopes.updates],
   },
   [SearchEntity.EXPENSES]: {
     getGraphQLId: (hit: SearchHit) => idEncode(hit.id, 'expense'),
@@ -164,6 +167,7 @@ const buildSearchResultsType = (entity: SearchEntity, name: string, collectionTy
           entity,
           params: strategy.prepareArguments ? strategy.prepareArguments(args) : {},
           forbidPrivate: getForbidPrivate(req, strategy),
+          deniedOAuthScopes: strategy.oauthScopesForRestrictedRows?.filter(scope => !checkScope(req, scope)),
           offset,
           limit,
         },

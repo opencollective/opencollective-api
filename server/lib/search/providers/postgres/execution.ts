@@ -97,11 +97,14 @@ export const runWithSearchBudget = async <T>(
 
         const { workMem, typoSimilarityThreshold } = getPostgresSearchConfig();
         await sql`SET TRANSACTION READ ONLY`.execute(trx);
+        // JIT off: search plans are estimated as expensive (text matches) but usually run in milliseconds, and compiling
+        // their permission expressions took seconds (measured on Comments: 3.2 s -> 22 ms without JIT)
         await sql`
           SELECT
             set_config('statement_timeout', ${String(remainingMs)}, true),
             set_config('work_mem', ${workMem}, true),
-            set_config('pg_trgm.word_similarity_threshold', ${typoSimilarityThreshold}, true)
+            set_config('pg_trgm.word_similarity_threshold', ${typoSimilarityThreshold}, true),
+            set_config('jit', 'off', true)
         `.execute(trx);
 
         return fn(trx);

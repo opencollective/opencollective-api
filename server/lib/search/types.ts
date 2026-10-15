@@ -5,6 +5,7 @@
  */
 
 import { CollectiveType } from '../../constants/collectives';
+import type OAuthScopes from '../../constants/oauth-scopes';
 import type { Collective, User } from '../../models';
 
 /**
@@ -71,6 +72,8 @@ export type SearchEntityRequest<E extends SearchEntity = SearchEntity> = {
   params: SearchEntityParams[E];
   /** Access context: exclude private rows and fields (unauthenticated, or OAuth token without the entity scope) */
   forbidPrivate: boolean;
+  /** Access context: OAuth scopes that some rows of this entity require and that the request does not have */
+  deniedOAuthScopes?: OAuthScopes[];
   limit: number;
   offset: number;
 };

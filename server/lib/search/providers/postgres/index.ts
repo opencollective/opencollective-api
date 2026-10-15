@@ -27,11 +27,17 @@ const EMPTY_RESULT: SearchEntityResult = { totalCount: 0, maxScore: 0, hits: [] 
 
 const getAccess = (request: SearchRequest, entityRequest: SearchEntityRequest): PostgresSearchAccess => {
   const { remoteUser } = request;
+  const deniedOAuthScopes = entityRequest.deniedOAuthScopes || [];
   if (!remoteUser || entityRequest.forbidPrivate) {
-    return { forbidPrivate: true, isRoot: false, adminIds: [] };
+    return { forbidPrivate: true, isRoot: false, adminIds: [], deniedOAuthScopes };
   }
 
-  return { forbidPrivate: false, isRoot: remoteUser.isRoot(), adminIds: remoteUser.getAdministratedCollectiveIds() };
+  return {
+    forbidPrivate: false,
+    isRoot: remoteUser.isRoot(),
+    adminIds: remoteUser.getAdministratedCollectiveIds(),
+    deniedOAuthScopes,
+  };
 };
 
 const searchEntity = async (

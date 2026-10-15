@@ -207,7 +207,7 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
                     totalCount
                   }
                 }
-                comments {
+                transactions {
                   collection {
                     totalCount
                   }
@@ -220,9 +220,9 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
       );
 
       expect(result.errors).to.have.length(1);
-      expect(result.errors[0].message).to.eq('Searching comments is not supported by the PostgreSQL search yet');
+      expect(result.errors[0].message).to.eq('Searching transactions is not supported by the PostgreSQL search yet');
       expect(result.errors[0].extensions.code).to.eq('SearchEntityNotSupported');
-      expect(result.errors[0].path).to.deep.eq(['search', 'results', 'comments']);
+      expect(result.errors[0].path).to.deep.eq(['search', 'results', 'transactions']);
       expect(result.data.search.results.accounts.collection.totalCount).to.eq(1);
     });
 

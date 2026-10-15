@@ -60,6 +60,7 @@ export const getSearchEntityRequestKey = (request: SearchRequest, entityRequest:
     entity: entityRequest.entity,
     params: entityRequest.params,
     forbidPrivate: entityRequest.forbidPrivate,
+    deniedOAuthScopes: entityRequest.deniedOAuthScopes,
     limit: entityRequest.limit,
     offset: entityRequest.offset,
   })}`;
