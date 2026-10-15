@@ -1,74 +1,28 @@
 #!/bin/bash
-# This shell scripts copies the production database to the local database
-# Usage: npm run db:copyprod (from the root of the opencollective-api repo)
+# Copies the staging database to a local opencollective_staging_snapshot database.
+# Usage: npm run db:copy:staging
 #
-# To run the API with the local version of the production database, run:
-# PG_DATABASE=opencollective_prod_snapshot npm start
+# Then run the API on it with: PG_DATABASE=opencollective_staging_snapshot npm run dev
 
-ENV="${1}"
 set -e
 
-if [[ ${ENV} != staging ]] && [[ ${ENV} != prod ]]; then
-  echo "You must specify from which environment you want to pull the database (valid values: 'staging' or 'prod')"
-  exit 1;
+LOCALDBNAME="opencollective_staging_snapshot"
+DBDUMPS_DIR="dbdumps"
+DUMPFILE="${DBDUMPS_DIR}/$(date +"%Y-%m-%d")-staging.pgsql"
+
+. ./scripts/common/pg-tools.sh
+
+mkdir -p "$DBDUMPS_DIR"
+
+if [[ ! -s $DUMPFILE ]]; then
+  echo "Downloading the latest staging backup to $DUMPFILE"
+  heroku pg:backups:download -a opencollective-staging-api -o "$DUMPFILE"
 fi
 
-LOCALDBUSER="opencollective"
-LOCALDBNAME="opencollective_${ENV}_snapshot"
-DBDUMPS_DIR="dbdumps/"
-PG_HOST=${PG_HOST:-"localhost"}
-
-FILENAME="`date +"%Y-%m-%d"`-${ENV}.pgsql"
-
-if [[ ! -d ${DBDUMPS_DIR} ]]; then
-  mkdir -p "${DBDUMPS_DIR}"
-fi
-
-if [[ ! -s ${DBDUMPS_DIR}${FILENAME} ]]; then
-  echo "Dumping ${ENV} database"
-  if [ -x "$(command -v heroku)" ]; then
-    heroku pg:backups:download -a "opencollective-${ENV}-api" -o "${DBDUMPS_DIR}${FILENAME}"
-  else
-    PG_URL_ENVIRONMENT_VARIABLE=`heroku config:get PG_URL_ENVIRONMENT_VARIABLE -a "opencollective-${ENV}-api"`
-    PG_URL_ENVIRONMENT_VARIABLE="${PG_URL_ENVIRONMENT_VARIABLE:-DATABASE_URL}"
-    PG_URL=`heroku config:get ${PG_URL_ENVIRONMENT_VARIABLE} -a "opencollective-${ENV}-api"`
-    pg_dump -O -F t "${PG_URL}" > "${DBDUMPS_DIR}${FILENAME}"
-  fi
-fi
-
-echo "DB dump saved in ${DBDUMPS_DIR}${FILENAME}"
-
-echo Restore...
-./scripts/db_restore.sh -h $PG_HOST -d $LOCALDBNAME -U $LOCALDBUSER -f ${DBDUMPS_DIR}${FILENAME}
-
-# cool trick: all stdout ignored in this block
-{
-  set +e
-  # We make sure the user $LOCALDBUSER has access; could fail
-  psql "${LOCALDBNAME}" -h $PG_HOST -c "CREATE ROLE ${LOCALDBUSER} WITH login;" 2>/dev/null
-  set -e
-
-  # Change ownership of all tables
-  tables=`psql -h $PG_HOST -qAt -c "select tablename from pg_tables where schemaname = 'public';" "${LOCALDBNAME}"`
-
-  for tbl in $tables ; do
-    psql "${LOCALDBNAME}" -h $PG_HOST -c "alter table \"${tbl}\" owner to ${LOCALDBUSER};"
-  done
-
-  # Change ownership of the database
-  psql "${LOCALDBNAME}" -h $PG_HOST -c "alter database ${LOCALDBNAME} owner to ${LOCALDBUSER};"
-
-  psql "${LOCALDBNAME}" -h $PG_HOST -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${LOCALDBUSER};"
-  psql -h $PG_HOST -U postgres -d postgres -c "ALTER ROLE ${LOCALDBUSER} WITH SUPERUSER;"
-
-} | tee >/dev/null
+./scripts/db_restore.sh -h "$PG_HOST" -d "$LOCALDBNAME" -U opencollective -f "$DUMPFILE"
 
 echo "
----------
-All done!
----------
+To start the API on it, run:
 
-To start the OpenCollective API with the local version of the production database, run:
-
-PG_DATABASE=\"${LOCALDBNAME}\" npm start
+PG_DATABASE=$LOCALDBNAME npm run dev
 "
