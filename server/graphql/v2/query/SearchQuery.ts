@@ -69,24 +69,17 @@ const SearchQuery = {
     results: GraphQLSearchParams;
   }> {
     const { remoteUser } = req;
-    if (
-      config.env === 'production' &&
-      (!remoteUser || !remoteUser.collective?.settings?.earlyAccess?.['SEARCH_COMMAND'])
-    ) {
-      throw new Forbidden();
+    if (config.env === 'production') {
+      const earlyAccess = remoteUser?.collective?.settings?.earlyAccess;
+      if (!earlyAccess?.['SEARCH_COMMAND']) {
+        throw new Forbidden();
+      } else if (backend === SearchProvider.POSTGRES && !earlyAccess['SEARCH_POSTGRES_BACKEND']) {
+        // The PostgreSQL backend is a team preview: it must be explicitly enabled (preview feature of the frontend)
+        throw new Forbidden('The PostgreSQL search backend is only available to users who enabled its preview');
+      }
     }
 
-    // The PostgreSQL backend is a team preview: it must be explicitly enabled (preview feature of the frontend)
-    if (
-      config.env === 'production' &&
-      backend === SearchProvider.POSTGRES &&
-      !remoteUser.collective?.settings?.earlyAccess?.['SEARCH_POSTGRES_BACKEND']
-    ) {
-      throw new Forbidden('The PostgreSQL search backend is only available to users who enabled its preview');
-    }
-
-    const provider: SearchProvider = backend;
-    const providerImplementation = getSearchProvider(provider);
+    const providerImplementation = getSearchProvider(backend);
     providerImplementation.assertAvailable();
 
     // Enforce rate limiting
@@ -104,7 +97,7 @@ const SearchQuery = {
 
     // Return the base arguments that will be digested by `GraphQLSearchResponse`
     const request: SearchRequest = {
-      provider,
+      provider: backend,
       term: searchTerm,
       scope: { account: account || null, host: host || null },
       remoteUser: remoteUser || null,
