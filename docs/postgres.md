@@ -106,18 +106,7 @@ To force a restore run `npm run db:restore`, then `npm run db:migrate`.
 
 Please be aware of the `NODE_ENV`/`OC_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used. You have to set it yourself to `test` to switch to the test environment and use `opencollective_test` instead.
 
-To setup the database for tests, run `npm run db:setup` or run `NODE_ENV=test npm run db:setup` to force the environment.
-
-If you want to do the steps manually, first, make sure the `opencollective` user is existing (with superuser privileges):
-
-`createuser -s opencollective`
-
-Then:
-
-```
-createdb opencollective_test
-psql -d opencollective_test -c 'GRANT ALL PRIVILEGES ON DATABASE opencollective_test TO opencollective'
-```
+To setup the database for tests, run `npm run db:restore:test`. It recreates `opencollective_test` from `test/dbdumps/opencollective_dvl.pgsql` (creating the `opencollective` role if needed) and runs the migrations.
 
 ## Reset
 

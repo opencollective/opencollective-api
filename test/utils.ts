@@ -16,7 +16,6 @@ import nock from 'nock';
 import { generateSync } from 'otplib';
 import sinon, { assert } from 'sinon';
 
-import * as dbRestore from '../scripts/db_restore';
 import PlatformConstants from '../server/constants/platform';
 import { generateLoaders, Loaders } from '../server/graphql/loaders';
 import schemaV1 from '../server/graphql/v1/schema';
@@ -104,10 +103,6 @@ export const seedDefaultVendors = async () => {
     ON CONFLICT DO NOTHING;
   `);
 };
-
-export async function loadDB(dbname) {
-  await dbRestore.main({ force: true, file: dbname });
-}
 
 export const stringify = json => {
   return JSON.stringify(json, null, '>>>>')
