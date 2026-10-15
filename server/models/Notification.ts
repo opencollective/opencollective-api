@@ -420,6 +420,14 @@ Notification.init(
             throw new Error('IP addresses cannot be used as webhooks');
           }
         },
+        // New and changed URLs must use https: payloads include private data. Existing http webhooks keep working.
+        isHttps: function (this: Notification, url: string) {
+          if (!url || (!this.isNewRecord && !this.changed('webhookUrl')) || !URL.canParse(url)) {
+            return; // An invalid URL is reported by `isUrl`
+          } else if (new URL(url).protocol !== 'https:') {
+            throw new Error('Webhook URL must use https');
+          }
+        },
         notAResolvedPrivateAddress: async function (this: Notification, url: string) {
           if (!url) {
             return;
