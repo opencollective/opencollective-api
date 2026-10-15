@@ -79,6 +79,12 @@ const SENSITIVE_KEY_WORDS = new Set([
   'accountdetail',
   // Tax form values (`submitLegalDocument`), whose W-8/W-9 fields (date of birth, TIN, owners...) are encrypted at rest
   'formdata',
+  // Expense tax identifiers and VAT numbers (`invoiceInfo`), visible to the payee and admins only
+  'invoiceinfo',
+  // A virtual card's private payload (number, expiry date, CVV...), encrypted at rest: redacted whole
+  'privatedata',
+  // Slack, Discord and other incoming-webhook URLs carry their credential in the URL
+  'webhookurl',
   // Grants access to a draft expense and its attachments
   'draftkey',
   'message',
