@@ -74,6 +74,11 @@ const SENSITIVE_KEY_WORDS = new Set([
   // Free-form payout instructions of an `OTHER` payout method (`data.content`), often bank details. No GraphQL
   // input has a `content` field, so this only matches JSON payloads.
   'content',
+  // Free-form payment instructions and arbitrary bank details of a manual payment provider
+  'instruction',
+  'accountdetail',
+  // Tax form values (`submitLegalDocument`), whose W-8/W-9 fields (date of birth, TIN, owners...) are encrypted at rest
+  'formdata',
   // Grants access to a draft expense and its attachments
   'draftkey',
   'message',
@@ -168,13 +173,15 @@ export const redactVariables = <T>(variables: T): T => {
       budget.values -= value.length;
       return budget.values < 0 ? REDACTED : value.map(item => redact(item, depth + 1));
     } else if (value && typeof value === 'object') {
-      const entries = Object.entries(value);
-      budget.values -= entries.length;
-      if (budget.values < 0) {
-        return REDACTED;
-      }
+      // Key by key rather than `Object.entries`, which would materialize a wide object before the budget check
       const result = {};
-      for (const [key, item] of entries) {
+      for (const key in value) {
+        if (!Object.prototype.hasOwnProperty.call(value, key)) {
+          continue;
+        } else if (--budget.values < 0) {
+          return REDACTED;
+        }
+        const item = value[key];
         if (isSensitiveKey(key)) {
           result[key] = item === null || item === undefined ? item : REDACTED;
         } else {

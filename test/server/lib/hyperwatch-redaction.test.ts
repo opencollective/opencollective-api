@@ -199,6 +199,42 @@ describe('server/lib/hyperwatch-redaction', () => {
       });
     });
 
+    it('redacts tax form data and manual payment provider details in full, whatever their fields are called', () => {
+      expect(
+        redactVariables({
+          account: { slug: 'webpack' },
+          formData: { formType: 'W9', dateOfBirth: '1990-01-01', businessName: 'Acme', signer: { middleName: 'Q' } },
+        }),
+      ).to.deep.equal({ account: { slug: 'webpack' }, formData: '[redacted]' });
+      expect(
+        redactVariables({
+          manualPaymentProvider: {
+            type: 'BANK_TRANSFER',
+            name: 'Bank transfer',
+            instructions: 'Wire to FR76 ...',
+            accountDetails: { holder: 'Jane Doe', ref: '1234' },
+          },
+        }),
+      ).to.deep.equal({
+        manualPaymentProvider: {
+          type: 'BANK_TRANSFER',
+          name: 'Bank transfer',
+          instructions: '[redacted]',
+          accountDetails: '[redacted]',
+        },
+      });
+    });
+
+    it('stops reading a wide object once the budget is spent', () => {
+      let reads = 0;
+      const wide = {};
+      for (let i = 0; i < 15000; i++) {
+        Object.defineProperty(wide, `k${i}`, { enumerable: true, get: () => ++reads });
+      }
+      expect(redactVariables({ wide })).to.deep.equal({ wide: '[redacted]' });
+      expect(reads).to.be.at.most(10000);
+    });
+
     it('handles long keys in linear time', () => {
       const key = Array.from({ length: 3000 }, () => 'aB').join('');
       const start = Date.now();
