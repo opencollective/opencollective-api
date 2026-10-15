@@ -348,7 +348,8 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL, Updates)', () => {
         ['random user', randomUser, [published.slug]],
         ['project admin', projectAdmin, [published.slug, projectDraft.slug]],
         ['collective admin (and parent of the project)', collectiveAdmin, everything],
-        ['host admin', hostAdmin, everything],
+        // Host administrators can see the published Updates of their hosted Accounts, never their drafts
+        ['host admin', hostAdmin, [published.slug, privatePublished.slug]],
         ['root', rootUser, everything],
       ];
 
@@ -369,7 +370,15 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL, Updates)', () => {
           expect(updates.collection.totalCount, word).to.eq(0);
           expect(updates.maxScore, word).to.eq(0);
         }
-        expect((await getUpdates(word, {}, hostAdmin)).collection.totalCount, word).to.eq(1);
+      }
+
+      // Host administrators match the private published Update, but not the draft
+      expect((await getUpdates('secretprivateword', {}, hostAdmin)).collection.totalCount).to.eq(1);
+      for (const word of ['secretdraftword', 'tapir secretdraftword']) {
+        const updates = await getUpdates(word, {}, hostAdmin);
+        expect(updates.collection.totalCount, word).to.eq(0);
+        expect(updates.maxScore, word).to.eq(0);
+        expect((await getUpdates(word, {}, collectiveAdmin)).collection.totalCount, word).to.eq(1);
       }
 
       // An exact title that only matches a draft does not raise the public maxScore
@@ -390,7 +399,10 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL, Updates)', () => {
       expect(withoutScope.errors).to.not.exist;
       expect(withoutScope.data.search.results.updates.collection.nodes.map(n => n.slug)).to.deep.eq([published.slug]);
       const withScope = await query([OAuthScopes.updates]);
-      expect(withScope.data.search.results.updates.collection.totalCount).to.eq(4);
+      expect(withScope.data.search.results.updates.collection.nodes.map(n => n.slug)).to.have.members([
+        published.slug,
+        privatePublished.slug,
+      ]);
     });
 
     it('reflects live publication and visibility changes', async () => {

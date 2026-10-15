@@ -9,6 +9,11 @@ out of scope (spec: opencollective/opencollective#8935, this work: #8944).
 made yet. Use these numbers to compare designs and to size risk, not as production response times. See
 [Missing production evidence](#missing-production-evidence).
 
+## Known differences with OpenSearch
+
+- Updates: host administrators only find the published (public or private) Updates of their hosted Accounts, never
+  drafts (same rule as `canSeeUpdate`). OpenSearch still lets them match drafts (`OpenSearchUpdatesAdapter`, unchanged).
+
 ## Reproduce the benchmark
 
 The benchmark runs the real provider code (`PostgresProvider.search`: adapters, ranked statement, budget, concurrency

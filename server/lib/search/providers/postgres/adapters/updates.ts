@@ -5,8 +5,8 @@
  *
  * Rows: live Updates of Accounts that are not deleted, not private and not hidden from search (even for root), with
  * index-only anti-joins on the small sets of excluded Accounts. Row permission (live, applied in every arm before
- * matching, counting and ranking): published public Updates for everyone; private or unpublished Updates only for root
- * and administrators of the Account, its parent or its active host.
+ * matching, counting and ranking): published public Updates for everyone; private or unpublished Updates for root and
+ * administrators of the Account or its parent; private published Updates for administrators of its active host.
  *
  * Arms (see `scores.ts` for bands), each one split into a public and a restricted variant:
  * - exact identifier: ID / `#ID`, public ID (`upd_...`), GraphQL ID
@@ -66,6 +66,8 @@ const getBaseConditions = ({ scope }: UpdatesContext): RawBuilder<unknown>[] => 
 /**
  * One condition per row permission branch. Restricted (private or unpublished) Updates are only matched in arms that
  * AND the administrator predicate, which looks up the administered domain once (hashed subplans), never per row.
+ * Same rules as `canSeeUpdate`: administrators of the Account (or its parent) see drafts, host administrators only
+ * see published Updates.
  */
 const getRowPermissions = ({ access }: UpdatesContext): RawBuilder<unknown>[] => {
   if (access.isRoot && !access.forbidPrivate) {
@@ -76,7 +78,7 @@ const getRowPermissions = ({ access }: UpdatesContext): RawBuilder<unknown>[] =>
   if (!access.forbidPrivate && access.adminIds.length) {
     const ids = sql`${access.adminIds}::int[]`;
     permissions.push(
-      sql`NOT ${sql.raw(Exp.publiclyVisible)} AND ("CollectiveId" = ANY(${ids}) OR "CollectiveId" IN (SELECT c.id FROM "Collectives" c WHERE c."ParentCollectiveId" = ANY(${ids})) OR "CollectiveId" IN (SELECT c.id FROM "Collectives" c WHERE c."HostCollectiveId" = ANY(${ids}) AND c."isActive" = TRUE AND c."deletedAt" IS NULL))`,
+      sql`NOT ${sql.raw(Exp.publiclyVisible)} AND ("CollectiveId" = ANY(${ids}) OR "CollectiveId" IN (SELECT c.id FROM "Collectives" c WHERE c."ParentCollectiveId" = ANY(${ids})) OR ("publishedAt" IS NOT NULL AND "CollectiveId" IN (SELECT c.id FROM "Collectives" c WHERE c."HostCollectiveId" = ANY(${ids}) AND c."isActive" = TRUE AND c."deletedAt" IS NULL)))`,
     );
   }
 
