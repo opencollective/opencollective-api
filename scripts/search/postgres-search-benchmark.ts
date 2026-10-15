@@ -555,8 +555,11 @@ const phaseWrites = async (rows: number) => {
           }
         });
     };
-    const withIndexes = await measure(false);
+    // Warm up (caches, full-page writes after a checkpoint), then alternate so that neither variant is favored
+    await measure(false);
+    await measure(true);
     const withoutIndexes = await measure(true);
+    const withIndexes = await measure(false);
     const row = {
       table,
       searchIndexes,
