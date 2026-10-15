@@ -30,7 +30,7 @@ import {
   fakeUser,
   fakeUserToken,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, oAuthGraphqlQueryV2, resetTestDB } from '../../../../utils';
+import { graphqlQueryV2, oAuthGraphqlQueryV2, resetCaches, resetTestDB } from '../../../../utils';
 
 const accountsSearchQuery = gql`
   query PostgresAccountsSearch(
@@ -100,6 +100,7 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
 
   before(async () => {
     await resetTestDB();
+    await resetCaches(); // Search rate-limit counters are keyed by user ID, which the DB reset reuses
   });
 
   beforeEach(() => {

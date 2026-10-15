@@ -23,7 +23,7 @@ import {
   fakeUser,
   fakeUserToken,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, oAuthGraphqlQueryV2, resetTestDB } from '../../../../utils';
+import { graphqlQueryV2, oAuthGraphqlQueryV2, resetCaches, resetTestDB } from '../../../../utils';
 
 const updatesSearchQuery = gql`
   query PostgresUpdatesSearch(
@@ -82,6 +82,7 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL, Updates)', () => {
 
   before(async () => {
     await resetTestDB();
+    await resetCaches(); // Search rate-limit counters are keyed by user ID, which the DB reset reuses
     collective = await fakeCollective({ name: 'Marmoset Society', slug: 'marmoset-society' });
   });
 

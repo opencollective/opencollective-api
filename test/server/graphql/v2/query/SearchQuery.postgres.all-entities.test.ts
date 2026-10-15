@@ -33,7 +33,7 @@ import {
   fakeUser,
   fakeUserToken,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, oAuthGraphqlQueryV2, resetTestDB } from '../../../../utils';
+import { graphqlQueryV2, oAuthGraphqlQueryV2, resetCaches, resetTestDB } from '../../../../utils';
 
 const ENTITIES = Object.values(SearchEntity);
 
@@ -88,6 +88,7 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL, all entities)', () =>
 
   before(async () => {
     await resetTestDB();
+    await resetCaches(); // Search rate-limit counters are keyed by user ID, which the DB reset reuses
     rootUser = await fakeUser({ data: { isRoot: true } });
     const platform = await fakeOrganization({ id: PlatformConstants.PlatformCollectiveId, name: 'Platform' });
     await platform.addUserWithRole(rootUser, 'ADMIN');

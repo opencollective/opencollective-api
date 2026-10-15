@@ -24,7 +24,7 @@ import {
   fakeUser,
   fakeUserToken,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, oAuthGraphqlQueryV2, resetTestDB } from '../../../../utils';
+import { graphqlQueryV2, oAuthGraphqlQueryV2, resetCaches, resetTestDB } from '../../../../utils';
 
 const tiersSearchQuery = gql`
   query PostgresTiersSearch(
@@ -118,6 +118,7 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL): tiers and host appli
 
   before(async () => {
     await resetTestDB();
+    await resetCaches(); // Search rate-limit counters are keyed by user ID, which the DB reset reuses
     randomUser = await fakeUser();
     rootUser = await fakeUser({ data: { isRoot: true } });
     const platform = await fakeOrganization({ id: PlatformConstants.PlatformCollectiveId, name: 'Platform' });

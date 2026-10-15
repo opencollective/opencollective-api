@@ -18,7 +18,7 @@ import { formatIndexNameForOpenSearch } from '../../../../../server/lib/open-sea
 import { OpenSearchIndexName } from '../../../../../server/lib/open-search/constants';
 import { Collective } from '../../../../../server/models';
 import { fakeCollective, fakeOrganization, fakeTier, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { graphqlQueryV2, resetCaches, resetTestDB } from '../../../../utils';
 
 type FakeDocument = { id: number; type?: string };
 
@@ -108,6 +108,7 @@ describe('server/graphql/v2/query/SearchQuery (provider-independent dispatch)', 
 
   before(async () => {
     await resetTestDB();
+    await resetCaches(); // Search rate-limit counters are keyed by user ID, which the DB reset reuses
     collectives = [];
     for (let i = 0; i < 5; i++) {
       collectives.push(await fakeCollective({ name: `Dispatch Collective ${i}` }));
