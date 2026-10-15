@@ -35,9 +35,19 @@ const parseTypoSimilarityThreshold = (value: unknown): number => {
   return threshold;
 };
 
+/** Without this check, a missing or non-numeric value would silently remove the cap, and 0 would block every search */
+const parseMaxConcurrentQueries = (value: unknown): number => {
+  const max = Number(value);
+  if (value === '' || !Number.isInteger(max) || max < 1) {
+    throw new Error(`Invalid search.postgres.maxConcurrentQueries: ${String(value)} (expected a positive integer)`);
+  }
+
+  return max;
+};
+
 const getPostgresSearchConfig = () => ({
   workMem: String(config.search.postgres.workMem),
-  maxConcurrentQueries: Number(config.search.postgres.maxConcurrentQueries),
+  maxConcurrentQueries: parseMaxConcurrentQueries(config.search.postgres.maxConcurrentQueries),
   typoSimilarityThreshold: parseTypoSimilarityThreshold(config.search.postgres.typoSimilarityThreshold),
 });
 

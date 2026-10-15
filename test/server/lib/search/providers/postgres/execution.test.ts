@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import { sql } from 'kysely';
 import { times } from 'lodash';
+import sinon from 'sinon';
 
 import {
   runWithSearchBudget,
@@ -53,6 +54,29 @@ describe('server/lib/search/providers/postgres/execution', () => {
 
       // The pool is usable again once the connections are released
       expect(await runWithSearchBudget({ deadline: Date.now() + 5000 }, async () => 'ok')).to.eq('ok');
+    });
+
+    describe('maxConcurrentQueries', () => {
+      afterEach(() => sinon.restore());
+
+      for (const value of ['', 'abc', '0', '-1', '1.5', undefined]) {
+        it(`rejects an invalid value (${JSON.stringify(value)}) instead of running without a cap`, async () => {
+          sinon.stub(config.search.postgres, 'maxConcurrentQueries').value(value);
+          try {
+            await runWithSearchBudget({ deadline: Date.now() + 5000 }, async () => 'ran');
+          } catch (error) {
+            expect(error.message).to.match(/Invalid search.postgres.maxConcurrentQueries/);
+            return;
+          }
+
+          expect.fail('Expected an invalid configuration error');
+        });
+      }
+
+      it('accepts a positive integer from an environment variable', async () => {
+        sinon.stub(config.search.postgres, 'maxConcurrentQueries').value('3');
+        expect(await runWithSearchBudget({ deadline: Date.now() + 5000 }, async () => 'ran')).to.eq('ran');
+      });
     });
 
     describe('effective_io_concurrency', () => {
