@@ -4,7 +4,8 @@
  * Every entity query runs in its own read-only transaction on the shared pool, with transaction-local settings
  * (`set_config(..., true)` = `SET LOCAL`): they are reset on COMMIT/ROLLBACK, before the connection is returned to
  * the pool. JIT compilation is disabled: on large tables, the planner's cost estimates enable it for searches that
- * then take a millisecond, and compiling costs 300+ ms (measured on Transactions merchant ID lookups).
+ * then take a millisecond, and compiling costs 300+ ms (measured on Transactions merchant ID lookups). Parallel workers
+ * are disabled too, so that one search statement uses at most one core.
  * `statement_timeout` is what actually cancels the work in PostgreSQL (a JS timeout alone would leave the
  * query running and holding a connection).
  */
@@ -106,13 +107,17 @@ export const runWithSearchBudget = async <T>(
         const { workMem, typoSimilarityThreshold } = getPostgresSearchConfig();
         await sql`SET TRANSACTION READ ONLY`.execute(trx);
         // JIT off: search plans are estimated as expensive (text matches) but usually run in milliseconds, and compiling
-        // their permission expressions took seconds (measured on Comments: 3.2 s -> 22 ms without JIT)
+        // their permission expressions took seconds (measured on Comments: 3.2 s -> 22 ms without JIT).
+        // No parallel workers: each search statement uses at most one core (and one `work_mem` per node), so that
+        // concurrent searches can't take over the CPU of the primary. Measured with 8 concurrent users on 4 vCPU: 67% more
+        // searches per second and half the median latency, for a slower p95 when searching alone (0.6 s -> 0.9 s).
         await sql`
           SELECT
             set_config('statement_timeout', ${String(remainingMs)}, true),
             set_config('work_mem', ${workMem}, true),
             set_config('pg_trgm.word_similarity_threshold', ${typoSimilarityThreshold}, true),
-            set_config('jit', 'off', true)
+            set_config('jit', 'off', true),
+            set_config('max_parallel_workers_per_gather', '0', true)
         `.execute(trx);
 
         return fn(trx);
