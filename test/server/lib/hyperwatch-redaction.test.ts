@@ -141,6 +141,21 @@ describe('server/lib/hyperwatch-redaction', () => {
       });
     });
 
+    it('redacts invoice tax information and webhook URLs', () => {
+      expect(
+        redactVariables({
+          expense: { description: 'Public', invoiceInfo: 'VAT FR123456789' },
+          webhook: {
+            activityType: 'COLLECTIVE_EXPENSE_CREATED',
+            webhookUrl: 'https://hooks.slack.com/services/T0/B0/secret',
+          },
+        }),
+      ).to.deep.equal({
+        expense: { description: 'Public', invoiceInfo: '[redacted]' },
+        webhook: { activityType: 'COLLECTIVE_EXPENSE_CREATED', webhookUrl: '[redacted]' },
+      });
+    });
+
     it('redacts draft keys and the financial fields mutations accept', () => {
       expect(
         redactVariables({
@@ -168,7 +183,7 @@ describe('server/lib/hyperwatch-redaction', () => {
         }),
       ).to.deep.equal({
         draftKey: '[redacted]',
-        virtualCard: { privateData: { cardNumber: '[redacted]', expiryDate: '12/30', cvv: '[redacted]' } },
+        virtualCard: { privateData: '[redacted]' },
         payoutMethod: {
           data: {
             currency: 'USD',
