@@ -25,8 +25,8 @@ elif [ -z "$PG_TOOLS_MAJOR" ] || { [ -n "$PG_SERVER_MAJOR" ] && [ "$PG_TOOLS_MAJ
   elif command -v podman >/dev/null; then
     PG_TOOLS_CONTAINER="podman"
   else
-    echo "Postgres client tools ${PG_TOOLS_MAJOR:-(missing)} don't match the server (${PG_SERVER_MAJOR}), and neither docker nor podman is available." >&2
-    echo "Install the client tools for version ${PG_SERVER_MAJOR} (e.g. brew install postgresql@${PG_SERVER_MAJOR})." >&2
+    echo "Postgres client tools ${PG_TOOLS_MAJOR:-(missing)} don't match the server (${PG_SERVER_MAJOR:-unknown}), and neither docker nor podman is available." >&2
+    echo "Install the client tools for version ${PG_SERVER_MAJOR:-16} (e.g. brew install postgresql@${PG_SERVER_MAJOR:-16})." >&2
     exit 1
   fi
 fi

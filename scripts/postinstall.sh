@@ -21,16 +21,9 @@ if [ "$SEQUELIZE_ENV" = "staging" ] || [ "$SEQUELIZE_ENV" = "production" ]; then
   exit $?; # exit with return code of previous command
 fi
 
-if command -v psql > /dev/null; then
-  echo "✓ PostgreSQL installed"
-else
-  echo "𐄂 psql command doesn't exist. Make sure you have PostgreSQL installed."
-  echo ""
-  echo "See: https://github.com/opencollective/opencollective-api/blob/main/docs/postgres.md"
-  echo ""
-  exit 1
-fi
-if psql -h $PG_HOST -U postgres -lqt | cut -d \| -f 1 | grep -qw opencollective_dvl; then
+. ./scripts/common/pg-tools.sh
+
+if pg_tool psql -h $PG_HOST -U postgres -lqt | cut -d \| -f 1 | grep -qw opencollective_dvl; then
   echo "✓ opencollective_dvl exists"
   ./scripts/db_restore_extensions.sh -d opencollective_dvl -U opencollective -h $PG_HOST
 else

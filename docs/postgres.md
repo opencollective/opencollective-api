@@ -1,118 +1,61 @@
 # PostgreSQL Database
 
-You need to have PostgreSQL > 16.x.
+Production runs PostgreSQL 16. Use the same major version locally.
 
 ## Installation
 
-### Using the docker-compose file
-
-Simply run on of these:
+### With Docker or Podman (recommended)
 
 ```bash
-# With docker-compose
-docker-compose -f docker-compose/db.yml up
-
-# With podman
-podman-compose -f docker-compose/db.yml up # Only start the DB
+docker compose -f docker-compose/db.yml up -d
+# or
+podman-compose -f docker-compose/db.yml up -d
 ```
 
-### On macOS
+The database scripts use the local Postgres client tools (`psql`, `pg_restore`, ...) when their major
+version matches the server's, and otherwise run them from the `postgres:16` image. To skip installing
+them, set `USE_DOCKER=true` (or `USE_PODMAN=true`). To install them on macOS, see below.
 
-#### With Homebrew
+### Natively
 
-`brew install postgresql`
+- macOS: `brew install postgresql@16 && brew services start postgresql@16`, add
+  `$(brew --prefix postgresql@16)/bin` to your `PATH` (the formula is keg-only), then `createuser -s postgres`
+- Linux: install PostgreSQL 16 from your distribution or [postgresql.org](https://www.postgresql.org/download/linux/)
 
-Then:
-
-`createuser -s postgres -U <os-username>`
-
-#### With Postgres.app
-
-Get the app from [Postgres.app](http://postgresapp.com/). Install it.
-
-Then to enable the CLI tools, follow the steps from: https://postgresapp.com/documentation/cli-tools.html
-
-### On Linux
-
-#### Fedora / RedHat
-
-```bash
-# Install Postgres
-sudo dnf install postgresql-server postgresql-contrib
-
-# (Optional) Start postgres at boot time
-sudo systemctl enable postgresql
-
-# Initialize DB
-PGSETUP_INITDB_OPTIONS="-U postgres" sudo postgresql-setup --initdb
-```
-
-Then edit your `/var/lib/pgsql/data/pg_hba.conf`. Comment existing lines, and add the following content:
-
-```
-# Allow local connections without password
-local   all             all                                     trust
-# IPv4 local connections:
-host    all             all             127.0.0.1/32            trust
-# IPv6 local connections:
-host    all             all             ::1/128                 trust
-```
-
-Finally start Postgres with `sudo systemctl start postgresql`.
-
-### With Docker
-
-If you don't want to run a local instance of PostgreSQL in your computer, you can run one in Docker.
-
-Create and run the container:
-
-```
-docker run -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -d --name opencollective-postgres --shm-size=1g --memory=4g --cpus=2 -v opencollective-postgres-data:/var/lib/postgresql/data postgres:16
-```
-
-Set the necessary environment variables:
-
-```
-export PGHOST=localhost
-export PGUSER=postgres
-```
-
-You'll also need to have Postgres client tools like `psql`, `dropdb`, `createuser` locally available to run our scripts. In macOS you can install those using Homebrew with:
-
-```
-brew install libpq
-echo 'export PATH="/usr/local/opt/libpq/bin:$PATH"' >> ~/.bash_profile
-```
-
-For Ubuntu 16.04 and above you can execute the following to install Postgres client tools:
-
-```
-sudo apt-get install postgresql-client
-```
+The scripts connect as `postgres` without a password: allow `trust` authentication for local connections
+in `pg_hba.conf` (`SHOW hba_file;` in `psql` gives its path).
 
 ## Setup
 
-#### Development
+The development database (`opencollective_dvl`) is restored from `test/dbdumps/opencollective_dvl.pgsql`
+and migrated by `npm install`. To do it again:
 
-Please be aware of the `NODE_ENV`/`OC_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used.
+```bash
+npm run db:restore && npm run db:migrate
+```
 
-The development database should be automatically installed after `npm install`.
+The test database (`opencollective_test`, used when `NODE_ENV=test`):
 
-To trigger the postinstall script again, run `npm run postinstall`.
+```bash
+npm run db:restore:test
+```
 
-To force a restore run `npm run db:restore`, then `npm run db:migrate`.
+Both create the `opencollective` role and the extensions the app needs.
 
-#### Test
+### Refreshing the dump
 
-Please be aware of the `NODE_ENV`/`OC_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used. You have to set it yourself to `test` to switch to the test environment and use `opencollective_test` instead.
+When the dump falls behind the migrations, refresh it and commit the result:
 
-To setup the database for tests, run `npm run db:restore:test`. It recreates `opencollective_test` from `test/dbdumps/opencollective_dvl.pgsql` (creating the `opencollective` role if needed) and runs the migrations.
+```bash
+npm run db:dump:dev                                   # drops and rebuilds opencollective_dvl
+DBNAME=opencollective_dump npm run db:dump:dev        # uses another database instead
+```
 
 ## Reset
 
-Sometime, things dont't work as expected and you need to start from scratch. Do:
+To start from scratch:
 
-```
+```bash
 dropdb opencollective_dvl
 dropdb opencollective_test
 dropuser opencollective
@@ -147,7 +90,3 @@ npm run db:migrate
 ```
 npm run db:migrate:undo
 ```
-
-## Troubleshooting
-
-For development, ensure that local connections do not require a password. Locate your `pg_hba.conf` file by running `SHOW hba_file;` from the psql prompt (`sudo -i -u postgres` + `psql` after clean install). This should look something like `/etc/postgresql/9.5/main/pg_hba.conf`. We'll call the parent directory of `pg_hba.conf` the `$POSTGRES_DATADIR`. `cd` to `$POSTGRES_DATADIR`, and edit `pg_hba.conf` to `trust` local socket connections and local IP connections. Restart `postgres` - on Mac OS X, there may be restart scripts already in place with `brew`, if not use `pg_ctl -D $POSTGRES_DATADIR restart`.
