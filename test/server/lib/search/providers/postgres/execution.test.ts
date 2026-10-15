@@ -54,5 +54,35 @@ describe('server/lib/search/providers/postgres/execution', () => {
       // The pool is usable again once the connections are released
       expect(await runWithSearchBudget({ deadline: Date.now() + 5000 }, async () => 'ok')).to.eq('ok');
     });
+
+    describe('effective_io_concurrency', () => {
+      const getSearchSetting = () =>
+        runWithSearchBudget({ deadline: Date.now() + 5000 }, async trx => {
+          const result = await sql<{
+            value: string;
+          }>`SELECT current_setting('effective_io_concurrency') AS value`.execute(trx);
+          return result.rows[0].value;
+        });
+
+      // Session settings stay on the connection, so set them on every connection of the pool
+      const setOnEveryPooledConnection = async (statement: string) => {
+        const poolSize = Number(config.database.options.pool.max);
+        const transactions = await Promise.all(times(poolSize, () => sequelize.transaction()));
+        await Promise.all(transactions.map(transaction => sequelize.query(statement, { transaction })));
+        await Promise.all(transactions.map(transaction => transaction.commit()));
+      };
+
+      afterEach(() => setOnEveryPooledConnection('RESET effective_io_concurrency'));
+
+      it('raises a nonzero server setting to 64', async () => {
+        await setOnEveryPooledConnection('SET effective_io_concurrency = 1');
+        expect(await getSearchSetting()).to.eq('64');
+      });
+
+      it('keeps a server setting of 0 (required on platforms without posix_fadvise)', async () => {
+        await setOnEveryPooledConnection('SET effective_io_concurrency = 0');
+        expect(await getSearchSetting()).to.eq('0');
+      });
+    });
   });
 });

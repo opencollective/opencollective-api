@@ -154,7 +154,8 @@ export const runWithSearchBudget = async <T>(
       // concurrent searches can't take over the CPU of the primary. Measured with 8 concurrent users on 4 vCPU: 67% more
       // searches per second and half the median latency, for a slower p95 when searching alone (0.6 s -> 0.9 s).
       // Prefetching for bitmap heap scans instead (never lower than the server's setting): without parallel workers,
-      // searches on uncached data read one page at a time (cold, 2.8M Orders matches: 9.1 s -> 6.7 s).
+      // searches on uncached data read one page at a time (cold, 2.8M Orders matches: 9.1 s -> 6.7 s). A server setting
+      // of 0 is kept: platforms without posix_fadvise() (e.g. macOS) reject any other value.
       await sql`
         SELECT
           set_config('statement_timeout', ${String(remainingMs)}, true),
@@ -162,7 +163,14 @@ export const runWithSearchBudget = async <T>(
           set_config('pg_trgm.word_similarity_threshold', ${String(typoSimilarityThreshold)}, true),
           set_config('jit', 'off', true),
           set_config('max_parallel_workers_per_gather', '0', true),
-          set_config('effective_io_concurrency', greatest(current_setting('effective_io_concurrency')::int, 64)::text, true)
+          set_config(
+            'effective_io_concurrency',
+            CASE current_setting('effective_io_concurrency')::int
+              WHEN 0 THEN '0'
+              ELSE greatest(current_setting('effective_io_concurrency')::int, 64)::text
+            END,
+            true
+          )
       `.execute(trx);
 
       return fn(trx, {
