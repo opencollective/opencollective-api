@@ -137,10 +137,12 @@ const getMerchantIdConditions = (merchantId: string): RawBuilder<unknown>[][] =>
   return [
     // From the row's own JSON (CONTRIBUTION, EXPENSE)
     [sql`${sql.raw(Exp.merchantId)} = ${merchantId}`],
-    // EXPENSE rows without one: the Expense's (index `expenses_data_stripe_virtual_card_transaction_id`)
+    // EXPENSE rows without one: the Expense's (index `expenses_data_stripe_virtual_card_transaction_id`). The matching
+    // Expenses are looked up first (InitPlan array): as a semi-join, the planner scanned the transactions of every
+    // Expense of an account scope instead (60 ms -> 5 ms on 13M transactions).
     [
       sql`kind = 'EXPENSE'`,
-      sql`"ExpenseId" IN (SELECT e.id FROM "Expenses" e WHERE e.data #>> '{transactionId}' = ${merchantId} AND e."deletedAt" IS NULL)`,
+      sql`"ExpenseId" = ANY(ARRAY(SELECT e.id FROM "Expenses" e WHERE e.data #>> '{transactionId}' = ${merchantId} AND e."deletedAt" IS NULL))`,
       sql`${sql.raw(Exp.merchantId)} IS NULL`,
     ],
     // PLATFORM_TIP and APPLICATION_FEE: the related CONTRIBUTION's (same group and type), except on platform rows
