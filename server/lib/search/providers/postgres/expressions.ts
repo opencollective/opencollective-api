@@ -61,7 +61,7 @@ export const AccountExpressions = {
 export const ExpenseExpressions = {
   /** Rows that can be searched (the owning account's eligibility is checked separately) */
   eligible: `"deletedAt" IS NULL`,
-  /** Public searchable fields (index `expenses_pg_search_public`) */
+  /** Public searchable fields (index `expenses_pg_search_public`, not partial so that the planner has statistics) */
   publicVector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(description, '') || ' ' || coalesce(currency, '') || ' ' || coalesce(status, '') || ' ' || public.oc_search_html_to_text(coalesce("longDescription", '')))`,
   /** Public + restricted fields (index `expenses_pg_search_restricted`, only rows with restricted information) */
   restrictedVector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(description, '') || ' ' || coalesce(currency, '') || ' ' || coalesce(status, '') || ' ' || public.oc_search_html_to_text(coalesce("longDescription", '')) || ' ' || public.oc_search_html_to_text(coalesce("privateMessage", '')) || ' ' || coalesce("invoiceInfo", '') || ' ' || coalesce(reference, ''))`,
@@ -73,7 +73,7 @@ export const ExpenseExpressions = {
 /** Expense items, searched as part of their Expense. Descriptions may contain HTML. */
 export const ExpenseItemExpressions = {
   eligible: `"deletedAt" IS NULL`,
-  /** Index `expense_items_pg_search` */
+  /** Index `expense_items_pg_search` (not partial, for statistics) */
   vector: `to_tsvector('public.oc_search_english'::regconfig, public.oc_search_html_to_text(coalesce(description, '')))`,
 } as const;
 
@@ -104,7 +104,7 @@ export const isEligibleAccountId = (accountId: number): RawBuilder<boolean> =>
 export const TierExpressions = {
   /** Live tiers (owning Account rules: `isOwnedByEligibleAccount`) */
   eligible: `"deletedAt" IS NULL`,
-  /** Searchable fields: name, slug, description and long description (index `tiers_pg_search_vector`) */
+  /** Searchable fields: name, slug, description and long description (index `tiers_pg_search_vector`, not partial) */
   vector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(name, '') || ' ' || replace(coalesce(slug, ''), '-', ' ') || ' ' || coalesce(description, '') || ' ' || public.oc_search_html_to_text(coalesce("longDescription", '')))`,
   /** Exact name (index `tiers_pg_search_name`) */
   normalizedName: `public.oc_search_normalize(name)`,
@@ -116,7 +116,7 @@ export const TierExpressions = {
 export const HostApplicationExpressions = {
   /** Live applications (owning Account rules: `isOwnedByEligibleAccount`) */
   eligible: `"deletedAt" IS NULL`,
-  /** Searchable fields: message (index `host_applications_pg_search_message`) */
+  /** Searchable fields: message (index `host_applications_pg_search_message`, not partial) */
   vector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(message, ''))`,
 } as const;
 

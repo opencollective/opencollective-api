@@ -11,6 +11,10 @@ import { createIndexConcurrently } from './lib/concurrent-indexes';
  * `ExcludedAccountExpressions` in
  * `server/lib/search/providers/postgres/expressions.ts` and must stay identical to them.
  *
+ * Text indexes are NOT partial (queries filter deleted rows themselves): PostgreSQL only collects statistics for the
+ * expressions of non-partial indexes, and the planner needs word frequencies to choose between the text index and
+ * the scope indexes (measured in opencollective#8944, see `docs/postgres-search.md`).
+ *
  * Built with `CREATE INDEX CONCURRENTLY` (one statement per query, serially) so that writes are not blocked. A failed
  * concurrent build leaves an INVALID index: `createIndexConcurrently` drops it and builds it again on the next run.
  */
@@ -37,7 +41,6 @@ const INDEXES = [
     table: 'Tiers',
     name: 'tiers_pg_search_vector',
     definition: `USING GIN (to_tsvector('public.oc_search_english'::regconfig, coalesce(name, '') || ' ' || replace(coalesce(slug, ''), '-', ' ') || ' ' || coalesce(description, '') || ' ' || public.oc_search_html_to_text(coalesce("longDescription", ''))))`,
-    where: LIVE,
   },
   {
     table: 'Tiers',
@@ -55,7 +58,6 @@ const INDEXES = [
     table: 'HostApplications',
     name: 'host_applications_pg_search_message',
     definition: `USING GIN (to_tsvector('public.oc_search_english'::regconfig, coalesce(message, '')))`,
-    where: LIVE,
   },
   {
     // Applications of the accounts administered by the user
