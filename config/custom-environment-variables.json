@@ -13,6 +13,7 @@
   },
   "search": {
     "postgres": {
+      "enabled": "SEARCH_POSTGRES_ENABLED",
       "concurrencyPerRequest": "SEARCH_POSTGRES_CONCURRENCY_PER_REQUEST",
       "maxConcurrentQueries": "SEARCH_POSTGRES_MAX_CONCURRENT_QUERIES",
       "workMem": "SEARCH_POSTGRES_WORK_MEM",

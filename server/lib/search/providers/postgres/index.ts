@@ -88,7 +88,11 @@ const searchEntity = async (
 
 export const PostgresProvider: SearchProviderImplementation = {
   assertAvailable() {
-    // Uses the main database: always available
+    // Uses the main database. Can be turned off without a deploy (`SEARCH_POSTGRES_ENABLED=false`): every request then
+    // has to use the default backend (OpenSearch).
+    if (String(config.search.postgres.enabled) === 'false') {
+      throw new Error('The PostgreSQL search is turned off, please use the default search backend');
+    }
   },
   validateRequest(request) {
     assertValidSearchTerm(request.term);

@@ -263,6 +263,13 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
       expect(result.errors[0].extensions.code).to.eq('Forbidden');
     });
 
+    it('can be turned off without a deploy', async () => {
+      sandbox.stub(config.search.postgres, 'enabled').value('false');
+      const result = await searchAccounts('zanzibar');
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('PostgreSQL search is turned off');
+    });
+
     it('requires the explicit PostgreSQL preview opt-in in production', async () => {
       sandbox.stub(config, 'env').value('production');
       const searchPreviewUser = await fakeUser({}, { settings: { earlyAccess: { SEARCH_COMMAND: true } } });

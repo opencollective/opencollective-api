@@ -30,6 +30,7 @@
   },
   "search": {
     "postgres": {
+      "enabled": true,
       "concurrencyPerRequest": 2,
       "maxConcurrentQueries": 8,
       "workMem": "32MB",
