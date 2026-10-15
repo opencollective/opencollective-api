@@ -50,12 +50,13 @@ const EDIT_VIRTUAL_CARD_MUTATION = gql`
 `;
 
 const REQUEST_VIRTUAL_CARD_MUTATION = gql`
-  mutation RequestVirtualCard($account: AccountReferenceInput!) {
+  mutation RequestVirtualCard($account: AccountReferenceInput!, $spendingLimitInterval: VirtualCardLimitInterval) {
     requestVirtualCard(
       account: $account
       purpose: "Test purpose"
       notes: "Test notes"
       spendingLimitAmount: { valueInCents: 50000 }
+      spendingLimitInterval: $spendingLimitInterval
     )
   }
 `;
@@ -749,6 +750,17 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
       collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdminUser });
     });
 
+    const giveBalanceToCollective = async () => {
+      await fakeTransaction({
+        type: 'CREDIT',
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        amount: 5000,
+      });
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+    };
+
     it('rejects when host disabled virtual card requests in settings', async () => {
       await host.update({
         settings: { ...host.settings, virtualcards: { ...host.settings?.virtualcards, requestcard: false } },
@@ -778,14 +790,7 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
     });
 
     it('creates a pending request when the feature is available', async () => {
-      await fakeTransaction({
-        type: 'CREDIT',
-        CollectiveId: collective.id,
-        HostCollectiveId: host.id,
-        amount: 5000,
-      });
-      await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
-      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+      await giveBalanceToCollective();
 
       const result = await graphqlQueryV2(
         REQUEST_VIRTUAL_CARD_MUTATION,
@@ -801,6 +806,83 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
 
       const activity = await models.Activity.findOne({ where: { type: ActivityTypes.VIRTUAL_CARD_REQUESTED } });
       expect(activity).to.exist;
+    });
+
+    it('allows any limit interval by default', async () => {
+      await giveBalanceToCollective();
+
+      const result = await graphqlQueryV2(
+        REQUEST_VIRTUAL_CARD_MUTATION,
+        { account: { legacyId: collective.id }, spendingLimitInterval: VirtualCardLimitIntervals.YEARLY },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      const pending = await models.VirtualCardRequest.findOne({ where: { CollectiveId: collective.id } });
+      expect(pending.spendingLimitInterval).to.equal(VirtualCardLimitIntervals.YEARLY);
+    });
+
+    it('rejects limit intervals that the host does not allow', async () => {
+      await giveBalanceToCollective();
+      await host.update({
+        settings: {
+          ...host.settings,
+          virtualcards: {
+            ...host.settings?.virtualcards,
+            allowedSpendingLimitIntervals: {
+              [VirtualCardLimitIntervals.ALL_TIME]: true,
+              [VirtualCardLimitIntervals.DAILY]: false,
+              [VirtualCardLimitIntervals.MONTHLY]: false,
+              [VirtualCardLimitIntervals.PER_AUTHORIZATION]: false,
+              [VirtualCardLimitIntervals.WEEKLY]: false,
+              [VirtualCardLimitIntervals.YEARLY]: false,
+            },
+          },
+        },
+      });
+
+      const result = await graphqlQueryV2(
+        REQUEST_VIRTUAL_CARD_MUTATION,
+        { account: { legacyId: collective.id }, spendingLimitInterval: VirtualCardLimitIntervals.MONTHLY },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'The MONTHLY limit interval is not available for virtual card requests from this host',
+      );
+      expect(await models.VirtualCardRequest.count()).to.equal(0);
+    });
+
+    it('allows limit intervals that the host kept enabled', async () => {
+      await giveBalanceToCollective();
+      await host.update({
+        settings: {
+          ...host.settings,
+          virtualcards: {
+            ...host.settings?.virtualcards,
+            allowedSpendingLimitIntervals: {
+              [VirtualCardLimitIntervals.ALL_TIME]: true,
+              [VirtualCardLimitIntervals.DAILY]: false,
+              [VirtualCardLimitIntervals.MONTHLY]: false,
+              [VirtualCardLimitIntervals.PER_AUTHORIZATION]: false,
+              [VirtualCardLimitIntervals.WEEKLY]: false,
+              [VirtualCardLimitIntervals.YEARLY]: false,
+            },
+          },
+        },
+      });
+
+      const result = await graphqlQueryV2(
+        REQUEST_VIRTUAL_CARD_MUTATION,
+        { account: { legacyId: collective.id }, spendingLimitInterval: VirtualCardLimitIntervals.ALL_TIME },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.requestVirtualCard).to.equal(true);
+      const pending = await models.VirtualCardRequest.findOne({ where: { CollectiveId: collective.id } });
+      expect(pending.spendingLimitInterval).to.equal(VirtualCardLimitIntervals.ALL_TIME);
     });
   });
 
