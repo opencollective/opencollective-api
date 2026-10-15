@@ -1,12 +1,14 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { times } from 'lodash';
+import { v4 as uuid } from 'uuid';
 
 import { activities as ACTIVITY } from '../../../../../server/constants';
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import PlatformConstants from '../../../../../server/constants/platform';
 import roles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import { moveExpenses } from '../../../../../server/graphql/common/expenses';
 import cache, { fetchCollectiveId } from '../../../../../server/lib/cache';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
@@ -18,12 +20,14 @@ import {
   fakeExpense,
   fakeHost,
   fakeMember,
+  fakePaymentIntent,
   fakePlatformSubscription,
+  fakeProject,
   fakeRecurringExpense,
   fakeTransaction,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
-import { generateValid2FAHeader, graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { generateValid2FAHeader, graphqlQueryV2, makeRequest, resetTestDB } from '../../../../utils';
 
 const MOVE_EXPENSES_MUTATION = gql`
   mutation MoveExpenses($destinationAccount: AccountReferenceInput!, $expenses: [ExpenseReferenceInput!]!) {
@@ -197,17 +201,131 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       expect(activity.data.collective.id).to.equal(testCollective.id);
     });
 
-    it('does not work yet with expenses that have transactions attached', async () => {
-      const collective = await fakeCollective();
-      const expense = await fakeExpense();
-      await fakeTransaction({ ExpenseId: expense.id });
-      const result = await callMoveExpenseMutation(
-        { destinationAccount: { legacyId: collective.id }, expenses: [{ legacyId: expense.id }] },
-        rootUser,
-      );
+    describe('with paid expenses', () => {
+      const fakePaidExpense = async (collective, host) => {
+        const payee = (await fakeUser()).collective;
+        const expense = await fakeExpense({
+          CollectiveId: collective.id,
+          FromCollectiveId: payee.id,
+          HostCollectiveId: host.id,
+          status: 'PAID',
+          amount: 1000,
+        });
+        const TransactionGroup = uuid();
+        const debit = await fakeTransaction({
+          ExpenseId: expense.id,
+          TransactionGroup,
+          type: 'DEBIT',
+          amount: -1000,
+          CollectiveId: collective.id,
+          FromCollectiveId: payee.id,
+          HostCollectiveId: host.id,
+        });
+        const credit = await fakeTransaction({
+          ExpenseId: expense.id,
+          TransactionGroup,
+          type: 'CREDIT',
+          amount: 1000,
+          CollectiveId: payee.id,
+          FromCollectiveId: collective.id,
+          HostCollectiveId: null,
+        });
+        const paymentIntent = await fakePaymentIntent({
+          ExpenseId: expense.id,
+          PayerCollectiveId: collective.id,
+          PayeeCollectiveId: payee.id,
+          HostCollectiveId: host.id,
+        });
+        return { expense, debit, credit, paymentIntent };
+      };
 
-      expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('Cannot move expenses with associated transactions');
+      it('moves the expense with its transactions to a project of the same collective', async () => {
+        const host = await fakeActiveHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const project = await fakeProject({ ParentCollectiveId: collective.id });
+        const { expense, debit, credit, paymentIntent } = await fakePaidExpense(collective, host);
+
+        const result = await callMoveExpenseMutation(
+          { destinationAccount: { legacyId: project.id }, expenses: [{ legacyId: expense.id }] },
+          rootUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await Promise.all([expense, debit, credit, paymentIntent].map(model => model.reload()));
+        expect(expense.CollectiveId).to.equal(project.id);
+        expect(debit.CollectiveId).to.equal(project.id);
+        expect(credit.FromCollectiveId).to.equal(project.id);
+        expect(credit.CollectiveId).to.equal(expense.FromCollectiveId);
+        expect(paymentIntent.PayerCollectiveId).to.equal(project.id);
+      });
+
+      it('moves the expense back from a project to its parent collective', async () => {
+        const host = await fakeActiveHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const project = await fakeProject({ ParentCollectiveId: collective.id });
+        const { expense, debit } = await fakePaidExpense(project, host);
+
+        const result = await callMoveExpenseMutation(
+          { destinationAccount: { legacyId: collective.id }, expenses: [{ legacyId: expense.id }] },
+          rootUser,
+        );
+
+        expect(result.errors).to.not.exist;
+        await debit.reload();
+        expect(debit.CollectiveId).to.equal(collective.id);
+      });
+
+      it('refuses to move them outside of the collective', async () => {
+        const host = await fakeActiveHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const { expense, debit } = await fakePaidExpense(collective, host);
+
+        const result = await callMoveExpenseMutation(
+          { destinationAccount: { legacyId: otherCollective.id }, expenses: [{ legacyId: expense.id }] },
+          rootUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('Paid expenses can only be moved within the same Collective');
+        await Promise.all([expense.reload(), debit.reload()]);
+        expect(expense.CollectiveId).to.equal(collective.id);
+        expect(debit.CollectiveId).to.equal(collective.id);
+      });
+
+      it('refuses to move them when the transactions were recorded under another host', async () => {
+        const host = await fakeActiveHost();
+        const previousHost = await fakeActiveHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const project = await fakeProject({ ParentCollectiveId: collective.id });
+        const { expense } = await fakePaidExpense(collective, previousHost);
+
+        const result = await callMoveExpenseMutation(
+          { destinationAccount: { legacyId: project.id }, expenses: [{ legacyId: expense.id }] },
+          rootUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal(
+          'Paid expenses can only be moved to an account with the same fiscal host and currency as their transactions',
+        );
+      });
+
+      it('still refuses them in the non-root moveExpense mutation', async () => {
+        const host = await fakeActiveHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const project = await fakeProject({ ParentCollectiveId: collective.id });
+        const { expense } = await fakePaidExpense(collective, host);
+
+        await expect(
+          moveExpenses(
+            makeRequest(rootUser),
+            [await models.Expense.findByPk(expense.id, { include: [{ association: 'collective' }] })],
+            project,
+          ),
+        ).to.be.rejectedWith('Cannot move expenses with associated transactions');
+      });
     });
 
     it('moves all associated comments and activities', async () => {
