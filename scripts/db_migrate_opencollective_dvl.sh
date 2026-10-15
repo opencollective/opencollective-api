@@ -1,7 +1,10 @@
 #!/bin/bash
 # Refreshes test/dbdumps/opencollective_dvl.pgsql: restores it (unless RESTORE=false), runs the
-# migrations, sanitizes the data and dumps it back. Commit the new dump so that restores don't
-# have to replay every migration since the last refresh.
+# migrations and dumps it back. Commit the new dump so that restores don't have to replay every
+# migration since the last refresh.
+#
+# The dump is public and only holds test data: it is not sanitized, because the e2e tests rely on
+# its test credentials (e.g. the hosts' Stripe test accounts).
 #
 # DBNAME (default: opencollective_dvl) is the database used for that, and is dropped unless
 # RESTORE=false. Use RESTORE=false to dump data you added to it on purpose.
@@ -20,7 +23,6 @@ fi
 
 echo "Migrating $DBNAME"
 PG_DATABASE=$DBNAME npm run db:migrate
-PG_DATABASE=$DBNAME npm run db:sanitize
 
 pg_tool pg_dump -O -F t -h "$PG_HOST" -U opencollective "$DBNAME" >"$DUMPFILE"
 
