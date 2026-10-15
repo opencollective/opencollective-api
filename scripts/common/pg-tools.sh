@@ -33,7 +33,7 @@ fi
 
 if [ -n "$PG_TOOLS_CONTAINER" ]; then
   PG_TOOLS_IMAGE="postgres:${PG_SERVER_MAJOR:-16}"
-  echo "Running Postgres client tools from $PG_TOOLS_IMAGE"
+  echo "Running Postgres client tools from $PG_TOOLS_IMAGE" >&2
 fi
 
 pg_tool() {
