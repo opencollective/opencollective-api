@@ -6,7 +6,7 @@
  * so they copy these literals: when changing one, write a migration that rebuilds the matching index, and verify
  * the plan with `EXPLAIN`.
  *
- * Normalization primitives (see `migrations/20261014120000-add-postgres-search-normalization.ts`):
+ * Normalization primitives (see `migrations/20261014153412-add-postgres-search-normalization.ts`):
  * - `public.oc_search_unaccent(text)`: immutable accent folding
  * - `public.oc_search_normalize(text)`: accent folding + lowercase + collapsed whitespace, for exact labels
  * - `public.oc_search_html_to_text(text)`: bounded HTML-to-text for HTML bodies
