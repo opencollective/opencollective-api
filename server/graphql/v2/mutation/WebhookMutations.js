@@ -3,7 +3,7 @@ import { GraphQLNonNull } from 'graphql';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { checkRemoteUserCanUseWebhooks } from '../../common/scope-check';
-import { Forbidden, NotFound } from '../../errors';
+import { Forbidden, NotFound, ValidationFailed } from '../../errors';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { GraphQLWebhookCreateInput } from '../input/WebhookCreateInput';
 import { fetchWebhookWithReference, GraphQLWebhookReferenceInput } from '../input/WebhookReferenceInput';
@@ -69,13 +69,16 @@ const updateWebhook = {
     // Check 2FA
     await twoFactorAuthLib.enforceForAccount(req, account);
 
-    const updateParams = {};
-
-    if (args.webhook.activityType) {
-      updateParams.type = args.webhook.activityType;
+    // Fields that are not provided are left unchanged, but a webhook can't lose its activity type or URL
+    if (args.webhook.activityType === null || args.webhook.webhookUrl === null) {
+      throw new ValidationFailed('activityType and webhookUrl cannot be null');
     }
 
-    if (args.webhook.webhookUrl) {
+    const updateParams = {};
+    if (args.webhook.activityType !== undefined) {
+      updateParams.type = args.webhook.activityType;
+    }
+    if (args.webhook.webhookUrl !== undefined) {
       updateParams.webhookUrl = args.webhook.webhookUrl;
     }
 

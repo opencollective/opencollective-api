@@ -128,7 +128,7 @@ describe('server/lib/webhooks', () => {
         channel: channels.WEBHOOK,
         type: activities.COLLECTIVE_APPLY,
         CollectiveId: collective.host.id,
-        webhookUrl: 'http://rebind.example/hook',
+        webhookUrl: 'https://rebind.example/hook',
       });
 
       const activity = await fakeActivity(
