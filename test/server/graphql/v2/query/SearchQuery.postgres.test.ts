@@ -20,6 +20,7 @@ import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import * as OpenSearchClientLib from '../../../../../server/lib/open-search/client';
 import { formatIndexNameForOpenSearch } from '../../../../../server/lib/open-search/common';
 import { OpenSearchIndexName } from '../../../../../server/lib/open-search/constants';
+import { SearchEntity } from '../../../../../server/lib/search/types';
 import { Collective, sequelize, User } from '../../../../../server/models';
 import {
   fakeActiveHost,
@@ -196,13 +197,38 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
       expect(result.data.pg.results.accounts.collection.nodes.map(n => n.slug)).to.deep.eq([collective.slug]);
     });
 
-    it('returns a clear error for an entity that is not supported yet, without failing the other entities', async () => {
+    it('supports every searchable entity, each one with its own result', async () => {
       const result = await graphqlQueryV2(
         gql`
-          query UnsupportedEntity($searchTerm: String!) {
+          query AllEntities($searchTerm: String!) {
             search(searchTerm: $searchTerm, backend: POSTGRES) {
               results {
                 accounts {
+                  collection {
+                    totalCount
+                  }
+                }
+                comments {
+                  collection {
+                    totalCount
+                  }
+                }
+                expenses {
+                  collection {
+                    totalCount
+                  }
+                }
+                hostApplications {
+                  collection {
+                    totalCount
+                  }
+                }
+                orders {
+                  collection {
+                    totalCount
+                  }
+                }
+                tiers {
                   collection {
                     totalCount
                   }
@@ -212,17 +238,21 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
                     totalCount
                   }
                 }
+                updates {
+                  collection {
+                    totalCount
+                  }
+                }
               }
             }
           }
         `,
         { searchTerm: 'zanzibar' },
+        await fakeUser(),
       );
 
-      expect(result.errors).to.have.length(1);
-      expect(result.errors[0].message).to.eq('Searching transactions is not supported by the PostgreSQL search yet');
-      expect(result.errors[0].extensions.code).to.eq('SearchEntityNotSupported');
-      expect(result.errors[0].path).to.deep.eq(['search', 'results', 'transactions']);
+      expect(result.errors, JSON.stringify(result.errors)).to.not.exist;
+      expect(Object.keys(result.data.search.results)).to.have.members(Object.values(SearchEntity));
       expect(result.data.search.results.accounts.collection.totalCount).to.eq(1);
     });
 

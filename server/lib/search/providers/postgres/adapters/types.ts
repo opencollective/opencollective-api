@@ -2,7 +2,7 @@ import type { Kysely, SelectQueryBuilder } from 'kysely';
 
 import type OAuthScopes from '../../../../../constants/oauth-scopes';
 import type { DatabaseWithViews } from '../../../../kysely';
-import type { SearchEntity, SearchEntityParams } from '../../../types';
+import type { SearchEntity, SearchEntityParams, SearchHit } from '../../../types';
 import type { ParsedSearchInput } from '../input';
 
 /**
@@ -47,4 +47,11 @@ export interface PostgresSearchAdapter<E extends SearchEntity = SearchEntity> {
    * access to any row): the result is then an empty page without querying the database.
    */
   buildArms(db: Kysely<DatabaseWithViews>, context: PostgresSearchContext<E>): SearchArm[];
+  /**
+   * Optional: how many matches a search of this entity can count per second (measured). When set, searches whose
+   * estimated matches exceed what fits in the remaining budget fail before running (see `estimates.ts`).
+   */
+  estimatedMatchesPerSecond?: number;
+  /** Optional: adds entity-specific details to the hits of the page (e.g. the UUID of Transactions) */
+  decorateHits?(db: Kysely<DatabaseWithViews>, hits: SearchHit[]): Promise<SearchHit[]>;
 }

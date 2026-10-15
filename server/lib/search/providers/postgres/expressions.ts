@@ -92,6 +92,13 @@ export const isOwnedByEligibleAccount = (accountIdColumn: string): RawBuilder<bo
   sql<boolean>`NOT EXISTS (SELECT 1 FROM "Collectives" excluded_account WHERE excluded_account.id = ${sql.ref(accountIdColumn)} AND (${sql.raw(ExcludedAccountExpressions.excluded)}))`;
 
 /**
+ * The given account is neither deleted nor private, as a one-time check. Use it instead of `isOwnedByEligibleAccount`
+ * when a scope fixes the account: an anti-join against a constant makes the planner estimate a single matching row.
+ */
+export const isEligibleAccountId = (accountId: number): RawBuilder<boolean> =>
+  sql<boolean>`NOT EXISTS (SELECT 1 FROM "Collectives" excluded_account WHERE excluded_account.id = ${accountId} AND (${sql.raw(ExcludedAccountExpressions.excluded)}))`;
+
+/**
  * Tiers. Same conventions as `AccountExpressions` (unqualified columns of "Tiers").
  */
 export const TierExpressions = {
@@ -160,4 +167,25 @@ export const CommentExpressions = {
   eligible: `"deletedAt" IS NULL`,
   /** HTML body as plain text (index `comments_pg_search_text`, not partial so that the planner has statistics) */
   vector: `to_tsvector('public.oc_search_english'::regconfig, public.oc_search_html_to_text(coalesce(html, '')))`,
+} as const;
+
+/**
+ * Transactions. Same conventions as `AccountExpressions` (unqualified columns of "Transactions").
+ */
+export const TransactionExpressions = {
+  /** Live transactions (Account rules: `isOwnedByEligibleAccount` on CollectiveId, FromCollectiveId and HostCollectiveId) */
+  eligible: `"deletedAt" IS NULL`,
+  /**
+   * Description words, indexed with `HostCollectiveId` and with `CollectiveId` (indexes
+   * `transactions_pg_search_host_description` / `transactions_pg_search_collective_description`, `btree_gin`, not
+   * partial so that the planner has statistics)
+   */
+  descriptionVector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(description, ''))`,
+  /** Exact description, only computed on rows that match the words (no index) */
+  normalizedDescription: `public.oc_search_normalize(description)`,
+  /**
+   * The model's virtual `merchantId` from the row's own JSON (`MERCHANT_ID_PATHS` in `server/models/Transaction.ts`:
+   * first non-empty path for the kind). Index `transactions_pg_search_merchant_id`.
+   */
+  merchantId: `public.oc_search_transaction_merchant_id(kind, data)`,
 } as const;

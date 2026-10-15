@@ -6,6 +6,7 @@ import { ExpensesAdapter } from './expenses';
 import { HostApplicationsAdapter } from './host-applications';
 import { OrdersAdapter } from './orders';
 import { TiersAdapter } from './tiers';
+import { TransactionsAdapter } from './transactions';
 import type { PostgresSearchAdapter } from './types';
 import { UpdatesAdapter } from './updates';
 
@@ -20,6 +21,7 @@ const PostgresSearchAdapters: Partial<Record<SearchEntity, PostgresSearchAdapter
   [SearchEntity.HOST_APPLICATIONS]: HostApplicationsAdapter,
   [SearchEntity.ORDERS]: OrdersAdapter,
   [SearchEntity.UPDATES]: UpdatesAdapter,
+  [SearchEntity.TRANSACTIONS]: TransactionsAdapter,
 };
 
 export const getPostgresSearchAdapter = (entity: SearchEntity): PostgresSearchAdapter | null =>
