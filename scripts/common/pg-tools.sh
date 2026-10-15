@@ -11,7 +11,8 @@ pg_major() {
   "$@" --version 2>/dev/null | sed -E 's/^[^0-9]*([0-9]+).*/\1/'
 }
 
-PG_SERVER_MAJOR=$(psql -h "$PG_HOST" -U postgres -d postgres -tAc "SELECT current_setting('server_version_num')::int / 10000" 2>/dev/null)
+# Empty when psql is missing or the server is unreachable (`|| true`: callers may use `set -e`)
+PG_SERVER_MAJOR=$(psql -h "$PG_HOST" -U postgres -d postgres -tAc "SELECT current_setting('server_version_num')::int / 10000" 2>/dev/null || true)
 PG_TOOLS_MAJOR=$(pg_major pg_restore)
 PG_TOOLS_CONTAINER=""
 
