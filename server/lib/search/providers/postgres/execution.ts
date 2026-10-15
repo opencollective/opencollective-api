@@ -74,6 +74,12 @@ const acquireSlot = async (deadline: number): Promise<() => void> => {
   };
 };
 
+/** Current use of the process-wide cap (for monitoring and benchmarks) */
+export const getPostgresSearchQueueStats = (): { running: number; waiting: number } => ({
+  running: runningQueries,
+  waiting: waitingQueue.length,
+});
+
 const isQueryCanceled = (error: unknown): boolean =>
   [get(error, 'code'), get(error, 'parent.code'), get(error, 'original.code')].some(
     code => code === QUERY_CANCELED_SQLSTATE,

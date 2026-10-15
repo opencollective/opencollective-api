@@ -20,17 +20,16 @@ import type { SearchArm } from './adapters/types';
 
 type RankedRow = { total: number; maxScore: number; id: number | null; score: number | null };
 
-export const executeRankedSearchQuery = async (
+/**
+ * The ranked statement for these arms (see above). Exposed separately so that benchmarks can `EXPLAIN` the exact SQL.
+ */
+export const buildRankedSearchQuery = (
   db: Kysely<DatabaseWithViews>,
   arms: SearchArm[],
   { limit, offset }: { limit: number; offset: number },
-): Promise<SearchEntityResult> => {
-  if (!arms.length) {
-    return { totalCount: 0, maxScore: 0, hits: [] };
-  }
-
+) => {
   const union = arms.slice(1).reduce((query, arm) => query.unionAll(arm), arms[0]);
-  const rows = (await db
+  return db
     .with('arms', () => union)
     .with(
       wb => wb('best').materialized(),
@@ -58,8 +57,19 @@ export const executeRankedSearchQuery = async (
           .as('page'),
       join => join.onTrue(),
     )
-    .select(['agg.total', 'agg.maxScore', 'page.id', 'page.score'])
-    .execute()) as RankedRow[];
+    .select(['agg.total', 'agg.maxScore', 'page.id', 'page.score']);
+};
+
+export const executeRankedSearchQuery = async (
+  db: Kysely<DatabaseWithViews>,
+  arms: SearchArm[],
+  page: { limit: number; offset: number },
+): Promise<SearchEntityResult> => {
+  if (!arms.length) {
+    return { totalCount: 0, maxScore: 0, hits: [] };
+  }
+
+  const rows = (await buildRankedSearchQuery(db, arms, page).execute()) as RankedRow[];
 
   return {
     totalCount: Number(rows[0]?.total ?? 0),

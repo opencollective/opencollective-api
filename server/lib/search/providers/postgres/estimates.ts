@@ -18,7 +18,8 @@ import type { DatabaseWithViews } from '../../../kysely';
 import type { SearchArm } from './adapters/types';
 import { SearchBudgetExceeded } from './execution';
 
-const estimateMatches = async (db: Kysely<DatabaseWithViews>, arms: SearchArm[]): Promise<number> => {
+/** Planner estimate of the matches of these arms (before deduplication), without running them */
+export const estimateMatches = async (db: Kysely<DatabaseWithViews>, arms: SearchArm[]): Promise<number> => {
   const union = arms.slice(1).reduce((query, arm) => query.unionAll(arm), arms[0]);
   const { rows } = await sql<{
     'QUERY PLAN': unknown;
