@@ -28,7 +28,7 @@ import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { buildKyselySearchConditions, buildSearchConditions, parseSearchTerm } from '../../../../lib/sql-search';
 import models, { Collective, ManualPaymentProvider, Op, PaymentMethod, Tier, User } from '../../../../models';
-import { checkScope, enforceScope } from '../../../common/scope-check';
+import { checkScope, enforceScope, isRemoteUserRoot } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../../errors';
 import { GraphQLOrderCollection } from '../../collection/OrderCollection';
 import { GraphQLAccountOrdersFilter, GraphQLAccountOrdersFilterValues } from '../../enum/AccountOrdersFilter';
@@ -364,7 +364,7 @@ interface OrdersCollectionArgsType {
 export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, req: express.Request) => {
   enforceScope(req, 'orders');
 
-  if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+  if (args.limit > 1000 && !isRemoteUserRoot(req)) {
     throw new Error('Cannot fetch more than 1,000 orders at the same time, please adjust the limit');
   }
 
@@ -443,10 +443,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
   let incognitoProfile: Collective | null = null;
   if (account && args.includeIncognito) {
     // Needs to be root or admin of the profile to see incognito orders
-    if (
-      (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'incognito')) ||
-      (req.remoteUser?.isRoot() && checkScope(req, 'root'))
-    ) {
+    if ((req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'incognito')) || isRemoteUserRoot(req)) {
       incognitoProfile = await account.getIncognitoProfile();
     } else {
       // Is this desirable? Some current tests don't like it.
@@ -519,7 +516,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
   const isHostAdminEmailSearch = isHostAdmin && parsedSearchTerm.type === 'email';
   const hasSearchTerm = !!parsedSearchTerm.term;
 
-  const shouldApplyPrivateRecipientVisibilityFilter = !req.remoteUser?.isRoot() && !host;
+  const shouldApplyPrivateRecipientVisibilityFilter = !isRemoteUserRoot(req) && !host;
   const kysely = getKysely();
   const query = kysely
     .with('filterByAccounts', db => {

@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
+import { channels } from '../../../constants';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { NotFound } from '../../errors';
@@ -28,14 +29,16 @@ export const GraphQLWebhookReferenceInput = new GraphQLInputObjectType({
  * @param {object} input - id of the webhook
  */
 export const fetchWebhookWithReference = async input => {
+  // Notifications also store email settings, only webhooks can be referenced here
+  const where = { channel: channels.WEBHOOK };
   let notification;
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Notification)) {
-    notification = await models.Notification.findOne({ where: { publicId: input.id } });
+    notification = await models.Notification.findOne({ where: { ...where, publicId: input.id } });
   } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.NOTIFICATION);
-    notification = await models.Notification.findByPk(id);
+    notification = await models.Notification.findOne({ where: { ...where, id } });
   } else if (input.legacyId) {
-    notification = await models.Notification.findByPk(input.legacyId);
+    notification = await models.Notification.findOne({ where: { ...where, id: input.legacyId } });
   } else {
     throw new Error('Please provide an id');
   }

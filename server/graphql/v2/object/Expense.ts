@@ -32,7 +32,7 @@ import LegalDocument, { LEGAL_DOCUMENT_TYPE, LegalDocumentAttributes } from '../
 import transferwise from '../../../paymentProviders/transferwise';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
-import { checkScope } from '../../common/scope-check';
+import { checkScope, isRemoteUserRoot } from '../../common/scope-check';
 import { Unauthorized } from '../../errors';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
@@ -862,7 +862,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
       platformBillingData: {
         type: GraphQLJSON,
         async resolve(expense, _, req) {
-          if (req.remoteUser.isRoot()) {
+          if (isRemoteUserRoot(req)) {
             return expense.data.bill;
           }
         },

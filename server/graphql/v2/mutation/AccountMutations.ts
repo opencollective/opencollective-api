@@ -32,7 +32,12 @@ import { HostApplicationStatus } from '../../../models/HostApplication';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { PAYPAL_SUSPEND_MAX_REASON_LENGTH } from '../../../paymentProviders/paypal/subscription';
 import { sendMessage } from '../../common/collective';
-import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost, requireSessionToken } from '../../common/scope-check';
+import {
+  checkRemoteUserCanRoot,
+  checkRemoteUserCanUseAccount,
+  checkRemoteUserCanUseHost,
+  requireSessionToken,
+} from '../../common/scope-check';
 import { BadRequest, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { archiveCollective, unarchiveCollective } from '../../v1/mutations/collectives';
 import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
@@ -650,8 +655,8 @@ const accountMutations = {
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
-      if (!req.remoteUser.isAdminOfCollective(account) && !req.remoteUser.isRoot()) {
-        throw new Forbidden();
+      if (!req.remoteUser.isAdminOfCollective(account)) {
+        checkRemoteUserCanRoot(req, { rootOnlyMessage: 'You are authenticated but forbidden to perform this action' });
       }
 
       await TwoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
@@ -1027,8 +1032,8 @@ const accountMutations = {
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
-      if (!req.remoteUser.isAdminOfCollective(account) && !req.remoteUser.isRoot()) {
-        throw new Forbidden();
+      if (!req.remoteUser.isAdminOfCollective(account)) {
+        checkRemoteUserCanRoot(req, { rootOnlyMessage: 'You are authenticated but forbidden to perform this action' });
       }
 
       // Disallow if archived

@@ -280,4 +280,90 @@ describe('server/graphql/loaders/index', () => {
       nock.cleanAll();
     });
   });
+
+  describe('Collective.amountSpentTimeSeries', () => {
+    let collective;
+    let otherCollective;
+
+    beforeEach(async () => {
+      collective = await fakeCollective({ currency: 'USD' });
+      otherCollective = await fakeCollective({ currency: 'USD' });
+
+      await fakeTransaction(
+        {
+          type: TransactionTypes.DEBIT,
+          kind: TransactionKind.EXPENSE,
+          CollectiveId: collective.id,
+          amount: -50e2,
+          createdAt: new Date('2025-06-15'),
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: TransactionTypes.DEBIT,
+          kind: TransactionKind.EXPENSE,
+          CollectiveId: collective.id,
+          amount: -30e2,
+          createdAt: new Date('2025-07-10'),
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: TransactionTypes.DEBIT,
+          kind: TransactionKind.EXPENSE,
+          CollectiveId: otherCollective.id,
+          amount: -20e2,
+          createdAt: new Date('2025-06-20'),
+        },
+        { createDoubleEntry: true },
+      );
+    });
+
+    it('returns the period buckets for a collective', async () => {
+      const req = makeRequest();
+      const result = await req.loaders.Collective.amountSpentTimeSeries
+        .buildLoader({ timeUnit: 'MONTH', startDate: new Date('2025-06-01'), endDate: new Date('2025-08-01') })
+        .load(collective.id);
+
+      expect(result.CollectiveId).to.equal(collective.id);
+      expect(result.currency).to.equal('USD');
+      expect(result.value).to.equal(-80e2);
+
+      const buckets = Object.values(result.groupBy.date as Record<string, { amount: number; date: Date }>)
+        .map(bucket => ({ date: bucket.date.toISOString(), amount: bucket.amount }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      expect(buckets).to.deep.equal([
+        { date: '2025-06-01T00:00:00.000Z', amount: -50e2 },
+        { date: '2025-07-01T00:00:00.000Z', amount: -30e2 },
+      ]);
+    });
+
+    it('returns the same loader instance for the same arguments and a new one otherwise', async () => {
+      const req = makeRequest();
+      const first = req.loaders.Collective.amountSpentTimeSeries.buildLoader({ timeUnit: 'MONTH' });
+      const sameArgs = req.loaders.Collective.amountSpentTimeSeries.buildLoader({ timeUnit: 'MONTH' });
+      const otherArgs = req.loaders.Collective.amountSpentTimeSeries.buildLoader({ timeUnit: 'YEAR' });
+
+      expect(sameArgs).to.equal(first);
+      expect(otherArgs).to.not.equal(first);
+    });
+
+    it('batches loads and sorts results by collective id', async () => {
+      const req = makeRequest();
+      const loader = req.loaders.Collective.amountSpentTimeSeries.buildLoader({
+        timeUnit: 'MONTH',
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-08-01'),
+      });
+
+      const [first, second] = await Promise.all([loader.load(collective.id), loader.load(otherCollective.id)]);
+
+      expect(first.CollectiveId).to.equal(collective.id);
+      expect(first.value).to.equal(-80e2);
+      expect(second.CollectiveId).to.equal(otherCollective.id);
+      expect(second.value).to.equal(-20e2);
+    });
+  });
 });

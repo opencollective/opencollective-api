@@ -143,6 +143,13 @@ jobs:
           rsync -a --exclude cache/ opencollective-frontend/.next/ /tmp/frontend-next/
           test -f /tmp/frontend-next/BUILD_ID
           test -f /tmp/frontend-next/routes-manifest.json
+          # The frontend build also writes outside .next/: its next.config.js copies the pdf.js worker and cMaps
+          # into public/static/ (gitignored). The e2e jobs start from a fresh checkout and get only what this
+          # artifact carries, so these generated files must travel with .next/ (restored below), or the e2e
+          # frontend answers 404 for the worker and PDF previews never render. Same as the frontend's ci.yml.
+          mkdir -p /tmp/frontend-next/_generated-public/static/scripts
+          cp opencollective-frontend/public/static/scripts/pdf.worker.min.mjs /tmp/frontend-next/_generated-public/static/scripts/
+          rsync -a opencollective-frontend/public/static/cmaps /tmp/frontend-next/_generated-public/static/
 
       - name: Upload Next.js build
         uses: actions/upload-artifact@v7
@@ -336,9 +343,12 @@ jobs:
             next_root="${next_root}/frontend-next"
           fi
           mkdir -p opencollective-frontend/.next
-          rsync -a "${next_root}/" opencollective-frontend/.next/
+          rsync -a --exclude _generated-public/ "${next_root}/" opencollective-frontend/.next/
           test -f opencollective-frontend/.next/BUILD_ID
           test -f opencollective-frontend/.next/routes-manifest.json
+          # Put back the files the frontend build generated in public/ (see "Stage Next.js build")
+          rsync -a "${next_root}/_generated-public/" opencollective-frontend/public/
+          test -f opencollective-frontend/public/static/scripts/pdf.worker.min.mjs
 
           stack_root=/tmp/e2e-service-dists
           if [ ! -d "${stack_root}/opencollective-api/dist" ] && [ -d "${stack_root}/e2e-service-dists/opencollective-api/dist" ]; then

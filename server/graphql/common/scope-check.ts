@@ -138,12 +138,15 @@ export const checkRemoteUserCanUseComment = (comment: Comment, req: Express.Requ
   }
 };
 
-export const checkRemoteUserCanRoot = (req: Express.Request): void => {
+export const checkRemoteUserCanRoot = (
+  req: Express.Request,
+  { rootOnlyMessage = 'You need to be logged in as root.' } = {},
+): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in.');
   }
   if (!req.remoteUser.isRoot()) {
-    throw new Forbidden('You need to be logged in as root.');
+    throw new Forbidden(rootOnlyMessage);
   }
   enforceScope(req, 'root');
 };
@@ -187,6 +190,15 @@ export const checkScope = (req: Express.Request, scope: OAuthScope): boolean => 
 
   // No userToken or personalToken, no checkScope
   return true;
+};
+
+/**
+ * Returns true if the remote user is root AND the current authentication method grants the `root` scope.
+ * Use this instead of `req.remoteUser?.isRoot()` to make sure root privileges are not used through
+ * OAuth/Personal tokens that were not granted the `root` scope.
+ */
+export const isRemoteUserRoot = (req: Express.Request): boolean => {
+  return Boolean(req.remoteUser?.isRoot() && checkScope(req, 'root'));
 };
 
 /**

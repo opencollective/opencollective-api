@@ -114,7 +114,7 @@ import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchan
 
 import { checkIsValidBalanceAccountingCategory } from './balance-accounting-categories';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from './context-permissions';
-import { checkScope } from './scope-check';
+import { checkRemoteUserCanRoot, checkScope } from './scope-check';
 import { hasProtectedUrlPermission } from './uploaded-file';
 
 /**
@@ -1451,7 +1451,7 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
     // Allow host admins to mark manually created virtual card charges as unpaid
     if (isManuallyCreatedCharge(expense)) {
       // Continue with normal flow - host admins will be checked below
-    } else if (!req.remoteUser?.isRoot()) {
+    } else if (!(req.remoteUser?.isRoot() && checkScope(req, 'root'))) {
       if (options?.throw) {
         throw new Forbidden(
           'Can not mark this type of expense as unpaid',
@@ -2474,16 +2474,16 @@ export const checkCanReceiveExpense = (account: Collective): void => {
  * and root users may create expenses (including drafts).
  * Shared by `createExpense` and `draftExpenseAndInviteUser` to keep the guards in sync.
  */
-export const checkCanCreateExpenseForCollective = (collective: Collective, remoteUser: User): void => {
+export const checkCanCreateExpenseForCollective = (collective: Collective, req: express.Request): void => {
+  const { remoteUser } = req;
   // If the collective has public expense submission disabled, only members can create expenses
   const isMember = Boolean(remoteUser.rolesByCollectiveId[String(collective.id)]);
   if (
     collective.settings?.['disablePublicExpenseSubmission'] &&
     !isMember &&
-    !remoteUser.isAdminOfCollectiveOrHost(collective) &&
-    !remoteUser.isRoot()
+    !remoteUser.isAdminOfCollectiveOrHost(collective)
   ) {
-    throw new Forbidden('You must be a member of the collective to create new expense');
+    checkRemoteUserCanRoot(req, { rootOnlyMessage: 'You must be a member of the collective to create new expense' });
   }
 };
 
@@ -2517,7 +2517,7 @@ export async function createExpense(
     throw new ValidationFailed('Payee not found');
   }
 
-  checkCanCreateExpenseForCollective(collective, remoteUser);
+  checkCanCreateExpenseForCollective(collective, req);
 
   // Validate description length
   if (expenseData.description && expenseData.description.length > 255) {
