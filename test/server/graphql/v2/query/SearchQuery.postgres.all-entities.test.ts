@@ -7,6 +7,7 @@
  */
 
 import { expect } from 'chai';
+import config from 'config';
 import sinon from 'sinon';
 
 import OAuthScopes from '../../../../../server/constants/oauth-scopes';
@@ -335,6 +336,22 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL, all entities)', () =>
       transactions: 2,
       updates: 2,
     });
+  });
+
+  it('gives each entity query its own timeout, even when it has to wait for the others', async () => {
+    // One entity query at a time: entities scheduled after the slow one start when its own timeout is over
+    sandbox.stub(config.search.postgres, 'concurrencyPerRequest').value(1);
+    const lockTransaction = await sequelize.transaction();
+    try {
+      await sequelize.query(`LOCK TABLE "Tiers" IN ACCESS EXCLUSIVE MODE`, { transaction: lockTransaction });
+      const result = await searchAll(rootUser, { timeout: 700 });
+      expect(result.errors.map(error => error.path)).to.deep.eq([['search', 'results', 'tiers']]);
+      for (const entity of ENTITIES.filter(entity => entity !== SearchEntity.TIERS)) {
+        expect(result.data.search.results[entity].collection.totalCount, entity).to.be.greaterThan(0);
+      }
+    } finally {
+      await lockTransaction.rollback();
+    }
   });
 
   it('reports a visible error on the entity that could not complete, without affecting the others', async () => {

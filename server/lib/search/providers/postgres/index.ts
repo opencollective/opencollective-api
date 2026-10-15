@@ -106,13 +106,14 @@ export const PostgresProvider: SearchProviderImplementation = {
     assertValidSearchTimeout(request.timeoutInMs);
   },
   async search(request, entityRequests) {
-    // `timeoutInMs` is the budget of the whole search: no entity query starts (or keeps running) after it
-    const deadline = Date.now() + request.timeoutInMs;
     const input = parseSearchInput(request.term);
     const concurrency = Number(config.search.postgres.concurrencyPerRequest);
     return pMap(
       entityRequests,
       async entityRequest => {
+        // `timeoutInMs` is the budget of each entity query (as documented on `Query.search`), from the moment it is
+        // scheduled: waiting for a search slot or a pooled connection counts, waiting for the other entities doesn't
+        const deadline = Date.now() + request.timeoutInMs;
         try {
           return await searchEntity(request, input, entityRequest, deadline);
         } catch (error) {
