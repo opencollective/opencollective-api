@@ -8,6 +8,7 @@ import pMap from 'p-map';
 
 import { UnexpectedError } from '../../../../graphql/errors';
 import { reportErrorToSentry } from '../../../sentry';
+import { parseToBoolean } from '../../../utils';
 import { SearchEntityRequest, SearchEntityResult, SearchProviderImplementation, SearchRequest } from '../../types';
 
 import type { PostgresSearchAccess } from './adapters/types';
@@ -97,7 +98,7 @@ export const PostgresProvider: SearchProviderImplementation = {
   assertAvailable() {
     // Uses the main database. Can be turned off without a deploy (`SEARCH_POSTGRES_ENABLED=false`): every request then
     // has to use the default backend (OpenSearch).
-    if (String(config.search.postgres.enabled) === 'false') {
+    if (!parseToBoolean(config.search.postgres.enabled)) {
       throw new Error('The PostgreSQL search is turned off, please use the default search backend');
     }
   },

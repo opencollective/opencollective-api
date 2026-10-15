@@ -25,10 +25,20 @@ type SearchBudget = {
   deadline: number;
 };
 
+/** Environment variables arrive as strings (`SEARCH_POSTGRES_*`, see `docs/environment_variables.md`) */
+const parseTypoSimilarityThreshold = (value: unknown): number => {
+  const threshold = Number(value);
+  if (value === '' || !Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
+    throw new Error(`Invalid search.postgres.typoSimilarityThreshold: ${String(value)} (expected a number in [0, 1])`);
+  }
+
+  return threshold;
+};
+
 const getPostgresSearchConfig = () => ({
   workMem: String(config.search.postgres.workMem),
   maxConcurrentQueries: Number(config.search.postgres.maxConcurrentQueries),
-  typoSimilarityThreshold: String(config.search.postgres.typoSimilarityThreshold),
+  typoSimilarityThreshold: parseTypoSimilarityThreshold(config.search.postgres.typoSimilarityThreshold),
 });
 
 /**
@@ -149,7 +159,7 @@ export const runWithSearchBudget = async <T>(
         SELECT
           set_config('statement_timeout', ${String(remainingMs)}, true),
           set_config('work_mem', ${workMem}, true),
-          set_config('pg_trgm.word_similarity_threshold', ${typoSimilarityThreshold}, true),
+          set_config('pg_trgm.word_similarity_threshold', ${String(typoSimilarityThreshold)}, true),
           set_config('jit', 'off', true),
           set_config('max_parallel_workers_per_gather', '0', true),
           set_config('effective_io_concurrency', greatest(current_setting('effective_io_concurrency')::int, 64)::text, true)
