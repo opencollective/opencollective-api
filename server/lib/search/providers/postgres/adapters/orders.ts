@@ -31,6 +31,7 @@ import { isOwnedByEligibleAccount, normalizedValue, OrderExpressions as Exp, wor
 import { isPublicIdOfEntity, parseGraphQLIdentifier } from '../input';
 import { QualityBand, scoreExpression } from '../scores';
 
+import { resolveRestrictedAccess } from './access';
 import type { PostgresSearchAdapter, PostgresSearchContext, SearchArm } from './types';
 
 type OrdersContext = PostgresSearchContext<SearchEntity.ORDERS>;
@@ -70,17 +71,11 @@ const getScopeVariants = ({ scope }: OrdersContext): RawBuilder<unknown>[][] => 
  * Restricted fields (PayPal subscription ID) are only searchable by root and by administrators of the
  * contribution's host. Returns `null` when the user can't search them.
  */
-const getRestrictedFieldsPermission = ({ access }: OrdersContext): RawBuilder<unknown> | null => {
-  if (access.forbidPrivate) {
-    return null;
-  } else if (access.isRoot) {
-    return sql`TRUE`;
-  } else if (!access.adminIds.length) {
-    return null;
-  } else {
-    return receivedByHostedAccount(sql`ANY(${access.adminIds}::int[])`);
-  }
-};
+const getRestrictedFieldsPermission = ({ access }: OrdersContext): RawBuilder<unknown> | null =>
+  resolveRestrictedAccess<RawBuilder<unknown>>(access, {
+    forRoot: sql`TRUE`,
+    forAdmins: ids => receivedByHostedAccount(sql`ANY(${ids})`),
+  });
 
 export const OrdersAdapter: PostgresSearchAdapter<SearchEntity.ORDERS> = {
   entity: SearchEntity.ORDERS,

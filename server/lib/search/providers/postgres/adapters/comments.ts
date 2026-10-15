@@ -38,6 +38,7 @@ import { CommentExpressions as Exp, isOwnedByEligibleAccount, wordsTsQuery } fro
 import { isPublicIdOfEntity, parseGraphQLIdentifier } from '../input';
 import { QualityBand, scoreExpression } from '../scores';
 
+import { resolveRestrictedAccess } from './access';
 import type { PostgresSearchAdapter, PostgresSearchContext, SearchArm } from './types';
 
 type CommentsContext = PostgresSearchContext<SearchEntity.COMMENTS>;
@@ -289,18 +290,22 @@ export const CommentsAdapter: PostgresSearchAdapter<SearchEntity.COMMENTS> = {
     // One driver per permission branch (each arm still applies the whole permission): root searches everything;
     // administrators search the Comments of their Accounts (Account index) and, when they may host Comments, the
     // Comments they host (text index).
-    let drivers: RawBuilder<unknown>[];
-    if (access.forbidPrivate) {
+    const permitted = resolveRestrictedAccess<{ drivers: RawBuilder<unknown>[]; permissions: RawBuilder<unknown>[] }>(
+      access,
+      {
+        forRoot: { drivers: [sql`TRUE`], permissions: [] },
+        forAdmins: ids => ({
+          drivers: [isInAccountDomainOf(ids), and([mayHostComments(ids), isHostedBy(ids)])],
+          permissions: [getRowPermission(ids), getParentVisibility(ids)],
+        }),
+      },
+    );
+    if (!permitted) {
       return [];
-    } else if (access.isRoot) {
-      drivers = [sql`TRUE`];
-    } else if (!access.adminIds.length) {
-      return [];
-    } else {
-      const ids = sql`${access.adminIds}::int[]`;
-      conditions.push(getRowPermission(ids), getParentVisibility(ids));
-      drivers = [isInAccountDomainOf(ids), and([mayHostComments(ids), isHostedBy(ids)])];
     }
+
+    const { drivers } = permitted;
+    conditions.push(...permitted.permissions);
 
     const arms: SearchArm[] = [];
     const addArms = (band: QualityBand, match: RawBuilder<unknown>) => {

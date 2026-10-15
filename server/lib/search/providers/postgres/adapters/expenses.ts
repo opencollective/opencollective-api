@@ -38,6 +38,7 @@ import {
 import { isPublicIdOfEntity, parseGraphQLIdentifier } from '../input';
 import { QualityBand, scoreExpression } from '../scores';
 
+import { resolveRestrictedAccess } from './access';
 import type { PostgresSearchAdapter, PostgresSearchContext, SearchArm } from './types';
 
 type ExpensesContext = PostgresSearchContext<SearchEntity.EXPENSES>;
@@ -76,18 +77,12 @@ const getBaseConditions = ({ scope }: ExpensesContext): RawBuilder<unknown>[] =>
  * Restricted fields (private message, invoice information, reference) are only searchable by root and by the
  * administrators of the Expense's account, its parent, its payee or its host. Returns null when not permitted.
  */
-const getRestrictedFieldsPermission = ({ access }: ExpensesContext): RawBuilder<unknown> | null => {
-  if (access.forbidPrivate) {
-    return null;
-  } else if (access.isRoot) {
-    return sql`TRUE`;
-  } else if (!access.adminIds.length) {
-    return null;
-  } else {
-    const ids = sql`${access.adminIds}::int[]`;
-    return sql`("CollectiveId" = ANY(${ids}) OR "FromCollectiveId" = ANY(${ids}) OR ${isForChildOf(ids)} OR ${isHostedBy(ids)})`;
-  }
-};
+const getRestrictedFieldsPermission = ({ access }: ExpensesContext): RawBuilder<unknown> | null =>
+  resolveRestrictedAccess<RawBuilder<unknown>>(access, {
+    forRoot: sql`TRUE`,
+    forAdmins: ids =>
+      sql`("CollectiveId" = ANY(${ids}) OR "FromCollectiveId" = ANY(${ids}) OR ${isForChildOf(ids)} OR ${isHostedBy(ids)})`,
+  });
 
 /** Cheap in-band signal from a short, public description: does it start with the input? */
 const startsWithInput = ({ input }: ExpensesContext): RawBuilder<boolean> =>

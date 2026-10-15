@@ -23,6 +23,8 @@ import type { DatabaseWithViews } from '../../../../kysely';
 import { EntityShortIdPrefix } from '../../../../permalink/entity-map';
 import { SearchEntity } from '../../../types';
 import {
+  isInAccountScope,
+  isInHostScope,
   isOwnedByAccountShownInSearch,
   isOwnedByEligibleAccount,
   normalizedValue,
@@ -47,17 +49,10 @@ const getBaseConditions = ({ scope }: UpdatesContext): RawBuilder<unknown>[] => 
     isOwnedByAccountShownInSearch('Updates.CollectiveId'),
   ];
   if (scope.accountId) {
-    conditions.push(
-      sql`"CollectiveId" IN (SELECT c.id FROM "Collectives" c WHERE c.id = ${scope.accountId} OR c."ParentCollectiveId" = ${scope.accountId})`,
-    );
+    conditions.push(isInAccountScope('CollectiveId', scope.accountId));
   }
   if (scope.hostId) {
-    // `+ 0` keeps the planner from driving the search from the hosted Accounts (thousands for large hosts) and
-    // re-computing the text vector of each of their Updates (~0.4 ms per Update): the text index always drives, and the
-    // hosted Accounts (index-only with `collectives_pg_search_hosted`) are hashed once. Measured: >10 s -> 0.4 s.
-    conditions.push(
-      sql`"CollectiveId" + 0 IN (SELECT c.id FROM "Collectives" c WHERE c."HostCollectiveId" = ${scope.hostId} AND c."isActive" = TRUE AND c."deletedAt" IS NULL)`,
-    );
+    conditions.push(isInHostScope('CollectiveId', scope.hostId));
   }
 
   return conditions;

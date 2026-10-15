@@ -20,10 +20,16 @@ import { IDENTIFIER_TYPES } from '../../../../../graphql/v2/identifiers';
 import type { DatabaseWithViews } from '../../../../kysely';
 import { EntityShortIdPrefix } from '../../../../permalink/entity-map';
 import { SearchEntity } from '../../../types';
-import { HostApplicationExpressions as Exp, isOwnedByEligibleAccount, wordsTsQuery } from '../expressions';
+import {
+  HostApplicationExpressions as Exp,
+  isInAccountScope,
+  isOwnedByEligibleAccount,
+  wordsTsQuery,
+} from '../expressions';
 import { isPublicIdOfEntity, parseGraphQLIdentifier } from '../input';
 import { QualityBand, scoreExpression } from '../scores';
 
+import { resolveRestrictedAccess } from './access';
 import type { PostgresSearchAdapter, PostgresSearchContext, SearchArm } from './types';
 
 type HostApplicationsContext = PostgresSearchContext<SearchEntity.HOST_APPLICATIONS>;
@@ -35,9 +41,7 @@ const getBaseConditions = ({ scope }: HostApplicationsContext): RawBuilder<unkno
     isOwnedByEligibleAccount('HostApplications.CollectiveId'),
   ];
   if (scope.accountId) {
-    conditions.push(
-      sql`"CollectiveId" IN (SELECT c.id FROM "Collectives" c WHERE c.id = ${scope.accountId} OR c."ParentCollectiveId" = ${scope.accountId})`,
-    );
+    conditions.push(isInAccountScope('CollectiveId', scope.accountId));
   }
   if (scope.hostId) {
     conditions.push(sql`"HostCollectiveId" = ${scope.hostId}`);
@@ -50,18 +54,11 @@ const getBaseConditions = ({ scope }: HostApplicationsContext): RawBuilder<unkno
  * Row permission. Returns one condition per permission branch: each one becomes its own arm, so that the planner can
  * drive it with a single-column index instead of filtering every text match with an OR. Empty = no access.
  */
-const getRowPermissions = ({ access }: HostApplicationsContext): RawBuilder<unknown>[] => {
-  if (access.forbidPrivate) {
-    return [];
-  } else if (access.isRoot) {
-    return [sql`TRUE`];
-  } else if (!access.adminIds.length) {
-    return [];
-  } else {
-    const ids = sql`${access.adminIds}::int[]`;
-    return [sql`"HostCollectiveId" = ANY(${ids})`, sql`"CollectiveId" = ANY(${ids})`];
-  }
-};
+const getRowPermissions = ({ access }: HostApplicationsContext): RawBuilder<unknown>[] =>
+  resolveRestrictedAccess(access, {
+    forRoot: [sql`TRUE`],
+    forAdmins: ids => [sql`"HostCollectiveId" = ANY(${ids})`, sql`"CollectiveId" = ANY(${ids})`],
+  }) ?? [];
 
 export const HostApplicationsAdapter: PostgresSearchAdapter<SearchEntity.HOST_APPLICATIONS> = {
   entity: SearchEntity.HOST_APPLICATIONS,

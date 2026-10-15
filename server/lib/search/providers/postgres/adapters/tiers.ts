@@ -20,7 +20,14 @@ import { IDENTIFIER_TYPES } from '../../../../../graphql/v2/identifiers';
 import type { DatabaseWithViews } from '../../../../kysely';
 import { EntityShortIdPrefix } from '../../../../permalink/entity-map';
 import { SearchEntity } from '../../../types';
-import { isOwnedByEligibleAccount, normalizedValue, TierExpressions as Exp, wordsTsQuery } from '../expressions';
+import {
+  isInAccountScope,
+  isInHostScope,
+  isOwnedByEligibleAccount,
+  normalizedValue,
+  TierExpressions as Exp,
+  wordsTsQuery,
+} from '../expressions';
 import { isPublicIdOfEntity, parseGraphQLIdentifier } from '../input';
 import { QualityBand, scoreExpression } from '../scores';
 
@@ -32,17 +39,10 @@ type TiersContext = PostgresSearchContext<SearchEntity.TIERS>;
 const getBaseConditions = ({ scope }: TiersContext): RawBuilder<unknown>[] => {
   const conditions: RawBuilder<unknown>[] = [sql.raw(Exp.eligible), isOwnedByEligibleAccount('Tiers.CollectiveId')];
   if (scope.accountId) {
-    conditions.push(
-      sql`"CollectiveId" IN (SELECT c.id FROM "Collectives" c WHERE c.id = ${scope.accountId} OR c."ParentCollectiveId" = ${scope.accountId})`,
-    );
+    conditions.push(isInAccountScope('CollectiveId', scope.accountId));
   }
   if (scope.hostId) {
-    // Index-only with `collectives_pg_search_hosted`. `+ 0` keeps the planner from driving common words from the hosted
-    // Accounts and re-computing the text vector of each of their tiers (see the Updates adapter): 190 ms -> 28 ms on a
-    // host of 24k accounts.
-    conditions.push(
-      sql`"CollectiveId" + 0 IN (SELECT c.id FROM "Collectives" c WHERE c."HostCollectiveId" = ${scope.hostId} AND c."isActive" = TRUE AND c."deletedAt" IS NULL)`,
-    );
+    conditions.push(isInHostScope('CollectiveId', scope.hostId));
   }
 
   return conditions;

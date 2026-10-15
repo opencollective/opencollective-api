@@ -31,6 +31,7 @@ import {
 import { isPublicIdOfEntity, parseGraphQLIdentifier } from '../input';
 import { QualityBand, scoreExpression } from '../scores';
 
+import { resolveRestrictedAccess } from './access';
 import type { PostgresSearchAdapter, PostgresSearchContext, SearchArm } from './types';
 
 type AccountsContext = PostgresSearchContext<SearchEntity.ACCOUNTS>;
@@ -62,22 +63,15 @@ const getBaseConditions = ({ scope, params }: AccountsContext): RawBuilder<unkno
  * host. Returns one condition per permission branch: each one becomes its own arm, so that the planner can drive
  * it with a single-column index instead of filtering every text match with an OR.
  */
-const getRestrictedFieldsPermissions = ({ access }: AccountsContext): RawBuilder<unknown>[] => {
-  if (access.forbidPrivate) {
-    return [];
-  } else if (access.isRoot) {
-    return [sql`TRUE`];
-  } else if (!access.adminIds.length) {
-    return [];
-  } else {
-    const ids = sql`${access.adminIds}::int[]`;
-    return [
+const getRestrictedFieldsPermissions = ({ access }: AccountsContext): RawBuilder<unknown>[] =>
+  resolveRestrictedAccess(access, {
+    forRoot: [sql`TRUE`],
+    forAdmins: ids => [
       sql`id = ANY(${ids})`,
       sql`"ParentCollectiveId" = ANY(${ids})`,
       sql`("isActive" = TRUE AND "HostCollectiveId" = ANY(${ids}))`,
-    ];
-  }
-};
+    ],
+  }) ?? [];
 
 /** Cheap in-band signals from short columns only */
 const getLexicalBonus = ({ input }: AccountsContext, extra?: RawBuilder<number>): RawBuilder<number> => {

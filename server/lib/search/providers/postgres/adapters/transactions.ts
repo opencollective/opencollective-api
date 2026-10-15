@@ -54,6 +54,7 @@ import {
 import { isPublicIdOfEntity } from '../input';
 import { QualityBand, scoreExpression } from '../scores';
 
+import { resolveRestrictedAccess } from './access';
 import type { PostgresSearchAdapter, PostgresSearchContext, SearchArm } from './types';
 
 type TransactionsContext = PostgresSearchContext<SearchEntity.TRANSACTIONS>;
@@ -99,17 +100,11 @@ const getScopeVariants = ({ scope }: TransactionsContext): RawBuilder<unknown>[]
  * Merchant IDs are only searchable by root and by administrators of the transaction's host. Returns `null` when the
  * user can't search them.
  */
-const getMerchantIdPermission = ({ access }: TransactionsContext): RawBuilder<unknown> | null => {
-  if (access.forbidPrivate) {
-    return null;
-  } else if (access.isRoot) {
-    return sql`TRUE`;
-  } else if (!access.adminIds.length) {
-    return null;
-  } else {
-    return sql`"HostCollectiveId" = ANY(${access.adminIds}::int[])`;
-  }
-};
+const getMerchantIdPermission = ({ access }: TransactionsContext): RawBuilder<unknown> | null =>
+  resolveRestrictedAccess<RawBuilder<unknown>>(access, {
+    forRoot: sql`TRUE`,
+    forAdmins: ids => sql`"HostCollectiveId" = ANY(${ids})`,
+  });
 
 /** The whole input as a kind (`host fee`, `HOST_FEE`...), if it is one */
 const parseKind = (term: string): TransactionKind | null => {

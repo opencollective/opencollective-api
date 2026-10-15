@@ -99,6 +99,23 @@ export const isEligibleAccountId = (accountId: number): RawBuilder<boolean> =>
   sql<boolean>`NOT EXISTS (SELECT 1 FROM "Collectives" excluded_account WHERE excluded_account.id = ${accountId} AND (${sql.raw(ExcludedAccountExpressions.excluded)}))`;
 
 /**
+ * Account scope of a dependent entity: rows whose `accountIdColumn` (e.g. `Tiers.CollectiveId`) is the scoped Account
+ * or one of its children.
+ */
+export const isInAccountScope = (accountIdColumn: string, accountId: number): RawBuilder<boolean> =>
+  sql<boolean>`${sql.ref(accountIdColumn)} IN (SELECT c.id FROM "Collectives" c WHERE c.id = ${accountId} OR c."ParentCollectiveId" = ${accountId})`;
+
+/**
+ * Host scope of a dependent entity: rows whose `accountIdColumn` is an Account actively hosted by the host
+ * (index-only with `collectives_pg_search_hosted`). `+ 0` keeps the planner from driving the search from the hosted
+ * Accounts (thousands for large hosts) and re-computing the text vector of each of their rows (~0.4 ms per Update): the
+ * text index always drives, and the hosted Accounts are hashed once. Measured: Updates >10 s -> 0.4 s, Tiers 190 ms ->
+ * 28 ms on a host of 24k Accounts.
+ */
+export const isInHostScope = (accountIdColumn: string, hostId: number): RawBuilder<boolean> =>
+  sql<boolean>`${sql.ref(accountIdColumn)} + 0 IN (SELECT c.id FROM "Collectives" c WHERE c."HostCollectiveId" = ${hostId} AND c."isActive" = TRUE AND c."deletedAt" IS NULL)`;
+
+/**
  * Tiers. Same conventions as `AccountExpressions` (unqualified columns of "Tiers").
  */
 export const TierExpressions = {
