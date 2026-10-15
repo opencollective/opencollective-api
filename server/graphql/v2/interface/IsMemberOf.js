@@ -7,7 +7,7 @@ import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import models, { Op, sequelize } from '../../../models';
-import { checkScope } from '../../common/scope-check';
+import { checkScope, isRemoteUserRoot } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
 import { GraphQLMemberOfCollection } from '../collection/MemberCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../enum/AccountType';
@@ -80,7 +80,7 @@ export const IsMemberOfFields = {
       if (isNil(args.offset) || args.offset < 0) {
         args.offset = 0;
       }
-      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+      if (args.limit > 1000 && !isRemoteUserRoot(req)) {
         throw new Error('Cannot fetch more than 1,000 members at the same time, please adjust the limit');
       }
 
@@ -215,7 +215,7 @@ export const IsMemberOfFields = {
 
       // Handle private accounts
       if (req.remoteUser) {
-        if (req.remoteUser.isRoot()) {
+        if (isRemoteUserRoot(req)) {
           // Allow all private accounts to be seen by root admins
           delete collectiveConditions.isPrivate;
         } else {
