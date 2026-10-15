@@ -110,6 +110,17 @@ describe('server/graphql/v2/mutation/WebhookMutations', () => {
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('Open Collective URLs cannot be used as webhooks');
     });
+
+    it('requires https', async () => {
+      const result = await graphqlQueryV2(
+        createWebhookMutation,
+        { webhook: { account: { legacyId: collective.id }, webhookUrl: 'http://example.com/insecure' } },
+        admin,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('Webhook URL must use https');
+    });
   });
 
   describe('updateWebhook', () => {
@@ -131,6 +142,78 @@ describe('server/graphql/v2/mutation/WebhookMutations', () => {
       await webhook.reload();
       expect(webhook.type).to.equal(activities.COLLECTIVE_UPDATE_PUBLISHED);
       expect(webhook.webhookUrl).to.equal('https://example.com/updated');
+    });
+
+    it('leaves the fields that are not provided unchanged', async () => {
+      const webhook = await fakeWebhook({ type: activities.COLLECTIVE_EXPENSE_CREATED });
+
+      const urlOnly = await graphqlQueryV2(
+        updateWebhookMutation,
+        { webhook: { id: webhook.publicId, webhookUrl: 'https://example.com/url-only' } },
+        admin,
+      );
+      expect(urlOnly.errors).to.not.exist;
+      await webhook.reload();
+      expect(webhook.type).to.equal(activities.COLLECTIVE_EXPENSE_CREATED);
+      expect(webhook.webhookUrl).to.equal('https://example.com/url-only');
+
+      const activityOnly = await graphqlQueryV2(
+        updateWebhookMutation,
+        { webhook: { id: webhook.publicId, activityType: 'COLLECTIVE_UPDATE_PUBLISHED' } },
+        admin,
+      );
+      expect(activityOnly.errors).to.not.exist;
+      await webhook.reload();
+      expect(webhook.type).to.equal(activities.COLLECTIVE_UPDATE_PUBLISHED);
+      expect(webhook.webhookUrl).to.equal('https://example.com/url-only');
+    });
+
+    it('rejects null values', async () => {
+      const webhook = await fakeWebhook({ type: activities.COLLECTIVE_EXPENSE_CREATED });
+      for (const field of ['activityType', 'webhookUrl']) {
+        const result = await graphqlQueryV2(
+          updateWebhookMutation,
+          { webhook: { id: webhook.publicId, [field]: null } },
+          admin,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('activityType and webhookUrl cannot be null');
+      }
+      const url = webhook.webhookUrl;
+      await webhook.reload();
+      expect(webhook.type).to.equal(activities.COLLECTIVE_EXPENSE_CREATED);
+      expect(webhook.webhookUrl).to.equal(url);
+    });
+
+    it('requires https for a new URL, but keeps an existing http URL', async () => {
+      const webhook = await fakeWebhook();
+      await webhook.update({ webhookUrl: 'http://example.com/legacy' }, { validate: false });
+
+      const activityOnly = await graphqlQueryV2(
+        updateWebhookMutation,
+        {
+          webhook: {
+            id: webhook.publicId,
+            activityType: 'COLLECTIVE_UPDATE_PUBLISHED',
+            webhookUrl: 'http://example.com/legacy',
+          },
+        },
+        admin,
+      );
+      expect(activityOnly.errors).to.not.exist;
+      await webhook.reload();
+      expect(webhook.type).to.equal(activities.COLLECTIVE_UPDATE_PUBLISHED);
+      expect(webhook.webhookUrl).to.equal('http://example.com/legacy');
+
+      const newHttpUrl = await graphqlQueryV2(
+        updateWebhookMutation,
+        { webhook: { id: webhook.publicId, webhookUrl: 'http://example.com/other' } },
+        admin,
+      );
+      expect(newHttpUrl.errors).to.exist;
+      expect(newHttpUrl.errors[0].message).to.include('Webhook URL must use https');
+      await webhook.reload();
+      expect(webhook.webhookUrl).to.equal('http://example.com/legacy');
     });
 
     it('must be an admin of the account', async () => {
