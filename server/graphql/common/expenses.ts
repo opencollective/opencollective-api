@@ -4600,7 +4600,8 @@ export const getExpenseAmountInDifferentCurrency = async (expense: Expense, toCu
 
 /**
  * Moving the transactions of paid expenses is only safe when it doesn't change anything outside of the Collective:
- * same main account, same host, same currency.
+ * same main account, same host, same currency. Transactions can be recorded in another currency (e.g. the payee's), so
+ * the currency check is on the accounts.
  */
 const checkCanMoveExpensesTransactions = async (
   expenses: Expense[],
@@ -4616,6 +4617,8 @@ const checkCanMoveExpensesTransactions = async (
     throw new ValidationFailed('Paid expenses can only be moved within the same Collective');
   } else if (!destinationAccount.HostCollectiveId || !destinationAccount.isActive) {
     throw new ValidationFailed('Paid expenses can only be moved to an account with an active fiscal host');
+  } else if (expenses.some(expense => expense.collective.currency !== destinationAccount.currency)) {
+    throw new ValidationFailed('Paid expenses can only be moved to an account with the same currency');
   }
 
   // Only the entries on the paying account's side: the payee's side is recorded under the payee's own host
@@ -4624,19 +4627,14 @@ const checkCanMoveExpensesTransactions = async (
     where: {
       [Op.and]: [
         { [Op.or]: expenses.map(expense => ({ ExpenseId: expense.id, CollectiveId: expense.CollectiveId })) },
-        {
-          [Op.or]: [
-            { HostCollectiveId: { [Op.or]: [{ [Op.ne]: destinationAccount.HostCollectiveId }, { [Op.is]: null }] } },
-            { currency: { [Op.ne]: destinationAccount.currency } },
-          ],
-        },
+        { HostCollectiveId: { [Op.or]: [{ [Op.ne]: destinationAccount.HostCollectiveId }, { [Op.is]: null }] } },
       ],
     },
   });
 
   if (mismatchingTransactionsCount > 0) {
     throw new ValidationFailed(
-      'Paid expenses can only be moved to an account with the same fiscal host and currency as their transactions',
+      'Paid expenses can only be moved to an account with the same fiscal host as their transactions',
     );
   }
 };

@@ -230,20 +230,43 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
           FromCollectiveId: collective.id,
           HostCollectiveId: null,
         });
+        const processorFeeDebit = await fakeTransaction({
+          ExpenseId: expense.id,
+          TransactionGroup,
+          type: 'DEBIT',
+          kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
+          amount: -100,
+          CollectiveId: collective.id,
+          FromCollectiveId: host.id,
+          HostCollectiveId: host.id,
+        });
+        const processorFeeCredit = await fakeTransaction({
+          ExpenseId: expense.id,
+          TransactionGroup,
+          type: 'CREDIT',
+          kind: TransactionKind.PAYMENT_PROCESSOR_FEE,
+          amount: 100,
+          CollectiveId: host.id,
+          FromCollectiveId: collective.id,
+          HostCollectiveId: host.id,
+        });
         const paymentIntent = await fakePaymentIntent({
           ExpenseId: expense.id,
           PayerCollectiveId: collective.id,
           PayeeCollectiveId: payee.id,
           HostCollectiveId: host.id,
         });
-        return { expense, debit, credit, paymentIntent };
+        return { expense, debit, credit, processorFeeDebit, processorFeeCredit, paymentIntent };
       };
 
       it('moves the expense with its transactions to a project of the same collective', async () => {
         const host = await fakeActiveHost();
         const collective = await fakeCollective({ HostCollectiveId: host.id });
         const project = await fakeProject({ ParentCollectiveId: collective.id });
-        const { expense, debit, credit, paymentIntent } = await fakePaidExpense(collective, host);
+        const { expense, debit, credit, processorFeeDebit, processorFeeCredit, paymentIntent } = await fakePaidExpense(
+          collective,
+          host,
+        );
 
         const result = await callMoveExpenseMutation(
           { destinationAccount: { legacyId: project.id }, expenses: [{ legacyId: expense.id }] },
@@ -252,11 +275,15 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
 
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
-        await Promise.all([expense, debit, credit, paymentIntent].map(model => model.reload()));
+        const records = [expense, debit, credit, processorFeeDebit, processorFeeCredit, paymentIntent];
+        await Promise.all(records.map(record => record.reload()));
         expect(expense.CollectiveId).to.equal(project.id);
         expect(debit.CollectiveId).to.equal(project.id);
         expect(credit.FromCollectiveId).to.equal(project.id);
         expect(credit.CollectiveId).to.equal(expense.FromCollectiveId);
+        expect(processorFeeDebit.CollectiveId).to.equal(project.id);
+        expect(processorFeeCredit.CollectiveId).to.equal(host.id);
+        expect(processorFeeCredit.FromCollectiveId).to.equal(project.id);
         expect(paymentIntent.PayerCollectiveId).to.equal(project.id);
       });
 
@@ -264,7 +291,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
         const host = await fakeActiveHost();
         const collective = await fakeCollective({ HostCollectiveId: host.id });
         const project = await fakeProject({ ParentCollectiveId: collective.id });
-        const { expense, debit } = await fakePaidExpense(project, host);
+        const { expense, debit, credit, paymentIntent } = await fakePaidExpense(project, host);
 
         const result = await callMoveExpenseMutation(
           { destinationAccount: { legacyId: collective.id }, expenses: [{ legacyId: expense.id }] },
@@ -272,8 +299,46 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
         );
 
         expect(result.errors).to.not.exist;
-        await debit.reload();
+        await Promise.all([expense, debit, credit, paymentIntent].map(model => model.reload()));
+        expect(expense.CollectiveId).to.equal(collective.id);
         expect(debit.CollectiveId).to.equal(collective.id);
+        expect(credit.FromCollectiveId).to.equal(collective.id);
+        expect(paymentIntent.PayerCollectiveId).to.equal(collective.id);
+      });
+
+      it('moves transactions recorded in the payee currency', async () => {
+        const host = await fakeActiveHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+        const project = await fakeProject({ ParentCollectiveId: collective.id, currency: 'USD' });
+        const { expense, debit } = await fakePaidExpense(collective, host);
+        await debit.update({ currency: 'EUR' }, { hooks: false });
+
+        const result = await callMoveExpenseMutation(
+          { destinationAccount: { legacyId: project.id }, expenses: [{ legacyId: expense.id }] },
+          rootUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await debit.reload();
+        expect(debit.CollectiveId).to.equal(project.id);
+      });
+
+      it('refuses to move them to an account with another currency', async () => {
+        const host = await fakeActiveHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+        const project = await fakeProject({ ParentCollectiveId: collective.id, currency: 'EUR' });
+        const { expense } = await fakePaidExpense(collective, host);
+
+        const result = await callMoveExpenseMutation(
+          { destinationAccount: { legacyId: project.id }, expenses: [{ legacyId: expense.id }] },
+          rootUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal(
+          'Paid expenses can only be moved to an account with the same currency',
+        );
       });
 
       it('refuses to move them outside of the collective', async () => {
@@ -308,7 +373,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
 
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.equal(
-          'Paid expenses can only be moved to an account with the same fiscal host and currency as their transactions',
+          'Paid expenses can only be moved to an account with the same fiscal host as their transactions',
         );
       });
 
