@@ -68,13 +68,13 @@ export async function editWebhooks(args, req) {
     );
   }
 
-  // Update existing
+  // Update existing. Through the loaded instances, so validations know which fields changed (e.g. an existing http
+  // webhook URL is kept when only its type changes)
   if (toUpdate.length > 0) {
     promises.push(
       ...toUpdate.map(notification => {
-        return models.Notification.update(pick(notification, allowedFields), {
-          where: { id: notification.id, CollectiveId: args.collectiveId },
-        });
+        const existing = oldNotifications.find(n => n.id === notification.id);
+        return existing.update(pick(notification, allowedFields));
       }),
     );
   }
