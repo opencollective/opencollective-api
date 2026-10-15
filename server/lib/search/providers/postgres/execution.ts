@@ -86,52 +86,93 @@ const isQueryCanceled = (error: unknown): boolean =>
     code => code === QUERY_CANCELED_SQLSTATE,
   );
 
+/** Passed to the statements of a search transaction */
+type SearchBudgetControl = {
+  /**
+   * Sets `statement_timeout` to the time left before the deadline (or throws `SearchBudgetExceeded`). Call it before
+   * each statement after the first one: PostgreSQL applies `statement_timeout` per statement, so without it a
+   * transaction of several statements could run for several times its budget.
+   */
+  renewStatementTimeout(): Promise<void>;
+};
+
+const getRemainingMs = (deadline: number): number => {
+  const remainingMs = Math.floor(deadline - Date.now());
+  if (remainingMs <= 0) {
+    throw new SearchBudgetExceeded();
+  }
+
+  return remainingMs;
+};
+
+/** Rejects with `SearchBudgetExceeded` if `promise` has not settled by the deadline */
+const settleBeforeDeadline = async <T>(promise: Promise<T>, deadline: number): Promise<T> => {
+  let timer: NodeJS.Timeout;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new SearchBudgetExceeded()), Math.max(0, deadline - Date.now()));
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 /**
  * Runs `fn` in a read-only transaction whose statements are canceled by PostgreSQL once the deadline is reached.
- * Throws `SearchBudgetExceeded` if the deadline is reached before or during execution.
+ * Throws `SearchBudgetExceeded` if the deadline is reached before or during execution, including while waiting for a
+ * search slot or for a connection of the shared pool.
  */
 export const runWithSearchBudget = async <T>(
   { deadline }: SearchBudget,
-  fn: (trx: Kysely<DatabaseWithViews>) => Promise<T>,
+  fn: (trx: Kysely<DatabaseWithViews>, budget: SearchBudgetControl) => Promise<T>,
 ): Promise<T> => {
   const release = await acquireSlot(deadline);
-  try {
-    return await getKysely()
-      .transaction()
-      .execute(async trx => {
-        const remainingMs = Math.floor(deadline - Date.now());
-        if (remainingMs <= 0) {
-          throw new SearchBudgetExceeded();
-        }
+  let onConnection: () => void;
+  const connected = new Promise<void>(resolve => (onConnection = resolve));
+  const execution = getKysely()
+    .transaction()
+    .execute(async trx => {
+      onConnection();
+      // Also stops a search that got its connection after the deadline (`settleBeforeDeadline` below gave up on it)
+      const remainingMs = getRemainingMs(deadline);
+      const { workMem, typoSimilarityThreshold } = getPostgresSearchConfig();
+      await sql`SET TRANSACTION READ ONLY`.execute(trx);
+      // JIT off: search plans are estimated as expensive (text matches) but usually run in milliseconds, and compiling
+      // their permission expressions took seconds (measured on Comments: 3.2 s -> 22 ms without JIT).
+      // No parallel workers: each search statement uses at most one core (and one `work_mem` per node), so that
+      // concurrent searches can't take over the CPU of the primary. Measured with 8 concurrent users on 4 vCPU: 67% more
+      // searches per second and half the median latency, for a slower p95 when searching alone (0.6 s -> 0.9 s).
+      // Prefetching for bitmap heap scans instead (never lower than the server's setting): without parallel workers,
+      // searches on uncached data read one page at a time (cold, 2.8M Orders matches: 9.1 s -> 6.7 s).
+      await sql`
+        SELECT
+          set_config('statement_timeout', ${String(remainingMs)}, true),
+          set_config('work_mem', ${workMem}, true),
+          set_config('pg_trgm.word_similarity_threshold', ${typoSimilarityThreshold}, true),
+          set_config('jit', 'off', true),
+          set_config('max_parallel_workers_per_gather', '0', true),
+          set_config('effective_io_concurrency', greatest(current_setting('effective_io_concurrency')::int, 64)::text, true)
+      `.execute(trx);
 
-        const { workMem, typoSimilarityThreshold } = getPostgresSearchConfig();
-        await sql`SET TRANSACTION READ ONLY`.execute(trx);
-        // JIT off: search plans are estimated as expensive (text matches) but usually run in milliseconds, and compiling
-        // their permission expressions took seconds (measured on Comments: 3.2 s -> 22 ms without JIT).
-        // No parallel workers: each search statement uses at most one core (and one `work_mem` per node), so that
-        // concurrent searches can't take over the CPU of the primary. Measured with 8 concurrent users on 4 vCPU: 67% more
-        // searches per second and half the median latency, for a slower p95 when searching alone (0.6 s -> 0.9 s).
-        // Prefetching for bitmap heap scans instead (never lower than the server's setting): without parallel workers,
-        // searches on uncached data read one page at a time (cold, 2.8M Orders matches: 9.1 s -> 6.7 s).
-        await sql`
-          SELECT
-            set_config('statement_timeout', ${String(remainingMs)}, true),
-            set_config('work_mem', ${workMem}, true),
-            set_config('pg_trgm.word_similarity_threshold', ${typoSimilarityThreshold}, true),
-            set_config('jit', 'off', true),
-            set_config('max_parallel_workers_per_gather', '0', true),
-            set_config('effective_io_concurrency', greatest(current_setting('effective_io_concurrency')::int, 64)::text, true)
-        `.execute(trx);
-
-        return fn(trx);
+      return fn(trx, {
+        async renewStatementTimeout() {
+          await sql`SELECT set_config('statement_timeout', ${String(getRemainingMs(deadline))}, true)`.execute(trx);
+        },
       });
+    });
+
+  // The slot is held until the transaction is over, even if the search gave up on waiting for a connection
+  execution.then(release, release);
+  try {
+    // The pool waits for a free connection without a deadline of its own (`database.options.pool.acquire`)
+    await settleBeforeDeadline(Promise.race([connected, execution]), deadline);
+    return await execution;
   } catch (error) {
     if (isQueryCanceled(error)) {
       throw new SearchBudgetExceeded();
     }
 
     throw error;
-  } finally {
-    release();
   }
 };

@@ -58,7 +58,7 @@ const searchEntity = async (
   }
 
   try {
-    return await runWithSearchBudget({ deadline }, async trx => {
+    return await runWithSearchBudget({ deadline }, async (trx, budget) => {
       const arms = adapter.buildArms(trx, {
         input,
         scope: { accountId: request.scope.account?.id ?? null, hostId: request.scope.host?.id ?? null },
@@ -66,15 +66,22 @@ const searchEntity = async (
         params: entityRequest.params,
       });
 
+      // The first statement uses the `statement_timeout` set by `runWithSearchBudget`, later ones renew it
       if (adapter.estimatedMatchesPerSecond) {
         await assertEstimatedMatchesWithinBudget(trx, arms, {
           matchesPerSecond: adapter.estimatedMatchesPerSecond,
           deadline,
         });
+        await budget.renewStatementTimeout();
       }
 
       const result = await executeRankedSearchQuery(trx, arms, entityRequest);
-      return adapter.decorateHits ? { ...result, hits: await adapter.decorateHits(trx, result.hits) } : result;
+      if (!adapter.decorateHits) {
+        return result;
+      }
+
+      await budget.renewStatementTimeout();
+      return { ...result, hits: await adapter.decorateHits(trx, result.hits) };
     });
   } catch (error) {
     if (error instanceof SearchBudgetExceeded) {
