@@ -9,6 +9,78 @@ out of scope (spec: opencollective/opencollective#8935, this work: #8944).
 made yet. Use these numbers to compare designs and to size risk, not as production response times. See
 [Missing production evidence](#missing-production-evidence).
 
+## How a search runs
+
+Code: `server/lib/search/providers/postgres/` (`index.ts` for the flow). Each requested entity is one query:
+
+- **Timeout per entity.** `Query.search(timeout)` (100-30000 ms, default 10 s) is the budget of each entity query,
+  from the moment it is scheduled: waiting for a search slot or a pooled connection counts, waiting for the other
+  entities of the request doesn't. A query that runs out of budget fails with a visible `SearchTooBroad` error
+  ("Narrow your search…") on its own entity; totals are never capped.
+- **Concurrency caps.** At most `SEARCH_POSTGRES_CONCURRENCY_PER_REQUEST` (2) entity queries at a time per request,
+  and `SEARCH_POSTGRES_MAX_CONCURRENT_QUERIES` (8) search statements at a time per API process, so that search
+  traffic can't take over the shared pool (50 connections in production).
+- **Transaction-local settings.** Each entity query runs in its own `READ ONLY` transaction. Every setting is set with
+  `set_config(..., true)` (= `SET LOCAL`), so it is reset on COMMIT/ROLLBACK, before the connection goes back to the
+  pool, and never affects other queries:
+  - `statement_timeout` = the time left before the entity's deadline, renewed before each later statement (planner
+    pre-check, ranked query, hits decoration). PostgreSQL cancels the work itself (SQLSTATE 57014 → `SearchTooBroad`).
+  - `work_mem` = `SEARCH_POSTGRES_WORK_MEM` (32MB): bounds sorts, hashes and bitmaps per plan node.
+  - `jit = off`: search plans look expensive (text matches) but usually run in milliseconds, and compiling their
+    permission expressions cost seconds.
+  - `max_parallel_workers_per_gather = 0`: one core per statement, so that concurrent searches can't take over the
+    CPU of the primary (more throughput under load, see the tuning section below).
+  - `effective_io_concurrency` ≥ 64: prefetches heap pages of bitmap scans (cold searches without parallel workers).
+  - `pg_trgm.word_similarity_threshold` = `SEARCH_POSTGRES_TYPO_SIMILARITY_THRESHOLD` (0.5): Account name typos.
+- **Planner pre-check** (Transactions only, `estimates.ts`). Exact totals visit every match, so the cost grows with the
+  match count, and on 13M Transactions a template word ("host fee") matches millions of rows. Before running, one
+  `EXPLAIN` (no execution, ~1-3 ms) compares the planner's estimated matches with what the adapter can count in the
+  remaining budget (`estimatedMatchesPerSecond`, 50k/s measured). Above it, the search fails with the same
+  `SearchTooBroad` error in milliseconds instead of holding a connection until the timeout. Estimates can be several
+  times off, so it is a lenient fast path: `statement_timeout` stays the guarantee, and it never caps a total.
+- **Kill switch.** `SEARCH_POSTGRES_ENABLED=false` makes every `backend: POSTGRES` request fail with a visible error,
+  without a deploy (see [Return to OpenSearch](#return-to-opensearch)). It does not change the default backend, which
+  stays OpenSearch whatever its value; `true` (default) only makes the opt-in backend available.
+
+## Adapter contract
+
+Adding an entity = one adapter file + one migration + one registry line + tests. Reference adapter:
+`adapters/accounts.ts`.
+
+1. `adapters/<entity>.ts` exports a `PostgresSearchAdapter<SearchEntity.X>` (`adapters/types.ts`), registered in
+   `adapters/index.ts`. Unregistered entities fail with `SearchEntityNotSupported`, never an empty result.
+2. SQL expressions go in `expressions.ts` (`<Entity>Expressions`: `eligible`, vectors, label expressions), with
+   unqualified column names so that the same text works in `CREATE INDEX` and in queries. Migrations copy these
+   literals **verbatim**: the planner only matches index expressions and partial predicates textually. Verify with
+   `EXPLAIN` that each arm uses its index. Shared helpers: `isOwnedByEligibleAccount` (deleted/private owners),
+   `isInAccountScope`, `isInHostScope`, and `adapters/access.ts` (`resolveRestrictedAccess`).
+3. Migration: `createIndexesConcurrently` / `dropIndexesConcurrently` (`migrations/lib/concurrent-indexes.ts`):
+   `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, one statement at a time, then `ANALYZE`. Prefer non-partial text
+   indexes: PostgreSQL only keeps statistics for the expressions of non-partial indexes.
+4. Frontend: add the entity to `POSTGRES_SUPPORTED_ENTITIES` (`components/search/backend.tsx`).
+5. Tests: `test/server/graphql/v2/query/SearchQuery.postgres.*.test.ts`, through GraphQL with real PostgreSQL
+   fixtures and no OpenSearch cluster.
+
+`buildArms(db, context)` returns `SearchArm[]`:
+
+- Each arm is a Kysely select of exactly `{ id, score }`. Arms are combined with `UNION ALL` and deduplicated by ID
+  (best score wins); `query-builder.ts` computes the exact total, the offset-independent `maxScore` and the page
+  (`ORDER BY score DESC, id DESC`) in **one statement**, from the same snapshot. Adapters never count or paginate.
+- Every arm applies eligibility, scopes, entity filters and row/field permissions itself. Restricted text only
+  appears in arms that AND the permission predicate; public arms never reference restricted columns, so inaccessible
+  rows never affect totals or scores.
+- Return `[]` when nothing can match (e.g. no administered accounts): the result is an empty page, without a query.
+- Prefer several sargable arms (one driver each) over ORs across columns or tables.
+- `context.input` (`input.ts`): `term`, `tokens`, `prefixQuery`, `allowTypos`, `slug`, `identifiers.id`,
+  `identifiers.publicId`; `parseGraphQLIdentifier` and `isPublicIdOfEntity` for other identifiers.
+- `context.scope` (`accountId`, `hostId`) intersect when both are set. `context.access`: `forbidPrivate` (anonymous,
+  or OAuth token without the entity scope), `isRoot` (skips permissions, never eligibility), `adminIds` (bound as
+  `$n::int[]`), `deniedOAuthScopes`. `context.params`: entity filters from GraphQL.
+- Scores (`scores.ts`): `band * 1000 + (preferred ? 500 : 0) + clamp(lexicalBonus, 0, 499)`. Bands: exact identifier
+  5, exact label 4, all words 3, Account prefix 2, Account typo 1. The lexical bonus must be cheap (short columns,
+  `starts_with`, `CASE`): never `ts_rank` or `to_tsvector` on long or HTML bodies.
+- Optional: `estimatedMatchesPerSecond` (planner pre-check, see above) and `decorateHits` (extra fields of the page).
+
 ## Known differences with OpenSearch
 
 - Updates: host administrators only find the published (public or private) Updates of their hosted Accounts, never
@@ -283,4 +355,9 @@ These must be measured before considering anything beyond a team preview:
 - Concurrent production traffic: search queries compete with the real workload on the primary (Kysely uses the
   primary). Index builds compete with writes; autovacuum and GIN pending-list flushes on the busiest tables.
 - Extension privileges and schemas, migration duration on the real tables, invalid-index handling on a real failure.
-- Relevance: no comparison with OpenSearch results on real queries yet.
+- Relevance: no comparison with OpenSearch results on real queries yet, and the scores (bands and lexical bonuses)
+  are not calibrated on a judged corpus: they only encode the ordering rules of the spec.
+- Highlights: PostgreSQL results have no highlighted fields (`highlights[id]` only carries the score); their cost
+  (`ts_headline` on the permitted fields of the page) has not been measured.
+- Data sizes: only the Accounts and Transactions sizes of the benchmark dataset come from production; Orders,
+  Expenses, Comments, Updates, Tiers and Host applications sizes and distributions are guesses.

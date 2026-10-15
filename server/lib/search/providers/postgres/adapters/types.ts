@@ -38,7 +38,7 @@ type SearchArmRow = { id: number; score: number };
 export type SearchArm = SelectQueryBuilder<DatabaseWithViews, any, SearchArmRow>;
 
 /**
- * Turns a search into SQL arms for one entity. See `pg-adapter-contract` in the PostgreSQL search notes.
+ * Turns a search into SQL arms for one entity. See "Adapter contract" in `docs/postgres-search.md`.
  */
 export interface PostgresSearchAdapter<E extends SearchEntity = SearchEntity> {
   entity: E;
