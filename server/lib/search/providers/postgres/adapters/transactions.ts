@@ -159,9 +159,11 @@ const getMerchantIdConditions = (merchantId: string): RawBuilder<unknown>[][] =>
 
 export const TransactionsAdapter: PostgresSearchAdapter<SearchEntity.TRANSACTIONS> = {
   entity: SearchEntity.TRANSACTIONS,
-  // Measured on 5M transactions: 20-50 µs per match (heap visits for the exact total). Unscoped broad terms
-  // ("contribution", "fee", "credit") match millions of rows in production: fail fast instead of holding a connection.
-  estimatedMatchesPerSecond: 20_000,
+  // Measured on 13M synthetic transactions (docs/postgres-search.md): 270k-570k matches/s with a warm cache, 40k-300k/s
+  // cold (scattered matches of a host scope are the slowest). 50k/s keeps every search that can complete cold within
+  // the budget (e.g. 250k matches in 10 s), and rejects in milliseconds the unscoped broad terms ("contribution", "fee",
+  // "credit") that match millions of rows instead of holding a connection until `statement_timeout`.
+  estimatedMatchesPerSecond: 50_000,
   buildArms(db: Kysely<DatabaseWithViews>, context: TransactionsContext): SearchArm[] {
     const { input } = context;
     const scopeVariants = getScopeVariants(context);

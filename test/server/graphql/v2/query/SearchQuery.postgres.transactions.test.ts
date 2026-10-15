@@ -470,12 +470,12 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL, transactions)', () =>
   });
   describe('budget', () => {
     it('rejects searches that are estimated too broad for the budget before running them', async () => {
-      // 2,500 matches, analyzed so that the planner knows it. At the minimum budget (100 ms), they are estimated too
+      // 15,000 matches, analyzed so that the planner knows it. At the minimum budget (100 ms), they are estimated too
       // many to count in time; with a larger budget, the same search runs and returns the exact total.
       const collective = await fakeCollective({ slug: 'budget-collective' });
       const base = (await fakeTransaction({ CollectiveId: collective.id, description: 'Narwhal tribute 0' })).toJSON();
       await models.Transaction.bulkCreate(
-        Array.from({ length: 2499 }, (_, i) => ({
+        Array.from({ length: 14999 }, (_, i) => ({
           ...omit(base, ['id', 'uuid', 'publicId', 'createdAt', 'updatedAt']),
           description: `Narwhal tribute ${i + 1}`,
         })),
@@ -508,7 +508,7 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL, transactions)', () =>
 
       const largerBudget = await graphqlQueryV2(query, { searchTerm: 'narwhal tribute', timeout: 30000 });
       expect(largerBudget.errors).to.not.exist;
-      expect(largerBudget.data.search.results.transactions.collection.totalCount).to.eq(2500);
+      expect(largerBudget.data.search.results.transactions.collection.totalCount).to.eq(15000);
     });
   });
 });
