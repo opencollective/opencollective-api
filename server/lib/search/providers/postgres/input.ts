@@ -112,7 +112,8 @@ export const assertValidSearchPage = ({ limit, offset }: { limit: number; offset
 };
 
 export const parseSearchInput = (rawTerm: string): ParsedSearchInput => {
-  const term = rawTerm.trim();
+  // PostgreSQL text can't contain NUL characters: binding one fails the whole statement (invalid byte sequence)
+  const term = rawTerm.replace(/\0/g, ' ').trim();
   const tokens = tokenize(term).slice(0, PostgresSearchLimits.MAX_WORDS * 2);
   const tokensLength = tokens.join('').length;
   const slugCandidate = term.startsWith('@') ? term.slice(1).trim().toLowerCase() : tokens.join('-');

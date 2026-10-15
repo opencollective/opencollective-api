@@ -214,6 +214,13 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL, all entities)', () =>
     }
   });
 
+  it('ignores NUL characters in the input for every entity (PostgreSQL rejects them in text)', async () => {
+    const plain = await searchAll(rootUser);
+    const result = await searchAll(rootUser, { searchTerm: '\u0000okapi\u0000' });
+    expect(result.errors, JSON.stringify(result.errors)).to.not.exist;
+    expect(getTotals(result.data.search.results)).to.deep.eq(getTotals(plain.data.search.results));
+  });
+
   it('applies OAuth scopes per entity in the same request', async () => {
     // A token with the `account` scope only: other entities only show public rows, and Comments on Expenses need the
     // `expenses` scope even for their host administrators
