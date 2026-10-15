@@ -230,6 +230,9 @@ and a single-row Transactions writer every 20 ms. One API process (8 search stat
 
 ## Tuning done in #8944 (before → after in each commit)
 
+Timings in this section were measured at the commit that made each change, on the code of that time. Later commits
+changed them: [Results](#results) has the timings of the final code.
+
 | Commit                                                         | Change                                                                                                 | Effect                                                                                                                                                |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `fix(search): rebuild invalid … concurrent builds`             | Migrations drop an INVALID leftover of a failed concurrent build, rebuild it and fail if still invalid | Re-running a failed migration is safe (before: `IF NOT EXISTS` kept the invalid index forever)                                                        |
@@ -237,12 +240,12 @@ and a single-row Transactions writer every 20 ms. One API process (8 search stat
 | `perf(search): look up Expense merchant IDs before …`          | InitPlan array instead of a semi-join                                                                  | Account-scoped Transactions: rare word 62 → 16 ms, `invoice` 66 → 20 ms                                                                               |
 | `perf(search): give the planner word statistics …`             | Non-partial text indexes for Expenses, items, Tiers, applications; `+ 0` on the Tiers host scope       | Expenses rare word 20 → 3 ms; Tiers `gold sponsor` 57 → 31 ms                                                                                         |
 | `perf(search): run each … statement on a single core`          | `max_parallel_workers_per_gather = 0` in search transactions                                           | 8 users: 8.8 → 14.7 requests/s, p50 519 → 268 ms; single search p95 0.6 → 0.9 s                                                                       |
-| `perf(search): prefetch heap pages …`                          | `effective_io_concurrency` ≥ 64 in search transactions                                                 | Cold: Orders 2.8M matches 9.1 → 6.7 s, Transactions `invoice` 7.0 → 4.8 s                                                                             |
+| `perf(search): prefetch heap pages …`                          | `effective_io_concurrency` ≥ 64 (0 kept) in search transactions                                        | Cold: Orders 2.8M matches 9.1 → 6.7 s, Transactions `invoice` 7.0 → 4.8 s                                                                             |
 
 Measured and kept as is:
 
-- **JIT stays off** in search transactions. With `jit = on` (the server default), no case got faster; Comments
-  `studio` went 0.41 → 0.62 s, Transactions rare word 12 → 22 ms, Tiers `sponsor` +15%.
+- **JIT stays off** in search transactions. With `jit = on` (the server default), no case got faster; at the time of
+  this measurement, Comments `studio` went 0.41 → 0.62 s, Transactions rare word 12 → 22 ms, Tiers `sponsor` +15%.
 - **The planner pre-check stays Transactions-only.** Cold, every other entity completes well within the budget at
   this scale (broadest: Orders 2.8M matches in 6.7 s cold, 2.7 s warm), and statement_timeout remains the backstop.
   Comments estimates are 3x low on common words, so a pre-check there would not be reliable.

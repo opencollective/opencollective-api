@@ -13,7 +13,7 @@ export const GraphQLSearchBackend = new GraphQLEnumType({
     [SearchProvider.POSTGRES]: {
       value: SearchProvider.POSTGRES,
       description:
-        '[Preview] PostgreSQL: exact totals and numbered pages (up to 50 results per page and offset 5000), search terms up to 200 characters and 12 words. Not all entities are supported yet: requesting an unsupported one returns an error.',
+        '[Preview] PostgreSQL: exact totals and numbered pages (up to 50 results per page and offset 5000), search terms up to 200 characters and 12 words.',
     },
   },
 });
