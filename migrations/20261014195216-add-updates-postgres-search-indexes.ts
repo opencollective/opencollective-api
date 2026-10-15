@@ -2,6 +2,8 @@
 
 import { QueryInterface } from 'sequelize';
 
+import { createIndexConcurrently } from './lib/concurrent-indexes';
+
 /**
  * Indexes for the PostgreSQL search provider, Updates (opencollective#8938).
  *
@@ -9,8 +11,7 @@ import { QueryInterface } from 'sequelize';
  * `server/lib/search/providers/postgres/expressions.ts` and must stay identical to them.
  *
  * Built with `CREATE INDEX CONCURRENTLY` (one statement per query, serially) so that writes are not blocked. A failed
- * concurrent build leaves an INVALID index that `IF NOT EXISTS` would skip: check
- * `SELECT indexrelid::regclass FROM pg_index WHERE NOT indisvalid`, drop and re-run.
+ * concurrent build leaves an INVALID index: `createIndexConcurrently` drops it and builds it again on the next run.
  */
 
 const ELIGIBLE = `"deletedAt" IS NULL`;
@@ -51,9 +52,7 @@ const INDEXES: Array<{ table: string; name: string; definition: string; where: s
 module.exports = {
   async up(queryInterface: QueryInterface) {
     for (const index of INDEXES) {
-      await queryInterface.sequelize.query(
-        `CREATE INDEX CONCURRENTLY IF NOT EXISTS "${index.name}" ON "${index.table}" ${index.definition}${index.where ? ` WHERE ${index.where}` : ''}`,
-      );
+      await createIndexConcurrently(queryInterface, index);
     }
 
     await queryInterface.sequelize.query(`ANALYZE "Collectives"`);

@@ -2,6 +2,8 @@
 
 import { QueryInterface } from 'sequelize';
 
+import { createIndexConcurrently } from './lib/concurrent-indexes';
+
 /**
  * PostgreSQL search provider, Transactions (opencollective#8941).
  *
@@ -21,8 +23,7 @@ import { QueryInterface } from 'sequelize';
  *
  * Built with `CREATE INDEX CONCURRENTLY` (one statement per query, serially) so that writes are not blocked. On a large
  * table, consider running them out of band before deploying (`IF NOT EXISTS` makes this migration a no-op then). A
- * failed concurrent build leaves an INVALID index that `IF NOT EXISTS` would skip: check
- * `SELECT indexrelid::regclass FROM pg_index WHERE NOT indisvalid`, drop and re-run.
+ * failed concurrent build leaves an INVALID index: `createIndexConcurrently` drops it and builds it again on the next run.
  */
 
 const DESCRIPTION_VECTOR = `to_tsvector('public.oc_search_english'::regconfig, coalesce(description, ''))`;
@@ -74,9 +75,7 @@ module.exports = {
     `);
 
     for (const index of INDEXES) {
-      await queryInterface.sequelize.query(
-        `CREATE INDEX CONCURRENTLY IF NOT EXISTS "${index.name}" ON "Transactions" ${index.definition}`,
-      );
+      await createIndexConcurrently(queryInterface, { table: 'Transactions', ...index });
     }
 
     await queryInterface.sequelize.query(`ANALYZE "Transactions"`);
