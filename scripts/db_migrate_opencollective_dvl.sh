@@ -1,31 +1,27 @@
 #!/bin/bash
-# This scripts migrates the schema of the opencollective_dvl db (with sanitized data)
-# And updates the dump export for tests in test/dbdumps/opencollective_dvl.pgsql
+# Refreshes test/dbdumps/opencollective_dvl.pgsql: restores it (unless RESTORE=false), runs the
+# migrations, sanitizes the data and dumps it back. Commit the new dump so that restores don't
+# have to replay every migration since the last refresh.
+#
+# DBNAME (default: opencollective_dvl) is the database used for that, and is dropped unless
+# RESTORE=false. Use RESTORE=false to dump data you added to it on purpose.
 
-PG_DATABASE=opencollective_dvl
-DUMPFILE="test/dbdumps/$PG_DATABASE.pgsql"
+DBNAME=${DBNAME:-"opencollective_dvl"}
+DUMPFILE="test/dbdumps/opencollective_dvl.pgsql"
 
 set -e
 
+. ./scripts/common/pg-tools.sh
+
 if [ "$RESTORE" != "false" ]; then
-  echo "Restoring $PG_DATABASE to latest snapshot"
-
-  # Add a confirmation before running the restore
-  ./scripts/common/confirm.sh "The next command will drop the database $PG_DATABASE in order to make a fresh dump without polluted data. You can avoid this by passing RESTORE=false. Are you sure you want to drop $PG_DATABASE? (yes/no) " || exit 1
-  ./scripts/db_restore.sh -d $PG_DATABASE -U opencollective -f $DUMPFILE
+  ./scripts/common/confirm.sh "This drops the database $DBNAME to make a fresh dump without polluted data (pass RESTORE=false to keep it, or DBNAME=<other> to use another one). Drop $DBNAME? (yes/no) " || exit 1
+  ./scripts/db_restore.sh -d "$DBNAME" -U opencollective -f "$DUMPFILE"
 fi
 
-echo "Migrating $PG_DATABASE"
-DEBUG=psql PG_DATABASE=$PG_DATABASE npm run db:migrate
-PG_DATABASE=$PG_DATABASE npm run db:sanitize
+echo "Migrating $DBNAME"
+PG_DATABASE=$DBNAME npm run db:migrate
+PG_DATABASE=$DBNAME npm run db:sanitize
 
-# Run docker if $USE_DOCKER is set
-if [ "$USE_DOCKER" = "true" ]; then
-  echo "Using docker to run pg_dump"
-  (./scripts/dev/run-docker.sh run --rm --network host postgres:16 pg_dump -O -F t -h localhost -p 5432 -U opencollective $PG_DATABASE) >$DUMPFILE
-else
-  pg_dump -O -F t $PG_DATABASE >$DUMPFILE
-fi
+pg_tool pg_dump -O -F t -h "$PG_HOST" -U opencollective "$DBNAME" >"$DUMPFILE"
 
-echo "$DUMPFILE migrated. Please commit it and push it."
-echo ""
+echo "$DUMPFILE refreshed. Please commit it and push it."
