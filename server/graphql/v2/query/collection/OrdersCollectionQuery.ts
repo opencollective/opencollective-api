@@ -443,10 +443,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
   let incognitoProfile: Collective | null = null;
   if (account && args.includeIncognito) {
     // Needs to be root or admin of the profile to see incognito orders
-    if (
-      (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'incognito')) ||
-      isRemoteUserRoot(req)
-    ) {
+    if ((req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'incognito')) || isRemoteUserRoot(req)) {
       incognitoProfile = await account.getIncognitoProfile();
     } else {
       // Is this desirable? Some current tests don't like it.
