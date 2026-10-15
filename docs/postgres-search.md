@@ -226,7 +226,7 @@ WHERE xact_start < now() - interval '5 minutes' ORDER BY xact_start;
 Migrations are additive (functions, text search configurations, extensions, then indexes) and run in this order:
 normalization → Collectives → Updates → Orders → Tiers/Host applications → Expenses → Transactions → Comments. Each
 index is built with `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, one statement at a time, outside a transaction (writes
-continue), serially per table, then `ANALYZE` of the table. `createIndexConcurrently`
+continue), serially per table, then `ANALYZE` of the table. `createIndexesConcurrently`
 (`migrations/lib/concurrent-indexes.ts`) drops an INVALID index left by a failed or canceled build, rebuilds it, and
 fails if the result is not valid (`pg_index.indisvalid AND indisready`), so a failed migration can simply be re-run.
 Indexes that already exist and are valid (built out of band) are kept.

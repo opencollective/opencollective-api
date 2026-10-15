@@ -2,7 +2,7 @@
 
 import { QueryInterface } from 'sequelize';
 
-import { createIndexConcurrently } from './lib/concurrent-indexes';
+import { createIndexesConcurrently, dropIndexesConcurrently } from './lib/concurrent-indexes';
 
 /**
  * Indexes for the PostgreSQL search provider, Expenses and their items (opencollective#8939).
@@ -15,7 +15,7 @@ import { createIndexConcurrently } from './lib/concurrent-indexes';
  * the scope indexes (measured in opencollective#8944, see `docs/postgres-search.md`).
  *
  * Built with `CREATE INDEX CONCURRENTLY` (one statement per query, serially) so that writes are not blocked. A failed
- * concurrent build leaves an INVALID index: `createIndexConcurrently` drops it and builds it again on the next run.
+ * concurrent build leaves an INVALID index: `createIndexesConcurrently` drops it and builds it again on the next run.
  */
 
 const INDEXES = [
@@ -52,17 +52,10 @@ const INDEXES = [
 
 module.exports = {
   async up(queryInterface: QueryInterface) {
-    for (const index of INDEXES) {
-      await createIndexConcurrently(queryInterface, index);
-    }
-
-    await queryInterface.sequelize.query(`ANALYZE "Expenses"`);
-    await queryInterface.sequelize.query(`ANALYZE "ExpenseItems"`);
+    await createIndexesConcurrently(queryInterface, INDEXES);
   },
 
   async down(queryInterface: QueryInterface) {
-    for (const index of INDEXES) {
-      await queryInterface.sequelize.query(`DROP INDEX CONCURRENTLY IF EXISTS "${index.name}"`);
-    }
+    await dropIndexesConcurrently(queryInterface, INDEXES);
   },
 };

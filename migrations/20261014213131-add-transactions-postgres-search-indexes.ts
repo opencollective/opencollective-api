@@ -2,7 +2,7 @@
 
 import { QueryInterface } from 'sequelize';
 
-import { createIndexConcurrently } from './lib/concurrent-indexes';
+import { createIndexesConcurrently, dropIndexesConcurrently } from './lib/concurrent-indexes';
 
 /**
  * PostgreSQL search provider, Transactions (opencollective#8941).
@@ -23,7 +23,7 @@ import { createIndexConcurrently } from './lib/concurrent-indexes';
  *
  * Built with `CREATE INDEX CONCURRENTLY` (one statement per query, serially) so that writes are not blocked. On a large
  * table, consider running them out of band before deploying (`IF NOT EXISTS` makes this migration a no-op then). A
- * failed concurrent build leaves an INVALID index: `createIndexConcurrently` drops it and builds it again on the next run.
+ * failed concurrent build leaves an INVALID index: `createIndexesConcurrently` drops it and builds it again on the next run.
  */
 
 const DESCRIPTION_VECTOR = `to_tsvector('public.oc_search_english'::regconfig, coalesce(description, ''))`;
@@ -74,17 +74,14 @@ module.exports = {
       $$
     `);
 
-    for (const index of INDEXES) {
-      await createIndexConcurrently(queryInterface, { table: 'Transactions', ...index });
-    }
-
-    await queryInterface.sequelize.query(`ANALYZE "Transactions"`);
+    await createIndexesConcurrently(
+      queryInterface,
+      INDEXES.map(index => ({ table: 'Transactions', ...index })),
+    );
   },
 
   async down(queryInterface: QueryInterface) {
-    for (const index of INDEXES) {
-      await queryInterface.sequelize.query(`DROP INDEX CONCURRENTLY IF EXISTS "${index.name}"`);
-    }
+    await dropIndexesConcurrently(queryInterface, INDEXES);
 
     await queryInterface.sequelize.query(
       `DROP FUNCTION IF EXISTS public.oc_search_transaction_merchant_id(public."enum_Transactions_kind", jsonb)`,
