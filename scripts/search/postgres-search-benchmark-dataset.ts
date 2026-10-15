@@ -8,7 +8,8 @@
  *
  * Rows are added to the real tables (Collectives, Transactions, Orders, Subscriptions, Expenses, ExpenseItems, Updates,
  * Conversations, Comments, Tiers, HostApplications) after the existing ones. Non-unique indexes of each table are dropped
- * during the load and rebuilt after it (same definitions), then every table is vacuumed and analyzed. Foreign key
+ * during the load and rebuilt after it (same definitions, saved in `search_bench.dropped_indexes` so that the next run
+ * rebuilds them if this one fails), then every table is vacuumed and analyzed. Foreign key
  * triggers are skipped during the load (`session_replication_role = replica`, superuser only) but the generated
  * references are consistent. Generation is deterministic (hash-based, no random()), so two runs at the same scale on
  * the same base produce the same rows.
@@ -614,17 +615,36 @@ const main = async () => {
     const platformId = platform[0]?.id ?? 8686;
     console.log('Sizes', sizes, 'ID offsets', start);
 
-    // Drop non-unique indexes during the load, rebuild them after (same definitions)
-    const { rows: indexes } = options.keepIndexes
-      ? { rows: [] }
-      : await client.query(`
-          SELECT i.indexrelid::regclass::text AS name, pg_get_indexdef(i.indexrelid) AS definition, i.indrelid::regclass::text AS "table"
-          FROM pg_index i
-          WHERE i.indrelid::regclass::text IN (${TABLES.map(t => `'"${t}"'`).join(',')})
-          AND NOT i.indisunique AND NOT i.indisprimary
-        `);
-    for (const index of indexes) {
-      await client.query(`DROP INDEX ${index.name}`);
+    // Drop non-unique indexes during the load, rebuild them after (same definitions). The definitions are saved in the
+    // database first, so that a run that failed or was interrupted gets them back on the next run.
+    await client.query(`CREATE SCHEMA IF NOT EXISTS search_bench`);
+    await client.query(
+      `CREATE TABLE IF NOT EXISTS search_bench.dropped_indexes (name text PRIMARY KEY, definition text NOT NULL)`,
+    );
+    const rebuildDroppedIndexes = async () => {
+      const { rows } = await client.query(`SELECT name, definition FROM search_bench.dropped_indexes ORDER BY name`);
+      for (const index of rows) {
+        await timed(`index ${index.name}`, index.definition.replace(/^CREATE INDEX /, 'CREATE INDEX IF NOT EXISTS '));
+        await client.query(`DELETE FROM search_bench.dropped_indexes WHERE name = $1`, [index.name]);
+      }
+    };
+
+    if (options.keepIndexes) {
+      await rebuildDroppedIndexes(); // Leftovers of an interrupted run
+    } else {
+      const { rows: indexes } = await client.query(`
+        SELECT i.indexrelid::regclass::text AS name, pg_get_indexdef(i.indexrelid) AS definition
+        FROM pg_index i
+        WHERE i.indrelid::regclass::text IN (${TABLES.map(t => `'"${t}"'`).join(',')})
+        AND NOT i.indisunique AND NOT i.indisprimary
+      `);
+      for (const index of indexes) {
+        await client.query(
+          `INSERT INTO search_bench.dropped_indexes (name, definition) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING`,
+          [index.name, index.definition],
+        );
+        await client.query(`DROP INDEX ${index.name}`);
+      }
     }
 
     // The first steps create the receiving accounts, whose count the other steps need
@@ -642,9 +662,7 @@ const main = async () => {
       await timed(label, query);
     }
 
-    for (const index of indexes) {
-      await timed(`index ${index.name}`, index.definition);
-    }
+    await rebuildDroppedIndexes();
 
     for (const table of TABLES) {
       await client.query(`SELECT setval(pg_get_serial_sequence('"${table}"', 'id'), (SELECT max(id) FROM "${table}"))`);
