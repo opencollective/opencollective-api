@@ -193,6 +193,15 @@ export const checkScope = (req: Express.Request, scope: OAuthScope): boolean => 
 };
 
 /**
+ * Returns true if the remote user is root AND the current authentication method grants the `root` scope.
+ * Use this instead of `req.remoteUser?.isRoot()` to make sure root privileges are not used through
+ * OAuth/Personal tokens that were not granted the `root` scope.
+ */
+export const isRemoteUserRoot = (req: Express.Request): boolean => {
+  return Boolean(req.remoteUser?.isRoot() && checkScope(req, 'root'));
+};
+
+/**
  * Enforces the scope **only** if the remoteUser is authenticated with a OAuth or Personal Token.
  */
 export const enforceScope = (req: Express.Request, scope: OAuthScope): void => {

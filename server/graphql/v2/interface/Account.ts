@@ -29,6 +29,7 @@ import {
   checkRemoteUserCanUseApplications,
   checkRemoteUserCanUseKYC,
   checkScope,
+  isRemoteUserRoot,
   requireSessionToken,
 } from '../../common/scope-check';
 import { BadRequest, ContentNotReady, Forbidden, Unauthorized } from '../../errors';
@@ -1059,7 +1060,7 @@ const accountFieldsDefinition = () => ({
       },
     },
     async resolve(collective: Collective, args, req) {
-      if (!req.remoteUser?.isAdminOfCollective(collective) && !req.remoteUser?.isRoot()) {
+      if (!req.remoteUser?.isAdminOfCollective(collective) && !isRemoteUserRoot(req)) {
         throw new Unauthorized('You need to be logged in as an admin of this collective to see its activity');
       }
 
