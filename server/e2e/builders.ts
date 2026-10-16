@@ -163,6 +163,48 @@ export async function createHostedCollective(
   return account;
 }
 
+/**
+ * An active Project under a hosted Collective, as `createProject` leaves it for
+ * an active parent: same host, currency and fees, no admins of its own.
+ */
+export async function createProject(
+  ctx: FixtureContext,
+  label: string,
+  { parent, creator }: { parent: Collective; creator: User },
+): Promise<Collective> {
+  ctx.checkConnection();
+  const { transaction } = ctx;
+  const slug = ctx.slug(label);
+  const project = await Collective.create(
+    {
+      type: CollectiveType.PROJECT,
+      name: `${slug} Project`,
+      slug,
+      description: 'An independent Playwright Project',
+      currency: parent.currency,
+      ParentCollectiveId: parent.id,
+      HostCollectiveId: parent.HostCollectiveId,
+      hostFeePercent: parent.hostFeePercent,
+      platformFeePercent: parent.platformFeePercent,
+      isActive: parent.isActive,
+      approvedAt: parent.approvedAt,
+      CreatedByUserId: creator.id,
+      data: { e2eAttempt: ctx.attempt, e2eRequestId: ctx.requestId },
+    },
+    { transaction },
+  );
+  await Member.create(
+    {
+      CollectiveId: project.id,
+      MemberCollectiveId: parent.HostCollectiveId,
+      role: roles.HOST,
+      CreatedByUserId: creator.id,
+    },
+    { transaction },
+  );
+  return project;
+}
+
 /** An unhosted Organization administered by an actor (a payee or invitee profile). */
 export async function createOrganization(ctx: FixtureContext, label: string, admin: User): Promise<Collective> {
   ctx.checkConnection();
