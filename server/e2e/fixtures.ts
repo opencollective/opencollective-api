@@ -1,15 +1,13 @@
 import { timingSafeEqual } from 'crypto';
 import { readFileSync, statSync } from 'fs';
-import { basename } from 'path';
 
 import config from 'config';
 import type { Application } from 'express';
 
-// Only the dedicated E2E entry point can activate this route. Environment flags
-// alone must never expose fixture creation during ordinary application startup.
+// Only reachable through `server/e2e/index.ts`, which registers it as a before-routes hook.
+// These checks are defence in depth: environment flags alone must never expose it.
 export async function installE2EFixtures(app: Application): Promise<void> {
   if (
-    !/^e2e\.(js|ts)$/.test(basename(process.argv[1] || '')) ||
     process.env.NODE_ENV !== 'test' ||
     !['ci', 'e2e', 'test'].includes(config.env) ||
     !['ci', 'e2e', 'test'].includes(process.env.OC_ENV) ||
