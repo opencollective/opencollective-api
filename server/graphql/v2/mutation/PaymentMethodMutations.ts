@@ -10,6 +10,8 @@ import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import stripe, { sanitizeStripeError } from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Op } from '../../../models';
+import Collective from '../../../models/Collective';
+import User from '../../../models/User';
 import { createOrRetrievePaymentMethodFromSetupIntent } from '../../../paymentProviders/stripe/common';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { checkCanUsePaymentMethods } from '../../common/features';
@@ -25,6 +27,29 @@ import GraphQLSetupIntentInput from '../input/SetupIntentInput';
 import { GraphQLPaymentMethod } from '../object/PaymentMethod';
 import GraphQLSetupIntent from '../object/SetupIntent';
 import { GraphQLStripeError } from '../object/StripeError';
+
+// A payer's card belongs on the payee's host, which need not host the payer account.
+async function assertSetupIntentContext(account: Collective, host: Collective, user: User) {
+  if (user.isAdminOfCollective(host)) {
+    return;
+  }
+
+  const orders = await models.Order.findAll({
+    attributes: ['CollectiveId'],
+    where: {
+      FromCollectiveId: account.id,
+      status: { [Op.in]: [OrderStatuses.PENDING, OrderStatuses.ACTIVE, OrderStatuses.PAUSED] },
+    },
+    include: [{ model: models.Collective, as: 'collective', required: true }],
+  });
+  for (const order of orders) {
+    if ((await order.collective.getHostCollectiveId()) === host.id) {
+      return;
+    }
+  }
+
+  throw new Forbidden('Account has no contribution to this host');
+}
 
 const GraphQLCreditCardWithStripeError = new GraphQLObjectType({
   name: 'CreditCardWithStripeError',
@@ -211,6 +236,16 @@ const paymentMethodMutations = {
       }
 
       await twoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
+      await assertSetupIntentContext(account, host, req.remoteUser);
+
+      const rateLimit = new RateLimit(
+        `create-setup-intent-user-${req.remoteUser.id}`,
+        config.limits.addCreditCardPerUserPerHour,
+        ONE_HOUR_IN_SECONDS,
+      );
+      if (!(await rateLimit.registerCall())) {
+        throw new RateLimitExceeded('Too many setup intents created. Please try again later.');
+      }
 
       const isPlatformHost = hostStripeAccount.username === config.stripe.accountId;
 
@@ -280,6 +315,33 @@ const paymentMethodMutations = {
       }
 
       await twoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
+
+      const hostStripeAccount = await models.ConnectedAccount.findOne({
+        where: { service: Service.STRIPE, username: args.setupIntent.stripeAccount },
+        include: [{ model: models.Collective, as: 'collective', required: true }],
+      });
+      if (!hostStripeAccount) {
+        throw new Forbidden('Stripe account is not connected to a host');
+      }
+      await assertSetupIntentContext(account, hostStripeAccount.collective, req.remoteUser);
+
+      // Share the addCreditCard budget so callers cannot alternate the two mutations.
+      const rateLimit = new RateLimit(
+        `add-credit-card-user-${req.remoteUser.id}`,
+        config.limits.addCreditCardPerUserPerHour,
+        ONE_HOUR_IN_SECONDS,
+      );
+      if (!(await rateLimit.registerCall())) {
+        throw new RateLimitExceeded('Too many credit cards added. Please try again later.');
+      }
+      const creditCardCount = await models.PaymentMethod.count({
+        where: { CollectiveId: account.id, type: PAYMENT_METHOD_TYPE.CREDITCARD },
+      });
+      if (creditCardCount >= config.limits.maxCreditCardsPerAccount) {
+        throw new RateLimitExceeded(
+          `Accounts cannot have more than ${config.limits.maxCreditCardsPerAccount} credit cards`,
+        );
+      }
 
       const stripeCustomerAccount = await account.getCustomerStripeAccount(args.setupIntent.stripeAccount);
       if (!stripeCustomerAccount) {
