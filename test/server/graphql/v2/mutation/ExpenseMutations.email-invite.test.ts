@@ -130,6 +130,27 @@ describe('editExpense email draft invitations', () => {
     expect(draft.data.draftKey).to.equal('test-invitation-key');
   });
 
+  for (const draftKey of [undefined, 'test-invitation-key']) {
+    it(`keeps description-only author edits as drafts when the author is also the email invitee ${draftKey ? 'with' : 'without'} a key`, async () => {
+      const { author, draft, input } = await createFixture();
+      await draft.update({ data: { ...draft.data, payee: { email: author.email.toUpperCase() } } });
+      const result = await graphqlQueryV2(
+        editExpenseMutation,
+        { expense: { id: input.id, description: 'Updated test service' }, draftKey },
+        author,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editExpense.status).to.equal('DRAFT');
+      await draft.reload();
+      expect(draft.description).to.equal('Updated test service');
+      expect(draft.UserId).to.equal(author.id);
+      expect(draft.FromCollectiveId).to.equal(author.CollectiveId);
+      expect(draft.data.draftKey).to.equal('test-invitation-key');
+      expect(await draft.getActivities({ where: { type: activities.COLLECTIVE_EXPENSE_CREATED } })).to.have.length(0);
+    });
+  }
+
   it('requires authentication when submitting without a key', async () => {
     const { draft, input } = await createFixture();
     const result = await graphqlQueryV2(editExpenseMutation, { expense: input });

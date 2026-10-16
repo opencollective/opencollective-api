@@ -326,10 +326,10 @@ const expenseMutations = {
             }),
       };
 
+      const userIsAuthor = req.remoteUser?.id === existingExpense.UserId;
       const userIsOriginalPayee = originalPayee
         ? req.remoteUser?.isAdminOfCollective(originalPayee)
-        : await isDraftPayee(req, existingExpense);
-      const userIsAuthor = req.remoteUser?.id === existingExpense.UserId;
+        : !userIsAuthor && (await isDraftPayee(req, existingExpense));
       const isRecurring = Boolean(existingExpense.RecurringExpenseId);
       // Draft can be edited by the author of the expense if the expense is not recurring
       if (
