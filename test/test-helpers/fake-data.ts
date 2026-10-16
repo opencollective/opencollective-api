@@ -26,6 +26,7 @@ import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import MemberRoles from '../../server/constants/roles';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { VirtualCardLimitIntervals } from '../../server/constants/virtual-cards';
+import { createAccountAdminMembers } from '../../server/lib/account-admins';
 import { crypto } from '../../server/lib/encryption';
 import { KYCProviderName } from '../../server/lib/kyc/providers';
 import { createTransactionsForManuallyPaidExpense } from '../../server/lib/transactions';
@@ -352,20 +353,7 @@ export const fakeCollective = async (
   if (collectiveData.admin) {
     try {
       const admins = Array.isArray(collectiveData.admin) ? collectiveData.admin : [collectiveData.admin];
-      await Promise.all(
-        admins.map(admin => {
-          const isUser = admin instanceof models.User;
-          return models.Member.create(
-            {
-              CollectiveId: collective.id,
-              MemberCollectiveId: isUser ? admin.CollectiveId : admin.id,
-              role: roles.ADMIN,
-              CreatedByUserId: isUser ? admin.id : admin.CreatedByUserId,
-            },
-            sequelizeParams,
-          );
-        }),
-      );
+      await createAccountAdminMembers(collective, admins, sequelizeParams);
 
       // Re-populate roles for affected users
       await Promise.all(
