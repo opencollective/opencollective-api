@@ -2,7 +2,7 @@
 import config from 'config';
 import debugLib from 'debug';
 import { Request } from 'express';
-import { get, omit } from 'lodash';
+import { omit } from 'lodash';
 import moment from 'moment';
 import { Op, QueryTypes, Transaction } from 'sequelize';
 import type Stripe from 'stripe';
@@ -1325,6 +1325,17 @@ export async function paymentMethodAttached(event: Stripe.Event) {
   });
 }
 
+const getIssuingVirtualCardId = (event: Stripe.Event): string | undefined => {
+  if (event.type.startsWith('issuing_authorization')) {
+    return (<Stripe.Issuing.Authorization>event.data.object).card?.id;
+  } else if (event.type.startsWith('issuing_transaction')) {
+    const card = (<Stripe.Issuing.Transaction>event.data.object).card;
+    return typeof card === 'string' ? card : card?.id;
+  } else if (event.type.startsWith('issuing_card')) {
+    return (<Stripe.Issuing.Card>event.data.object).id;
+  }
+};
+
 /*
  * Stripe issuing events are currently using account webhooks, meaning
  * that each host with virtual card enabled has an account webhook setup to this endpoint.
@@ -1332,21 +1343,19 @@ export async function paymentMethodAttached(event: Stripe.Event) {
  * This will be deprecated and unified when these events are migrated to the connect webhook.
  */
 async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
-  const event = <Stripe.Event>request.body;
+  const unverifiedEvent = <Stripe.Event>request.body;
 
-  let virtualCardId;
-  if (event.type.startsWith('issuing_authorization')) {
-    virtualCardId = (<Stripe.Issuing.Authorization>event.data.object).card.id;
-  } else if (event.type.startsWith('issuing_transaction')) {
-    const transaction = <Stripe.Issuing.Transaction>event.data.object;
-    virtualCardId = get(transaction, 'transaction.card.id', transaction?.card);
-  } else if (event.type.startsWith('issuing_card')) {
-    virtualCardId = (<Stripe.Issuing.Card>event.data.object).id;
-  } else {
-    logger.debug(`Stripe: Webhooks: Received an unsupported issuing event type: ${event.type}`);
+  if (
+    !unverifiedEvent.type.startsWith('issuing_authorization') &&
+    !unverifiedEvent.type.startsWith('issuing_transaction') &&
+    !unverifiedEvent.type.startsWith('issuing_card')
+  ) {
+    logger.debug(`Stripe: Webhooks: Received an unsupported issuing event type: ${unverifiedEvent.type}`);
     return;
   }
 
+  // The unverified card is only used to select a host's signing secret.
+  const virtualCardId = getIssuingVirtualCardId(unverifiedEvent);
   if (!virtualCardId) {
     throw new Error('virtual card id not set in webhook event');
   }
@@ -1357,31 +1366,43 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
     return;
   }
 
-  const stripeClient = await virtualcard.getStripeClient(virtualCard.host);
-  const webhookSigningSecret = await virtualcard.getWebhookSigninSecret(virtualCard.host);
+  const secretOwnerHost = virtualCard.host;
+  const stripeClient = await virtualcard.getStripeClient(secretOwnerHost);
+  const webhookSigningSecret = await virtualcard.getWebhookSigninSecret(secretOwnerHost);
 
+  let verifiedEvent: Stripe.Event;
   try {
-    stripeClient.webhooks.constructEvent(request.rawBody, request.headers['stripe-signature'], webhookSigningSecret);
+    verifiedEvent = stripeClient.webhooks.constructEvent(
+      request.rawBody,
+      request.headers['stripe-signature'],
+      webhookSigningSecret,
+    );
   } catch {
     throw new Error('Source of event not recognized');
   }
 
-  switch (event.type) {
+  const verifiedCardId = getIssuingVirtualCardId(verifiedEvent);
+  const verifiedCard = verifiedCardId && (await getVirtualCardForTransaction(verifiedCardId));
+  if (!verifiedCard || verifiedCard.HostCollectiveId !== secretOwnerHost.id) {
+    throw new Error('Source of event not recognized');
+  }
+
+  switch (verifiedEvent.type) {
     case 'issuing_authorization.request':
-      return virtualcard.processAuthorization(event);
+      return virtualcard.processAuthorization(verifiedEvent);
     case 'issuing_authorization.created':
-      if (!(<Stripe.Issuing.Authorization>event.data.object).approved) {
-        return virtualcard.processDeclinedAuthorization(event);
+      if (!(<Stripe.Issuing.Authorization>verifiedEvent.data.object).approved) {
+        return virtualcard.processDeclinedAuthorization(verifiedEvent);
       }
       return;
     case 'issuing_authorization.updated':
-      return virtualcard.processUpdatedTransaction(event);
+      return virtualcard.processUpdatedTransaction(verifiedEvent);
     case 'issuing_transaction.created':
-      return virtualcard.processTransaction(<Stripe.Issuing.Transaction>event.data.object);
+      return virtualcard.processTransaction(<Stripe.Issuing.Transaction>verifiedEvent.data.object);
     case 'issuing_card.updated':
-      return virtualcard.processCardUpdate(event);
+      return virtualcard.processCardUpdate(verifiedEvent);
     default:
-      logger.debug(`Stripe: Webhooks: Received an unsupported issuing event type: ${event.type}`);
+      logger.debug(`Stripe: Webhooks: Received an unsupported issuing event type: ${verifiedEvent.type}`);
       return;
   }
 }
