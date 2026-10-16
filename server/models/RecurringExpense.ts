@@ -6,6 +6,7 @@ import { v4 as uuid } from 'uuid';
 
 import { activities } from '../constants';
 import expenseStatus from '../constants/expense-status';
+import { ValidationFailed } from '../graphql/errors';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
@@ -144,17 +145,48 @@ class RecurringExpense extends ModelWithPublicId<
     return draftedExpense;
   }
 
-  static async createFromExpense(expense: Expense, interval: RecurringExpenseIntervals, endsAt?: string | Date) {
-    if (typeof endsAt === 'string') {
-      endsAt = moment(endsAt).toDate();
+  /**
+   * Validates the end date of a recurring expense and returns it as a `Date`.
+   *
+   * `getRecurringExpensesDue` only drafts rows last drafted more than one interval ago,
+   * so a recurring expense created now (`lastDraftedAt` = now) cannot be picked up before
+   * `moment().add(1, interval).startOf('day')`: that is its first possible due run. On that
+   * run, and on every later one, the cron only keeps rows with `endsAt` after the start of
+   * the run's day. An end date that doesn't reach that first possible due run is therefore
+   * dead on arrival: it can never produce a single draft, so we reject it instead of
+   * silently creating a recurring expense that never recurs.
+   */
+  static assertValidEndsAt(
+    endsAt: string | Date | null | undefined,
+    interval: RecurringExpenseIntervals,
+  ): Date | undefined {
+    if (endsAt === undefined || endsAt === null) {
+      return undefined;
     }
+
+    const endsAtMoment = moment(endsAt);
+    if (!endsAtMoment.isValid()) {
+      throw new ValidationFailed('Invalid end date for the recurring expense');
+    }
+
+    const firstPossibleDueRun = moment().add(1, interval).startOf('day');
+    if (!endsAtMoment.isAfter(firstPossibleDueRun)) {
+      throw new ValidationFailed(
+        `The end date for a recurring expense must be later than its first recurrence (${firstPossibleDueRun.format('YYYY-MM-DD')})`,
+      );
+    }
+    return endsAtMoment.toDate();
+  }
+
+  static async createFromExpense(expense: Expense, interval: RecurringExpenseIntervals, endsAt?: string | Date | null) {
+    const parsedEndsAt = this.assertValidEndsAt(endsAt, interval);
 
     const recurringExpense = await this.create({
       CollectiveId: expense.CollectiveId,
       FromCollectiveId: expense.FromCollectiveId,
       lastDraftedAt: new Date(),
       interval,
-      endsAt,
+      endsAt: parsedEndsAt,
     });
     await expense.update({ RecurringExpenseId: recurringExpense.id });
     return recurringExpense;

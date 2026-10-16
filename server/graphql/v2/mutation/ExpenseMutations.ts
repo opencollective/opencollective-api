@@ -152,6 +152,12 @@ const expenseMutations = {
       const payoutMethod = args.expense.payoutMethod;
       await populatePayoutMethodId(payoutMethod, { loaders: req.loaders });
 
+      if (args.recurring) {
+        // Validate before creating the expense, so an invalid end date doesn't leave
+        // behind an expense without its recurring schedule.
+        models.RecurringExpense.assertValidEndsAt(args.recurring.endsAt, args.recurring.interval);
+      }
+
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
       // here and cleaned.
