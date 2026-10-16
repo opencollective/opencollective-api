@@ -9,6 +9,7 @@ import PQueue from 'p-queue';
 import FEATURE from '../../server/constants/feature';
 import emailLib from '../../server/lib/email';
 import {
+  findCancelledOrdersWithActiveSubscriptions,
   groupProcessedOrders,
   ordersWithPendingCharges,
   processOrderWithSubscription,
@@ -41,11 +42,45 @@ const csvFields = [
 
 const startTime = new Date();
 
+/**
+ * Tripwire for #8915 / #7701. A CANCELLED order whose subscription is still active means a cancellation path
+ * (bulk tier deletion, account archive, ...) forgot to flag the order for asynchronous deactivation.
+ * `ordersWithPendingCharges` refuses to charge those orders, so no money moves - but the subscription is still
+ * live on the payment provider side and any other code path could pick it up, so we want to hear about it now
+ * rather than when a contributor asks for a refund.
+ *
+ * This never blocks or alters the charging run.
+ */
+async function reportCancelledOrdersWithActiveSubscriptions() {
+  try {
+    const { count, orderIds } = await findCancelledOrdersWithActiveSubscriptions();
+    if (!count) {
+      return;
+    }
+
+    const message = `${count} cancelled recurring contribution(s) still have an active subscription`;
+    console.warn(`${message}. Order ids: ${orderIds.join(', ')}`);
+    reportErrorToSentry(new Error(message), {
+      severity: 'warning',
+      tags: { feature: FEATURE.RECURRING_CONTRIBUTIONS },
+      extra: { count, orderIds },
+    });
+  } catch (e) {
+    // The tripwire must never prevent the actual charging run
+    reportErrorToSentry(e, { severity: 'error', tags: { feature: FEATURE.RECURRING_CONTRIBUTIONS } });
+  }
+}
+
 /** Run the script with parameters read from the command line */
-async function run(options) {
+export async function run(options) {
   options.startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 
   const queue = new PQueue({ concurrency: options.concurrency });
+
+  // The tripwire is global, don't run it for targeted (`--order-ids`) runs
+  if (!options.orderIds?.length) {
+    await reportCancelledOrdersWithActiveSubscriptions();
+  }
 
   const { count, rows: orders } = await ordersWithPendingCharges({
     limit: options.limit,

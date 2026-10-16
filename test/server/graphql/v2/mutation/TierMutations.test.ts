@@ -466,7 +466,11 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
     it('deletes tier stopping recurring contributions', async () => {
       const tierWithRecurringContributions = await fakeTier({ CollectiveId: collective.id });
       const order = await fakeOrder(
-        { status: OrderStatuses.ACTIVE, TierId: tierWithRecurringContributions.id },
+        {
+          status: OrderStatuses.ACTIVE,
+          CollectiveId: collective.id,
+          TierId: tierWithRecurringContributions.id,
+        },
         { withSubscription: true, withTransactions: true },
       );
 
@@ -484,6 +488,11 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
       await order.reload();
 
       expect(order.status).to.equal(OrderStatuses.CANCELLED);
+      // The subscription is deactivated asynchronously by `cron/10mn/00-handle-batch-subscriptions-update`, which
+      // also calls the payment provider for externally managed subscriptions (see #8915)
+      expect(order.data.needsAsyncDeactivation).to.be.true;
+      await order.Subscription.reload();
+      expect(order.Subscription.isActive).to.be.true;
     });
   });
 });

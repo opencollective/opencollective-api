@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import { isNil, isUndefined, omitBy, pick, uniq } from 'lodash';
 
+import OrderStatuses from '../../../constants/order-status';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
@@ -190,7 +191,12 @@ const tierMutations = {
       await twoFactorAuthLib.enforceForAccount(req, collective);
 
       if (args.stopRecurringContributions) {
-        await models.Order.cancelActiveOrdersByTierId(tier.id);
+        // Flags the orders for asynchronous deactivation in `cron/10mn/00-handle-batch-subscriptions-update.ts`,
+        // which deactivates the subscriptions and calls the payment provider for externally managed ones (PayPal).
+        await models.Order.stopActiveSubscriptions(tier.CollectiveId, OrderStatuses.CANCELLED, {
+          tierId: tier.id,
+          messageSource: 'COLLECTIVE',
+        });
       }
 
       await tier.destroy();
