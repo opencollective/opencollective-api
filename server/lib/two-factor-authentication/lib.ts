@@ -4,10 +4,9 @@ import { isNil, pick } from 'lodash';
 
 import { activities } from '../../constants';
 import POLICIES from '../../constants/policies';
-import { ApolloError, Unauthorized } from '../../graphql/errors';
+import { ApolloError, RateLimitExceeded, Unauthorized } from '../../graphql/errors';
 import { Activity, Collective, User, UserTwoFactorMethod } from '../../models';
 import { sessionCache } from '../cache';
-import errors from '../errors';
 import { lockUntilResolved } from '../mutex';
 import { getPolicy } from '../policies';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../rate-limit';
@@ -248,7 +247,7 @@ async function validateRequest(
       lockUntilResolved(rateLimitKey, async () => {
         const rateLimit = new RateLimit(rateLimitKey, 10, ONE_HOUR_IN_SECONDS);
         if (await rateLimit.hasReachedLimit()) {
-          throw new errors.TooManyRequests('Too many attempts. Please try again in an hour');
+          throw new RateLimitExceeded('Too many attempts. Please try again in an hour');
         }
 
         try {

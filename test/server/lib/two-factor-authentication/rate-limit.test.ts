@@ -4,10 +4,9 @@ import { createRequest, type MockRequest } from 'node-mocks-http';
 import { generateSecret, generateSync } from 'otplib';
 import { createSandbox } from 'sinon';
 
-import { ApolloError } from '../../../../server/graphql/errors';
+import { ApolloError, RateLimitExceeded } from '../../../../server/graphql/errors';
 import { sessionCache } from '../../../../server/lib/cache';
 import { crypto } from '../../../../server/lib/encryption';
-import errors from '../../../../server/lib/errors';
 import { lockUntilResolved } from '../../../../server/lib/mutex';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../../server/lib/rate-limit';
 import { createRedisClient, RedisInstanceType } from '../../../../server/lib/redis';
@@ -65,8 +64,8 @@ describe('lib/two-factor-authentication/validateRequest rate limiting', () => {
     req.headers[TwoFactorAuthenticationHeader] = `${TwoFactorMethod.TOTP} ${generateSync({ secret })}`;
     const validateTokenSpy = sandbox.spy(totpProvider, 'validateToken');
     await expect(twoFactorAuthLib.validateRequest(req))
-      .to.be.rejectedWith(errors.TooManyRequests, 'Too many attempts. Please try again in an hour')
-      .and.eventually.deep.include({ code: 429, type: 'too_many_requests' });
+      .to.be.rejectedWith(RateLimitExceeded, 'Too many attempts. Please try again in an hour')
+      .and.eventually.deep.include({ extensions: { code: 'RateLimitExceeded' } });
     expect(validateTokenSpy).not.to.have.been.called;
     expect(await sessionCache.get(`2fa:${req.remoteUser.id}:rate-limit-test`)).not.to.exist;
     expect(await rateLimit.getCallsCount()).to.equal(10);
@@ -85,7 +84,7 @@ describe('lib/two-factor-authentication/validateRequest rate limiting', () => {
     req.headers[TwoFactorAuthenticationHeader] = `${TwoFactorMethod.TOTP} invalid`;
     await failAttempts(req, 1);
     await expect(twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true })).to.be.rejectedWith(
-      errors.TooManyRequests,
+      RateLimitExceeded,
     );
 
     // The valid session still works even after the token-validation budget is exhausted.
@@ -119,7 +118,7 @@ describe('lib/two-factor-authentication/validateRequest rate limiting', () => {
       req.headers[TwoFactorAuthenticationHeader] = `${method} invalid`;
       await expect(
         twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, sessionKey: `new-${method}` }),
-      ).to.be.rejectedWith(errors.TooManyRequests);
+      ).to.be.rejectedWith(RateLimitExceeded);
     }
     expect(providerStubs.reduce((count, stub) => count + stub.callCount, 0)).to.equal(10);
   });
@@ -128,7 +127,7 @@ describe('lib/two-factor-authentication/validateRequest rate limiting', () => {
     const first = await makeRequest();
     const second = await makeRequest();
     await failAttempts(first.req);
-    await expect(twoFactorAuthLib.validateRequest(first.req)).to.be.rejectedWith(errors.TooManyRequests);
+    await expect(twoFactorAuthLib.validateRequest(first.req)).to.be.rejectedWith(RateLimitExceeded);
 
     await failAttempts(second.req, 1);
     second.req.headers[TwoFactorAuthenticationHeader] =
@@ -151,7 +150,7 @@ describe('lib/two-factor-authentication/validateRequest rate limiting', () => {
     const failures = results.filter(result => result.status === 'rejected').map(result => result.reason);
     expect(failures).to.have.length(50);
     expect(failures.filter(error => error.extensions?.code === 'INVALID_2FA_CODE')).to.have.length(10);
-    expect(failures.filter(error => error instanceof errors.TooManyRequests)).to.have.length(40);
+    expect(failures.filter(error => error instanceof RateLimitExceeded)).to.have.length(40);
     expect(validateTokenStub.callCount).to.equal(10);
     expect(await rateLimit.getCallsCount()).to.equal(10);
   });
@@ -190,6 +189,8 @@ describe('lib/two-factor-authentication/validateRequest rate limiting', () => {
 
     const { req, rateLimit } = await makeRequest();
     await failAttempts(req, 9);
+    // A separate worker must see the same budget, including with only REDIS_SESSION_URL set.
+    expect(await redis.get(`user_2FA_graphql_${req.remoteUser.id}`)).to.equal('9');
     const validateTokenSpy = sandbox.spy(totpProvider, 'validateToken');
     const lockSetSpy = sandbox.spy(redis, 'set');
     const rateLimitKey = `user_2FA_graphql_${req.remoteUser.id}`;
@@ -211,7 +212,7 @@ describe('lib/two-factor-authentication/validateRequest rate limiting', () => {
       await otherWorker;
       await result;
     }
-    expect(await result).to.be.instanceOf(errors.TooManyRequests);
+    expect(await result).to.be.instanceOf(RateLimitExceeded);
     expect(validateTokenSpy).not.to.have.been.called;
     expect(await rateLimit.getCallsCount()).to.equal(10);
   });
