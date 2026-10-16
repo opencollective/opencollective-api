@@ -55,14 +55,8 @@ re-create them with the latest models.
 All the calls to 3rd party services are stubbed using either `sinon`
 or `nock`.
 
-If you get an error at the first test, you might have forgotten to run
-postgres. Use e.g. the following aliases to start/stop postgres:
-
-```
-export PGDATA='/usr/local/var/postgres'
-alias pgstart='pg_ctl -l $PGDATA/server.log start'
-alias pgstop='pg_ctl stop -m fast'
-```
+If you get an error at the first test, check that Postgres is running and that the test database
+exists (`npm run db:restore:test`). See [PostgreSQL Database](postgres.md).
 
 ## Running Scripts
 

@@ -185,11 +185,7 @@ jobs:
         with:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
-      # The ubuntu-26.04 image ships PostgreSQL 18 client tools, whose pg_restore emits
-      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Run them from the postgres:16 image.
       - run: npm run db:restore:test
-        env:
-          USE_DOCKER: true
 
       - name: Test
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'
@@ -266,11 +262,7 @@ jobs:
         with:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
-      # The ubuntu-26.04 image ships PostgreSQL 18 client tools, whose pg_restore emits
-      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Run them from the postgres:16 image.
       - run: npm run db:restore:test
-        env:
-          USE_DOCKER: true
 
       - name: Test
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'

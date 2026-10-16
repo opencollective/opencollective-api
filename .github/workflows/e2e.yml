@@ -362,12 +362,8 @@ jobs:
           test -e opencollective-images/dist/server
           test -f opencollective-pdf/dist/server/index.js
 
-      # The ubuntu-26.04 image ships PostgreSQL 18 client tools, whose pg_restore emits
-      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Run them from the postgres:16 image.
       - name: Setup DB
         working-directory: opencollective-frontend
-        env:
-          USE_DOCKER: true
         run: ./scripts/setup_db.sh
 
       - name: Run E2E with Cypress
