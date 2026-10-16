@@ -47,6 +47,8 @@ export const expenseRecipes: Record<string, Recipe> = {
         priorExpense: z.boolean().default(false),
         /** An unrelated user the submitter can invite by profile. */
         invitee: z.boolean().default(false),
+        /** An unrelated Organization with its own admin, which the submitter can invite by profile. */
+        inviteeOrganization: z.boolean().default(false),
       })
       .strict(),
     build: async (ctx, inputs) => {
@@ -62,6 +64,8 @@ export const expenseRecipes: Record<string, Recipe> = {
       const collective2 = inputs.secondCollective && (await createHostedCollective(ctx, 'collective2', hosted));
       const organization = inputs.payeeOrganization && (await createOrganization(ctx, 'organization', submitter));
       const invitee = inputs.invitee && (await createActor(ctx, 'invitee'));
+      const inviteeAdmin = inputs.inviteeOrganization && (await createActor(ctx, 'invitee-admin'));
+      const inviteeOrganization = inviteeAdmin && (await createOrganization(ctx, 'invitee-organization', inviteeAdmin));
       const priorExpense =
         inputs.priorExpense &&
         (await createSubmittedExpense(ctx, {
@@ -80,12 +84,14 @@ export const expenseRecipes: Record<string, Recipe> = {
           hostAdmin: actorHandle(hostAdmin),
           submitter: actorHandle(submitter),
           ...(invitee && { invitee: actorHandle(invitee) }),
+          ...(inviteeAdmin && { inviteeAdmin: actorHandle(inviteeAdmin) }),
         },
         accounts: {
           host: accountHandle(host),
           collective: accountHandle(collective),
           ...(collective2 && { collective2: accountHandle(collective2) }),
           ...(organization && { organization: accountHandle(organization) }),
+          ...(inviteeOrganization && { inviteeOrganization: accountHandle(inviteeOrganization) }),
         },
         expenses: { ...(priorExpense && { prior: expenseHandle(priorExpense, collective) }) },
         urls: {
