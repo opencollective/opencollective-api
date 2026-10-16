@@ -62,6 +62,7 @@ import plans, { HostPlan, PlatformSubscriptionTiers } from '../constants/plans';
 import PlatformConstants from '../constants/platform';
 import POLICIES, { DEFAULT_POLICIES, Policies, UseVendorPolicyValue } from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
+import type { VirtualCardLimitIntervals } from '../constants/virtual-cards';
 import {
   getBalanceAmount,
   getBalanceTimeSeries,
@@ -182,6 +183,8 @@ type Settings = {
       period: number;
     };
     requestcard?: boolean;
+    /** Spending limit intervals (`VirtualCardLimitIntervals`) that collectives can pick when requesting a card. All allowed by default. */
+    allowedSpendingLimitIntervals?: Partial<Record<VirtualCardLimitIntervals, boolean>>;
   };
   payoutsTwoFactorAuth?: {
     enabled?: boolean;
