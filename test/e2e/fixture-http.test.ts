@@ -55,6 +55,53 @@ const ownerFile = process.env.PLAYWRIGHT_FIXTURE_OWNER_FILE;
       400,
     );
     assert.equal((await post({ ...body('unknown', 'Unknown'), recipe: 'not-a-recipe' })).status, 400);
+    assert.equal((await post({ ...body('inherited', 'Inherited'), recipe: 'constructor' })).status, 400);
+  });
+
+  it('validates inputs per recipe and commits a multi-party graph only as a whole', async () => {
+    const submission = (requestId: string, inputs: unknown) => ({
+      attempt,
+      requestId,
+      recipe: 'expense-submission',
+      inputs,
+    });
+    // Inputs of another recipe, or options this recipe does not define, create nothing.
+    assert.equal((await post(submission('foreign-inputs', { name: 'An Account' }))).status, 400);
+    assert.equal((await post(submission('unknown-option', { vendor: true }))).status, 400);
+
+    // An unknown country fails domain validation after the actors, host and Collective were written.
+    const vat = { type: 'OWN', number: 'FRXX999999999' };
+    const invalid = await post(submission('graph', { collective: { country: 'ZZ', vat }, priorExpense: true }));
+    assert.equal(invalid.status, 422);
+    assert.equal((await invalid.json()).error.code, 'INVALID_PREREQUISITE');
+
+    // Leftovers would collide with the same identities on the corrected request.
+    const inputs = { collective: { country: 'BE', vat }, priorExpense: true, payeeOrganization: true };
+    const corrected = await post(submission('graph', inputs));
+    assert.equal(corrected.status, 200);
+    const graph = await corrected.json();
+    assert.deepEqual(Object.keys(graph.actors).sort(), ['hostAdmin', 'submitter']);
+    assert.deepEqual(Object.keys(graph.accounts).sort(), ['collective', 'host', 'organization']);
+    assert.equal(graph.expenses.prior.status, 'PENDING');
+    const [stored] = await sequelize.query<{ hosted: boolean; country: string; items: number }>(
+      `SELECT c."isActive" AND c."HostCollectiveId" = :host AS hosted, c."countryISO" AS country,
+        (SELECT COUNT(*)::int FROM "ExpenseItems" i WHERE i."ExpenseId" = :expense) AS items
+      FROM "Collectives" c WHERE c.id = :collective`,
+      {
+        type: QueryTypes.SELECT,
+        replacements: {
+          host: graph.accounts.host.legacyId,
+          collective: graph.accounts.collective.legacyId,
+          expense: graph.expenses.prior.legacyId,
+        },
+      },
+    );
+    assert.deepEqual(stored, { hosted: true, country: 'BE', items: 1 });
+
+    // The receipt returns the same graph, including each actor's session handle.
+    const repeated = await (await post(submission('graph', inputs))).json();
+    assert.deepEqual(repeated, graph);
+    assert.equal((await post(submission('graph', { ...inputs, invitee: true }))).status, 409);
   });
 
   it('recovers a committed result after the client discards the HTTP response', async () => {
