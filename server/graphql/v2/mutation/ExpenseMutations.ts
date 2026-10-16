@@ -43,6 +43,7 @@ import {
   editExpense,
   editExpenseDraft,
   holdExpense,
+  isDraftPayee,
   markAsPaidWithStripe,
   markExpenseAsIncomplete,
   markExpenseAsSpam,
@@ -325,7 +326,9 @@ const expenseMutations = {
             }),
       };
 
-      const userIsOriginalPayee = originalPayee && req.remoteUser?.isAdminOfCollective(originalPayee);
+      const userIsOriginalPayee = originalPayee
+        ? req.remoteUser?.isAdminOfCollective(originalPayee)
+        : await isDraftPayee(req, existingExpense);
       const userIsAuthor = req.remoteUser?.id === existingExpense.UserId;
       const isRecurring = Boolean(existingExpense.RecurringExpenseId);
       // Draft can be edited by the author of the expense if the expense is not recurring
@@ -337,7 +340,7 @@ const expenseMutations = {
           isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
         });
       }
-      // Draft can be submitted by: new user with draft-key, payee of the original expense or author of the original expense (in the case of Recurring Expense draft)
+      // Draft can be submitted with a draft key, by the invited account/email, or by the author of a recurring draft.
       else if (
         existingExpense.status === expenseStatus.DRAFT &&
         (args.draftKey || userIsOriginalPayee || (userIsAuthor && isRecurring))

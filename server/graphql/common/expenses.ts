@@ -193,7 +193,7 @@ const isOwnerAccountant = async (req: express.Request, expense: Expense): Promis
   return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.FromCollectiveId);
 };
 
-const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boolean> => {
+export const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -2862,7 +2862,9 @@ export async function submitExpenseDraft(
     throw new Forbidden('Expense can not be edited.');
   }
 
-  const userIsOriginalPayee: boolean = Boolean(originalPayee) && req.remoteUser?.isAdminOfCollective(originalPayee);
+  const userIsOriginalPayee = originalPayee
+    ? req.remoteUser?.isAdminOfCollective(originalPayee)
+    : await isDraftPayee(req, existingExpense);
   const userIsAuthor = Boolean(req.remoteUser) && req.remoteUser.id === existingExpense.UserId;
   if (existingExpense.data?.draftKey !== args.draftKey && !userIsOriginalPayee && !userIsAuthor) {
     throw new Unauthorized('You need to submit the right draft key to edit this expense');
