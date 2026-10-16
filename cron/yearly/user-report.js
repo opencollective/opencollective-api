@@ -45,7 +45,7 @@ SELECT
   host.slug as "hostSlug",
   host.name as "hostName",
   host.image as "hostLogo", host."twitterHandle" as "hostTwitterHandle", host.description as "hostDescription",
-  c.slug, c.name, c.description, c.image, c."backgroundImage", c."twitterHandle", c.settings, c.data
+  c.slug, c.name, c.description, c.image, c."isPrivate", c."backgroundImage", c."twitterHandle", c.settings, c.data
 FROM "CollectiveTransactions" ut
 LEFT JOIN "Collectives" c ON ut."CollectiveId" = c.id
 LEFT JOIN "Collectives" host ON ut."HostCollectiveId" = host.id
@@ -99,6 +99,7 @@ const processCollective = collective => {
           name: row.name || row.slug,
           description: row.description,
           image: row.image,
+          isPrivate: row.isPrivate,
           backgroundImage:
             row.backgroundImage || 'https://opencollective.com/public/images/collectives/default-header-bg.jpg',
           twitterHandle: row.twitterHandle,

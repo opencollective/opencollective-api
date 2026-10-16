@@ -80,6 +80,7 @@ import {
   filterCollectiveSettings,
   getCollectiveAvatarUrl,
   getCollectiveBackgroundImageUrl,
+  getCollectivePreviewImageUrl,
   isCollectiveSlugReserved,
   parseImageServiceUrl,
   validateSettings,
@@ -484,11 +485,7 @@ class Collective extends ModelWithPublicId<
   };
 
   get previewImage() {
-    if (!this.image) {
-      return null;
-    }
-
-    return `${config.host.images}/proxy/images/?src=${encodeURIComponent(this.image)}&height=96`;
+    return getCollectivePreviewImageUrl(this, { height: 96 });
   }
 
   get info() {
