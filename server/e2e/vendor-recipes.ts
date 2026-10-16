@@ -170,6 +170,8 @@ export const vendorRecipes: Record<string, Recipe> = {
         expenses: {},
         urls: {
           hostedCollectives: `/dashboard/${host.slug}/hosted-collectives`,
+          vendors: `/dashboard/${host.slug}/vendors`,
+          expectedFunds: `/dashboard/${host.slug}/expected-funds`,
         },
       };
     },
