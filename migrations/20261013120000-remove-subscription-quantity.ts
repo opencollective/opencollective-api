@@ -6,26 +6,13 @@ import { DataTypes } from 'sequelize';
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface: QueryInterface) {
-    await queryInterface.sequelize.transaction(async transaction => {
-      for (const table of ['Subscriptions', 'SubscriptionHistories']) {
-        await queryInterface.removeColumn(table, 'quantity', { transaction });
-      }
-    });
+    await queryInterface.removeColumn('Subscriptions', 'quantity');
   },
 
   async down(queryInterface: QueryInterface) {
-    await queryInterface.sequelize.transaction(async transaction => {
-      for (const table of ['Subscriptions', 'SubscriptionHistories']) {
-        await queryInterface.addColumn(
-          table,
-          'quantity',
-          {
-            type: DataTypes.INTEGER,
-            allowNull: true,
-          },
-          { transaction },
-        );
-      }
+    await queryInterface.addColumn('Subscriptions', 'quantity', {
+      type: DataTypes.INTEGER,
+      allowNull: true,
     });
   },
 };
