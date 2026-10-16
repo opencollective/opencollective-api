@@ -32,8 +32,11 @@ export const getProvider = async (providerType, instanceType = RedisInstanceType
   }
 };
 
-const getDefaultProviderType = () => {
-  if (get(config, 'redis.serverUrl')) {
+const getDefaultProviderType = (instanceType = RedisInstanceType.DEFAULT) => {
+  if (
+    get(config, 'redis.serverUrl') ||
+    (instanceType === RedisInstanceType.SESSION && get(config, 'redis.serverUrlSession'))
+  ) {
     return PROVIDER_TYPES.REDIS;
   } else {
     return PROVIDER_TYPES.MEMORY;
@@ -43,7 +46,7 @@ const getDefaultProviderType = () => {
 const providers = {};
 
 const getDefaultProvider = (instanceType = RedisInstanceType.DEFAULT): Promise<ReturnType<typeof getProvider>> => {
-  const defaultProviderType = getDefaultProviderType();
+  const defaultProviderType = getDefaultProviderType(instanceType);
   if (!providers[instanceType]) {
     providers[instanceType] = getProvider(defaultProviderType, instanceType);
   }
