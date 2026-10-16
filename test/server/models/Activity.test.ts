@@ -110,6 +110,7 @@ describe('server/models/Activity', () => {
     });
 
     it('is a no-op when dispatch tracking is disabled', async () => {
+      disableActivityDispatchTracking(); // Tracking is enabled globally by the test setup
       let dispatchCompleted = false;
       let releaseDispatches: () => void = () => undefined;
       const dispatchGate = new Promise<void>(resolve => {
