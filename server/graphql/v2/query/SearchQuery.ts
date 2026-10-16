@@ -1,13 +1,14 @@
 import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
-import { v7 as uuidV7 } from 'uuid';
 
-import { isOpenSearchConfigured } from '../../../lib/open-search/client';
-import { getOpenSearchQueryId, GraphQLSearchParams } from '../../../lib/open-search/graphql-search';
 import { assertCanSeeAllAccounts } from '../../../lib/private-accounts';
 import RateLimit from '../../../lib/rate-limit';
+import { getSearchProvider } from '../../../lib/search';
+import { GraphQLSearchParams } from '../../../lib/search/graphql-search';
+import { SearchProvider, SearchRequest } from '../../../lib/search/types';
 import { Forbidden, RateLimitExceeded } from '../../errors';
+import { GraphQLSearchBackend } from '../enum/SearchBackend';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLSearchResponse } from '../object/SearchResponse';
 
@@ -27,13 +28,20 @@ const SearchQuery = {
       type: new GraphQLNonNull(GraphQLString),
       description: 'The search term to search for',
     },
+    backend: {
+      type: new GraphQLNonNull(GraphQLSearchBackend),
+      description: 'The backend to use for this search',
+      defaultValue: SearchProvider.OPENSEARCH,
+    },
     account: {
       type: GraphQLAccountReferenceInput,
-      description: 'Limit the scope of the search to this account and its children',
+      description:
+        'Limit the scope of the search to this account and its children. When used with `host`, results must match both.',
     },
     host: {
       type: GraphQLAccountReferenceInput,
-      description: 'Limit the scope of the search to this host and its hosted accounts',
+      description:
+        'Limit the scope of the search to this host and its hosted accounts. When used with `account`, results must match both.',
     },
     useTopHits: {
       type: new GraphQLNonNull(GraphQLBoolean),
@@ -55,22 +63,24 @@ const SearchQuery = {
   },
   async resolve(
     _: void,
-    { searchTerm, useTopHits, ...args },
+    { searchTerm, useTopHits, backend, ...args },
     req: express.Request,
   ): Promise<{
     results: GraphQLSearchParams;
   }> {
     const { remoteUser } = req;
-    if (
-      config.env === 'production' &&
-      (!remoteUser || !remoteUser.collective?.settings?.earlyAccess?.['SEARCH_COMMAND'])
-    ) {
-      throw new Forbidden();
-    } else if (!isOpenSearchConfigured()) {
-      throw new Error(
-        config.env === 'development' ? 'OpenSearch is not running' : 'The search is temporarily unavailable',
-      );
+    if (config.env === 'production') {
+      const earlyAccess = remoteUser?.collective?.settings?.earlyAccess;
+      if (!earlyAccess?.['SEARCH_COMMAND']) {
+        throw new Forbidden();
+      } else if (backend === SearchProvider.POSTGRES && !earlyAccess['SEARCH_POSTGRES_BACKEND']) {
+        // The PostgreSQL backend is a team preview: it must be explicitly enabled (preview feature of the frontend)
+        throw new Forbidden('The PostgreSQL search backend is only available to users who enabled its preview');
+      }
     }
+
+    const providerImplementation = getSearchProvider(backend);
+    providerImplementation.assertAvailable();
 
     // Enforce rate limiting
     const rateLimiter = getRateLimiter(req);
@@ -84,12 +94,19 @@ const SearchQuery = {
     if (account || host) {
       await assertCanSeeAllAccounts(req, [account, host].filter(Boolean));
     }
-    const defaultLimit = args.defaultLimit;
 
     // Return the base arguments that will be digested by `GraphQLSearchResponse`
-    const resolverId = uuidV7(); // To distinguish in case multiple search queries are made with aliases
-    const requestId = `${resolverId}-${getOpenSearchQueryId(remoteUser, host, account, searchTerm, useTopHits)}`;
-    return { results: { requestId, defaultLimit, searchTerm, account, host, useTopHits } };
+    const request: SearchRequest = {
+      provider: backend,
+      term: searchTerm,
+      scope: { account: account || null, host: host || null },
+      remoteUser: remoteUser || null,
+      timeoutInMs: args.timeout,
+      useTopHits,
+    };
+
+    providerImplementation.validateRequest?.(request);
+    return { results: { defaultLimit: args.defaultLimit, request } };
   },
 };
 

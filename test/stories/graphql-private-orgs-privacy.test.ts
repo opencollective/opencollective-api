@@ -40,7 +40,9 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Query.transactions': 'entry-gate', // TransactionsCollectionResolver checks account privacy
   'Query.orders': 'entry-gate', // OrdersCollectionResolver checks account privacy
   'Query.expenses': 'entry-gate', // ExpensesCollectionQueryResolver checks account privacy
-  'Query.search': 'skipped', // #8734: private account search exclusion is tracked separately
+  // OpenSearch backend: #8734, tracked separately. PostgreSQL backend: private Accounts and the rows they own are
+  // excluded in SQL, even for root, and `account`/`host` scopes are gated (see docs/private-organizations.md)
+  'Query.search': 'skipped',
   'Query.update': 'entry-gate',
   'Query.conversation': 'entry-gate',
   'Query.expense': 'entry-gate', // assertExpenseAccessibleForPrivateCollective + expense permissions
