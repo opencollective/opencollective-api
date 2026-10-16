@@ -10165,7 +10165,7 @@ type ExpensePermissions {
   canDelete: Boolean!
 
   """
-  Whether the current user can the the invoice info for this expense
+  Whether the current user can see the invoice info for this expense
   """
   canSeeInvoiceInfo: Boolean!
 

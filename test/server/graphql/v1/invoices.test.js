@@ -1,4 +1,4 @@
-/** @module test/graphql.invoices.test
+/** @module test/server/graphql/v1/invoices.test
  *
  * This tests all the GraphQL API methods that interact with user
  * invoices. */
