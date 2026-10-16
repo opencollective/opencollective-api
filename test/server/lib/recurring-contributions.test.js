@@ -24,7 +24,7 @@ import { randEmail } from '../../stores';
 import { fakeCollective, fakeOrder, fakePaymentMethod, fakeTransaction } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
-async function createOrderWithSubscription(interval, date, quantity = 1) {
+async function createOrderWithSubscription(interval, date) {
   const payment = { amount: 1000, currency: 'USD', interval };
   const user = await models.User.createUserWithCollective({ email: randEmail(), name: 'Test McTesterson' });
   const fromCollective = user.collective;
@@ -37,7 +37,6 @@ async function createOrderWithSubscription(interval, date, quantity = 1) {
     nextChargeDate: new Date(`${date} 0:0`),
     nextPeriodStart: new Date(`${date} 0:0`),
     chargeNumber: 0,
-    quantity,
   });
   const order = await models.Order.create({
     CreatedByUserId: user.id,
@@ -563,30 +562,25 @@ describe('server/lib/recurring-contributions', () => {
         expect(order.Subscription.deactivatedAt).to.be.null;
       });
 
-      it('should cancel the subscription if chargeNumber === quantity', async () => {
-        // Given an order with a subscription valid for two months
-        const { order, subscription } = await createOrderWithSubscription('month', '2018-04-17', 2);
-        // And given that we'll tweak its chargeNumber field to the
-        // quantity of intervals
-        await subscription.update({ chargeNumber: 2 });
+      it('should keep charging active subscriptions across multiple renewals', async () => {
+        const { order, subscription } = await createOrderWithSubscription('month', '2018-04-17');
+        await order.update({ quantity: 1 });
+        await subscription.update({ chargeNumber: 1 });
+        processOrderStub.resolves(await fakeTransaction({ OrderId: order.id }));
 
-        // When the order is processed
-        const entry = await processOrderWithSubscription(order, { dryRun: false });
+        for (const chargeNumber of [2, 3, 4]) {
+          const entry = await processOrderWithSubscription(order, { dryRun: false });
 
-        // Then expect the stub of the payment lib to NOT be called!
-        // No charge should happen!!!
-        expect(processOrderStub.called).to.be.false;
+          expect(entry.status).to.equal('success');
+          await subscription.reload();
+          await order.reload();
+          expect(subscription.chargeNumber).to.equal(chargeNumber);
+          expect(subscription.isActive).to.be.true;
+          expect(subscription.deactivatedAt).to.be.null;
+          expect(order.status).to.equal(status.ACTIVE);
+        }
 
-        // And then the status of the processing fails
-        expect(entry.status).to.equal('failure');
-
-        // And then charge number continues to be unchanged
-        expect(order.Subscription.chargeNumber).to.equal(2);
-
-        // And the subscription should be marked as deactivated
-        expect(order.Subscription.isActive).to.be.false;
-        expect(order.Subscription.deactivatedAt.getTime()).to.be.at.most(new Date().getTime());
-        expect(order.status).to.eql(status.CANCELLED);
+        expect(processOrderStub.callCount).to.equal(3);
       });
     });
   });
