@@ -1,3 +1,4 @@
+import { pickBy } from 'lodash';
 import { z } from 'zod';
 
 import { UseVendorPolicyValue } from '../constants/policies';
@@ -81,7 +82,8 @@ const inputs = z
       labels.add(entry.label);
       for (const account of [entry.host, ...entry.usableWith]) {
         if (!arranged.has(account) || !(SCOPES[entry.host] as readonly string[]).includes(account)) {
-          // Same rule as the product: a vendor is scoped to its host or to Accounts that host holds.
+          // The product's rule, checked here and nowhere else: a vendor is scoped to its host or to Accounts that
+          // host holds. `createVendor` relies on it.
           issues.addIssue({
             code: 'custom',
             path: ['vendors', index],
@@ -133,14 +135,11 @@ export const vendorRecipes: Record<string, Recipe> = {
           admins: [otherCollectiveAdmin],
         }));
 
-      const accounts: Record<string, Collective> = {
-        host,
-        collective,
-        ...(collective2 && { collective2 }),
-        ...(project && { project }),
-        ...(otherHost && { otherHost }),
-        ...(otherCollective && { otherCollective }),
-      };
+      // Whatever was arranged, under the label vendors and journeys know it by.
+      const accounts = pickBy(
+        { host, collective, collective2, project, otherHost, otherCollective },
+        Boolean,
+      ) as Record<string, Collective>;
       const vendors: Record<string, ReturnType<typeof accountHandle>> = {};
       for (const entry of graph.vendors) {
         vendors[entry.label] = accountHandle(

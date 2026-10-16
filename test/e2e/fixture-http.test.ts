@@ -104,6 +104,44 @@ const ownerFile = process.env.PLAYWRIGHT_FIXTURE_OWNER_FILE;
     assert.equal((await post(submission('graph', { ...inputs, invitee: true }))).status, 409);
   });
 
+  it('arranges a prior reimbursement whose item points at a receipt held in file storage', async () => {
+    const submission = (requestId: string, inputs: unknown) => ({
+      attempt,
+      requestId,
+      recipe: 'expense-submission',
+      inputs,
+    });
+    assert.equal((await post(submission('grant', { priorExpense: true, priorExpenseType: 'GRANT' }))).status, 400);
+    const response = await post(submission('reimbursement', { priorExpense: true, priorExpenseType: 'RECEIPT' }));
+    assert.equal(response.status, 200);
+    const graph = await response.json();
+    const [stored] = await sequelize.query<Record<string, unknown>>(
+      `SELECT e.type AS type, f."publicId" AS file, f.kind AS kind, f."fileType" AS "fileType",
+        f."fileSize" AS "fileSize", f."CreatedByUserId" = e."UserId" AS "uploadedBySubmitter"
+      FROM "Expenses" e
+      JOIN "ExpenseItems" i ON i."ExpenseId" = e.id
+      LEFT JOIN "UploadedFiles" f ON f.url = i.url
+      WHERE e.id = :expense`,
+      { type: QueryTypes.SELECT, replacements: { expense: graph.expenses.prior.legacyId } },
+    );
+    const { file, fileSize, ...receipt } = stored;
+    assert.deepEqual(receipt, {
+      type: 'RECEIPT',
+      kind: 'EXPENSE_ITEM',
+      fileType: 'image/png',
+      uploadedBySubmitter: true,
+    });
+    // The file is really there: the submitter gets it from the product's file route, as the expense page does.
+    const link = await fetch(`${process.env.API_URL}/files/${file}?json&expenseId=${graph.expenses.prior.id}`, {
+      headers: { Authorization: `Bearer ${graph.actors.submitter.token}` },
+    });
+    assert.equal(link.status, 200);
+    const served = await fetch((await link.json()).url);
+    assert.equal(served.status, 200);
+    assert.equal(served.headers.get('content-type'), 'image/png');
+    assert.equal((await served.arrayBuffer()).byteLength, fileSize);
+  });
+
   it('arranges an invitable Organization with its own admin and no activity that would notify them', async () => {
     const response = await post({
       attempt,

@@ -8,7 +8,7 @@ import { createAccountAdminMembers } from '../lib/account-admins';
 import { TOKEN_EXPIRATION_SESSION } from '../lib/auth';
 import { Collective, sequelize, User } from '../models';
 
-import { defineRecipe, type Recipe } from './builders';
+import { arrangedBy, defineRecipe, type Recipe } from './builders';
 import { expenseRecipes } from './expense-recipes';
 import { vendorRecipes } from './vendor-recipes';
 
@@ -58,7 +58,7 @@ const accountRecipe = (conversations: boolean) =>
           CreatedByUserId: user.id,
           isActive: false,
           settings: { features: { conversations } },
-          data: { e2eAttempt: ctx.attempt, e2eRequestId: ctx.requestId },
+          data: arrangedBy(ctx),
         },
         { transaction },
       );

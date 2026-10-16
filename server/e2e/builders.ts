@@ -1,4 +1,6 @@
+import config from 'config';
 import type { Transaction } from 'sequelize';
+import sharp from 'sharp';
 import type { z } from 'zod';
 
 import { CollectiveType } from '../constants/collectives';
@@ -9,7 +11,8 @@ import POLICIES, { type UseVendorPolicyValue } from '../constants/policies';
 import roles from '../constants/roles';
 import { createAccountAdminMembers } from '../lib/account-admins';
 import { TOKEN_EXPIRATION_SESSION } from '../lib/auth';
-import { Collective, Expense, ExpenseItem, Member, PayoutMethod, User } from '../models';
+import { checkS3Configured, uploadToS3 } from '../lib/awsS3';
+import { Collective, Expense, ExpenseItem, Member, PayoutMethod, UploadedFile, User } from '../models';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 /**
@@ -47,6 +50,24 @@ export const defineRecipe = <Schema extends z.ZodType>(recipe: {
 }): Recipe => recipe as Recipe;
 
 type AccountSettings = Record<string, unknown>;
+
+/** Stored on every arranged Account, so a retained row names the attempt and request that created it. */
+export const arrangedBy = (ctx: Pick<FixtureContext, 'attempt' | 'requestId'>) => ({
+  e2eAttempt: ctx.attempt,
+  e2eRequestId: ctx.requestId,
+});
+
+/** The membership that makes an Account's fiscal host its host, as hosting leaves it. */
+const addHostMember = (ctx: FixtureContext, account: Collective, creator: User) =>
+  Member.create(
+    {
+      CollectiveId: account.id,
+      MemberCollectiveId: account.HostCollectiveId,
+      role: roles.HOST,
+      CreatedByUserId: creator.id,
+    },
+    { transaction: ctx.transaction },
+  );
 
 export const actorHandle = (user: User) => ({
   id: user.collective.publicId,
@@ -93,7 +114,8 @@ export async function createActor(ctx: FixtureContext, label: string): Promise<U
 }
 
 /**
- * An active fiscal host owned by this request, with the money-management setup of `createOrganization`.
+ * An active fiscal host owned by this request, set up for money management the way the product's
+ * organization-creation mutation does it (unlike the unhosted payee profile `createOrganization` below arranges).
  * `label` distinguishes a second host of the same request; `useVendorPolicy` sets who may use the host's
  * vendors (left unset, the host has no policies and the product default applies).
  */
@@ -116,7 +138,7 @@ export async function createHost(
       description: 'An independent Playwright fiscal host',
       currency,
       CreatedByUserId: admin.id,
-      data: { e2eAttempt: ctx.attempt, e2eRequestId: ctx.requestId },
+      data: arrangedBy(ctx),
     },
     { transaction },
   );
@@ -135,9 +157,10 @@ export async function createHost(
 }
 
 /**
- * A vendor of a host, as `createVendor` stores it: usable with every Account of the host unless
- * `usableWith` names some (each must be the host or hosted by it), and following the host's vendor
- * policy unless `useVendorPolicy` overrides it. Records no activity.
+ * A vendor of a host, as the product's vendor-creation mutation stores it: usable with every Account of the
+ * host unless `usableWith` names some, and following the host's vendor policy unless `useVendorPolicy`
+ * overrides it. `usableWith` must only hold the host or Accounts it hosts; the recipe checks that on its
+ * inputs, where a mistake is answered as an invalid request. Records no activity.
  */
 export async function createVendor(
   ctx: FixtureContext,
@@ -160,9 +183,6 @@ export async function createVendor(
   },
 ): Promise<Collective> {
   ctx.checkConnection();
-  if (!usableWith.every(account => account.id === host.id || account.HostCollectiveId === host.id)) {
-    throw new Error(`Vendor ${label} can only be scoped to its host or Accounts hosted by it.`);
-  }
   const slug = ctx.slug(label);
   const vendor = await Collective.create(
     {
@@ -178,8 +198,7 @@ export async function createVendor(
         vendorInfo: {},
         canBeUsedWithAccountIds: [...new Set(usableWith.map(account => account.id))],
         useVendorPolicy,
-        e2eAttempt: ctx.attempt,
-        e2eRequestId: ctx.requestId,
+        ...arrangedBy(ctx),
       },
     },
     { transaction: ctx.transaction },
@@ -220,14 +239,11 @@ export async function createHostedCollective(
       approvedAt: new Date(),
       CreatedByUserId: creator.id,
       settings,
-      data: { e2eAttempt: ctx.attempt, e2eRequestId: ctx.requestId },
+      data: arrangedBy(ctx),
     },
     { transaction },
   );
-  await Member.create(
-    { CollectiveId: account.id, MemberCollectiveId: host.id, role: roles.HOST, CreatedByUserId: creator.id },
-    { transaction },
-  );
+  await addHostMember(ctx, account, creator);
   if (country) {
     await account.setLocation({ country }, transaction);
   }
@@ -261,19 +277,11 @@ export async function createProject(
       isActive: parent.isActive,
       approvedAt: parent.approvedAt,
       CreatedByUserId: creator.id,
-      data: { e2eAttempt: ctx.attempt, e2eRequestId: ctx.requestId },
+      data: arrangedBy(ctx),
     },
     { transaction },
   );
-  await Member.create(
-    {
-      CollectiveId: project.id,
-      MemberCollectiveId: parent.HostCollectiveId,
-      role: roles.HOST,
-      CreatedByUserId: creator.id,
-    },
-    { transaction },
-  );
+  await addHostMember(ctx, project, creator);
   return project;
 }
 
@@ -291,7 +299,7 @@ export async function createOrganization(ctx: FixtureContext, label: string, adm
       HostCollectiveId: null,
       isActive: false,
       CreatedByUserId: admin.id,
-      data: { e2eAttempt: ctx.attempt, e2eRequestId: ctx.requestId },
+      data: arrangedBy(ctx),
     },
     { transaction },
   );
@@ -326,7 +334,48 @@ export async function createPayoutMethod(
 
 type ItemInput = { description: string; amount: number };
 
-/** An already submitted (pending) invoice: prior history, never the submission a journey is testing. */
+/**
+ * The receipt of one reimbursement item: a real image in the uploads bucket and the `UploadedFiles` row
+ * that makes the product accept and serve it. Storage is outside the request transaction, so the object
+ * key derives from the request identity: a repeated request overwrites its own object, and a rolled-back
+ * one leaves a file nothing refers to under a `pw-` prefix that names it.
+ */
+async function createStoredReceipt(ctx: FixtureContext, name: string, creator: User): Promise<UploadedFile> {
+  ctx.checkConnection();
+  if (!checkS3Configured()) {
+    throw new Error('Receipts need the file storage the browser stack is launched with.');
+  }
+  const fileName = `${name}.png`;
+  const image = await sharp({ create: { width: 15, height: 15, channels: 3, background: '#297eff' } })
+    .png()
+    .toBuffer();
+  const { url } = await uploadToS3({
+    Bucket: config.aws.s3.bucket,
+    Key: `expense-item/${ctx.slug('fixture')}/${fileName}`,
+    Body: image,
+    ACL: 'public-read',
+    ContentLength: image.length,
+    ContentType: 'image/png',
+    Metadata: { CreatedByUserId: `${creator.id}`, FileKind: 'EXPENSE_ITEM' },
+  });
+  return UploadedFile.create(
+    {
+      kind: 'EXPENSE_ITEM',
+      fileName,
+      fileSize: image.length,
+      fileType: 'image/png',
+      url,
+      data: { recordedFrom: 'e2e-fixture' },
+      CreatedByUserId: creator.id,
+    },
+    { transaction: ctx.transaction },
+  );
+}
+
+/**
+ * An already submitted (pending) expense: prior history, never the submission a journey is testing.
+ * An invoice unless `type` says otherwise; every item of a reimbursement carries a stored receipt.
+ */
 export async function createSubmittedExpense(
   ctx: FixtureContext,
   {
@@ -335,14 +384,22 @@ export async function createSubmittedExpense(
     payoutMethod,
     description,
     items,
-  }: { account: Collective; submitter: User; payoutMethod: PayoutMethod; description: string; items: ItemInput[] },
+    type = expenseType.INVOICE,
+  }: {
+    account: Collective;
+    submitter: User;
+    payoutMethod: PayoutMethod;
+    description: string;
+    items: ItemInput[];
+    type?: expenseType.INVOICE | expenseType.RECEIPT;
+  },
 ): Promise<Expense> {
   ctx.checkConnection();
   const { transaction } = ctx;
   const incurredAt = new Date();
   const expense = await Expense.create(
     {
-      type: expenseType.INVOICE,
+      type,
       status: expenseStatus.PENDING,
       description,
       tags: ['engineering'],
@@ -360,6 +417,7 @@ export async function createSubmittedExpense(
     { transaction },
   );
   for (const [order, item] of items.entries()) {
+    const receipt = type === expenseType.RECEIPT && (await createStoredReceipt(ctx, `receipt-${order}`, submitter));
     await ExpenseItem.create(
       {
         ...item,
@@ -369,6 +427,8 @@ export async function createSubmittedExpense(
         incurredAt,
         ExpenseId: expense.id,
         CreatedByUserId: submitter.id,
+        // The item holds the storage address, as after a real upload; reading `url` would give the protected link.
+        ...(receipt && { url: receipt.getDataValue('url') }),
       },
       { transaction },
     );
