@@ -2,7 +2,7 @@
 import bcrypt from 'bcrypt';
 import config from 'config';
 import type express from 'express';
-import { omit, pick } from 'lodash';
+import { omit } from 'lodash';
 
 import { activities } from '../constants';
 import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
@@ -62,14 +62,10 @@ export const exists = async (req: express.Request, res: express.Response) => {
 };
 
 /**
- * Login or create a new user
- *
- * TODO: we are passing createProfile from frontend to specify if we need to
- * create a new account. In the future once signin.js is fully deprecated (replaced by signinV2.js)
- * this function should be refactored to remove createProfile.
+ * Login an existing user. New users must go through `/users/signup` (captcha + OTP).
  */
 export const signin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  const { redirect, websiteUrl, sendLink, resetPassword, createProfile = true } = req.body;
+  const { redirect, websiteUrl, sendLink, resetPassword } = req.body;
   try {
     const rateLimit = new RateLimit(
       `user_signin_attempt_ip_${req.ip}`,
@@ -83,19 +79,13 @@ export const signin = async (req: express.Request, res: express.Response, next: 
       });
       return;
     }
-    let user = await models.User.findOne({ where: { email: req.body.user.email.toLowerCase() } });
-    if (!user && !createProfile) {
+    const user = await models.User.findOne({ where: { email: req.body.user.email.toLowerCase() } });
+    if (!user) {
       res.status(400).send({
         errorCode: 'EMAIL_DOES_NOT_EXIST',
         message: 'Email does not exist',
       });
       return;
-    } else if (!user && createProfile) {
-      // `req.body.user` is unauthenticated input: only forward profile fields so it cannot
-      // seed the collective with `data`, `settings`, `isPrivate` or `CreatedByUserId`.
-      user = await models.User.createUserWithCollective(
-        pick(req.body.user, ['email', 'name', 'legalName', 'newsletterOptIn', 'location']),
-      );
     } else if (!user.CollectiveId || user.data?.requiresVerification === true) {
       res.status(403).send({
         errorCode: 'EMAIL_AWAITING_VERIFICATION',
