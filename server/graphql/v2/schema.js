@@ -1,5 +1,6 @@
 import { GraphQLObjectType, GraphQLSchema } from 'graphql';
 
+import { RequiresOAuthScopeDirective } from './directive/RequiresOAuthScope';
 import mutation from './mutation';
 import query from './query';
 import types from './types';
@@ -24,6 +25,7 @@ const Schema = new GraphQLSchema({
   types: types,
   query: Query,
   mutation: Mutation,
+  directives: [RequiresOAuthScopeDirective],
 });
 
 export default Schema;

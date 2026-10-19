@@ -1,4 +1,14 @@
 """
+When called with an OAuth or personal token, the token must include all listed scopes. Session/cookie auth is unaffected.
+"""
+directive @requiresOAuthScope(
+  """
+  Required OAuth scopes (e.g. transactions, expenses).
+  """
+  scopes: [String!]!
+) on FIELD_DEFINITION
+
+"""
 An OAuth application.
 """
 type Application {
