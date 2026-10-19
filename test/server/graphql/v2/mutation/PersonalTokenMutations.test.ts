@@ -7,6 +7,7 @@ import { generateSecret, generateSync } from 'otplib';
 
 import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import { crypto } from '../../../../../server/lib/encryption';
+import RateLimit from '../../../../../server/lib/rate-limit';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import { fakePersonalToken, fakeUser, fakeUserToken } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, oAuthGraphqlQueryV2, personalTokenGraphqlQueryV2, resetTestDB } from '../../../../utils';
@@ -120,6 +121,24 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
       );
       expect(result.errors[0].message).to.eq('Two-factor authentication code is invalid');
       expect(result.errors[0].extensions.code).to.eq('INVALID_2FA_CODE');
+    });
+    it('returns a GraphQL rate-limit error when the 2FA failure budget is exhausted', async () => {
+      const user = await fakeUser({ twoFactorAuthToken: crypto.encrypt(generateSecret()) });
+      const rateLimit = new RateLimit(`user_2FA_graphql_${user.id}`, 10);
+      try {
+        await rateLimit.registerCall(10);
+        const result = await graphqlQueryV2(
+          CREATE_PERSONAL_TOKEN_MUTATION,
+          { personalToken: VALID_TOKEN_PARAMS },
+          user,
+          null,
+          { [TwoFactorAuthenticationHeader]: 'totp invalid' },
+        );
+        expect(result.errors[0].message).to.equal('Too many attempts. Please try again in an hour');
+        expect(result.errors[0].extensions.code).to.equal('RateLimitExceeded');
+      } finally {
+        await rateLimit.reset();
+      }
     });
     it('required 2FA when 2FA enabled', async () => {
       const secret = generateSecret({ length: 64 });
