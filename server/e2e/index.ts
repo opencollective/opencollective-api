@@ -1,9 +1,12 @@
-import './index';
+// Order matters: the guard must run, and the hooks be registered, before `../index` starts the server.
+import './guard';
+import './register';
+import '../index';
 
 import { stub } from 'sinon';
 
-import * as github from './lib/github';
-import * as pdf from './lib/pdf';
+import * as github from '../lib/github';
+import * as pdf from '../lib/pdf';
 
 // GitHub
 const checkGithubAdmin = stub(github, 'checkGithubAdmin');

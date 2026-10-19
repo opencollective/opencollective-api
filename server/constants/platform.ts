@@ -78,6 +78,12 @@ const getPlatformConstants = () => ({
       696998, // oce-foundation-usd
       766450, // raft
       206897, // metagov
+      169078, // giftcollective
+      835523, // ofico
+      845576, // ofitech
+      1012924, // open-source-collective-eur1
+      98478, // the-social-change-nest
+      820725, // the-social-change-nest-eu
     ];
   },
 });

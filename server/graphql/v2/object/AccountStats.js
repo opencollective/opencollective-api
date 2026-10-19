@@ -2,7 +2,6 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { get, has, intersection, memoize, pick, sortBy, sumBy } from 'lodash';
 import moment from 'moment';
-import assert from 'node:assert';
 
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { getCollectiveIds } from '../../../lib/budget';
@@ -12,6 +11,7 @@ import queries from '../../../lib/queries';
 import sequelize, { QueryTypes } from '../../../lib/sequelize';
 import { computeDatesAsISOStrings } from '../../../lib/utils';
 import models, { Collective } from '../../../models';
+import { checkRemoteUserCanRoot } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
 import { GraphQLContributionFrequency } from '../enum/ContributionFrequency';
 import { GraphQLCurrency } from '../enum/Currency';
@@ -450,6 +450,36 @@ export const GraphQLAccountStats = new GraphQLObjectType({
           });
         },
       },
+      totalAmountSpentTimeSeries: {
+        description: 'Total amount spent time series',
+        type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
+        args: {
+          ...TimeSeriesArgs, // dateFrom / dateTo / timeUnit
+          ...pick(TransactionArgs, ['net', 'kind', 'periodInMonths', 'includeChildren', 'currency']),
+        },
+        async resolve(collective, args, req) {
+          const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
+          let { dateFrom, dateTo } = args;
+
+          if (args.periodInMonths) {
+            dateFrom = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
+            dateTo = null;
+          }
+
+          const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
+
+          return collective.getTotalAmountSpentTimeSeries({
+            loaders: req.loaders,
+            net: args.net,
+            kind,
+            startDate: dateFrom,
+            endDate: dateTo,
+            timeUnit,
+            includeChildren: args.includeChildren,
+            currency: args.currency,
+          });
+        },
+      },
       balanceTimeSeries: {
         description: 'Balance time series',
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
@@ -854,7 +884,7 @@ export const GraphQLAccountStats = new GraphQLObjectType({
         description:
           '[Root only] The total amount managed by the account, including all its children accounts (events and projects), calculated using existing balance checkpoint. This is not a real-time value and may not reflect the current state of the account.',
         resolve: async (account, _args, req) => {
-          assert(req.remoteUser?.isRoot());
+          checkRemoteUserCanRoot(req);
 
           const result = await req.loaders.Collective.moneyManaged.load(account.id);
           return pick(result, ['value', 'currency']);

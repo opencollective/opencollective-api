@@ -32,7 +32,12 @@ import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory'
 import { AccountingCategoryRule } from '../../../models/AccountingCategoryRule';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkRemoteUserCanUseHost, checkRemoteUserCanUseTransactions, checkScope } from '../../common/scope-check';
+import {
+  checkRemoteUserCanUseHost,
+  checkRemoteUserCanUseTransactions,
+  checkScope,
+  isRemoteUserRoot,
+} from '../../common/scope-check';
 import { Forbidden, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
@@ -1133,7 +1138,7 @@ export const getOrganizationFields = () => ({
       // Handle archived
       if (!args.includeArchived) {
         where.archivedAt = null;
-      } else if (!req.remoteUser?.isAdmin(collective.id) && !req.remoteUser?.isRoot()) {
+      } else if (!req.remoteUser?.isAdmin(collective.id) && !isRemoteUserRoot(req)) {
         throw new Forbidden('You are not authorized to see archived manual payment providers for this account');
       }
 

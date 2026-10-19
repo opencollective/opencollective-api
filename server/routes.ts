@@ -27,6 +27,7 @@ import graphqlSchemaV2 from './graphql/v2/schema';
 import { apolloSlowRequestCachePlugin, apolloSlowResolverDebugPlugin, apolloStudioUsagePlugin } from './lib/apollo';
 import cache from './lib/cache';
 import errors from './lib/errors';
+import { runBeforeRoutesHooks } from './lib/express-hooks';
 import expressLimiter from './lib/express-limiter';
 import logger from './lib/logger';
 import { withTiming } from './lib/middleware-timing';
@@ -50,6 +51,7 @@ const noCache = (req, res, next) => {
 };
 
 export default async (app: express.Application) => {
+  await runBeforeRoutesHooks(app);
   /**
    * Extract GraphQL API Key
    */

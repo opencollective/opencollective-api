@@ -5,7 +5,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import MemberRoles, { MemberRolesForPrivateAccounts } from '../../../constants/roles';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import models, { Op, sequelize } from '../../../models';
-import { checkScope } from '../../common/scope-check';
+import { checkScope, isRemoteUserRoot } from '../../common/scope-check';
 import { BadRequest } from '../../errors';
 import { GraphQLMemberCollection } from '../collection/MemberCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../enum/AccountType';
@@ -52,7 +52,7 @@ export const HasMembersFields = {
       if (isNil(args.offset) || args.offset < 0) {
         args.offset = 0;
       }
-      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+      if (args.limit > 1000 && !isRemoteUserRoot(req)) {
         throw new Error('Cannot fetch more than 1,000 members at the same time, please adjust the limit');
       }
 
@@ -72,7 +72,7 @@ export const HasMembersFields = {
 
       // Handle private accounts
       if (req.remoteUser) {
-        if (req.remoteUser.isRoot()) {
+        if (isRemoteUserRoot(req)) {
           delete collectiveConditions.isPrivate;
         } else {
           const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));

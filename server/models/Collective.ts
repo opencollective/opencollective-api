@@ -62,6 +62,7 @@ import plans, { HostPlan, PlatformSubscriptionTiers } from '../constants/plans';
 import PlatformConstants from '../constants/platform';
 import POLICIES, { DEFAULT_POLICIES, Policies, UseVendorPolicyValue } from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
+import type { VirtualCardLimitIntervals } from '../constants/virtual-cards';
 import {
   getBalanceAmount,
   getBalanceTimeSeries,
@@ -70,6 +71,7 @@ import {
   getTotalAmountReceivedAmount,
   getTotalAmountReceivedTimeSeries,
   getTotalAmountSpentAmount,
+  getTotalAmountSpentTimeSeries,
   getTotalMoneyManagedAmount,
   getYearlyBudgetAmount,
 } from '../lib/budget';
@@ -163,6 +165,7 @@ type Settings = {
   // @deprecated Use `data.features` instead
   features?: {
     contactForm?: boolean;
+    conversations?: boolean;
     paypalDonations?: boolean;
     paypalPayouts?: boolean;
     stripePaymentIntent?: boolean;
@@ -181,6 +184,8 @@ type Settings = {
       period: number;
     };
     requestcard?: boolean;
+    /** Spending limit intervals (`VirtualCardLimitIntervals`) that collectives can pick when requesting a card. All allowed by default. */
+    allowedSpendingLimitIntervals?: Partial<Record<VirtualCardLimitIntervals, boolean>>;
   };
   payoutsTwoFactorAuth?: {
     enabled?: boolean;
@@ -3114,6 +3119,10 @@ class Collective extends ModelWithPublicId<
 
   getTotalAmountReceivedTimeSeries = function (options) {
     return getTotalAmountReceivedTimeSeries(this, options);
+  };
+
+  getTotalAmountSpentTimeSeries = function (options) {
+    return getTotalAmountSpentTimeSeries(this, options);
   };
 
   getBalanceTimeSeries = function (options) {
