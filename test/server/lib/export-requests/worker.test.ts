@@ -786,6 +786,47 @@ describe('server/lib/export-requests/worker', () => {
         }
       });
 
+      it('abandons the run locally when the processing lock is lost', async () => {
+        let keepProcessing = true;
+        let processorSignal: AbortSignal | null = null;
+        const processorStub = sandbox
+          .stub(EXPORT_PROCESSORS, ExportRequestTypes.TRANSACTIONS)
+          .callsFake(async (_request, signal) => {
+            processorSignal = signal;
+            await waitForCondition(() => keepProcessing !== true, { timeout: 10_000 });
+            if (signal.aborted) {
+              throw new Error('canceled');
+            }
+          });
+        const failSpy = sandbox.spy(ExportRequest.prototype, 'fail');
+        const request = await fakeExportRequest({ status: ExportRequestStatus.ENQUEUED });
+        const redis = await createRedisClient();
+
+        const clock = sandbox.useFakeTimers({ now: Date.now(), toFake: ['Date', 'setInterval', 'clearInterval'] });
+        try {
+          const processPromise = ExportWorker.processRequest(request.id, new AbortController().signal);
+          await waitForCondition(() => processorStub.calledOnce, { timeout: 4_000 });
+
+          // Simulate the lock expiring and being taken over by another run
+          await redis.del(`lock:export-request-${request.id}`);
+          clock.tick(HEARTBEAT_INTERVAL);
+          await waitForCondition(() => processorSignal?.aborted === true, {
+            timeout: 4_000,
+            onFailure: () => expect.fail('The run was not aborted after losing its lock'),
+          });
+
+          keepProcessing = false;
+          await processPromise;
+
+          // The zombie run must not settle the request: the new owner owns the status writes
+          expect(failSpy.called).to.be.false;
+          await request.reload();
+          expect(request.status).to.equal(ExportRequestStatus.PROCESSING);
+        } finally {
+          clock.restore();
+        }
+      });
+
       it('holds export request locks longer than the stuck threshold', async () => {
         const realLockUntilOrThrow = mutexLib.lockUntilOrThrow;
         const lockCalls: Array<{ key: string; options: Parameters<typeof realLockUntilOrThrow>[2] }> = [];

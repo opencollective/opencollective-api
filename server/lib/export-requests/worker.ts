@@ -118,6 +118,10 @@ class ExportWorker {
         const processor = EXPORT_PROCESSORS[request.type];
         assert(processor, `No processor found for ExportRequest type ${request.type}`);
 
+        // Per-attempt abort controller: the processor gets this signal so the attempt can be cancelled locally
+        // (worker shutdown, or when the processing lock is lost) without aborting the shared worker signal.
+        const attemptController = new AbortController();
+
         // Single, idempotent settle per attempt: the abort handler, the processor error path and the success path all
         // go through it and only the first caller writes. `settled` is claimed synchronously so concurrent callers
         // always observe the same winner, whatever the abort/rejection interleaving.
@@ -143,6 +147,7 @@ class ExportWorker {
 
         const abortHandler = () => {
           debug(`Processing of export request ${request.id} aborted`);
+          attemptController.abort();
           markFailed(ABORT_ERROR).catch(error => reportErrorToSentry(error, { handler: HandlerType.EXPORTS_WORKER }));
         };
         signal.addEventListener('abort', abortHandler);
@@ -156,13 +161,22 @@ class ExportWorker {
             Promise.all([
               request.heartbeat(),
               extendLock?.().then(renewed => {
-                if (!renewed) {
-                  logger.warn(`Export request ${request.id} processing lock is no longer held`);
+                if (renewed) {
+                  return;
+                }
+                // The lock was lost (expired or taken over): this run no longer owns the request. Stop
+                // heartbeating, abort the processor locally and leave the status writes to the new owner.
+                logger.warn(`Export request ${request.id} processing lock is no longer held, aborting this run`);
+                settled = true;
+                attemptController.abort();
+                if (heartbeat) {
+                  clearInterval(heartbeat);
+                  heartbeat = null;
                 }
               }),
             ]).catch(error => logger.warn(`Export request ${request.id} heartbeat failed: ${error.message}`));
           }, HEARTBEAT_INTERVAL);
-          await processor(request, signal)
+          await processor(request, attemptController.signal)
             .then(async () => {
               if (settled) {
                 // The attempt was already aborted/failed while the processor was finishing: the failure transition wins
