@@ -2,9 +2,18 @@ import { expect } from 'chai';
 import moment from 'moment';
 import sinon from 'sinon';
 
+import PlatformConstants from '../../../server/constants/platform';
+import roles from '../../../server/constants/roles';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
-import { fakeCollective, fakeOrder, fakePaymentMethod, randStr } from '../../test-helpers/fake-data';
+import {
+  fakeActiveHost,
+  fakeCollective,
+  fakeHost,
+  fakeOrder,
+  fakePaymentMethod,
+  randStr,
+} from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 describe('server/models/Order', () => {
@@ -146,6 +155,43 @@ describe('server/models/Order', () => {
         expiredOrderLockDate.toISOString(),
         secondLockDate.toISOString(),
       ]);
+    });
+  });
+
+  describe('getOrCreateMembers', () => {
+    let platform;
+
+    before(async () => {
+      platform =
+        (await models.Collective.findByPk(PlatformConstants.PlatformCollectiveId)) ||
+        (await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' }));
+    });
+
+    const getPlatformBackerMember = order =>
+      models.Member.findOne({
+        where: { CollectiveId: platform.id, MemberCollectiveId: order.FromCollectiveId, role: roles.BACKER },
+      });
+
+    it('registers the contributor as a backer of the platform when there is a platform tip', async () => {
+      const host = await fakeActiveHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const order = await fakeOrder({ CollectiveId: collective.id, platformTipAmount: 500 });
+
+      const [member, platformTipMember] = await order.getOrCreateMembers();
+      expect(member.CollectiveId).to.eq(collective.id);
+      expect(platformTipMember.CollectiveId).to.eq(platform.id);
+      expect(await getPlatformBackerMember(order)).to.exist;
+    });
+
+    it('does not register the contributor as a backer of the platform when the host uses the new platform tips ledger', async () => {
+      const host = await fakeActiveHost({ settings: { newPlatformTipsLedger: true } });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const order = await fakeOrder({ CollectiveId: collective.id, platformTipAmount: 500 });
+
+      const [member, platformTipMember] = await order.getOrCreateMembers();
+      expect(member.CollectiveId).to.eq(collective.id);
+      expect(platformTipMember).to.not.exist;
+      expect(await getPlatformBackerMember(order)).to.not.exist;
     });
   });
 
