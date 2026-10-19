@@ -932,7 +932,7 @@ class Collective extends ModelWithPublicId<
         return existingProfile;
       }
 
-      const user = await this.getUser({ transaction }); // Ideally we should store the user that created the profile (can be a root admin), but User.getIncognitoProfile relies on this
+      const user = await this.getUser({ transaction });
       const account = await Collective.create(
         {
           name: 'Incognito',
