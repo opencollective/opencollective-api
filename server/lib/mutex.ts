@@ -1,3 +1,5 @@
+import { randomBytes } from 'crypto';
+
 import debugLib from 'debug';
 
 import logger from './logger';
@@ -12,6 +14,26 @@ export const MutexLockError = class extends Error {
     this.name = 'MutexLockError';
   }
 };
+
+type ReleaseLock = () => Promise<number>;
+type ExtendLock = (ttlMs?: number) => Promise<boolean>;
+
+/**
+ * Fenced lock operations: the lock value is a unique token, so a run can only release or renew the lock it
+ * still owns. A lock that expired and was taken over by another run is never deleted or extended here.
+ */
+const RELEASE_LOCK_SCRIPT = `
+  if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return redis.call('DEL', KEYS[1])
+  end
+  return 0
+`;
+const EXTEND_LOCK_SCRIPT = `
+  if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return redis.call('PEXPIRE', KEYS[1], ARGV[2])
+  end
+  return 0
+`;
 
 /**
  * Cache based, service-wide mutex implementation.
@@ -58,7 +80,7 @@ export async function lockUntilResolved<T>(
  */
 export async function lockUntilOrThrow<T>(
   key: string,
-  until: (release?: () => Promise<number>) => Promise<T>,
+  until: (release?: ReleaseLock, extend?: ExtendLock) => Promise<T>,
   { unlockTimeoutMs = 10 * 60 * 1000 } = {},
 ): Promise<T> {
   const redis = await createRedisClient(RedisInstanceType.SESSION);
@@ -68,12 +90,16 @@ export async function lockUntilOrThrow<T>(
   }
 
   const _key = `lock:${key}`;
-  const lockAcquired = await redis.set(_key, 1, { NX: true, PX: unlockTimeoutMs });
+  const token = randomBytes(16).toString('hex');
+  const lockAcquired = await redis.set(_key, token, { NX: true, PX: unlockTimeoutMs });
   if (lockAcquired) {
     debug(`Acquired lock ${_key}`);
-    const release = () => redis.del(_key);
+    const release = async () =>
+      Number(await redis.eval(RELEASE_LOCK_SCRIPT, { keys: [_key], arguments: [token] })) || 0;
+    const extend: ExtendLock = async (ttlMs = unlockTimeoutMs) =>
+      Number(await redis.eval(EXTEND_LOCK_SCRIPT, { keys: [_key], arguments: [token, String(ttlMs)] })) === 1;
     try {
-      return await until(release);
+      return await until(release, extend);
     } finally {
       await release();
       debug(`Released lock ${_key}`);

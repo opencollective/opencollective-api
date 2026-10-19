@@ -705,6 +705,47 @@ describe('server/lib/export-requests/worker', () => {
         }
       });
 
+      it('renews the request lock as part of the processing heartbeat (#8765)', async () => {
+        let keepProcessing = true;
+        const processorStub = sandbox.stub(EXPORT_PROCESSORS, ExportRequestTypes.TRANSACTIONS).callsFake(async () => {
+          await waitForCondition(() => keepProcessing !== true, { timeout: 10_000 });
+        });
+
+        // Capture the lock renewal callback that the worker receives while processing
+        let extendCalls = 0;
+        const realLockUntilOrThrow = mutexLib.lockUntilOrThrow;
+        sandbox.stub(mutexLib, 'lockUntilOrThrow').callsFake((key, until, options) =>
+          realLockUntilOrThrow(
+            key,
+            (release, extend) => {
+              return until(release, (...args) => {
+                extendCalls++;
+                return extend(...args);
+              });
+            },
+            options,
+          ),
+        );
+
+        const request = await fakeExportRequest({ status: ExportRequestStatus.ENQUEUED });
+        const clock = sandbox.useFakeTimers({ now: Date.now(), toFake: ['Date', 'setInterval', 'clearInterval'] });
+        try {
+          const processPromise = ExportWorker.processRequest(request.id, new AbortController().signal);
+          await waitForCondition(() => processorStub.calledOnce, { timeout: 4_000 });
+
+          clock.tick(HEARTBEAT_INTERVAL);
+          await waitForCondition(() => extendCalls > 0, {
+            timeout: 4_000,
+            onFailure: () => expect.fail('The processing heartbeat did not renew the request lock'),
+          });
+
+          keepProcessing = false;
+          await processPromise;
+        } finally {
+          clock.restore();
+        }
+      });
+
       it('holds export request locks longer than the stuck threshold', async () => {
         const realLockUntilOrThrow = mutexLib.lockUntilOrThrow;
         const lockCalls: Array<{ key: string; options: Parameters<typeof realLockUntilOrThrow>[2] }> = [];

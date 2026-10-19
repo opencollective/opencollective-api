@@ -30,10 +30,11 @@ export const HEARTBEAT_INTERVAL = 5 * 60_000;
 /** A `PROCESSING` request without a heartbeat for this long is considered dead and failed by `checkStuckTasks`. */
 export const STUCK_THRESHOLD = 10 * 60_000;
 /**
- * How long a processing run holds its `export-request-*` lock. Must stay greater than `STUCK_THRESHOLD` so a
- * live (but slow) run always still holds its lock when `checkStuckTasks` probes it (#8765).
+ * How long a processing run holds its `export-request-*` lock, renewed on every heartbeat. Must stay greater
+ * than `STUCK_THRESHOLD` so a live (but slow) run always still holds its lock when `checkStuckTasks` probes
+ * it (#8765); a crashed run stops renewing and its lock expires within this TTL, so it can then be reaped.
  */
-export const EXPORT_REQUEST_LOCK_TTL_MS = 2 * 60 * 60_000;
+export const EXPORT_REQUEST_LOCK_TTL_MS = 2 * STUCK_THRESHOLD;
 const TABLES = [{ tableName: 'ExportRequests', triggerPrefix: 'export_requests' }];
 
 /** `data.retryCount` is the number of retries granted so far: a request runs at most `1 + MAX_RETRIES` times. */
@@ -82,7 +83,7 @@ class ExportWorker {
   async processRequest(requestId: number, signal: AbortSignal): Promise<void> {
     return await lockUntilOrThrow(
       `export-request-${requestId}`,
-      async () => {
+      async (_release, extendLock) => {
         const request = await ExportRequest.findByPk(requestId);
         assert(request, 'ExportRequest not found');
         if (request.status !== ExportRequestStatus.ENQUEUED) {
@@ -142,11 +143,17 @@ class ExportWorker {
         try {
           // Update status
           await request.update({ status: ExportRequestStatus.PROCESSING });
-          // Processing heartbeat: keeps `updatedAt` fresh so `checkStuckTasks` only reaps dead runs (#8765)
+          // Processing heartbeat: keeps `updatedAt` fresh so `checkStuckTasks` only reaps dead runs (#8765),
+          // and renews the request lock so a crashed run loses it within the lock TTL
           heartbeat = setInterval(() => {
-            request
-              .heartbeat()
-              .catch(error => logger.warn(`Export request ${request.id} heartbeat failed: ${error.message}`));
+            Promise.all([
+              request.heartbeat(),
+              extendLock?.().then(renewed => {
+                if (!renewed) {
+                  logger.warn(`Export request ${request.id} processing lock is no longer held`);
+                }
+              }),
+            ]).catch(error => logger.warn(`Export request ${request.id} heartbeat failed: ${error.message}`));
           }, HEARTBEAT_INTERVAL);
           await processor(request, signal)
             .then(async () => {
