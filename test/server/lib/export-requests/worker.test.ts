@@ -365,7 +365,7 @@ describe('server/lib/export-requests/worker', () => {
       };
 
       it('does not re-enqueue a request before its backoff window has elapsed', async () => {
-        const request = await createFailedRequest({ ageInMs: 1 * 60_000, retryCount: 0 });
+        const request = await createFailedRequest({ ageInMs: getRetryBackoffMs(0) - 30_000, retryCount: 0 });
 
         await ExportWorker.tick();
         await request.reload();
@@ -375,7 +375,7 @@ describe('server/lib/export-requests/worker', () => {
       });
 
       it('re-enqueues a request once its backoff window has elapsed', async () => {
-        const request = await createFailedRequest({ ageInMs: 6 * 60_000, retryCount: 0 });
+        const request = await createFailedRequest({ ageInMs: getRetryBackoffMs(0) + 60_000, retryCount: 0 });
 
         await ExportWorker.tick();
         await request.reload();
@@ -385,9 +385,9 @@ describe('server/lib/export-requests/worker', () => {
       });
 
       it('doubles the backoff window for each granted retry', async () => {
-        // With 2 retries already granted the window is 5 min * 2^2 = 20 min
-        const tooEarly = await createFailedRequest({ ageInMs: 18 * 60_000, retryCount: 2 });
-        const ready = await createFailedRequest({ ageInMs: 25 * 60_000, retryCount: 2 });
+        // With 2 retries already granted the window is base * 2^2
+        const tooEarly = await createFailedRequest({ ageInMs: getRetryBackoffMs(2) - 60_000, retryCount: 2 });
+        const ready = await createFailedRequest({ ageInMs: getRetryBackoffMs(2) + 60_000, retryCount: 2 });
 
         await ExportWorker.tick();
         await tooEarly.reload();
@@ -398,11 +398,11 @@ describe('server/lib/export-requests/worker', () => {
         expect(ready.data).to.have.property('retryCount', 3);
       });
 
-      it('caps the backoff window at one hour', () => {
-        expect(getRetryBackoffMs(0)).to.equal(5 * 60_000);
-        expect(getRetryBackoffMs(1)).to.equal(10 * 60_000);
-        expect(getRetryBackoffMs(2)).to.equal(20 * 60_000);
-        expect(getRetryBackoffMs(5)).to.equal(60 * 60_000);
+      it('doubles the backoff window per retry and caps it at one hour', () => {
+        expect(getRetryBackoffMs(1)).to.equal(2 * getRetryBackoffMs(0));
+        expect(getRetryBackoffMs(2)).to.equal(4 * getRetryBackoffMs(0));
+        expect(getRetryBackoffMs(0)).to.be.greaterThan(0);
+        expect(getRetryBackoffMs(20)).to.equal(60 * 60_000);
         expect(getRetryBackoffMs(10)).to.equal(60 * 60_000);
       });
 

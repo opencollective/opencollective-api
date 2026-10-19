@@ -42,7 +42,7 @@ const canRetry = (request: ExportRequest): boolean => (request.data?.retryCount 
 const RETRY_BACKOFF_BASE_MS = 1 * 60_000;
 const RETRY_BACKOFF_MAX_MS = 60 * 60_000;
 
-/** Exponential backoff between retries: `min(5 min * 2^retryCount, 1 h)`. */
+/** Exponential backoff between retries: `RETRY_BACKOFF_BASE_MS * 2^retryCount`, capped at `RETRY_BACKOFF_MAX_MS` (1 h). */
 export const getRetryBackoffMs = (retryCount = 0): number =>
   Math.min(RETRY_BACKOFF_BASE_MS * 2 ** Math.max(retryCount, 0), RETRY_BACKOFF_MAX_MS);
 export const EXPORT_PROCESSORS: Record<ExportRequestTypes, ExportProcessor> = {
