@@ -73,7 +73,7 @@ import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency } from '../../lib/utils';
 import { canUserUseVendor } from '../../lib/vendor-visibility';
-import models, { Collective, sequelize, TransactionsImportRow, UploadedFile } from '../../models';
+import models, { Collective, Op, sequelize, TransactionsImportRow, UploadedFile } from '../../models';
 import AccountingCategory, { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 import Expense, {
   ExpenseDataValuesByRole,
@@ -2237,6 +2237,7 @@ export async function prepareAttachedFiles(req: express.Request, attachedFiles: 
 export async function prepareInvoiceFile(
   req: express.Request,
   invoiceFile: ExpenseData['invoiceFile'],
+  { expenseId }: { expenseId?: number } = {},
 ): Promise<UploadedFile> {
   if (!invoiceFile) {
     return null;
@@ -2250,7 +2251,21 @@ export async function prepareInvoiceFile(
     throw new ValidationFailed('Invalid expense invoice file url');
   }
 
-  return await UploadedFile.getFromURL(invoiceFile.url);
+  const uploadedFile = await UploadedFile.getFromURL(invoiceFile.url);
+
+  // An invoice file belongs to a single expense: sharing it would let one expense's lifecycle (edit, delete)
+  // affect the other, and would make permissions on the file ambiguous.
+  const isUsedByAnotherExpense = await models.Expense.count({
+    where: {
+      InvoiceFileId: uploadedFile.id,
+      ...(expenseId ? { id: { [Op.ne]: expenseId } } : {}),
+    },
+  });
+  if (isUsedByAnotherExpense) {
+    throw new ValidationFailed('This invoice file is already attached to another expense');
+  }
+
+  return uploadedFile;
 }
 
 export const prepareExpenseItemInputs = async (
@@ -3128,7 +3143,7 @@ export async function editExpenseDraft(
   if (expenseData.invoiceFile !== undefined) {
     const newInvoiceFile =
       (expenseData.type || existingExpense.type) === ExpenseType.INVOICE
-        ? await prepareInvoiceFile(req, expenseData.invoiceFile)
+        ? await prepareInvoiceFile(req, expenseData.invoiceFile, { expenseId: existingExpense.id })
         : null;
 
     if (newInvoiceFile) {
@@ -3715,12 +3730,14 @@ export async function editExpense(
 
     if (!isUndefined(expenseData.invoiceFile) && (expenseData.type || expense.type) === ExpenseType.INVOICE) {
       const newInvoiceUploadedFile = expenseData.invoiceFile
-        ? await prepareInvoiceFile(req, expenseData.invoiceFile)
+        ? await prepareInvoiceFile(req, expenseData.invoiceFile, { expenseId: expense.id })
         : null;
 
       if (expense.InvoiceFileId && (!newInvoiceUploadedFile || expense.InvoiceFileId !== newInvoiceUploadedFile.id)) {
-        const oldInvoiceUploadedFile = await UploadedFile.findByPk(expense.InvoiceFileId, { transaction });
-        await oldInvoiceUploadedFile.destroy({ transaction });
+        await models.Expense.destroyInvoiceFileIfUnreferenced(expense.InvoiceFileId, {
+          excludeExpenseId: expense.id,
+          transaction,
+        });
         cleanExpenseData['InvoiceFileId'] = null;
       }
 
