@@ -64,8 +64,6 @@ export const getMailer = () => {
 };
 
 const render = (template: EmailTemplates, data: Record<string, unknown>) => {
-  const collectiveImage = (data.collective as { image?: string } | undefined)?.image;
-  data.imageNotSvg = Boolean(collectiveImage) && !collectiveImage.endsWith('.svg');
   data = merge({}, data);
   delete data.config;
   data.config = { host: config.host };
