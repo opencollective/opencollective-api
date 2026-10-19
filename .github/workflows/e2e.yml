@@ -122,7 +122,7 @@ jobs:
         run: |
           set -eu
           fail=0
-          npm run build &
+          npm run build:e2e &
           api_pid=$!
           (cd opencollective-frontend && PRESERVE_NEXT_CACHE=true npm run build) &
           frontend_pid=$!
@@ -168,7 +168,7 @@ jobs:
           cp -a dist "$stage/opencollective-api/dist"
           cp -a opencollective-images/dist "$stage/opencollective-images/dist"
           cp -a opencollective-pdf/dist "$stage/opencollective-pdf/dist"
-          test -f "$stage/opencollective-api/dist/e2e.js"
+          test -f "$stage/opencollective-api/dist/e2e/index.js"
           test -e "$stage/opencollective-images/dist/server"
           test -f "$stage/opencollective-pdf/dist/server/index.js"
 
@@ -358,7 +358,7 @@ jobs:
           cp -a "${stack_root}/opencollective-api/dist" dist
           cp -a "${stack_root}/opencollective-images/dist" opencollective-images/dist
           cp -a "${stack_root}/opencollective-pdf/dist" opencollective-pdf/dist
-          test -f dist/e2e.js
+          test -f dist/e2e/index.js
           test -e opencollective-images/dist/server
           test -f opencollective-pdf/dist/server/index.js
 
