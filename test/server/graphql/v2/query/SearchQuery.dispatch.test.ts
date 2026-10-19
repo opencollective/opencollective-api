@@ -386,14 +386,19 @@ describe('server/graphql/v2/query/SearchQuery (provider-independent dispatch)', 
       expect(notAllowed.errors).to.exist;
       expect(notAllowed.errors[0].extensions.code).to.eq('Forbidden');
 
-      const firstPartyHost = await fakeOrganization({ data: { isFirstPartyHost: true } });
+      const firstPartyHost = await fakeOrganization({ id: PlatformConstants.FirstPartyHostCollectiveIds[0] });
       await firstPartyHost.addUserWithRole(previewUser, 'MEMBER');
+      const asMember = await graphqlQueryV2(searchAccountsQuery, {}, previewUser);
+      expect(asMember.errors).to.exist;
+      expect(asMember.errors[0].extensions.code).to.eq('Forbidden');
+
+      await firstPartyHost.addUserWithRole(previewUser, 'ADMIN');
       const allowed = await graphqlQueryV2(searchAccountsQuery, {}, previewUser);
       expect(allowed.errors).to.be.undefined;
       expect(allowed.data.search.results.accounts.collection.totalCount).to.eq(8);
     });
 
-    it('is available to platform accounts members in production', async () => {
+    it('is available to platform accounts admins in production', async () => {
       sandbox.stub(config, 'env').value('production');
       const user = await fakeUser(undefined, { settings: { earlyAccess: { SEARCH_COMMAND: true } } });
       const platformAccount = await fakeOrganization({ id: PlatformConstants.OficoCollectiveId });
@@ -405,7 +410,7 @@ describe('server/graphql/v2/query/SearchQuery (provider-independent dispatch)', 
     it('requires the preview to be enabled in production, even for allowed users', async () => {
       sandbox.stub(config, 'env').value('production');
       const user = await fakeUser();
-      const firstPartyHost = await fakeOrganization({ data: { isFirstPartyHost: true } });
+      const firstPartyHost = await fakeOrganization({ id: PlatformConstants.FirstPartyHostCollectiveIds[1] });
       await firstPartyHost.addUserWithRole(user, 'ADMIN');
       const result = await graphqlQueryV2(searchAccountsQuery, {}, user);
       expect(result.errors).to.exist;
