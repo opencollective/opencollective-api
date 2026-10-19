@@ -31236,7 +31236,7 @@ input WebhookCreateInput {
 }
 
 """
-Input type to update a Webhook
+Input type to update a Webhook. Fields that are not provided are left unchanged.
 """
 input WebhookUpdateInput {
   """
@@ -31248,8 +31248,8 @@ input WebhookUpdateInput {
   The legacy public id identifying the webhook (ie: 4242)
   """
   legacyId: Int @deprecated(reason: "2026-02-25: use id")
-  activityType: ActivityType! = ACTIVITY_ALL
-  webhookUrl: URL!
+  activityType: ActivityType
+  webhookUrl: URL
 }
 
 input WebhookReferenceInput {
