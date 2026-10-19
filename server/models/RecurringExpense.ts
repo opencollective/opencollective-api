@@ -148,13 +148,10 @@ class RecurringExpense extends ModelWithPublicId<
   /**
    * Validates the end date of a recurring expense and returns it as a `Date`.
    *
-   * `getRecurringExpensesDue` only drafts rows last drafted more than one interval ago,
-   * so a recurring expense created now (`lastDraftedAt` = now) cannot be picked up before
-   * `moment().add(1, interval).startOf('day')`: that is its first possible due run. On that
-   * run, and on every later one, the cron only keeps rows with `endsAt` after the start of
-   * the run's day. An end date that doesn't reach that first possible due run is therefore
-   * dead on arrival: it can never produce a single draft, so we reject it instead of
-   * silently creating a recurring expense that never recurs.
+   * `getRecurringExpensesDue` selects rows last drafted before the end of the run day
+   * minus one interval, with `endsAt` after the start of the run day. Reject end dates
+   * that cannot reach the first such run. Adding an interval can clamp month-end dates,
+   * so check the candidate day against the due query's subtraction rule as well.
    */
   static assertValidEndsAt(
     endsAt: string | Date | null | undefined,
@@ -169,7 +166,11 @@ class RecurringExpense extends ModelWithPublicId<
       throw new ValidationFailed('Invalid end date for the recurring expense');
     }
 
-    const firstPossibleDueRun = moment().add(1, interval).startOf('day');
+    const lastDraftedAt = moment();
+    const firstPossibleDueRun = lastDraftedAt.clone().add(1, interval).startOf('day');
+    while (!lastDraftedAt.isBefore(firstPossibleDueRun.clone().subtract(1, interval).endOf('day'))) {
+      firstPossibleDueRun.add(1, 'day');
+    }
     if (!endsAtMoment.isAfter(firstPossibleDueRun)) {
       throw new ValidationFailed(
         `The end date for a recurring expense must be later than its first recurrence (${firstPossibleDueRun.format('YYYY-MM-DD')})`,

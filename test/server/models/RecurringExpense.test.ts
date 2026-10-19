@@ -151,6 +151,44 @@ describe('server/models/RecurringExpense', () => {
     ).to.be.rejectedWith('Invalid end date for the recurring expense');
   });
 
+  describe('first possible due run', () => {
+    const { DAY, WEEK, MONTH, QUARTER, YEAR } = models.RecurringExpense.RecurringExpenseIntervals;
+    const cases = [
+      { interval: DAY, createdAt: '2025-01-31T12:00:00Z', firstDueDay: '2025-02-01' },
+      { interval: WEEK, createdAt: '2025-01-31T12:00:00Z', firstDueDay: '2025-02-07' },
+      { interval: MONTH, createdAt: '2025-01-15T12:00:00Z', firstDueDay: '2025-02-15' },
+      { interval: MONTH, createdAt: '2025-01-31T12:00:00Z', firstDueDay: '2025-03-01' },
+      { interval: MONTH, createdAt: '2024-01-31T12:00:00Z', firstDueDay: '2024-03-01' },
+      { interval: QUARTER, createdAt: '2024-11-30T12:00:00Z', firstDueDay: '2025-03-01' },
+      { interval: YEAR, createdAt: '2024-02-29T12:00:00Z', firstDueDay: '2025-03-01' },
+    ];
+
+    for (const { interval, createdAt, firstDueDay } of cases) {
+      it(`validates the ${interval} boundary for an expense created on ${createdAt}`, async () => {
+        const clock = sandbox.useFakeTimers({ now: new Date(createdAt), toFake: ['Date'] });
+        const firstDueRun = moment(firstDueDay);
+
+        for (const endsAt of [firstDueRun.clone().subtract(1, 'millisecond'), firstDueRun]) {
+          await expect(
+            models.RecurringExpense.createFromExpense(expense, interval, endsAt.toDate()),
+          ).to.be.rejectedWith(`must be later than its first recurrence (${firstDueDay})`);
+        }
+
+        const endsAt = firstDueRun.clone().add(1, 'millisecond').toDate();
+        const recurringExpense = await models.RecurringExpense.createFromExpense(expense, interval, endsAt);
+        expect(recurringExpense.endsAt.getTime()).to.eq(endsAt.getTime());
+
+        clock.setSystemTime(firstDueRun.clone().subtract(1, 'day').toDate());
+        const dueBeforeFirstRun = await models.RecurringExpense.getRecurringExpensesDue();
+        expect(dueBeforeFirstRun.map(({ id }) => id)).to.not.include(recurringExpense.id);
+
+        clock.setSystemTime(firstDueRun.toDate());
+        const dueOnFirstRun = await models.RecurringExpense.getRecurringExpensesDue();
+        expect(dueOnFirstRun.map(({ id }) => id)).to.include(recurringExpense.id);
+      });
+    }
+  });
+
   it('picks up open-ended recurring expenses as due after one interval', async () => {
     // Regression test for https://github.com/opencollective/opencollective/issues/8907:
     // stamping endsAt with the submission time excluded the row from
