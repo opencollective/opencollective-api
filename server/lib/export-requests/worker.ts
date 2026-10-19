@@ -40,12 +40,34 @@ const TABLES = [{ tableName: 'ExportRequests', triggerPrefix: 'export_requests' 
 /** `data.retryCount` is the number of retries granted so far: a request runs at most `1 + MAX_RETRIES` times. */
 const canRetry = (request: ExportRequest): boolean => (request.data?.retryCount || 0) < MAX_RETRIES;
 
+// 1-minute base on purpose: the frontend keeps showing "generating" until the export settles, so retries start fast
 const RETRY_BACKOFF_BASE_MS = 1 * 60_000;
 const RETRY_BACKOFF_MAX_MS = 60 * 60_000;
 
 /** Exponential backoff between retries: `RETRY_BACKOFF_BASE_MS * 2^retryCount`, capped at `RETRY_BACKOFF_MAX_MS` (1 h). */
 export const getRetryBackoffMs = (retryCount = 0): number =>
   Math.min(RETRY_BACKOFF_BASE_MS * 2 ** Math.max(retryCount, 0), RETRY_BACKOFF_MAX_MS);
+
+/** Notifies the user of a terminal export failure (the activity triggers the failure email). */
+const createExportFailedActivity = async (request: ExportRequest, error: string): Promise<void> => {
+  const collective = await request.getCollective();
+  await Activity.create({
+    type: ActivityTypes.EXPORT_REQUEST_FAILED,
+    UserId: request.CreatedByUserId,
+    CollectiveId: request.CollectiveId,
+    HostCollectiveId: collective?.HostCollectiveId,
+    data: {
+      exportRequest: {
+        id: request.id,
+        publicId: request.publicId,
+        name: request.name,
+        type: request.type,
+        error,
+      },
+      collective: collective?.info,
+    },
+  });
+};
 export const EXPORT_PROCESSORS: Record<ExportRequestTypes, ExportProcessor> = {
   [ExportRequestTypes.TRANSACTIONS]: processTransactionsRequest,
   [ExportRequestTypes.HOSTED_COLLECTIVES]: processHostedCollectivesRequest,
@@ -101,8 +123,9 @@ class ExportWorker {
         // always observe the same winner, whatever the abort/rejection interleaving.
         let settled = false;
         let settleWrite: Promise<void> | null = null;
-        const markFailed = (error: string): Promise<void> => {
-          if (settled) {
+        let completionWriteFailed = false;
+        const markFailed = (error: string, { force = false } = {}): Promise<void> => {
+          if (settled && !force) {
             return settleWrite ?? Promise.resolve();
           }
           settled = true;
@@ -110,25 +133,9 @@ class ExportWorker {
             const shouldRetry = canRetry(request);
             await request.fail(error, { shouldRetry });
 
-            // Create activity on failure (only on terminal failure)
+            // Notify the user on terminal failure
             if (!shouldRetry) {
-              const collective = await request.getCollective();
-              await Activity.create({
-                type: ActivityTypes.EXPORT_REQUEST_FAILED,
-                UserId: request.CreatedByUserId,
-                CollectiveId: request.CollectiveId,
-                HostCollectiveId: collective?.HostCollectiveId,
-                data: {
-                  exportRequest: {
-                    id: request.id,
-                    publicId: request.publicId,
-                    name: request.name,
-                    type: request.type,
-                    error,
-                  },
-                  collective: collective?.info,
-                },
-              });
+              await createExportFailedActivity(request, error);
             }
           })();
           return settleWrite;
@@ -166,7 +173,13 @@ class ExportWorker {
               settled = true;
               settleWrite = (async () => {
                 // The worker is the sole writer of `ExportRequest.status`: processors only return their result
-                await request.update({ status: ExportRequestStatus.COMPLETED });
+                try {
+                  await request.update({ status: ExportRequestStatus.COMPLETED });
+                } catch (error) {
+                  // The COMPLETED write never landed: fall back to the failure transition in the catch below
+                  completionWriteFailed = true;
+                  throw error;
+                }
                 // Create activity on successful completion
                 const collective = await request.getCollective();
                 await Activity.create({
@@ -190,6 +203,12 @@ class ExportWorker {
             })
             .catch(async error => {
               debug(`Error in processor for export request ${request.id}:`, error);
+              if (completionWriteFailed) {
+                // The COMPLETED write failed and never landed: record the attempt as failed instead of leaving
+                // it in PROCESSING until the stuck reaper reports it with a misleading error
+                await markFailed(error.message || 'Unknown error', { force: true });
+                throw error;
+              }
               const isFirstSettle = !settled;
               await markFailed(error.message || 'Unknown error');
               if (isFirstSettle) {
@@ -283,12 +302,13 @@ class ExportWorker {
                 // The run settled between the stuck scan and this lock
                 return;
               }
-              await request.fail(
-                `Request stuck in PROCESSING state without a heartbeat for over ${STUCK_THRESHOLD / 60_000} minutes`,
-                {
-                  shouldRetry: canRetry(request),
-                },
-              );
+              const error = `Request stuck in PROCESSING state without a heartbeat for over ${STUCK_THRESHOLD / 60_000} minutes`;
+              const shouldRetry = canRetry(request);
+              await request.fail(error, { shouldRetry });
+              if (!shouldRetry) {
+                // Terminal failure: notify the user, like on any other terminal failure
+                await createExportFailedActivity(request, error);
+              }
             },
             { unlockTimeoutMs: EXPORT_REQUEST_LOCK_TTL_MS },
           );

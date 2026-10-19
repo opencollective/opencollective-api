@@ -553,6 +553,33 @@ describe('server/lib/export-requests/worker', () => {
         });
         expect(failureActivities).to.have.length(0);
       });
+
+      it('falls back to a failure transition when the COMPLETED write fails', async () => {
+        sandbox.stub(EXPORT_PROCESSORS, ExportRequestTypes.TRANSACTIONS).resolves();
+        const originalUpdate = ExportRequest.prototype.update;
+        sandbox.stub(ExportRequest.prototype, 'update').callsFake(async function (values, options) {
+          if (values?.['status'] === ExportRequestStatus.COMPLETED) {
+            throw new Error('Database write failed');
+          }
+          return originalUpdate.call(this, values, options);
+        });
+        const request = await fakeExportRequest({ status: ExportRequestStatus.ENQUEUED });
+
+        // The COMPLETED write failed and never landed: the attempt must be recorded as FAILED instead of
+        // being left in PROCESSING until the stuck reaper picks it up with a misleading error
+        await expect(ExportWorker.processRequest(request.id, new AbortController().signal)).to.be.rejectedWith(
+          'Database write failed',
+        );
+        await request.reload();
+
+        expect(request.status).to.equal(ExportRequestStatus.FAILED);
+        expect(request.data).to.have.property('error', 'Database write failed');
+        expect(request.data).to.have.property('shouldRetry', true);
+        const completionActivities = await Activity.findAll({
+          where: { type: ActivityTypes.EXPORT_REQUEST_COMPLETED, CollectiveId: request.CollectiveId },
+        });
+        expect(completionActivities).to.have.length(0);
+      });
     });
 
     describe('stuck detection (#8765)', () => {
@@ -618,6 +645,11 @@ describe('server/lib/export-requests/worker', () => {
         );
         expect(request.data).to.have.property('shouldRetry', true);
         expect(request.data?.retryCount ?? 0).to.equal(0);
+        // Not terminal yet: the failure notification is only sent on the final failure
+        const failureActivities = await Activity.findAll({
+          where: { type: ActivityTypes.EXPORT_REQUEST_FAILED, CollectiveId: request.CollectiveId },
+        });
+        expect(failureActivities).to.have.length(0);
       });
 
       it('fails a stale PROCESSING request without retry when retries are exhausted', async () => {
@@ -629,6 +661,14 @@ describe('server/lib/export-requests/worker', () => {
         expect(request.status).to.equal(ExportRequestStatus.FAILED);
         expect(request.data).to.have.property('shouldRetry', false);
         expect(request.data).to.have.property('retryCount', 3);
+        // Terminal failure: the user must be notified, like on any other terminal failure
+        const failureActivities = await Activity.findAll({
+          where: { type: ActivityTypes.EXPORT_REQUEST_FAILED, CollectiveId: request.CollectiveId },
+        });
+        expect(failureActivities).to.have.length(1);
+        expect(failureActivities[0].data.exportRequest.error).to.equal(
+          `Request stuck in PROCESSING state without a heartbeat for over ${STUCK_THRESHOLD / 60_000} minutes`,
+        );
       });
 
       it('ignores stuck requests whose lock is held by a live run', async () => {
