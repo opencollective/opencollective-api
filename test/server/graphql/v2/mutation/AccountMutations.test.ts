@@ -228,7 +228,11 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
   describe('editAccountSetting', () => {
     beforeEach(async () => {
-      await collective.update({ settings: {} });
+      // `update` is a no-op when the instance's in-memory settings already equal `{}`, which
+      // silently leaves the previous tests' settings in the database. Force the write instead.
+      collective.set('settings', {});
+      collective.changed('settings', true);
+      await collective.save();
     });
 
     it('must be authenticated', async () => {
@@ -413,6 +417,69 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       });
 
       expect(activity).to.not.exist;
+    });
+
+    it('can set the virtual card spending limit intervals allowed for requests', async () => {
+      const value = {
+        ALL_TIME: true,
+        DAILY: true,
+        MONTHLY: true,
+        PER_AUTHORIZATION: true,
+        WEEKLY: true,
+        YEARLY: false,
+      };
+
+      const result = await graphqlQueryV2(
+        editSettingsMutation,
+        {
+          account: { legacyId: collective.id },
+          key: 'virtualcards.allowedSpendingLimitIntervals',
+          value,
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccountSetting.settings).to.deep.eq({
+        virtualcards: { allowedSpendingLimitIntervals: value },
+      });
+    });
+
+    it('rejects virtual card spending limit intervals settings that disable every interval', async () => {
+      const result = await graphqlQueryV2(
+        editSettingsMutation,
+        {
+          account: { legacyId: collective.id },
+          key: 'virtualcards.allowedSpendingLimitIntervals',
+          value: {
+            ALL_TIME: false,
+            DAILY: false,
+            MONTHLY: false,
+            PER_AUTHORIZATION: false,
+            WEEKLY: false,
+            YEARLY: false,
+          },
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/At least one virtual card spending limit interval must be allowed/);
+    });
+
+    it('rejects invalid virtual card spending limit intervals settings', async () => {
+      const result = await graphqlQueryV2(
+        editSettingsMutation,
+        {
+          account: { legacyId: collective.id },
+          key: 'virtualcards.allowedSpendingLimitIntervals',
+          value: { FORTNIGHTLY: true },
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Invalid virtual card spending limit interval: FORTNIGHTLY/);
     });
 
     it('validates settings and refuses bad values for specific keys', async () => {
