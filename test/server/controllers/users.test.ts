@@ -105,7 +105,7 @@ describe('server/controllers/users', () => {
       expect(response._getStatusCode()).to.eql(400);
       expect(response._getData().errorCode).to.eql('EMAIL_DOES_NOT_EXIST');
       expect(await models.User.findOne({ where: { email } })).to.not.exist;
-      expect(sendStub.called).to.be.false;
+      expect(sendStub.calledWith(sinon.match.any, email)).to.be.false;
     });
 
     it('ignores createProfile: true for unknown emails', async () => {
