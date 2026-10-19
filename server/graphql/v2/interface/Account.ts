@@ -29,6 +29,7 @@ import {
   checkRemoteUserCanUseApplications,
   checkRemoteUserCanUseKYC,
   checkScope,
+  isRemoteUserRoot,
   requireSessionToken,
 } from '../../common/scope-check';
 import { BadRequest, ContentNotReady, Forbidden, Unauthorized } from '../../errors';
@@ -503,6 +504,13 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLOrderCollection),
     args: {
       ...OrdersCollectionArgs,
+    },
+  },
+  webhooks: {
+    type: new GraphQLNonNull(GraphQLWebhookCollection),
+    description: 'Webhooks registered on this account. Only available to admins. Scope: "webhooks".',
+    args: {
+      ...omit(WebhookCollectionArgs, ['account']),
     },
   },
   expenses: {
@@ -1052,7 +1060,7 @@ const accountFieldsDefinition = () => ({
       },
     },
     async resolve(collective: Collective, args, req) {
-      if (!req.remoteUser?.isAdminOfCollective(collective) && !req.remoteUser?.isRoot()) {
+      if (!req.remoteUser?.isAdminOfCollective(collective) && !isRemoteUserRoot(req)) {
         throw new Unauthorized('You need to be logged in as an admin of this collective to see its activity');
       }
 

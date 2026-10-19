@@ -26,6 +26,7 @@ import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import MemberRoles from '../../server/constants/roles';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { VirtualCardLimitIntervals } from '../../server/constants/virtual-cards';
+import { createAccountAdminMembers } from '../../server/lib/account-admins';
 import { crypto } from '../../server/lib/encryption';
 import { KYCProviderName } from '../../server/lib/kyc/providers';
 import { createTransactionsForManuallyPaidExpense } from '../../server/lib/transactions';
@@ -352,20 +353,7 @@ export const fakeCollective = async (
   if (collectiveData.admin) {
     try {
       const admins = Array.isArray(collectiveData.admin) ? collectiveData.admin : [collectiveData.admin];
-      await Promise.all(
-        admins.map(admin => {
-          const isUser = admin instanceof models.User;
-          return models.Member.create(
-            {
-              CollectiveId: collective.id,
-              MemberCollectiveId: isUser ? admin.CollectiveId : admin.id,
-              role: roles.ADMIN,
-              CreatedByUserId: isUser ? admin.id : admin.CreatedByUserId,
-            },
-            sequelizeParams,
-          );
-        }),
-      );
+      await createAccountAdminMembers(collective, admins, sequelizeParams);
 
       // Re-populate roles for affected users
       await Promise.all(
@@ -649,6 +637,7 @@ export const fakeComment = async (
   const ConversationId = get(commentData, 'ConversationId') || get(commentData, 'conversation.id');
   const HostApplicationId = get(commentData, 'HostApplicationId') || get(commentData, 'hostApplication.id');
   const OrderId = get(commentData, 'OrderId') || get(commentData, 'order.id');
+  const UpdateId = get(commentData, 'UpdateId') || get(commentData, 'commentUpdate.id');
   if (!FromCollectiveId) {
     FromCollectiveId = (await fakeCollective({}, sequelizeParams)).id;
   }
@@ -658,7 +647,7 @@ export const fakeComment = async (
   if (!CreatedByUserId) {
     CreatedByUserId = (await fakeUser()).id;
   }
-  if (!ExpenseId && !ConversationId && !HostApplicationId && !OrderId) {
+  if (!ExpenseId && !ConversationId && !HostApplicationId && !OrderId && !UpdateId) {
     ExpenseId = (await fakeExpense()).id;
   }
 
@@ -672,6 +661,7 @@ export const fakeComment = async (
       ExpenseId: <number>ExpenseId,
       OrderId: <number>OrderId,
       ConversationId: <number>ConversationId,
+      UpdateId: <number>UpdateId,
     },
     sequelizeParams,
   );
@@ -810,7 +800,6 @@ export const fakeOrder = async (
       interval: order.interval || 'month',
       currency: order.currency,
       isActive: true,
-      quantity: order.quantity,
       ...orderData.subscription,
     };
 
@@ -883,7 +872,6 @@ export const fakeSubscription = (params = {}) => {
     currency: sample<SupportedCurrency>(['USD', 'EUR']),
     interval: <'month' | 'year'>sample(['month', 'year']),
     isActive: true,
-    quantity: 1,
     ...params,
   });
 };

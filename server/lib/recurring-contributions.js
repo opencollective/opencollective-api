@@ -78,10 +78,6 @@ export async function ordersWithPendingCharges({ limit, startDate, limitedToOrde
   });
 }
 
-function hasReachedQuantity(order) {
-  return order.Subscription.chargeNumber !== null && order.Subscription.chargeNumber === order.Subscription.quantity;
-}
-
 /** Process order and trigger result handlers.
  *
  * Uses `lib.payments.processOrder()` to charge subscription and
@@ -125,11 +121,7 @@ export async function processOrderWithSubscription(order, options) {
   let transaction;
 
   if (!options.dryRun) {
-    if (hasReachedQuantity(order)) {
-      orderProcessedStatus = 'failure';
-      csvEntry.error = 'Your subscription is over';
-      cancelSubscription(order);
-    } else if (order.collective.deactivatedAt) {
+    if (order.collective.deactivatedAt) {
       // This means the collective has been archived and the subscription should be cancelled.
       orderProcessedStatus = 'failure';
       csvEntry.error = 'The collective has been archived';
