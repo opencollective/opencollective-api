@@ -55,6 +55,9 @@ type TransactionExportRequestParameters = {
 
 const safeJoinString = (value: string[] | string) => (Array.isArray(value) ? value.join(',') : value);
 
+/** If neither the download nor the upload moves data for this long, the export stream is considered wedged. */
+export const EXPORT_IDLE_TIMEOUT_MS = 15 * 60_000;
+
 export const makeUrl = ({
   account,
   isHostReport,
@@ -188,14 +191,10 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
   const propagateAbort = () => abortController.abort();
   workerAbortSignal.addEventListener('abort', propagateAbort, { once: true });
 
+  let idleTimer: NodeJS.Timeout | null = null;
   try {
     const fileName = kebabCase(request.name) || `transactions-export`;
     const stream = new Stream.PassThrough();
-    const pUpload = UploadedFile.uploadStream(stream, 'TRANSACTIONS_CSV_EXPORT', user, {
-      fileName: `${fileName}-${Date.now()}.csv`,
-      mimetype: 'text/csv',
-      abortController,
-    });
     // Teardown helper: when either leg fails, cancel the other one so we never wait forever on a leg that
     // can no longer make progress (e.g. a download backpressured by a dead upload). The first failure wins.
     let failure: Error | null = null;
@@ -206,6 +205,25 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
       stream.destroy();
       abortController.abort();
     };
+
+    // Idle watchdog: if neither the download nor the upload moves data for `EXPORT_IDLE_TIMEOUT_MS`, the
+    // stream is wedged (stalled upstream, half-open connection): tear both legs down so the attempt fails and
+    // is retried instead of holding a worker slot and its heartbeat forever.
+    const armIdleWatchdog = () => {
+      if (idleTimer) {
+        clearTimeout(idleTimer);
+      }
+      idleTimer = setTimeout(() => {
+        abortLegs(new Error(`Export stalled: no data transferred for ${EXPORT_IDLE_TIMEOUT_MS / 60_000} minutes`));
+      }, EXPORT_IDLE_TIMEOUT_MS);
+    };
+
+    const pUpload = UploadedFile.uploadStream(stream, 'TRANSACTIONS_CSV_EXPORT', user, {
+      fileName: `${fileName}-${Date.now()}.csv`,
+      mimetype: 'text/csv',
+      abortController,
+      onProgress: armIdleWatchdog,
+    });
 
     const pDownload = axios
       .get(url, {
@@ -220,6 +238,7 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
           new Promise<void>((resolve, reject) => {
             // The S3 upload only completes when the pass-through ends: forward download stream failures and
             // settle when the pass-through is torn down, since a destroyed stream never drains the source
+            response.data.on('data', armIdleWatchdog);
             response.data.on('error', error => {
               abortLegs(error);
               reject(error);
@@ -234,6 +253,7 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
         },
       );
     pUpload.catch(error => abortLegs(error));
+    armIdleWatchdog();
 
     // Wait for both legs to settle so a failed download can never leave the S3 upload running
     const [uploadResult, downloadResult] = await Promise.allSettled([pUpload, pDownload]);
@@ -252,6 +272,9 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
       expiresAt,
     });
   } finally {
+    if (idleTimer) {
+      clearTimeout(idleTimer);
+    }
     workerAbortSignal.removeEventListener('abort', propagateAbort);
   }
 };

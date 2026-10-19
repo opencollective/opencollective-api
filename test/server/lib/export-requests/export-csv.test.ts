@@ -6,6 +6,7 @@ import { Readable, Stream } from 'node:stream';
 import sinon from 'sinon';
 
 import {
+  EXPORT_IDLE_TIMEOUT_MS,
   getExportExpirationDate,
   makeUrl,
   processTransactionsRequest,
@@ -443,6 +444,49 @@ describe('server/lib/export-requests/export-csv', () => {
       expect(error.message).to.equal('Upload failed to S3');
       // The download is cancelled (axios tears down its source stream on abort) instead of hanging on backpressure
       expect(axiosGetStub.getCall(0).args[1].signal.aborted).to.be.true;
+    });
+
+    it('tears down a stalled stream after the idle timeout', async () => {
+      const user = await fakeUser();
+      const exportRequest = await fakeExportRequest({ CreatedByUserId: user.id });
+      const uploadedFile = await fakeUploadedFile({ CreatedByUserId: user.id });
+
+      // A source stream that emits one chunk then goes silent forever (wedged connection)
+      const stalledSource = new Stream.PassThrough();
+      stalledSource.write('first chunk');
+      sandbox.stub(axios, 'get').resolves({
+        data: stalledSource,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+      } as any);
+      const upload = stubUploadSettlingOnStreamTeardown(uploadedFile);
+
+      // Only fake timers: I/O events (DB, stream events) stay real
+      const realSetTimeout = globalThis.setTimeout;
+      const clock = sandbox.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      try {
+        const processCall = processTransactionsRequest(exportRequest, new AbortController().signal);
+        for (let i = 0; i < 100 && !upload.stub.calledOnce; i++) {
+          await new Promise(resolve => realSetTimeout(resolve, 5));
+        }
+        expect(upload.stub.calledOnce).to.be.true;
+
+        clock.tick(EXPORT_IDLE_TIMEOUT_MS);
+
+        // Without the watchdog this hangs forever: the stalled stream never ends and the upload never settles
+        const error = await Promise.race([
+          processCall.then(
+            () => expect.fail('Should have thrown the idle timeout error'),
+            err => err,
+          ),
+          new Promise(resolve => realSetTimeout(() => resolve(new Error('did not settle: no idle teardown')), 3_000)),
+        ]);
+        expect(error.message).to.match(/stalled/i);
+        expect(upload.hasSettled()).to.be.true;
+      } finally {
+        clock.restore();
+      }
     });
 
     it('propagates the abort signal to the download and upload and removes its listener', async () => {
