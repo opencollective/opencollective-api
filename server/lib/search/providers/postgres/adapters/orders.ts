@@ -79,6 +79,8 @@ const getRestrictedFieldsPermission = ({ access }: OrdersContext): RawBuilder<un
 
 export const OrdersAdapter: PostgresSearchAdapter<SearchEntity.ORDERS> = {
   entity: SearchEntity.ORDERS,
+  // Broad words match millions of contributions ("financial contribution"): pages stop early, totals are capped
+  constantScorePerArm: true,
   buildArms(db: Kysely<DatabaseWithViews>, context: OrdersContext): SearchArm[] {
     const { input } = context;
     const scopeVariants = getScopeVariants(context);

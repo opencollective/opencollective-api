@@ -89,6 +89,8 @@ export type SearchHit = {
 
 export type SearchEntityResult = {
   totalCount: number;
+  /** The total was capped: there are more matches than `totalCount` */
+  totalCountIsCapped?: boolean;
   maxScore: number;
   hits: SearchHit[];
 };

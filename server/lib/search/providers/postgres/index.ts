@@ -23,7 +23,7 @@ import {
   ParsedSearchInput,
   parseSearchInput,
 } from './input';
-import { executeRankedSearchQuery } from './query-builder';
+import { executeSearchQuery } from './query-builder';
 
 const EMPTY_RESULT: SearchEntityResult = { totalCount: 0, maxScore: 0, hits: [] };
 
@@ -76,7 +76,11 @@ const searchEntity = async (
         await budget.renewStatementTimeout();
       }
 
-      const result = await executeRankedSearchQuery(trx, arms, entityRequest);
+      const result = await executeSearchQuery(trx, arms, {
+        limit: entityRequest.limit,
+        offset: entityRequest.offset,
+        cap: adapter.constantScorePerArm ? Number(config.search.postgres.maxCountedMatches) : undefined,
+      });
       if (!adapter.decorateHits) {
         return result;
       }

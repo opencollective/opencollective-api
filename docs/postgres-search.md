@@ -16,7 +16,8 @@ Code: `server/lib/search/providers/postgres/` (`index.ts` for the flow). Each re
 - **Timeout per entity.** `Query.search(timeout)` (100-30000 ms, default 10 s) is the budget of each entity query,
   from the moment it is scheduled: waiting for a search slot or a pooled connection counts, waiting for the other
   entities of the request doesn't. A query that runs out of budget fails with a visible `SearchTooBroad` error
-  ("Narrow your search…") on its own entity; totals are never capped.
+  ("Narrow your search…") on its own entity. Totals are exact, except for Orders and Transactions (see
+  [Capped totals](#capped-totals)).
 - **Concurrency caps.** At most `SEARCH_POSTGRES_CONCURRENCY_PER_REQUEST` (2) entity queries at a time per request,
   and `SEARCH_POSTGRES_MAX_CONCURRENT_QUERIES` (8) search statements at a time per API process, so that search
   traffic can't take over the shared pool (50 connections in production).
@@ -32,12 +33,15 @@ Code: `server/lib/search/providers/postgres/` (`index.ts` for the flow). Each re
     CPU of the primary (more throughput under load, see the tuning section below).
   - `effective_io_concurrency` ≥ 64: prefetches heap pages of bitmap scans (cold searches without parallel workers).
   - `pg_trgm.word_similarity_threshold` = `SEARCH_POSTGRES_TYPO_SIMILARITY_THRESHOLD` (0.5): Account name typos.
-- **Planner pre-check** (Transactions only, `estimates.ts`). Exact totals visit every match, so the cost grows with the
-  match count, and on 13M Transactions a template word ("host fee") matches millions of rows. Before running, one
-  `EXPLAIN` (no execution, ~1-3 ms) compares the planner's estimated matches with what the adapter can count in the
-  remaining budget (`estimatedMatchesPerSecond`, 50k/s measured). Above it, the search fails with the same
-  `SearchTooBroad` error in milliseconds instead of holding a connection until the timeout. Estimates can be several
-  times off, so it is a lenient fast path: `statement_timeout` stays the guarantee, and it never caps a total.
+- **Capped totals** (Orders and Transactions, `constantScorePerArm`). Exact totals visit every match, so the cost
+  grows with the match count, and template words ("host fee", "financial contribution") match millions of rows. Every
+  arm of these adapters has a constant score, so each arm is read in `id DESC` order up to `offset + limit` rows
+  (early stop) and counted up to `SEARCH_POSTGRES_MAX_COUNTED_MATCHES` (10,000) + 1 rows. Pages and `maxScore` are the
+  same as with an exact total; above the cap, `totalCount` is the cap and `totalCountIsCapped` is true.
+- **Planner pre-check** (optional, `estimates.ts`, no adapter uses it). One `EXPLAIN` (no execution, ~1-3 ms) compares
+  the planner's estimated matches with what the adapter can count in the remaining budget
+  (`estimatedMatchesPerSecond`). Above it, the search fails with `SearchTooBroad` in milliseconds instead of holding a
+  connection until the timeout. Transactions used it before capped totals.
 - **Kill switch.** `SEARCH_POSTGRES_ENABLED=false` makes every `backend: POSTGRES` request fail with a visible error,
   without a deploy (see [Return to OpenSearch](#return-to-opensearch)). It does not change the default backend, which
   stays OpenSearch whatever its value; `true` (default) only makes the opt-in backend available.
@@ -64,8 +68,9 @@ Adding an entity = one adapter file + one migration + one registry line + tests.
 `buildArms(db, context)` returns `SearchArm[]`:
 
 - Each arm is a Kysely select of exactly `{ id, score }`. Arms are combined with `UNION ALL` and deduplicated by ID
-  (best score wins); `query-builder.ts` computes the exact total, the offset-independent `maxScore` and the page
-  (`ORDER BY score DESC, id DESC`) in **one statement**, from the same snapshot. Adapters never count or paginate.
+  (best score wins); `query-builder.ts` computes the total (exact, or capped with `constantScorePerArm`), the
+  offset-independent `maxScore` and the page (`ORDER BY score DESC, id DESC`) in **one statement**, from the same
+  snapshot. Adapters never count or paginate.
 - Every arm applies eligibility, scopes, entity filters and row/field permissions itself. Restricted text only
   appears in arms that AND the permission predicate; public arms never reference restricted columns, so inaccessible
   rows never affect totals or scores.
@@ -79,7 +84,8 @@ Adding an entity = one adapter file + one migration + one registry line + tests.
 - Scores (`scores.ts`): `band * 1000 + (preferred ? 500 : 0) + clamp(lexicalBonus, 0, 499)`. Bands: exact identifier
   5, exact label 4, all words 3, Account prefix 2, Account typo 1. The lexical bonus must be cheap (short columns,
   `starts_with`, `CASE`): never `ts_rank` or `to_tsvector` on long or HTML bodies.
-- Optional: `estimatedMatchesPerSecond` (planner pre-check, see above) and `decorateHits` (extra fields of the page).
+- Optional: `constantScorePerArm` (capped totals, see above: every arm's score must be a constant, no lexical bonus or
+  `CASE`), `estimatedMatchesPerSecond` (planner pre-check, see above) and `decorateHits` (extra fields of the page).
 
 ## Known differences with OpenSearch
 
@@ -181,7 +187,8 @@ with index maintenance).
 
 ### Single searches (warm cache, median of 3, final code)
 
-Root unless noted. "Rejected" = visible `SearchTooBroad` error from the planner pre-check, in 2-4 ms.
+Root unless noted. "Rejected" = visible `SearchTooBroad` error from the planner pre-check, in 2-4 ms. The Orders and
+Transactions rows were measured with exact totals, before capped totals: they must be measured again.
 
 | Entity            | Broad term (matches): time                                                                                        | Common term                                 | Selective term | Host scope (largest host)                   | Account scope (busiest account) |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | -------------- | ------------------------------------------- | ------------------------------- |

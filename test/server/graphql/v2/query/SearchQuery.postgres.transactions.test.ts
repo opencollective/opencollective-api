@@ -6,8 +6,8 @@
  */
 
 import { expect } from 'chai';
+import config from 'config';
 import gql from 'fake-tag';
-import { omit } from 'lodash';
 import sinon from 'sinon';
 import { v4 as uuid } from 'uuid';
 
@@ -15,7 +15,7 @@ import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import * as OpenSearchClientLib from '../../../../../server/lib/open-search/client';
-import models, { Collective, sequelize, Transaction, User } from '../../../../../server/models';
+import models, { Collective, Transaction, User } from '../../../../../server/models';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -469,47 +469,75 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL, transactions)', () =>
       expect(await getIds('okapi')).to.deep.eq([elsewhere.id]);
     });
   });
-  describe('budget', () => {
-    it('rejects searches that are estimated too broad for the budget before running them', async () => {
-      // 15,000 matches, analyzed so that the planner knows it. At the minimum budget (100 ms), they are estimated too
-      // many to count in time; with a larger budget, the same search runs and returns the exact total.
-      const collective = await fakeCollective({ slug: 'budget-collective' });
-      const base = (await fakeTransaction({ CollectiveId: collective.id, description: 'Narwhal tribute 0' })).toJSON();
-      await models.Transaction.bulkCreate(
-        Array.from({ length: 14999 }, (_, i) => ({
-          ...omit(base, ['id', 'uuid', 'publicId', 'createdAt', 'updatedAt']),
-          description: `Narwhal tribute ${i + 1}`,
-        })),
-        { hooks: false },
-      );
-      await sequelize.query('ANALYZE "Transactions"');
-
-      const query = gql`
-        query PostgresTransactionsSearchBudget($searchTerm: String!, $timeout: Int!) {
-          search(searchTerm: $searchTerm, backend: POSTGRES, timeout: $timeout) {
-            results {
-              transactions(limit: 1) {
-                collection {
-                  totalCount
+  describe('capped totals', () => {
+    const cappedQuery = gql`
+      query PostgresTransactionsSearchCapped($searchTerm: String!, $limit: Int, $offset: Int) {
+        search(searchTerm: $searchTerm, backend: POSTGRES) {
+          results {
+            transactions(limit: $limit, offset: $offset) {
+              totalCountIsCapped
+              maxScore
+              scores {
+                score
+              }
+              collection {
+                totalCount
+                nodes {
+                  legacyId
                 }
               }
             }
           }
         }
-      `;
+      }
+    `;
 
-      const tooBroad = await graphqlQueryV2(query, { searchTerm: 'narwhal tribute', timeout: 100 });
-      expect(tooBroad.errors).to.have.length(1);
-      expect(tooBroad.errors[0].extensions.code).to.eq('SearchTooBroad');
-      expect(tooBroad.errors[0].message).to.match(/Narrow your search/);
+    const searchCapped = async (searchTerm: string, variables: { limit?: number; offset?: number } = {}) => {
+      const result = await graphqlQueryV2(cappedQuery, { searchTerm, ...variables });
+      expect(result.errors, JSON.stringify(result.errors)).to.not.exist;
+      return result.data.search.results.transactions;
+    };
 
-      const selective = await graphqlQueryV2(query, { searchTerm: 'narwhal tribute 42', timeout: 100 });
-      expect(selective.errors).to.not.exist;
-      expect(selective.data.search.results.transactions.collection.totalCount).to.eq(1);
+    let exactId: number;
+    let wordIds: number[];
 
-      const largerBudget = await graphqlQueryV2(query, { searchTerm: 'narwhal tribute', timeout: 30000 });
-      expect(largerBudget.errors).to.not.exist;
-      expect(largerBudget.data.search.results.transactions.collection.totalCount).to.eq(15000);
+    before(async () => {
+      const collective = await fakeCollective({ slug: 'capped-collective' });
+      // The exact description is the oldest: it must still come first
+      exactId = (await fakeTransaction({ CollectiveId: collective.id, description: 'Quetzal tribute' })).id;
+      wordIds = [];
+      for (let i = 0; i < 14; i++) {
+        const transaction = await fakeTransaction({ CollectiveId: collective.id, description: `Quetzal tribute ${i}` });
+        wordIds.push(transaction.id);
+      }
+      wordIds.reverse(); // Newest first
+    });
+
+    it('returns exact totals below the cap', async () => {
+      const transactions = await searchCapped('quetzal tribute', { limit: 3 });
+      expect(transactions.totalCountIsCapped).to.be.false;
+      expect(transactions.collection.totalCount).to.eq(15);
+      expect(transactions.collection.nodes.map(node => node.legacyId)).to.deep.eq([exactId, ...wordIds.slice(0, 2)]);
+    });
+
+    it('caps totals above the cap, with the same pages and maxScore', async () => {
+      sandbox.stub(config.search.postgres, 'maxCountedMatches').value(10);
+
+      const firstPage = await searchCapped('quetzal tribute', { limit: 4 });
+      expect(firstPage.totalCountIsCapped).to.be.true;
+      expect(firstPage.collection.totalCount).to.eq(10);
+      expect(firstPage.collection.nodes.map(node => node.legacyId)).to.deep.eq([exactId, ...wordIds.slice(0, 3)]);
+      expect(firstPage.scores[0].score).to.be.greaterThan(firstPage.scores[1].score);
+
+      // Pages beyond the cap still work, and maxScore doesn't depend on the offset
+      const lastPage = await searchCapped('quetzal tribute', { limit: 4, offset: 12 });
+      expect(lastPage.totalCountIsCapped).to.be.true;
+      expect(lastPage.maxScore).to.eq(firstPage.maxScore);
+      expect(lastPage.collection.nodes.map(node => node.legacyId)).to.deep.eq(wordIds.slice(11));
+
+      const selective = await searchCapped('quetzal tribute 7');
+      expect(selective.totalCountIsCapped).to.be.false;
+      expect(selective.collection.totalCount).to.eq(1);
     });
   });
 });
