@@ -196,6 +196,17 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
       mimetype: 'text/csv',
       abortController,
     });
+    // Teardown helper: when either leg fails, cancel the other one so we never wait forever on a leg that
+    // can no longer make progress (e.g. a download backpressured by a dead upload). The first failure wins.
+    let failure: Error | null = null;
+    const abortLegs = (error: Error) => {
+      if (!failure) {
+        failure = error;
+      }
+      stream.destroy();
+      abortController.abort();
+    };
+
     const pDownload = axios
       .get(url, {
         responseType: 'stream',
@@ -207,24 +218,28 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
       .then(
         response =>
           new Promise<void>((resolve, reject) => {
-            // The S3 upload only completes when the pass-through ends: forward download stream failures and tear
-            // the pass-through down so the upload settles instead of hanging open on a stream that never ends
+            // The S3 upload only completes when the pass-through ends: forward download stream failures and
+            // settle when the pass-through is torn down, since a destroyed stream never drains the source
             response.data.on('error', error => {
-              stream.destroy();
+              abortLegs(error);
               reject(error);
             });
             response.data.on('end', resolve);
+            stream.on('close', () => (failure ? reject(failure) : resolve()));
             response.data.pipe(stream);
           }),
         error => {
-          stream.destroy();
+          abortLegs(error);
           throw error;
         },
       );
+    pUpload.catch(error => abortLegs(error));
 
     // Wait for both legs to settle so a failed download can never leave the S3 upload running
     const [uploadResult, downloadResult] = await Promise.allSettled([pUpload, pDownload]);
-    if (downloadResult.status === 'rejected') {
+    if (failure) {
+      throw failure;
+    } else if (downloadResult.status === 'rejected') {
       throw downloadResult.reason;
     } else if (uploadResult.status === 'rejected') {
       throw uploadResult.reason;

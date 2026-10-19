@@ -410,6 +410,41 @@ describe('server/lib/export-requests/export-csv', () => {
       expect(upload.hasSettled()).to.be.true;
     });
 
+    it('tears down the download when the upload fails first', async () => {
+      const user = await fakeUser();
+      const exportRequest = await fakeExportRequest({ CreatedByUserId: user.id });
+      const uploadedFile = await fakeUploadedFile({ CreatedByUserId: user.id });
+
+      // A source stream that never ends on its own: if nobody tears it down, the download leg hangs forever
+      const hangingSource = new Stream.Readable({ read() {} });
+      const axiosGetStub = sandbox.stub(axios, 'get').resolves({
+        data: hangingSource,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+      } as any);
+      const uploadError = new Error('Upload failed to S3');
+      sandbox.stub(UploadedFile, 'uploadStream').callsFake(stream => {
+        return new Promise((resolve, reject) => {
+          stream.on('close', () => resolve(uploadedFile));
+          setImmediate(() => reject(uploadError));
+        });
+      });
+
+      const error = await runWithTimeout(
+        processTransactionsRequest(exportRequest, new AbortController().signal),
+        3_000,
+        'processTransactionsRequest did not settle: the download is hanging after the upload failed',
+      ).then(
+        () => expect.fail('Should have thrown the upload error'),
+        err => err,
+      );
+
+      expect(error.message).to.equal('Upload failed to S3');
+      // The download is cancelled (axios tears down its source stream on abort) instead of hanging on backpressure
+      expect(axiosGetStub.getCall(0).args[1].signal.aborted).to.be.true;
+    });
+
     it('propagates the abort signal to the download and upload and removes its listener', async () => {
       const user = await fakeUser();
       const exportRequest = await fakeExportRequest({ CreatedByUserId: user.id });
