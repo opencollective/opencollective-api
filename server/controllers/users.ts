@@ -429,7 +429,7 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
   const existingSession: SignupRequestSession = await sessionCache.get(otpSessionKey);
   if (!sessionId || !existingSession || existingSession.sessionId !== sessionId) {
     res.status(401).send({
-      error: { message: 'Cannot resend OTP because no OTP request was found', type: 'OTP_REQUEST_NOT_FOUND' },
+      error: { message: 'Not found', type: 'NOT_FOUND' },
     });
     return;
   }
@@ -441,7 +441,7 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
   if (sessionAgeMs > auth.OTP_SESSION_MAX_AGE * 1000) {
     await sessionCache.delete(otpSessionKey);
     res.status(401).send({
-      error: { message: 'Cannot resend OTP because no OTP request was found', type: 'OTP_REQUEST_NOT_FOUND' },
+      error: { message: 'Not found', type: 'NOT_FOUND' },
     });
     return;
   }
@@ -453,7 +453,7 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
   if (!user || user.data?.requiresVerification !== true || user.confirmedAt) {
     await sessionCache.delete(otpSessionKey);
     res.status(401).send({
-      error: { message: 'User not found, try again', type: 'NOT_FOUND' },
+      error: { message: 'Not found', type: 'NOT_FOUND' },
     });
     return;
   }
@@ -523,10 +523,18 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
     return;
   }
 
+  // The client distinguishes "wrong code, retry" (`INVALID_OTP`) from "this challenge is over,
+  // start again" (`NOT_FOUND`) and routes on the difference, so the two must not collapse.
+  // Defaults to "retryable": a transient failure (e.g. lock contention) must not eject the caller.
+  let challengeIsOver = false;
+
   try {
     await lockUntilOrThrow(
       `otp:verifyEmail:${sanitizedEmail}`,
       async () => {
+        // Inside the lock we can tell "challenge over" from "wrong code", so assume the former and
+        // clear it again for a retryable wrong guess.
+        challengeIsOver = true;
         const otpSessionKey = `otp_signup_${sanitizedEmail}`;
         const otpSession: SignupRequestSession = await sessionCache.get(otpSessionKey);
         if (otpSession && otpSession.sessionId === sessionId) {
@@ -576,6 +584,8 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
                 // persistent change to a User/Collective the caller may not own.
                 await sessionCache.delete(otpSessionKey);
               } else {
+                // The challenge survives this guess, so the caller may retry the same code.
+                challengeIsOver = false;
                 // Counting a try must not hand the session a fresh TTL - that is a second keep-alive
                 // vector alongside `resend-otp`. Cap the rewrite at whichever is sooner: the normal
                 // idle TTL, or the time left on the absolute lifetime.
@@ -602,7 +612,13 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
   }
 
   if (!res.headersSent) {
-    res.status(403).send({ error: { message: 'Invalid or expired OTP code', type: 'INVALID_OTP' } });
+    res
+      .status(403)
+      .send(
+        challengeIsOver
+          ? { error: { message: 'Not found', type: 'NOT_FOUND' } }
+          : { error: { message: 'Invalid or expired OTP code', type: 'INVALID_OTP' } },
+      );
   }
 }
 

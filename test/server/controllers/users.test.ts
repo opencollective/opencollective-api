@@ -724,6 +724,88 @@ describe('server/controllers/users', () => {
     });
   });
 
+  describe('OTP error contract', () => {
+    // `INVALID_OTP` means "the code was wrong, the challenge is still live - retry".
+    // `NOT_FOUND` means "this challenge is over - start again". The client routes on the difference.
+    it('returns INVALID_OTP when the code is wrong but the session is still live', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+      const otpResponse = await makeSignupRequest(email, randIPV4());
+      const sessionId = otpResponse._getData().sessionId;
+
+      const verifyResponse = await makeVerifyOtpRequest(email, '023456', sessionId, randIPV4());
+      expect(verifyResponse._getStatusCode()).to.eql(403);
+      expect(verifyResponse._getData()).to.eql({
+        error: { message: 'Invalid or expired OTP code', type: 'INVALID_OTP' },
+      });
+      // The caller is expected to retry against the same session
+      expect(await sessionCache.get(`otp_signup_${email}`)).to.exist;
+    });
+
+    it('returns NOT_FOUND on the third wrong code, once the session has been invalidated', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+      const otpResponse = await makeSignupRequest(email, randIPV4());
+      const sessionId = otpResponse._getData().sessionId;
+
+      let verifyResponse;
+      for (let i = 0; i < 3; i++) {
+        verifyResponse = await makeVerifyOtpRequest(email, '023456', sessionId, randIPV4());
+      }
+      expect(verifyResponse._getStatusCode()).to.eql(403);
+      expect(verifyResponse._getData()).to.eql({ error: { message: 'Not found', type: 'NOT_FOUND' } });
+      expect(await sessionCache.get(`otp_signup_${email}`)).to.be.undefined;
+    });
+
+    it('returns NOT_FOUND when no OTP session exists for the email', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+
+      const verifyResponse = await makeVerifyOtpRequest(email, '023456', 'some-session-id', randIPV4());
+      expect(verifyResponse._getStatusCode()).to.eql(403);
+      expect(verifyResponse._getData()).to.eql({ error: { message: 'Not found', type: 'NOT_FOUND' } });
+    });
+
+    it('returns NOT_FOUND when the caller presents a foreign session id', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+      await makeSignupRequest(email, randIPV4());
+
+      const verifyResponse = await makeVerifyOtpRequest(email, '023456', 'not-my-session', randIPV4());
+      expect(verifyResponse._getData()).to.eql({ error: { message: 'Not found', type: 'NOT_FOUND' } });
+    });
+
+    it('returns NOT_FOUND from resend-otp when the session is gone', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+      const otpResponse = await makeSignupRequest(email, randIPV4());
+      const sessionId = otpResponse._getData().sessionId;
+      await sessionCache.delete(`otp_signup_${email}`);
+
+      const resendResponse = await makeResendOtpRequest(email, sessionId, randIPV4());
+      expect(resendResponse._getStatusCode()).to.eql(401);
+      expect(resendResponse._getData()).to.eql({ error: { message: 'Not found', type: 'NOT_FOUND' } });
+    });
+
+    it('returns NOT_FOUND from resend-otp for a session past its absolute lifetime', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+      const otpResponse = await makeSignupRequest(email, randIPV4());
+      const sessionId = otpResponse._getData().sessionId;
+
+      const otpSessionKey = `otp_signup_${email}`;
+      const otpSession = await sessionCache.get(otpSessionKey);
+      await sessionCache.set(
+        otpSessionKey,
+        { ...otpSession, createdAt: Date.now() - (OTP_SESSION_MAX_AGE + 60) * 1000 },
+        OTP_SESSION_MAX_AGE,
+      );
+
+      const resendResponse = await makeResendOtpRequest(email, sessionId, randIPV4());
+      expect(resendResponse._getData()).to.eql({ error: { message: 'Not found', type: 'NOT_FOUND' } });
+    });
+  });
+
   describe('OTP debug logging', () => {
     it('should never log the OTP outside local development, even with E2E_TEST set', async () => {
       sandbox.stub(emailLib, 'send').resolves();
