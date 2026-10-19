@@ -2,15 +2,40 @@ import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
+import PlatformConstants from '../../../constants/platform';
+import MemberRoles from '../../../constants/roles';
 import { assertCanSeeAllAccounts } from '../../../lib/private-accounts';
 import RateLimit from '../../../lib/rate-limit';
 import { getSearchProvider } from '../../../lib/search';
 import { GraphQLSearchParams } from '../../../lib/search/graphql-search';
 import { SearchProvider, SearchRequest } from '../../../lib/search/types';
+import { Collective, User } from '../../../models';
 import { Forbidden, RateLimitExceeded } from '../../errors';
 import { GraphQLSearchBackend } from '../enum/SearchBackend';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLSearchResponse } from '../object/SearchResponse';
+
+/**
+ * Search is only available to members/admins of the platform accounts and of first-party hosts (OFICO members).
+ * Mirrors `closedBetaAccessFor` of the `SEARCH_COMMAND` preview feature in opencollective-frontend.
+ */
+const canAccessSearch = async (remoteUser: User | null): Promise<boolean> => {
+  if (!remoteUser) {
+    return false;
+  }
+
+  await remoteUser.populateRoles();
+  const collectiveIds = Array.from(remoteUser.getCollectiveIdsForRoles([MemberRoles.ADMIN, MemberRoles.MEMBER]));
+  if (collectiveIds.some(id => PlatformConstants.AllPlatformCollectiveIds.includes(id))) {
+    return true;
+  }
+
+  const nbFirstPartyHosts = await Collective.count({
+    where: { id: collectiveIds, data: { isFirstPartyHost: true } },
+  });
+
+  return nbFirstPartyHosts > 0;
+};
 
 const getRateLimiter = (req: express.Request) => {
   if (req.remoteUser) {
@@ -71,7 +96,7 @@ const SearchQuery = {
     const { remoteUser } = req;
     if (config.env === 'production') {
       const earlyAccess = remoteUser?.collective?.settings?.earlyAccess;
-      if (!earlyAccess?.['SEARCH_COMMAND']) {
+      if (!earlyAccess?.['SEARCH_COMMAND'] || !(await canAccessSearch(remoteUser))) {
         throw new Forbidden();
       } else if (backend === SearchProvider.POSTGRES && !earlyAccess['SEARCH_POSTGRES_BACKEND']) {
         // The PostgreSQL backend is a team preview: it must be explicitly enabled (preview feature of the frontend)

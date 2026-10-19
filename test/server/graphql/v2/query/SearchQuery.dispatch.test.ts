@@ -13,6 +13,7 @@ import gql from 'fake-tag';
 import sinon from 'sinon';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
+import PlatformConstants from '../../../../../server/constants/platform';
 import * as OpenSearchClientSingletonLib from '../../../../../server/lib/open-search/client';
 import { formatIndexNameForOpenSearch } from '../../../../../server/lib/open-search/common';
 import { OpenSearchIndexName } from '../../../../../server/lib/open-search/constants';
@@ -379,10 +380,36 @@ describe('server/graphql/v2/query/SearchQuery (provider-independent dispatch)', 
       expect(forbidden.errors).to.exist;
       expect(forbidden.errors[0].extensions.code).to.eq('Forbidden');
 
+      // Enabling the preview is not enough: the user must also be part of an allowed account
       const previewUser = await fakeUser(undefined, { settings: { earlyAccess: { SEARCH_COMMAND: true } } });
+      const notAllowed = await graphqlQueryV2(searchAccountsQuery, {}, previewUser);
+      expect(notAllowed.errors).to.exist;
+      expect(notAllowed.errors[0].extensions.code).to.eq('Forbidden');
+
+      const firstPartyHost = await fakeOrganization({ data: { isFirstPartyHost: true } });
+      await firstPartyHost.addUserWithRole(previewUser, 'MEMBER');
       const allowed = await graphqlQueryV2(searchAccountsQuery, {}, previewUser);
       expect(allowed.errors).to.be.undefined;
       expect(allowed.data.search.results.accounts.collection.totalCount).to.eq(8);
+    });
+
+    it('is available to platform accounts members in production', async () => {
+      sandbox.stub(config, 'env').value('production');
+      const user = await fakeUser(undefined, { settings: { earlyAccess: { SEARCH_COMMAND: true } } });
+      const platformAccount = await fakeOrganization({ id: PlatformConstants.OficoCollectiveId });
+      await platformAccount.addUserWithRole(user, 'ADMIN');
+      const result = await graphqlQueryV2(searchAccountsQuery, {}, user);
+      expect(result.errors).to.be.undefined;
+    });
+
+    it('requires the preview to be enabled in production, even for allowed users', async () => {
+      sandbox.stub(config, 'env').value('production');
+      const user = await fakeUser();
+      const firstPartyHost = await fakeOrganization({ data: { isFirstPartyHost: true } });
+      await firstPartyHost.addUserWithRole(user, 'ADMIN');
+      const result = await graphqlQueryV2(searchAccountsQuery, {}, user);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.eq('Forbidden');
     });
 
     it('is rate limited per user', async () => {

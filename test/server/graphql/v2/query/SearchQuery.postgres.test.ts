@@ -273,7 +273,9 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
 
     it('requires the explicit PostgreSQL preview opt-in in production', async () => {
       sandbox.stub(config, 'env').value('production');
+      const allowedAccount = await fakeOrganization({ data: { isFirstPartyHost: true } });
       const searchPreviewUser = await fakeUser({}, { settings: { earlyAccess: { SEARCH_COMMAND: true } } });
+      await allowedAccount.addUserWithRole(searchPreviewUser, 'MEMBER');
       const forbidden = await searchAccounts('zanzibar', {}, searchPreviewUser);
       expect(forbidden.errors).to.exist;
       expect(forbidden.errors[0].extensions.code).to.eq('Forbidden');
@@ -283,6 +285,7 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
         {},
         { settings: { earlyAccess: { SEARCH_COMMAND: true, SEARCH_POSTGRES_BACKEND: true } } },
       );
+      await allowedAccount.addUserWithRole(optedInUser, 'MEMBER');
       const accounts = await getAccounts('zanzibar', {}, optedInUser);
       expect(accounts.collection.totalCount).to.eq(1);
     });
