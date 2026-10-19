@@ -218,7 +218,38 @@ type SignupRequestSession = {
   secret: string;
   tries: number;
   userId: number;
+  /** Absolute-lifetime anchor (ms). Sessions missing this are treated as expired (fail closed). */
+  createdAt: number;
 };
+
+/** `john.doe@example.com` -> `j**********@example.com`. Logs must never carry a full address. */
+function maskEmailForLogs(email: string): string {
+  const [localPart, domain] = email.split('@');
+  if (!localPart || !domain) {
+    return '***';
+  }
+  return `${localPart[0]}${'*'.repeat(Math.max(3, localPart.length - 1))}@${domain}`;
+}
+
+/**
+ * Emits the plaintext OTP so it can be read off a local or e2e console.
+ *
+ * An OTP is an authentication secret and must never reach real logs (OWASP MFA CS: "Do not log OTP
+ * values"; Email CS: "Never log verification, reset, or authentication tokens"). This used to be
+ * enabled by `process.env.E2E_TEST` alone, which is not scoped to a non-production environment and
+ * would silently leak OTPs from any deployment that happened to have it set. The recipient is
+ * masked too, so logs never carry a full email address.
+ */
+function logOtpForDebug(email: string, otp: string): void {
+  const isRealDeployment = ['staging', 'production'].includes(config.env);
+  // `E2E_TEST` stays as an escape hatch, but only outside real deployments: the e2e suite runs
+  // with `NODE_ENV=production` (`npm run start:e2e`) and reads the OTP off the logs.
+  const isLocalOrE2E = config.env === 'development' || Boolean(process.env.E2E_TEST);
+  if (isRealDeployment || !isLocalOrE2E) {
+    return;
+  }
+  logger.info(`OTP Code for ${maskEmailForLogs(email)}: ${otp}`);
+}
 
 /**
  * Creates a new User and sends a new OTP verification code.
@@ -262,7 +293,9 @@ export async function signup(req: express.Request, res: express.Response) {
   }
 
   const emailRateLimit = new RateLimit(
-    `signup_email_${sanitizedEmail}`,
+    // Shared with `resend-otp`: these are the two routes that send OTP mail, and separate keys per
+    // route let an attacker alternate them to bypass the per-email budget entirely.
+    `otp_send_email_${sanitizedEmail}`,
     auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
     auth.OTP_RATE_LIMIT_WINDOW,
   );
@@ -325,9 +358,7 @@ export async function signup(req: express.Request, res: express.Response) {
   }
 
   const otp = auth.generateOTPCode();
-  if (config.env === 'development') {
-    logger.info(`OTP Code for ${email}: ${otp}`);
-  }
+  logOtpForDebug(email, otp);
   const sessionId = generateKey();
   const secret = await bcrypt.hash(otp, 10);
   const session: SignupRequestSession = {
@@ -335,6 +366,7 @@ export async function signup(req: express.Request, res: express.Response) {
     secret,
     tries: 0,
     userId: user.id,
+    createdAt: Date.now(),
   };
   await sessionCache.set(otpSessionKey, session, auth.OTP_TOKEN_EXPIRATION);
   try {
@@ -379,7 +411,9 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
   }
 
   const emailRateLimit = new RateLimit(
-    `resendOTP_email_${sanitizedEmail}`,
+    // Shared with `signup`: these are the two routes that send OTP mail, and separate keys per
+    // route let an attacker alternate them to bypass the per-email budget entirely.
+    `otp_send_email_${sanitizedEmail}`,
     auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
     auth.OTP_RATE_LIMIT_WINDOW,
   );
@@ -400,8 +434,24 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
     return;
   }
 
+  // This is the call that refreshes the short cache TTL, so it is exactly where a session gets
+  // extended. Enforce the absolute lifetime here too, and fail closed on a session without
+  // `createdAt` - it predates the field and is expired.
+  const sessionAgeMs = existingSession.createdAt ? Date.now() - existingSession.createdAt : Number.POSITIVE_INFINITY;
+  if (sessionAgeMs > auth.OTP_SESSION_MAX_AGE * 1000) {
+    await sessionCache.delete(otpSessionKey);
+    res.status(401).send({
+      error: { message: 'Cannot resend OTP because no OTP request was found', type: 'OTP_REQUEST_NOT_FOUND' },
+    });
+    return;
+  }
+
   const user = await models.User.findByPk(existingSession.userId);
-  if (!user || user.data?.requiresVerification !== true) {
+  // A confirmed account has nothing left to verify. Confirming out-of-band never clears
+  // `data.requiresVerification`, so that flag alone would keep re-sending OTPs past the
+  // confirmation - drop the stale session instead of leaving it cached.
+  if (!user || user.data?.requiresVerification !== true || user.confirmedAt) {
+    await sessionCache.delete(otpSessionKey);
     res.status(401).send({
       error: { message: 'User not found, try again', type: 'NOT_FOUND' },
     });
@@ -409,15 +459,16 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
   }
 
   const otp = auth.generateOTPCode();
-  if (config.env === 'development' || process.env.E2E_TEST) {
-    logger.info(`OTP Code for ${email}: ${otp}`);
-  }
+  logOtpForDebug(email, otp);
   const secret = await bcrypt.hash(otp, 10);
   const session: SignupRequestSession = {
     sessionId,
     secret,
     tries: 0,
     userId: user.id,
+    // Carry the absolute-lifetime anchor through: rebuilding the session must not reset it.
+    // A session without one is rejected as expired upstream, so this is always defined here.
+    createdAt: existingSession.createdAt,
   };
   await sessionCache.set(otpSessionKey, session, auth.OTP_TOKEN_EXPIRATION);
   try {
@@ -479,11 +530,25 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
         const otpSessionKey = `otp_signup_${sanitizedEmail}`;
         const otpSession: SignupRequestSession = await sessionCache.get(otpSessionKey);
         if (otpSession && otpSession.sessionId === sessionId) {
+          // Absolute lifetime: `resend-otp` refreshes the short cache TTL but never this bound.
+          // Fail closed on a session without `createdAt` - it predates the field and is expired.
+          const sessionAgeMs = otpSession.createdAt ? Date.now() - otpSession.createdAt : Number.POSITIVE_INFINITY;
+          if (sessionAgeMs > auth.OTP_SESSION_MAX_AGE * 1000) {
+            await sessionCache.delete(otpSessionKey);
+            return;
+          }
           const user = await models.User.findByPk(otpSession.userId, {
             include: [{ model: models.Collective, as: 'collective' }],
           });
           if (user) {
             const validOtp = await bcrypt.compare(otp, otpSession.secret);
+            // An already-confirmed account has nothing left to verify: drop the stale session and
+            // stop. This deliberately runs *after* the comparison - bailing out earlier would answer
+            // measurably faster for confirmed accounts and leak account state through latency.
+            if (user.confirmedAt) {
+              await sessionCache.delete(otpSessionKey);
+              return;
+            }
             if (validOtp) {
               await sequelize.transaction(async transaction => {
                 await user.update(
@@ -506,16 +571,17 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
             } else {
               const tries = otpSession.tries + 1;
               if (tries >= 3) {
+                // Three wrong codes say something about the caller's guesses, not about the victim's
+                // account. The only thing they authorize is invalidating the OTP session - never a
+                // persistent change to a User/Collective the caller may not own.
                 await sessionCache.delete(otpSessionKey);
-                if (user.collective) {
-                  const userHasTransactions = await user.collective.getTransactions({ limit: 1 });
-                  // Covers edge-case where the user has previously contributed as guest
-                  if (userHasTransactions.length === 0) {
-                    await user.safeDestroy();
-                  }
-                }
               } else {
-                await sessionCache.set(otpSessionKey, { ...otpSession, tries }, 15 * 60);
+                // Counting a try must not hand the session a fresh TTL - that is a second keep-alive
+                // vector alongside `resend-otp`. Cap the rewrite at whichever is sooner: the normal
+                // idle TTL, or the time left on the absolute lifetime.
+                const remainingSeconds = Math.ceil((auth.OTP_SESSION_MAX_AGE * 1000 - sessionAgeMs) / 1000);
+                const ttlSeconds = Math.max(1, Math.min(auth.OTP_TOKEN_EXPIRATION, remainingSeconds));
+                await sessionCache.set(otpSessionKey, { ...otpSession, tries }, ttlSeconds);
               }
             }
           } else {
