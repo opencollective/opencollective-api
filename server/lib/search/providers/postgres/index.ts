@@ -23,7 +23,7 @@ import {
   ParsedSearchInput,
   parseSearchInput,
 } from './input';
-import { executeRankedSearchQuery } from './query-builder';
+import { executeSearchQuery } from './query-builder';
 
 const EMPTY_RESULT: SearchEntityResult = { totalCount: 0, maxScore: 0, hits: [] };
 
@@ -60,9 +60,10 @@ const searchEntity = async (
 
   try {
     return await runWithSearchBudget({ deadline }, async (trx, budget) => {
+      const scope = { accountId: request.scope.account?.id ?? null, hostId: request.scope.host?.id ?? null };
       const arms = adapter.buildArms(trx, {
         input,
-        scope: { accountId: request.scope.account?.id ?? null, hostId: request.scope.host?.id ?? null },
+        scope,
         access: getAccess(request, entityRequest),
         params: entityRequest.params,
       });
@@ -76,7 +77,12 @@ const searchEntity = async (
         await budget.renewStatementTimeout();
       }
 
-      const result = await executeRankedSearchQuery(trx, arms, entityRequest);
+      const result = await executeSearchQuery(trx, arms, {
+        limit: entityRequest.limit,
+        offset: entityRequest.offset,
+        cap: adapter.constantScorePerArm ? Number(config.search.postgres.maxCountedMatches) : undefined,
+        scoped: Boolean(scope.accountId || scope.hostId),
+      });
       if (!adapter.decorateHits) {
         return result;
       }

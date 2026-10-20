@@ -9,6 +9,7 @@
  *
  * Estimates come from the statistics of non-partial expression indexes and can be several times off for correlated
  * words: the limit is a lenient fast path, `statement_timeout` stays the actual guarantee. It never caps a total.
+ * Adapters with `constantScorePerArm` don't need it: their searches stop early and their totals are capped.
  */
 
 import { Kysely, sql } from 'kysely';

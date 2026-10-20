@@ -198,7 +198,10 @@ export const TransactionExpressions = {
    * partial so that the planner has statistics)
    */
   descriptionVector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(description, ''))`,
-  /** Exact description, only computed on rows that match the words (no index) */
+  /**
+   * Exact description (index `transactions_pg_search_description_label`, not partial): with capped totals, its arm
+   * must stop early without visiting every word match
+   */
   normalizedDescription: `public.oc_search_normalize(description)`,
   /**
    * The model's virtual `merchantId` from the row's own JSON (`MERCHANT_ID_PATHS` in `server/models/Transaction.ts`:

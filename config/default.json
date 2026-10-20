@@ -34,7 +34,8 @@
       "concurrencyPerRequest": 2,
       "maxConcurrentQueries": 8,
       "workMem": "32MB",
-      "typoSimilarityThreshold": 0.5
+      "typoSimilarityThreshold": 0.5,
+      "maxCountedMatches": 10000
     }
   },
   "platform": {},

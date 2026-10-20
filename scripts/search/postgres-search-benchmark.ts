@@ -29,6 +29,7 @@ import '../../server/env';
 import fs from 'fs';
 
 import { Command } from 'commander';
+import config from 'config';
 import { CompiledQuery } from 'kysely';
 import { sum } from 'lodash';
 
@@ -38,7 +39,10 @@ import { estimateMatches } from '../../server/lib/search/providers/postgres/esti
 import { getPostgresSearchQueueStats, runWithSearchBudget } from '../../server/lib/search/providers/postgres/execution';
 import { PostgresProvider } from '../../server/lib/search/providers/postgres/index';
 import { parseSearchInput } from '../../server/lib/search/providers/postgres/input';
-import { buildRankedSearchQuery } from '../../server/lib/search/providers/postgres/query-builder';
+import {
+  buildCappedSearchQuery,
+  buildRankedSearchQuery,
+} from '../../server/lib/search/providers/postgres/query-builder';
 import { SearchEntity, SearchEntityRequest, SearchProvider, SearchRequest } from '../../server/lib/search/types';
 import type { Collective, User } from '../../server/models';
 import { sequelize } from '../../server/models';
@@ -282,9 +286,11 @@ const phaseExplain = async (cases: Case[], fixtures: Fixtures, outDir: string | 
     const entityRequest = getEntityRequest(c);
     try {
       const plan = await runWithSearchBudget({ deadline: Date.now() + 60_000 }, async trx => {
-        const arms = getPostgresSearchAdapter(c.entity).buildArms(trx, {
+        const adapter = getPostgresSearchAdapter(c.entity);
+        const scope = { accountId: request.scope.account?.id ?? null, hostId: request.scope.host?.id ?? null };
+        const arms = adapter.buildArms(trx, {
           input: parseSearchInput(c.term),
-          scope: { accountId: request.scope.account?.id ?? null, hostId: request.scope.host?.id ?? null },
+          scope,
           access: getAccess(c, fixtures),
           params: {},
         });
@@ -292,7 +298,16 @@ const phaseExplain = async (cases: Case[], fixtures: Fixtures, outDir: string | 
           return ['(no arms: nothing to search with this access)'];
         }
         const estimate = await estimateMatches(trx, arms);
-        const compiled = buildRankedSearchQuery(trx, arms, entityRequest).compile();
+        const page = { limit: entityRequest.limit, offset: entityRequest.offset };
+        const compiled = (
+          adapter.constantScorePerArm
+            ? buildCappedSearchQuery(trx, arms, {
+                ...page,
+                cap: Number(config.search.postgres.maxCountedMatches),
+                scoped: Boolean(scope.accountId || scope.hostId),
+              })
+            : buildRankedSearchQuery(trx, arms, page)
+        ).compile();
         const result = await trx.executeQuery(
           CompiledQuery.raw(`EXPLAIN (ANALYZE, BUFFERS, SETTINGS) ${compiled.sql}`, [...compiled.parameters]),
         );

@@ -52,6 +52,11 @@ export interface PostgresSearchAdapter<E extends SearchEntity = SearchEntity> {
    * estimated matches exceed what fits in the remaining budget fail before running (see `estimates.ts`).
    */
   estimatedMatchesPerSecond?: number;
+  /**
+   * Optional: every arm has a constant score (no lexical bonus, no CASE). Pages then stop early and totals are capped
+   * (`search.postgres.maxCountedMatches`) instead of counting every match (see `query-builder.ts`).
+   */
+  constantScorePerArm?: boolean;
   /** Optional: adds entity-specific details to the hits of the page (e.g. the UUID of Transactions) */
   decorateHits?(db: Kysely<DatabaseWithViews>, hits: SearchHit[]): Promise<SearchHit[]>;
 }
