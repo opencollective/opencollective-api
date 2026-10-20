@@ -60,9 +60,10 @@ const searchEntity = async (
 
   try {
     return await runWithSearchBudget({ deadline }, async (trx, budget) => {
+      const scope = { accountId: request.scope.account?.id ?? null, hostId: request.scope.host?.id ?? null };
       const arms = adapter.buildArms(trx, {
         input,
-        scope: { accountId: request.scope.account?.id ?? null, hostId: request.scope.host?.id ?? null },
+        scope,
         access: getAccess(request, entityRequest),
         params: entityRequest.params,
       });
@@ -80,6 +81,7 @@ const searchEntity = async (
         limit: entityRequest.limit,
         offset: entityRequest.offset,
         cap: adapter.constantScorePerArm ? Number(config.search.postgres.maxCountedMatches) : undefined,
+        scoped: Boolean(scope.accountId || scope.hostId),
       });
       if (!adapter.decorateHits) {
         return result;

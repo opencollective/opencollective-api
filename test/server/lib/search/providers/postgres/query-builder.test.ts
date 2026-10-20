@@ -11,7 +11,7 @@ import { resetTestDB } from '../../../../../utils';
 const search = (
   entity: SearchEntity.ORDERS | SearchEntity.TRANSACTIONS,
   term: string,
-  page: { limit: number; offset: number; cap?: number },
+  page: { limit: number; offset: number; cap?: number; scoped?: boolean },
 ): Promise<SearchEntityResult> =>
   runWithSearchBudget({ deadline: Date.now() + 10_000 }, async trx => {
     const arms = getPostgresSearchAdapter(entity).buildArms(trx, {
@@ -59,6 +59,10 @@ describe('server/lib/search/providers/postgres/query-builder', () => {
           const capped = await search(entity, 'ocelot grant', { limit, offset, cap: 4 });
           expect(capped).to.deep.include({ totalCount: 4, totalCountIsCapped: true, maxScore: exact.maxScore });
           expect(capped.hits.map(hit => hit.id)).to.deep.eq(exact.hits.map(hit => hit.id));
+
+          // Scoped requests only change the plan (`id + 0`), not the results
+          const scoped = await search(entity, 'ocelot grant', { limit, offset, cap: 4, scoped: true });
+          expect(scoped).to.deep.eq(capped);
         }
       });
 

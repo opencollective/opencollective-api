@@ -287,9 +287,10 @@ const phaseExplain = async (cases: Case[], fixtures: Fixtures, outDir: string | 
     try {
       const plan = await runWithSearchBudget({ deadline: Date.now() + 60_000 }, async trx => {
         const adapter = getPostgresSearchAdapter(c.entity);
+        const scope = { accountId: request.scope.account?.id ?? null, hostId: request.scope.host?.id ?? null };
         const arms = adapter.buildArms(trx, {
           input: parseSearchInput(c.term),
-          scope: { accountId: request.scope.account?.id ?? null, hostId: request.scope.host?.id ?? null },
+          scope,
           access: getAccess(c, fixtures),
           params: {},
         });
@@ -300,7 +301,11 @@ const phaseExplain = async (cases: Case[], fixtures: Fixtures, outDir: string | 
         const page = { limit: entityRequest.limit, offset: entityRequest.offset };
         const compiled = (
           adapter.constantScorePerArm
-            ? buildCappedSearchQuery(trx, arms, { ...page, cap: Number(config.search.postgres.maxCountedMatches) })
+            ? buildCappedSearchQuery(trx, arms, {
+                ...page,
+                cap: Number(config.search.postgres.maxCountedMatches),
+                scoped: Boolean(scope.accountId || scope.hostId),
+              })
             : buildRankedSearchQuery(trx, arms, page)
         ).compile();
         const result = await trx.executeQuery(

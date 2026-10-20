@@ -17,7 +17,7 @@ Code: `server/lib/search/providers/postgres/` (`index.ts` for the flow). Each re
   from the moment it is scheduled: waiting for a search slot or a pooled connection counts, waiting for the other
   entities of the request doesn't. A query that runs out of budget fails with a visible `SearchTooBroad` error
   ("Narrow your search…") on its own entity. Totals are exact, except for Orders and Transactions (see
-  [Capped totals](#capped-totals)).
+  "Capped totals" below).
 - **Concurrency caps.** At most `SEARCH_POSTGRES_CONCURRENCY_PER_REQUEST` (2) entity queries at a time per request,
   and `SEARCH_POSTGRES_MAX_CONCURRENT_QUERIES` (8) search statements at a time per API process, so that search
   traffic can't take over the shared pool (50 connections in production).
@@ -37,7 +37,10 @@ Code: `server/lib/search/providers/postgres/` (`index.ts` for the flow). Each re
   grows with the match count, and template words ("host fee", "financial contribution") match millions of rows. Every
   arm of these adapters has a constant score, so each arm is read in `id DESC` order up to `offset + limit` rows
   (early stop) and counted up to `SEARCH_POSTGRES_MAX_COUNTED_MATCHES` (10,000) + 1 rows. Pages and `maxScore` are the
-  same as with an exact total; above the cap, `totalCount` is the cap and `totalCountIsCapped` is true.
+  same as with an exact total; above the cap, `totalCount` is the cap and `totalCountIsCapped` is true. Every arm
+  must stop early on an index: exact descriptions have their own btree (`*_pg_search_description_label`), and scoped
+  requests order by `id + 0` so that the planner can't pick a backward primary key scan (it assumes that scope and
+  text are independent: a host without platform tips scanned all 13M Transactions for `platform tip`).
 - **Planner pre-check** (optional, `estimates.ts`, no adapter uses it). One `EXPLAIN` (no execution, ~1-3 ms) compares
   the planner's estimated matches with what the adapter can count in the remaining budget
   (`estimatedMatchesPerSecond`). Above it, the search fails with `SearchTooBroad` in milliseconds instead of holding a
@@ -163,9 +166,10 @@ Dataset (27 GB with indexes). Only the Accounts and Transactions sizes come from
 | Tiers, Host Applications, Collectives helpers         | 15 s     | each < 6 s, < 30 MB                                                                                     |
 | Expenses + items                                      | 22 s     | `expenses_pg_search_restricted` 8 s / 32 MB                                                             |
 | Transactions                                          | 97 s     | `_collective_description` 48 s / 216 MB, `_host_description` 41 s / 119 MB, `_merchant_id` 7 s / 195 MB |
+| Transactions exact descriptions (built separately)    | 20 s     | `transactions_pg_search_description_label` 20 s / 174 MB                                                |
 | Comments                                              | 67 s     | `comments_pg_search_text` 65 s / 261 MB                                                                 |
 
-All search indexes together: **~1.4 GB** (5% of the dataset). No table rewrite, no new column, no backfill.
+All search indexes together: **~1.6 GB** (6% of the dataset). No table rewrite, no new column, no backfill.
 
 Write overhead (single-row inserts copied from existing rows, inside rolled-back transactions, warmed up and
 interleaved, 500 rows each, quiet database):
@@ -187,19 +191,19 @@ with index maintenance).
 
 ### Single searches (warm cache, median of 3, final code)
 
-Root unless noted. "Rejected" = visible `SearchTooBroad` error from the planner pre-check, in 2-4 ms. The Orders and
-Transactions rows were measured with exact totals, before capped totals: they must be measured again.
+Root unless noted. The Orders and Transactions rows were measured with capped totals (2026-10-20, same dataset and
+machine): their broad and common terms all exceed the 10,000 cap.
 
-| Entity            | Broad term (matches): time                                                                                        | Common term                                 | Selective term | Host scope (largest host)                   | Account scope (busiest account) |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | -------------- | ------------------------------------------- | ------------------------------- |
-| Accounts          | `co` 21k: 40 ms; `foundation` 13k: 37 ms (deep page 49 ms)                                                        | `open source` 9 ms; typo `foundatoin` 39 ms | 3 ms           | 17-44 ms                                    | 3-4 ms                          |
-| Updates           | `foundation` 34k: 44 ms                                                                                           | 30 ms                                       | 3 ms           | 3-27 ms                                     | 39-40 ms                        |
-| Tiers             | `sponsor` 30k: 61 ms                                                                                              | `gold sponsor` 42 ms                        | 2 ms           | 2-46 ms                                     | 2-3 ms                          |
-| Host applications | `community` 16k: 20 ms                                                                                            | 7 ms                                        | 2 ms           | 2-5 ms                                      | 1-2 ms                          |
-| Comments          | `studio` 145k: 606 ms; `water` 146k: 566 ms                                                                       | `water studio` 93 ms                        | 7 ms           | 13-605 ms                                   | 4-140 ms                        |
-| Expenses          | `usd` 531k: 1.06 s; `paid` 331k: 618 ms; `travel` 98k: 354 ms                                                     | `travel hotel` 24 ms                        | 4 ms           | 10-449 ms                                   | 4-273 ms                        |
-| Orders            | `financial contribution` 2.8M: 2.7 s; `monthly` 708k: 696 ms                                                      | `backer` 87 ms                              | 2 ms           | 3 ms-1.25 s                                 | 3-49 ms                         |
-| Transactions      | `invoice` 248k: 828 ms; `fee` 4.5M, `host fee` 2.3M, `financial contribution` 3.0M, `platform tip` 1.2M: rejected |                                             | 8 ms           | `fee` 451k: 1.27 s; `host fee` 229k: 1.16 s | 14-59 ms                        |
+| Entity            | Broad term (matches): time                                                                                      | Common term                                 | Selective term | Host scope (largest host)       | Account scope (busiest account) |
+| ----------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | -------------- | ------------------------------- | ------------------------------- |
+| Accounts          | `co` 21k: 40 ms; `foundation` 13k: 37 ms (deep page 49 ms)                                                      | `open source` 9 ms; typo `foundatoin` 39 ms | 3 ms           | 17-44 ms                        | 3-4 ms                          |
+| Updates           | `foundation` 34k: 44 ms                                                                                         | 30 ms                                       | 3 ms           | 3-27 ms                         | 39-40 ms                        |
+| Tiers             | `sponsor` 30k: 61 ms                                                                                            | `gold sponsor` 42 ms                        | 2 ms           | 2-46 ms                         | 2-3 ms                          |
+| Host applications | `community` 16k: 20 ms                                                                                          | 7 ms                                        | 2 ms           | 2-5 ms                          | 1-2 ms                          |
+| Comments          | `studio` 145k: 606 ms; `water` 146k: 566 ms                                                                     | `water studio` 93 ms                        | 7 ms           | 13-605 ms                       | 4-140 ms                        |
+| Expenses          | `usd` 531k: 1.06 s; `paid` 331k: 618 ms; `travel` 98k: 354 ms                                                   | `travel hotel` 24 ms                        | 4 ms           | 10-449 ms                       | 4-273 ms                        |
+| Orders            | `financial contribution` 2.8M: 41 ms; `monthly` 708k: 62 ms (deep page 131 ms)                                  | `backer` 29 ms                              | 4 ms           | 5 ms-1.3 s                      | 6-86 ms                         |
+| Transactions      | `fee` 4.5M: 0.78 s; `host fee` 2.3M: 0.76 s; `platform tip` 1.2M: 0.46 s; `financial contribution` 3.0M: 0.34 s | `invoice` 248k: 66 ms                       | 10 ms          | `fee` 0.50 s; `host fee` 1.83 s | 18-328 ms                       |
 
 Other roles cost at most the same as root, ±40%: anonymous users skip the restricted arms (Expenses `usd`: 0.59 s
 vs 1.06 s for root), administrators add restricted arms on their domain (Updates `foundation`: 59 ms vs 44 ms), and
@@ -253,14 +257,15 @@ Measured and kept as is:
 
 - **JIT stays off** in search transactions. With `jit = on` (the server default), no case got faster; at the time of
   this measurement, Comments `studio` went 0.41 → 0.62 s, Transactions rare word 12 → 22 ms, Tiers `sponsor` +15%.
-- **The planner pre-check stays Transactions-only.** Cold, every other entity completes well within the budget at
-  this scale (broadest: Orders 2.8M matches in 6.7 s cold, 2.7 s warm), and statement_timeout remains the backstop.
+- **The planner pre-check is kept, unused.** Transactions used it before capped totals. Cold, every other entity
+  completed well within the budget at this scale (broadest: Orders 2.8M matches in 6.7 s cold, 2.7 s warm, with exact
+  totals), and statement_timeout remains the backstop.
   Comments estimates are 3x low on common words, so a pre-check there would not be reliable.
 - **Expenses currency and status words stay in the text** (`usd`: 531k matches in 1.06 s, `paid` 331k in 0.62 s).
   Moving them to exact filters would change matching (an Expense described as "Paid parking") without making the
   single-token searches cheaper.
-- **Orders template words** (`financial contribution`, `monthly`) complete unscoped (2.7 s warm, 6.7 s cold for 2.8M
-  matches): no special handling. The Transactions equivalents (13M rows) are rejected by the pre-check.
+- **Template words** of Orders (`financial contribution`, `monthly`) and Transactions (`fee`, `host fee`) complete
+  unscoped with capped totals (0.04-0.8 s warm).
 - **Shared Account eligibility helper** (`isOwnedByEligibleAccount`): index-only anti-join on 116k excluded accounts,
   hashed once per arm (~2-5 ms) on broad terms, nested-loop probes on selective ones. It grows with the number of
   deleted or private accounts in production.
@@ -270,7 +275,9 @@ Measured and kept as is:
   Comment/Update of the account (~45 µs each: 140 ms for an account with 3k Comments; a btree_gin
   `("CollectiveId", vector)` index would avoid it at the cost of another large index); Expenses account scope
   (~200-270 ms, driven by the item matches of common words: an item-side account filter was tested and was slower);
-  Orders host scope on mid-frequency words (0.2-1.2 s, the planner drives from the host's accounts).
+  Orders host scope on mid-frequency words (0.2-1.3 s, the planner drives from the host's accounts); host scope on
+  template words with capped totals (`id + 0` reads every match of the host: Transactions `host fee` 1.8 s, Orders
+  `monthly` 1.3 s, vs 0.2-0.5 s with an `id DESC` early stop that is unbounded on hosts without matches).
 
 ## Deployment plan
 

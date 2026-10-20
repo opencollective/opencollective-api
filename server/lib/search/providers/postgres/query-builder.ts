@@ -23,6 +23,10 @@
  * - Page: when an arm's score is constant, its rows are ranked by `id DESC` among themselves, so a hit of the global
  *   top `offset + limit` is always within the top `offset + limit` of its best arm. Each arm can then stop early
  *   (e.g. a backward primary key scan for a broad word), and the page is the same as the exact one.
+ * - Scoped requests (account or host) order by `id + 0` instead, which rules out the backward primary key scan. The
+ *   planner estimates scope and text as independent, so a scope without matches for a word that is common elsewhere
+ *   ("platform tip" on a host without platform tips) scanned the whole table: 5 s on 13M rows, vs 0.4 s from the
+ *   scope's index. The cost is then bounded by the matches of the scope, not by the table.
  * - Total: an arm that reaches `cap + 1` rows alone makes the total exceed the cap; otherwise every arm was read in
  *   full and the count is exact. Totals above the cap are returned as the cap, with `totalCountIsCapped`.
  * - maxScore: every non-empty arm returns at least one row, so it stays exact.
@@ -38,6 +42,8 @@ import type { SearchArm } from './adapters/types';
 type RankedRow = { total: number; maxScore: number; id: number | null; score: number | null };
 
 type SearchPage = { limit: number; offset: number };
+
+type CappedSearchPage = SearchPage & { cap: number; scoped?: boolean };
 
 const unionAll = (arms: SearchArm[]) => arms.slice(1).reduce((query, arm) => query.unionAll(arm), arms[0]);
 
@@ -87,7 +93,7 @@ export const buildRankedSearchQuery = (
 export const buildCappedSearchQuery = (
   db: Kysely<DatabaseWithViews>,
   arms: SearchArm[],
-  { limit, offset, cap }: SearchPage & { cap: number },
+  { limit, offset, cap, scoped }: CappedSearchPage,
 ) => {
   // Each arm is wrapped in its own subquery, so that its ORDER BY/LIMIT applies to it and not to the union
   const limitArms = (limitArm: (arm: SearchArm) => SearchArm) =>
@@ -98,10 +104,14 @@ export const buildCappedSearchQuery = (
       ),
     );
 
+  // `id + 0` sorts the same as `id` but can't use the primary key: on scoped requests, it stops the planner from
+  // scanning the whole table backwards when it overestimates the scope's matches (see "Scoped requests" above)
   return db
     .with('page', qb =>
       qb
-        .selectFrom(limitArms(arm => arm.orderBy(sql`id`, 'desc').limit(offset + limit)).as('arms'))
+        .selectFrom(
+          limitArms(arm => arm.orderBy(scoped ? sql`id + 0` : sql`id`, 'desc').limit(offset + limit)).as('arms'),
+        )
         .select(['arms.id', sql<number>`max(arms.score)`.as('score')])
         .groupBy('arms.id')
         .orderBy('score', 'desc')
@@ -125,19 +135,19 @@ export const buildCappedSearchQuery = (
 };
 
 /**
- * Runs the search: capped (see above) when `cap` is set, exact otherwise.
+ * Runs the search: capped (see above) when `cap` is set, exact otherwise. `scoped` only applies to capped searches.
  */
 export const executeSearchQuery = async (
   db: Kysely<DatabaseWithViews>,
   arms: SearchArm[],
-  { limit, offset, cap }: SearchPage & { cap?: number },
+  { limit, offset, cap, scoped }: SearchPage & { cap?: number; scoped?: boolean },
 ): Promise<SearchEntityResult> => {
   if (!arms.length) {
     return { totalCount: 0, maxScore: 0, hits: [] };
   }
 
   const query = cap
-    ? buildCappedSearchQuery(db, arms, { limit, offset, cap })
+    ? buildCappedSearchQuery(db, arms, { limit, offset, cap, scoped })
     : buildRankedSearchQuery(db, arms, { limit, offset });
   const rows = (await query.execute()) as RankedRow[];
   const total = Number(rows[0]?.total ?? 0);
