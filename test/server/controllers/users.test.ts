@@ -12,6 +12,7 @@ import { OTP_RATE_LIMIT_MAX_ATTEMPTS, OTP_SESSION_MAX_AGE } from '../../../serve
 import { sessionCache } from '../../../server/lib/cache';
 import emailLib from '../../../server/lib/email';
 import logger from '../../../server/lib/logger';
+import * as sentryLib from '../../../server/lib/sentry';
 import models from '../../../server/models';
 import { fakeUser, randEmail, randIPV4 } from '../../test-helpers/fake-data';
 
@@ -803,6 +804,110 @@ describe('server/controllers/users', () => {
 
       const resendResponse = await makeResendOtpRequest(email, sessionId, randIPV4());
       expect(resendResponse._getData()).to.eql({ error: { message: 'Not found', type: 'NOT_FOUND' } });
+    });
+  });
+
+  describe('OTP security logging', () => {
+    // Failures and lockouts must be visible: OWASP Auth CS requires authentication failures and
+    // account lockouts to be logged and reviewed. Success was already audited via
+    // `generateSessionToken({ createActivity: true })`; failure was silent.
+    const warnCallFor = (event: string) => (logger.warn as sinon.SinonStub).getCalls().find(c => c.args[0] === event);
+    const emittedEvents = () => (logger.warn as sinon.SinonStub).getCalls().map(c => c.args[0]);
+
+    beforeEach(() => {
+      sandbox.spy(logger, 'warn');
+      sandbox.spy(sentryLib, 'reportMessageToSentry');
+    });
+
+    it('emits otp_session_killed when the third wrong code invalidates the session', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+      const ip = randIPV4();
+      const otpResponse = await makeSignupRequest(email, randIPV4());
+      const sessionId = otpResponse._getData().sessionId;
+
+      for (let i = 0; i < 3; i++) {
+        await makeVerifyOtpRequest(email, '023456', sessionId, ip);
+      }
+
+      const call = warnCallFor('otp_session_killed');
+      expect(call, 'the session kill must be logged').to.exist;
+      const payload = call.args[1];
+      expect(payload.clientIP).to.equal(ip);
+      expect(payload.userId).to.be.a('number');
+      expect(payload.tries).to.equal(3);
+      // Email must be masked, never raw (Email CS: mask or pseudonymize)
+      expect(payload.email).to.not.equal(email);
+      expect(payload.email).to.contain('@');
+    });
+
+    it('emits otp_confirmed_user_rejected when verifying against an already-confirmed account', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+      const otpResponse = await makeSignupRequest(email, randIPV4());
+      const otp = (emailLib.send as sinon.SinonStub).getCall(0).args[2]['otp'];
+      const otpSessionKey = `otp_signup_${email}`;
+      const otpSession = await sessionCache.get(otpSessionKey);
+      await models.User.update({ confirmedAt: new Date() }, { where: { id: otpSession.userId } });
+
+      await makeVerifyOtpRequest(email, otp, otpResponse._getData().sessionId, randIPV4());
+
+      const call = warnCallFor('otp_confirmed_user_rejected');
+      expect(call, 'the confirmed-user rejection must be logged').to.exist;
+      expect(call.args[1].route).to.equal('verify-email');
+      expect(call.args[1].email).to.not.equal(email);
+    });
+
+    it('emits otp_confirmed_user_rejected when resending for an already-confirmed account', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+      const otpResponse = await makeSignupRequest(email, randIPV4());
+      const otpSessionKey = `otp_signup_${email}`;
+      const otpSession = await sessionCache.get(otpSessionKey);
+      await models.User.update({ confirmedAt: new Date() }, { where: { id: otpSession.userId } });
+
+      await makeResendOtpRequest(email, otpResponse._getData().sessionId, randIPV4());
+
+      const call = warnCallFor('otp_confirmed_user_rejected');
+      expect(call, 'the confirmed-user rejection must be logged').to.exist;
+      expect(call.args[1].route).to.equal('resend-otp');
+    });
+
+    it('emits otp_rate_limited to the logger and to Sentry when a limit is hit', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+      const ip = randIPV4();
+      const otpResponse = await makeSignupRequest(email, randIPV4());
+      const sessionId = otpResponse._getData().sessionId;
+
+      let verifyResponse;
+      for (let i = 0; i < OTP_RATE_LIMIT_MAX_ATTEMPTS + 1; i++) {
+        verifyResponse = await makeVerifyOtpRequest(email, '023456', sessionId, ip);
+      }
+      expect(verifyResponse._getData()).to.eql({
+        error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
+      });
+
+      const call = warnCallFor('otp_rate_limited');
+      expect(call, 'the rate limit must be logged').to.exist;
+      expect(call.args[1].route).to.equal('verify-email');
+      expect(call.args[1].email).to.not.equal(email);
+      expect(sentryLib.reportMessageToSentry).to.have.been.called;
+    });
+
+    it('stays silent for a wrong code that leaves the session alive', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+      const otpResponse = await makeSignupRequest(email, randIPV4());
+      const sessionId = otpResponse._getData().sessionId;
+
+      const verifyResponse = await makeVerifyOtpRequest(email, '023456', sessionId, randIPV4());
+      expect(verifyResponse._getData().error.type).to.equal('INVALID_OTP');
+
+      // A typo is routine, not a security event - logging it would drown the real signals
+      expect(emittedEvents()).to.not.include('otp_session_killed');
+      expect(emittedEvents()).to.not.include('otp_confirmed_user_rejected');
+      expect(emittedEvents()).to.not.include('otp_rate_limited');
     });
   });
 

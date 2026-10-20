@@ -17,7 +17,7 @@ import { confirmGuestAccount } from '../lib/guest-accounts';
 import logger from '../lib/logger';
 import { lockUntilOrThrow } from '../lib/mutex';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
-import { HandlerType, reportErrorToSentry } from '../lib/sentry';
+import { HandlerType, reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import twoFactorAuthLib, { TwoFactorMethod } from '../lib/two-factor-authentication';
 import * as webauthn from '../lib/two-factor-authentication/webauthn';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
@@ -251,6 +251,67 @@ function logOtpForDebug(email: string, otp: string): void {
   logger.info(`OTP Code for ${maskEmailForLogs(email)}: ${otp}`);
 }
 
+type OtpSecurityEventName = 'otp_session_killed' | 'otp_confirmed_user_rejected' | 'otp_rate_limited';
+
+/**
+ * Emit a security-relevant OTP event.
+ *
+ * OWASP Authentication CS ("Logging and Monitoring") requires authentication failures and account
+ * lockouts to be logged and reviewed. The success path was already audited through
+ * `generateSessionToken({ createActivity: true })`, but every failure was completely silent - so an
+ * account could be locked out of signup without leaving a trace.
+ *
+ * Deliberately narrow: a wrong code that leaves the session alive, an expired session and a refused
+ * resend are all routine and are not logged, so the events stay a useful signal. The OTP and the
+ * session id are never included - the Email CS forbids logging verification tokens.
+ *
+ * Note: emissions are deliberately *not* rate limited (simpler), which means an attacker can
+ * generate unbounded log volume. Accepted trade-off.
+ */
+function logOtpSecurityEvent(event: {
+  event: OtpSecurityEventName;
+  /** Always masked before logging - never a raw address */
+  email?: string;
+  userId?: number;
+  clientIP?: string;
+  route?: 'signup' | 'resend-otp' | 'verify-email';
+  tries?: number;
+}): void {
+  const payload: Record<string, unknown> = { event: event.event, clientIP: event.clientIP };
+  if (event.email) {
+    payload.email = maskEmailForLogs(event.email);
+  }
+  if (event.userId !== undefined) {
+    payload.userId = event.userId;
+  }
+  if (event.route) {
+    payload.route = event.route;
+  }
+  if (event.tries !== undefined) {
+    payload.tries = event.tries;
+  }
+
+  logger.warn(event.event, payload);
+  if (event.event === 'otp_rate_limited') {
+    reportMessageToSentry('OTP rate limit exceeded', {
+      severity: 'warning',
+      extra: payload,
+      domain: ENGINEERING_DOMAINS.INDIVIDUAL_ONBOARDING,
+    });
+  }
+}
+
+/** Reject with `RATE_LIMIT_EXCEEDED`, emitting the security event in the same place. */
+function rejectRateLimited(
+  res: express.Response,
+  ctx: { email?: string; clientIP: string; route: 'signup' | 'resend-otp' | 'verify-email' },
+): void {
+  logOtpSecurityEvent({ event: 'otp_rate_limited', ...ctx });
+  res.status(403).send({
+    error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
+  });
+}
+
 /**
  * Creates a new User and sends a new OTP verification code.
  */
@@ -278,9 +339,7 @@ export async function signup(req: express.Request, res: express.Response) {
     auth.OTP_RATE_LIMIT_WINDOW,
   );
   if (!(await ipRateLimit.registerCall())) {
-    res.status(403).send({
-      error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
-    });
+    rejectRateLimited(res, { email: req.body.email, clientIP: req.ip, route: 'signup' });
     return;
   }
 
@@ -300,9 +359,7 @@ export async function signup(req: express.Request, res: express.Response) {
     auth.OTP_RATE_LIMIT_WINDOW,
   );
   if (!(await emailRateLimit.registerCall())) {
-    res.status(403).send({
-      error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
-    });
+    rejectRateLimited(res, { email: sanitizedEmail, clientIP: req.ip, route: 'signup' });
     return;
   }
 
@@ -396,9 +453,7 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
     auth.OTP_RATE_LIMIT_WINDOW,
   );
   if (!(await ipRateLimit.registerCall())) {
-    res.status(403).send({
-      error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
-    });
+    rejectRateLimited(res, { email: req.body.email, clientIP: req.ip, route: 'resend-otp' });
     return;
   }
 
@@ -418,9 +473,7 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
     auth.OTP_RATE_LIMIT_WINDOW,
   );
   if (!(await emailRateLimit.registerCall())) {
-    res.status(403).send({
-      error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
-    });
+    rejectRateLimited(res, { email: sanitizedEmail, clientIP: req.ip, route: 'resend-otp' });
     return;
   }
 
@@ -451,6 +504,15 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
   // `data.requiresVerification`, so that flag alone would keep re-sending OTPs past the
   // confirmation - drop the stale session instead of leaving it cached.
   if (!user || user.data?.requiresVerification !== true || user.confirmedAt) {
+    if (user?.confirmedAt) {
+      logOtpSecurityEvent({
+        event: 'otp_confirmed_user_rejected',
+        email: sanitizedEmail,
+        userId: user.id,
+        clientIP: req.ip,
+        route: 'resend-otp',
+      });
+    }
     await sessionCache.delete(otpSessionKey);
     res.status(401).send({
       error: { message: 'Not found', type: 'NOT_FOUND' },
@@ -505,9 +567,7 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
     auth.OTP_RATE_LIMIT_WINDOW,
   );
   if (!(await ipRateLimit.registerCall())) {
-    res.status(403).send({
-      error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
-    });
+    rejectRateLimited(res, { email: sanitizedEmail, clientIP: req.ip, route: 'verify-email' });
     return;
   }
 
@@ -517,9 +577,7 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
     auth.OTP_RATE_LIMIT_WINDOW,
   );
   if (!(await emailRateLimit.registerCall())) {
-    res.status(403).send({
-      error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
-    });
+    rejectRateLimited(res, { email: sanitizedEmail, clientIP: req.ip, route: 'verify-email' });
     return;
   }
 
@@ -554,6 +612,13 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
             // stop. This deliberately runs *after* the comparison - bailing out earlier would answer
             // measurably faster for confirmed accounts and leak account state through latency.
             if (user.confirmedAt) {
+              logOtpSecurityEvent({
+                event: 'otp_confirmed_user_rejected',
+                email: sanitizedEmail,
+                userId: user.id,
+                clientIP: req.ip,
+                route: 'verify-email',
+              });
               await sessionCache.delete(otpSessionKey);
               return;
             }
@@ -582,6 +647,14 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
                 // Three wrong codes say something about the caller's guesses, not about the victim's
                 // account. The only thing they authorize is invalidating the OTP session - never a
                 // persistent change to a User/Collective the caller may not own.
+                logOtpSecurityEvent({
+                  event: 'otp_session_killed',
+                  email: sanitizedEmail,
+                  userId: user.id,
+                  clientIP: req.ip,
+                  route: 'verify-email',
+                  tries,
+                });
                 await sessionCache.delete(otpSessionKey);
               } else {
                 // The challenge survives this guess, so the caller may retry the same code.
