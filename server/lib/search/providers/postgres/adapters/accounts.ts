@@ -12,11 +12,15 @@
  * - typo: trigram similarity on the name (input of 3+ characters). This is a fallback that only applies when no
  *   Account in the same scope/filters has name or slug words starting with the input words, which keeps it from
  *   re-scanning the large candidate sets of common words that the prefix arm already matches.
+ *
+ * Vendors are only searchable by administrators of their host (`ParentCollectiveId`), root included, a strict subset
+ * of who can use them (see `Organization.vendors`), and they don't get the preferred entity bonus (searched less often).
  */
 
 import { Kysely, RawBuilder, sql } from 'kysely';
 import { isEmpty, isNil } from 'lodash';
 
+import { CollectiveType } from '../../../../../constants/collectives';
 import { IDENTIFIER_TYPES } from '../../../../../graphql/v2/identifiers';
 import type { DatabaseWithViews } from '../../../../kysely';
 import { EntityShortIdPrefix } from '../../../../permalink/entity-map';
@@ -36,9 +40,18 @@ import type { PostgresSearchAdapter, PostgresSearchContext, SearchArm } from './
 
 type AccountsContext = PostgresSearchContext<SearchEntity.ACCOUNTS>;
 
-/** Eligibility + scope + entity filters, shared by every arm */
-const getBaseConditions = ({ scope, params }: AccountsContext): RawBuilder<unknown>[] => {
-  const conditions: RawBuilder<unknown>[] = [sql.raw(Exp.eligible)];
+const isNotVendor = sql<boolean>`type <> ${CollectiveType.VENDOR}`;
+
+/** Vendors: those of administered hosts, none otherwise. Root is not special-cased: it only sees its hosts' vendors. */
+const getVendorsPermission = ({ access }: AccountsContext): RawBuilder<unknown> =>
+  access.forbidPrivate || !access.adminIds.length
+    ? isNotVendor
+    : sql`(${isNotVendor} OR "ParentCollectiveId" = ANY(${sql`${access.adminIds}::int[]`}))`;
+
+/** Eligibility + vendors permission + scope + entity filters, shared by every arm */
+const getBaseConditions = (context: AccountsContext): RawBuilder<unknown>[] => {
+  const { scope, params } = context;
+  const conditions: RawBuilder<unknown>[] = [sql.raw(Exp.eligible), getVendorsPermission(context)];
   if (scope.accountId) {
     conditions.push(sql`(id = ${scope.accountId} OR "ParentCollectiveId" = ${scope.accountId})`);
   }
@@ -91,7 +104,7 @@ export const AccountsAdapter: PostgresSearchAdapter<SearchEntity.ACCOUNTS> = {
     const arm = (band: QualityBand, conditions: RawBuilder<unknown>[], lexicalBonus?: RawBuilder<number>) =>
       db
         .selectFrom('Collectives')
-        .select([sql<number>`id`.as('id'), scoreExpression(band, { preferred: true, lexicalBonus }).as('score')])
+        .select([sql<number>`id`.as('id'), scoreExpression(band, { preferred: isNotVendor, lexicalBonus }).as('score')])
         .where(and([...base, ...conditions])) as SearchArm;
 
     const arms: SearchArm[] = [];
