@@ -25,6 +25,7 @@ import {
   fakeLegalDocument,
   fakePayoutMethod,
   fakeUser,
+  fakeVendor,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 const { RECEIPT, INVOICE } = expenseTypes;
@@ -603,6 +604,170 @@ describe('server/lib/tax-forms', () => {
         expect(accounts.has(accountWithOnlyADraft.id)).to.be.false;
         expect(accounts.has(accountWithINROverThreshold.id)).to.be.true;
         expect(accounts.has(accountWithINRBelowThreshold.id)).to.be.false;
+      });
+
+      // The host predicate is expressed as the union of two arms: "the expense was paid by
+      // this host" and "the expense's collective is currently hosted by this host". These
+      // tests pin the semantics of that union so the SQL can be restructured (to be
+      // indexable) without changing which accounts are returned.
+      describe('host predicate (expense host vs collective host)', () => {
+        let payoutMethod, otherHost;
+
+        const getAccounts = options =>
+          SQLQueries.getTaxFormsRequiredForAccounts({
+            HostCollectiveId: hostCollective.id,
+            year: YEAR,
+            ...options,
+          });
+
+        const createPayee = async (data = {}) => {
+          return fakeCollective({ type: 'ORGANIZATION', countryISO: 'US', ...data });
+        };
+
+        const createExpense = (payee, collective, data = {}) => {
+          return fakeExpense({
+            FromCollectiveId: payee.id,
+            CollectiveId: collective.id,
+            PayoutMethodId: payoutMethod.id,
+            amount: US_TAX_FORM_THRESHOLD + 100e2,
+            currency: 'USD',
+            ...data,
+          });
+        };
+
+        beforeEach(async () => {
+          payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+          otherHost = await fakeHost();
+          await RequiredLegalDocument.create({
+            HostCollectiveId: otherHost.id,
+            documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+          });
+        });
+
+        it('counts expenses paid by the host when the collective has changed host since', async () => {
+          const payee = await createPayee();
+          // The collective is hosted by `otherHost` now, but the expense was paid by `hostCollective`
+          const collective = await fakeCollective({ HostCollectiveId: otherHost.id });
+          await createExpense(payee, collective, { HostCollectiveId: hostCollective.id });
+
+          const accounts = await getAccounts();
+          expect(accounts.has(payee.id)).to.be.true;
+        });
+
+        it('counts expenses of collectives hosted by the host when the expense was paid by another host', async () => {
+          const payee = await createPayee();
+          // The expense was paid by `otherHost`, but the collective is hosted by `hostCollective` now
+          const collective = await fakeCollective({ HostCollectiveId: hostCollective.id });
+          await createExpense(payee, collective, { HostCollectiveId: otherHost.id });
+
+          const accounts = await getAccounts();
+          expect(accounts.has(payee.id)).to.be.true;
+        });
+
+        it('counts expenses without an expense host when the collective is hosted by the host', async () => {
+          const payee = await createPayee();
+          const collective = await fakeCollective({ HostCollectiveId: hostCollective.id });
+          await createExpense(payee, collective, { HostCollectiveId: null });
+
+          const accounts = await getAccounts();
+          expect(accounts.has(payee.id)).to.be.true;
+        });
+
+        it('counts an expense once when both arms match', async () => {
+          const payee = await createPayee();
+          const collective = await fakeCollective({ HostCollectiveId: hostCollective.id });
+          // Half the threshold: counted once it stays below, counted twice it crosses the threshold
+          await createExpense(payee, collective, {
+            HostCollectiveId: hostCollective.id,
+            amount: Math.ceil(US_TAX_FORM_THRESHOLD / 2),
+          });
+
+          const accounts = await getAccounts();
+          expect(accounts.has(payee.id)).to.be.false;
+        });
+
+        it('supports an array of host IDs', async () => {
+          const secondHost = await fakeHost();
+          await RequiredLegalDocument.create({
+            HostCollectiveId: secondHost.id,
+            documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+          });
+
+          // Paid by the second host, collective hosted by the second host
+          const payeeForSecondHost = await createPayee();
+          const secondHostCollective = await fakeCollective({ HostCollectiveId: secondHost.id });
+          await createExpense(payeeForSecondHost, secondHostCollective, { HostCollectiveId: secondHost.id });
+
+          // Collective hosted by the first host, paid by another host
+          const payeePaidByFirstHost = await createPayee();
+          const firstHostCollective = await fakeCollective({ HostCollectiveId: hostCollective.id });
+          await createExpense(payeePaidByFirstHost, firstHostCollective, { HostCollectiveId: otherHost.id });
+
+          // Hosted and paid by `otherHost`, which is not part of the requested hosts
+          const payeeOutside = await createPayee();
+          const outsideCollective = await fakeCollective({ HostCollectiveId: otherHost.id });
+          await createExpense(payeeOutside, outsideCollective, { HostCollectiveId: otherHost.id });
+
+          const accounts = await getAccounts({ HostCollectiveId: [hostCollective.id, secondHost.id] });
+          expect(accounts.has(payeeForSecondHost.id)).to.be.true;
+          expect(accounts.has(payeePaidByFirstHost.id)).to.be.true;
+          expect(accounts.has(payeeOutside.id)).to.be.false;
+        });
+
+        it('filters on both host and payee', async () => {
+          const payee = await createPayee();
+          const otherPayee = await createPayee();
+          const collective = await fakeCollective({ HostCollectiveId: hostCollective.id });
+          await createExpense(payee, collective, { HostCollectiveId: hostCollective.id });
+          await createExpense(otherPayee, collective, { HostCollectiveId: otherHost.id });
+
+          // Both payees are over the threshold for the host, only the requested one is returned
+          const hostWideAccounts = await getAccounts();
+          expect(hostWideAccounts.has(payee.id)).to.be.true;
+          expect(hostWideAccounts.has(otherPayee.id)).to.be.true;
+
+          const payeeAccounts = await getAccounts({ CollectiveId: payee.id });
+          expect(payeeAccounts.has(payee.id)).to.be.true;
+          expect(payeeAccounts.has(otherPayee.id)).to.be.false;
+        });
+
+        it('keeps filtering on the year the expense was paid', async () => {
+          const payee = await createPayee();
+          const collective = await fakeCollective({ HostCollectiveId: hostCollective.id });
+          const paidAt = moment().subtract(1, 'year').toDate();
+          await createExpense(payee, collective, { HostCollectiveId: hostCollective.id, paidAt, incurredAt: paidAt });
+
+          const currentYearAccounts = await getAccounts();
+          expect(currentYearAccounts.has(payee.id)).to.be.false;
+
+          const lastYearAccounts = await getAccounts({ year: YEAR - 1 });
+          expect(lastYearAccounts.has(payee.id)).to.be.true;
+        });
+
+        it('keeps ignoring accounts that already submitted a tax form', async () => {
+          const payee = await createPayee();
+          const collective = await fakeCollective({ HostCollectiveId: hostCollective.id });
+          await createExpense(payee, collective, { HostCollectiveId: otherHost.id });
+          await fakeLegalDocument({ CollectiveId: payee.id, requestStatus: 'RECEIVED', year: YEAR });
+
+          const accountsIgnoringReceived = await getAccounts({ ignoreReceived: true });
+          expect(accountsIgnoringReceived.has(payee.id)).to.be.false;
+
+          const accountsIncludingReceived = await getAccounts({ ignoreReceived: false });
+          expect(accountsIncludingReceived.has(payee.id)).to.be.true;
+        });
+
+        it('keeps excluding tax exempt vendors', async () => {
+          const taxExemptVendor = await fakeVendor();
+          const taxableVendor = await fakeVendor({ data: { vendorInfo: { taxFormRequired: true } } });
+          const collective = await fakeCollective({ HostCollectiveId: hostCollective.id });
+          await createExpense(taxExemptVendor, collective, { HostCollectiveId: hostCollective.id });
+          await createExpense(taxableVendor, collective, { HostCollectiveId: hostCollective.id });
+
+          const accounts = await getAccounts();
+          expect(accounts.has(taxExemptVendor.id)).to.be.false;
+          expect(accounts.has(taxableVendor.id)).to.be.true;
+        });
       });
     });
   });
