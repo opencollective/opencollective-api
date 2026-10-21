@@ -1,8 +1,10 @@
+import type { Request } from 'express';
 import { GraphQLNonNull } from 'graphql';
 import slugify from 'limax';
 import { pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
+import { CollectiveType } from '../../../constants/collectives';
 import roles from '../../../constants/roles';
 import { canUseSlug } from '../../../lib/collectivelib';
 import { canSeePrivateAccount } from '../../../lib/private-accounts';
@@ -16,7 +18,7 @@ import { GraphQLEvent } from '../object/Event';
 
 const DEFAULT_EVENT_SETTINGS = {};
 
-async function createEvent(_, args, req) {
+async function createEvent(_, args, req: Request) {
   checkRemoteUserCanUseAccount(req);
 
   const parent = await fetchAccountWithReference(args.account);
@@ -32,8 +34,8 @@ async function createEvent(_, args, req) {
     throw new Unauthorized('This account is frozen and cannot create new events at this time.');
   }
 
-  const eventData = {
-    type: 'EVENT',
+  const eventData: Parameters<typeof models.Collective.build>[0] = {
+    type: CollectiveType.EVENT,
     slug: `${slugify(args.event.slug || args.event.name)}-${uuid().substr(0, 8)}`,
     ...pick(args.event, ['name', 'description']),
     ...pick(parent.info, ['currency', 'HostCollectiveId', 'isActive', 'platformFeePercent', 'hostFeePercent']),

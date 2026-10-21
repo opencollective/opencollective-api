@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { createUpdate, deleteUpdate, editUpdate, publishUpdate, unpublishUpdate } from '../../common/update';
@@ -16,7 +17,7 @@ const updateMutations = {
       },
     },
     // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside createUpdate (common/update.ts)
-    resolve(_, args, req) {
+    resolve(_, args, req: Request) {
       return createUpdate(_, args, req);
     },
   },
@@ -29,7 +30,7 @@ const updateMutations = {
       },
     },
     // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside editUpdate (common/update.ts)
-    resolve(_, args, req) {
+    resolve(_, args, req: Request) {
       return editUpdate(_, args, req);
     },
   },
@@ -45,7 +46,7 @@ const updateMutations = {
       },
     },
     // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside publishUpdate (common/update.ts)
-    resolve(_, args, req) {
+    resolve(_, args, req: Request) {
       return publishUpdate(_, args, req);
     },
   },
@@ -58,7 +59,7 @@ const updateMutations = {
       },
     },
     // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside unpublishUpdate (common/update.ts)
-    resolve(_, args, req) {
+    resolve(_, args, req: Request) {
       return unpublishUpdate(_, args, req);
     },
   },
@@ -71,7 +72,7 @@ const updateMutations = {
       },
     },
     // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside deleteUpdate (common/update.ts)
-    resolve(_, args, req) {
+    resolve(_, args, req: Request) {
       return deleteUpdate(_, args, req);
     },
   },

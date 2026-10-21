@@ -1,17 +1,45 @@
 import config from 'config';
+import type { Request } from 'express';
 import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { assertOAuthRedirectUri } from '../../../lib/url-validation';
 import models from '../../../models';
+import type { ApplicationType } from '../../../models/Application';
 import { checkRemoteUserCanUseApplications, requireSessionToken } from '../../common/scope-check';
 import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
-import { fetchAccountWithReference } from '../input/AccountReferenceInput';
+import { type AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { GraphQLApplicationCreateInput } from '../input/ApplicationCreateInput';
-import { fetchApplicationWithReference, GraphQLApplicationReferenceInput } from '../input/ApplicationReferenceInput';
+import {
+  type ApplicationReferenceInput,
+  fetchApplicationWithReference,
+  GraphQLApplicationReferenceInput,
+} from '../input/ApplicationReferenceInput';
 import { GraphQLApplicationUpdateInput } from '../input/ApplicationUpdateInput';
 import { GraphQLApplication } from '../object/Application';
+
+type CreateApplicationArgs = {
+  application: {
+    type: ApplicationType;
+    name?: string;
+    description?: string;
+    redirectUri?: string;
+    account?: AccountReferenceInput;
+  };
+};
+
+type UpdateApplicationArgs = {
+  application: ApplicationReferenceInput & {
+    name?: string;
+    description?: string;
+    redirectUri?: string;
+  };
+};
+
+type DeleteApplicationArgs = {
+  application: ApplicationReferenceInput;
+};
 
 const createApplication = {
   type: GraphQLApplication,
@@ -20,7 +48,7 @@ const createApplication = {
       type: new GraphQLNonNull(GraphQLApplicationCreateInput),
     },
   },
-  async resolve(_, args, req) {
+  async resolve(_, args: CreateApplicationArgs, req: Request) {
     checkRemoteUserCanUseApplications(req);
     requireSessionToken(req);
 
@@ -62,7 +90,7 @@ const updateApplication = {
       type: new GraphQLNonNull(GraphQLApplicationUpdateInput),
     },
   },
-  async resolve(_, args, req) {
+  async resolve(_, args: UpdateApplicationArgs, req: Request) {
     checkRemoteUserCanUseApplications(req);
     requireSessionToken(req);
 
@@ -75,7 +103,10 @@ const updateApplication = {
       throw new Forbidden('Authenticated user is not the application owner.');
     }
 
-    const updateParams = pick(args.application, ['name', 'description']);
+    const updateParams: { name?: string; description?: string; callbackUrl?: string } = pick(args.application, [
+      'name',
+      'description',
+    ]);
 
     // Doing this we're not supporting update to NULL
     if (args.application.redirectUri && args.application.redirectUri !== application.callbackUrl) {
@@ -95,7 +126,7 @@ const deleteApplication = {
       type: new GraphQLNonNull(GraphQLApplicationReferenceInput),
     },
   },
-  async resolve(_, args, req) {
+  async resolve(_, args: DeleteApplicationArgs, req: Request) {
     checkRemoteUserCanUseApplications(req);
     requireSessionToken(req);
 

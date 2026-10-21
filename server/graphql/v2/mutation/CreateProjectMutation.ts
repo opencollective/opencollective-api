@@ -1,7 +1,8 @@
+import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import { pick, set } from 'lodash';
 
-import { PROJECTS_ALLOWED_ACCOUNT_TYPES } from '../../../constants/collectives';
+import { CollectiveType, PROJECTS_ALLOWED_ACCOUNT_TYPES } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import roles from '../../../constants/roles';
 import { canUseSlug } from '../../../lib/collectivelib';
@@ -33,7 +34,7 @@ const DEFAULT_PROJECT_SETTINGS = {
   },
 };
 
-async function createProject(_, args, req) {
+async function createProject(_, args, req: Request) {
   checkRemoteUserCanUseAccount(req);
 
   const parent = await fetchAccountWithReference(args.parent);
@@ -43,14 +44,14 @@ async function createProject(_, args, req) {
     throw new Unauthorized('You are not authorized to create a project under this parent account');
   } else if (!req.remoteUser.hasRole([roles.ADMIN], parent.id)) {
     throw new Forbidden(`You must be logged in as an admin of the ${parent.slug} collective to create a Project`);
-  } else if (!PROJECTS_ALLOWED_ACCOUNT_TYPES.includes(parent.type)) {
+  } else if (!(PROJECTS_ALLOWED_ACCOUNT_TYPES as readonly CollectiveType[]).includes(parent.type)) {
     throw new BadRequest('This account can not be used to create a project');
   } else if (parent.isFrozen()) {
     throw new Forbidden('This account is frozen and cannot create new projects at this time.');
   }
 
-  const projectData = {
-    type: 'PROJECT',
+  const projectData: Parameters<typeof models.Collective.build>[0] = {
+    type: CollectiveType.PROJECT,
     slug: args.project.slug.toLowerCase(),
     ...pick(args.project, ['name', 'description', 'tags']),
     ...pick(parent, ['currency', 'isActive', 'platformFeePercent', 'hostFeePercent', 'data.useCustomHostFee']),

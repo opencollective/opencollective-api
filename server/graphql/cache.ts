@@ -1,6 +1,13 @@
+import type { Request } from 'express';
+
 import { md5 } from '../lib/utils';
 
-export function getGraphqlCacheProperties(req) {
+type GraphqlCacheProperties = {
+  cacheKey: string;
+  cacheSlug: string;
+};
+
+export function getGraphqlCacheProperties(req: Request): GraphqlCacheProperties | undefined {
   if (req.remoteUser) {
     return;
   }

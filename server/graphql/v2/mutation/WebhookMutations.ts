@@ -1,5 +1,7 @@
+import type { Request } from 'express';
 import { GraphQLNonNull } from 'graphql';
 
+import { channels } from '../../../constants';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { checkRemoteUserCanUseWebhooks } from '../../common/scope-check';
@@ -18,7 +20,7 @@ const createWebhook = {
       type: new GraphQLNonNull(GraphQLWebhookCreateInput),
     },
   },
-  async resolve(_, args, req) {
+  async resolve(_, args, req: Request) {
     checkRemoteUserCanUseWebhooks(req);
 
     const account = await fetchAccountWithReference(args.webhook.account);
@@ -33,7 +35,7 @@ const createWebhook = {
     await twoFactorAuthLib.enforceForAccount(req, account);
 
     const createParams = {
-      channel: 'webhook',
+      channel: channels.WEBHOOK,
       active: true,
       type: args.webhook.activityType,
       webhookUrl: args.webhook.webhookUrl,
@@ -53,7 +55,7 @@ const updateWebhook = {
       type: new GraphQLNonNull(GraphQLWebhookUpdateInput),
     },
   },
-  async resolve(_, args, req) {
+  async resolve(_, args, req: Request) {
     checkRemoteUserCanUseWebhooks(req);
 
     const notification = await fetchWebhookWithReference(args.webhook);
@@ -69,7 +71,7 @@ const updateWebhook = {
     // Check 2FA
     await twoFactorAuthLib.enforceForAccount(req, account);
 
-    const updateParams = {};
+    const updateParams: { type?: string; webhookUrl?: string } = {};
 
     if (args.webhook.activityType) {
       updateParams.type = args.webhook.activityType;
@@ -91,7 +93,7 @@ const deleteWebhook = {
       type: new GraphQLNonNull(GraphQLWebhookReferenceInput),
     },
   },
-  async resolve(_, args, req) {
+  async resolve(_, args, req: Request) {
     checkRemoteUserCanUseWebhooks(req);
 
     const notification = await fetchWebhookWithReference(args.webhook);

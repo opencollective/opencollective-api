@@ -1,4 +1,5 @@
 import config from 'config';
+import type { Request } from 'express';
 import sanitize from 'sanitize-html';
 
 import activities from '../../constants/activities';
@@ -6,7 +7,7 @@ import FEATURE from '../../constants/feature';
 import { hasFeature } from '../../lib/allowed-features';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit';
 import { canUseFeature } from '../../lib/user-permissions';
-import models from '../../models';
+import models, { type Collective } from '../../models';
 import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized } from '../errors';
 
 import { checkRemoteUserCanUseAccount } from './scope-check';
@@ -15,7 +16,7 @@ import { checkRemoteUserCanUseAccount } from './scope-check';
  * Resolver function for host field on Collective type.
  */
 
-async function hostResolver(collective, _, { loaders }) {
+async function hostResolver(collective: Collective, _, { loaders }: Request): Promise<Collective | null> {
   let hostCollective = null;
   if (collective.HostCollectiveId) {
     hostCollective = await loaders.Collective.byId.load(collective.HostCollectiveId);
@@ -29,7 +30,17 @@ async function hostResolver(collective, _, { loaders }) {
   return hostCollective;
 }
 
-async function sendMessage({ req, collective, args, isGqlV2 }) {
+async function sendMessage({
+  req,
+  collective,
+  args,
+  isGqlV2,
+}: {
+  req: Request;
+  collective: Collective;
+  args: { message?: string; subject?: string };
+  isGqlV2: boolean;
+}): Promise<{ success: boolean }> {
   checkRemoteUserCanUseAccount(req);
   const user = req.remoteUser;
 

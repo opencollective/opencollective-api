@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import { GraphQLList, GraphQLString } from 'graphql';
 
 import { searchCollectivesInDB } from '../../../../lib/sql-search';
@@ -21,7 +22,7 @@ const HostsCollectionQuery = {
       deprecationReason: '2020-06-30: Please use tag (singular)',
     },
   },
-  async resolve(_, args, req) {
+  async resolve(_, args, req: Request) {
     const searchParams = {
       orderBy: { field: ORDER_BY_PSEUDO_FIELDS.HOST_RANK, direction: 'DESC' },
       isHost: true,

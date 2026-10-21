@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { mustBeLoggedInTo } from '../../../lib/auth';
@@ -23,7 +24,7 @@ const commentMutations = {
       },
     },
     // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside editComment (common/comment.ts)
-    async resolve(_, { comment }, req) {
+    async resolve(_, { comment }, req: Request) {
       let id;
       if (isEntityPublicId(comment.id, EntityShortIdPrefix.Comment)) {
         id = await req.loaders.Comment.idByPublicId.load(comment.id);
@@ -43,7 +44,7 @@ const commentMutations = {
       },
     },
     // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside deleteComment (common/comment.ts)
-    async resolve(_, { id }, req) {
+    async resolve(_, { id }, req: Request) {
       let decodedId;
       if (isEntityPublicId(id, EntityShortIdPrefix.Comment)) {
         decodedId = await req.loaders.Comment.idByPublicId.load(id);
@@ -63,7 +64,7 @@ const commentMutations = {
       },
     },
     // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside createComment (common/comment.ts)
-    resolve: async (_, { comment }, req) => {
+    resolve: async (_, { comment }, req: Request) => {
       mustBeLoggedInTo(req.remoteUser, 'create a comment');
 
       // Associate the comment with the correct entity

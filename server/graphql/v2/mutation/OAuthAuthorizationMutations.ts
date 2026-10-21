@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import { GraphQLNonNull } from 'graphql';
 
 import { checkRemoteUserCanUseAccount, requireSessionToken } from '../../common/scope-check';
@@ -18,7 +19,7 @@ const oAuthAuthorizationMutations = {
         description: 'Reference of the OAuth Authorization',
       },
     },
-    async resolve(_, args, req) {
+    async resolve(_, args, req: Request) {
       checkRemoteUserCanUseAccount(req);
       requireSessionToken(req);
 

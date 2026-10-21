@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import { pick } from 'lodash';
 
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
@@ -10,7 +11,7 @@ const ApplicationQuery = {
   args: {
     ...ApplicationReferenceFields,
   },
-  async resolve(_, args, req) {
+  async resolve(_, args, req: Request) {
     // Read https://github.com/opencollective/opencollective/issues/4656
     const applicationReference = pick(args, ['id', 'legacyId', 'clientId']);
     const application = await fetchApplicationWithReference(applicationReference);

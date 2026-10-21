@@ -1,6 +1,8 @@
+import type { Request } from 'express';
 import { GraphQLNonNull } from 'graphql';
 import { get, pick } from 'lodash';
 
+import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import roles from '../../../constants/roles';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
@@ -41,11 +43,11 @@ const DEFAULT_COLLECTIVE_SETTINGS = {
   },
 };
 
-async function createFund(_, args, req) {
+async function createFund(_, args, req: Request) {
   checkRemoteUserCanUseAccount(req);
 
-  const fundData = {
-    type: 'FUND',
+  const fundData: Parameters<typeof models.Collective.build>[0] = {
+    type: CollectiveType.FUND,
     slug: args.fund.slug.toLowerCase(),
     ...pick(args.fund, ['name', 'description', 'tags']),
     isActive: false,
