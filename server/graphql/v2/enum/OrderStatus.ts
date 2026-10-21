@@ -6,7 +6,7 @@ export const GraphQLOrderStatus = new GraphQLEnumType({
   name: 'OrderStatus',
   description: 'All order statuses',
   values: {
-    ...Object.keys(statuses).reduce((values, status) => {
+    ...Object.keys(statuses).reduce<Record<string, { description?: string }>>((values, status) => {
       values[status] = {};
       return values;
     }, {}),

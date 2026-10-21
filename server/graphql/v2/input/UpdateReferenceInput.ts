@@ -1,8 +1,9 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
-import models from '../../../models';
+import models, { type Update } from '../../../models';
 import { NotFound } from '../../errors';
+import { Loaders } from '../../loaders';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 /**
@@ -18,7 +19,12 @@ export const GraphQLUpdateReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-export const getDatabaseIdFromUpdateReference = async (input, { loaders = null } = {}) => {
+type UpdateReferenceInputGraphQLType = { id?: string; legacyId?: number };
+
+export const getDatabaseIdFromUpdateReference = async (
+  input: UpdateReferenceInputGraphQLType,
+  { loaders = null }: { loaders?: Loaders } = {},
+): Promise<number | null> => {
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Update)) {
     return (
       loaders
@@ -43,8 +49,11 @@ export const getDatabaseIdFromUpdateReference = async (input, { loaders = null }
  * Retrieve an expense from an `UpdateReferenceInput`
  */
 // ts-unused-exports:disable-next-line
-export const fetchUpdateWithReference = async (input, { loaders = null, throwIfMissing = false } = {}) => {
-  let update = null;
+export const fetchUpdateWithReference = async (
+  input: UpdateReferenceInputGraphQLType,
+  { loaders = null, throwIfMissing = false }: { loaders?: Loaders; throwIfMissing?: boolean } = {},
+): Promise<Update | null> => {
+  let update: Update | null = null;
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Update)) {
     update = await (loaders
       ? loaders.Update.byPublicId.load(input.id)

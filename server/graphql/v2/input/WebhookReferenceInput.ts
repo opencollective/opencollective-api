@@ -2,7 +2,7 @@ import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
 import { channels } from '../../../constants';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
-import models from '../../../models';
+import models, { type Notification } from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -28,7 +28,7 @@ export const GraphQLWebhookReferenceInput = new GraphQLInputObjectType({
  *
  * @param {object} input - id of the webhook
  */
-export const fetchWebhookWithReference = async input => {
+export const fetchWebhookWithReference = async (input: { id?: string; legacyId?: number }): Promise<Notification> => {
   // Notifications also store email settings, only webhooks can be referenced here
   const where = { channel: channels.WEBHOOK };
   let notification;

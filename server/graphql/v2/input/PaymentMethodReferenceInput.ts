@@ -1,9 +1,11 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 import { partition, uniq } from 'lodash';
+import { FindOptions, InferAttributes } from 'sequelize';
 
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
-import models, { Op } from '../../../models';
+import models, { Op, type PaymentMethod } from '../../../models';
 import { NotFound } from '../../errors';
+import { Loaders } from '../../loaders';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 export const GraphQLPaymentMethodReferenceInput = new GraphQLInputObjectType({
@@ -21,9 +23,22 @@ export const GraphQLPaymentMethodReferenceInput = new GraphQLInputObjectType({
  *
  * @param {object} input - id of the payment method
  */
-export const fetchPaymentMethodWithReference = async (input, { loaders = null, sequelizeOpts } = {}) => {
+type PaymentMethodReferenceInput = {
+  id?: string;
+};
+
+export const fetchPaymentMethodWithReference = async (
+  input: PaymentMethodReferenceInput,
+  {
+    loaders = null,
+    sequelizeOpts,
+  }: {
+    loaders?: Loaders;
+    sequelizeOpts?: FindOptions<InferAttributes<PaymentMethod>>;
+  } = {},
+): Promise<PaymentMethod> => {
   // Load payment by ID using GQL loaders if we're not using a transaction & loaders are available
-  const loadPaymentById = id => {
+  const loadPaymentById = (id: number) => {
     return models.PaymentMethod.findByPk(id, sequelizeOpts);
   };
 
@@ -44,7 +59,10 @@ export const fetchPaymentMethodWithReference = async (input, { loaders = null, s
   return paymentMethod;
 };
 
-export const fetchPaymentMethodWithReferences = async (inputs, { sequelizeOpts } = {}) => {
+export const fetchPaymentMethodWithReferences = async (
+  inputs: PaymentMethodReferenceInput[],
+  { sequelizeOpts }: { loaders?: Loaders; sequelizeOpts?: FindOptions<InferAttributes<PaymentMethod>> } = {},
+): Promise<PaymentMethod[]> => {
   inputs = Array.isArray(inputs) ? inputs : [inputs];
   if (inputs.length > 200) {
     throw new Error('You can only fetch up to 200 accounts at once');
@@ -59,7 +77,7 @@ export const fetchPaymentMethodWithReferences = async (inputs, { sequelizeOpts }
   const ids = uniq(inputsWithoutPublicId.map(input => idDecode(input.id, IDENTIFIER_TYPES.PAYMENT_METHOD)));
   const publicIds = uniq(inputsWithPublicId.map(input => input.id));
 
-  const where = {};
+  const where: { id?: number[]; publicId?: string[]; [Op.or]?: Array<{ id: number[] } | { publicId: string[] }> } = {};
   if (ids.length > 0 && publicIds.length > 0) {
     where[Op.or] = [{ id: ids }, { publicId: publicIds }];
   } else if (ids.length > 0) {

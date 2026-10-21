@@ -3,7 +3,8 @@ import { mapValues } from 'lodash';
 
 import { SupportedCurrencies, TransferWiseCurrencies } from '../../../constants/currencies';
 
-const convertToEnumType = a => mapValues(a, description => ({ description }));
+const convertToEnumType = (currencies: Record<string, string>): Record<string, { description: string }> =>
+  mapValues(currencies, description => ({ description }));
 
 export const GraphQLCurrency = new GraphQLEnumType({
   name: 'Currency',

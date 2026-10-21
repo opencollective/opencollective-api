@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
-import models from '../../../models';
+import models, { type UserToken } from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -22,7 +22,7 @@ export const GraphQLOAuthAuthorizationReferenceInput = new GraphQLInputObjectTyp
  *
  * @param {object} input - id of the OAuth Authorization
  */
-export const fetchOAuthAuthorizationWithReference = async input => {
+export const fetchOAuthAuthorizationWithReference = async (input: { id?: string }): Promise<UserToken> => {
   let userToken;
   if (isEntityPublicId(input.id, EntityShortIdPrefix.UserToken)) {
     userToken = await models.UserToken.findOne({ where: { publicId: input.id } });

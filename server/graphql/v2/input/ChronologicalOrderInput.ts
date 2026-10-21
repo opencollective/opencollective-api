@@ -30,4 +30,6 @@ export const CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE = Object.entries(
   {},
 );
 
-GraphQLChronologicalOrderInput.defaultValue = CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE;
+// `defaultValue` is not part of the public `GraphQLInputObjectType` API but is set for backward compatibility
+(GraphQLChronologicalOrderInput as GraphQLInputObjectType & { defaultValue?: unknown }).defaultValue =
+  CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE;
