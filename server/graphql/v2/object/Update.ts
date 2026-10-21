@@ -1,9 +1,10 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
+import { FindAndCountOptions, InferAttributes, Order } from 'sequelize';
 
 import { CollectiveType } from '../../../constants/collectives';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
-import models from '../../../models';
+import models, { type Comment } from '../../../models';
 import { canSeeUpdate, hasUpdatesScopeForNonPublicUpdate } from '../../common/update';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLUpdateAudienceType } from '../enum';
@@ -12,7 +13,7 @@ import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLUpdateAudienceStats } from './UpdateAudienceStats';
 
-const GraphQLUpdate = new GraphQLObjectType({
+const GraphQLUpdate: GraphQLObjectType = new GraphQLObjectType({
   name: 'Update',
   description: 'This represents an Update',
   fields: () => {
@@ -186,8 +187,8 @@ const GraphQLUpdate = new GraphQLObjectType({
           }
 
           const where = { UpdateId: update.id };
-          const order = [['createdAt', 'ASC']];
-          const query = { where, order };
+          const order: Order = [['createdAt', 'ASC']];
+          const query: FindAndCountOptions<InferAttributes<Comment>> = { where, order };
 
           if (args.limit) {
             query.limit = args.limit;

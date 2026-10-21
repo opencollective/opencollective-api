@@ -1,12 +1,13 @@
+import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { cloneDeep, invert, isEmpty, isNil, isUndefined } from 'lodash';
+import { cloneDeep, get, invert, isEmpty, isNil, isUndefined } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import { MemberRolesForPrivateAccounts } from '../../../constants/roles';
 import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import { buildSearchConditions } from '../../../lib/sql-search';
-import models, { Op, sequelize } from '../../../models';
+import models, { type Collective, type Member, Op, sequelize } from '../../../models';
 import { checkScope, isRemoteUserRoot } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
 import { GraphQLMemberOfCollection } from '../collection/MemberCollection';
@@ -16,6 +17,25 @@ import { GraphQLMemberRole } from '../enum/MemberRole';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
+
+type MemberWhereOptions = {
+  MemberCollectiveId?: number;
+  CollectiveId?: number | { [Op.ne]: number } | { [Op.in]: number[] };
+  role?: { [Op.in]: string[] };
+  TierId?: number | { [Op.is]: null };
+  [Op.or]?: unknown[];
+};
+
+type CollectiveWhereOptions = {
+  isPrivate?: boolean;
+  approvedAt?: Record<symbol, null>;
+  deactivatedAt?: Record<symbol, null>;
+  type?: { [Op.in]: string[] };
+  isIncognito?: boolean;
+  hasMoneyManagement?: boolean;
+  data?: { [Op.and]: unknown[] };
+  [Op.or]?: Array<Record<string, unknown>>;
+};
 
 export const IsMemberOfFields = {
   memberOf: {
@@ -72,7 +92,7 @@ export const IsMemberOfFields = {
         description: 'Filter members by tier',
       },
     },
-    async resolve(collective, args, req) {
+    async resolve(collective: Collective, args, req: Request) {
       // Check Pagination arguments
       if (isNil(args.limit) || args.limit < 0) {
         args.limit = 100;
@@ -84,9 +104,12 @@ export const IsMemberOfFields = {
         throw new Error('Cannot fetch more than 1,000 members at the same time, please adjust the limit');
       }
 
-      const where = { MemberCollectiveId: collective.id, CollectiveId: { [Op.ne]: collective.id } };
-      const collectiveConditions = { isPrivate: false };
-      const collectiveDataConditions = [];
+      const where: MemberWhereOptions = {
+        MemberCollectiveId: collective.id,
+        CollectiveId: { [Op.ne]: collective.id },
+      };
+      const collectiveConditions: CollectiveWhereOptions = { isPrivate: false };
+      const collectiveDataConditions: Array<Record<string, unknown>> = [];
 
       if (!isNil(args.isApproved)) {
         collectiveConditions.approvedAt = { [args.isApproved ? Op.not : Op.is]: null };
@@ -110,7 +133,7 @@ export const IsMemberOfFields = {
       }
       if (args.accountType && args.accountType.length > 0) {
         collectiveConditions.type = {
-          [Op.in]: [...new Set(args.accountType.map(value => AccountTypeToModelMapping[value]))],
+          [Op.in]: [...new Set<string>(args.accountType.map(value => AccountTypeToModelMapping[value]))],
         };
       }
       if (args.account) {
@@ -138,7 +161,8 @@ export const IsMemberOfFields = {
       if (!isUndefined(args.tier)) {
         if (args.tier) {
           const tier = await fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: true });
-          if (tier.collectiveId !== collective.id) {
+          // TODO: `Tier` has no `collectiveId` property, this condition is always true (bug reported in PLAN.md)
+          if (get(tier, 'collectiveId') !== collective.id) {
             throw new ValidationFailed('Tier is not associated with this collective');
           }
           where.TierId = tier.id;
@@ -272,7 +296,7 @@ export const IsMemberOfFields = {
             group: ['role', 'collective.type'],
             raw: true,
           }).then(results =>
-            results.map(m => ({
+            results.map((m: Member & { type?: string }) => ({
               role: m.role,
               type: invert(AccountTypeToModelMapping)[m.type],
             })),

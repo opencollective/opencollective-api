@@ -1,8 +1,10 @@
+import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
+import { WhereOptions } from 'sequelize';
 
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
-import models, { Op } from '../../../models';
+import models, { Op, type Order, type Tier } from '../../../models';
 import { enforceScope } from '../../common/scope-check';
 import { GraphQLContributorCollection } from '../collection/ContributorCollection';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
@@ -65,12 +67,12 @@ export const GraphQLTier = new GraphQLObjectType({
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
           status: { type: new GraphQLList(GraphQLOrderStatus) },
         },
-        async resolve(tier, args, req) {
+        async resolve(tier: Tier, args, req: Request) {
           enforceScope(req, 'orders');
-          const where = { TierId: tier.id };
+          const where: WhereOptions<Order> = { TierId: tier.id };
 
           if (args.status && args.status.length > 0) {
-            where.status = {
+            where['status'] = {
               [Op.in]: args.status,
             };
           }

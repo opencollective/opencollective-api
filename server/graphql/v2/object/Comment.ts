@@ -1,7 +1,9 @@
+import type { Request } from 'express';
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
+import type { Comment } from '../../../models';
 import { canSeeComment, collectiveResolver, fromCollectiveResolver } from '../../common/comment';
 import { GraphQLCommentType } from '../enum/CommentType';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -13,14 +15,14 @@ import { GraphQLHostApplication } from './HostApplication';
 import { GraphQLOrder } from './Order';
 import GraphQLUpdate from './Update';
 
-export const GraphQLComment = new GraphQLObjectType({
+export const GraphQLComment = new GraphQLObjectType<Comment, Request>({
   name: 'Comment',
   description: 'This represents an Comment',
   fields: () => {
     return {
       id: {
         type: GraphQLString,
-        resolve(comment) {
+        resolve(comment: Comment) {
           if (isEntityMigratedToPublicId(EntityShortIdPrefix.Comment, comment.createdAt)) {
             return comment.publicId;
           } else {
@@ -37,7 +39,7 @@ export const GraphQLComment = new GraphQLObjectType({
       },
       html: {
         type: GraphQLString,
-        resolve: async (comment, _, req) => {
+        resolve: async (comment: Comment, _, req: Request) => {
           if (await canSeeComment(req, comment)) {
             return comment.html;
           }
@@ -58,14 +60,14 @@ export const GraphQLComment = new GraphQLObjectType({
       reactions: {
         type: GraphQLJSON,
         description: 'Returns a map of reactions counts for this comment',
-        async resolve(comment, args, req) {
+        async resolve(comment: Comment, args, req: Request) {
           return await req.loaders.Comment.reactionsByCommentId.load(comment.id);
         },
       },
       userReactions: {
         type: new GraphQLList(GraphQLString),
         description: 'Returns the list of reactions added to this comment by logged in user',
-        async resolve(comment, args, req) {
+        async resolve(comment: Comment, args, req: Request) {
           if (req.remoteUser) {
             return req.loaders.Comment.remoteUserReactionsByCommentId.load(comment.id);
           }
@@ -74,7 +76,7 @@ export const GraphQLComment = new GraphQLObjectType({
       // Relationships
       conversation: {
         type: GraphQLConversation,
-        resolve(comment, args, req) {
+        resolve(comment: Comment, args, req: Request) {
           if (comment.ConversationId) {
             return req.loaders.Conversation.byId.load(comment.ConversationId);
           }
@@ -82,7 +84,7 @@ export const GraphQLComment = new GraphQLObjectType({
       },
       expense: {
         type: GraphQLExpense,
-        resolve(comment, args, req) {
+        resolve(comment: Comment, args, req: Request) {
           if (comment.ExpenseId) {
             return req.loaders.Expense.byId.load(comment.ExpenseId);
           }
@@ -90,7 +92,7 @@ export const GraphQLComment = new GraphQLObjectType({
       },
       hostApplication: {
         type: GraphQLHostApplication,
-        resolve(comment, args, req) {
+        resolve(comment: Comment, args, req: Request) {
           if (comment.HostApplicationId) {
             return req.loaders.HostApplication.byId.load(comment.HostApplicationId);
           }
@@ -98,7 +100,7 @@ export const GraphQLComment = new GraphQLObjectType({
       },
       order: {
         type: GraphQLOrder,
-        resolve(comment, args, req) {
+        resolve(comment: Comment, args, req: Request) {
           if (comment.OrderId) {
             return req.loaders.Order.byId.load(comment.OrderId);
           }
@@ -106,7 +108,7 @@ export const GraphQLComment = new GraphQLObjectType({
       },
       update: {
         type: GraphQLUpdate,
-        resolve(comment, args, req) {
+        resolve(comment: Comment, args, req: Request) {
           if (comment.UpdateId) {
             return req.loaders.Update.byId.load(comment.UpdateId);
           }

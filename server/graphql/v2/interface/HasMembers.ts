@@ -1,10 +1,11 @@
+import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
 import { intersection, isNil, isUndefined } from 'lodash';
 
 import { CollectiveType } from '../../../constants/collectives';
 import MemberRoles, { MemberRolesForPrivateAccounts } from '../../../constants/roles';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
-import models, { Op, sequelize } from '../../../models';
+import models, { type Collective, Op, sequelize } from '../../../models';
 import { checkScope, isRemoteUserRoot } from '../../common/scope-check';
 import { BadRequest } from '../../errors';
 import { GraphQLMemberCollection } from '../collection/MemberCollection';
@@ -42,7 +43,7 @@ export const HasMembersFields = {
         description: 'Filter members by tier. Pass null to filter for members without any tier.',
       },
     },
-    async resolve(collective, args, req) {
+    async resolve(collective: Collective, args, req: Request) {
       await assertCanSeeAccount(req, collective);
 
       // Check Pagination arguments
@@ -61,14 +62,24 @@ export const HasMembersFields = {
         return { offset: args.offset, limit: args.limit, totalCount: 0, nodes: [] };
       }
 
-      let where = { CollectiveId: collective.id };
+      let where: {
+        CollectiveId?: number;
+        role?: { [Op.in]: string[] };
+        TierId?: number | { [Op.is]: null };
+        [Op.or]?: [typeof where, { CollectiveId?: number; role?: { [Op.in]: string[] }; TierId?: number }];
+      } = { CollectiveId: collective.id };
       const collectiveInclude = [];
 
       if (args.role && args.role.length > 0) {
         where.role = { [Op.in]: args.role };
       }
 
-      const collectiveConditions = { deletedAt: null, isPrivate: false };
+      const collectiveConditions: {
+        deletedAt?: null;
+        isPrivate?: boolean;
+        type?: { [Op.in]: string[] };
+        [Op.or]?: Array<Record<string, unknown>>;
+      } = { deletedAt: null, isPrivate: false };
 
       // Handle private accounts
       if (req.remoteUser) {
@@ -90,7 +101,7 @@ export const HasMembersFields = {
 
       if (args.accountType && args.accountType.length > 0) {
         collectiveConditions.type = {
-          [Op.in]: [...new Set(args.accountType.map(value => AccountTypeToModelMapping[value]))],
+          [Op.in]: [...new Set<string>(args.accountType.map((value): string => AccountTypeToModelMapping[value]))],
         };
       }
 

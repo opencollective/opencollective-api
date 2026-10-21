@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { get, has, intersection, memoize, pick, sortBy, sumBy } from 'lodash';
@@ -23,6 +24,23 @@ import { GraphQLAmountStats } from '../object/AmountStats';
 import { getNumberOfDays, getTimeUnit, GraphQLTimeSeriesAmount, TimeSeriesArgs } from '../object/TimeSeriesAmount';
 
 const { ADDED_FUNDS, CONTRIBUTION } = TransactionKind;
+
+type PledgeRow = {
+  nextChargeAt: Date;
+  pledges: number;
+  currency: string;
+  totalAmount: number;
+};
+
+type ActivePledgeRow = PledgeRow & { interval: string };
+
+type ContributionAmountRow = {
+  date: Date;
+  label: string;
+  count: number;
+  amount: number;
+  currency: string;
+};
 
 const TransactionArgs = {
   net: {
@@ -57,7 +75,7 @@ const TransactionArgs = {
   },
 };
 
-export const GraphQLAccountStats = new GraphQLObjectType({
+export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
   name: 'AccountStats',
   description: 'Stats for the Account',
   fields: () => {
@@ -68,7 +86,8 @@ export const GraphQLAccountStats = new GraphQLObjectType({
           if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
             return collective.publicId;
           } else {
-            return idEncode(collective.id);
+            // TODO: missing identifier type, `undefined` is passed at runtime (bug reported in PLAN.md)
+            return idEncode(collective.id, undefined);
           }
         },
       },
@@ -258,10 +277,7 @@ export const GraphQLAccountStats = new GraphQLObjectType({
             throw new ValidationFailed("'dateFrom' must be before 'dateTo'");
           }
 
-          /**
-           * @type {{pledges: number; nextChargeAt: Date; currency: string; totalAmount: number}[]}
-           */
-          const currentMonthPledges = await sequelize.query(
+          const currentMonthPledges = await sequelize.query<PledgeRow>(
             `
             SELECT
                 DATE_TRUNC('day', s."nextChargeDate") as "nextChargeAt",
@@ -286,10 +302,7 @@ export const GraphQLAccountStats = new GraphQLObjectType({
             },
           );
 
-          /**
-           * @type {{pledges: number; interval: string; nextChargeAt: Date; currency: string; totalAmount: number}[]}
-           */
-          const activePledges = await sequelize.query(
+          const activePledges = await sequelize.query<ActivePledgeRow>(
             `
             SELECT
                 DATE_TRUNC('day', s."nextChargeDate") as "nextChargeAt",
@@ -313,8 +326,8 @@ export const GraphQLAccountStats = new GraphQLObjectType({
             },
           );
 
-          const years = moment(dateTo).diff(moment(), 'years').toFixed(0);
-          const months = moment(dateTo).diff(moment(), 'month').toFixed(0);
+          const years = Number(moment(dateTo).diff(moment(), 'years').toFixed(0));
+          const months = Number(moment(dateTo).diff(moment(), 'month').toFixed(0));
           const projectedPledges = [];
           activePledges.forEach(pledge => {
             if (pledge.interval === 'year') {
@@ -345,13 +358,10 @@ export const GraphQLAccountStats = new GraphQLObjectType({
             fromCurrency => fromCurrency,
           );
 
-          let expectedFunds = [];
+          let expectedFunds: PledgeRow[] = [];
 
           if (args.includeExpectedFunds) {
-            /**
-             * @type {{pledges: number; nextChargeAt: Date; currency: string; totalAmount: number}[]}
-             */
-            expectedFunds = await sequelize.query(
+            expectedFunds = await sequelize.query<PledgeRow>(
               `
             SELECT
                 DATE_TRUNC('day', date(o."data"#>>'{expectedAt}')) as "nextChargeAt",
@@ -382,7 +392,7 @@ export const GraphQLAccountStats = new GraphQLObjectType({
           const pledges = [...currentMonthPledges, ...futureProjectedPledges, ...expectedFunds].filter(
             p => moment(p.nextChargeAt).isAfter(dateFrom) && moment(p.nextChargeAt).isBefore(dateTo),
           );
-          const perPeriod = {};
+          const perPeriod: Record<string, { date: Date; pledges: number; totalAmount: number }> = {};
 
           for (const pledge of pledges) {
             const period = moment(pledge.nextChargeAt).startOf(timeUnit.toLowerCase()).toISOString();
@@ -531,8 +541,9 @@ export const GraphQLAccountStats = new GraphQLObjectType({
       },
       yearlyBudget: {
         type: new GraphQLNonNull(GraphQLAmount),
-        async resolve(collective, args, req) {
-          return collective.getYearlyBudgetAmount({ loaders: req.loaders });
+        async resolve(collective) {
+          // `getYearlyBudgetAmount` accepts no options: the `loaders` were ignored before this conversion
+          return collective.getYearlyBudgetAmount();
         },
       },
       yearlyBudgetManaged: {
@@ -790,7 +801,7 @@ export const GraphQLAccountStats = new GraphQLObjectType({
           const dateTo = args.dateTo ? moment(args.dateTo) : null;
           const collectiveIds = await getCollectiveIds(collective, args.includeChildren);
           const kinds = args.kind ? intersection(args.kind, [CONTRIBUTION, ADDED_FUNDS]) : [CONTRIBUTION];
-          return sequelize.query(
+          return sequelize.query<ContributionAmountRow>(
             `
             SELECT
               (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END) as "label",
@@ -836,7 +847,7 @@ export const GraphQLAccountStats = new GraphQLObjectType({
           const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
           const collectiveIds = await getCollectiveIds(collective, args.includeChildren);
           const kinds = args.kind ? intersection(args.kind, [CONTRIBUTION, ADDED_FUNDS]) : [CONTRIBUTION];
-          const results = await sequelize.query(
+          const results = await sequelize.query<ContributionAmountRow>(
             `
             SELECT
               DATE_TRUNC(:timeUnit, COALESCE(t."clearedAt", t."createdAt")) AS "date",

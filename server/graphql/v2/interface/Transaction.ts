@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import {
   GraphQLBoolean,
   GraphQLFloat,
@@ -21,12 +22,13 @@ import { getDashboardObjectIdURL } from '../../../lib/stripe';
 import { generateDescription } from '../../../lib/transactions';
 import PaymentMethod from '../../../models/PaymentMethod';
 import Transaction from '../../../models/Transaction';
+import type User from '../../../models/User';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as TransactionLib from '../../common/transactions';
 import { GraphQLRefundKind } from '../enum/RefundKind';
 import { GraphQLTransactionKind } from '../enum/TransactionKind';
 import { GraphQLTransactionType } from '../enum/TransactionType';
-import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES, type IdentifierType } from '../identifiers';
 import { GraphQLAccountingCategory } from '../object/AccountingCategory';
 import { GraphQLAmount } from '../object/Amount';
 import { GraphQLExpense } from '../object/Expense';
@@ -43,7 +45,7 @@ const { EXPENSE, PLATFORM_TIP, APPLICATION_FEE, HOST_FEE_SHARE } = TransactionKi
  * @typedef {import("../../../models/PaymentMethod")} PaymentMethod
  * @returns {Promise<PaymentMethod>}
  */
-async function getPaymentMethodForTransaction(transaction, req) {
+async function getPaymentMethodForTransaction(transaction: Transaction, req: Request): Promise<PaymentMethod | null> {
   if (transaction.PaymentMethodId) {
     let result = await req.loaders.PaymentMethod.byId.load(transaction.PaymentMethodId);
     // NOTE: we're curently sometime soft-deleting paymentMethods instead of archiving them
@@ -62,7 +64,7 @@ async function getPaymentMethodForTransaction(transaction, req) {
  * accounts involved in a transaction. Host admins and accountants are allowed, matching the
  * behaviour of `Order.fromAccount`.
  */
-const canSeeTransactionCounterpartyPrivateDetails = (remoteUser, hostCollectiveId) => {
+const canSeeTransactionCounterpartyPrivateDetails = (remoteUser: User, hostCollectiveId: number): boolean => {
   if (!remoteUser || !hostCollectiveId) {
     return false;
   }
@@ -79,7 +81,9 @@ const GraphQLTransactionPermissions = new GraphQLObjectType({
         if (isEntityMigratedToPublicId(EntityShortIdPrefix.Transaction, transaction.createdAt)) {
           return transaction.publicId;
         } else {
-          return idEncode(transaction.id, IDENTIFIER_TYPES.TRANSACTION);
+          // TODO: `IDENTIFIER_TYPES` has no `TRANSACTION` key (removed in #6838), `undefined` is used as the type
+          // (bug reported in PLAN.md)
+          return idEncode(transaction.id, (IDENTIFIER_TYPES as Record<string, IdentifierType>)['TRANSACTION']);
         }
       },
     },

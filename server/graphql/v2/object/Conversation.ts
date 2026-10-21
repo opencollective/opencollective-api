@@ -1,9 +1,10 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import { FindAndCountOptions, InferAttributes, Order } from 'sequelize';
 
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
-import models, { Op } from '../../../models';
+import models, { type Comment, Op } from '../../../models';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { CommentCollection } from '../collection/CommentCollection';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -11,7 +12,7 @@ import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLComment } from './Comment';
 
-const GraphQLConversation = new GraphQLObjectType({
+const GraphQLConversation: GraphQLObjectType = new GraphQLObjectType({
   name: 'Conversation',
   description: 'A conversation thread',
   fields: () => {
@@ -76,8 +77,8 @@ const GraphQLConversation = new GraphQLObjectType({
         },
         async resolve(conversation, { limit, offset }) {
           const where = { ConversationId: conversation.id, id: { [Op.not]: conversation.RootCommentId } };
-          const order = [['createdAt', 'ASC']];
-          const query = { where, order };
+          const order: Order = [['createdAt', 'ASC']];
+          const query: FindAndCountOptions<InferAttributes<Comment>> = { where, order };
 
           if (limit) {
             query.limit = limit;
