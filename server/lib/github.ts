@@ -7,7 +7,42 @@ import cache from './cache';
 import logger from './logger';
 import { reportMessageToSentry } from './sentry';
 
-const compactRepo = repo => {
+type GithubRepository = {
+  name: string;
+  full_name: string;
+  description?: string | null;
+  owner: { login: string; type?: string };
+  stargazers_count?: number;
+  fork?: boolean;
+  license?: { key?: string; name?: string } | null;
+  topics?: string[];
+  permissions?: { admin?: boolean };
+};
+
+export type GithubValidatorInfo = {
+  lastCommitDate: string;
+  starsCount: number;
+  collaboratorsCount: number;
+  isFork: boolean;
+  isOwnedByOrg: boolean;
+  isAdmin: boolean;
+  /** The SPDX id of the repository license: `undefined`/`null` when GitHub has none for it */
+  licenseSpdxId?: string | null;
+};
+
+type GithubGraphQLRepositoryResponse = {
+  repository: {
+    defaultBranchRef: { target: { committedDate: string } } | null;
+    stargazerCount: number;
+    collaborators: { totalCount: number };
+    isFork: boolean;
+    owner: { login: string } | null;
+    viewerCanAdminister: boolean;
+    licenseInfo: { spdxId?: string | null } | null;
+  };
+};
+
+const compactRepo = (repo: GithubRepository): GithubRepository => {
   repo = pick(repo, [
     'name', // (1)
     'full_name', // (1) (4)
@@ -28,8 +63,11 @@ const compactRepo = repo => {
   return repo;
 };
 
-export function getOctokit(accessToken) {
-  const octokitParams = {};
+export function getOctokit(accessToken?: string): Octokit {
+  const octokitParams: {
+    auth?: string | { clientId: string; clientSecret: string };
+    authStrategy?: typeof createOAuthAppAuth;
+  } = {};
 
   if (accessToken) {
     octokitParams.auth = `token ${accessToken}`;
@@ -44,7 +82,7 @@ export function getOctokit(accessToken) {
   return new Octokit(octokitParams);
 }
 
-export function getData(res) {
+export function getData<T>(res: { data: T }): T {
   if (has(res, ['headers', 'x-ratelimit-remaining'])) {
     logger.debug(`RateLimit Remaining: ${get(res, ['headers', 'x-ratelimit-remaining'])}`);
   }
@@ -54,7 +92,7 @@ export function getData(res) {
 /**
  * Get all the public repos for which user is admin
  */
-export async function getAllUserPublicRepos(accessToken) {
+export async function getAllUserPublicRepos(accessToken?: string): Promise<GithubRepository[]> {
   const cacheKey = `user_repos_all_${accessToken}`;
   const fromCache = await cache.get(cacheKey);
   if (fromCache) {
@@ -63,11 +101,15 @@ export async function getAllUserPublicRepos(accessToken) {
 
   const octokit = getOctokit(accessToken);
 
-  // eslint-disable-next-line camelcase
-  const parameters = { page: 1, per_page: 100, visibility: 'public' };
+  const parameters: { page: number; per_page: number; visibility: 'public' } = {
+    page: 1,
+    // eslint-disable-next-line camelcase
+    per_page: 100,
+    visibility: 'public',
+  };
 
-  let repos = [];
-  let fetchRepos;
+  let repos: GithubRepository[] = [];
+  let fetchRepos: GithubRepository[];
   const maxNbPages = 15; // More than that would probably timeout the request
   do {
     // https://octokit.github.io/rest.js/v18#repos-list-for-authenticated-user
@@ -92,7 +134,7 @@ export async function getAllUserPublicRepos(accessToken) {
   return repos;
 }
 
-export async function getAllOrganizationPublicRepos(org, accessToken) {
+export async function getAllOrganizationPublicRepos(org: string, accessToken?: string): Promise<GithubRepository[]> {
   const cacheKey = `org_repos_all_${org}`;
   const fromCache = await cache.get(cacheKey);
   if (fromCache) {
@@ -101,11 +143,16 @@ export async function getAllOrganizationPublicRepos(org, accessToken) {
 
   const octokit = getOctokit(accessToken);
 
-  // eslint-disable-next-line camelcase
-  const parameters = { org, page: 1, per_page: 100, type: 'public' };
+  const parameters: { org: string; page: number; per_page: number; type: 'public' } = {
+    org,
+    page: 1,
+    // eslint-disable-next-line camelcase
+    per_page: 100,
+    type: 'public',
+  };
 
-  let repos = [];
-  let fetchRepos;
+  let repos: GithubRepository[] = [];
+  let fetchRepos: GithubRepository[];
   do {
     // https://octokit.github.io/rest.js/v18#repos-list-for-org
     // https://developer.github.com/v3/repos/#list-organization-repositories
@@ -121,7 +168,7 @@ export async function getAllOrganizationPublicRepos(org, accessToken) {
   return repos;
 }
 
-export async function getRepo(name, accessToken) {
+export async function getRepo(name: string, accessToken?: string): Promise<GithubRepository> {
   const octokit = getOctokit(accessToken);
   // https://octokit.github.io/rest.js/v18#repos-get
   // https://developer.github.com/v3/repos/#get
@@ -129,7 +176,7 @@ export async function getRepo(name, accessToken) {
   return octokit.repos
     .get({ owner, repo })
     .then(getData)
-    .catch(err => {
+    .catch((err: { status?: number }) => {
       if (err.status === 404) {
         throw new Error(`GitHub repository "${name}" not found`);
       } else {
@@ -138,21 +185,23 @@ export async function getRepo(name, accessToken) {
     });
 }
 
-export async function getOrg(name, accessToken) {
+export async function getOrg(name: string, accessToken?: string): Promise<{ login: string }> {
   const octokit = getOctokit(accessToken);
   // https://octokit.github.io/rest.js/v18#orgs-get
   // https://developer.github.com/v3/orgs/#get-an-organization
   return octokit.orgs.get({ org: name }).then(getData);
 }
 
-export async function getUser(name, accessToken) {
+export async function getUser(name: string, accessToken?: string): Promise<{ login: string }> {
   const octokit = getOctokit(accessToken);
   // https://octokit.github.io/rest.js/v18#users-get-by-username
   // https://docs.github.com/en/rest/reference/users#get-a-user
   return octokit.users.getByUsername({ username: name }).then(getData);
 }
 
-export async function getOrgMemberships(accessToken) {
+export async function getOrgMemberships(
+  accessToken?: string,
+): Promise<{ organization: { login: string }; state: string; role: string }[]> {
   const octokit = getOctokit(accessToken);
   // https://octokit.github.io/rest.js/v18#orgs-list-memberships-for-authenticated-user
   // https://developer.github.com/v3/orgs/members/#list-your-organization-memberships
@@ -160,7 +209,7 @@ export async function getOrgMemberships(accessToken) {
   return octokit.orgs.listMembershipsForAuthenticatedUser({ page: 1, per_page: 100 }).then(getData);
 }
 
-export async function checkGithubExists(githubHandle, accessToken) {
+export async function checkGithubExists(githubHandle: string, accessToken?: string): Promise<void> {
   if (githubHandle.includes('/')) {
     // A repository GitHub Handle (most common)
     const repo = await getRepo(githubHandle, accessToken).catch(() => null);
@@ -176,7 +225,7 @@ export async function checkGithubExists(githubHandle, accessToken) {
   }
 }
 
-export async function checkGithubAdmin(githubHandle, accessToken) {
+export async function checkGithubAdmin(githubHandle: string, accessToken?: string): Promise<void> {
   if (githubHandle.includes('/')) {
     // A repository GitHub Handle (most common)
     const repo = await getRepo(githubHandle, accessToken);
@@ -196,7 +245,7 @@ export async function checkGithubAdmin(githubHandle, accessToken) {
   }
 }
 
-export async function checkGithubStars(githubHandle, accessToken) {
+export async function checkGithubStars(githubHandle: string, accessToken?: string): Promise<void> {
   if (githubHandle.includes('/')) {
     // A repository GitHub Handle (most common)
     const repo = await getRepo(githubHandle, accessToken);
@@ -215,10 +264,10 @@ export async function checkGithubStars(githubHandle, accessToken) {
   }
 }
 
-export async function getValidatorInfo(githubHandle, accessToken) {
+export async function getValidatorInfo(githubHandle: string, accessToken?: string): Promise<GithubValidatorInfo> {
   const octokit = getOctokit(accessToken);
   const [owner, repo] = githubHandle.split('/');
-  const { repository } = await octokit.graphql(
+  const { repository } = await octokit.graphql<GithubGraphQLRepositoryResponse>(
     `
       query Repository($owner: String!, $repo: String!) {
         repository(owner: $owner, name: $repo) {
@@ -282,7 +331,7 @@ const githubPathnameRegex = new RegExp(`^/${githubUsernameRegex.source}(/(${gith
  * getGithubHandleFromUrl('https://github.com/opencollective/opencollective-frontend')
  * => 'opencollective/opencollective-frontend'
  */
-export const getGithubHandleFromUrl = url => {
+export const getGithubHandleFromUrl = (url: string): string | null => {
   try {
     const { hostname, pathname } = new URL(url);
     if (hostname !== 'github.com' || pathname.length < 2) {
@@ -309,7 +358,7 @@ export const getGithubHandleFromUrl = url => {
  * @param {string} handle
  * @returns {string|null}
  */
-export const getGithubUrlFromHandle = handle => {
+export const getGithubUrlFromHandle = (handle?: string): string | null => {
   // "  @@@test//   " => "@test"
   const cleanHandle = trimStart(trimEnd(handle?.trim(), '/'), '@');
   if (cleanHandle) {

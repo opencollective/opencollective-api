@@ -280,7 +280,9 @@ handlebars.registerHelper('hasPremiumFeatures', features => {
   }
 
   // Check if any enabled feature is not in the free features list
-  return Object.keys(features).some(featureKey => features[featureKey] === true && !freeFeatures.includes(featureKey));
+  return Object.keys(features).some(
+    featureKey => features[featureKey] === true && !(freeFeatures as readonly string[]).includes(featureKey),
+  );
 });
 
 handlebars.registerHelper('concat', (...args) => {

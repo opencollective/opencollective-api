@@ -15,8 +15,8 @@ const padLines = (str, spaces) =>
 
 const simpleWithPaddedMeta = format.printf(({ level, message, ...props }) => {
   let m = `${level}: ${message}`;
-  const padding = props[Symbol.for('level')].length + 2;
-  const extras = props[Symbol.for('splat')];
+  const padding = (props[Symbol.for('level')] as string).length + 2;
+  const extras = props[Symbol.for('splat')] as unknown[] | undefined;
   if (extras && extras.length === 1 && typeof extras[0] === 'string') {
     m += ` ${extras[0]}`;
   } else if (Object.keys(props).length > 0) {

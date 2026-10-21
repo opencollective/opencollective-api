@@ -9,7 +9,7 @@ export const MODERATION_CATEGORIES = {
   WRITER: 'Essay writing services',
 };
 
-export const MODERATION_CATEGORIES_ALIASES = {
+export const MODERATION_CATEGORIES_ALIASES: Record<keyof typeof MODERATION_CATEGORIES, string[]> = {
   ADULT: ['adult'],
   AFFILIATE_REVIEW: ['affiliate', 'review'],
   CASINO_GAMBLING: ['casino', 'gambling'],

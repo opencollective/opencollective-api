@@ -7,7 +7,14 @@ const recaptchaVerifyUrl = 'https://www.google.com/recaptcha/api/siteverify';
 const recaptchaSecretKey = config.recaptcha.secretKey;
 const recaptchaDebug = debug('recaptcha');
 
-async function recaptchaVerify(recaptchaToken, remoteIp) {
+type RecaptchaVerifyResponse = {
+  success: boolean;
+  challenge_ts?: string;
+  hostname?: string;
+  'error-codes'?: string[];
+};
+
+async function recaptchaVerify(recaptchaToken: string, remoteIp: string): Promise<RecaptchaVerifyResponse | undefined> {
   const method = 'POST';
 
   const body = new URLSearchParams();
@@ -17,7 +24,7 @@ async function recaptchaVerify(recaptchaToken, remoteIp) {
 
   try {
     const response = await fetch(recaptchaVerifyUrl, { method, body });
-    const result = await response.json();
+    const result = (await response.json()) as RecaptchaVerifyResponse;
     recaptchaDebug(result);
     return result;
   } catch (err) {

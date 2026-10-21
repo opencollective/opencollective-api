@@ -1,7 +1,20 @@
 import config from 'config';
 import moment from 'moment';
 
-export const getTransactionsCsvUrl = (type, collective, options = {}) => {
+type TransactionsCsvUrlOptions = {
+  startDate?: string | Date;
+  endDate?: string | Date;
+  kind?: string[];
+  add?: string[];
+  remove?: string[];
+  fields?: string[];
+};
+
+export const getTransactionsCsvUrl = (
+  type: string,
+  collective: { slug: string },
+  options: TransactionsCsvUrlOptions = {},
+): string => {
   const url = new URL(`${config.host.rest}/v2/${collective.slug}/${type}.csv`);
 
   const { startDate, endDate, kind, add, remove, fields } = options;
