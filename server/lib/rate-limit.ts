@@ -14,7 +14,8 @@ const DISABLE_RATE_LIMITING = parseToBoolean(process.env.DISABLE_RATE_LIMITING);
  * A small wrapper around the cache specialized to handle rate limitings.
  */
 export default class RateLimit {
-  private cacheKey: string;
+  /** The cache key this limit is bucketed by. Also identifies the bucket in security logs. */
+  public readonly cacheKey: string;
   private limit: number;
   private expiryTimeInSeconds: number;
   private ignoreTests: boolean;
