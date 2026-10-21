@@ -1,6 +1,6 @@
 import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { cloneDeep, get, invert, isEmpty, isNil, isUndefined } from 'lodash';
+import { cloneDeep, invert, isEmpty, isNil, isUndefined } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import { MemberRolesForPrivateAccounts } from '../../../constants/roles';
@@ -136,10 +136,11 @@ export const IsMemberOfFields = {
           [Op.in]: [...new Set<string>(args.accountType.map(value => AccountTypeToModelMapping[value]))],
         };
       }
+      let scopedAccount: Collective | null = null;
       if (args.account) {
-        const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
-        await assertCanSeeAccount(req, account);
-        where.CollectiveId = account.id;
+        scopedAccount = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+        await assertCanSeeAccount(req, scopedAccount);
+        where.CollectiveId = scopedAccount.id;
       }
       if (!args.includeIncognito || !req.remoteUser?.isAdmin(collective.id) || !checkScope(req, 'incognito')) {
         collectiveConditions.isIncognito = false;
@@ -161,8 +162,9 @@ export const IsMemberOfFields = {
       if (!isUndefined(args.tier)) {
         if (args.tier) {
           const tier = await fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: true });
-          // TODO: `Tier` has no `collectiveId` property, this condition is always true (bug reported in PLAN.md)
-          if (get(tier, 'collectiveId') !== collective.id) {
+          // The tier belongs to the account the membership is on, not to the account whose memberships are listed:
+          // we can only assert it when the query is scoped to a single account.
+          if (scopedAccount && tier.CollectiveId !== scopedAccount.id) {
             throw new ValidationFailed('Tier is not associated with this collective');
           }
           where.TierId = tier.id;
