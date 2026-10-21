@@ -847,6 +847,92 @@ const getTaxFormsRequiredForAccounts = async ({
     throw new Error('year is required when allTime is false');
   }
 
+  // When the query is host-scoped, select the expenses through two indexable arms instead of
+  // joining `host` with a cross-relation OR (which prevented Postgres from using the Expenses
+  // host index). An expense matches a host either because that host paid it, or because the
+  // collective is hosted by it now (the collective may have changed host since the payment).
+  // Both arms repeat the `deletedAt`/`status` filters already present below so that the
+  // partial `expenses__host_paid_at` and `expenses__collective_id` indexes stay usable, and
+  // the second arm excludes rows already selected by the first one, so an expense is counted
+  // once per matching host. `matchedHostCollectiveId` carries the matching host so it can be
+  // joined back directly instead of with an OR.
+  //
+  // When a payee (`CollectiveId`) is also provided, callers are checking a single account or
+  // expense rather than browsing the host: keep the previous account-driven join so Postgres
+  // starts from the payee's expenses instead of reading the whole host slice for a one-account
+  // answer. The OR join is harmless there because it only runs on the payee's (small) slice.
+  const expensesFrom =
+    HostCollectiveId && !CollectiveId
+      ? `
+    INNER JOIN (
+      -- Arm 1: the expense was paid by one of the hosts
+      SELECT
+        e."FromCollectiveId",
+        e."PayoutMethodId",
+        e."legacyPayoutMethod",
+        e."paidAt",
+        e."amount",
+        e."currency",
+        e."type",
+        e."status",
+        e."deletedAt",
+        e."HostCollectiveId" AS "matchedHostCollectiveId"
+      FROM "Expenses" e
+      WHERE e."HostCollectiveId" IN (:HostCollectiveId)
+      AND e."deletedAt" IS NULL
+      AND e."status" NOT IN (:ignoredExpenseStatuses)
+      UNION ALL
+      -- Arm 2: the expense's collective is hosted by one of the hosts, but the expense was paid
+      -- by another host. The lateral join keeps this driven by the host's collectives so that
+      -- Expenses is reached through its CollectiveId index: without the lateral dependency,
+      -- Postgres flattens the join and scans the whole Expenses table (verified with EXPLAIN).
+      SELECT
+        e."FromCollectiveId",
+        e."PayoutMethodId",
+        e."legacyPayoutMethod",
+        e."paidAt",
+        e."amount",
+        e."currency",
+        e."type",
+        e."status",
+        e."deletedAt",
+        c."HostCollectiveId" AS "matchedHostCollectiveId"
+      FROM "Collectives" c
+      INNER JOIN LATERAL (
+        SELECT
+          e."FromCollectiveId",
+          e."PayoutMethodId",
+          e."legacyPayoutMethod",
+          e."paidAt",
+          e."amount",
+          e."currency",
+          e."type",
+          e."status",
+          e."deletedAt",
+          e."HostCollectiveId"
+        FROM "Expenses" e
+        WHERE e."CollectiveId" = c.id
+        AND e."deletedAt" IS NULL
+        AND e."status" NOT IN (:ignoredExpenseStatuses)
+        OFFSET 0 -- Prevents Postgres from flattening this lateral join into a sequential scan of "Expenses"
+      ) e ON true
+      WHERE c."HostCollectiveId" IN (:HostCollectiveId)
+      AND c."HostCollectiveId" IS DISTINCT FROM e."HostCollectiveId"
+    ) all_expenses
+      ON all_expenses."FromCollectiveId" = account.id
+    INNER JOIN "Collectives" host
+      ON host.id = all_expenses."matchedHostCollectiveId"
+    `
+      : `
+    INNER JOIN "Expenses" all_expenses
+      ON all_expenses."FromCollectiveId" = account.id
+    INNER JOIN "Collectives" c
+      ON all_expenses."CollectiveId" = c.id
+    INNER JOIN "Collectives" host
+      ON host.id = all_expenses."HostCollectiveId" -- Prefer joining on Expense's host, as the collective may have changed host since
+      OR host.id = c."HostCollectiveId"
+    `;
+
   const results = await sequelize.query(
     `
     SELECT
@@ -872,13 +958,7 @@ const getTaxFormsRequiredForAccounts = async ({
         END
       )) AS "total"
     FROM "Collectives" account
-    INNER JOIN "Expenses" all_expenses
-      ON all_expenses."FromCollectiveId" = account.id
-    INNER JOIN "Collectives" c
-      ON all_expenses."CollectiveId" = c.id
-    INNER JOIN "Collectives" host
-      ON host.id = all_expenses."HostCollectiveId" -- Prefer joining on Expense's host, as the collective may have changed host since
-      OR host.id = c."HostCollectiveId"
+    ${expensesFrom}
     INNER JOIN "RequiredLegalDocuments" d
       ON d."HostCollectiveId" = host."id"
       AND d."documentType" = 'US_TAX_FORM'
