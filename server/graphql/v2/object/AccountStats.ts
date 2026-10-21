@@ -18,7 +18,7 @@ import { GraphQLContributionFrequency } from '../enum/ContributionFrequency';
 import { GraphQLCurrency } from '../enum/Currency';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLTransactionKind } from '../enum/TransactionKind';
-import { idEncode } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAmount } from '../object/Amount';
 import { GraphQLAmountStats } from '../object/AmountStats';
 import { getNumberOfDays, getTimeUnit, GraphQLTimeSeriesAmount, TimeSeriesArgs } from '../object/TimeSeriesAmount';
@@ -86,8 +86,7 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
           if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
             return collective.publicId;
           } else {
-            // TODO: missing identifier type, `undefined` is passed at runtime (bug reported in PLAN.md)
-            return idEncode(collective.id, undefined);
+            return idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
           }
         },
       },
@@ -541,9 +540,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
       },
       yearlyBudget: {
         type: new GraphQLNonNull(GraphQLAmount),
-        async resolve(collective) {
-          // `getYearlyBudgetAmount` accepts no options: the `loaders` were ignored before this conversion
-          return collective.getYearlyBudgetAmount();
+        async resolve(collective, args, req) {
+          return collective.getYearlyBudgetAmount({ loaders: req.loaders });
         },
       },
       yearlyBudgetManaged: {
