@@ -17,7 +17,6 @@ import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import PlatformConstants from '../../../constants/platform';
 import roles from '../../../constants/roles';
 import { TransactionKind } from '../../../constants/transaction-kind';
-import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { getDashboardObjectIdURL } from '../../../lib/stripe';
 import { generateDescription } from '../../../lib/transactions';
 import PaymentMethod from '../../../models/PaymentMethod';
@@ -28,7 +27,6 @@ import * as TransactionLib from '../../common/transactions';
 import { GraphQLRefundKind } from '../enum/RefundKind';
 import { GraphQLTransactionKind } from '../enum/TransactionKind';
 import { GraphQLTransactionType } from '../enum/TransactionType';
-import { idEncode, IDENTIFIER_TYPES, type IdentifierType } from '../identifiers';
 import { GraphQLAccountingCategory } from '../object/AccountingCategory';
 import { GraphQLAmount } from '../object/Amount';
 import { GraphQLExpense } from '../object/Expense';
@@ -77,14 +75,9 @@ const GraphQLTransactionPermissions = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
+      // Same identifier as `Transaction.id`, so that it can be passed back to `TransactionReferenceInput`
       resolve(transaction) {
-        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Transaction, transaction.createdAt)) {
-          return transaction.publicId;
-        } else {
-          // TODO: `IDENTIFIER_TYPES` has no `TRANSACTION` key (removed in #6838), `undefined` is used as the type
-          // (bug reported in PLAN.md)
-          return idEncode(transaction.id, (IDENTIFIER_TYPES as Record<string, IdentifierType>)['TRANSACTION']);
-        }
+        return transaction.uuid;
       },
     },
     canRefund: {
