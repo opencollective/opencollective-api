@@ -3,7 +3,6 @@ import { GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { roles } from '../../../constants';
-import type MemberRoles from '../../../constants/roles';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
 import { AccountWithHostFields, GraphQLAccountWithHost } from '../interface/AccountWithHost';
@@ -43,11 +42,7 @@ export const GraphQLEvent = new GraphQLObjectType({
         type: GraphQLString,
         description: 'Private instructions for the host to be sent to participating users.',
         async resolve(event, _, req: Request) {
-          // TODO: `MemberRoles` has no `PARTICIPANT` role, this check is always false (bug reported in PLAN.md)
-          if (
-            req.remoteUser?.isAdminOfCollective(event) ||
-            req.remoteUser?.hasRole((roles as Record<string, MemberRoles>)['PARTICIPANT'], event)
-          ) {
+          if (req.remoteUser?.isAdminOfCollective(event) || req.remoteUser?.hasRole(roles.ATTENDEE, event.id)) {
             return event.data?.privateInstructions;
           }
         },
