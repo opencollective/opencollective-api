@@ -8,7 +8,7 @@ import { activities } from '../constants';
 import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import { BadRequest } from '../graphql/errors';
 import * as auth from '../lib/auth';
-import { sessionCache } from '../lib/cache';
+import cache, { sessionCache } from '../lib/cache';
 import { checkCaptcha, isCaptchaSetup } from '../lib/check-captcha';
 import emailLib from '../lib/email';
 import { generateKey } from '../lib/encryption';
@@ -241,17 +241,49 @@ function maskEmailForLogs(email: string): string {
  * masked too, so logs never carry a full email address.
  */
 function logOtpForDebug(email: string, otp: string): void {
-  const isRealDeployment = ['staging', 'production'].includes(config.env);
-  // `E2E_TEST` stays as an escape hatch, but only outside real deployments: the e2e suite runs
-  // with `NODE_ENV=production` (`npm run start:e2e`) and reads the OTP off the logs.
-  const isLocalOrE2E = config.env === 'development' || Boolean(process.env.E2E_TEST);
-  if (isRealDeployment || !isLocalOrE2E) {
+  // Allowlist only, so an unknown or future environment cannot leak OTPs: local development, and
+  // the e2e stack - which runs the API as `OC_ENV=e2e` (`npm run start:e2e`) or as `OC_ENV=ci`
+  // (`scripts/run_e2e_tests.sh` inherits it from the workflow). Both read the OTP off these logs,
+  // so both stay allowed; `test`, `staging`, `production` and anything unknown fail closed.
+  const isDevelopment = config.env === 'development';
+  const isE2E = Boolean(process.env.E2E_TEST) && ['e2e', 'ci'].includes(config.env);
+  if (!isDevelopment && !isE2E) {
     return;
   }
   logger.info(`OTP Code for ${maskEmailForLogs(email)}: ${otp}`);
 }
 
 type OtpSecurityEventName = 'otp_session_killed' | 'otp_confirmed_user_rejected' | 'otp_rate_limited';
+
+/**
+ * Sentry quota is finite and `otp_rate_limited` can be triggered by any anonymous caller, so those
+ * reports are deduplicated: one per rate-limit bucket per window, and at most
+ * `MAX_RATE_LIMIT_REPORTS` per window overall. The markers live in the default cache with the same
+ * TTL as the window, so they expire on their own - the keys are attacker-controlled and must never
+ * accumulate.
+ *
+ * Logs are deliberately *not* throttled: they are cheap and carry the detail (masked email, IP,
+ * route) that triage needs.
+ */
+const MAX_RATE_LIMIT_REPORTS = 20;
+const RATE_LIMIT_REPORTS_KEY = 'otp_rate_limit_sentry_reports';
+
+async function shouldReportRateLimitToSentry(rateLimitKey: string): Promise<boolean> {
+  const bucketKey = `otp_rate_limit_sentry_reported_${rateLimitKey}`;
+  if (await cache.has(bucketKey)) {
+    return false;
+  }
+
+  // The counter is a best-effort ceiling: a lost race only lets a few extra events through.
+  const reported = ((await cache.get(RATE_LIMIT_REPORTS_KEY)) as number) ?? 0;
+  if (reported >= MAX_RATE_LIMIT_REPORTS) {
+    return false;
+  }
+
+  await cache.set(bucketKey, true, auth.OTP_RATE_LIMIT_WINDOW);
+  await cache.set(RATE_LIMIT_REPORTS_KEY, reported + 1, auth.OTP_RATE_LIMIT_WINDOW);
+  return true;
+}
 
 /**
  * Emit a security-relevant OTP event.
@@ -265,10 +297,10 @@ type OtpSecurityEventName = 'otp_session_killed' | 'otp_confirmed_user_rejected'
  * resend are all routine and are not logged, so the events stay a useful signal. The OTP and the
  * session id are never included - the Email CS forbids logging verification tokens.
  *
- * Note: emissions are deliberately *not* rate limited (simpler), which means an attacker can
- * generate unbounded log volume. Accepted trade-off.
+ * Note: log emissions are deliberately *not* rate limited, which means an attacker can generate
+ * unbounded log volume. Accepted trade-off - Sentry, which is billed and finite, is deduplicated.
  */
-function logOtpSecurityEvent(event: {
+async function logOtpSecurityEvent(event: {
   event: OtpSecurityEventName;
   /** Always masked before logging - never a raw address */
   email?: string;
@@ -276,7 +308,9 @@ function logOtpSecurityEvent(event: {
   clientIP?: string;
   route?: 'signup' | 'resend-otp' | 'verify-email';
   tries?: number;
-}): void {
+  /** Rate-limit bucket key. Throttles Sentry reporting only - it is never logged. */
+  rateLimitKey?: string;
+}): Promise<void> {
   const payload: Record<string, unknown> = { event: event.event, clientIP: event.clientIP };
   if (event.email) {
     payload.email = maskEmailForLogs(event.email);
@@ -292,7 +326,7 @@ function logOtpSecurityEvent(event: {
   }
 
   logger.warn(event.event, payload);
-  if (event.event === 'otp_rate_limited') {
+  if (event.event === 'otp_rate_limited' && (await shouldReportRateLimitToSentry(event.rateLimitKey ?? 'unknown'))) {
     reportMessageToSentry('OTP rate limit exceeded', {
       severity: 'warning',
       extra: payload,
@@ -302,11 +336,12 @@ function logOtpSecurityEvent(event: {
 }
 
 /** Reject with `RATE_LIMIT_EXCEEDED`, emitting the security event in the same place. */
-function rejectRateLimited(
+async function rejectRateLimited(
   res: express.Response,
+  rateLimitKey: string,
   ctx: { email?: string; clientIP: string; route: 'signup' | 'resend-otp' | 'verify-email' },
-): void {
-  logOtpSecurityEvent({ event: 'otp_rate_limited', ...ctx });
+): Promise<void> {
+  await logOtpSecurityEvent({ event: 'otp_rate_limited', rateLimitKey, ...ctx });
   res.status(403).send({
     error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
   });
@@ -339,7 +374,7 @@ export async function signup(req: express.Request, res: express.Response) {
     auth.OTP_RATE_LIMIT_WINDOW,
   );
   if (!(await ipRateLimit.registerCall())) {
-    rejectRateLimited(res, { email: req.body.email, clientIP: req.ip, route: 'signup' });
+    await rejectRateLimited(res, ipRateLimit.cacheKey, { email: req.body.email, clientIP: req.ip, route: 'signup' });
     return;
   }
 
@@ -359,7 +394,7 @@ export async function signup(req: express.Request, res: express.Response) {
     auth.OTP_RATE_LIMIT_WINDOW,
   );
   if (!(await emailRateLimit.registerCall())) {
-    rejectRateLimited(res, { email: sanitizedEmail, clientIP: req.ip, route: 'signup' });
+    await rejectRateLimited(res, emailRateLimit.cacheKey, { email: sanitizedEmail, clientIP: req.ip, route: 'signup' });
     return;
   }
 
@@ -453,7 +488,11 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
     auth.OTP_RATE_LIMIT_WINDOW,
   );
   if (!(await ipRateLimit.registerCall())) {
-    rejectRateLimited(res, { email: req.body.email, clientIP: req.ip, route: 'resend-otp' });
+    await rejectRateLimited(res, ipRateLimit.cacheKey, {
+      email: req.body.email,
+      clientIP: req.ip,
+      route: 'resend-otp',
+    });
     return;
   }
 
@@ -473,7 +512,11 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
     auth.OTP_RATE_LIMIT_WINDOW,
   );
   if (!(await emailRateLimit.registerCall())) {
-    rejectRateLimited(res, { email: sanitizedEmail, clientIP: req.ip, route: 'resend-otp' });
+    await rejectRateLimited(res, emailRateLimit.cacheKey, {
+      email: sanitizedEmail,
+      clientIP: req.ip,
+      route: 'resend-otp',
+    });
     return;
   }
 
@@ -505,7 +548,7 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
   // confirmation - drop the stale session instead of leaving it cached.
   if (!user || user.data?.requiresVerification !== true || user.confirmedAt) {
     if (user?.confirmedAt) {
-      logOtpSecurityEvent({
+      await logOtpSecurityEvent({
         event: 'otp_confirmed_user_rejected',
         email: sanitizedEmail,
         userId: user.id,
@@ -567,7 +610,11 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
     auth.OTP_RATE_LIMIT_WINDOW,
   );
   if (!(await ipRateLimit.registerCall())) {
-    rejectRateLimited(res, { email: sanitizedEmail, clientIP: req.ip, route: 'verify-email' });
+    await rejectRateLimited(res, ipRateLimit.cacheKey, {
+      email: sanitizedEmail,
+      clientIP: req.ip,
+      route: 'verify-email',
+    });
     return;
   }
 
@@ -577,100 +624,110 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
     auth.OTP_RATE_LIMIT_WINDOW,
   );
   if (!(await emailRateLimit.registerCall())) {
-    rejectRateLimited(res, { email: sanitizedEmail, clientIP: req.ip, route: 'verify-email' });
+    await rejectRateLimited(res, emailRateLimit.cacheKey, {
+      email: sanitizedEmail,
+      clientIP: req.ip,
+      route: 'verify-email',
+    });
     return;
   }
 
   // The client distinguishes "wrong code, retry" (`INVALID_OTP`) from "this challenge is over,
   // start again" (`NOT_FOUND`) and routes on the difference, so the two must not collapse.
-  // Defaults to "retryable": a transient failure (e.g. lock contention) must not eject the caller.
+  // Defaults to "retryable" and is only flipped where the challenge really ends: an unexpected
+  // error must not answer `NOT_FOUND`, because the session is still cached and the client's
+  // "start again" would then hit `OTP_REQUEST_EXISTS`, locking the caller out until it expires.
   let challengeIsOver = false;
 
   try {
     await lockUntilOrThrow(
       `otp:verifyEmail:${sanitizedEmail}`,
       async () => {
-        // Inside the lock we can tell "challenge over" from "wrong code", so assume the former and
-        // clear it again for a retryable wrong guess.
-        challengeIsOver = true;
         const otpSessionKey = `otp_signup_${sanitizedEmail}`;
         const otpSession: SignupRequestSession = await sessionCache.get(otpSessionKey);
-        if (otpSession && otpSession.sessionId === sessionId) {
-          // Absolute lifetime: `resend-otp` refreshes the short cache TTL but never this bound.
-          // Fail closed on a session without `createdAt` - it predates the field and is expired.
-          const sessionAgeMs = otpSession.createdAt ? Date.now() - otpSession.createdAt : Number.POSITIVE_INFINITY;
-          if (sessionAgeMs > auth.OTP_SESSION_MAX_AGE * 1000) {
-            await sessionCache.delete(otpSessionKey);
-            return;
-          }
-          const user = await models.User.findByPk(otpSession.userId, {
-            include: [{ model: models.Collective, as: 'collective' }],
-          });
-          if (user) {
-            const validOtp = await bcrypt.compare(otp, otpSession.secret);
-            // An already-confirmed account has nothing left to verify: drop the stale session and
-            // stop. This deliberately runs *after* the comparison - bailing out earlier would answer
-            // measurably faster for confirmed accounts and leak account state through latency.
-            if (user.confirmedAt) {
-              logOtpSecurityEvent({
-                event: 'otp_confirmed_user_rejected',
-                email: sanitizedEmail,
-                userId: user.id,
-                clientIP: req.ip,
-                route: 'verify-email',
-              });
-              await sessionCache.delete(otpSessionKey);
-              return;
-            }
-            if (validOtp) {
-              await sequelize.transaction(async transaction => {
-                await user.update(
-                  { confirmedAt: new Date(), data: omit(user.data, ['requiresVerification']) },
-                  { transaction },
-                );
-                if (user.collective) {
-                  let newData = omit(user.collective.data, ['isSuspended']);
-                  if (user.collective.data?.isGuest) {
-                    newData = { ...newData, isGuest: false, wasGuest: true, requiresProfileCompletion: true };
-                  }
-                  await user.collective.update({ data: newData }, { transaction });
-                }
-              });
-              await sessionCache.delete(otpSessionKey);
-              const token = await user.generateSessionToken({ createActivity: true, updateLastLoginAt: true, req });
-              auth.setAuthCookie(res, token);
-              res.send({ token, success: true });
-              return;
-            } else {
-              const tries = otpSession.tries + 1;
-              if (tries >= 3) {
-                // Three wrong codes say something about the caller's guesses, not about the victim's
-                // account. The only thing they authorize is invalidating the OTP session - never a
-                // persistent change to a User/Collective the caller may not own.
-                logOtpSecurityEvent({
-                  event: 'otp_session_killed',
-                  email: sanitizedEmail,
-                  userId: user.id,
-                  clientIP: req.ip,
-                  route: 'verify-email',
-                  tries,
-                });
-                await sessionCache.delete(otpSessionKey);
-              } else {
-                // The challenge survives this guess, so the caller may retry the same code.
-                challengeIsOver = false;
-                // Counting a try must not hand the session a fresh TTL - that is a second keep-alive
-                // vector alongside `resend-otp`. Cap the rewrite at whichever is sooner: the normal
-                // idle TTL, or the time left on the absolute lifetime.
-                const remainingSeconds = Math.ceil((auth.OTP_SESSION_MAX_AGE * 1000 - sessionAgeMs) / 1000);
-                const ttlSeconds = Math.max(1, Math.min(auth.OTP_TOKEN_EXPIRATION, remainingSeconds));
-                await sessionCache.set(otpSessionKey, { ...otpSession, tries }, ttlSeconds);
-              }
-            }
-          } else {
-            await sessionCache.delete(otpSessionKey);
-          }
+        if (!otpSession || otpSession.sessionId !== sessionId) {
+          // Nothing to retry: the challenge is gone, or it was never ours to begin with.
+          challengeIsOver = true;
+          return;
         }
+        // Absolute lifetime: `resend-otp` refreshes the short cache TTL but never this bound.
+        // Fail closed on a session without `createdAt` - it predates the field and is expired.
+        const sessionAgeMs = otpSession.createdAt ? Date.now() - otpSession.createdAt : Number.POSITIVE_INFINITY;
+        if (sessionAgeMs > auth.OTP_SESSION_MAX_AGE * 1000) {
+          challengeIsOver = true;
+          await sessionCache.delete(otpSessionKey);
+          return;
+        }
+        const user = await models.User.findByPk(otpSession.userId, {
+          include: [{ model: models.Collective, as: 'collective' }],
+        });
+        if (!user) {
+          challengeIsOver = true;
+          await sessionCache.delete(otpSessionKey);
+          return;
+        }
+        const validOtp = await bcrypt.compare(otp, otpSession.secret);
+        // An already-confirmed account has nothing left to verify: drop the stale session and
+        // stop. This deliberately runs *after* the comparison - bailing out earlier would answer
+        // measurably faster for confirmed accounts and leak account state through latency.
+        if (user.confirmedAt) {
+          challengeIsOver = true;
+          await logOtpSecurityEvent({
+            event: 'otp_confirmed_user_rejected',
+            email: sanitizedEmail,
+            userId: user.id,
+            clientIP: req.ip,
+            route: 'verify-email',
+          });
+          await sessionCache.delete(otpSessionKey);
+          return;
+        }
+        if (validOtp) {
+          await sequelize.transaction(async transaction => {
+            await user.update(
+              { confirmedAt: new Date(), data: omit(user.data, ['requiresVerification']) },
+              { transaction },
+            );
+            if (user.collective) {
+              let newData = omit(user.collective.data, ['isSuspended']);
+              if (user.collective.data?.isGuest) {
+                newData = { ...newData, isGuest: false, wasGuest: true, requiresProfileCompletion: true };
+              }
+              await user.collective.update({ data: newData }, { transaction });
+            }
+          });
+          await sessionCache.delete(otpSessionKey);
+          const token = await user.generateSessionToken({ createActivity: true, updateLastLoginAt: true, req });
+          auth.setAuthCookie(res, token);
+          res.send({ token, success: true });
+          return;
+        }
+
+        const tries = otpSession.tries + 1;
+        if (tries >= 3) {
+          // Three wrong codes say something about the caller's guesses, not about the victim's
+          // account. The only thing they authorize is invalidating the OTP session - never a
+          // persistent change to a User/Collective the caller may not own.
+          challengeIsOver = true;
+          await logOtpSecurityEvent({
+            event: 'otp_session_killed',
+            email: sanitizedEmail,
+            userId: user.id,
+            clientIP: req.ip,
+            route: 'verify-email',
+            tries,
+          });
+          await sessionCache.delete(otpSessionKey);
+          return;
+        }
+
+        // The challenge survives this guess, so the caller may retry the same code.
+        // Counting a try must not hand the session a fresh TTL - that is a second keep-alive
+        // vector alongside `resend-otp`. Cap the rewrite at whichever is sooner: the normal
+        // idle TTL, or the time left on the absolute lifetime.
+        const remainingSeconds = Math.ceil((auth.OTP_SESSION_MAX_AGE * 1000 - sessionAgeMs) / 1000);
+        const ttlSeconds = Math.max(1, Math.min(auth.OTP_TOKEN_EXPIRATION, remainingSeconds));
+        await sessionCache.set(otpSessionKey, { ...otpSession, tries }, ttlSeconds);
       },
       {
         unlockTimeoutMs: 30 * 1000,

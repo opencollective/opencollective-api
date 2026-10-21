@@ -9,7 +9,7 @@ import ActivityTypes from '../../../server/constants/activities';
 import { resendEmailVerificationOTP, signin, signup, verifyEmail } from '../../../server/controllers/users';
 import { generateLoaders } from '../../../server/graphql/loaders';
 import { OTP_RATE_LIMIT_MAX_ATTEMPTS, OTP_SESSION_MAX_AGE } from '../../../server/lib/auth';
-import { sessionCache } from '../../../server/lib/cache';
+import cache, { sessionCache } from '../../../server/lib/cache';
 import emailLib from '../../../server/lib/email';
 import logger from '../../../server/lib/logger';
 import * as sentryLib from '../../../server/lib/sentry';
@@ -24,11 +24,13 @@ describe('server/controllers/users', () => {
   });
   beforeEach(() => {
     sessionCache.clear();
+    cache.clear();
   });
 
   afterEach(() => {
     sandbox.restore();
     sessionCache.clear();
+    cache.clear();
   });
 
   const makeSignupRequest = async (email: string, ip: string) => {
@@ -685,6 +687,26 @@ describe('server/controllers/users', () => {
       expect(after.tries).to.equal(1);
     });
 
+    it('should stay retryable when the verifier throws, without locking the caller out', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+      const ip = randIPV4();
+      const otpResponse = await makeSignupRequest(email, randIPV4());
+      const sessionId = otpResponse._getData().sessionId;
+      const otpSessionKey = `otp_signup_${email}`;
+
+      // A transient failure (DB, Redis, bcrypt) must not be reported as "challenge over": the
+      // session is still cached, so the client's "start again" would hit OTP_REQUEST_EXISTS and
+      // lock the caller out until the session expires.
+      sandbox.stub(bcrypt, 'compare').rejects(new Error('transient failure'));
+
+      const verifyResponse = await makeVerifyOtpRequest(email, '023456', sessionId, ip);
+      expect(verifyResponse._getData()).to.eql({
+        error: { message: 'Invalid or expired OTP code', type: 'INVALID_OTP' },
+      });
+      expect(await sessionCache.get(otpSessionKey), 'the session must survive a transient failure').to.exist;
+    });
+
     it('should update guest flags when a guest user verifies their email', async () => {
       sandbox.stub(emailLib, 'send').resolves();
 
@@ -893,6 +915,24 @@ describe('server/controllers/users', () => {
       expect(call.args[1].route).to.equal('verify-email');
       expect(call.args[1].email).to.not.equal(email);
       expect(sentryLib.reportMessageToSentry).to.have.been.called;
+    });
+
+    it('reports rate-limit hits to Sentry once per bucket per window', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+      const ip = randIPV4();
+      const otpResponse = await makeSignupRequest(email, randIPV4());
+      const sessionId = otpResponse._getData().sessionId;
+
+      // Sentry quota is finite and any caller can trigger this: keep hammering an exhausted bucket
+      // and every rejection is logged, but Sentry must only see the first one for that bucket.
+      for (let i = 0; i < OTP_RATE_LIMIT_MAX_ATTEMPTS + 3; i++) {
+        await makeVerifyOtpRequest(email, '023456', sessionId, ip);
+      }
+
+      const rejections = (logger.warn as sinon.SinonStub).getCalls().filter(c => c.args[0] === 'otp_rate_limited');
+      expect(rejections.length, 'every rejection must still be logged').to.be.greaterThan(1);
+      expect(sentryLib.reportMessageToSentry, 'Sentry must only see the first rejection').to.have.been.calledOnce;
     });
 
     it('stays silent for a wrong code that leaves the session alive', async () => {
