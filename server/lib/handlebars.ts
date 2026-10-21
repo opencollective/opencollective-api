@@ -1,0 +1,338 @@
+import config from 'config';
+import handlebars from 'handlebars';
+import { add, divide, isEqual, isNil, lowerCase, multiply, startCase, subtract, sum } from 'lodash';
+import moment from 'moment-timezone';
+
+import { FeatureDetails } from '../constants/feature';
+import { freeFeatures } from '../constants/plans';
+
+import { getDefaultCurrencyPrecision } from './currency';
+import { getAccountUrl, getAccountUrlWithParent, getCollectiveExpensesUrl, getFullDashboardUrl } from './email-urls';
+import { capitalize, formatCurrency, formatCurrencyObject, pluralize, resizeImage } from './utils';
+
+// from https://stackoverflow.com/questions/8853396/logical-operator-in-a-handlebars-js-if-conditional
+handlebars.registerHelper('ifCond', function (v1, operator, v2, options) {
+  switch (operator) {
+    case '==':
+      // eslint-disable-next-line eqeqeq
+      return v1 == v2 ? options.fn(this) : options.inverse(this);
+    case '===':
+      return v1 === v2 ? options.fn(this) : options.inverse(this);
+    case '!=':
+      // eslint-disable-next-line eqeqeq
+      return v1 != v2 ? options.fn(this) : options.inverse(this);
+    case '!==':
+      return v1 !== v2 ? options.fn(this) : options.inverse(this);
+    case '<':
+      return v1 < v2 ? options.fn(this) : options.inverse(this);
+    case '<=':
+      return v1 <= v2 ? options.fn(this) : options.inverse(this);
+    case '>':
+      return v1 > v2 ? options.fn(this) : options.inverse(this);
+    case '>=':
+      return v1 >= v2 ? options.fn(this) : options.inverse(this);
+    case '&&':
+      return v1 && v2 ? options.fn(this) : options.inverse(this);
+    case '||':
+      return v1 || v2 ? options.fn(this) : options.inverse(this);
+    default:
+      return options.inverse(this);
+  }
+});
+
+handlebars.registerHelper('isEqual', (v1, v2) => isEqual(v1, v2));
+
+handlebars.registerHelper('sign', value => {
+  if (value >= 0) {
+    return '+';
+  } else {
+    return '';
+  }
+});
+
+handlebars.registerHelper('toLowerCase', str => {
+  if (!str) {
+    return '';
+  }
+  return str.toLowerCase();
+});
+
+handlebars.registerHelper('toUpperCase', str => {
+  if (!str) {
+    return '';
+  }
+  return str.toUpperCase();
+});
+
+handlebars.registerHelper('startCase', str => {
+  if (!str) {
+    return '';
+  }
+  return startCase(str.toLowerCase());
+});
+
+handlebars.registerHelper('increment', str => {
+  if (isNaN(str)) {
+    return '';
+  }
+  return `${Number(str) + 1}`;
+});
+
+const col = (str, size, trim = true) => {
+  if (str.length >= size) {
+    if (str.match(/[0-9]\.00$/)) {
+      return col(str.replace(/\.00$/, ''), size, trim);
+    }
+    return trim ? `${str.substr(0, size - 1)}…` : str;
+  }
+  while (str.length < size) {
+    str += ' ';
+  }
+  return str;
+};
+
+handlebars.registerHelper('col', (str, props) => {
+  if (!str || !props) {
+    return str;
+  }
+  const size = props.hash.size;
+  return col(str, size);
+});
+
+handlebars.registerHelper('json', obj => {
+  if (!obj) {
+    return '';
+  }
+  return JSON.stringify(obj);
+});
+
+handlebars.registerHelper('moment', (value, props) => {
+  const format = (props && props.hash.format) || 'MMMM Do YYYY';
+  const d = moment(value);
+  if (props && props.hash.timezone) {
+    d.tz(props.hash.timezone);
+  }
+  return d.format(format);
+});
+
+handlebars.registerHelper('moment-timezone', value => {
+  if (!value) {
+    return '';
+  } else {
+    return moment().tz(value).format('Z');
+  }
+});
+
+handlebars.registerHelper('currency', (value, props) => {
+  const { currency, size, sign, precision } = props.hash;
+
+  if (isNaN(value)) {
+    return '';
+  }
+
+  let res = (function () {
+    if (!currency) {
+      return value / 100;
+    }
+    value = value / 100; // converting cents
+
+    let locale = 'en-US';
+    if (currency === 'EUR') {
+      locale = 'fr-FR';
+    }
+
+    return value.toLocaleString(locale, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: precision || getDefaultCurrencyPrecision(currency),
+      maximumFractionDigits: !isNil(precision) ? precision : getDefaultCurrencyPrecision(currency),
+    });
+  })();
+
+  if (sign && value > 0) {
+    res = `+${res}`;
+  }
+  // If we are limited in space, no need to show the trailing .00
+  if (size && precision === 2) {
+    res = res.replace(/\.00$/, '');
+  }
+  if (size) {
+    res = col(`${res}`, size, false);
+  }
+
+  return res;
+});
+
+handlebars.registerHelper('formatAccountingCategory', category => {
+  if (!category) {
+    return 'None';
+  } else {
+    return `${category.code} - ${category.friendlyName || category.name}`;
+  }
+});
+
+handlebars.registerHelper('number', (value, props) => {
+  const { precision, currency } = props.hash;
+  let locale = 'en-US';
+  if (currency === 'EUR') {
+    locale = 'fr-FR';
+  }
+  return value.toLocaleString(locale, {
+    minimumFractionDigits: precision || 0,
+    maximumFractionDigits: precision || 0,
+  });
+});
+
+handlebars.registerHelper('resizeImage', (imageUrl, props) => resizeImage(imageUrl, props.hash));
+handlebars.registerHelper('capitalize', str => capitalize(str));
+handlebars.registerHelper('pluralize', (str, props) => pluralize(str, props.hash.n || props.hash.count));
+
+/**
+ * From totalAmountToBeRaised, return "Total amount to be raised"
+ */
+handlebars.registerHelper('prettifyVariableName', str => {
+  return capitalize(lowerCase(str));
+});
+
+handlebars.registerHelper('encodeURIComponent', str => {
+  return encodeURIComponent(str);
+});
+
+handlebars.registerHelper('formatCurrencyObject', (obj, props) => formatCurrencyObject(obj, props.hash));
+
+handlebars.registerHelper('formatOrderAmountWithInterval', order => {
+  if (!order.currency || !order.totalAmount) {
+    return null;
+  }
+
+  const formattedAmount = formatCurrency(order.totalAmount, order.currency);
+  const subscription = order.subscription;
+  const interval = subscription?.interval || order.interval;
+
+  if (interval !== null) {
+    if (interval === 'month') {
+      return `(${formattedAmount}/m)`;
+    } else if (interval === 'year') {
+      return `(${formattedAmount}/y)`;
+    }
+  } else {
+    return `(${formattedAmount})`;
+  }
+});
+
+// eslint-disable-next-line no-console
+handlebars.registerHelper('debug', console.log);
+
+/**
+ * Email subjects are text only, so it's safe to unescape the content in there. However, new line
+ * characters could cause troubles by allowing attackers to override headers. For example, if you have an email like:
+ *
+ * ```template.hbs
+ * Subject: Hello {collective.name}!
+ *
+ * Hello world!
+ * ```
+ *
+ * And a collective name like:
+ * ```es6
+ * collective.name = `Test
+ * Subject: Override subject
+ * `
+ * ```
+ *
+ * The "Subject" header will be overwritten:
+ * ```
+ * Subject: Hello Test
+ * Subject: Override subject!
+ *
+ * Hello world!
+ * ```
+ */
+handlebars.registerHelper('escapeForSubject', str => {
+  return str ? str.replaceAll(/[\r\n]/g, ' ') : '';
+});
+
+/**
+ * Returns feature details with label and documentation URL for platform features
+ */
+handlebars.registerHelper('getPlatformFeatureDetails', featureKey => {
+  return (
+    FeatureDetails[featureKey] || {
+      label: startCase(lowerCase(featureKey)),
+      documentationUrl: null,
+    }
+  );
+});
+
+/**
+ * Checks if a feature is NOT in the free features list
+ */
+handlebars.registerHelper('isFreeFeature', featureKey => {
+  return freeFeatures.includes(featureKey);
+});
+
+/**
+ * Checks if a plan has any premium (non-free) features enabled
+ */
+handlebars.registerHelper('hasPremiumFeatures', features => {
+  if (!features || typeof features !== 'object') {
+    return false;
+  }
+
+  // Check if any enabled feature is not in the free features list
+  return Object.keys(features).some(
+    featureKey => features[featureKey] === true && !(freeFeatures as readonly string[]).includes(featureKey),
+  );
+});
+
+handlebars.registerHelper('concat', (...args) => {
+  args.pop();
+  return args.join('');
+});
+
+// Generates a permalink if the first argument contains a publicId, otherwise returns the fallbackURL
+handlebars.registerHelper('permalink', (...args) => {
+  const lastArg = args[args.length - 1];
+  if (lastArg && typeof lastArg === 'object' && typeof lastArg.fn === 'function') {
+    args.pop();
+  }
+
+  const [entity, fallbackURL] = args;
+  const publicId = entity?.publicId;
+
+  if (publicId) {
+    return `${config.host.website}/permalink/${publicId}`;
+  }
+
+  if (typeof fallbackURL !== 'string' || !fallbackURL) {
+    throw new Error('no publicId set, fallbackURL is required');
+  }
+
+  return fallbackURL;
+});
+
+handlebars.registerHelper('accountUrl', (...args) => {
+  args.pop();
+  const [account, parent] = args;
+  if (parent && typeof parent === 'object' && parent.slug) {
+    return getAccountUrlWithParent(account, parent);
+  }
+  return getAccountUrl(account);
+});
+
+handlebars.registerHelper('dashboardUrl', (...args) => {
+  args.pop();
+  const [account, section, params = {}] = args;
+  return getFullDashboardUrl(account, section, params);
+});
+
+handlebars.registerHelper('collectiveExpensesUrl', collective => getCollectiveExpensesUrl(collective));
+
+// Math operations
+handlebars.registerHelper('add', add);
+handlebars.registerHelper('subtract', subtract);
+handlebars.registerHelper('sum', sum);
+handlebars.registerHelper('divide', divide);
+handlebars.registerHelper('multiply', multiply);
+
+export default handlebars;

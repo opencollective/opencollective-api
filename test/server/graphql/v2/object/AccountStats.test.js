@@ -1,8 +1,11 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import moment from 'moment';
+import { createSandbox } from 'sinon';
 
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import * as identifiers from '../../../../../server/graphql/v2/identifiers';
+import * as budgetLib from '../../../../../server/lib/budget';
 import { fakeCollective, fakeOrder, fakeTransaction } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
@@ -275,6 +278,61 @@ describe('server/graphql/v2/object/AccountStats', () => {
         { date: '2025-06-01T00:00:00.000Z', value: 50, valueInCents: 50e2, currency: 'USD' },
         { date: '2025-07-01T00:00:00.000Z', value: 30, valueInCents: 30e2, currency: 'USD' },
       ]);
+    });
+  });
+
+  describe('id', () => {
+    it('encodes the account id with the account identifier type', async () => {
+      const query = gql`
+        query AccountStatsId($slug: String!) {
+          account(slug: $slug) {
+            stats {
+              id
+            }
+          }
+        }
+      `;
+
+      const sandbox = createSandbox();
+      const idEncodeStub = sandbox
+        .stub(identifiers, 'idEncode')
+        .callsFake((integer, type) => `stub-${type}-${integer}`);
+      try {
+        const result = await graphqlQueryV2(query, { slug: collective.slug });
+        expect(result.errors).to.not.exist;
+        expect(idEncodeStub.calledWith(collective.id, identifiers.IDENTIFIER_TYPES.ACCOUNT)).to.be.true;
+      } finally {
+        sandbox.restore();
+      }
+    });
+  });
+
+  describe('yearlyBudget', () => {
+    const query = gql`
+      query AccountYearlyBudget($slug: String!) {
+        account(slug: $slug) {
+          stats {
+            yearlyBudget {
+              value
+              currency
+            }
+          }
+        }
+      }
+    `;
+
+    it('passes the loaders to the collective so the yearly budget is batched', async () => {
+      const sandbox = createSandbox();
+      const budgetStub = sandbox.stub(budgetLib, 'getYearlyBudgetAmount').resolves({ value: 4200, currency: 'USD' });
+      try {
+        const result = await graphqlQueryV2(query, { slug: collective.slug });
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.account.stats.yearlyBudget).to.deep.equal({ value: 42, currency: 'USD' });
+        expect(budgetStub.firstCall.args[1]).to.have.property('loaders');
+      } finally {
+        sandbox.restore();
+      }
     });
   });
 });
