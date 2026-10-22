@@ -5,6 +5,7 @@ import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import models from '../../../../../server/models';
 import { CommentType } from '../../../../../server/models/Comment';
+import type { HostApplicationCustomData } from '../../../../../server/models/HostApplication';
 import { HostApplicationStatus } from '../../../../../server/models/HostApplication';
 import {
   fakeCollective,
@@ -119,8 +120,19 @@ describe('server/graphql/v2/query/HostApplication scope', () => {
       customData: {
         secret: 'secret-custom-value',
         repositoryUrl: 'https://github.com/opencollective/test',
-        validatedRepositoryInfo: { stars: 1 },
-      },
+        validatedRepositoryInfo: {
+          allValidationsPassed: false,
+          fields: {
+            lastCommitDate: { value: '2026-01-01', isValid: true },
+            collaboratorsCount: { value: 1, isValid: false },
+            starsCount: { value: 1, isValid: false },
+            isFork: { value: false, isValid: true },
+            isOwnedByOrg: { value: true, isValid: true },
+            isAdmin: { value: false, isValid: false },
+            licenseSpdxId: { value: 'MIT', isValid: true },
+          },
+        },
+      } as HostApplicationCustomData,
     });
     applicationRef = { id: idEncode(application.id, IDENTIFIER_TYPES.HOST_APPLICATION) };
 

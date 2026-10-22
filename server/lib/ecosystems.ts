@@ -121,6 +121,40 @@ export type EcosystemsRepoSummary = {
   owner: EcosystemsOwner | null;
 };
 
+/**
+ * Compact projection of an `EcosystemsRepoSummary` stored as
+ * `HostApplication.customData.ecosystemsRepositoryInfo`. Mirrors `EcosystemsRepositorySnapshot` in
+ * `opencollective-frontend/lib/ecosystems.ts` (keep both in sync).
+ */
+export type EcosystemsRepositorySnapshot = {
+  fullName: string | null;
+  owner: string | null;
+  description: string | null;
+  stars: number | null;
+  forks: number | null;
+  isFork: boolean | null;
+  license: string | null;
+  topics: string[];
+  /** Owner kind as reported by ecosyste.ms (`user` for personal accounts, `organization`) */
+  ownerKind: string | null;
+  archived: boolean | null;
+  /** Repository creation date */
+  createdAt: string | null;
+  /** Date of the last commit/push activity */
+  lastCommitAt: string | null;
+  lastCommitSha: string | null;
+  commitStats: { totalCommits: number; totalCommitters: number } | null;
+  packages: Array<{
+    name: string;
+    ecosystem: string;
+    maintainers: Array<{ login: string | null; name: string | null }>;
+    dependentPackagesCount: number | null;
+    dependentReposCount: number | null;
+    firstReleasePublishedAt: string | null;
+    latestReleasePublishedAt: string | null;
+  }>;
+};
+
 export function normalizeRepoKey(url: string): string {
   const trimmed = (url || '')
     .trim()
