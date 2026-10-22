@@ -143,7 +143,13 @@ export type EcosystemsRepositorySnapshot = {
   /** Date of the last commit/push activity */
   lastCommitAt: string | null;
   lastCommitSha: string | null;
-  commitStats: { totalCommits: number; totalCommitters: number } | null;
+  commitStats: {
+    totalCommits: number;
+    /** Human committers only, bot accounts are reported separately */
+    totalCommitters: number;
+    /** Bot committers reported by the commits API, when available */
+    botCommitters?: number;
+  } | null;
   packages: Array<{
     name: string;
     ecosystem: string;
