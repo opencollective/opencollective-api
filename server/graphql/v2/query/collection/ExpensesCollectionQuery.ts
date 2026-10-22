@@ -233,10 +233,8 @@ const buildExpenseCanCommentRoleSqlLiteral = (req: express.Request): ReturnType<
   const sql = `(
     ${buildIsAdminOfCollectiveSql('collective')}
     OR ${buildHostAdminRoleSql()}
-    OR (
-      ("Expense"."UserId" = :userId AND "fromCollective"."type" != 'VENDOR')
-      OR ${buildIsAdminOfCollectiveSql('fromCollective')}
-    )
+    OR "Expense"."UserId" = :userId
+    OR ${buildIsAdminOfCollectiveSql('fromCollective')}
   )`;
 
   return sequelize.literal(
