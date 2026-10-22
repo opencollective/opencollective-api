@@ -41,7 +41,6 @@ import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error-handler';
 import required from './middleware/required-param';
 import sanitizer from './middleware/sanitizer';
-import paypal from './paymentProviders/paypal';
 
 const upload = multer();
 
@@ -369,11 +368,6 @@ export default async (app: express.Application) => {
     }
     return authentication.authenticateServiceCallback(req, res, next);
   }); // oauth callback
-
-  /** Returns the PayPal Connect client ID when configured on this platform (used to initialize the SDK button) */
-  app.get('/connected-accounts/paypal/connect-config', noCache, paypal.oauth.connectConfig);
-  /** PayPal Connect JSON endpoint (used by the PayPal SDK button in the expense form) */
-  app.post('/connected-accounts/paypal/connect', noCache, paypal.oauth.connect);
 
   /**
    * Contact Form

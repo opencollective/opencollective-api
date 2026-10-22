@@ -232,21 +232,6 @@ export async function connectPaypalPayoutMethod({
   }
 }
 
-/**
- * The REST endpoints used by the previous version of the frontend. Responding with an explicit message
- * so that users on a stale page know they need to reload it.
- */
-const deprecatedRestHandler = (_req, res) => {
-  res.status(410).json({
-    error: {
-      code: 410,
-      type: 'gone',
-      message:
-        'This endpoint has been replaced by the getPaypalOAuthUrl and connectPaypalPayoutMethod GraphQL mutations. Please reload the page and try again.',
-    },
-  });
-};
-
 export default {
   types: {
     default: payment,
@@ -260,15 +245,5 @@ export default {
      * The CollectiveId is embedded in a signed JWT state to prevent CSRF / tampering.
      */
     redirectUrl: getRedirectUrl,
-
-    /**
-     * @deprecated Use the `getPaypalOAuthUrl` GraphQL mutation.
-     */
-    connectConfig: deprecatedRestHandler,
-
-    /**
-     * @deprecated Use the `connectPaypalPayoutMethod` GraphQL mutation.
-     */
-    connect: deprecatedRestHandler,
   },
 };
