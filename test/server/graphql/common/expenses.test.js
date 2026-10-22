@@ -52,6 +52,7 @@ import {
   fakePlatformSubscription,
   fakeTransaction,
   fakeUser,
+  fakeVendor,
 } from '../../../test-helpers/fake-data';
 import { getApolloErrorCode, getOrCreatePlatformAccount, makeRequest, resetTestDB } from '../../../utils';
 
@@ -2416,6 +2417,23 @@ describe('server/graphql/common/expenses', () => {
           platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
+    });
+
+    it('allows the submitter to comment when the payee is a vendor', async () => {
+      const { collective, host, req } = contexts.normal;
+      const submitter = await fakeUser();
+      const vendor = await fakeVendor({ ParentCollectiveId: host.id });
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: vendor.id,
+        UserId: submitter.id,
+        status: 'APPROVED',
+      });
+
+      expect(await canComment(makeRequest(submitter), expense)).to.be.true;
+      expect(await canComment(req.randomUser, expense)).to.be.false;
+      // Submitting on behalf of a vendor must not grant ownership over the payee
+      expect(await canEditPayee(makeRequest(submitter), expense)).to.be.false;
     });
   });
 
