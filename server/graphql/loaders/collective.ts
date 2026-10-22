@@ -7,6 +7,7 @@ import { roles } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
 import { MemberRolesForPrivateAccounts } from '../../constants/roles';
 import models, { Collective, Op, sequelize } from '../../models';
+import { isRemoteUserRoot } from '../common/scope-check';
 
 import { sortResultsSimple } from './helpers';
 
@@ -257,7 +258,7 @@ export default {
         return collectiveIds.map(id => !accountMap.get(id)?.isPrivate);
       }
 
-      if (remoteUser.isRoot()) {
+      if (isRemoteUserRoot(req)) {
         return collectiveIds.map(() => true);
       }
 

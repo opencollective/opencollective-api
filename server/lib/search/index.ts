@@ -47,6 +47,7 @@ export const getSearchRequestKey = (request: SearchRequest): string => {
     accountId: request.scope.account?.id,
     hostId: request.scope.host?.id,
     userId: request.remoteUser?.id,
+    isRoot: request.isRoot,
     timeoutInMs: request.timeoutInMs,
     useTopHits: request.useTopHits,
   });

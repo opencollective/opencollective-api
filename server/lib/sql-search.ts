@@ -15,6 +15,7 @@ import isEmail from 'validator/lib/isEmail';
 
 import { CollectiveType } from '../constants/collectives';
 import { MemberRolesForPrivateAccounts } from '../constants/roles';
+import { isRemoteUserRoot } from '../graphql/common/scope-check';
 import { BadRequest, RateLimitExceeded } from '../graphql/errors';
 import { ORDER_BY_PSEUDO_FIELDS } from '../graphql/v2/enum/OrderByFieldType';
 import {
@@ -52,7 +53,7 @@ const buildPrivateAccountSearchVisibilitySQL = async (
     return { sql: 'AND c."isPrivate" IS FALSE ' };
   }
 
-  if (remoteUser.isRoot()) {
+  if (isRemoteUserRoot(req)) {
     return { sql: '' };
   }
 
