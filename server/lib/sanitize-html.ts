@@ -219,6 +219,32 @@ export function sanitizeHTML(content: string, options: SanitizeOptions = optsStr
 export const stripHTML = (content: string): string => sanitizeHTML(content, optsStripAll);
 
 /**
+ * Recursively strips the HTML from all the string values of a JSON-like structure (e.g. the
+ * `customData` of a host application). Non-string values are preserved as-is and unknown keys are
+ * kept: this is a sanitizer, not a schema whitelist.
+ */
+export function sanitizeHostApplicationData<T>(data: T): T {
+  if (typeof data === 'string') {
+    return stripHTML(data) as T;
+  } else if (Array.isArray(data)) {
+    return data.map(item => sanitizeHostApplicationData(item)) as T;
+  } else if (data && typeof data === 'object') {
+    return Object.fromEntries(
+      Object.entries(data).map(([key, value]) => [key, sanitizeHostApplicationData(value)]),
+    ) as T;
+  } else {
+    return data;
+  }
+}
+
+/**
+ * Strips the HTML from a host application message and trims it. Returns null/undefined as-is.
+ */
+export function sanitizeHostApplicationMessage<T extends string | null | undefined>(message: T): T {
+  return (message ? stripHTML(message).trim() : message) as T;
+}
+
+/**
  * A safer version of `stripHTML` that returns an empty string if the input contains invalid HTML.
  */
 export const stripHTMLOrEmpty = (content: string): string => {
