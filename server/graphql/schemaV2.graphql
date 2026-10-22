@@ -28028,11 +28028,6 @@ type Mutation {
     account: AccountReferenceInput!
 
     """
-    The URL or path to return to after the OAuth flow (stored in OAuth state)
-    """
-    redirect: String
-
-    """
     Currency for the payout method (stored in OAuth state)
     """
     currency: Currency

@@ -1,11 +1,25 @@
 import config from 'config';
-import express from 'express';
+import { GraphQLError } from 'graphql';
 import jwt from 'jsonwebtoken';
 
 import { SupportedCurrency } from '../../constants/currencies';
+import FEATURE from '../../constants/feature';
+import {
+  ApolloError,
+  BadRequest,
+  Forbidden,
+  RateLimitExceeded,
+  UnexpectedError,
+  ValidationFailed,
+} from '../../graphql/errors';
+import { idEncode, IDENTIFIER_TYPES } from '../../graphql/v2/identifiers';
+import { fetchAccountWithReference } from '../../graphql/v2/input/AccountReferenceInput';
+import { fetchPayoutMethodWithReference } from '../../graphql/v2/input/PayoutMethodReferenceInput';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../lib/permalink/entity-map';
 import RateLimit from '../../lib/rate-limit';
+import { reportErrorToSentry } from '../../lib/sentry';
 import models, { Collective, ConnectedAccount, sequelize } from '../../models';
 import PayoutMethod, { PayoutMethodTypes, PaypalPayoutMethodData } from '../../models/PayoutMethod';
 import User from '../../models/User';
@@ -73,11 +87,11 @@ export async function connectPaypalPayoutMethod({
   payoutMethod: initialPayoutMethod = null,
 }: ConnectPaypalPayoutMethodParams): Promise<{ connectedAccount: ConnectedAccount; payoutMethod: PayoutMethod }> {
   if (!code) {
-    throw new errors.BadRequest('PayPal code is missing');
+    throw new ValidationFailed('PayPal code is missing');
   } else if (!state) {
-    throw new errors.BadRequest('OAuth state is missing. Please restart the PayPal connect flow.');
+    throw new ValidationFailed('OAuth state is missing. Please restart the PayPal connect flow.');
   } else if (!currency) {
-    throw new errors.BadRequest('Currency not provided');
+    throw new ValidationFailed('Currency not provided');
   }
 
   let statePayload: { CollectiveId: number; userId: number };
@@ -87,51 +101,53 @@ export async function connectPaypalPayoutMethod({
       userId: number;
     };
   } catch {
-    throw new errors.BadRequest('The confirmation code is invalid or expired. Please restart the PayPal connect flow.');
+    throw new BadRequest('The confirmation code is invalid or expired. Please restart the PayPal connect flow.');
   }
 
   if (statePayload.CollectiveId !== collective.id) {
-    throw new errors.Forbidden(
+    throw new Forbidden(
       'The confirmation code does not match the requested account. Please restart the PayPal connect flow.',
     );
   }
   if (statePayload.userId !== remoteUser.id) {
-    throw new errors.Forbidden(
-      'The OAuth state does not match the current user. Please restart the PayPal connect flow.',
-    );
+    throw new Forbidden('The OAuth state does not match the current user. Please restart the PayPal connect flow.');
   }
 
   if (!remoteUser.isAdminOfCollective(collective)) {
-    throw new errors.Forbidden('You must be an admin of this collective');
+    throw new Forbidden('You must be an admin of this collective');
   }
 
   let payoutMethod: PayoutMethod | null = initialPayoutMethod;
   if (payoutMethod) {
     if (payoutMethod.CollectiveId !== collective.id) {
-      throw new errors.Forbidden('The payout method is not associated with this account');
+      throw new Forbidden('The payout method is not associated with this account');
     } else if (payoutMethod.type !== PayoutMethodTypes.PAYPAL) {
-      throw new errors.Forbidden('The payout method is not a PayPal payout method');
+      throw new Forbidden('The payout method is not a PayPal payout method');
     }
   }
 
   const rateLimit = new RateLimit(`paypal-connect-${remoteUser.id}`, 10, 30 * 60);
   if (!(await rateLimit.registerCall())) {
-    throw new errors.RateLimitExceeded('Rate limit exceeded');
+    throw new RateLimitExceeded();
   }
 
   try {
     const tokenResult = await exchangeAuthCodeForToken(code);
     const paypalUserInfo = await retrievePaypalUserInfo(tokenResult.access_token);
 
+    // Paypal supports multiple emails per account. We only keep the confirmed ones, and default to the "primary" one.
     const confirmedEmails = paypalUserInfo.emails.filter(email => email.confirmed);
     if (confirmedEmails.length === 0) {
-      throw new errors.BadRequest('This PayPal account is not associated with a confirmed email address');
+      throw new BadRequest('This PayPal account is not associated with a confirmed email address');
     } else if (paypalUserInfo.verified_account !== 'true') {
-      throw new errors.BadRequest('This PayPal account is not verified');
+      throw new BadRequest('This PayPal account is not verified');
     } else if (
       payoutMethod &&
       !confirmedEmails.find(email => email.value === (payoutMethod?.data as PaypalPayoutMethodData)?.email)
     ) {
+      // This is likely to happen when people try to "confirm" their legacy PayPal payout methods, but end up
+      // linking a PayPal account set up with a different email address. Rather than forcing them through the full
+      // flow again, we silently ignore the existing payout method and create a new one.
       payoutMethod = null;
     }
 
@@ -208,16 +224,45 @@ export async function connectPaypalPayoutMethod({
 
     return result;
   } catch (e) {
-    if (e instanceof errors.BadRequest || e instanceof errors.Forbidden || e instanceof errors.RateLimitExceeded) {
+    if (e instanceof ApolloError) {
       throw e;
     }
-    logger.error('PayPal connect (SDK flow) failed', e);
-    throw new errors.ServerError('PayPal connect failed');
+
+    // Report the original error, then throw a user-facing one (with a code, so it's not reported twice)
+    logger.error('PayPal connect failed', e);
+    reportErrorToSentry(e, {
+      feature: FEATURE.PAYPAL_CONNECT,
+      user: remoteUser,
+      extra: { CollectiveId: collective.id, PayoutMethodId: initialPayoutMethod?.id },
+    });
+    throw new UnexpectedError('PayPal connect failed');
   }
 }
 
-const deprecatedConnectHandler = (_req: express.Request, res: express.Response): void => {
-  res.sendStatus(401);
+/**
+ * Converts the GraphQL errors thrown by `connectPaypalPayoutMethod` to the REST errors understood by
+ * `server/middleware/error-handler`, to preserve the status codes of the deprecated REST endpoints.
+ */
+const toRestError = (e: Error): Error => {
+  if (!(e instanceof GraphQLError)) {
+    return e; // Unknown errors are reported to Sentry by the error handler
+  }
+
+  switch (e.extensions?.code) {
+    case 'BadRequest':
+    case 'ValidationFailed':
+      return new errors.BadRequest(e.message);
+    case 'Unauthorized':
+      return new errors.Unauthorized(e.message);
+    case 'Forbidden':
+      return new errors.Forbidden(e.message);
+    case 'NotFound':
+      return new errors.NotFound(e.message);
+    case 'RateLimitExceeded':
+      return new errors.RateLimitExceeded(e.message);
+    default:
+      return new errors.ServerError(e.message);
+  }
 };
 
 export default {
@@ -235,13 +280,97 @@ export default {
     redirectUrl: getRedirectUrl,
 
     /**
-     * @deprecated Use getPaypalOAuthUrl GraphQL mutation.
+     * Returns the PayPal Connect public client ID (if configured on this platform).
+     * GET /connected-accounts/paypal/connect-config
+     * Returns: { clientId: string } or 404 if not configured.
+     *
+     * @deprecated Use the `getPaypalOAuthUrl` GraphQL mutation. Kept until the frontend is migrated.
      */
-    connectConfig: deprecatedConnectHandler,
+    connectConfig: async (req, res, next) => {
+      const clientId = config.paypal?.connect?.clientId;
+      if (!clientId) {
+        return res.status(404).json({ error: 'PayPal Connect is not available at the moment.' });
+      }
+
+      if (!req.remoteUser) {
+        return next(new errors.Unauthorized('You must be logged in'));
+      } else if (!req.query.accountId) {
+        return next(new errors.BadRequest('Missing accountId'));
+      } else if (!req.query.redirect) {
+        return next(new errors.BadRequest('Missing redirect'));
+      }
+
+      const collective = await fetchAccountWithReference({ id: req.query.accountId });
+
+      if (!collective) {
+        return next(new errors.NotFound('Collective not found'));
+      } else if (!req.remoteUser.isAdminOfCollective(collective)) {
+        return next(new errors.Forbidden('You must be an admin of this collective'));
+      }
+
+      return res.json({
+        clientId,
+        redirectUri: config.paypal?.connect?.redirectUri,
+        authorizeUrl: getRedirectUrl(req.remoteUser, collective.id, req.query),
+      });
+    },
 
     /**
-     * @deprecated Use connectPaypalPayoutMethod GraphQL mutation.
+     * JSON endpoint for the PayPal SDK button flow.
+     * The SDK calls back with an auth code directly in the browser; this endpoint
+     * exchanges it for tokens, upserts the ConnectedAccount, and returns JSON.
+     *
+     * POST /connected-accounts/paypal/connect
+     * Body: { code: string, state: string, accountId: string, payoutMethodId: string, currency: string, name: string }
+     * Returns: { connectedAccountId: string, payoutMethodId: string }
+     *
+     * @deprecated Use the `connectPaypalPayoutMethod` GraphQL mutation. Kept until the frontend is migrated.
      */
-    connect: deprecatedConnectHandler,
+    connect: async (req, res, next) => {
+      if (!req.remoteUser) {
+        return next(new errors.Unauthorized('You must be logged in'));
+      }
+
+      const { code, state, accountId, payoutMethodId, currency, name } = req.body;
+      if (!accountId) {
+        return next(new errors.BadRequest('Account ID is missing'));
+      }
+
+      try {
+        const collective = await fetchAccountWithReference({ id: accountId });
+        if (!collective) {
+          return next(new errors.NotFound('Collective not found'));
+        } else if (!req.remoteUser.isAdminOfCollective(collective)) {
+          return next(new errors.Forbidden('You must be an admin of this collective'));
+        }
+
+        const payoutMethod = payoutMethodId ? await fetchPayoutMethodWithReference({ id: payoutMethodId }) : null;
+        const result = await connectPaypalPayoutMethod({
+          remoteUser: req.remoteUser,
+          collective,
+          code,
+          state,
+          currency,
+          name,
+          payoutMethod,
+        });
+
+        const connectedAccountId = isEntityMigratedToPublicId(
+          EntityShortIdPrefix.ConnectedAccount,
+          result.connectedAccount.createdAt,
+        )
+          ? result.connectedAccount.publicId
+          : idEncode(result.connectedAccount.id, IDENTIFIER_TYPES.CONNECTED_ACCOUNT);
+        const resultPayoutMethodId = isEntityMigratedToPublicId(
+          EntityShortIdPrefix.PayoutMethod,
+          result.payoutMethod.createdAt,
+        )
+          ? result.payoutMethod.publicId
+          : idEncode(result.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
+        return res.json({ connectedAccountId, payoutMethodId: resultPayoutMethodId });
+      } catch (e) {
+        return next(toRestError(e));
+      }
+    },
   },
 };

@@ -7,7 +7,7 @@ import { SupportedCurrency } from '../../../constants/currencies';
 import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
 import paypal, { connectPaypalPayoutMethod } from '../../../paymentProviders/paypal';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
-import { Forbidden, NotFound, ValidationFailed } from '../../errors';
+import { Forbidden, NotFound } from '../../errors';
 import { GraphQLCurrency } from '../enum/Currency';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { fetchPayoutMethodWithReference, GraphQLPayoutMethodReferenceInput } from '../input/PayoutMethodReferenceInput';
@@ -44,10 +44,6 @@ export const paypalMutations = {
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'The account to connect a PayPal payout method for',
       },
-      redirect: {
-        type: GraphQLString,
-        description: 'The URL or path to return to after the OAuth flow (stored in OAuth state)',
-      },
       currency: {
         type: GraphQLCurrency,
         description: 'Currency for the payout method (stored in OAuth state)',
@@ -55,7 +51,7 @@ export const paypalMutations = {
     },
     resolve: async (
       _: void,
-      args: { account: Record<string, unknown>; redirect?: string; currency?: string },
+      args: { account: Record<string, unknown>; currency?: string },
       req: express.Request,
     ): Promise<string> => {
       checkRemoteUserCanUseExpenses(req);
@@ -68,10 +64,7 @@ export const paypalMutations = {
 
       await TwoFactorAuthLib.enforceForAccount(req, collective);
 
-      return paypal.oauth.redirectUrl(req.remoteUser, collective.id, {
-        redirect: args.redirect,
-        currency: args.currency,
-      });
+      return paypal.oauth.redirectUrl(req.remoteUser, collective.id, { currency: args.currency });
     },
   },
   connectPaypalPayoutMethod: {
@@ -126,19 +119,11 @@ export const paypalMutations = {
 
       await TwoFactorAuthLib.enforceForAccount(req, collective);
 
-      let payoutMethod = null;
-      if (args.payoutMethod?.id) {
-        payoutMethod = await fetchPayoutMethodWithReference(args.payoutMethod, { loaders: req.loaders });
-        if (!payoutMethod) {
-          throw new NotFound('Payout method not found');
-        }
-      }
+      const payoutMethod = args.payoutMethod
+        ? await fetchPayoutMethodWithReference(args.payoutMethod, { loaders: req.loaders })
+        : null;
 
-      if (!args.currency) {
-        throw new ValidationFailed('Currency not provided');
-      }
-
-      const result = await connectPaypalPayoutMethod({
+      return connectPaypalPayoutMethod({
         remoteUser: req.remoteUser,
         collective,
         code: args.code,
@@ -147,8 +132,6 @@ export const paypalMutations = {
         name: args.name,
         payoutMethod,
       });
-
-      return result;
     },
   },
 };
