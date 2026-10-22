@@ -150,6 +150,15 @@ export type EcosystemsRepositorySnapshot = {
     /** Bot committers reported by the commits API, when available */
     botCommitters?: number;
   } | null;
+  /** Whether the past-year committer list was available and the applicant was checked against it */
+  applicantIsContributor?: boolean;
+  /** The applicant's past-year commit activity in this repository, matched by email */
+  applicantContribution?: {
+    login: string | null;
+    name: string | null;
+    email: string;
+    count: number | null;
+  } | null;
   packages: Array<{
     name: string;
     ecosystem: string;
