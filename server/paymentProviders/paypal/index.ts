@@ -25,8 +25,11 @@ import subscription from './subscription';
 // Scopes requested from the PayPal Identity API:
 // - openid: required base scope
 // - email: user's email address
+// - address: user's address. PayPal has no country-only scope, the "Country" attribute is part of `address`
 // - https://uri.paypal.com/services/paypalattributes: account verification status + Payer ID
-const PAYPAL_CONNECT_SCOPES = ['openid', 'email', 'https://uri.paypal.com/services/paypalattributes'].join(' ');
+const PAYPAL_CONNECT_SCOPES = ['openid', 'email', 'address', 'https://uri.paypal.com/services/paypalattributes'].join(
+  ' ',
+);
 
 const getRedirectUrl = (remoteUser, CollectiveId, query): string => {
   const state = jwt.sign(
