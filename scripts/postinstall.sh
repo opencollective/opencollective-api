@@ -30,15 +30,28 @@ else
   echo ""
   exit 1
 fi
-if psql -h $PG_HOST -U postgres -lqt | cut -d \| -f 1 | grep -qw opencollective_dvl; then
-  echo "✓ opencollective_dvl exists"
-  ./scripts/db_restore_extensions.sh -d opencollective_dvl -U opencollective -h $PG_HOST
+# List databases first, so that a connection/auth failure is not mistaken for a missing database
+# (which would trigger db:restore and drop opencollective_dvl). `-w` never prompts for a password.
+if DB_LIST=$(psql -w -h $PG_HOST -U postgres -lqt); then
+  if echo "$DB_LIST" | cut -d \| -f 1 | grep -qw opencollective_dvl; then
+    echo "✓ opencollective_dvl exists"
+    ./scripts/db_restore_extensions.sh -d opencollective_dvl -U opencollective -h $PG_HOST
+  else
+    echo "- restoring opencollective_dvl";
+    npm run db:restore
+  fi
+  echo "- running migration if any"
+  PG_DATABASE=opencollective_dvl npm run db:migrate
 else
-  echo "- restoring opencollective_dvl";
-  npm run db:restore
+  echo ""
+  echo "⚠ Could not list databases on $PG_HOST as user \"postgres\" (see error above)."
+  echo "  Skipping database restore and migrations. To fix it, either:"
+  echo "  - provide credentials with PGPASSWORD or ~/.pgpass, then run \`npm run postinstall\`"
+  echo "  - or skip this step with SKIP_POSTINSTALL=1"
+  echo ""
+  echo "See: https://github.com/opencollective/opencollective-api/blob/main/docs/postgres.md"
+  echo ""
 fi
-echo "- running migration if any"
-PG_DATABASE=opencollective_dvl npm run db:migrate
 
 UNAME=$(uname -a)
 if [[ $UNAME =~ "Darwin" && $UNAME =~ "arm64" ]]; then

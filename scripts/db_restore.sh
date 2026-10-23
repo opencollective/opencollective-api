@@ -83,10 +83,10 @@ fi
 set -e
 
 echo "Dropping '$LOCALDBNAME'"
-$CMD_DROP_DB -U postgres -h $PG_HOST --if-exists $LOCALDBNAME
+$CMD_DROP_DB -w -U postgres -h $PG_HOST --if-exists $LOCALDBNAME
 
 echo "Creating '$LOCALDBNAME'"
-$CMD_CREATE_DB -U postgres -h $PG_HOST $LOCALDBNAME 2>/dev/null
+$CMD_CREATE_DB -w -U postgres -h $PG_HOST $LOCALDBNAME 2>/dev/null
 
 if [ "$USE_POSTGIS" = "1" ]; then
   ./scripts/db_restore_extensions.sh -d $LOCALDBNAME -U $LOCALDBUSER -h $PG_HOST --use-postgis
@@ -98,22 +98,22 @@ fi
 {
   set +e
   # We make sure the user $LOCALDBUSER has access; could fail
-  $CMD_PSQL -U postgres -h $PG_HOST "${LOCALDBNAME}" -c "CREATE ROLE ${LOCALDBUSER} WITH login;" 2>/dev/null
+  $CMD_PSQL -w -U postgres -h $PG_HOST "${LOCALDBNAME}" -c "CREATE ROLE ${LOCALDBUSER} WITH login;" 2>/dev/null
   set -e
 } | tee >/dev/null
 
 # Update table permissions
 echo "Updating table permissions"
-$CMD_PSQL -U postgres -h $PG_HOST $LOCALDBNAME -c "GRANT ALL ON SCHEMA public TO ${LOCALDBUSER};"
-$CMD_PSQL -U postgres -h $PG_HOST $LOCALDBNAME -c "ALTER ROLE ${LOCALDBUSER} WITH SUPERUSER;"
+$CMD_PSQL -w -U postgres -h $PG_HOST $LOCALDBNAME -c "GRANT ALL ON SCHEMA public TO ${LOCALDBUSER};"
+$CMD_PSQL -w -U postgres -h $PG_HOST $LOCALDBNAME -c "ALTER ROLE ${LOCALDBUSER} WITH SUPERUSER;"
 
 # The first time we run it, we will trigger FK constraints errors
 set +e
-$CMD_PG_RESTORE -U postgres -h $PG_HOST --no-acl --no-owner --role=${LOCALDBUSER} -n public -O -c -d "${LOCALDBNAME}" "${LOCAL_FILE}" 2>/dev/null
+$CMD_PG_RESTORE -w -U postgres -h $PG_HOST --no-acl --no-owner --role=${LOCALDBUSER} -n public -O -c -d "${LOCALDBNAME}" "${LOCAL_FILE}" 2>/dev/null
 set -e
 
 # So we run it twice :-)
-$CMD_PG_RESTORE -U postgres -h $PG_HOST --no-acl --no-owner --role=${LOCALDBUSER} -n public -O -c -d "${LOCALDBNAME}" "${LOCAL_FILE}"
+$CMD_PG_RESTORE -w -U postgres -h $PG_HOST --no-acl --no-owner --role=${LOCALDBUSER} -n public -O -c -d "${LOCALDBNAME}" "${LOCAL_FILE}"
 
 echo "DB restored to postgres://$PG_HOST/${LOCALDBNAME}"
 
