@@ -27,6 +27,7 @@ import { filterContributors } from '../../lib/contributors';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { Op, sequelize } from '../../models';
 import { getFeatureStatusResolver } from '../common/features';
+import { isRemoteUserRoot } from '../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../common/user';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
@@ -141,7 +142,7 @@ export const UserType = new GraphQLObjectType({
 
           // Handle private accounts
           if (req.remoteUser) {
-            if (req.remoteUser.isRoot()) {
+            if (isRemoteUserRoot(req)) {
               // Allow all private accounts to be seen by root admins
               delete collectiveConditions.isPrivate;
             } else {
@@ -217,6 +218,7 @@ export const UserType = new GraphQLObjectType({
       isRoot: {
         type: new GraphQLNonNull(GraphQLBoolean),
         resolve(user) {
+          // eslint-disable-next-line oauth-scopes/no-bare-is-root -- informational only, grants nothing
           return user.isRoot();
         },
       },
