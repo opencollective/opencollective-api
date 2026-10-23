@@ -4,7 +4,14 @@ import sinon from 'sinon';
 
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
-import { fakeCollective, fakeOrder, fakePaymentMethod, randStr } from '../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeHost,
+  fakeOrder,
+  fakePaymentMethod,
+  fakeTier,
+  randStr,
+} from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 describe('server/models/Order', () => {
@@ -234,6 +241,148 @@ describe('server/models/Order', () => {
       expect(activeStripeConnectOrder.data.needsAsyncDeactivation).to.be.true;
       expect(activeStripeConnectGiftCardOrder.data.needsAsyncDeactivation).to.be.true;
       expect(inactiveOrder.data?.needsAsyncDeactivation).to.not.exist;
+    });
+
+    it('stops only the orders of the given tier', async () => {
+      const host = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const tier = await fakeTier({ CollectiveId: collective.id });
+      const otherTier = await fakeTier({ CollectiveId: collective.id });
+      const fakeRecurringOrder = (orderData = {}) =>
+        fakeOrder({ CollectiveId: collective.id, status: 'ACTIVE', ...orderData }, { withSubscription: true });
+
+      const tierOrder = await fakeRecurringOrder({ TierId: tier.id });
+      const pausedTierOrder = await fakeOrder(
+        {
+          CollectiveId: collective.id,
+          TierId: tier.id,
+          status: 'PAUSED',
+          subscription: { isActive: false, deactivatedAt: new Date() },
+        },
+        { withSubscription: true },
+      );
+      const otherTierOrder = await fakeRecurringOrder({ TierId: otherTier.id });
+      const flexibleOrder = await fakeRecurringOrder({ TierId: null });
+
+      await models.Order.stopActiveSubscriptionsForTier(tier.id);
+
+      await tierOrder.reload();
+      await pausedTierOrder.reload();
+      await otherTierOrder.reload();
+      await flexibleOrder.reload();
+
+      expect(tierOrder.status).to.equal('CANCELLED');
+      expect(tierOrder.data.needsAsyncDeactivation).to.be.true;
+
+      // A paused contribution to a deleted tier must not stay resumable, but its subscription is already inactive
+      // so there is nothing to deactivate: flagging it would leave a flag the async job can never clear.
+      expect(pausedTierOrder.status).to.equal('CANCELLED');
+      expect(pausedTierOrder.data?.needsAsyncDeactivation).to.not.be.true;
+
+      // The other tier and the flexible contribution are not part of the deletion
+      expect(otherTierOrder.status).to.equal('ACTIVE');
+      expect(flexibleOrder.status).to.equal('ACTIVE');
+    });
+
+    it('stops the orders of the given tier even when the collective is not approved', async () => {
+      const host = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id, approvedAt: null });
+      const tier = await fakeTier({ CollectiveId: collective.id });
+      const tierOrder = await fakeOrder(
+        { CollectiveId: collective.id, TierId: tier.id, status: 'ACTIVE' },
+        { withSubscription: true },
+      );
+      const flexibleOrder = await fakeOrder(
+        { CollectiveId: collective.id, TierId: null, status: 'ACTIVE' },
+        { withSubscription: true },
+      );
+
+      // Without a tier, the approval guard still applies
+      await models.Order.stopActiveSubscriptions(collective.id, 'PAUSED');
+      await tierOrder.reload();
+      expect(tierOrder.status).to.equal('ACTIVE');
+
+      await models.Order.stopActiveSubscriptionsForTier(tier.id);
+      await tierOrder.reload();
+      await flexibleOrder.reload();
+      expect(tierOrder.status).to.equal('CANCELLED');
+      expect(tierOrder.data.needsAsyncDeactivation).to.be.true;
+      expect(flexibleOrder.status).to.equal('ACTIVE');
+    });
+
+    it('stops the contributions made by the given accounts', async () => {
+      const host = await fakeHost();
+      const recipient = await fakeCollective({ HostCollectiveId: host.id });
+      const archivedAccount = await fakeCollective();
+      const otherAccount = await fakeCollective();
+      const order = await fakeOrder(
+        { CollectiveId: recipient.id, FromCollectiveId: archivedAccount.id, status: 'ACTIVE' },
+        { withSubscription: true },
+      );
+      const otherOrder = await fakeOrder(
+        { CollectiveId: recipient.id, FromCollectiveId: otherAccount.id, status: 'ACTIVE' },
+        { withSubscription: true },
+      );
+
+      await models.Order.stopActiveSubscriptionsFromAccounts(archivedAccount.id, 'CANCELLED');
+
+      await order.reload();
+      await otherOrder.reload();
+
+      expect(order.status).to.equal('CANCELLED');
+      expect(order.data.needsAsyncDeactivation).to.be.true;
+      expect(otherOrder.status).to.equal('ACTIVE');
+    });
+
+    it('keeps paused orders resumable when stopping the contributions to an account', async () => {
+      const host = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const pausedOrder = await fakeOrder(
+        {
+          CollectiveId: collective.id,
+          status: 'PAUSED',
+          data: { pausedBy: 'USER' },
+          subscription: { isActive: false, deactivatedAt: new Date() },
+        },
+        { withSubscription: true },
+      );
+
+      // e.g. un-hosting without pausing the contributions
+      await models.Order.stopActiveSubscriptions(collective.id, 'CANCELLED', { includeChildren: false });
+
+      await pausedOrder.reload();
+      expect(pausedOrder.status).to.equal('PAUSED');
+      expect(pausedOrder.data.pausedBy).to.equal('USER');
+    });
+
+    it('never pauses an order that is already cancelled', async () => {
+      const host = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const tier = await fakeTier({ CollectiveId: collective.id });
+      const order = await fakeOrder(
+        { CollectiveId: collective.id, TierId: tier.id, status: 'ACTIVE' },
+        { withSubscription: true },
+      );
+
+      await models.Order.stopActiveSubscriptionsForTier(tier.id);
+      // e.g. freezing the collective before the 10-minute job deactivated the subscription
+      await models.Order.stopActiveSubscriptions(collective.id, 'PAUSED', { paymentProviderAction: 'PAUSE' });
+
+      await order.reload();
+      expect(order.status).to.equal('CANCELLED');
+      expect(order.data.needsAsyncDeactivation).to.be.true;
+      expect(order.data.needsAsyncPause).to.be.false;
+    });
+
+    it('does not touch terminal orders', async () => {
+      const collective = await fakeCollective();
+      const paidOrder = await fakeOrder({ CollectiveId: collective.id, status: 'PAID' }, { withSubscription: true });
+
+      await models.Order.stopActiveSubscriptions(collective.id, 'PAUSED');
+
+      await paidOrder.reload();
+      expect(paidOrder.status).to.equal('PAID');
+      expect(paidOrder.data?.needsAsyncDeactivation).to.not.exist;
     });
   });
 });

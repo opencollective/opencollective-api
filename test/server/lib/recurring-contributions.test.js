@@ -10,6 +10,7 @@ import status from '../../../server/constants/order-status';
 import emailLib from '../../../server/lib/email';
 import * as paymentsLib from '../../../server/lib/payments';
 import {
+  findCancelledOrdersWithActiveSubscriptions,
   getChargeRetryCount,
   getNextChargeAndPeriodStartDates,
   groupProcessedOrders,
@@ -18,7 +19,7 @@ import {
   ordersWithPendingCharges,
   processOrderWithSubscription,
 } from '../../../server/lib/recurring-contributions';
-import models from '../../../server/models';
+import models, { sequelize } from '../../../server/models';
 import collective from '../../../server/paymentProviders/opencollective/collective';
 import { randEmail } from '../../stores';
 import { fakeCollective, fakeOrder, fakePaymentMethod, fakeTransaction } from '../../test-helpers/fake-data';
@@ -469,6 +470,26 @@ describe('server/lib/recurring-contributions', () => {
         expect(order.Subscription.nextPeriodStart.getTime()).to.equal(new Date('2018-02-27 0:0').getTime());
       });
 
+      it('keeps a cancellation that happened while the order was being charged', async () => {
+        const { order } = await createOrderWithSubscription('month', '2018-01-27');
+        const transaction = await fakeTransaction({ OrderId: order.id });
+        processOrderStub.callsFake(async () => {
+          // e.g. `deleteTier(stopRecurringContributions: true)` running concurrently
+          await models.Order.update(
+            { status: status.CANCELLED, data: { needsAsyncDeactivation: true } },
+            { where: { id: order.id } },
+          );
+          return transaction;
+        });
+
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
+
+        expect(entry.status).to.equal('success');
+        await order.reload();
+        expect(order.status).to.equal(status.CANCELLED);
+        expect(order.data.needsAsyncDeactivation).to.be.true;
+      });
+
       it('should update dates after successfully processing yearly', async () => {
         // Given an order with a subscription
         const { order } = await createOrderWithSubscription('year', '2018-01-27');
@@ -695,6 +716,103 @@ describe('server/lib/recurring-contributions', () => {
       // Then only the ACTIVE order should be returned (PROCESSING is awaiting async confirmation)
       expect(rows.length).to.equal(1);
       expect(rows[0].id).to.equal(activeOrder.id);
+    });
+
+    it('should exclude orders in CANCELLED and PAUSED status', async () => {
+      const payment = { amount: 1000, currency: 'USD', interval: 'month' };
+      const createDueOrder = async orderStatus => {
+        const subscription = await models.Subscription.create({
+          ...payment,
+          isActive: true,
+          activatedAt: new Date('2018-01-29'),
+          nextChargeDate: new Date('2018-01-29'),
+        });
+
+        return models.Order.create({
+          CreatedByUserId: user.id,
+          FromCollectiveId: user.CollectiveId,
+          CollectiveId: collective.id,
+          TierId: tier.id,
+          SubscriptionId: subscription.id,
+          totalAmount: payment.amount,
+          currency: payment.currency,
+          interval: payment.interval,
+          status: orderStatus,
+        });
+      };
+
+      // Given an active due order, plus due orders that must never be charged
+      const activeOrder = await createDueOrder(status.ACTIVE);
+      const cancelledOrder = await createDueOrder(status.CANCELLED); // e.g. after a bulk cancellation
+      const pausedOrder = await createDueOrder(status.PAUSED);
+
+      // When the orders with pending charges are listed
+      const { rows } = await ordersWithPendingCharges();
+
+      // Then only the ACTIVE order is returned: charging a cancelled one would flip it back to ACTIVE
+      expect(rows.map(o => o.id)).to.deep.equal([activeOrder.id]);
+      expect(rows.map(o => o.id)).to.not.include(cancelledOrder.id);
+      expect(rows.map(o => o.id)).to.not.include(pausedOrder.id);
+    });
+  });
+
+  describe('#findCancelledOrdersWithActiveSubscriptions @database', () => {
+    beforeEach(async () => {
+      await utils.resetTestDB();
+    });
+
+    it('reports cancelled orders whose subscription is still active', async () => {
+      const collective = await fakeCollective();
+      const brokenOrder = await fakeOrder(
+        { CollectiveId: collective.id, status: status.CANCELLED },
+        { withSubscription: true },
+      );
+      const properlyCancelledOrder = await fakeOrder(
+        {
+          CollectiveId: collective.id,
+          status: status.CANCELLED,
+          subscription: { isActive: false, deactivatedAt: new Date() },
+        },
+        { withSubscription: true },
+      );
+      // A normal transient state: the 10-minute job has not drained it yet
+      const pendingDeactivationOrder = await fakeOrder(
+        { CollectiveId: collective.id, status: status.CANCELLED, data: { needsAsyncDeactivation: true } },
+        { withSubscription: true },
+      );
+      const activeOrder = await fakeOrder(
+        { CollectiveId: collective.id, status: status.ACTIVE },
+        {
+          withSubscription: true,
+        },
+      );
+
+      const { count, orderIds } = await findCancelledOrdersWithActiveSubscriptions();
+
+      expect(count).to.equal(1);
+      expect(orderIds).to.deep.equal([brokenOrder.id]);
+      expect(orderIds).to.not.include(properlyCancelledOrder.id);
+      expect(orderIds).to.not.include(pendingDeactivationOrder.id);
+      expect(orderIds).to.not.include(activeOrder.id);
+    });
+
+    it('reports flagged orders that the 10-minute job no longer looks at', async () => {
+      const collective = await fakeCollective();
+      const stuckOrder = await fakeOrder(
+        { CollectiveId: collective.id, status: status.CANCELLED, data: { needsAsyncDeactivation: true } },
+        { withSubscription: true },
+      );
+      const reactivationOrder = await fakeOrder(
+        { CollectiveId: collective.id, status: status.CANCELLED, data: { needsAsyncReactivation: true } },
+        { withSubscription: true },
+      );
+      await sequelize.query(`UPDATE "Orders" SET "updatedAt" = NOW() - INTERVAL '2 months' WHERE id = :id`, {
+        replacements: { id: stuckOrder.id },
+      });
+
+      const { orderIds } = await findCancelledOrdersWithActiveSubscriptions();
+
+      expect(orderIds).to.have.members([stuckOrder.id, reactivationOrder.id]);
     });
   });
 
