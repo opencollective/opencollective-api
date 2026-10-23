@@ -164,7 +164,7 @@
               {{#each events.upcoming}}
                 <li>{{moment startsAt timezone=timezone format="MMMM Do HH:mm"}} @ {{location.name}}<br />
                 <a href="{{config.host.website}}/{{../slug}}/events/{{slug}}">{{name}}</a><br />
-                RSVPs: {{stats.confirmed}} {{#if stats.interested}}(+{{stats.interested}} interested){{/if}}</li>
+                RSVPs: {{stats.confirmed}}</li>
               {{/each}}
               </ul>
             </td>
@@ -180,7 +180,7 @@
               {{#each events.past}}
                 <li>{{moment startsAt timezone=timezone format="MMMM Do HH:mm"}} @ {{location.name}}<br />
                 <a href="{{config.host.website}}/{{../slug}}/events/{{slug}}">{{name}}</a><br />
-                RSVPs: {{stats.confirmed}} {{#if stats.interested}}(+{{stats.interested}} interested){{/if}}</li>
+                RSVPs: {{stats.confirmed}}</li>
               {{/each}}
               </ul>
             </td>

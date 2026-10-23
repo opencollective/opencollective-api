@@ -1,0 +1,18 @@
+import { GraphQLEnumType } from 'graphql';
+
+export const GraphQLMemberRole = new GraphQLEnumType({
+  name: 'MemberRole',
+  description: 'All member roles',
+  values: {
+    BACKER: {},
+    ADMIN: {},
+    CONTRIBUTOR: {},
+    HOST: {},
+    ATTENDEE: {},
+    MEMBER: {},
+    COMMUNITY_MANAGER: {},
+    FUNDRAISER: { deprecationReason: '2022-09-12: This role does not exist anymore' },
+    ACCOUNTANT: {},
+    CONNECTED_ACCOUNT: { value: 'CONNECTED_COLLECTIVE' },
+  },
+});

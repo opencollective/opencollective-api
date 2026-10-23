@@ -168,7 +168,7 @@ describe('server/models/Notification', () => {
             MemberCollectiveId: user.CollectiveId,
             CollectiveId: event.id,
             TierId: tier.id,
-            role: roles.FOLLOWER,
+            role: roles.ATTENDEE,
           }),
         ),
       );

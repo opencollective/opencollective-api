@@ -106,7 +106,7 @@ const payoutMethodMutations = {
         const paypalData = payoutMethod.data as PaypalPayoutMethodData;
         const linkedConnectedAccountId =
           payoutMethod.type === PayoutMethodTypes.PAYPAL && paypalData?.isPayPalOAuth
-            ? paypalData?.connectedAccountId
+            ? payoutMethod.ConnectedAccountId
             : null;
         if (linkedConnectedAccountId) {
           const connectedAccount = await models.ConnectedAccount.findByPk(linkedConnectedAccountId, { transaction });
@@ -200,7 +200,7 @@ const payoutMethodMutations = {
         // Archive the current payout method and create a new one
         await payoutMethod.update({ isSaved: false });
         const newPayoutMethod = await models.PayoutMethod.create({
-          ...pick(payoutMethod, ['name', 'type']),
+          ...pick(payoutMethod, ['name', 'type', 'ConnectedAccountId']),
           ...pick(args.payoutMethod, ['name', 'isSaved']),
           currency: args.payoutMethod.currency || args.payoutMethod.data?.currency,
           CollectiveId: collective.id,

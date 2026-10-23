@@ -67,6 +67,30 @@ describe('server/lib/guest-accounts.ts', () => {
       expect(firstResult.collective.location?.structured).to.deep.eq(firstLocation.structured);
       expect(secondResult.collective.location?.structured).to.deep.eq(firstLocation.structured);
     });
+
+    it('handles concurrent calls for the same email without errors or duplicate records', async () => {
+      // Regression test for a race condition where two simultaneous guest-checkout requests
+      // for the same email both passed the initial lookup and then both attempted an INSERT,
+      // causing a unique-constraint violation. The fix uses findOrCreate (atomic
+      // INSERT ... ON CONFLICT DO NOTHING) so both calls must succeed against the real DB.
+      const email = randEmail();
+      const [result1, result2] = await Promise.all([
+        getOrCreateGuestProfile({ email }),
+        getOrCreateGuestProfile({ email }),
+      ]);
+
+      // Both calls must complete without throwing
+      expect(result1.user).to.exist;
+      expect(result2.user).to.exist;
+
+      // Both must resolve to the same user and collective
+      expect(result1.user.id).to.eq(result2.user.id);
+      expect(result1.collective.id).to.eq(result2.collective.id);
+
+      // Exactly one User and one Collective must exist for this email
+      const userCount = await models.User.count({ where: { email } });
+      expect(userCount).to.eq(1);
+    });
   });
 
   describe('confirmGuestAccountByEmail', () => {

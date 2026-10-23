@@ -32,7 +32,12 @@ import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory'
 import { AccountingCategoryRule } from '../../../models/AccountingCategoryRule';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkRemoteUserCanUseHost, checkRemoteUserCanUseTransactions, checkScope } from '../../common/scope-check';
+import {
+  checkRemoteUserCanUseHost,
+  checkRemoteUserCanUseTransactions,
+  checkScope,
+  isRemoteUserRoot,
+} from '../../common/scope-check';
 import { Forbidden, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
@@ -308,7 +313,12 @@ export const getOrganizationFields = () => ({
             .where('m.deletedAt', 'is', null)
             .where('ac.deletedAt', 'is', null)
             // filter by host or collectives hosted by this host
-            .where(({ or, eb }) => or([eb('ac.HostCollectiveId', '=', host.id), eb('ac.id', '=', host.id)]))
+            .where(({ or, and, eb }) =>
+              or([
+                and([eb('ac.HostCollectiveId', '=', host.id), eb('ac.approvedAt', 'is not', null)]),
+                eb('ac.id', '=', host.id),
+              ]),
+            )
             .select('m.CollectiveId as id')
             .union(
               // children accounts that the user can view vendors for given that vendors attached to parents
@@ -325,7 +335,12 @@ export const getOrganizationFields = () => ({
                 .where('m.role', '=', MemberRoles.ADMIN)
                 .where('m.deletedAt', 'is', null)
                 .where('parent.deletedAt', 'is', null)
-                .where(({ or, eb }) => or([eb('parent.HostCollectiveId', '=', host.id), eb('parent.id', '=', host.id)]))
+                .where(({ or, and, eb }) =>
+                  or([
+                    and([eb('parent.HostCollectiveId', '=', host.id), eb('parent.approvedAt', 'is not', null)]),
+                    eb('parent.id', '=', host.id),
+                  ]),
+                )
                 .select('c.id'),
             ),
         );
@@ -1123,7 +1138,7 @@ export const getOrganizationFields = () => ({
       // Handle archived
       if (!args.includeArchived) {
         where.archivedAt = null;
-      } else if (!req.remoteUser?.isAdmin(collective.id) && !req.remoteUser?.isRoot()) {
+      } else if (!req.remoteUser?.isAdmin(collective.id) && !isRemoteUserRoot(req)) {
         throw new Forbidden('You are not authorized to see archived manual payment providers for this account');
       }
 

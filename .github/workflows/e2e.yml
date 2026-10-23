@@ -122,7 +122,7 @@ jobs:
         run: |
           set -eu
           fail=0
-          npm run build &
+          npm run build:e2e &
           api_pid=$!
           (cd opencollective-frontend && PRESERVE_NEXT_CACHE=true npm run build) &
           frontend_pid=$!
@@ -143,6 +143,13 @@ jobs:
           rsync -a --exclude cache/ opencollective-frontend/.next/ /tmp/frontend-next/
           test -f /tmp/frontend-next/BUILD_ID
           test -f /tmp/frontend-next/routes-manifest.json
+          # The frontend build also writes outside .next/: its next.config.js copies the pdf.js worker and cMaps
+          # into public/static/ (gitignored). The e2e jobs start from a fresh checkout and get only what this
+          # artifact carries, so these generated files must travel with .next/ (restored below), or the e2e
+          # frontend answers 404 for the worker and PDF previews never render. Same as the frontend's ci.yml.
+          mkdir -p /tmp/frontend-next/_generated-public/static/scripts
+          cp opencollective-frontend/public/static/scripts/pdf.worker.min.mjs /tmp/frontend-next/_generated-public/static/scripts/
+          rsync -a opencollective-frontend/public/static/cmaps /tmp/frontend-next/_generated-public/static/
 
       - name: Upload Next.js build
         uses: actions/upload-artifact@v7
@@ -161,7 +168,7 @@ jobs:
           cp -a dist "$stage/opencollective-api/dist"
           cp -a opencollective-images/dist "$stage/opencollective-images/dist"
           cp -a opencollective-pdf/dist "$stage/opencollective-pdf/dist"
-          test -f "$stage/opencollective-api/dist/e2e.js"
+          test -f "$stage/opencollective-api/dist/e2e/index.js"
           test -e "$stage/opencollective-images/dist/server"
           test -f "$stage/opencollective-pdf/dist/server/index.js"
 
@@ -186,12 +193,11 @@ jobs:
 
     services:
       redis:
-        image: redis@sha256:8aee6591ee8c2b26e9e01ad4913fbc804ea6b79a9bc675ee1824d80ea5dd9856
+        image: valkey/valkey:9.1
         ports:
           - 6379:6379
-        options: --entrypoint redis-server
       postgres:
-        image: postgres:16.15@sha256:42df6755a4110ea9e324bfaefd02eb2f6afc0f0b9bc063c55c9f73dc29d25770
+        image: postgres:16.15
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -213,10 +219,6 @@ jobs:
       # man-db trigger on apt install is taking some time
       - name: Disable man-db update
         run: sudo rm -f /var/lib/man-db/auto-update
-      # postgresql-client-16 is not in the Ubuntu 26.04 archives (which ship PostgreSQL 18), get it from PGDG
-      - name: Add PGDG apt repository
-        run: sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-
       - name: Update apt
         run: sudo apt-get update || exit 0
 
@@ -224,10 +226,7 @@ jobs:
         run: |
           sudo apt-get install \
           `# Cypress dependencies - see https://docs.cypress.io/app/get-started/install-cypress#UbuntuDebian` \
-          libgtk2.0-0t64 libgtk-3-0t64 libgbm-dev libnotify-dev libnss3 libxss1 libasound2t64 libxtst6 xauth xvfb \
-          `# Postgres client` \
-          postgresql-client-16
-          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
+          libgtk2.0-0t64 libgtk-3-0t64 libgbm-dev libnotify-dev libnss3 libxss1 libasound2t64 libxtst6 xauth xvfb
 
       - name: Setup S3 bucket
         env:
@@ -344,9 +343,12 @@ jobs:
             next_root="${next_root}/frontend-next"
           fi
           mkdir -p opencollective-frontend/.next
-          rsync -a "${next_root}/" opencollective-frontend/.next/
+          rsync -a --exclude _generated-public/ "${next_root}/" opencollective-frontend/.next/
           test -f opencollective-frontend/.next/BUILD_ID
           test -f opencollective-frontend/.next/routes-manifest.json
+          # Put back the files the frontend build generated in public/ (see "Stage Next.js build")
+          rsync -a "${next_root}/_generated-public/" opencollective-frontend/public/
+          test -f opencollective-frontend/public/static/scripts/pdf.worker.min.mjs
 
           stack_root=/tmp/e2e-service-dists
           if [ ! -d "${stack_root}/opencollective-api/dist" ] && [ -d "${stack_root}/e2e-service-dists/opencollective-api/dist" ]; then
@@ -356,12 +358,16 @@ jobs:
           cp -a "${stack_root}/opencollective-api/dist" dist
           cp -a "${stack_root}/opencollective-images/dist" opencollective-images/dist
           cp -a "${stack_root}/opencollective-pdf/dist" opencollective-pdf/dist
-          test -f dist/e2e.js
+          test -f dist/e2e/index.js
           test -e opencollective-images/dist/server
           test -f opencollective-pdf/dist/server/index.js
 
+      # The ubuntu-26.04 image ships PostgreSQL 18 client tools, whose pg_restore emits
+      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Run them from the postgres:16 image.
       - name: Setup DB
         working-directory: opencollective-frontend
+        env:
+          USE_DOCKER: true
         run: ./scripts/setup_db.sh
 
       - name: Run E2E with Cypress

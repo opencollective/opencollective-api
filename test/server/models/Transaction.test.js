@@ -377,6 +377,38 @@ describe('server/models/Transaction', () => {
       expect(settlement.status).to.eq('OWED');
     });
 
+    it('rejects a negative platform tip payload instead of writing a reversed entry', async () => {
+      const order = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+      });
+
+      const transactionPayload = {
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        description: '$100 donation to Merveilles',
+        amount: 10000,
+        totalAmount: 10000,
+        amountInHostCurrency: 10000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        hostCurrencyFxRate: 1,
+        hostFeeInHostCurrency: 500,
+        paymentProcessorFeeInHostCurrency: 200,
+        type: 'CREDIT',
+        createdAt: '2015-05-29T07:00:00.000Z',
+        PaymentMethodId: 1,
+        OrderId: order.id,
+        data: { platformTip: -100 },
+      };
+
+      await expect(Transaction.createFromContributionPayload(transactionPayload)).to.be.rejectedWith(
+        'Platform tip amount cannot be negative',
+      );
+    });
+
     it('should convert the donation transaction to USD and store the FX rate', async () => {
       const order = await fakeOrder({
         CreatedByUserId: user.id,

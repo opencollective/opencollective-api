@@ -38,6 +38,7 @@ const SCOPE_CHECK_FUNCTIONS = new Set([
   'checkScope',
   'enforceScope',
   'rejectOAuthAndPersonalTokenAuth',
+  'requireSessionToken',
 ]);
 
 /**

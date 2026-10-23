@@ -17,9 +17,6 @@
       "sendGuestConfirmPerMinutePerEmail": 10,
       "sendGuestConfirmPerMinutePerIp": 15,
       "confirmGuestAccountPerMinutePerIp": 15
-    },
-    "giftCards": {
-      "maxPerDay": 1000
     }
   },
   "log": {

@@ -27,6 +27,7 @@ import graphqlSchemaV2 from './graphql/v2/schema';
 import { apolloSlowRequestCachePlugin, apolloSlowResolverDebugPlugin, apolloStudioUsagePlugin } from './lib/apollo';
 import cache from './lib/cache';
 import errors from './lib/errors';
+import { runBeforeRoutesHooks } from './lib/express-hooks';
 import expressLimiter from './lib/express-limiter';
 import logger from './lib/logger';
 import { withTiming } from './lib/middleware-timing';
@@ -50,6 +51,7 @@ const noCache = (req, res, next) => {
 };
 
 export default async (app: express.Application) => {
+  await runBeforeRoutesHooks(app);
   /**
    * Extract GraphQL API Key
    */
@@ -393,22 +395,34 @@ export default async (app: express.Application) => {
   app.post('/images', upload.single('file'), uploadImage);
 
   // backward compatibility
-  app.get('/connected-accounts/:service', noCache, (req, res, next) => {
-    if (!oauthServiceAllowlist.has(req.params.service)) {
-      return next(new errors.NotFound('Service not supported'));
-    }
-    return authentication.authenticateService(req, res, next);
-  });
-  app.get('/connected-accounts/:service/oauthUrl', noCache, (req, res, next) => {
-    if (!oauthServiceAllowlist.has(req.params.service)) {
-      return next(new errors.NotFound('Service not supported'));
-    }
-    return authentication.authenticateService(req, res, next);
-  });
+  app.get(
+    '/connected-accounts/:service',
+    noCache,
+    authentication.rateLimitServiceAuthentication,
+    authentication.requireSessionToken,
+    (req, res, next) => {
+      if (!oauthServiceAllowlist.has(req.params.service)) {
+        return next(new errors.NotFound('Service not supported'));
+      }
+      return authentication.authenticateService(req, res, next);
+    },
+  );
+  app.get(
+    '/connected-accounts/:service/oauthUrl',
+    noCache,
+    authentication.rateLimitServiceAuthentication,
+    authentication.requireSessionToken,
+    (req, res, next) => {
+      if (!oauthServiceAllowlist.has(req.params.service)) {
+        return next(new errors.NotFound('Service not supported'));
+      }
+      return authentication.authenticateService(req, res, next);
+    },
+  );
   app.get('/connected-accounts/:service/verify', noCache, connectedAccounts.verify);
 
   /* TransferWise OTT Request Endpoint */
-  app.post('/services/transferwise/pay-batch', noCache, transferwise.payBatch);
+  app.post('/services/transferwise/pay-batch', noCache, authentication.requireSessionToken, transferwise.payBatch);
 
   /**
    * External services

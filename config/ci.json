@@ -18,11 +18,6 @@
   "maintenancedb": {
     "url": "postgres://postgres@localhost:5432/postgres"
   },
-  "limits": {
-    "giftCards": {
-      "maxPerDay": 1000
-    }
-  },
   "redis": {
     "serverUrl": "redis://localhost"
   },

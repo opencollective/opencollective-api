@@ -628,7 +628,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
 
     describe('add funds to a specific tier', () => {
       it('works with valid params', async () => {
-        const tier = await fakeTier({ CollectiveId: collective.id });
+        const tier = await fakeTier({ CollectiveId: collective.id, currency: 'USD', amount: 2000 });
         const result = await graphqlQueryV2(
           addFundsMutation,
           {

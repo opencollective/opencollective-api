@@ -3,6 +3,10 @@
 Wise application keys are already set up by default and can be used in sandbox.
 All you need to do is to create a test business account on https://sandbox.transferwise.tech/ and connect it to any local fiscal host.
 
+## Batch payment authentication
+
+`POST /services/transferwise/pay-batch` requires a user session. OAuth and personal access tokens are rejected, even with the `expenses` scope and host admin permissions. This intentionally changes the previous behavior, which accepted scoped tokens. Clients using this REST endpoint must authenticate with a session; the host admin, expense scope, and Wise SCA checks still apply.
+
 **Attention:**
 
 - On development, transferwise.ott setting is always enabled.

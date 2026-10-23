@@ -60,6 +60,10 @@ describe('server/lib/payments-legacy', () => {
         symbols: 'USD',
       })
       .reply(200, { base: 'EUR', date: '2017-10-05', rates: { USD: 1.1742 } });
+
+    // Other Fixer requests must fail so the currency lib falls back to its mock rate. Since nock 15,
+    // unmatched requests get a 501 response instead of an error, so we need to make them fail explicitly.
+    nock('https://data.fixer.io').persist().get(/.*/).query(true).replyWithError('Unmocked Fixer request');
   });
 
   after(() => {

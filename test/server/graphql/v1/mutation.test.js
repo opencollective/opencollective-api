@@ -158,7 +158,41 @@ describe('server/graphql/v1/mutation', () => {
         );
         expect(result.errors).to.have.length(1);
         expect(result.errors[0].message).to.equal(
-          'You must be logged in as a member of the scouts collective to create an event',
+          'You must be logged in as an admin of the scouts collective to create an account under it',
+        );
+      });
+
+      it('fails if authenticated as a core contributor (MEMBER role) of the parent collective', async () => {
+        await host.collective.update({ settings: { apply: true } });
+        const coreContributor = await fakeUser();
+        await collective1.addUserWithRole(coreContributor, roles.MEMBER);
+
+        const result = await utils.graphqlQuery(
+          createCollectiveMutation,
+          { collective: getEventData(collective1) },
+          coreContributor,
+        );
+        expect(result.errors).to.have.length(1);
+        expect(result.errors[0].message).to.equal(
+          'You must be logged in as an admin of the scouts collective to create an account under it',
+        );
+
+        // Same goes for projects
+        const resultProject = await utils.graphqlQuery(
+          createCollectiveMutation,
+          {
+            collective: {
+              name: 'A project',
+              type: 'PROJECT',
+              slug: 'a-project-slug',
+              ParentCollectiveId: collective1.id,
+            },
+          },
+          coreContributor,
+        );
+        expect(resultProject.errors).to.have.length(1);
+        expect(resultProject.errors[0].message).to.equal(
+          'You must be logged in as an admin of the scouts collective to create an account under it',
         );
       });
 
@@ -613,6 +647,57 @@ describe('server/graphql/v1/mutation', () => {
       expect(metricsCountStub.called).to.be.false;
       const order = await models.Order.findOne({ where: { CollectiveId: collective.id } });
       expect(order.status).to.eq('REQUIRE_CLIENT_CONFIRMATION');
+    });
+
+    it('rejects order with non-positive quantity', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+
+      await expect(
+        createOrder(
+          {
+            collective: { id: collective.id },
+            amount: 1000,
+            quantity: 0,
+            totalAmount: 1000,
+            currency: 'USD',
+          },
+          utils.makeRequest(user),
+        ),
+      ).to.be.rejectedWith('Quantity must be at least 1');
+
+      await expect(
+        createOrder(
+          {
+            collective: { id: collective.id },
+            amount: 1000,
+            quantity: -2,
+            totalAmount: 1000,
+            currency: 'USD',
+          },
+          utils.makeRequest(user),
+        ),
+      ).to.be.rejectedWith('Quantity must be at least 1');
+    });
+
+    it('rejects order with negative net amount for collective', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+
+      await expect(
+        createOrder(
+          {
+            collective: { id: collective.id },
+            paymentMethod: fakeCreditCardPaymentMethodInput(),
+            amount: 1000,
+            quantity: 1,
+            totalAmount: 500,
+            platformTipAmount: 1000,
+            currency: 'USD',
+          },
+          utils.makeRequest(user),
+        ),
+      ).to.be.rejectedWith('Invalid net amount for collective');
     });
   });
 });

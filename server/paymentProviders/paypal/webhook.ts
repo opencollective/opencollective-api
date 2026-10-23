@@ -23,7 +23,7 @@ import { PayoutWebhookRequest, PaypalCapture, PaypalRefund } from '../../types/p
 import { paypalRequestV2 } from './api';
 import { findTransactionByPaypalId, recordPaypalCapture, recordPaypalSale } from './payment';
 import { checkBatchItemStatus } from './payouts';
-import { CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON, CONTRIBUTION_PAUSED_MSG } from './subscription';
+import { CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON, markPaypalSubscriptionAsCancelledInDb } from './subscription';
 
 const debug = Debug('paypal:webhook');
 
@@ -456,22 +456,10 @@ async function handleSubscriptionCancelled(req: Request): Promise<void> {
   }
 
   const { order } = result;
-  if (order.status !== OrderStatus.CANCELLED) {
-    const shouldKeepPaused = subscription.status_change_note === CONTRIBUTION_PAUSED_MSG;
-    await order.update({
-      status: order.status === OrderStatus.PAUSED && shouldKeepPaused ? OrderStatus.PAUSED : OrderStatus.CANCELLED,
-      data: { ...order.data, paypalStatusChangeNote: subscription.status_change_note },
-    });
-  }
-
-  if (order.Subscription.isActive || !order.Subscription.deactivatedAt) {
-    await order.Subscription.update({
-      isActive: false,
-      deactivatedAt: new Date(),
-      nextChargeDate: null,
-      data: { ...order.Subscription.data, deactivatedFromPayPalWebhook: true },
-    });
-  }
+  await markPaypalSubscriptionAsCancelledInDb(order, {
+    statusChangeNote: subscription.status_change_note,
+    subscriptionData: { deactivatedFromPayPalWebhook: true },
+  });
 }
 
 /**

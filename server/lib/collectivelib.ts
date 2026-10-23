@@ -8,6 +8,7 @@ import { CollectiveType } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import PlatformConstants from '../constants/platform';
 import { VAT_OPTIONS } from '../constants/vat';
+import { VirtualCardLimitIntervals } from '../constants/virtual-cards';
 import models, { Collective, Member, Op, sequelize, User } from '../models';
 import { AllTierTypes } from '../models/Tier';
 
@@ -167,7 +168,6 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'twitter',
   'VAT',
   'GST',
-  'giftCardsMaxDailyCount',
   'virtualcards',
   'transferwise',
   'customEmailMessage',
@@ -254,6 +254,32 @@ export function validateSettings(settings: Record<string, unknown>): string | bo
       if (!Object.keys(MODERATION_CATEGORIES).includes(category)) {
         return 'Invalid filtering category';
       }
+    }
+  }
+
+  /*
+   * Validate the spending limit intervals allowed for virtual card requests.
+   */
+  const allowedSpendingLimitIntervals = get(settings, 'virtualcards.allowedSpendingLimitIntervals') as
+    Record<string, unknown> | undefined;
+  if (allowedSpendingLimitIntervals) {
+    if (typeof allowedSpendingLimitIntervals !== 'object' || Array.isArray(allowedSpendingLimitIntervals)) {
+      return 'Invalid type for virtual cards allowed spending limit intervals';
+    }
+
+    for (const [interval, isAllowed] of Object.entries(allowedSpendingLimitIntervals)) {
+      if (!Object.values(VirtualCardLimitIntervals).includes(interval as VirtualCardLimitIntervals)) {
+        return `Invalid virtual card spending limit interval: ${interval}`;
+      } else if (typeof isAllowed !== 'boolean') {
+        return `Invalid value for virtual card spending limit interval ${interval}: must be a boolean`;
+      }
+    }
+
+    const hasAllowedInterval = Object.values(VirtualCardLimitIntervals).some(
+      interval => allowedSpendingLimitIntervals[interval] !== false,
+    );
+    if (!hasAllowedInterval) {
+      return 'At least one virtual card spending limit interval must be allowed';
     }
   }
 

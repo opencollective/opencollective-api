@@ -298,6 +298,77 @@ describe('server/graphql/v2/object/Organization', () => {
       }
     `;
 
+    for (const scope of ['host', 'collective', 'child']) {
+      it(`only exposes ${scope}-scoped restricted vendors after the host application is approved`, async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin, settings: { apply: true } });
+        const applicant = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: null, admin: applicant });
+        const child = await fakeProject({ ParentCollectiveId: collective.id, HostCollectiveId: host.id });
+        const restrictedVendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: {
+            useVendorPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+            canBeUsedWithAccountIds: scope === 'host' ? [] : [scope === 'collective' ? collective.id : child.id],
+          },
+        });
+        const publicVendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { useVendorPolicy: UseVendorPolicyValue.ALL_SUBMITTERS },
+        });
+
+        const application = await graphqlQueryV2(
+          gql`
+            mutation ApplyToHost($collective: AccountReferenceInput!, $host: AccountReferenceInput!) {
+              applyToHost(collective: $collective, host: $host) {
+                ... on AccountWithHost {
+                  isApproved
+                }
+              }
+            }
+          `,
+          { collective: { slug: collective.slug }, host: { slug: host.slug } },
+          applicant,
+        );
+        expect(application.errors).to.not.exist;
+        expect(application.data.applyToHost.isApproved).to.be.false;
+
+        const pending = await graphqlQueryV2(hostVendorsQuery, { slug: host.slug }, applicant);
+        expect(pending.errors).to.not.exist;
+        expect(pending.data.host.vendors.totalCount).to.eq(1);
+        expect(pending.data.host.vendors.nodes.map(v => v.slug)).to.deep.eq([publicVendor.slug]);
+
+        const hostApplication = await models.HostApplication.findOne({
+          where: { HostCollectiveId: host.id, CollectiveId: collective.id },
+        });
+        const approval = await graphqlQueryV2(
+          gql`
+            mutation ApproveHostApplication($hostApplication: HostApplicationReferenceInput!) {
+              processHostApplication(hostApplication: $hostApplication, action: APPROVE) {
+                account {
+                  ... on AccountWithHost {
+                    approvedAt
+                  }
+                }
+              }
+            }
+          `,
+          { hostApplication: { id: hostApplication.publicId } },
+          hostAdmin,
+        );
+        expect(approval.errors).to.not.exist;
+        expect(approval.data.processHostApplication.account.approvedAt).to.exist;
+
+        const approved = await graphqlQueryV2(hostVendorsQuery, { slug: host.slug }, applicant);
+        expect(approved.errors).to.not.exist;
+        expect(approved.data.host.vendors.totalCount).to.eq(2);
+        expect(approved.data.host.vendors.nodes.map(v => v.slug)).to.have.members([
+          publicVendor.slug,
+          restrictedVendor.slug,
+        ]);
+      });
+    }
+
     describe('visibility policies', () => {
       let hostAdmin, host, collectiveAdmin, collective, collectiveProject, hostProject;
       let projectOnlyAdmin, foreignHostAdmin;

@@ -3,6 +3,7 @@
 exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges a user profile 1`] = `
 Object {
   "accountingCategories": 1,
+  "accountingCategoryRules": 0,
   "activities": 1,
   "agreements": 1,
   "applications": 1,
@@ -26,6 +27,7 @@ Object {
   "hostedVirtualCardRequests": 0,
   "legalDocuments": 1,
   "location": 1,
+  "manualPaymentProviders": 0,
   "memberInvitations": 0,
   "members": 1,
   "membershipInvitations": 0,
@@ -54,6 +56,7 @@ Object {
 exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges a user profile 2`] = `
 Object {
   "accountingCategories": 1,
+  "accountingCategoryRules": 0,
   "activities": 1,
   "agreements": 1,
   "applications": 1,
@@ -77,6 +80,7 @@ Object {
   "hostedVirtualCardRequests": 0,
   "legalDocuments": 1,
   "location": 1,
+  "manualPaymentProviders": 0,
   "memberInvitations": 0,
   "members": 1,
   "membershipInvitations": 0,
@@ -169,6 +173,7 @@ Object {
 exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges a user profile 5`] = `
 Object {
   "accountingCategories": 2,
+  "accountingCategoryRules": 0,
   "activities": 2,
   "agreements": 2,
   "applications": 2,
@@ -192,6 +197,7 @@ Object {
   "hostedVirtualCardRequests": 0,
   "legalDocuments": 1,
   "location": 1,
+  "manualPaymentProviders": 0,
   "memberInvitations": 0,
   "members": 2,
   "membershipInvitations": 0,
@@ -220,6 +226,7 @@ Object {
 exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges an organization 1`] = `
 Object {
   "accountingCategories": 1,
+  "accountingCategoryRules": 0,
   "activities": 1,
   "agreements": 1,
   "applications": 1,
@@ -243,6 +250,7 @@ Object {
   "hostedVirtualCardRequests": 0,
   "legalDocuments": 1,
   "location": 1,
+  "manualPaymentProviders": 0,
   "memberInvitations": 0,
   "members": 2,
   "membershipInvitations": 0,
@@ -271,6 +279,7 @@ Object {
 exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges an organization 2`] = `
 Object {
   "accountingCategories": 1,
+  "accountingCategoryRules": 0,
   "activities": 1,
   "agreements": 1,
   "applications": 1,
@@ -294,6 +303,7 @@ Object {
   "hostedVirtualCardRequests": 0,
   "legalDocuments": 1,
   "location": 1,
+  "manualPaymentProviders": 0,
   "memberInvitations": 0,
   "members": 2,
   "membershipInvitations": 0,
@@ -322,6 +332,7 @@ Object {
 exports[`server/lib/merge-accounts Full scenario mergeAccounts Merges an organization 3`] = `
 Object {
   "accountingCategories": 2,
+  "accountingCategoryRules": 0,
   "activities": 2,
   "agreements": 2,
   "applications": 2,
@@ -345,6 +356,7 @@ Object {
   "hostedVirtualCardRequests": 0,
   "legalDocuments": 1,
   "location": 1,
+  "manualPaymentProviders": 0,
   "memberInvitations": 0,
   "members": 4,
   "membershipInvitations": 0,
@@ -408,6 +420,9 @@ The following items will be moved to @to-collective:
   - virtualCards: 1
   - virtualCardsHosted: 1
 
+Warnings:
+  - Merging from-collective into to-collective moves transactions: balances will be stale until the materialized views are refreshed. Run \`npm run script cron/daily/92-refresh-daily-materialized-views.ts\` to refresh them now, or wait for the next daily refresh.
+
 "
 `;
 
@@ -449,6 +464,9 @@ The following items will be moved to @to-org:
   - virtualCards: 1
   - virtualCardsHosted: 1
 
+Warnings:
+  - Merging from-org into to-org moves transactions: balances will be stale until the materialized views are refreshed. Run \`npm run script cron/daily/92-refresh-daily-materialized-views.ts\` to refresh them now, or wait for the next daily refresh.
+
 "
 `;
 
@@ -484,6 +502,9 @@ The following items will be moved to @to-user:
   - tiers: 1
   - updates: 1
   - updatesCreated: 1
+
+Warnings:
+  - Merging from-user into to-user moves transactions: balances will be stale until the materialized views are refreshed. Run \`npm run script cron/daily/92-refresh-daily-materialized-views.ts\` to refresh them now, or wait for the next daily refresh.
 
 "
 `;

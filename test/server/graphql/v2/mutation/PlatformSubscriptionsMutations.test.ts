@@ -5,14 +5,33 @@ import { omit } from 'lodash';
 import { createSandbox } from 'sinon';
 
 import { roles } from '../../../../../server/constants';
+import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import { PlatformSubscriptionTiers } from '../../../../../server/constants/plans';
 import emailLib from '../../../../../server/lib/email';
-import { fakeCollective, fakeMember, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, waitForCondition } from '../../../../utils';
+import { PlatformSubscription } from '../../../../../server/models';
+import {
+  fakeCollective,
+  fakeHost,
+  fakeMember,
+  fakePersonalToken,
+  fakeUser,
+  fakeUserToken,
+} from '../../../../test-helpers/fake-data';
+import {
+  getOrCreatePlatformAccount,
+  graphqlQueryV2,
+  oAuthGraphqlQueryV2,
+  personalTokenGraphqlQueryV2,
+  waitForCondition,
+} from '../../../../utils';
 
 describe('server/graphql/v2/mutation/PlatformSubscriptionsMutations', () => {
   describe('updateAccountPlatformSubscription', () => {
-    let sandbox, sendEmailSpy;
+    let sandbox, sendEmailSpy, platform;
+
+    before(async () => {
+      platform = await getOrCreatePlatformAccount();
+    });
 
     beforeEach(() => {
       sandbox = createSandbox();
@@ -56,10 +75,146 @@ describe('server/graphql/v2/mutation/PlatformSubscriptionsMutations', () => {
       }
     `;
 
+    const customPlan = {
+      title: 'Custom title',
+      type: 'Basic',
+      basePlanId: 'basic-5',
+      pricing: {
+        pricePerMonth: { valueInCents: 1200, currency: 'USD' },
+        pricePerAdditionalCollective: { valueInCents: 100, currency: 'USD' },
+        pricePerAdditionalExpense: { valueInCents: 2500, currency: 'USD' },
+        includedCollectives: 22,
+        includedExpensesPerMonth: 11,
+      },
+      features: PlatformSubscriptionTiers.find(plan => plan.id === 'basic-5').features,
+    };
+
+    describe('custom plan root scope', () => {
+      let root, host;
+
+      beforeEach(async () => {
+        root = await fakeUser({ data: { isRoot: true } }, null);
+        await fakeMember({ CollectiveId: platform.id, MemberCollectiveId: root.CollectiveId, role: roles.ADMIN });
+        host = await fakeHost({ admin: await fakeUser() });
+        await root.populateRoles();
+        expect(root.isRoot()).to.be.true;
+        expect(root.isAdminOfCollective(host)).to.be.false;
+        expect(await PlatformSubscription.getCurrentSubscription(host.id)).to.be.null;
+      });
+
+      for (const auth of ['OAuth', 'personal token']) {
+        it(`rejects an account-scoped ${auth} without creating a subscription`, async () => {
+          const variables = { account: { legacyId: host.id }, subscription: { plan: customPlan } };
+          const result =
+            auth === 'OAuth'
+              ? await oAuthGraphqlQueryV2(
+                  updateAccountPlatformSubscriptionMutation,
+                  variables,
+                  await fakeUserToken({ user: root, scope: ['account'] }),
+                )
+              : await personalTokenGraphqlQueryV2(
+                  updateAccountPlatformSubscriptionMutation,
+                  variables,
+                  await fakePersonalToken({ user: root, scope: [OAuthScopes.account] }),
+                );
+
+          expect(result.errors).to.not.be.empty;
+          expect(result.errors[0].extensions.code).to.equal('Forbidden');
+          expect(result.errors[0].message).to.equal(
+            `The ${auth === 'OAuth' ? 'User' : 'Personal'} Token is not allowed for operations in scope "root".`,
+          );
+          expect(await PlatformSubscription.getCurrentSubscription(host.id)).to.be.null;
+          expect(await PlatformSubscription.count({ where: { CollectiveId: host.id } })).to.equal(0);
+        });
+      }
+
+      it('checks root scope before reading the custom plan input', async () => {
+        const token = await fakeUserToken({ user: root, scope: ['account'] });
+        const result = await oAuthGraphqlQueryV2(
+          updateAccountPlatformSubscriptionMutation,
+          { account: { legacyId: host.id } },
+          token,
+        );
+
+        expect(result.errors).to.not.be.empty;
+        expect(result.errors[0].extensions.code).to.equal('Forbidden');
+        expect(result.errors[0].message).to.equal('The User Token is not allowed for operations in scope "root".');
+        expect(await PlatformSubscription.getCurrentSubscription(host.id)).to.be.null;
+      });
+
+      for (const auth of ['session', 'OAuth']) {
+        it(`allows custom plans through ${auth} with root authority`, async () => {
+          const variables = { account: { legacyId: host.id }, subscription: { plan: customPlan } };
+          const result =
+            auth === 'session'
+              ? await graphqlQueryV2(updateAccountPlatformSubscriptionMutation, variables, root)
+              : await oAuthGraphqlQueryV2(
+                  updateAccountPlatformSubscriptionMutation,
+                  variables,
+                  await fakeUserToken({ user: root, scope: ['account', 'root'] }),
+                );
+
+          expect(result.errors).to.be.undefined;
+          expect(result.data.updateAccountPlatformSubscription.platformSubscription).to.containSubset({
+            plan: omit(customPlan, ['features', 'basePlanId']),
+          });
+          expect(await PlatformSubscription.getCurrentSubscription(host.id)).to.exist;
+        });
+      }
+
+      for (const auth of ['OAuth', 'personal token']) {
+        it(`rejects an account-scoped ${auth} selecting a plan for an unrelated account`, async () => {
+          const variables = { account: { legacyId: host.id }, planId: 'basic-5' };
+          const result =
+            auth === 'OAuth'
+              ? await oAuthGraphqlQueryV2(
+                  updateAccountPlatformSubscriptionMutation,
+                  variables,
+                  await fakeUserToken({ user: root, scope: ['account'] }),
+                )
+              : await personalTokenGraphqlQueryV2(
+                  updateAccountPlatformSubscriptionMutation,
+                  variables,
+                  await fakePersonalToken({ user: root, scope: [OAuthScopes.account] }),
+                );
+
+          expect(result.errors).to.not.be.empty;
+          expect(result.errors[0].extensions.code).to.equal('Forbidden');
+          expect(result.errors[0].message).to.equal(
+            `The ${auth === 'OAuth' ? 'User' : 'Personal'} Token is not allowed for operations in scope "root".`,
+          );
+          expect(await PlatformSubscription.count({ where: { CollectiveId: host.id } })).to.equal(0);
+        });
+      }
+
+      it('allows a root-scoped token to select a plan for an unrelated account', async () => {
+        const result = await oAuthGraphqlQueryV2(
+          updateAccountPlatformSubscriptionMutation,
+          { account: { legacyId: host.id }, planId: 'basic-5' },
+          await fakeUserToken({ user: root, scope: ['account', 'root'] }),
+        );
+
+        expect(result.errors).to.be.undefined;
+        expect(await PlatformSubscription.getCurrentSubscription(host.id)).to.exist;
+      });
+
+      it('allows an account admin to select a plan with only account scope', async () => {
+        await fakeMember({ CollectiveId: host.id, MemberCollectiveId: root.CollectiveId, role: roles.ADMIN });
+        const result = await oAuthGraphqlQueryV2(
+          updateAccountPlatformSubscriptionMutation,
+          { account: { legacyId: host.id }, planId: 'basic-5' },
+          await fakeUserToken({ user: root, scope: ['account'] }),
+        );
+
+        expect(result.errors).to.be.undefined;
+        expect(await PlatformSubscription.getCurrentSubscription(host.id)).to.exist;
+      });
+    });
+
     it('must be root to set custom plan', async () => {
       const root = await fakeUser({ data: { isRoot: true } }, null);
       await fakeMember({
-        CollectiveId: 1,
+        CollectiveId: platform.id,
         MemberCollectiveId: root.CollectiveId,
         role: roles.ADMIN,
       });

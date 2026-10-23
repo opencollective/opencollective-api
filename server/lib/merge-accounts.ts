@@ -1,4 +1,4 @@
-import { flatten, isEmpty, keyBy, mapValues, some } from 'lodash';
+import { flatten, groupBy, isEmpty, keyBy, mapValues, some } from 'lodash';
 import { DestroyOptions, Model, ModelStatic, Transaction as SQLTransaction } from 'sequelize';
 
 import { CollectiveType } from '../constants/collectives';
@@ -48,10 +48,19 @@ export const getMovableItemsCounts = async (
   }
 };
 
+/**
+ * Moving transactions between accounts makes the balance/checkpoint materialized views stale for both accounts
+ * until they are refreshed (they are only refreshed by the daily cron). Rather than blocking the merge, we warn
+ * about it and point to the refresh command.
+ */
+const getStaleBalancesWarning = (from: Collective, into: Collective): string =>
+  `Merging ${from.slug} into ${into.slug} moves transactions: balances will be stale until the materialized views are refreshed. Run \`npm run script cron/daily/92-refresh-daily-materialized-views.ts\` to refresh them now, or wait for the next daily refresh.`;
+
 const checkMergeCollective = (from: Collective, into: Collective): void => {
+  const isProjectIntoCollective = from?.type === CollectiveType.PROJECT && into?.type === CollectiveType.COLLECTIVE;
   if (!from || !into) {
     throw new Error('Cannot merge profiles, one of them does not exist');
-  } else if (from.type !== into.type) {
+  } else if (from.type !== into.type && !isProjectIntoCollective) {
     throw new Error('Cannot merge accounts with different types');
   } else if (from.id === into.id) {
     throw new Error('Cannot merge an account into itself');
@@ -59,6 +68,14 @@ const checkMergeCollective = (from: Collective, into: Collective): void => {
     throw new Error('You can not merge an account with its parent');
   } else if (from.id === into.HostCollectiveId) {
     throw new Error('You can not merge an account with its host');
+  } else if (isProjectIntoCollective) {
+    // Cross-type merges are only allowed for PROJECT -> COLLECTIVE, and only when both accounts
+    // share the same (non-null) host. The target must not be a fiscal host (money management account).
+    if (into.hasMoneyManagement) {
+      throw new Error('Cannot merge an account into a fiscal host');
+    } else if (!from.HostCollectiveId || from.HostCollectiveId !== into.HostCollectiveId) {
+      throw new Error('A project can only be merged into a collective hosted by the same host');
+    }
   }
 };
 
@@ -91,6 +108,41 @@ export const simulateMergeAccounts = async (from: Collective, into: Collective):
     addLineToSummary('');
   }
 
+  // Generate the list of warnings
+  const warnings = [];
+  if (from.type === CollectiveType.PROJECT && into.type === CollectiveType.COLLECTIVE) {
+    warnings.push(
+      `Virtual cards will be moved to @${into.slug} and can draw on its total balance (the Stripe per-charge check uses the account balance)`,
+      `Administrators of the parent of ${from.slug} will lose access to the moved data (administrators and host of @${into.slug} gain it)`,
+      `Recurring contributions will continue against @${into.slug} (subscriptions hang off orders, the host does not change)`,
+      `Old URLs for ${from.slug} will return 404 after the merge`,
+    );
+  }
+
+  const movedTransactionsCount = ['creditTransactions', 'debitTransactions', 'giftCardTransactions'].reduce(
+    (count, entity) => count + (movedItemsCounts.account[entity] || 0),
+    0,
+  );
+  if (movedTransactionsCount > 0) {
+    warnings.push(getStaleBalancesWarning(from, into));
+  }
+
+  const [targetTiers, sourceTiers] = await Promise.all([
+    models.Tier.findAll({ where: { CollectiveId: into.id }, attributes: ['id', 'slug'], raw: true }),
+    models.Tier.findAll({ where: { CollectiveId: from.id }, attributes: ['id', 'slug'], raw: true }),
+  ]);
+  getTierReslugPlan(sourceTiers, targetTiers).forEach(({ oldSlug, newSlug }) => {
+    warnings.push(
+      `The tier "${oldSlug}" of ${from.slug} will be re-sluged to "${newSlug}" to avoid a slug collision on @${into.slug}`,
+    );
+  });
+
+  if (warnings.length) {
+    addLineToSummary('Warnings:');
+    warnings.forEach(warning => addLineToSummary(`  - ${warning}`));
+    addLineToSummary('');
+  }
+
   return summary;
 };
 
@@ -108,8 +160,374 @@ const getLegalDocumentsToIgnore = async (from, into, transaction): Promise<numbe
   return results.flatMap(({ ids }) => ids);
 };
 
+/** Accounting categories have a unique key on CollectiveId/code. We need to ignore the ones that already exist */
+const getAccountingCategoriesToIgnore = async (from: Collective, into: Collective, transaction): Promise<number[]> => {
+  const targetCategories = await models.AccountingCategory.findAll({
+    attributes: ['code'],
+    where: { CollectiveId: into.id },
+    raw: true,
+    transaction,
+  });
+
+  // Categories with a null code can never conflict (the unique index ignores nulls)
+  const targetCodes = targetCategories.map(({ code }) => code).filter(code => code !== null);
+  if (!targetCodes.length) {
+    return [];
+  }
+
+  const duplicates = await models.AccountingCategory.findAll({
+    attributes: ['id'],
+    where: { CollectiveId: from.id, code: targetCodes },
+    raw: true,
+    transaction,
+  });
+
+  return duplicates.map(({ id }) => id);
+};
+
 /**
- * When moving members, if an entry already exists for this CollectiveId/MemberCollectiveId/role/TierId, do not carry it over
+ * Before deleting duplicate accounting categories, re-point everything that references them to the surviving
+ * category. Without this, the FK constraints (`ON DELETE SET NULL` / `ON DELETE CASCADE`) would silently clear
+ * or destroy the references. JSON references (payment rail defaults, bank import settings) are not
+ * FK-constrained but are re-pointed as well to avoid dangling category ids.
+ */
+const rePointAccountingCategoryReferences = async (
+  from: Collective,
+  into: Collective,
+  idsToIgnore: number[],
+  transaction,
+): Promise<void> => {
+  const duplicates = await models.AccountingCategory.findAll({
+    attributes: ['id', 'code'],
+    where: { id: idsToIgnore },
+    raw: true,
+    transaction,
+  });
+
+  for (const duplicate of duplicates) {
+    const survivingCategory = await models.AccountingCategory.findOne({
+      attributes: ['id'],
+      where: { CollectiveId: into.id, code: duplicate.code },
+      raw: true,
+      transaction,
+    });
+
+    if (survivingCategory) {
+      await models.Expense.update(
+        { AccountingCategoryId: survivingCategory.id },
+        {
+          where: { AccountingCategoryId: duplicate.id },
+          fields: ['AccountingCategoryId'],
+          paranoid: false, // Also update soft-deleted entries
+          hooks: false,
+          sideEffects: false,
+          validate: false,
+          transaction,
+        },
+      );
+
+      await models.Order.update(
+        { AccountingCategoryId: survivingCategory.id },
+        {
+          where: { AccountingCategoryId: duplicate.id },
+          fields: ['AccountingCategoryId'],
+          paranoid: false, // Also update soft-deleted entries
+          hooks: false,
+          sideEffects: false,
+          validate: false,
+          transaction,
+        },
+      );
+
+      await models.Expense.update(
+        { BalanceAccountingCategoryId: survivingCategory.id },
+        {
+          where: { BalanceAccountingCategoryId: duplicate.id },
+          fields: ['BalanceAccountingCategoryId'],
+          paranoid: false, // Also update soft-deleted entries
+          hooks: false,
+          sideEffects: false,
+          validate: false,
+          transaction,
+        },
+      );
+
+      await models.Order.update(
+        { BalanceAccountingCategoryId: survivingCategory.id },
+        {
+          where: { BalanceAccountingCategoryId: duplicate.id },
+          fields: ['BalanceAccountingCategoryId'],
+          paranoid: false, // Also update soft-deleted entries
+          hooks: false,
+          sideEffects: false,
+          validate: false,
+          transaction,
+        },
+      );
+
+      await models.AccountingCategoryRule.update(
+        { AccountingCategoryId: survivingCategory.id },
+        {
+          where: { AccountingCategoryId: duplicate.id },
+          fields: ['AccountingCategoryId'],
+          paranoid: false, // Also update soft-deleted entries
+          hooks: false,
+          sideEffects: false,
+          validate: false,
+          transaction,
+        },
+      );
+
+      // JSON fields reference categories without FK constraints: re-point them too, or later operations
+      // (see balance-accounts.ts) would write deleted ids into FK columns
+      const replacements = {
+        transaction,
+        replacements: { duplicateId: duplicate.id, survivingId: survivingCategory.id },
+      };
+      await sequelize.query(
+        `UPDATE "ConnectedAccounts" SET "data" = jsonb_set("data", '{BalanceAccountingCategoryId}', to_jsonb(:survivingId))
+         WHERE ("data" ->> 'BalanceAccountingCategoryId')::integer = :duplicateId`,
+        replacements,
+      );
+      await sequelize.query(
+        `UPDATE "ManualPaymentProviders" SET "data" = jsonb_set("data", '{BalanceAccountingCategoryId}', to_jsonb(:survivingId))
+         WHERE ("data" ->> 'BalanceAccountingCategoryId')::integer = :duplicateId`,
+        replacements,
+      );
+      await sequelize.query(
+        `UPDATE "TransactionsImports" SET "settings" = jsonb_set(
+           "settings",
+           '{balanceAccountingCategories}',
+           (SELECT COALESCE(jsonb_object_agg(key, CASE WHEN value = to_jsonb(:duplicateId) THEN to_jsonb(:survivingId) ELSE value END), '{}'::jsonb)
+            FROM jsonb_each("settings"->'balanceAccountingCategories') AS entries(key, value))
+         )
+         WHERE EXISTS (
+           SELECT 1 FROM jsonb_each("settings"->'balanceAccountingCategories') AS entries(key, value)
+           WHERE entries.value = to_jsonb(:duplicateId)
+         )`,
+        replacements,
+      );
+    }
+  }
+};
+
+/** A duplicate notification must be dropped: the move would otherwise break the (type, CollectiveId, UserId) unique key */
+const hasNotificationUserTypeConflict = (source, target): boolean =>
+  Boolean(source.UserId) && source.UserId === target.UserId && source.type === target.type;
+
+/**
+ * Decides which duplicate notification rows must be dropped when moving `CollectiveId` (from -> into).
+ * The target's rows are kept by default, except for webhook destination duplicates where the source's row is
+ * active and the target's matching rows are all inactive: the active row is then preserved on the source side
+ * and the inactive target rows are dropped instead (never delete the only active destination).
+ *
+ * `active` is not considered for `(type, UserId)` conflicts: on email rows it encodes subscribe/unsubscribe
+ * preferences, where the target's row must win.
+ */
+const getNotificationsDedupPlan = (
+  sourceRows: Array<{ id: number; channel: string; type: string; webhookUrl: string; UserId: number; active: boolean }>,
+  targetRows: Array<{ id: number; channel: string; type: string; webhookUrl: string; UserId: number; active: boolean }>,
+): { sourceIdsToDrop: number[]; targetIdsToDrop: number[] } => {
+  const sourceIdsToDrop = [];
+  const targetIdsToDrop = [];
+
+  // Conflicts with the (type, CollectiveId, UserId) unique key: the target's row survives
+  const conflictingSourceRows = sourceRows.filter(source =>
+    targetRows.some(target => hasNotificationUserTypeConflict(source, target)),
+  );
+  conflictingSourceRows.forEach(({ id }) => sourceIdsToDrop.push(id));
+
+  // Webhook destination duplicates: group webhook-style rows by channel/type/webhook URL and pick the
+  // survivor per destination (rows without a webhook URL are preferences, not destinations)
+  const remainingSourceRows = sourceRows.filter(({ id }) => !sourceIdsToDrop.includes(id));
+  const sourcesByDestination = groupBy(
+    remainingSourceRows.filter(row => row.webhookUrl),
+    row => `${row.channel}|${row.type}|${row.webhookUrl}`,
+  );
+  const targetsByDestination = groupBy(
+    targetRows.filter(row => row.webhookUrl),
+    row => `${row.channel}|${row.type}|${row.webhookUrl}`,
+  );
+  for (const [destination, sources] of Object.entries(sourcesByDestination)) {
+    const targets = targetsByDestination[destination];
+    if (!targets?.length) {
+      continue;
+    }
+
+    const activeSource = sources.find(source => source.active);
+    if (activeSource && targets.every(target => !target.active)) {
+      // Preserve the only active destination: drop the target's inactive rows and the extra source rows
+      targets.forEach(({ id }) => targetIdsToDrop.push(id));
+      sources.filter(({ id }) => id !== activeSource.id).forEach(({ id }) => sourceIdsToDrop.push(id));
+    } else {
+      sources.forEach(({ id }) => sourceIdsToDrop.push(id));
+    }
+  }
+
+  return { sourceIdsToDrop, targetIdsToDrop };
+};
+
+const getNotificationRowsForDedup = async (from: Collective, into: Collective, transaction) => {
+  const attributes = ['id', 'channel', 'type', 'webhookUrl', 'UserId', 'active'];
+  const [targetRows, sourceRows] = await Promise.all([
+    models.Notification.findAll({ attributes, where: { CollectiveId: into.id }, raw: true, transaction }),
+    models.Notification.findAll({ attributes, where: { CollectiveId: from.id }, raw: true, transaction }),
+  ]);
+  return { sourceRows, targetRows };
+};
+
+/**
+ * Notifications have a unique key on (type, CollectiveId, UserId) and are logically duplicated by
+ * (channel, type, webhookUrl) for webhook-style rows. When moving `CollectiveId` (from -> into), drop the
+ * duplicates so we neither break the unique key nor register the same webhook twice. Returns the source-side
+ * ids to drop - the ones on the target are handled by `dropInactiveDuplicateNotifications`.
+ */
+const getNotificationsToIgnore = async (from: Collective, into: Collective, transaction): Promise<number[]> => {
+  const { sourceRows, targetRows } = await getNotificationRowsForDedup(from, into, transaction);
+  return getNotificationsDedupPlan(sourceRows, targetRows).sourceIdsToDrop;
+};
+
+/**
+ * Before moving notifications, delete the target's inactive rows that duplicate an active source row: keeping
+ * them would drop the active destination to an inactive one. Returns notes for the merge summary.
+ */
+const dropInactiveDuplicateNotifications = async (
+  from: Collective,
+  into: Collective,
+  transaction,
+): Promise<string[]> => {
+  const { sourceRows, targetRows } = await getNotificationRowsForDedup(from, into, transaction);
+  const { targetIdsToDrop } = getNotificationsDedupPlan(sourceRows, targetRows);
+  if (!targetIdsToDrop.length) {
+    return [];
+  }
+
+  await models.Notification.destroy({
+    where: { CollectiveId: into.id, id: targetIdsToDrop },
+    transaction,
+    hooks: false,
+    sideEffects: false,
+    validate: false,
+  } as DestroyOptions);
+
+  return [`Inactive duplicate notifications of ${into.slug} were deleted to preserve the active ones of ${from.slug}`];
+};
+
+/**
+ * Emoji reactions have partial unique keys on (CommentId|UpdateId, FromCollectiveId, emoji). When moving
+ * `FromCollectiveId` (from -> into), drop the source's reactions that already exist on the target.
+ */
+const getEmojiReactionsToIgnore = async (from: Collective, into: Collective, transaction): Promise<number[]> => {
+  const [targetRows, sourceRows] = await Promise.all([
+    models.EmojiReaction.findAll({
+      attributes: ['id', 'CommentId', 'UpdateId', 'emoji'],
+      where: { FromCollectiveId: into.id },
+      raw: true,
+      transaction,
+    }),
+    models.EmojiReaction.findAll({
+      attributes: ['id', 'CommentId', 'UpdateId', 'emoji'],
+      where: { FromCollectiveId: from.id },
+      raw: true,
+      transaction,
+    }),
+  ]);
+
+  return sourceRows
+    .filter(source =>
+      targetRows.some(
+        target =>
+          source.emoji === target.emoji && source.CommentId === target.CommentId && source.UpdateId === target.UpdateId,
+      ),
+    )
+    .map(({ id }) => id);
+};
+
+const getAccountingCategoriesDuplicatesWarning = async (
+  from: Collective,
+  into: Collective,
+  idsToIgnore: number[],
+  transaction,
+): Promise<string> => {
+  const duplicates = await models.AccountingCategory.findAll({
+    attributes: ['code'],
+    where: { id: idsToIgnore },
+    raw: true,
+    transaction,
+  });
+
+  const codes = duplicates
+    .map(({ code }) => code)
+    .filter(Boolean)
+    .map(code => `"${code}"`)
+    .join(', ');
+
+  return `Duplicate accounting categories for ${from.slug} were deleted as ${into.slug} already has them (codes: ${codes}) - expenses and orders using these codes were re-pointed to ${into.slug}'s categories`;
+};
+
+const getNotificationsDuplicatesWarning = async (from: Collective, into: Collective): Promise<string> =>
+  `Duplicate notifications for ${from.slug} were deleted as ${into.slug} already has them (same channel/type/webhook URL or same user/type)`;
+
+const getEmojiReactionsDuplicatesWarning = async (from: Collective, into: Collective): Promise<string> =>
+  `Duplicate emoji reactions for ${from.slug} were deleted as ${into.slug} already reacted with the same emoji on the same comments/updates`;
+
+/**
+ * Tier slugs must be unique within a collective (they're used as filters in queries), but there is no DB
+ * constraint for it. Compute which moved tiers must be re-sluged with a numeric suffix on collision with a
+ * tier of the target (or another moved tier).
+ */
+const getTierReslugPlan = (
+  sourceTiers: Array<{ id: number; slug: string }>,
+  targetTiers: Array<{ id: number; slug: string }>,
+): Array<{ tierId: number; oldSlug: string; newSlug: string }> => {
+  const reslugs = [];
+  const takenSlugs = new Set(targetTiers.map(({ slug }) => slug));
+  for (const tier of sourceTiers) {
+    if (!takenSlugs.has(tier.slug)) {
+      takenSlugs.add(tier.slug);
+      continue;
+    }
+
+    let newSlug;
+    for (let i = 2; !newSlug || takenSlugs.has(newSlug); i++) {
+      newSlug = `${tier.slug}-${i}`;
+    }
+
+    takenSlugs.add(newSlug);
+    reslugs.push({ tierId: tier.id, oldSlug: tier.slug, newSlug });
+  }
+
+  return reslugs;
+};
+
+/**
+ * When moving tiers to the target, keep the target's tier on slug collisions and re-slug the moved one with a
+ * numeric suffix. Returns notes for the merge summary.
+ */
+const reslugTiersOnCollision = async (from: Collective, into: Collective, transaction): Promise<string[]> => {
+  const [targetTiers, sourceTiers] = await Promise.all([
+    models.Tier.findAll({ where: { CollectiveId: into.id }, attributes: ['id', 'slug'], raw: true, transaction }),
+    models.Tier.findAll({ where: { CollectiveId: from.id }, attributes: ['id', 'slug'], raw: true, transaction }),
+  ]);
+
+  const reslugs = getTierReslugPlan(sourceTiers, targetTiers);
+  for (const { tierId, newSlug } of reslugs) {
+    await models.Tier.update(
+      { slug: newSlug },
+      { where: { id: tierId }, fields: ['slug'], hooks: false, sideEffects: false, validate: false, transaction },
+    );
+  }
+
+  return reslugs.map(
+    ({ oldSlug, newSlug }) =>
+      `The tier "${oldSlug}" of ${from.slug} was re-sluged to "${newSlug}" to avoid a slug collision on ${into.slug}`,
+  );
+};
+
+/**
+ * When moving members (`MemberCollectiveId`: from -> into), if the target is already a member of the same
+ * collective with the same role/TierId, do not carry the source's entry over: group by `(CollectiveId, role, TierId)`
+ * and keep only the groups where both accounts are present. Returns the source-side member ids to drop.
  */
 const getMemberIdsToIgnore = async (
   from: Collective,
@@ -117,9 +535,11 @@ const getMemberIdsToIgnore = async (
   transaction: SQLTransaction,
 ): Promise<number[]> => {
   const results = await models.Member.findAll({
-    attributes: [[sequelize.fn('ARRAY_AGG', sequelize.fn('DISTINCT', sequelize.col('id'))), 'ids']],
+    attributes: [
+      [sequelize.literal(`ARRAY_AGG(DISTINCT "id") FILTER (WHERE "MemberCollectiveId" = ${Number(from.id)})`), 'ids'],
+    ],
     where: { MemberCollectiveId: [from.id, into.id] },
-    group: ['CollectiveId', 'MemberCollectiveId', 'role', 'TierId'],
+    group: ['CollectiveId', 'role', 'TierId'],
     transaction,
     raw: true,
     having: sequelize.where(sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('MemberCollectiveId'))), {
@@ -127,11 +547,13 @@ const getMemberIdsToIgnore = async (
     }),
   });
 
-  return flatten((results as unknown as { ids: number[] }[]).map(({ ids }) => ids));
+  return flatten((results as unknown as { ids: number[] }[]).map(({ ids }) => ids)).filter(id => id !== null);
 };
 
 /**
- * When moving memberships, if an entry already exists for this CollectiveId/MemberCollectiveId/role/TierId, do not carry it over
+ * When moving memberships (`CollectiveId`: from -> into), if the target already has the same member with the
+ * same role/TierId, do not carry the source's entry over: group by `(MemberCollectiveId, role, TierId)` and keep
+ * only the groups where both accounts are present. Returns the source-side membership ids to drop.
  */
 const getMembershipIdsToIgnore = async (
   from: Collective,
@@ -139,9 +561,11 @@ const getMembershipIdsToIgnore = async (
   transaction: SQLTransaction,
 ): Promise<number[]> => {
   const results = await models.Member.findAll({
-    attributes: [[sequelize.fn('ARRAY_AGG', sequelize.fn('DISTINCT', sequelize.col('id'))), 'ids']],
+    attributes: [
+      [sequelize.literal(`ARRAY_AGG(DISTINCT "id") FILTER (WHERE "CollectiveId" = ${Number(from.id)})`), 'ids'],
+    ],
     where: { CollectiveId: [from.id, into.id] },
-    group: ['CollectiveId', 'MemberCollectiveId', 'role', 'TierId'],
+    group: ['MemberCollectiveId', 'role', 'TierId'],
     transaction,
     raw: true,
     having: sequelize.where(sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('CollectiveId'))), {
@@ -149,7 +573,7 @@ const getMembershipIdsToIgnore = async (
     }),
   });
 
-  return flatten((results as unknown as { ids: number[] }[]).map(({ ids }) => ids));
+  return flatten((results as unknown as { ids: number[] }[]).map(({ ids }) => ids)).filter(id => id !== null);
 };
 
 // Defines the collective field names used in the DB. Useful to prevent typos in the config below
@@ -168,6 +592,17 @@ type CollectiveFieldsConfig = Record<
     field: CollectiveField;
     getIdsToIgnore?: (from: Collective, into: Collective, sqlTransaction) => Promise<number[]>;
     fieldsToLog?: string[]; // For the migration log, defaults to ['id']
+    /** Called before moving the entity's rows. Returns notes to surface in the merge summary (e.g. tier re-slugs) */
+    onBeforeMove?: (from: Collective, into: Collective, sqlTransaction) => Promise<string[]>;
+    /** Called with the duplicated ids right before they are destroyed (e.g. to re-point references to the surviving row) */
+    onDuplicatesFound?: (from: Collective, into: Collective, idsToIgnore: number[], sqlTransaction) => Promise<void>;
+    /** Returns a warning message surfaced in the merge summary when duplicated rows are deleted */
+    getDuplicatesWarning?: (
+      from: Collective,
+      into: Collective,
+      idsToIgnore: number[],
+      sqlTransaction,
+    ) => Promise<string>;
   }
 >;
 
@@ -176,7 +611,14 @@ type CollectiveFieldsConfig = Record<
  * must include a model, and a field where the old account ID will be replaced by the new one.
  */
 const collectiveFieldsConfig: CollectiveFieldsConfig = {
-  accountingCategories: { model: models.AccountingCategory, field: 'CollectiveId' },
+  accountingCategories: {
+    model: models.AccountingCategory,
+    field: 'CollectiveId',
+    getIdsToIgnore: getAccountingCategoriesToIgnore,
+    onDuplicatesFound: rePointAccountingCategoryReferences,
+    getDuplicatesWarning: getAccountingCategoriesDuplicatesWarning,
+  },
+  accountingCategoryRules: { model: models.AccountingCategoryRule, field: 'CollectiveId' },
   agreements: { model: models.Agreement, field: 'CollectiveId' },
   activities: { model: models.Activity, field: 'CollectiveId' },
   applications: { model: models.Application, field: 'CollectiveId' },
@@ -188,7 +630,12 @@ const collectiveFieldsConfig: CollectiveFieldsConfig = {
   conversationsCreated: { model: models.Conversation, field: 'FromCollectiveId' },
   creditTransactions: { model: models.Transaction, field: 'FromCollectiveId' },
   debitTransactions: { model: models.Transaction, field: 'CollectiveId' },
-  emojiReactions: { model: models.EmojiReaction, field: 'FromCollectiveId' },
+  emojiReactions: {
+    model: models.EmojiReaction,
+    field: 'FromCollectiveId',
+    getIdsToIgnore: getEmojiReactionsToIgnore,
+    getDuplicatesWarning: getEmojiReactionsDuplicatesWarning,
+  },
   expenses: { model: models.Expense, field: 'CollectiveId' },
   expensesCreated: { model: models.Expense, field: 'FromCollectiveId' },
   giftCardTransactions: { model: models.Transaction, field: 'UsingGiftCardFromCollectiveId' },
@@ -200,11 +647,18 @@ const collectiveFieldsConfig: CollectiveFieldsConfig = {
   hostedVirtualCardRequests: { model: models.VirtualCardRequest, field: 'HostCollectiveId' },
   legalDocuments: { model: models.LegalDocument, field: 'CollectiveId', getIdsToIgnore: getLegalDocumentsToIgnore },
   location: { model: models.Location, field: 'CollectiveId' },
+  manualPaymentProviders: { model: models.ManualPaymentProvider, field: 'CollectiveId' },
   memberInvitations: { model: models.MemberInvitation, field: 'MemberCollectiveId' },
   members: { model: models.Member, field: 'MemberCollectiveId', getIdsToIgnore: getMemberIdsToIgnore },
   membershipInvitations: { model: models.MemberInvitation, field: 'CollectiveId' },
   memberships: { model: models.Member, field: 'CollectiveId', getIdsToIgnore: getMembershipIdsToIgnore },
-  notifications: { model: models.Notification, field: 'CollectiveId' },
+  notifications: {
+    model: models.Notification,
+    field: 'CollectiveId',
+    getIdsToIgnore: getNotificationsToIgnore,
+    onBeforeMove: dropInactiveDuplicateNotifications,
+    getDuplicatesWarning: getNotificationsDuplicatesWarning,
+  },
   ordersCreated: { model: models.Order, field: 'FromCollectiveId' },
   ordersReceived: { model: models.Order, field: 'CollectiveId' },
   paymentMethods: { model: models.PaymentMethod, field: 'CollectiveId' },
@@ -213,7 +667,7 @@ const collectiveFieldsConfig: CollectiveFieldsConfig = {
   personalTokens: { model: models.PersonalToken, field: 'CollectiveId' },
   requiredLegalDocuments: { model: models.RequiredLegalDocument, field: 'HostCollectiveId' },
   socialLinks: { model: models.SocialLink, field: 'CollectiveId', fieldsToLog: ['CollectiveId', 'type', 'url'] },
-  tiers: { model: models.Tier, field: 'CollectiveId' },
+  tiers: { model: models.Tier, field: 'CollectiveId', onBeforeMove: reslugTiersOnCollision },
   updates: { model: models.Update, field: 'CollectiveId' },
   updatesCreated: { model: models.Update, field: 'FromCollectiveId' },
   virtualCards: { model: models.VirtualCard, field: 'CollectiveId' },
@@ -297,6 +751,10 @@ const moveCollectiveAssociations = async (from, into, transaction) => {
       }
     }
 
+    if (entityConfig.onBeforeMove) {
+      warnings.push(...(await entityConfig.onBeforeMove(from, into, transaction)));
+    }
+
     // Special case for location, if a location exists for both the new and old collective, soft-delete the older one
     if (entity === 'location') {
       const intoLocation = await models.Location.findOne({
@@ -366,6 +824,12 @@ const moveCollectiveAssociations = async (from, into, transaction) => {
 
       if (idsToIgnore.length) {
         summary[`${entity}-deleted`] = idsToIgnore;
+        if (entityConfig.onDuplicatesFound) {
+          await entityConfig.onDuplicatesFound(from, into, idsToIgnore, transaction);
+        }
+        if (entityConfig.getDuplicatesWarning) {
+          warnings.push(await entityConfig.getDuplicatesWarning(from, into, idsToIgnore, transaction));
+        }
         await entityConfig.model.destroy({
           where: { [entityConfig.field]: from.id, id: idsToIgnore },
           transaction,
@@ -459,6 +923,15 @@ export const mergeAccounts = async (
     const mergeAccountAssociationsResult = await moveCollectiveAssociations(from, into, transaction);
     const warnings = mergeAccountAssociationsResult.warnings;
     changesSummary['associations'] = mergeAccountAssociationsResult.summary;
+
+    // Moving transactions makes the balance materialized views stale for both accounts
+    const movedAssociations = mergeAccountAssociationsResult.summary;
+    const hasMovedTransactions = ['creditTransactions', 'debitTransactions', 'giftCardTransactions'].some(
+      entity => (movedAssociations[entity] || []).length > 0,
+    );
+    if (hasMovedTransactions) {
+      warnings.push(getStaleBalancesWarning(from, into));
+    }
 
     // Merge user entries
     if (fromUser) {

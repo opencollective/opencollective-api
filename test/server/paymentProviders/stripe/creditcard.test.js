@@ -215,6 +215,21 @@ describe('server/paymentProviders/stripe/creditcard', () => {
           platformTipAmount: 5000,
         });
 
+        stripe.balanceTransactions.retrieve.resolves({
+          amount: 250,
+          currency: 'jpy',
+          fee: 0,
+          fee_details: [
+            {
+              type: 'application_fee',
+              amount: 50,
+              currency: 'jpy',
+              application: 'ca_',
+              description: 'OpenCollective application fee',
+            },
+          ],
+        });
+
         await creditcard.processOrder(order);
 
         assert.calledWithMatch(stripe.paymentIntents.create, {

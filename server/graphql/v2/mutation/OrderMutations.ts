@@ -211,6 +211,9 @@ const orderMutations = {
       const tax = order.tax || order.taxes?.[0];
       const platformTip = order.platformTipAmount;
       const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+      if (platformTipAmount < 0) {
+        throw new ValidationFailed('Platform tip amount cannot be negative');
+      }
       const loadersParams = { loaders: req.loaders, throwIfMissing: true };
       const loadAccount = account => fetchAccountWithReference(account, loadersParams);
       const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
@@ -239,7 +242,10 @@ const orderMutations = {
       });
 
       const amountInCents = getValueInCentsFromAmountInput(order.amount);
-      const quantity = order.quantity || 1;
+      const quantity = order.quantity ?? 1;
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        throw new ValidationFailed('Quantity must be at least 1');
+      }
       const legacyOrderObj = {
         quantity,
         amount: amountInCents,
@@ -489,9 +495,11 @@ const orderMutations = {
 
       if (!order) {
         throw new ValidationFailed('This order does not seem to exist');
-      } else if (!req.remoteUser.isAdminOfCollective(order.fromCollective) && !req.remoteUser.isRoot()) {
-        throw new Unauthorized("You don't have permission to update this order");
-      } else if (!order.Subscription.isActive && order.status !== OrderStatuses.PAUSED) {
+      }
+      if (!req.remoteUser.isAdminOfCollective(order.fromCollective)) {
+        checkRemoteUserCanRoot(req, { rootOnlyMessage: "You don't have permission to update this order" });
+      }
+      if (!order.Subscription.isActive && order.status !== OrderStatuses.PAUSED) {
         throw new Error('Order must be active to be updated');
       } else if (args.paypalSubscriptionId && args.paymentMethod) {
         throw new Error('paypalSubscriptionId and paymentMethod are mutually exclusive');
@@ -555,6 +563,9 @@ const orderMutations = {
         const platformTipAmount = isNil(args.platformTipAmount)
           ? order.platformTipAmount
           : getValueInCentsFromAmountInput(args.platformTipAmount, { expectedCurrency });
+        if (platformTipAmount < 0) {
+          throw new ValidationFailed('Platform tip amount cannot be negative');
+        }
         const newTotalAmount = amountWithoutTip + platformTipAmount;
         ({ previousOrderValues, previousSubscriptionValues } = await updateSubscriptionDetails(
           order,
@@ -800,6 +811,9 @@ const orderMutations = {
           if (!isNil(amount)) {
             const amountInCents = getValueInCentsFromAmountInput(amount);
             const platformTipInCents = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+            if (platformTipInCents < 0) {
+              throw new ValidationFailed('Platform tip amount cannot be negative');
+            }
             const totalAmount = amountInCents + platformTipInCents;
             order.set('totalAmount', totalAmount);
           }
@@ -827,6 +841,9 @@ const orderMutations = {
           }
           if (!isNil(platformTip)) {
             const platformTipInCents = getValueInCentsFromAmountInput(platformTip);
+            if (platformTipInCents < 0) {
+              throw new ValidationFailed('Platform tip amount cannot be negative');
+            }
             order.set('platformTipAmount', platformTipInCents);
           }
           if (!isNil(hostFeePercent)) {
@@ -946,6 +963,11 @@ const orderMutations = {
         type: GraphQLBoolean,
         description: 'If true, the orders will be moved to the incognito account of "fromAccount"',
       },
+      force: {
+        type: GraphQLBoolean,
+        description:
+          'Bypass the tier amount validation when moving orders to a tier that does not match their amount (root only, for data repair)',
+      },
     },
     async resolve(_, args, req) {
       checkRemoteUserCanRoot(req);
@@ -1039,6 +1061,24 @@ const orderMutations = {
         // Can't move to another collective tier
         if (tier && tier !== 'custom' && orders.some(o => o.CollectiveId !== tier.CollectiveId)) {
           throw new ValidationFailed(`Can't move orders to a different collective tier`);
+        }
+
+        // The order amount must match the tier it's moved to (can be bypassed for data repair)
+        if (tier && tier !== 'custom' && !args.force) {
+          try {
+            OrdersLib.assertOrderAmountMatchesTier(tier, {
+              baseAmountInCents: getOrderBaseAmount(order),
+              totalAmountInCents: order.totalAmount,
+              quantity: order.quantity,
+              currency: order.currency,
+              taxPercentage: order.data?.tax?.percentage || 0,
+            });
+          } catch (error) {
+            if (error instanceof ValidationFailed) {
+              throw new ValidationFailed(`Order #${order.id}: ${error.message}`);
+            }
+            throw error;
+          }
         }
       }
 
@@ -1139,6 +1179,7 @@ const orderMutations = {
               orders: updatedOrders.map(o => o.id),
               fromAccount: fromAccount?.id,
               tier: tier?.id,
+              force: args.force || undefined,
               paymentMethods: updatedPaymentMethods.map(pm => pm.id),
               members: updatedMembers.map(m => m.id),
               transactions: [...updatedCredits.map(t => t.id), ...updatedDebits.map(t => t.id)],
@@ -1342,15 +1383,16 @@ const orderMutations = {
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
         throw new Unauthorized('Only host admins can create pending orders');
-      } else if (
+      }
+      if (
         fromAccount.HostCollectiveId !== host.id &&
-        !req.remoteUser.isRoot() &&
         !(fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId === host.id) &&
         !(!host.isPrivate && (host.data?.allowAddFundsFromAllAccounts || host.data?.isTrustedHost))
       ) {
-        throw new Error(
-          "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
-        );
+        checkRemoteUserCanRoot(req, {
+          rootOnlyMessage:
+            "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
+        });
       }
 
       await checkFeatureAccess(host, FEATURE.EXPECTED_FUNDS, { loaders: req.loaders });
@@ -1390,6 +1432,15 @@ const orderMutations = {
       );
 
       const baseAmountInCents = getValueInCentsFromAmountInput(args.order.amount);
+
+      // The amount must match the tier (fixed amount or minimum) if there's one
+      OrdersLib.assertOrderAmountMatchesTier(tier, {
+        baseAmountInCents,
+        totalAmountInCents: getTotalAmountForOrderInput(baseAmountInCents, null, args.order.tax, expectedCurrency),
+        quantity,
+        currency: expectedCurrency,
+        taxPercentage: taxInfo?.percentage || 0,
+      });
 
       const valuesByRole = {
         ...(accountingCategory
@@ -1520,19 +1571,19 @@ const orderMutations = {
         : await req.loaders.Collective.byId.load(order.FromCollectiveId);
       const tier = args.order.tier
         ? await fetchTierWithReference(args.order.tier, { throwIfMissing: true })
-        : order.tier;
+        : order.Tier; // The `Order.belongsTo(Tier)` association is populated as `order.Tier`
       OrdersLib.assertTierBelongsToAccount(tier, order.collective);
 
       if (
         fromAccount &&
         fromAccount.HostCollectiveId !== host.id &&
         !(fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId === host.id) &&
-        !req.remoteUser.isRoot() &&
         !(!host.isPrivate && (host.data?.allowAddFundsFromAllAccounts || host.data?.isTrustedHost))
       ) {
-        throw new Error(
-          "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
-        );
+        checkRemoteUserCanRoot(req, {
+          rootOnlyMessage:
+            "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
+        });
       }
 
       // Check accounting category
@@ -1573,6 +1624,18 @@ const orderMutations = {
       const tax = !isUndefined(args.order.tax) ? args.order.tax : order.data?.tax;
       const platformTip = args.order.platformTipAmount;
       const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+      if (platformTipAmount < 0) {
+        throw new ValidationFailed('Platform tip amount cannot be negative');
+      }
+
+      // The amount must match the tier (fixed amount or minimum) if there's one
+      OrdersLib.assertOrderAmountMatchesTier(tier, {
+        baseAmountInCents,
+        totalAmountInCents: getTotalAmountForOrderInput(baseAmountInCents, platformTipAmount, tax, expectedCurrency),
+        quantity,
+        currency: expectedCurrency,
+        taxPercentage: taxInfo?.percentage || 0,
+      });
 
       const valuesByRole = {
         ...(order.data?.valuesByRole || {}),

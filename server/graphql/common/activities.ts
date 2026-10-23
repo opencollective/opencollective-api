@@ -19,6 +19,32 @@ const canSeeExpenseCommentActivity = async (req: Express.Request, activity, expe
   return ExpenseLib.canComment(req, expense);
 };
 
+/**
+ * Errors are persisted with provider-specific shapes (PayPal PayoutError, Wise errors, stringified dumps).
+ * Only these fields are ever returned to clients.
+ */
+const sanitizeErrorData = (error): { name?: string; message?: string; details?: { issue: string }[] } => {
+  const sanitized: { name?: string; message?: string; details?: { issue: string }[] } = {};
+  if (typeof error?.name === 'string') {
+    sanitized.name = error.name;
+  }
+  if (typeof error?.message === 'string') {
+    sanitized.message = error.message;
+  }
+  // Batch errors use `details`, payout item errors use `payout_errors_details`
+  const rawDetails = [
+    ...(Array.isArray(error?.details) ? error.details : []),
+    ...(Array.isArray(error?.payout_errors_details) ? error.payout_errors_details : []),
+  ];
+  const details = rawDetails
+    .filter(detail => typeof detail?.issue === 'string')
+    .map(detail => ({ issue: detail.issue }));
+  if (details.length > 0) {
+    sanitized.details = details;
+  }
+  return sanitized;
+};
+
 export const sanitizeActivityData = async (req: Express.Request, activity): Promise<Partial<Activity['data']>> => {
   const toPick = [];
   if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_PAID) {
@@ -136,5 +162,9 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
       toPick.push('message');
     }
   }
-  return pick(activity.data, toPick);
+  const data = pick(activity.data, toPick);
+  if ('error' in data) {
+    data.error = sanitizeErrorData(data.error);
+  }
+  return data;
 };

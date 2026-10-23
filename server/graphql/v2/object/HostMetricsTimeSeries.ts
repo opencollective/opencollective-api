@@ -57,7 +57,7 @@ export const GraphQLHostMetricsTimeSeries = new GraphQLObjectType({
     },
     hostFeeShare: {
       type: new GraphQLNonNull(GraphQLTimeSeriesAmountWithSettlement),
-      description: 'History of the share of host fees collected owed to Open Collective Inc.',
+      description: 'History of the share of host fees collected owed to the platform (OFi Technologies LLC).',
       resolve: async ({ host, dateFrom, dateTo, timeUnit }) => {
         const timeSeriesParams = { startDate: dateFrom, endDate: dateTo, timeUnit };
         const results = await HostMetricsLib.getHostFeeShareTimeSeries(host, timeSeriesParams);

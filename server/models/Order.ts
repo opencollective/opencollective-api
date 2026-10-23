@@ -119,6 +119,8 @@ class Order extends ModelWithPublicId<
     customData?: Record<string, unknown>;
     needsConfirmation?: boolean;
     paypalStatusChangeNote?: string;
+    paypalStatusUpdateTime?: Date | string;
+    cancelledFromPayPalReconciliation?: boolean;
     paypalCaptureId?: string;
     savePaymentMethod?: boolean;
     isBalanceTransfer?: boolean;

@@ -5,6 +5,7 @@ import { CollectiveType } from '../../../../server/constants/collectives';
 import MemberRoles from '../../../../server/constants/roles';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import CollectiveLoaders from '../../../../server/graphql/loaders/collective';
+import { sequelize } from '../../../../server/models';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -18,6 +19,140 @@ import { makeRequest, resetTestDB } from '../../../utils';
 describe('server/graphql/loaders/collective', () => {
   before(async () => {
     await resetTestDB();
+  });
+
+  describe('isApproved', () => {
+    it('is true for an account hosted and approved by a fiscal host', async () => {
+      const collective = await fakeCollective();
+      expect(await CollectiveLoaders.isApproved().load(collective.id)).to.be.true;
+    });
+
+    it('is false for an account that is still waiting for its host to approve it', async () => {
+      const host = await fakeActiveHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id, isActive: false, approvedAt: null });
+      expect(await CollectiveLoaders.isApproved().load(collective.id)).to.be.false;
+    });
+
+    it('is true for a self-hosted account', async () => {
+      const host = await fakeActiveHost();
+      await host.update({ HostCollectiveId: host.id });
+      expect(await CollectiveLoaders.isApproved().load(host.id)).to.be.true;
+    });
+
+    it('defers to the parent for projects and events', async () => {
+      const parent = await fakeCollective();
+      const project = await fakeCollective({
+        type: CollectiveType.PROJECT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: null,
+      });
+      const event = await fakeCollective({
+        type: CollectiveType.EVENT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: null,
+      });
+
+      expect(await CollectiveLoaders.isApproved().load(project.id)).to.be.true;
+      expect(await CollectiveLoaders.isApproved().load(event.id)).to.be.true;
+    });
+
+    it('is false for a child whose parent is not approved', async () => {
+      const host = await fakeActiveHost();
+      const parent = await fakeCollective({ HostCollectiveId: host.id, isActive: false, approvedAt: null });
+      const project = await fakeCollective({
+        type: CollectiveType.PROJECT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: null,
+      });
+
+      expect(await CollectiveLoaders.isApproved().load(project.id)).to.be.false;
+    });
+
+    it('is false for an unknown account', async () => {
+      expect(await CollectiveLoaders.isApproved().load(123456789)).to.be.false;
+    });
+  });
+
+  it('does not expose private profile information through a legacy follower membership', async () => {
+    const user = await fakeUser();
+    const collectiveAdmin = await fakeUser();
+    const hostAdmin = await fakeUser();
+    const collective = await fakeCollective({ admin: collectiveAdmin });
+    await collective.host.addUserWithRole(hostAdmin, MemberRoles.ADMIN);
+
+    const member = await fakeMember({
+      CollectiveId: collective.id,
+      MemberCollectiveId: user.CollectiveId,
+      role: MemberRoles.BACKER,
+    });
+    // Simulate a soft-deleted follower membership left behind by the retirement migration.
+    await sequelize.query(`UPDATE "Members" SET role = 'FOLLOWER', "deletedAt" = NOW() WHERE id = :id`, {
+      replacements: { id: member.id },
+    });
+
+    for (const remoteUser of [collectiveAdmin, hostAdmin]) {
+      expect(await CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser }).load(user.CollectiveId)).to.be.false;
+      expect(await CollectiveLoaders.canSeePrivateLocation({ remoteUser }).load(user.CollectiveId)).to.be.false;
+    }
+  });
+
+  describe('private info membership approval', () => {
+    for (const role of Object.values(MemberRoles)) {
+      for (const approved of [false, true]) {
+        it(`checks ${role} memberships with approved=${approved} consistently for profile info and location`, async () => {
+          const remoteUser = await fakeUser();
+          const host = await fakeActiveHost({ admin: remoteUser });
+          const collective = await fakeCollective({
+            HostCollectiveId: host.id,
+            approvedAt: approved ? new Date() : null,
+          });
+          const member = await fakeUser();
+          await fakeMember({ CollectiveId: collective.id, MemberCollectiveId: member.CollectiveId, role });
+
+          const expected = role === MemberRoles.HOST ? approved : role !== MemberRoles.CONNECTED_COLLECTIVE;
+          expect(await CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser }).load(member.CollectiveId)).to.eq(
+            expected,
+          );
+          expect(await CollectiveLoaders.canSeePrivateLocation({ remoteUser }).load(member.CollectiveId)).to.eq(
+            expected,
+          );
+        });
+      }
+    }
+
+    for (const approved of [false, true]) {
+      it(`does not grant private info access for an unknown membership role with approved=${approved}`, async () => {
+        const remoteUser = await fakeUser();
+        const host = await fakeActiveHost({ admin: remoteUser });
+        const collective = await fakeCollective({
+          HostCollectiveId: host.id,
+          approvedAt: approved ? new Date() : null,
+        });
+        const member = await fakeUser();
+        const membership = await fakeMember({
+          CollectiveId: collective.id,
+          MemberCollectiveId: member.CollectiveId,
+          role: MemberRoles.BACKER,
+        });
+        // Simulate a future role without granting it private-info access implicitly.
+        await sequelize.query(`UPDATE "Members" SET role = 'FUTURE_ROLE' WHERE id = :id`, {
+          replacements: { id: membership.id },
+        });
+
+        expect(await CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser }).load(member.CollectiveId)).to.be.false;
+        expect(await CollectiveLoaders.canSeePrivateLocation({ remoteUser }).load(member.CollectiveId)).to.be.false;
+      });
+    }
+
+    it('keeps ordinary memberships visible to admins of an independent collective', async () => {
+      const remoteUser = await fakeUser();
+      const collective = await fakeCollective({ HostCollectiveId: null, approvedAt: null, admin: remoteUser });
+      const member = await fakeUser();
+      await collective.addUserWithRole(member, MemberRoles.ADMIN);
+
+      expect(await CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser }).load(member.CollectiveId)).to.be.true;
+      expect(await CollectiveLoaders.canSeePrivateLocation({ remoteUser }).load(member.CollectiveId)).to.be.false;
+    });
   });
 
   describe('canSeePrivateProfileInfo', () => {

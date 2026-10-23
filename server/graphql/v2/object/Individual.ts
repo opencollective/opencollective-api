@@ -17,7 +17,7 @@ import {
   checkRemoteUserCanUseAccount,
   checkRemoteUserCanUseKYC,
   checkScope,
-  rejectOAuthAndPersonalTokenAuth,
+  requireSessionToken,
 } from '../../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
 import { Forbidden, Unauthorized } from '../../errors';
@@ -95,6 +95,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
           if (req.remoteUser?.CollectiveId !== account.id) {
             throw new Unauthorized('Only visible to the logged in user');
           }
+          // eslint-disable-next-line oauth-scopes/no-bare-is-root -- informational only, grants nothing
           return req.remoteUser.isRoot();
         },
       },
@@ -219,7 +220,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
           if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'account')) {
             return null;
           }
-          rejectOAuthAndPersonalTokenAuth(req);
+          requireSessionToken(req);
 
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
 
@@ -260,7 +261,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
           if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'applications')) {
             return null;
           }
-          rejectOAuthAndPersonalTokenAuth(req);
+          requireSessionToken(req);
           const { limit, offset } = args;
 
           const result = await models.PersonalToken.findAndCountAll({

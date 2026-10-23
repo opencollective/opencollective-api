@@ -241,12 +241,12 @@ export default {
             await payoutMethod.update(
               {
                 currency,
+                ConnectedAccountId: connectedAccount.id,
                 data: {
                   isPayPalOAuth: true,
                   verifiedAt: new Date().toISOString(),
                   currency: currency,
                   email: primaryEmail,
-                  connectedAccountId: connectedAccount.id,
                   paypalUserInfo,
                 },
               },
@@ -263,12 +263,12 @@ export default {
                 currency,
                 CreatedByUserId: req.remoteUser.id,
                 CollectiveId: collective.id,
+                ConnectedAccountId: connectedAccount.id,
                 data: {
                   isPayPalOAuth: true,
                   verifiedAt: new Date().toISOString(),
                   currency,
                   email: primaryEmail,
-                  connectedAccountId: connectedAccount.id,
                   paypalUserInfo,
                 },
               },

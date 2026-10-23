@@ -21,7 +21,7 @@ import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Collective, Expense, PaymentMethod, sequelize } from '../../../../models';
 import Order from '../../../../models/Order';
 import Transaction, { MERCHANT_ID_PATHS } from '../../../../models/Transaction';
-import { checkScope, enforceScope } from '../../../common/scope-check';
+import { checkScope, enforceScope, isRemoteUserRoot } from '../../../common/scope-check';
 import { BadRequest, Forbidden, NotFound } from '../../../errors';
 import {
   type AnyPaymentMethodType,
@@ -263,7 +263,7 @@ export const TransactionsCollectionResolver = async (
   if (isNil(args.offset) || args.offset < 0) {
     args.offset = 0;
   }
-  if (args.limit > 10000 && !req.remoteUser?.isRoot()) {
+  if (args.limit > 10000 && !isRemoteUserRoot(req)) {
     throw new Error('Cannot fetch more than 10,000 transactions at the same time, please adjust the limit');
   }
 
@@ -469,7 +469,7 @@ export const TransactionsCollectionResolver = async (
   if (
     !req.remoteUser ||
     !(
-      req.remoteUser.isRoot() || // Root users can see all transactions
+      isRemoteUserRoot(req) || // Root users can see all transactions
       args.expense || // We already checked above that remote user could see all parties (fromCollective/collective)
       (host && req.remoteUser.hasRole(MemberRolesForPrivateAccounts, host.id)) || // Host admins can see external transactions from/to private accounts
       (fromAccount && req.remoteUser.hasRole(MemberRolesForPrivateAccounts, fromAccount.id)) ||

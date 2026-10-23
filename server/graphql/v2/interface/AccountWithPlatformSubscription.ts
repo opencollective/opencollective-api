@@ -1,7 +1,7 @@
 import { GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
 
 import { Collective, PlatformSubscription } from '../../../models';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { checkRemoteUserCanUseAccount, isRemoteUserRoot } from '../../common/scope-check';
 import { GraphQLHostPlan } from '../object/HostPlan';
 import {
   GraphQLPlatformBilling,
@@ -19,7 +19,7 @@ export const AccountWithPlatformSubscriptionFields = {
       }
 
       checkRemoteUserCanUseAccount(req);
-      if (!req.remoteUser.isAdmin(host.id) && !req.remoteUser.isRoot()) {
+      if (!req.remoteUser.isAdmin(host.id) && !isRemoteUserRoot(req)) {
         return null;
       }
 
@@ -39,7 +39,7 @@ export const AccountWithPlatformSubscriptionFields = {
       }
 
       checkRemoteUserCanUseAccount(req);
-      if (!req.remoteUser.isAdmin(host.id) && !req.remoteUser.isRoot()) {
+      if (!req.remoteUser.isAdmin(host.id) && !isRemoteUserRoot(req)) {
         return null;
       }
 

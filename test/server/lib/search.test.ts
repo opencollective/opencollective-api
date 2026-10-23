@@ -43,6 +43,22 @@ describe('server/lib/search', () => {
       expect(results.find(collective => collective.id === userCollective.id)).to.exist;
     });
 
+    describe('Ranking', () => {
+      it('ranks an exact slug match first, then exact name matches, then partial matches', async () => {
+        const term = `rankterm${randStr()}`.toLowerCase();
+        // Created first so that the `id DESC` tiebreaker would otherwise rank it last
+        const exactSlug = await fakeCollective({ name: term, slug: term });
+        const exactNames = [];
+        for (const suffix of ['-app', '1', '-org']) {
+          exactNames.push(await fakeCollective({ name: term, slug: `${term}${suffix}` }));
+        }
+        const partial = await fakeCollective({ name: `${term} Player`, slug: `${term}-player` });
+
+        const [results] = await searchCollectivesInDB(publicReq, term);
+        expect(results.map(c => c.id)).to.deep.eq([exactSlug.id, ...exactNames.map(c => c.id).reverse(), partial.id]);
+      });
+    });
+
     describe('By name', () => {
       it('matches with the exact search term', async () => {
         const name = 'AVeryUniqueName ThatNoOneElseHas';

@@ -864,6 +864,18 @@ describe('server/graphql/v2/object/Host', () => {
                 }
               }
 
+              crowdfunding {
+                totalAmount {
+                  valueInCents
+                  currency
+                }
+                feePercent
+                fee {
+                  valueInCents
+                  currency
+                }
+              }
+
               subscriptions {
                 startDate
                 endDate
@@ -877,6 +889,12 @@ describe('server/graphql/v2/object/Host', () => {
         }
       }
     `;
+
+    const noCrowdfundingFee = {
+      totalAmount: { currency: 'USD', valueInCents: 0 },
+      feePercent: 0,
+      fee: { currency: 'USD', valueInCents: 0 },
+    };
 
     it('resolves to empty subscriptions if no subscription is active', async () => {
       const hostAdmin = await fakeUser();
@@ -894,6 +912,7 @@ describe('server/graphql/v2/object/Host', () => {
           subscriptions: [],
           total: { currency: 'USD', valueInCents: 0 },
         },
+        crowdfunding: noCrowdfundingFee,
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,
@@ -922,6 +941,7 @@ describe('server/graphql/v2/object/Host', () => {
           subscriptions: [],
           total: { currency: 'USD', valueInCents: 0 },
         },
+        crowdfunding: noCrowdfundingFee,
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,
@@ -974,6 +994,7 @@ describe('server/graphql/v2/object/Host', () => {
             },
           ],
         },
+        crowdfunding: noCrowdfundingFee,
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,
@@ -1029,6 +1050,7 @@ describe('server/graphql/v2/object/Host', () => {
             },
           ],
         },
+        crowdfunding: noCrowdfundingFee,
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,
@@ -1082,6 +1104,7 @@ describe('server/graphql/v2/object/Host', () => {
             },
           ],
         },
+        crowdfunding: noCrowdfundingFee,
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,
@@ -1149,6 +1172,7 @@ describe('server/graphql/v2/object/Host', () => {
             },
           ],
         },
+        crowdfunding: noCrowdfundingFee,
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,

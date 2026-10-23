@@ -20,7 +20,6 @@ module.exports = {
         // The following documents only use gqlV1
         // grep -rl " gqlV1\`" ./test | xargs grep -rL "gql\`" | sort
         'test/server/graphql/v1/CollectiveInterface.test.js',
-        'test/server/graphql/v1/allHosts.test.js',
         'test/server/graphql/v1/collective.test.js',
         'test/server/graphql/v1/connectedAccounts.test.js',
         'test/server/graphql/v1/invoices.test.js',

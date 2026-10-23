@@ -3,7 +3,7 @@ import { URL } from 'url';
 
 import config from 'config';
 import fastRedact from 'fast-redact';
-import { chunk, filter, get, isObject, omit, padStart, sumBy } from 'lodash';
+import { chunk, filter, get, isNil, isObject, omit, padStart, sumBy } from 'lodash';
 import moment from 'moment';
 
 import { prependHttp } from './url-utils';
@@ -425,7 +425,11 @@ export function fillTimeSeriesWithNodes({
 
   const sortedNodes = [...nodes].sort((a, b) => new Date(a.date).valueOf() - new Date(b.date).valueOf());
 
-  const dateFrom = startDate ? moment(startDate).utc() : moment(sortedNodes[0].date).utc();
+  // Buckets must match the UTC-truncated node dates (e.g. DATE_TRUNC output): round in
+  // UTC, and use the ISO (Monday) week start to match Postgres DATE_TRUNC('week').
+  const dateFrom = startDate
+    ? moment.utc(startDate).startOf(String(timeUnit).toUpperCase() === 'WEEK' ? 'isoWeek' : timeUnit)
+    : moment(sortedNodes[0].date).utc();
   let dateTo = endDate ? moment(endDate).utc() : moment().utc();
   if (endDate) {
     const now = moment().utc();
@@ -450,7 +454,7 @@ export function fillTimeSeriesWithNodes({
     const { date, ...data } = sortedNodes[i];
     const dateString = moment(date).utc().toISOString();
 
-    if (keyedData[dateString]) {
+    if (!isNil(keyedData[dateString])) {
       keyedData[dateString] = {
         ...keyedData[dateString],
         ...data,
