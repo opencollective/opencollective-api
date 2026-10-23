@@ -7,7 +7,7 @@ import { WhereOptions } from 'sequelize';
 import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { Op, sequelize } from '../../../../models';
 import PaymentIntent from '../../../../models/PaymentIntent';
-import { enforceScope } from '../../../common/scope-check';
+import { enforceScope, isRemoteUserRoot } from '../../../common/scope-check';
 import { ValidationFailed } from '../../../errors';
 import { GraphQLPaymentIntentCollection } from '../../collection/PaymentIntentCollection';
 import GraphQLHostContext from '../../enum/HostContext';
@@ -143,7 +143,7 @@ const PaymentIntentCollectionResolver = async (
   if (isNil(args.offset) || args.offset < 0) {
     args.offset = 0;
   }
-  if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+  if (args.limit > 1000 && !isRemoteUserRoot(req)) {
     throw new Error('Cannot fetch more than 1,000 payment intents at the same time, please adjust the limit');
   }
 

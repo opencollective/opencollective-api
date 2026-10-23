@@ -17,11 +17,11 @@ import { getRefundableAmountFromCollectiveInHostCurrency } from '../../lib/refun
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { sequelize } from '../../models';
 import Transaction from '../../models/Transaction';
-import { Forbidden, NotFound, ValidationFailed } from '../errors';
+import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 import { isHostAdmin } from './expenses';
 import { canCancelOrder, canRemoveContributorFromOrder, sanitizeMessageForContributor } from './orders';
-import { checkScope } from './scope-check';
+import { checkRemoteUserCanRoot, checkScope } from './scope-check';
 
 const getPayee = async (req, transaction) => {
   if (
@@ -52,12 +52,16 @@ const getPayer = async (req, transaction) => {
   return req.loaders.Collective.byId.load(transaction[column]);
 };
 
-const isRoot = async (req: Express.Request): Promise<boolean> => {
-  if (!req.remoteUser) {
-    return false;
+const canUseRoot = (req: Express.Request): boolean => {
+  try {
+    checkRemoteUserCanRoot(req);
+    return true;
+  } catch (error) {
+    if (error instanceof Forbidden || error instanceof Unauthorized) {
+      return false;
+    }
+    throw error;
   }
-
-  return req.remoteUser.isRoot();
 };
 
 const isPayerAccountant = async (req, transaction): Promise<boolean> => {
@@ -161,7 +165,7 @@ export const canRefund = async (transaction: Transaction, _: void, req: Express.
   }
 
   // Root users can always refund
-  if (await isRoot(req)) {
+  if (canUseRoot(req)) {
     return true;
   }
 

@@ -1,6 +1,7 @@
 import {
   GraphQLBoolean,
   GraphQLEnumType,
+  GraphQLFloat,
   GraphQLInputObjectType,
   GraphQLInt,
   GraphQLList,
@@ -96,6 +97,17 @@ export const GraphQLPlatformBilling = new GraphQLObjectType({
             ]),
           ),
           total: { value: billing.additional.total ?? 0, currency: 'USD' },
+        };
+      },
+    },
+    crowdfunding: {
+      type: new GraphQLNonNull(GraphQLPlatformBillingCrowdfunding),
+      description: 'Crowdfunding fee charged on contributions for plans without platform tips',
+      resolve(billing: Billing) {
+        return {
+          totalAmount: { value: billing.crowdfunding?.totalAmount ?? 0, currency: 'USD' },
+          feePercent: billing.crowdfunding?.feePercent ?? 0,
+          fee: { value: billing.crowdfunding?.fee ?? 0, currency: 'USD' },
         };
       },
     },
@@ -223,6 +235,24 @@ const GraphQLPlatformBillingAdditional = new GraphQLObjectType({
     },
     utilization: {
       type: new GraphQLNonNull(GraphQLPlatformUtilization),
+    },
+  }),
+});
+
+const GraphQLPlatformBillingCrowdfunding = new GraphQLObjectType({
+  name: 'PlatformBillingCrowdfunding',
+  fields: () => ({
+    totalAmount: {
+      type: new GraphQLNonNull(GraphQLAmount),
+      description: 'Crowdfunding contributions subject to the fee during the billing period',
+    },
+    feePercent: {
+      type: new GraphQLNonNull(GraphQLFloat),
+      description: 'The fee percentage applied to crowdfunding contributions',
+    },
+    fee: {
+      type: new GraphQLNonNull(GraphQLAmount),
+      description: 'The resulting crowdfunding fee',
     },
   }),
 });

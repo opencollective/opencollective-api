@@ -1391,17 +1391,9 @@ const sendManualPendingOrderEmail = async (order: Order): Promise<void> => {
   const { collective, fromCollective } = order;
   const host = await collective.getHostCollective();
 
-  let replyTo: string | string[] = [];
-  if (fromCollective.isIncognito) {
-    // We still want to surface incognito emails to the host as they often need to contact them to reconciliate the bank transfer
-    const user = await User.findByPk(fromCollective.CreatedByUserId);
-    if (user) {
-      replyTo.push(user.email);
-    }
-  } else {
-    const fromCollectiveAdmins = await fromCollective.getAdminUsers();
-    replyTo = fromCollectiveAdmins.map(({ email }) => email).join(', ');
-  }
+  // Include incognito admins so the host can contact them to reconcile the bank transfer.
+  const fromCollectiveAdmins = await fromCollective.getAdminUsers();
+  const replyTo = fromCollectiveAdmins.map(({ email }) => email).join(', ');
 
   const data = {
     order: order.info,

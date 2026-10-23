@@ -7,6 +7,7 @@ import { generateSecret } from 'otplib';
 import { createSandbox } from 'sinon';
 import request from 'supertest';
 
+import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import roles from '../../../../../server/constants/roles';
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { crypto } from '../../../../../server/lib/encryption';
@@ -56,6 +57,17 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
       const result = await graphqlQueryV2(setPasswordMutation, { password: 'newpassword' });
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('You need to be logged in to manage account.');
+    });
+
+    it('rejects login tokens before setting a password or issuing a session', async () => {
+      const user = await fakeUser({ passwordHash: null });
+      const result = await graphqlQueryV2(setPasswordMutation, { password: 'newpassword' }, user, { scope: 'login' });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      expect(result.errors[0].message).to.equal('A session or reset-password token is required to set passwords.');
+      await user.reload();
+      expect(user.passwordHash).to.be.null;
     });
 
     it('should set password directly if there is none yet', async () => {
@@ -206,15 +218,15 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
       });
     });
 
-    describe('using OAuth tokens', () => {
-      it('must have the account scope', async () => {
+    describe('using OAuth or Personal Tokens', () => {
+      it('is not allowed with an OAuth token, even with the account scope', async () => {
         const application = await fakeApplication({ type: 'oAuth' });
         const user = await fakeUser({ passwordHash: null });
         const userToken = await fakeUserToken({
           type: 'OAUTH',
           ApplicationId: application.id,
           UserId: user.id,
-          scope: ['expenses'],
+          scope: [OAuthScopes.account],
         });
 
         const result = await graphqlQueryV2(
@@ -227,18 +239,15 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
         );
 
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.equal('The User Token is not allowed for operations in scope "account".');
+        expect(result.errors[0].message).to.equal('OAuth and Personal Tokens are not allowed to set passwords.');
+
+        await user.reload();
+        expect(user.passwordHash).to.be.null;
       });
 
-      it('should change not password but not generate a session token', async () => {
-        const application = await fakeApplication({ type: 'oAuth' });
+      it('is not allowed with a personal token, even with the account scope', async () => {
         const user = await fakeUser({ passwordHash: null });
-        const userToken = await fakeUserToken({
-          type: 'OAUTH',
-          ApplicationId: application.id,
-          UserId: user.id,
-          scope: ['account'],
-        });
+        const personalToken = await fakePersonalToken({ user, scope: [OAuthScopes.account] });
 
         const result = await graphqlQueryV2(
           setPasswordMutation,
@@ -246,16 +255,15 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
           user,
           null,
           null,
-          userToken,
+          null,
+          personalToken,
         );
 
-        expect(result.errors).to.not.exist;
-        expect(result.data.setPassword.token).to.not.exist;
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('OAuth and Personal Tokens are not allowed to set passwords.');
 
         await user.reload();
-        expect(user.passwordHash).to.not.be.empty;
-        expect(user.passwordUpdatedAt).to.exist;
-        expect(await bcrypt.compare('newpassword', user.passwordHash)).to.be.true;
+        expect(user.passwordHash).to.be.null;
       });
     });
   });
@@ -292,7 +300,7 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
         userToken,
       );
       expect(resultOauth.errors).to.exist;
-      expect(resultOauth.errors[0].message).to.equal('OAuth and Personal Tokens are not allowed for this route');
+      expect(resultOauth.errors[0].message).to.equal('A session token is required to confirm email while signed in.');
 
       const personalToken = await fakePersonalToken({ UserId: user.id });
       const resultPersonalToken = await graphqlQueryV2(
@@ -306,9 +314,24 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
       );
       expect(resultPersonalToken.errors).to.exist;
       expect(resultPersonalToken.errors[0].message).to.equal(
-        'OAuth and Personal Tokens are not allowed for this route',
+        'A session token is required to confirm email while signed in.',
       );
     });
+
+    for (const scope of ['login', 'reset-password']) {
+      it(`cannot exchange a ${scope} token for a session by confirming email`, async () => {
+        const user = await fakeUser({ emailWaitingForValidation: randEmail(), emailConfirmationToken: randStr() });
+        const result = await graphqlQueryV2(confirmEmailMutation, { token: user.emailConfirmationToken }, user, {
+          scope,
+        });
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('Forbidden');
+        expect(result.errors[0].message).to.equal('A session token is required to confirm email while signed in.');
+        await user.reload();
+        expect(user.emailWaitingForValidation).to.exist;
+      });
+    }
 
     it('should confirm the new email', async () => {
       const newEmail = randEmail();

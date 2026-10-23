@@ -5,8 +5,7 @@ import OAuthScopes from '../../../../server/constants/oauth-scopes';
 import { fakeApplication, fakePersonalToken, fakeUser, fakeUserToken } from '../../../test-helpers/fake-data';
 import { graphqlQueryV2, oAuthGraphqlQueryV2, personalTokenGraphqlQueryV2, resetTestDB } from '../../../utils';
 
-const TOKEN_AUTH_FORBIDDEN_MESSAGE =
-  'OAuth and personal tokens cannot be used to manage tokens. Please use the web interface.';
+const TOKEN_AUTH_FORBIDDEN_MESSAGE = 'A session token is required. Please use the web interface.';
 
 const PERSONAL_TOKEN_QUERY = gql`
   query PersonalToken($legacyId: Int!) {
@@ -59,6 +58,31 @@ const REVOKE_OAUTH_AUTHORIZATION_MUTATION = gql`
 
 describe('server/graphql/v2/TokenAuthCredentialsManagement', () => {
   before(resetTestDB);
+
+  for (const scope of ['login', 'reset-password']) {
+    it(`rejects ${scope} tokens for token and application management`, async () => {
+      const user = await fakeUser();
+      const personalToken = await fakePersonalToken({ user });
+      const authorization = await fakeUserToken({ user });
+      const operations = [
+        [PERSONAL_TOKEN_QUERY, { legacyId: personalToken.id }],
+        [ACCOUNT_PERSONAL_TOKENS_QUERY, { slug: user.collective.slug }],
+        [ACCOUNT_OAUTH_AUTHORIZATIONS_QUERY, { slug: user.collective.slug }],
+        [
+          CREATE_APPLICATION_MUTATION,
+          { application: { name: 'Test Application', redirectUri: 'https://example.com/callback' } },
+        ],
+        [REVOKE_OAUTH_AUTHORIZATION_MUTATION, { oAuthAuthorization: { id: authorization.publicId } }],
+      ];
+
+      for (const [query, variables] of operations) {
+        const result = await graphqlQueryV2(query, variables, user, { scope });
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('Forbidden');
+        expect(result.errors[0].message).to.equal(TOKEN_AUTH_FORBIDDEN_MESSAGE);
+      }
+    });
+  }
 
   describe('personalToken query', () => {
     it('cannot read a personal token when authenticated with a personal token', async () => {

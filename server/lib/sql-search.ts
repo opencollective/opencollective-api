@@ -268,12 +268,14 @@ const getSortSubQuery = (
     },
     [ORDER_BY_PSEUDO_FIELDS.RANK]: {
       query: `
-      CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTermForILike)
-        THEN 1
+      CASE
+        WHEN c."slug" = :slugifiedTerm THEN 3
+        WHEN c."name" ILIKE :sanitizedTermForILike THEN 2
         ELSE
           ${
+            // Normalization 33 (1 | 32) scales the rank to [0, 1) so it never outranks exact matches
             searchTermConditions.tsQueryFunc
-              ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}), 1)`
+              ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}), 33)`
               : '0'
           }
       END`,

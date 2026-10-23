@@ -8,6 +8,12 @@ import requirePrivateAccountCheck from './eslint-rules/require-private-account-c
 import sequelizeModelRequirePublicIdPrefix from './eslint-rules/sequelize-model-public-id-prefix.js';
 import sequelizeModelRequireTableName from './eslint-rules/sequelize-model-table-name.js';
 
+// Fixture and stub code is excluded from the production build: nothing outside server/e2e/ may load it.
+const E2E_IMPORTS_RESTRICTION = {
+  group: ['**/e2e', '**/e2e/*'],
+  message: 'E2E-only code must stay in server/e2e/.',
+};
+
 export default [
   ...openCollectiveConfig,
   // Global ignores
@@ -266,6 +272,13 @@ export default [
     },
   },
   {
+    files: ['server/**/*.+(js|ts)'],
+    ignores: ['server/e2e/**'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [E2E_IMPORTS_RESTRICTION] }],
+    },
+  },
+  {
     files: ['server/graphql/v2/**/*.+(js|ts)'],
 
     rules: {
@@ -273,6 +286,7 @@ export default [
         'error',
         {
           patterns: [
+            E2E_IMPORTS_RESTRICTION,
             {
               group: ['**/v1/types'],
               message: 'GraphQL V1 types should not be used with V2.',

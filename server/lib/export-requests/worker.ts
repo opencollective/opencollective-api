@@ -25,7 +25,49 @@ const FUNCTION_NAME = 'notify_export_requests_on_change';
 const TICK_INTERVAL = 1 * 60_000;
 const ABORT_ERROR = 'Process aborted';
 const MAX_RETRIES = 3;
+/** While processing, the request is touched every `HEARTBEAT_INTERVAL` so stuck detection only catches dead runs. */
+export const HEARTBEAT_INTERVAL = 5 * 60_000;
+/** A `PROCESSING` request without a heartbeat for this long is considered dead and failed by `checkStuckTasks`. */
+export const STUCK_THRESHOLD = 10 * 60_000;
+/**
+ * How long a processing run holds its `export-request-*` lock, renewed on every heartbeat. Must stay greater
+ * than `STUCK_THRESHOLD` so a live (but slow) run always still holds its lock when `checkStuckTasks` probes
+ * it (#8765); a crashed run stops renewing and its lock expires within this TTL, so it can then be reaped.
+ */
+export const EXPORT_REQUEST_LOCK_TTL_MS = 2 * STUCK_THRESHOLD;
 const TABLES = [{ tableName: 'ExportRequests', triggerPrefix: 'export_requests' }];
+
+/** `data.retryCount` is the number of retries granted so far: a request runs at most `1 + MAX_RETRIES` times. */
+const canRetry = (request: ExportRequest): boolean => (request.data?.retryCount || 0) < MAX_RETRIES;
+
+// 1-minute base on purpose: the frontend keeps showing "generating" until the export settles, so retries start fast
+const RETRY_BACKOFF_BASE_MS = 1 * 60_000;
+const RETRY_BACKOFF_MAX_MS = 60 * 60_000;
+
+/** Exponential backoff between retries: `RETRY_BACKOFF_BASE_MS * 2^retryCount`, capped at `RETRY_BACKOFF_MAX_MS` (1 h). */
+export const getRetryBackoffMs = (retryCount = 0): number =>
+  Math.min(RETRY_BACKOFF_BASE_MS * 2 ** Math.max(retryCount, 0), RETRY_BACKOFF_MAX_MS);
+
+/** Notifies the user of a terminal export failure (the activity triggers the failure email). */
+const createExportFailedActivity = async (request: ExportRequest, error: string): Promise<void> => {
+  const collective = await request.getCollective();
+  await Activity.create({
+    type: ActivityTypes.EXPORT_REQUEST_FAILED,
+    UserId: request.CreatedByUserId,
+    CollectiveId: request.CollectiveId,
+    HostCollectiveId: collective?.HostCollectiveId,
+    data: {
+      exportRequest: {
+        id: request.id,
+        publicId: request.publicId,
+        name: request.name,
+        type: request.type,
+        error,
+      },
+      collective: collective?.info,
+    },
+  });
+};
 export const EXPORT_PROCESSORS: Record<ExportRequestTypes, ExportProcessor> = {
   [ExportRequestTypes.TRANSACTIONS]: processTransactionsRequest,
   [ExportRequestTypes.HOSTED_COLLECTIVES]: processHostedCollectivesRequest,
@@ -61,77 +103,141 @@ class ExportWorker {
   }
 
   async processRequest(requestId: number, signal: AbortSignal): Promise<void> {
-    return await lockUntilOrThrow(`export-request-${requestId}`, async release => {
-      const request = await ExportRequest.findByPk(requestId);
-      assert(request, 'ExportRequest not found');
-      assert(request.status === ExportRequestStatus.ENQUEUED, `ExportRequest is not ENQUEUED`);
-      debug('Processing request:', request.id);
+    return await lockUntilOrThrow(
+      `export-request-${requestId}`,
+      async (_release, extendLock) => {
+        const request = await ExportRequest.findByPk(requestId);
+        assert(request, 'ExportRequest not found');
+        if (request.status !== ExportRequestStatus.ENQUEUED) {
+          // Expected loser race (duplicate notification or queue entry for an already-claimed request), not an error
+          debug(`ExportRequest ${request.id} is ${request.status}, skipping (already processed or claimed)`);
+          return;
+        }
+        debug('Processing request:', request.id);
 
-      const processor = EXPORT_PROCESSORS[request.type];
-      assert(processor, `No processor found for ExportRequest type ${request.type}`);
+        const processor = EXPORT_PROCESSORS[request.type];
+        assert(processor, `No processor found for ExportRequest type ${request.type}`);
 
-      const abortHandler = async () => {
-        debug(`Processing of export request ${request.id} aborted`);
-        await this.queue.add(async () => {
-          await request.fail(ABORT_ERROR, { shouldRetry: true });
-          if (release) {
-            await release();
+        // Per-attempt abort controller: the processor gets this signal so the attempt can be cancelled locally
+        // (worker shutdown, or when the processing lock is lost) without aborting the shared worker signal.
+        const attemptController = new AbortController();
+
+        // Single, idempotent settle per attempt: the abort handler, the processor error path and the success path all
+        // go through it and only the first caller writes. `settled` is claimed synchronously so concurrent callers
+        // always observe the same winner, whatever the abort/rejection interleaving.
+        let settled = false;
+        let settleWrite: Promise<void> | null = null;
+        let completionWriteFailed = false;
+        const markFailed = (error: string, { force = false } = {}): Promise<void> => {
+          if (settled && !force) {
+            return settleWrite ?? Promise.resolve();
           }
-        });
-      };
-      signal.addEventListener('abort', abortHandler);
-      // Update status
-      await request.update({ status: ExportRequestStatus.PROCESSING });
-      await processor(request, signal)
-        .then(async () => {
-          // Create activity on successful completion
-          const collective = await request.getCollective();
-          await Activity.create({
-            type: ActivityTypes.EXPORT_REQUEST_COMPLETED,
-            UserId: request.CreatedByUserId,
-            CollectiveId: request.CollectiveId,
-            HostCollectiveId: collective?.HostCollectiveId,
-            data: {
-              exportRequest: {
-                id: request.id,
-                publicId: request.publicId,
-                name: request.name,
-                type: request.type,
-              },
-              collective: collective?.info,
-            },
-          });
-          logger.info(`Export request ${request.id} processed successfully`);
-        })
-        .catch(async error => {
-          debug(`Error in processor for export request ${request.id}:`, error);
-          const shouldRetry = (request.data?.retryCount || 0) < MAX_RETRIES;
-          await request.fail(error.message || 'Unknown error', { shouldRetry });
-          reportErrorToSentry(error, { handler: HandlerType.EXPORTS_WORKER });
+          settled = true;
+          settleWrite = (async () => {
+            const shouldRetry = canRetry(request);
+            await request.fail(error, { shouldRetry });
 
-          // Create activity on failure (only if not retrying)
-          if (!shouldRetry) {
-            const collective = await request.getCollective();
-            await Activity.create({
-              type: ActivityTypes.EXPORT_REQUEST_FAILED,
-              UserId: request.CreatedByUserId,
-              CollectiveId: request.CollectiveId,
-              HostCollectiveId: collective?.HostCollectiveId,
-              data: {
-                exportRequest: {
-                  id: request.id,
-                  publicId: request.publicId,
-                  name: request.name,
-                  type: request.type,
-                  error: error.message || 'Unknown error',
-                },
-                collective: collective?.info,
-              },
+            // Notify the user on terminal failure
+            if (!shouldRetry) {
+              await createExportFailedActivity(request, error);
+            }
+          })();
+          return settleWrite;
+        };
+
+        const abortHandler = () => {
+          debug(`Processing of export request ${request.id} aborted`);
+          attemptController.abort();
+          markFailed(ABORT_ERROR).catch(error => reportErrorToSentry(error, { handler: HandlerType.EXPORTS_WORKER }));
+        };
+        signal.addEventListener('abort', abortHandler);
+        let heartbeat: NodeJS.Timeout | null = null;
+        try {
+          // Update status
+          await request.update({ status: ExportRequestStatus.PROCESSING });
+          // Processing heartbeat: keeps `updatedAt` fresh so `checkStuckTasks` only reaps dead runs (#8765),
+          // and renews the request lock so a crashed run loses it within the lock TTL
+          heartbeat = setInterval(() => {
+            Promise.all([
+              request.heartbeat(),
+              extendLock?.().then(renewed => {
+                if (renewed) {
+                  return;
+                }
+                // The lock was lost (expired or taken over): this run no longer owns the request. Stop
+                // heartbeating, abort the processor locally and leave the status writes to the new owner.
+                logger.warn(`Export request ${request.id} processing lock is no longer held, aborting this run`);
+                settled = true;
+                attemptController.abort();
+                if (heartbeat) {
+                  clearInterval(heartbeat);
+                  heartbeat = null;
+                }
+              }),
+            ]).catch(error => logger.warn(`Export request ${request.id} heartbeat failed: ${error.message}`));
+          }, HEARTBEAT_INTERVAL);
+          await processor(request, attemptController.signal)
+            .then(async () => {
+              if (settled) {
+                // The attempt was already aborted/failed while the processor was finishing: the failure transition wins
+                debug(`Export request ${request.id} finished after being settled, not marking it as COMPLETED`);
+                await settleWrite;
+                return;
+              }
+              settled = true;
+              settleWrite = (async () => {
+                // The worker is the sole writer of `ExportRequest.status`: processors only return their result
+                try {
+                  await request.update({ status: ExportRequestStatus.COMPLETED });
+                } catch (error) {
+                  // The COMPLETED write never landed: fall back to the failure transition in the catch below
+                  completionWriteFailed = true;
+                  throw error;
+                }
+                // Create activity on successful completion
+                const collective = await request.getCollective();
+                await Activity.create({
+                  type: ActivityTypes.EXPORT_REQUEST_COMPLETED,
+                  UserId: request.CreatedByUserId,
+                  CollectiveId: request.CollectiveId,
+                  HostCollectiveId: collective?.HostCollectiveId,
+                  data: {
+                    exportRequest: {
+                      id: request.id,
+                      publicId: request.publicId,
+                      name: request.name,
+                      type: request.type,
+                    },
+                    collective: collective?.info,
+                  },
+                });
+                logger.info(`Export request ${request.id} processed successfully`);
+              })();
+              await settleWrite;
+            })
+            .catch(async error => {
+              debug(`Error in processor for export request ${request.id}:`, error);
+              if (completionWriteFailed) {
+                // The COMPLETED write failed and never landed: record the attempt as failed instead of leaving
+                // it in PROCESSING until the stuck reaper reports it with a misleading error
+                await markFailed(error.message || 'Unknown error', { force: true });
+                throw error;
+              }
+              const isFirstSettle = !settled;
+              await markFailed(error.message || 'Unknown error');
+              if (isFirstSettle) {
+                reportErrorToSentry(error, { handler: HandlerType.EXPORTS_WORKER });
+              }
             });
+        } finally {
+          if (heartbeat) {
+            clearInterval(heartbeat);
           }
-        });
-      signal.removeEventListener('abort', abortHandler);
-    });
+          signal.removeEventListener('abort', abortHandler);
+        }
+      },
+      { unlockTimeoutMs: EXPORT_REQUEST_LOCK_TTL_MS },
+    );
   }
 
   async makeTask(event: NotificationEvent, signal: AbortSignal): Promise<void> {
@@ -160,9 +266,20 @@ class ExportWorker {
     if (erroredRequests.length === 0) {
       return;
     }
-    logger.info(`Export Worker: Found ${erroredRequests.length} errored requests ready to retry`);
+    debug(`Found ${erroredRequests.length} errored requests`);
+    // Grant a retry only if one remains and the exponential backoff window has elapsed since the last attempt
+    const now = moment.utc();
+    const requestsToRetry = erroredRequests.filter(
+      request =>
+        canRetry(request) &&
+        moment.utc(request.updatedAt).isBefore(now.clone().subtract(getRetryBackoffMs(request.data?.retryCount), 'ms')),
+    );
+    if (requestsToRetry.length === 0) {
+      return;
+    }
+    logger.info(`Export Worker: Found ${requestsToRetry.length} errored requests ready to retry`);
     await Promise.all(
-      erroredRequests.map(async request =>
+      requestsToRetry.map(async request =>
         request.update({
           status: ExportRequestStatus.ENQUEUED,
           data: Object.assign({}, request.data, {
@@ -175,10 +292,12 @@ class ExportWorker {
   }
 
   private async checkStuckTasks(): Promise<void> {
+    // Only requests with no processing heartbeat for over `STUCK_THRESHOLD` are considered stuck: a live run
+    // keeps touching `updatedAt`, so in-flight requests are never re-enqueued and duplicated (#8765)
     const stuckRequests = await ExportRequest.findAll({
       where: {
         status: ExportRequestStatus.PROCESSING,
-        updatedAt: { [Op.lt]: moment.utc().subtract(1, 'hour').toDate() },
+        updatedAt: { [Op.lt]: moment.utc().subtract(STUCK_THRESHOLD, 'ms').toDate() },
       },
     });
     debug(`Found ${stuckRequests.length} stuck requests`);
@@ -189,10 +308,24 @@ class ExportWorker {
     await Promise.all(
       stuckRequests.map(async request => {
         try {
-          await lockUntilOrThrow(`export-request-${request.id}`, async () => {
-            await request.reload();
-            await request.fail('Request stuck in PROCESSING state for over an hour', { shouldRetry: true });
-          });
+          await lockUntilOrThrow(
+            `export-request-${request.id}`,
+            async () => {
+              await request.reload();
+              if (request.status !== ExportRequestStatus.PROCESSING) {
+                // The run settled between the stuck scan and this lock
+                return;
+              }
+              const error = `Request stuck in PROCESSING state without a heartbeat for over ${STUCK_THRESHOLD / 60_000} minutes`;
+              const shouldRetry = canRetry(request);
+              await request.fail(error, { shouldRetry });
+              if (!shouldRetry) {
+                // Terminal failure: notify the user, like on any other terminal failure
+                await createExportFailedActivity(request, error);
+              }
+            },
+            { unlockTimeoutMs: EXPORT_REQUEST_LOCK_TTL_MS },
+          );
         } catch (error) {
           if (error instanceof MutexLockError) {
             // Ignore lock errors, since this means this request is being processed

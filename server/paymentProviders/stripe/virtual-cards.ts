@@ -285,7 +285,8 @@ export const processDeclinedAuthorization = async (event: Stripe.Event) => {
 };
 
 export const processTransaction = async (stripeTransaction: Stripe.Issuing.Transaction) => {
-  const virtualCard = await getVirtualCardForTransaction(stripeTransaction.card);
+  const cardId = typeof stripeTransaction.card === 'string' ? stripeTransaction.card : stripeTransaction.card.id;
+  const virtualCard = await getVirtualCardForTransaction(cardId);
   if (!virtualCard) {
     logger.error(
       `Stripe: could not find virtual card ${

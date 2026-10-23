@@ -1,0 +1,81 @@
+import type { Request } from 'express';
+import { GraphQLNonNull, GraphQLString } from 'graphql';
+
+import { createUpdate, deleteUpdate, editUpdate, publishUpdate, unpublishUpdate } from '../../common/update';
+import { GraphQLUpdateAudienceType } from '../enum';
+import { GraphQLUpdateCreateInput } from '../input/UpdateCreateInput';
+import { GraphQLUpdateUpdateInput } from '../input/UpdateUpdateInput';
+import GraphQLUpdate from '../object/Update';
+
+const updateMutations = {
+  createUpdate: {
+    type: new GraphQLNonNull(GraphQLUpdate),
+    description: 'Create update. Scope: "updates".',
+    args: {
+      update: {
+        type: new GraphQLNonNull(GraphQLUpdateCreateInput),
+      },
+    },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside createUpdate (common/update.ts)
+    resolve(_, args, req: Request) {
+      return createUpdate(_, args, req);
+    },
+  },
+  editUpdate: {
+    type: new GraphQLNonNull(GraphQLUpdate),
+    description: 'Edit update. Scope: "updates".',
+    args: {
+      update: {
+        type: new GraphQLNonNull(GraphQLUpdateUpdateInput),
+      },
+    },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside editUpdate (common/update.ts)
+    resolve(_, args, req: Request) {
+      return editUpdate(_, args, req);
+    },
+  },
+  publishUpdate: {
+    type: new GraphQLNonNull(GraphQLUpdate),
+    description: 'Publish update. Scope: "updates".',
+    args: {
+      id: {
+        type: new GraphQLNonNull(GraphQLString),
+      },
+      notificationAudience: {
+        type: GraphQLUpdateAudienceType,
+      },
+    },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside publishUpdate (common/update.ts)
+    resolve(_, args, req: Request) {
+      return publishUpdate(_, args, req);
+    },
+  },
+  unpublishUpdate: {
+    type: new GraphQLNonNull(GraphQLUpdate),
+    description: 'Unpublish update. Scope: "updates".',
+    args: {
+      id: {
+        type: new GraphQLNonNull(GraphQLString),
+      },
+    },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside unpublishUpdate (common/update.ts)
+    resolve(_, args, req: Request) {
+      return unpublishUpdate(_, args, req);
+    },
+  },
+  deleteUpdate: {
+    type: new GraphQLNonNull(GraphQLUpdate),
+    description: 'Delete update. Scope: "updates".',
+    args: {
+      id: {
+        type: new GraphQLNonNull(GraphQLString),
+      },
+    },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside deleteUpdate (common/update.ts)
+    resolve(_, args, req: Request) {
+      return deleteUpdate(_, args, req);
+    },
+  },
+};
+
+export default updateMutations;
