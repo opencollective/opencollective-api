@@ -6,8 +6,9 @@ import { GraphQLNonEmptyString } from 'graphql-scalars';
 import { SupportedCurrency } from '../../../constants/currencies';
 import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
 import paypal, { connectPaypalPayoutMethod } from '../../../paymentProviders/paypal';
+import { isPayPalSupportedCurrency } from '../../../paymentProviders/paypal/constants';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
-import { Forbidden, NotFound } from '../../errors';
+import { Forbidden, NotFound, ValidationFailed } from '../../errors';
 import { GraphQLCurrency } from '../enum/Currency';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { fetchPayoutMethodWithReference, GraphQLPayoutMethodReferenceInput } from '../input/PayoutMethodReferenceInput';
@@ -56,6 +57,9 @@ export const paypalMutations = {
     ): Promise<string> => {
       checkRemoteUserCanUseExpenses(req);
       assertPaypalConnectConfigured();
+      if (args.currency && !isPayPalSupportedCurrency(args.currency)) {
+        throw new ValidationFailed('This currency is not supported by PayPal');
+      }
 
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(collective)) {
@@ -131,6 +135,7 @@ export const paypalMutations = {
         currency: args.currency,
         name: args.name,
         payoutMethod,
+        req,
       });
     },
   },

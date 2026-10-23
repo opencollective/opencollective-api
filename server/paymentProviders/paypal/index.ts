@@ -20,6 +20,7 @@ import User from '../../models/User';
 import { hashObject } from '../utils';
 
 import { exchangeAuthCodeForToken, paypalConnectAuthorizeUrl, retrievePaypalUserInfo } from './api';
+import { isPayPalSupportedCurrency } from './constants';
 import payment from './payment';
 import subscription from './subscription';
 
@@ -64,6 +65,8 @@ type ConnectPaypalPayoutMethodParams = {
   currency: SupportedCurrency;
   name?: string;
   payoutMethod?: PayoutMethod | null;
+  /** Used to add the request context to Sentry reports */
+  req?: Express.Request;
 };
 
 /**
@@ -78,6 +81,7 @@ export async function connectPaypalPayoutMethod({
   currency,
   name,
   payoutMethod: initialPayoutMethod = null,
+  req,
 }: ConnectPaypalPayoutMethodParams): Promise<{ connectedAccount: ConnectedAccount; payoutMethod: PayoutMethod }> {
   if (!code) {
     throw new ValidationFailed('PayPal code is missing');
@@ -85,6 +89,8 @@ export async function connectPaypalPayoutMethod({
     throw new ValidationFailed('OAuth state is missing. Please restart the PayPal connect flow.');
   } else if (!currency) {
     throw new ValidationFailed('Currency not provided');
+  } else if (!isPayPalSupportedCurrency(currency)) {
+    throw new ValidationFailed('This currency is not supported by PayPal');
   }
 
   let statePayload: { CollectiveId: number; userId: number };
@@ -226,6 +232,7 @@ export async function connectPaypalPayoutMethod({
     reportErrorToSentry(e, {
       feature: FEATURE.PAYPAL_CONNECT,
       user: remoteUser,
+      req,
       extra: { CollectiveId: collective.id, PayoutMethodId: initialPayoutMethod?.id },
     });
     throw new UnexpectedError('PayPal connect failed');
