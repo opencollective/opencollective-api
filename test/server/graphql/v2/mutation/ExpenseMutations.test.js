@@ -4474,6 +4474,34 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.InvoiceFileId).to.be.null;
       });
 
+      it('allows re-submitting the current invoice file, even if it is shared with another expense', async () => {
+        const user = await fakeUser();
+        const sharedInvoiceFile = await fakeUploadedFile({ kind: 'EXPENSE_INVOICE', CreatedByUserId: user.id });
+        await fakeExpense({ type: 'INVOICE', UserId: user.id, InvoiceFileId: sharedInvoiceFile.id });
+        const expense = await fakeExpense({
+          UserId: user.id,
+          type: 'INVOICE',
+          status: 'APPROVED',
+          amount: 3000,
+          InvoiceFileId: sharedInvoiceFile.id,
+        });
+
+        const expenseUpdateData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          description: 'Updated description',
+          invoiceFile: { url: sharedInvoiceFile.url },
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: expenseUpdateData }, expense.User);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        await expense.reload();
+        expect(expense.description).to.eq('Updated description');
+        expect(expense.InvoiceFileId).to.eql(sharedInvoiceFile.id);
+        expect((await sharedInvoiceFile.reload({ paranoid: false })).deletedAt).to.not.exist;
+      });
+
       for (const operation of ['removes', 'replaces']) {
         it(`does not delete the previous invoice file when it ${operation} it and another expense still references it`, async () => {
           const user = await fakeUser();
