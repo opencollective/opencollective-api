@@ -35,7 +35,7 @@ import {
   fakeUser,
   fakeUserToken,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, oAuthGraphqlQueryV2, resetTestDB } from '../../../../utils';
+import { graphqlQueryV2, oAuthGraphqlQueryV2, resetCaches, resetTestDB } from '../../../../utils';
 
 describe('server/graphql/v2/query/SearchQuery', () => {
   const searchQuery = gql`
@@ -174,6 +174,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
 
   before(async () => {
     await resetTestDB();
+    await resetCaches(); // Search rate-limit counters are keyed by user ID, which the DB reset reuses
 
     // Seed data
     testUsers = {
@@ -942,13 +943,33 @@ describe('server/graphql/v2/query/SearchQuery', () => {
                 collectiveAdmin: 0,
                 projectAdmin: 0,
                 randomUser: 0,
-                rootUser: 2,
+                rootUser: 0, // Root privileges require the root scope
                 fromUser: 0,
                 unauthenticated: null, // doesn't apply
               },
               {
                 useOAuth: true,
                 oauthScopes: [OAuthScopes.account, OAuthScopes.transactions],
+              },
+            );
+          });
+
+          describe('merchantId (OAuth with transactions and root scopes)', () => {
+            testPermissionsForField(
+              'transactions',
+              'AVeryUniqueTransactionCaptureId',
+              {
+                hostAdmin: 1,
+                collectiveAdmin: 0,
+                projectAdmin: 0,
+                randomUser: 0,
+                rootUser: 2,
+                fromUser: 0,
+                unauthenticated: null, // doesn't apply
+              },
+              {
+                useOAuth: true,
+                oauthScopes: [OAuthScopes.account, OAuthScopes.transactions, OAuthScopes.root],
               },
             );
           });

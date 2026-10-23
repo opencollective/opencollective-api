@@ -96,6 +96,65 @@ describe('server/graphql/loaders/collective', () => {
     }
   });
 
+  describe('private info membership approval', () => {
+    for (const role of Object.values(MemberRoles)) {
+      for (const approved of [false, true]) {
+        it(`checks ${role} memberships with approved=${approved} consistently for profile info and location`, async () => {
+          const remoteUser = await fakeUser();
+          const host = await fakeActiveHost({ admin: remoteUser });
+          const collective = await fakeCollective({
+            HostCollectiveId: host.id,
+            approvedAt: approved ? new Date() : null,
+          });
+          const member = await fakeUser();
+          await fakeMember({ CollectiveId: collective.id, MemberCollectiveId: member.CollectiveId, role });
+
+          const expected = role === MemberRoles.HOST ? approved : role !== MemberRoles.CONNECTED_COLLECTIVE;
+          expect(await CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser }).load(member.CollectiveId)).to.eq(
+            expected,
+          );
+          expect(await CollectiveLoaders.canSeePrivateLocation({ remoteUser }).load(member.CollectiveId)).to.eq(
+            expected,
+          );
+        });
+      }
+    }
+
+    for (const approved of [false, true]) {
+      it(`does not grant private info access for an unknown membership role with approved=${approved}`, async () => {
+        const remoteUser = await fakeUser();
+        const host = await fakeActiveHost({ admin: remoteUser });
+        const collective = await fakeCollective({
+          HostCollectiveId: host.id,
+          approvedAt: approved ? new Date() : null,
+        });
+        const member = await fakeUser();
+        const membership = await fakeMember({
+          CollectiveId: collective.id,
+          MemberCollectiveId: member.CollectiveId,
+          role: MemberRoles.BACKER,
+        });
+        // Simulate a future role without granting it private-info access implicitly.
+        await sequelize.query(`UPDATE "Members" SET role = 'FUTURE_ROLE' WHERE id = :id`, {
+          replacements: { id: membership.id },
+        });
+
+        expect(await CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser }).load(member.CollectiveId)).to.be.false;
+        expect(await CollectiveLoaders.canSeePrivateLocation({ remoteUser }).load(member.CollectiveId)).to.be.false;
+      });
+    }
+
+    it('keeps ordinary memberships visible to admins of an independent collective', async () => {
+      const remoteUser = await fakeUser();
+      const collective = await fakeCollective({ HostCollectiveId: null, approvedAt: null, admin: remoteUser });
+      const member = await fakeUser();
+      await collective.addUserWithRole(member, MemberRoles.ADMIN);
+
+      expect(await CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser }).load(member.CollectiveId)).to.be.true;
+      expect(await CollectiveLoaders.canSeePrivateLocation({ remoteUser }).load(member.CollectiveId)).to.be.false;
+    });
+  });
+
   describe('canSeePrivateProfileInfo', () => {
     describe('User info', () => {
       let userWithPrivateInfo, randomUser, collectiveAdmin, hostAdmin;

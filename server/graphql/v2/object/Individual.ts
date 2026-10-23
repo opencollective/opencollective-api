@@ -95,6 +95,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
           if (req.remoteUser?.CollectiveId !== account.id) {
             throw new Unauthorized('Only visible to the logged in user');
           }
+          // eslint-disable-next-line oauth-scopes/no-bare-is-root -- informational only, grants nothing
           return req.remoteUser.isRoot();
         },
       },

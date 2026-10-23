@@ -17,6 +17,7 @@ import { canSeePrivateAccount } from '../../../lib/private-accounts';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, sequelize } from '../../../models';
+import { isRemoteUserRoot } from '../../common/scope-check';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { VENDOR_INFO_FIELDS } from '../../v2/mutation/VendorMutations';
 import { CollectiveInputType } from '../inputTypes';
@@ -515,7 +516,7 @@ export async function archiveCollective(_, args, req) {
     throw new NotFound(`Collective with id ${args.id} not found`);
   }
 
-  if (!req.remoteUser.isAdminOfCollective(collective) && !req.remoteUser.isRoot()) {
+  if (!req.remoteUser.isAdminOfCollective(collective) && !isRemoteUserRoot(req)) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
@@ -650,7 +651,7 @@ export async function deleteCollective(_, args, req) {
     throw new NotFound(`Collective with id ${args.id} not found`);
   }
 
-  if (!req.remoteUser.isAdminOfCollective(collective) && !req.remoteUser.isRoot()) {
+  if (!req.remoteUser.isAdminOfCollective(collective) && !isRemoteUserRoot(req)) {
     throw new Unauthorized(`You don't have permission to delete this collective.`);
   }
 

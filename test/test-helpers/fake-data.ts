@@ -637,6 +637,7 @@ export const fakeComment = async (
   const ConversationId = get(commentData, 'ConversationId') || get(commentData, 'conversation.id');
   const HostApplicationId = get(commentData, 'HostApplicationId') || get(commentData, 'hostApplication.id');
   const OrderId = get(commentData, 'OrderId') || get(commentData, 'order.id');
+  const UpdateId = get(commentData, 'UpdateId') || get(commentData, 'commentUpdate.id');
   if (!FromCollectiveId) {
     FromCollectiveId = (await fakeCollective({}, sequelizeParams)).id;
   }
@@ -646,7 +647,7 @@ export const fakeComment = async (
   if (!CreatedByUserId) {
     CreatedByUserId = (await fakeUser()).id;
   }
-  if (!ExpenseId && !ConversationId && !HostApplicationId && !OrderId) {
+  if (!ExpenseId && !ConversationId && !HostApplicationId && !OrderId && !UpdateId) {
     ExpenseId = (await fakeExpense()).id;
   }
 
@@ -660,6 +661,7 @@ export const fakeComment = async (
       ExpenseId: <number>ExpenseId,
       OrderId: <number>OrderId,
       ConversationId: <number>ConversationId,
+      UpdateId: <number>UpdateId,
     },
     sequelizeParams,
   );
@@ -798,7 +800,6 @@ export const fakeOrder = async (
       interval: order.interval || 'month',
       currency: order.currency,
       isActive: true,
-      quantity: order.quantity,
       ...orderData.subscription,
     };
 
@@ -871,7 +872,6 @@ export const fakeSubscription = (params = {}) => {
     currency: sample<SupportedCurrency>(['USD', 'EUR']),
     interval: <'month' | 'year'>sample(['month', 'year']),
     isActive: true,
-    quantity: 1,
     ...params,
   });
 };

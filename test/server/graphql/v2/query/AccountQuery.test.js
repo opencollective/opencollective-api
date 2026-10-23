@@ -4,6 +4,7 @@ import { shuffle, times } from 'lodash';
 
 import { roles } from '../../../../../server/constants';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
+import models from '../../../../../server/models';
 import { randEmail } from '../../../../stores';
 import {
   fakeCollective,
@@ -623,6 +624,70 @@ describe('server/graphql/v2/query/AccountQuery', () => {
   });
 
   describe('emails', () => {
+    it('does not return host admin emails to a pending applicant', async () => {
+      const hostAdmin = await fakeUser();
+      const secondHostAdmin = await fakeUser();
+      const host = await fakeHost({ settings: { apply: true }, admin: [hostAdmin, secondHostAdmin] });
+      const applicant = await fakeUser();
+      const collective = await fakeCollective({ HostCollectiveId: null, admin: applicant });
+      const randomUser = await fakeUser();
+      const emailsQuery = gql`
+        query HostEmails($slug: String!) {
+          account(slug: $slug) {
+            emails
+          }
+        }
+      `;
+
+      const before = await graphqlQueryV2(emailsQuery, { slug: host.slug }, applicant);
+      expect(before.errors).to.not.exist;
+      expect(before.data.account.emails).to.be.null;
+
+      const application = await graphqlQueryV2(
+        gql`
+          mutation ApplyToHost($collective: AccountReferenceInput!, $host: AccountReferenceInput!) {
+            applyToHost(collective: $collective, host: $host) {
+              ... on AccountWithHost {
+                isApproved
+              }
+            }
+          }
+        `,
+        { collective: { slug: collective.slug }, host: { slug: host.slug } },
+        applicant,
+      );
+      expect(application.errors).to.not.exist;
+      expect(application.data.applyToHost.isApproved).to.be.false;
+      await collective.reload();
+      expect(collective.approvedAt).to.be.null;
+      expect(
+        await models.Member.findOne({
+          where: { CollectiveId: collective.id, MemberCollectiveId: host.id, role: roles.HOST },
+        }),
+      ).to.exist;
+
+      for (const user of [applicant, randomUser]) {
+        const result = await graphqlQueryV2(emailsQuery, { slug: host.slug }, user);
+        expect(result.errors).to.not.exist;
+        expect(result.data.account.emails).to.be.null;
+      }
+    });
+
+    it('returns host admin emails to an approved hosted collective admin', async () => {
+      const hostAdmin = await fakeUser();
+      const secondHostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: [hostAdmin, secondHostAdmin] });
+      const collectiveAdmin = await fakeUser();
+      await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+
+      const result = await graphqlQueryV2(accountQuery, { slug: host.slug }, collectiveAdmin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.emails).to.have.members([hostAdmin.email, secondHostAdmin.email]);
+      const outsider = await graphqlQueryV2(accountQuery, { slug: host.slug }, await fakeUser());
+      expect(outsider.errors).to.not.exist;
+      expect(outsider.data.account.emails).to.be.null;
+    });
+
     it('returns the list of emails for an individual if allowed', async () => {
       const user = await fakeUser();
       const slug = user.collective.slug;

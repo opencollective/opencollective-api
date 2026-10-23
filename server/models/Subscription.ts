@@ -19,7 +19,6 @@ class Subscription extends Model<InferAttributes<Subscription>, InferCreationAtt
   declare nextChargeDate: Date;
   declare nextPeriodStart: Date;
   declare chargeRetryCount: number;
-  declare quantity: number;
   declare chargeNumber: number;
   declare data: Record<string, unknown>;
   declare stripeSubscriptionId: string;
@@ -72,8 +71,6 @@ Subscription.init(
     nextPeriodStart: DataTypes.DATE,
 
     chargeRetryCount: DataTypes.INTEGER,
-
-    quantity: DataTypes.INTEGER,
 
     chargeNumber: DataTypes.INTEGER,
 

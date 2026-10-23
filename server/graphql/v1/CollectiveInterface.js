@@ -27,7 +27,7 @@ import { hostResolver } from '../common/collective';
 import { GraphQLCollectiveFeatures } from '../common/CollectiveFeatures';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
 import { getFeatureStatusResolver } from '../common/features';
-import { checkScope } from '../common/scope-check';
+import { checkScope, isRemoteUserRoot } from '../common/scope-check';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { GraphQLPolicies } from '../v2/object/Policies';
 import { GraphQLSocialLink } from '../v2/object/SocialLink';
@@ -468,7 +468,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
 const getPrivateAccountsVisibilityConditions = req => {
   if (!req.remoteUser) {
     return { isPrivate: false };
-  } else if (req.remoteUser.isRoot()) {
+  } else if (isRemoteUserRoot(req)) {
     return {};
   } else {
     let conditions = { isPrivate: false };
@@ -763,7 +763,7 @@ const CollectiveFields = () => {
       type: GraphQLBoolean,
       description: 'Returns whether this user has two factor authentication enabled',
       async resolve(collective, _, req) {
-        if (req.remoteUser?.isAdmin(collective.id) || req.remoteUser?.isRoot()) {
+        if (req.remoteUser?.isAdmin(collective.id) || isRemoteUserRoot(req)) {
           if (collective.type === CollectiveTypeEnum.USER) {
             const user = await models.User.findOne({
               where: { CollectiveId: collective.id },
@@ -893,7 +893,7 @@ const CollectiveFields = () => {
         if (isNil(args.offset) || args.offset < 0) {
           args.offset = 0;
         }
-        if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+        if (args.limit > 1000 && !isRemoteUserRoot(req)) {
           logger.warn('GraphQL v1: members limit over 1,000, using 1,000 as maximum limit');
           args.limit = 1000;
           // throw new Error('Cannot fetch more than 1,000 members at the same time, please adjust the limit');
@@ -980,13 +980,13 @@ const CollectiveFields = () => {
         if (args.onlyActiveCollectives) {
           collectiveConditions.isActive = true;
         }
-        if (!args.includeIncognito || !(req.remoteUser?.isAdmin(collective.id) || req.remoteUser?.isRoot())) {
+        if (!args.includeIncognito || !(req.remoteUser?.isAdmin(collective.id) || isRemoteUserRoot(req))) {
           collectiveConditions.isIncognito = false; // only admins can see incognito profiles
         }
 
         // Handle private accounts
         if (req.remoteUser) {
-          if (req.remoteUser.isRoot()) {
+          if (isRemoteUserRoot(req)) {
             // Allow all private accounts to be seen by root admins
             delete collectiveConditions.isPrivate;
           } else {

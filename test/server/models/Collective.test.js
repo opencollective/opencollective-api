@@ -1711,4 +1711,24 @@ describe('server/models/Collective', () => {
       expect(slug).to.match(/^user-[0-9a-f]{8}$/);
     });
   });
+
+  describe('getYearlyBudgetAmount', () => {
+    it('forwards the provided loaders to the budget calculation', async () => {
+      const collective = await fakeCollective({ currency: 'USD' });
+      const loadedIds = [];
+      const yearlyBudgetLoader = {
+        load: async id => {
+          loadedIds.push(id);
+          return { value: 4200, currency: 'USD' };
+        },
+      };
+
+      const result = await collective.getYearlyBudgetAmount({
+        loaders: { Collective: { yearlyBudget: yearlyBudgetLoader } },
+      });
+
+      expect(loadedIds).to.deep.equal([collective.id]);
+      expect(result).to.deep.equal({ value: 4200, currency: 'USD' });
+    });
+  });
 });

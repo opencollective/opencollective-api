@@ -185,6 +185,14 @@ const isOwner = async (req: express.Request, expense: Expense): Promise<boolean>
   return req.remoteUser.isAdminOfCollective(expense.fromCollective);
 };
 
+/**
+ * Whether the remote user submitted the expense. Unlike `isOwner`, this is true even when the payee is a vendor,
+ * so it must only be used for permissions that don't touch the payee's data (e.g. comments).
+ */
+const isSubmitter = async (req: express.Request, expense: Expense): Promise<boolean> => {
+  return Boolean(req.remoteUser) && req.remoteUser.id === expense.UserId;
+};
+
 const isOwnerAccountant = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
@@ -1496,7 +1504,7 @@ export const canComment: ExpensePermissionEvaluator = async (
     return remoteUserMeetsOneCondition(
       req,
       expense,
-      [isCollectiveAdmin, isHostAdmin, isOwner, isOwnerAccountant, isCollectiveOrHostAccountant],
+      [isCollectiveAdmin, isHostAdmin, isOwner, isSubmitter, isOwnerAccountant, isCollectiveOrHostAccountant],
       options,
     );
   }

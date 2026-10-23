@@ -12,6 +12,7 @@ import { assertCanSeeAccount, assertCanSeeAllAccounts } from '../../lib/private-
 import rawQueries from '../../lib/queries';
 import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/sql-search';
 import models, { Op, sequelize } from '../../models';
+import { isRemoteUserRoot } from '../common/scope-check';
 import { NotFound, Unauthorized } from '../errors';
 
 import { CollectiveInterfaceType, CollectiveSearchResultsType, TypeOfCollectiveType } from './CollectiveInterface';
@@ -254,7 +255,7 @@ const queries = {
       // logic used in the GraphQL V2 `HasMembers` interface: root users see everything, users
       // with an ADMIN/ACCOUNTANT role see the related private collectives, everyone else only
       // sees public collectives.
-      const canSeeAllPrivateCollectives = Boolean(req.remoteUser?.isRoot());
+      const canSeeAllPrivateCollectives = isRemoteUserRoot(req);
       const privateCollectiveAccessIds =
         req.remoteUser && !canSeeAllPrivateCollectives
           ? Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts))
@@ -519,7 +520,7 @@ const queries = {
         includeAllVendors,
       } = args;
 
-      if (includeAllVendors && !req.remoteUser?.isRoot()) {
+      if (includeAllVendors && !isRemoteUserRoot(req)) {
         throw new Unauthorized('You must be root to include all vendors');
       }
 
