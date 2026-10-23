@@ -3,13 +3,13 @@
 
 # Reverse condition: just exit if docker not installed
 if ! command -v docker &>/dev/null; then
-  echo "Docker is not installed. See https://docs.docker.com/engine/install/."
+  echo "Docker is not installed. See https://docs.docker.com/engine/install/." >&2
   exit 1
 fi
 
 if docker info &>/dev/null; then
   docker "$@"
 else
-  echo "Docker requires root privileges. Running with sudo: docker $@"
+  echo "Docker requires root privileges. Running with sudo: docker $@" >&2
   sudo docker "$@"
 fi
