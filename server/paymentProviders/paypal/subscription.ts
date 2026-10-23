@@ -226,7 +226,10 @@ async function createPaypalPlan(host, collective, productId, interval, amount, c
         },
       ],
       payment_preferences: {
-        auto_bill_outstanding: true,
+        // Never bill the outstanding balance in the next cycle: bundled charges surprise contributors (leading to
+        // cancellations and disputes) and break fees accounting. Existing plans and subscriptions are updated by
+        // `scripts/paypal/disable-auto-bill-outstanding.ts`. See https://github.com/opencollective/opencollective/issues/6600
+        auto_bill_outstanding: false,
         payment_failure_threshold: 4, // Will fail up to 4 times, after that the subscription gets cancelled
       },
       /* eslint-enable camelcase */

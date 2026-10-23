@@ -3,11 +3,12 @@ import * as Sentry from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
 import nock from 'nock';
-import { stub } from 'sinon';
+import { createSandbox, stub } from 'sinon';
 
 // import request from 'supertest';
 // import { v4 as uuid } from 'uuid';
 // import app from '../../../../server/index';
+import * as SentryLib from '../../../../server/lib/sentry';
 import models from '../../../../server/models';
 import * as paypalPayment from '../../../../server/paymentProviders/paypal/payment';
 // import * as store from '../../../stores';
@@ -216,6 +217,64 @@ describe('server/paymentProviders/paypal/payment', () => {
         mockPaypalOrderDetail({ failOnOrderDetails: true });
         await expect(paypalPayment.processOrder(order)).to.be.rejectedWith('401');
         expect(authorizePaymentNock.isDone()).to.be.false; // Shouldn't call authorize
+      });
+    });
+
+    describe('#recordPaypalSale', () => {
+      let collective, sandbox, reportMessageStub;
+
+      before(async () => {
+        const host = await fakeHost();
+        collective = await fakeCollective({ HostCollectiveId: host.id, hostFeePercent: 10 });
+      });
+
+      beforeEach(() => {
+        sandbox = createSandbox();
+        reportMessageStub = sandbox.stub(SentryLib, 'reportMessageToSentry');
+      });
+
+      afterEach(() => {
+        sandbox.restore();
+      });
+
+      const recordSale = (order, total) =>
+        paypalPayment.recordPaypalSale(order, {
+          id: `SALE-${order.id}`,
+          amount: { total, currency: 'USD' },
+          transaction_fee: { value: '0.00' },
+        });
+
+      it('does not warn when the charged amount matches the order', async () => {
+        const order = await fakeOrder({ CollectiveId: collective.id, totalAmount: 1000, currency: 'USD' });
+        await recordSale(order, '10.00');
+        expect(reportMessageStub.called).to.be.false;
+      });
+
+      it('warns Sentry when PayPal charged a different amount (https://github.com/opencollective/opencollective/issues/6600)', async () => {
+        const order = await fakeOrder({ CollectiveId: collective.id, totalAmount: 500, currency: 'USD' });
+        const transaction = await recordSale(order, '10.00');
+        expect(transaction.amount).to.eq(1000);
+        expect(reportMessageStub.calledOnce).to.be.true;
+        const [message, params] = reportMessageStub.firstCall.args;
+        expect(message).to.eq('PayPal charged amount does not match the order amount');
+        expect(params.severity).to.eq('warning');
+        expect(params.extra).to.deep.include({ orderId: order.id, amount: 1000, orderTotalAmount: 500 });
+      });
+    });
+
+    describe('#recordPaypalTransaction', () => {
+      it('records the processor fee in cents', async () => {
+        const host = await fakeHost({ currency: 'USD' });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const order = await fakeOrder({ CollectiveId: collective.id, totalAmount: 1000, currency: 'USD' });
+        const transaction = await paypalPayment.recordPaypalTransaction(order, {
+          id: `TXN-${order.id}`,
+          amount_with_breakdown: {
+            gross_amount: { value: '10.00', currency_code: 'USD' },
+            fee_amount: { value: '0.30' },
+          },
+        });
+        expect(transaction.paymentProcessorFeeInHostCurrency).to.eq(-30);
       });
     });
 
