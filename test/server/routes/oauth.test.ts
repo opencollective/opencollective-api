@@ -910,8 +910,10 @@ describe('server/routes/oauth', () => {
         .expect(400);
 
       expect(response.body.error).to.eq('invalid_scope');
-      // The OAuth library revokes the old refresh token before checking scope, but issues no broader token.
-      expect(await models.UserToken.count({ where: { UserId: user.id, ApplicationId: application.id } })).to.eq(0);
+      // The OAuth library checks the scope before revoking, so the original token survives and no broader token is issued.
+      const tokens = await models.UserToken.findAll({ where: { UserId: user.id, ApplicationId: application.id } });
+      expect(tokens).to.have.length(1);
+      expect(tokens[0].refreshToken).to.eq(originalToken.refresh_token);
     });
 
     it('issues a new refresh token on each refresh', async () => {
