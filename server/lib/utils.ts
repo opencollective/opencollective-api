@@ -355,7 +355,10 @@ export const sumByWhen = (vector: any[], iteratee: any, predicate: (value: any) 
 /**
  * Returns the start and end dates as ISO 8601 strings.
  */
-export const computeDatesAsISOStrings = (startDate: Date, endDate: Date): { startDate: string; endDate: string } => {
+export const computeDatesAsISOStrings = (
+  startDate: Date | moment.Moment,
+  endDate: Date | moment.Moment,
+): { startDate: string; endDate: string } => {
   const start = startDate ? startDate.toISOString() : null;
   const end = endDate ? endDate.toISOString() : null;
 
