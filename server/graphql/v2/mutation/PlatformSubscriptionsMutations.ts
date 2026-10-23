@@ -40,8 +40,8 @@ const platformSubscriptionMutations = {
           throw new Error('Invalid plan ID');
         }
 
-        if (!req.remoteUser.isRoot() && !req.remoteUser.isAdminOfCollective(account)) {
-          throw new Error('User cannot update subscription');
+        if (!req.remoteUser.isAdminOfCollective(account)) {
+          checkRemoteUserCanRoot(req, { rootOnlyMessage: 'User cannot update subscription' });
         }
       } else {
         checkRemoteUserCanRoot(req, { rootOnlyMessage: 'Only root users can set custom platform plans' });

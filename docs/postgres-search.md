@@ -84,7 +84,8 @@ Adding an entity = one adapter file + one migration + one registry line + tests.
 - `context.scope` (`accountId`, `hostId`) intersect when both are set. `context.access`: `forbidPrivate` (anonymous,
   or OAuth token without the entity scope), `isRoot` (skips permissions, never eligibility), `adminIds` (bound as
   `$n::int[]`), `deniedOAuthScopes`. `context.params`: entity filters from GraphQL.
-- Scores (`scores.ts`): `band * 1000 + (preferred ? 500 : 0) + clamp(lexicalBonus, 0, 499)`. Bands: exact identifier
+- Scores (`scores.ts`): `band * 1000 + (preferred ? 500 : 0) + clamp(lexicalBonus, 0, 499)` (`preferred` can be a
+  cheap per-row condition: Accounts other than vendors). Bands: exact identifier
   5, exact label 4, all words 3, Account prefix 2, Account typo 1. The lexical bonus must be cheap (short columns,
   `starts_with`, `CASE`): never `ts_rank` or `to_tsvector` on long or HTML bodies.
 - Optional: `constantScorePerArm` (capped totals, see above: every arm's score must be a constant, no lexical bonus or
@@ -94,6 +95,8 @@ Adding an entity = one adapter file + one migration + one registry line + tests.
 
 - Updates: host administrators only find the published (public or private) Updates of their hosted Accounts, never
   drafts (same rule as `canSeeUpdate`). OpenSearch still lets them match drafts (`OpenSearchUpdatesAdapter`, unchanged).
+- Vendors: only administrators of the vendor's host find them (root has no extra access), and they rank below other
+  Accounts of the same band. OpenSearch indexes them as public Accounts.
 
 ## Reproduce the benchmark
 

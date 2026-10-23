@@ -9,6 +9,7 @@ import { getSearchProvider } from '../../../lib/search';
 import { GraphQLSearchParams } from '../../../lib/search/graphql-search';
 import { SearchProvider, SearchRequest } from '../../../lib/search/types';
 import { User } from '../../../models';
+import { isRemoteUserRoot } from '../../common/scope-check';
 import { Forbidden, RateLimitExceeded } from '../../errors';
 import { GraphQLSearchBackend } from '../enum/SearchBackend';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -120,6 +121,7 @@ const SearchQuery = {
       term: searchTerm,
       scope: { account: account || null, host: host || null },
       remoteUser: remoteUser || null,
+      isRoot: isRemoteUserRoot(req),
       timeoutInMs: args.timeout,
       useTopHits,
     };

@@ -3085,8 +3085,8 @@ class Collective extends ModelWithPublicId<
     return getBalanceAmount(this, options).then(result => result.value);
   };
 
-  getYearlyBudgetAmount = function () {
-    return getYearlyBudgetAmount(this);
+  getYearlyBudgetAmount = function (options: Record<string, unknown> = {}) {
+    return getYearlyBudgetAmount(this, options);
   };
 
   getYearlyBudget = function () {

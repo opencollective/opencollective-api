@@ -943,13 +943,33 @@ describe('server/graphql/v2/query/SearchQuery', () => {
                 collectiveAdmin: 0,
                 projectAdmin: 0,
                 randomUser: 0,
-                rootUser: 2,
+                rootUser: 0, // Root privileges require the root scope
                 fromUser: 0,
                 unauthenticated: null, // doesn't apply
               },
               {
                 useOAuth: true,
                 oauthScopes: [OAuthScopes.account, OAuthScopes.transactions],
+              },
+            );
+          });
+
+          describe('merchantId (OAuth with transactions and root scopes)', () => {
+            testPermissionsForField(
+              'transactions',
+              'AVeryUniqueTransactionCaptureId',
+              {
+                hostAdmin: 1,
+                collectiveAdmin: 0,
+                projectAdmin: 0,
+                randomUser: 0,
+                rootUser: 2,
+                fromUser: 0,
+                unauthenticated: null, // doesn't apply
+              },
+              {
+                useOAuth: true,
+                oauthScopes: [OAuthScopes.account, OAuthScopes.transactions, OAuthScopes.root],
               },
             );
           });

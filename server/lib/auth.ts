@@ -83,6 +83,13 @@ export function setAuthCookie(res, token) {
 export const OTP_RATE_LIMIT_WINDOW = minutesToSeconds(15);
 export const OTP_RATE_LIMIT_MAX_ATTEMPTS = 5;
 export const OTP_TOKEN_EXPIRATION = minutesToSeconds(15);
+/**
+ * Absolute upper bound on the lifetime of an OTP signup session. `resend-otp` refreshes the
+ * short `OTP_TOKEN_EXPIRATION` TTL on every resend, but must never extend this one - otherwise
+ * alternating resend with a deliberately invalid verify keeps `OTP_REQUEST_EXISTS` alive forever.
+ * Sessions created before this field existed fail closed (treated as expired).
+ */
+export const OTP_SESSION_MAX_AGE = minutesToSeconds(60);
 
 const OTP_SYMBOLS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 

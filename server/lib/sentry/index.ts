@@ -35,6 +35,8 @@ export type CaptureErrorParams = {
   transactionName?: string;
   /** Used to group Axios errors, when the URL includes parameters */
   requestPath?: string;
+  /** Masked token, only used to add context to the fallback log message */
+  accessToken?: string;
   req?: Express.Request;
 };
 
