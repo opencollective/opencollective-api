@@ -6,7 +6,7 @@ import {
 } from '../../../scripts/recurring-contributions/backfill-needs-async-deactivation';
 import OrderStatuses from '../../../server/constants/order-status';
 import { sequelize } from '../../../server/models';
-import { fakeCollective, fakeHost, fakeOrder } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeHost, fakeOrder, fakeTier } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('scripts/recurring-contributions/backfill-needs-async-deactivation', () => {
@@ -49,6 +49,41 @@ describe('scripts/recurring-contributions/backfill-needs-async-deactivation', ()
       expect(orders.map(order => order.id)).to.not.include(activeOrder.id);
     });
 
+    it('returns the orders that were charged again after an archive or a tier deletion', async () => {
+      const host = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const archivedAccount = await fakeCollective({ deactivatedAt: new Date() });
+      const deletedTier = await fakeTier({ CollectiveId: collective.id });
+
+      const chargedAfterArchive = await fakeOrder(
+        { CollectiveId: collective.id, FromCollectiveId: archivedAccount.id, status: OrderStatuses.ACTIVE },
+        { withSubscription: true },
+      );
+
+      // Cancelled by the tier deletion, then flipped back to ACTIVE by a successful charge (kept in the history)
+      const chargedAfterTierDeletion = await fakeOrder(
+        { CollectiveId: collective.id, TierId: deletedTier.id, status: OrderStatuses.ACTIVE },
+        { withSubscription: true },
+      );
+      await chargedAfterTierDeletion.update({ status: OrderStatuses.CANCELLED });
+      await chargedAfterTierDeletion.update({ status: OrderStatuses.ACTIVE });
+
+      // Tier deleted without `stopRecurringContributions`: the contribution legitimately stays active
+      const keptOnDeletedTier = await fakeOrder(
+        { CollectiveId: collective.id, TierId: deletedTier.id, status: OrderStatuses.ACTIVE },
+        { withSubscription: true },
+      );
+      await deletedTier.destroy();
+
+      const orders = await findOrdersToFlag();
+
+      expect(orders.map(order => [order.id, order.reason])).to.have.deep.members([
+        [chargedAfterArchive.id, 'CHARGED_AFTER_ARCHIVE'],
+        [chargedAfterTierDeletion.id, 'CHARGED_AFTER_TIER_DELETION'],
+      ]);
+      expect(orders.map(order => order.id)).to.not.include(keptOnDeletedTier.id);
+    });
+
     it('can be restricted to a collective and to specific orders', async () => {
       const host = await fakeHost();
       const collective = await fakeCollective({ HostCollectiveId: host.id, slug: 'target-collective' });
@@ -82,12 +117,27 @@ describe('scripts/recurring-contributions/backfill-needs-async-deactivation', ()
       await flagOrdersForAsyncDeactivation([order.id]);
 
       await order.reload();
+      expect(order.status).to.equal(OrderStatuses.CANCELLED);
       expect(order.data.needsAsyncDeactivation).to.be.true;
       expect(order.data.createStatusChangeActivity).to.be.false;
       expect(order.updatedAt.getTime()).to.be.greaterThan(twoMonthsAgo.getTime());
 
       // And it is not reported anymore
       expect((await findOrdersToFlag()).map(o => o.id)).to.not.include(order.id);
+    });
+
+    it('moves orders charged after their cancellation back to CANCELLED', async () => {
+      const archivedAccount = await fakeCollective({ deactivatedAt: new Date() });
+      const order = await fakeOrder(
+        { FromCollectiveId: archivedAccount.id, status: OrderStatuses.ACTIVE },
+        { withSubscription: true },
+      );
+
+      await flagOrdersForAsyncDeactivation([order.id]);
+
+      await order.reload();
+      expect(order.status).to.equal(OrderStatuses.CANCELLED);
+      expect(order.data.needsAsyncDeactivation).to.be.true;
     });
 
     it('does nothing when there is no order to flag', async () => {

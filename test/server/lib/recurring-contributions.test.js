@@ -19,7 +19,7 @@ import {
   ordersWithPendingCharges,
   processOrderWithSubscription,
 } from '../../../server/lib/recurring-contributions';
-import models from '../../../server/models';
+import models, { sequelize } from '../../../server/models';
 import collective from '../../../server/paymentProviders/opencollective/collective';
 import { randEmail } from '../../stores';
 import { fakeCollective, fakeOrder, fakePaymentMethod, fakeTransaction } from '../../test-helpers/fake-data';
@@ -470,6 +470,26 @@ describe('server/lib/recurring-contributions', () => {
         expect(order.Subscription.nextPeriodStart.getTime()).to.equal(new Date('2018-02-27 0:0').getTime());
       });
 
+      it('keeps a cancellation that happened while the order was being charged', async () => {
+        const { order } = await createOrderWithSubscription('month', '2018-01-27');
+        const transaction = await fakeTransaction({ OrderId: order.id });
+        processOrderStub.callsFake(async () => {
+          // e.g. `deleteTier(stopRecurringContributions: true)` running concurrently
+          await models.Order.update(
+            { status: status.CANCELLED, data: { needsAsyncDeactivation: true } },
+            { where: { id: order.id } },
+          );
+          return transaction;
+        });
+
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
+
+        expect(entry.status).to.equal('success');
+        await order.reload();
+        expect(order.status).to.equal(status.CANCELLED);
+        expect(order.data.needsAsyncDeactivation).to.be.true;
+      });
+
       it('should update dates after successfully processing yearly', async () => {
         // Given an order with a subscription
         const { order } = await createOrderWithSubscription('year', '2018-01-27');
@@ -774,6 +794,25 @@ describe('server/lib/recurring-contributions', () => {
       expect(orderIds).to.not.include(properlyCancelledOrder.id);
       expect(orderIds).to.not.include(pendingDeactivationOrder.id);
       expect(orderIds).to.not.include(activeOrder.id);
+    });
+
+    it('reports flagged orders that the 10-minute job no longer looks at', async () => {
+      const collective = await fakeCollective();
+      const stuckOrder = await fakeOrder(
+        { CollectiveId: collective.id, status: status.CANCELLED, data: { needsAsyncDeactivation: true } },
+        { withSubscription: true },
+      );
+      const reactivationOrder = await fakeOrder(
+        { CollectiveId: collective.id, status: status.CANCELLED, data: { needsAsyncReactivation: true } },
+        { withSubscription: true },
+      );
+      await sequelize.query(`UPDATE "Orders" SET "updatedAt" = NOW() - INTERVAL '2 months' WHERE id = :id`, {
+        replacements: { id: stuckOrder.id },
+      });
+
+      const { orderIds } = await findCancelledOrdersWithActiveSubscriptions();
+
+      expect(orderIds).to.have.members([stuckOrder.id, reactivationOrder.id]);
     });
   });
 

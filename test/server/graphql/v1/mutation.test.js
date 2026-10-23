@@ -329,6 +329,20 @@ describe('server/graphql/v1/mutation', () => {
         expect(purgeCacheSpy.secondCall.args[0]).to.equal((await project.getParentCollective()).slug);
       });
 
+      it('archives a collective should cancel the contributions to its children', async () => {
+        const admin = await fakeUser();
+        const parent = await fakeCollective({ admin });
+        const project = await fakeProject({ ParentCollectiveId: parent.id });
+        const order = await fakeOrder({ CollectiveId: project.id, status: 'ACTIVE' }, { withSubscription: true });
+
+        const response = await utils.graphqlQuery(archiveCollectiveMutation, { id: parent.id }, admin);
+        expect(response.errors).to.not.exist;
+
+        await order.reload();
+        expect(order.status).to.equal('CANCELLED');
+        expect(order.data.needsAsyncDeactivation).to.be.true;
+      });
+
       it('archives an account should cancel the contributions it makes', async () => {
         // Setup test data
         const admin = await fakeUser();

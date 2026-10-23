@@ -155,7 +155,7 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
 
     // This is what `deleteTier(stopRecurringContributions: true)` does: the order is cancelled straight away,
     // deactivating the subscription (and cancelling it on the payment provider side) is left to this cron job.
-    await Order.stopActiveSubscriptions(collective.id, OrderStatuses.CANCELLED, { tierId: tier.id });
+    await Order.stopActiveSubscriptionsForTier(tier.id);
     await tier.destroy();
 
     // The order is cancelled and flagged before the job runs
@@ -179,7 +179,7 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
 
   it('cancels subscriptions made by an archived account', async () => {
     const collective = await fakeCollective({ HostCollectiveId: host.id, slug: 'test-collective' });
-    const archivedAccount = await fakeCollective();
+    const archivedAccount = await fakeCollective({ deactivatedAt: new Date() });
     const order = await fakeOrder(
       {
         CollectiveId: collective.id,
@@ -205,8 +205,8 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
 
     const activity = await models.Activity.findOne({ where: { type: activities.SUBSCRIPTION_CANCELED } });
     expect(activity).to.exist;
-    expect(activity.data.reason).to.equal('Order cancelled');
-    expect(activity.data.reasonCode).to.equal('CANCELLED_ORDER');
+    expect(activity.data.reason).to.equal(`@${archivedAccount.slug} archived their account`);
+    expect(activity.data.reasonCode).to.equal('ARCHIVED_CONTRIBUTOR');
   });
 
   it('cancels paused orders without asking for a deactivation', async () => {
@@ -222,7 +222,7 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
       { withSubscription: true, withTransactions: true },
     );
 
-    await Order.stopActiveSubscriptions(collective.id, OrderStatuses.CANCELLED, { tierId: tier.id });
+    await Order.stopActiveSubscriptionsForTier(tier.id);
 
     // A paused contribution to a deleted tier must not stay resumable...
     await order.reload();

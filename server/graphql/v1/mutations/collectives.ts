@@ -543,6 +543,13 @@ export async function archiveCollective(_, args, req) {
   const deactivatedAt = new Date();
   let children: { id: number; slug: string }[] = [];
   if (!isChildren) {
+    // Stop the contributions received by the children now: their `approvedAt` is reset below, after which neither
+    // their `changeHost` nor `Order.stopActiveSubscriptions` would touch them anymore.
+    await models.Order.stopActiveSubscriptions(collective.id, OrderStatuses.CANCELLED, {
+      includeChildren: true,
+      messageForContributors: 'We are archiving this Collective.',
+    });
+
     // Mark all children as archived, with a special `data.archivedFromParent` flag for later un-archive
     children = await sequelize.query<{ id: number; slug: string }>(
       `UPDATE "Collectives"
@@ -600,7 +607,7 @@ export async function archiveCollective(_, args, req) {
   const allAccountIds = [collective.id, ...children.map(c => c.id)];
   await models.Order.stopActiveSubscriptionsFromAccounts(allAccountIds, OrderStatuses.CANCELLED, {
     messageSource: 'PLATFORM',
-    messageForContributors: 'We are archiving this Collective.',
+    messageForContributors: 'This account was archived, so its recurring contributions have been cancelled.',
   });
 
   // Cancel all unprocessed expenses

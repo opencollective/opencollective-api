@@ -90,7 +90,9 @@ export async function ordersWithPendingCharges({ limit, startDate, limitedToOrde
  * provider side.
  *
  * Orders flagged for deactivation/pause are excluded on purpose: they are a normal transient state while
- * `cron/10mn/00-handle-batch-subscriptions-update` drains them.
+ * `cron/10mn/00-handle-batch-subscriptions-update` drains them. That job only looks at orders updated in the last
+ * month though, so a flagged order older than that is stuck (e.g. a provider-side cancel that keeps failing) and is
+ * reported. `needsAsyncReactivation` is not excluded: the job never reactivates a subscription that is still active.
  *
  * Used as a tripwire by `cron/hourly/00-charge-recurring-contributions.js`: it never blocks charging, it only
  * makes the inconsistency visible.
@@ -101,9 +103,13 @@ export async function findCancelledOrdersWithActiveSubscriptions({ limit = 100 }
     AND "Orders"."deletedAt" IS NULL
     AND "Subscriptions"."deletedAt" IS NULL
     AND "Subscriptions"."isActive" IS TRUE
-    AND COALESCE(("Orders"."data" ->> 'needsAsyncDeactivation')::BOOLEAN, FALSE) IS NOT TRUE
-    AND COALESCE(("Orders"."data" ->> 'needsAsyncPause')::BOOLEAN, FALSE) IS NOT TRUE
-    AND COALESCE(("Orders"."data" ->> 'needsAsyncReactivation')::BOOLEAN, FALSE) IS NOT TRUE
+    AND NOT (
+      "Orders"."updatedAt" > NOW() - INTERVAL '1 month'
+      AND (
+        COALESCE(("Orders"."data" ->> 'needsAsyncDeactivation')::BOOLEAN, FALSE)
+        OR COALESCE(("Orders"."data" ->> 'needsAsyncPause')::BOOLEAN, FALSE)
+      )
+    )
   `;
 
   const [countRows, rows] = await Promise.all([
@@ -268,11 +274,29 @@ export async function processOrderWithSubscription(order, options) {
       reportErrorToSentry(error, { severity: 'fatal', feature: FEATURE.RECURRING_CONTRIBUTIONS });
     } finally {
       await order.Subscription.save();
+      await keepConcurrentCancellation(order);
       await order.save();
     }
   }
 
   return csvEntry;
+}
+
+/**
+ * A bulk cancellation (tier deletion, archived account) can happen while the order is being charged. Saving the
+ * in-memory order as-is would then overwrite the `CANCELLED` status and drop `needsAsyncDeactivation`, and the
+ * contribution would keep being charged. Keep the cancellation instead.
+ */
+async function keepConcurrentCancellation(order) {
+  if (order.status === status.CANCELLED) {
+    return;
+  }
+
+  const currentOrder = await models.Order.findByPk(order.id, { attributes: ['id', 'status', 'data'] });
+  if (currentOrder?.status === status.CANCELLED) {
+    order.status = status.CANCELLED;
+    order.data = { ...order.data, ...currentOrder.data };
+  }
 }
 
 /** Standard way to format dates in this script */

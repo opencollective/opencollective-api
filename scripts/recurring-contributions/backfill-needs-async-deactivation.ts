@@ -7,7 +7,13 @@
  * matching those orders and, on a successful charge, flipped them back to `ACTIVE` - so the contributions kept
  * being charged, in some cases for months.
  *
- * This script flags the surviving occurrences for asynchronous deactivation (`data.needsAsyncDeactivation`) and
+ * This script finds two kinds of affected orders:
+ * - `CANCELLED` orders whose subscription is still active (not charged again yet, or managed externally);
+ * - orders that were charged again and flipped back to `ACTIVE`/`ERROR`: made by an archived account, or made to a
+ *   deleted tier while their history shows they were cancelled. These contributors were charged after their
+ *   cancellation: the script lists them so that refunds can be reviewed.
+ *
+ * It moves them to `CANCELLED`, flags them for asynchronous deactivation (`data.needsAsyncDeactivation`) and
  * bumps `updatedAt` (the `handle-batch-subscriptions-update` job only looks one month back), so the existing
  * 10-minute job can drain them: it deactivates the subscription and calls the payment provider for externally
  * managed subscriptions (PayPal).
@@ -34,8 +40,12 @@ type BackfillOptions = {
   collectiveSlug?: string;
 };
 
+type OrderToFlagReason = 'CANCELLED_WITH_ACTIVE_SUBSCRIPTION' | 'CHARGED_AFTER_ARCHIVE' | 'CHARGED_AFTER_TIER_DELETION';
+
 type OrderToFlag = {
   id: number;
+  status: string;
+  reason: OrderToFlagReason;
   collectiveId: number;
   fromCollectiveId: number;
   updatedAt: Date;
@@ -66,6 +76,12 @@ export const findOrdersToFlag = async ({
     `
       SELECT
         "Orders".id AS id,
+        "Orders".status AS status,
+        CASE
+          WHEN "Orders".status = 'CANCELLED' THEN 'CANCELLED_WITH_ACTIVE_SUBSCRIPTION'
+          WHEN from_collective."deactivatedAt" IS NOT NULL THEN 'CHARGED_AFTER_ARCHIVE'
+          ELSE 'CHARGED_AFTER_TIER_DELETION'
+        END AS reason,
         "Orders"."CollectiveId" AS "collectiveId",
         "Orders"."FromCollectiveId" AS "fromCollectiveId",
         "Orders"."updatedAt" AS "updatedAt",
@@ -76,7 +92,24 @@ export const findOrdersToFlag = async ({
       INNER JOIN "Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
       INNER JOIN "Collectives" to_collective ON to_collective.id = "Orders"."CollectiveId"
       INNER JOIN "Collectives" from_collective ON from_collective.id = "Orders"."FromCollectiveId"
-      WHERE "Orders"."status" = 'CANCELLED'
+      LEFT JOIN "Tiers" tier ON tier.id = "Orders"."TierId"
+      WHERE (
+          "Orders"."status" = 'CANCELLED'
+          OR (
+            -- Charged again after the bulk cancellation, which flipped them back to ACTIVE (or ERROR on a failed retry)
+            "Orders"."status" IN ('ACTIVE', 'ERROR')
+            AND (
+              from_collective."deactivatedAt" IS NOT NULL
+              OR (
+                tier."deletedAt" IS NOT NULL
+                -- Deleting a tier without stopRecurringContributions legitimately keeps its contributions active
+                AND EXISTS (
+                  SELECT 1 FROM "OrderHistories" h WHERE h.id = "Orders".id AND h.status = 'CANCELLED'
+                )
+              )
+            )
+          )
+        )
         AND "Orders"."deletedAt" IS NULL
         AND "Subscriptions"."deletedAt" IS NULL
         AND "Subscriptions"."isActive" IS TRUE
@@ -101,6 +134,7 @@ export const flagOrdersForAsyncDeactivation = async (orderIds: number[]): Promis
     `
       UPDATE "Orders"
       SET
+        status = 'CANCELLED',
         "updatedAt" = NOW(),
         "data" = COALESCE("data", '{}'::JSONB) || JSONB_BUILD_OBJECT(
           'needsAsyncDeactivation', TRUE,
@@ -128,9 +162,17 @@ const run = async ({ isDryRun, limit, orderIds, collectiveSlug }: BackfillOption
 
   for (const order of orders) {
     logger.info(
-      `  - Order #${order.id} from @${order.fromCollectiveSlug} to @${order.collectiveSlug}` +
-        ` (last updated ${order.updatedAt.toISOString()}, ` +
+      `  - Order #${order.id} (${order.status}, ${order.reason}) from @${order.fromCollectiveSlug}` +
+        ` to @${order.collectiveSlug} (last updated ${order.updatedAt.toISOString()}, ` +
         `${order.isManagedExternally ? 'external' : 'internal'} subscription)`,
+    );
+  }
+
+  const chargedAfterCancellation = orders.filter(order => order.reason !== 'CANCELLED_WITH_ACTIVE_SUBSCRIPTION');
+  if (chargedAfterCancellation.length) {
+    logger.warn(
+      `${chargedAfterCancellation.length} order(s) were charged after their cancellation and will be moved back to` +
+        ` CANCELLED. Review them for refunds: ${chargedAfterCancellation.map(order => order.id).join(', ')}`,
     );
   }
 
