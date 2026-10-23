@@ -35,11 +35,13 @@ import subscription from './subscription';
  * Supports payment and subscription types, and "Log in with PayPal" OAuth for payees.
  */
 
-// Scopes requested from the PayPal Identity API:
-// - openid: required base scope
-// - email: user's email address
-// - https://uri.paypal.com/services/paypalattributes: account verification status + Payer ID
-const PAYPAL_CONNECT_SCOPES = ['openid', 'email', 'https://uri.paypal.com/services/paypalattributes'].join(' ');
+// Scopes requested from the PayPal Identity API
+const PAYPAL_CONNECT_SCOPES = [
+  'openid', // Required base scope
+  'profile', // User's name, checked against the payee name (see `server/lib/security/expense.ts`)
+  'email', // User's email address
+  'https://uri.paypal.com/services/paypalattributes', // Account verification status + Payer ID
+].join(' ');
 
 const getRedirectUrl = (remoteUser, CollectiveId, query): string => {
   const state = jwt.sign(
