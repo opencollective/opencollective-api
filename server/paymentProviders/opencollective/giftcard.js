@@ -13,7 +13,7 @@ import models, { Op } from '../../models';
  * the gift card payment method that first processed the order.
  */
 
-/** Get the balance of a gift card card
+/** Get the balance of a gift card
  * @param {models.PaymentMethod} paymentMethod is the instance of the
  *  gift card payment method.
  * @return {Object} with amount & currency from the payment method.

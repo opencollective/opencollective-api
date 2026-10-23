@@ -150,7 +150,7 @@ describe('server/controllers/legal-documents', () => {
           documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
         });
 
-        // Add a payee an an expense subject to tax form
+        // Add a payee to an expense subject to tax form
         payee = await fakeUser();
         const payoutMethod = await fakePayoutMethod({
           type: PayoutMethodTypes.OTHER,
