@@ -100,7 +100,7 @@ export async function refreshPaypalUserToken(
 
 /**
  * Retrieve the authenticated user's PayPal identity information using their access token.
- * Requires the `openid`, `profile`, `email`, and `https://uri.paypal.com/services/paypalattributes` scopes.
+ * Requires the `openid`, `profile`, `email`, `address`, and `https://uri.paypal.com/services/paypalattributes` scopes.
  */
 export async function retrievePaypalUserInfo(accessToken: string): Promise<PaypalUserInfo> {
   const url = `${paypalUrl('identity/oauth2/userinfo')}?schema=paypalv1.1`;

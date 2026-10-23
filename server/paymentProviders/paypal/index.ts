@@ -23,6 +23,7 @@ import { exchangeAuthCodeForToken, paypalConnectAuthorizeUrl, retrievePaypalUser
 import { isPayPalSupportedCurrency } from './constants';
 import payment from './payment';
 import subscription from './subscription';
+import { PaypalUserInfo } from './types';
 
 /**
  * PayPal paymentProvider
@@ -34,6 +35,7 @@ const PAYPAL_CONNECT_SCOPES = [
   'openid', // Required base scope
   'profile', // User's name, checked against the payee name (see `server/lib/security/expense.ts`)
   'email', // User's email address
+  'address', // User's address. We only store the country (see `connectPaypalPayoutMethod`)
   'https://uri.paypal.com/services/paypalattributes', // Account verification status + Payer ID
 ].join(' ');
 
@@ -154,6 +156,13 @@ export async function connectPaypalPayoutMethod({
 
     const primaryEmail: string = (confirmedEmails.find(email => email.primary) || confirmedEmails[0]).value;
 
+    // We only need the country from the address, don't store the rest
+    const { address, ...paypalUserInfoWithoutAddress } = paypalUserInfo;
+    const storedPaypalUserInfo: PaypalUserInfo = {
+      ...paypalUserInfoWithoutAddress,
+      ...(address?.country && { address: { country: address.country } }),
+    };
+
     const result = await sequelize.transaction(async transaction => {
       const connectedAccount = await models.ConnectedAccount.create(
         {
@@ -189,7 +198,7 @@ export async function connectPaypalPayoutMethod({
               verifiedAt: new Date().toISOString(),
               currency: currency,
               email: primaryEmail,
-              paypalUserInfo,
+              paypalUserInfo: storedPaypalUserInfo,
             },
           },
           {
@@ -211,7 +220,7 @@ export async function connectPaypalPayoutMethod({
               verifiedAt: new Date().toISOString(),
               currency,
               email: primaryEmail,
-              paypalUserInfo,
+              paypalUserInfo: storedPaypalUserInfo,
             },
           },
           {
