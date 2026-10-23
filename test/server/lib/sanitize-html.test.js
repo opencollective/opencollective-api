@@ -107,7 +107,7 @@ describe('server/lib/sanitize-html', () => {
     it('Works with improperly formatted content', () => {
       expect(stripHTML(improperlyFormattedContent)).to.eq(`
   Won't be fooled by your !
-  contentalert("script")>alert("script")
+  contentalert("script")&gt;alert("script")
 `);
     });
   });

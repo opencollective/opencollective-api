@@ -206,11 +206,28 @@ describe('server/lib/ecosystems', () => {
       expect(entry).to.deep.equal({ packages: [], repository: null, contributors: null, issues: null, owner: null });
     });
 
-    it('throws when an upstream request fails', async () => {
+    it('tolerates secondary lookup failures', async () => {
       fetchStub = mockEcosystemsFetch([
-        PACKAGES_ROUTE,
+        { match: PACKAGES_ROUTE.match, body: [PACKAGE] },
         REPOSITORY_ROUTE,
         { match: COMMITS_ROUTE.match, status: 500, body: { error: 'boom' } },
+        { match: ISSUES_ROUTE.match, status: 500, body: { error: 'boom' } },
+        { match: OWNER_ROUTE.match, status: 500, body: { error: 'boom' } },
+      ]);
+
+      const entry = await fetchRepoSummary(REPO_URL);
+
+      expect(entry.repository).to.deep.equal(REPO_METADATA);
+      expect(entry.contributors).to.be.null;
+      expect(entry.issues).to.be.null;
+      expect(entry.owner).to.be.null;
+    });
+
+    it('throws when a core repository lookup fails', async () => {
+      fetchStub = mockEcosystemsFetch([
+        PACKAGES_ROUTE,
+        { match: REPOSITORY_ROUTE.match, status: 500, body: { error: 'boom' } },
+        COMMITS_ROUTE,
         ISSUES_ROUTE,
         OWNER_ROUTE,
       ]);
