@@ -10,6 +10,7 @@ import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/en
 import { getPolicy } from '../../../lib/policies';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
+import { getAllowedSpendingLimitIntervals } from '../../../lib/virtual-cards';
 import models from '../../../models';
 import VirtualCardModel, { VirtualCardStatus } from '../../../models/VirtualCard';
 import VirtualCardRequest, { VirtualCardRequestStatus } from '../../../models/VirtualCardRequest';
@@ -412,6 +413,13 @@ const virtualCardMutations = {
 
       const spendingLimitAmount = args.budget ? args.budget : getValueInCentsFromAmountInput(args.spendingLimitAmount);
       const spendingLimitInterval = args.spendingLimitInterval ?? VirtualCardLimitIntervals.MONTHLY;
+
+      const allowedSpendingLimitIntervals = getAllowedSpendingLimitIntervals(host);
+      if (!allowedSpendingLimitIntervals.includes(spendingLimitInterval)) {
+        throw new BadRequest(
+          `The ${spendingLimitInterval} limit interval is not available for virtual card requests from this host`,
+        );
+      }
 
       const virtualCardRequest = await VirtualCardRequest.create({
         CollectiveId: collective.id,

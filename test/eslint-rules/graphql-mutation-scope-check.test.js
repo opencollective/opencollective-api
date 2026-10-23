@@ -17,6 +17,20 @@ const ruleTester = new RuleTester({
 
 ruleTester.run('graphql-mutations/require-scope-check', rule, {
   valid: [
+    {
+      name: 'requireSessionToken call',
+      code: `
+        export default {
+          createToken: {
+            type: GraphQLToken,
+            resolve: async (_, args, req) => {
+              requireSessionToken(req);
+              return createToken(args);
+            },
+          },
+        };
+      `,
+    },
     // -----------------------------------------------------------------------
     // Direct call to enforceScope in arrow function body
     // -----------------------------------------------------------------------

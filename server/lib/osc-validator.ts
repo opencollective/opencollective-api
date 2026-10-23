@@ -16,7 +16,8 @@ interface RepositoryInfo {
   isFork: boolean;
   isOwnedByOrg: boolean;
   isAdmin: boolean;
-  licenseSpdxId: string;
+  /** The SPDX id of the repository license: `undefined`/`null` when there is none */
+  licenseSpdxId?: string | null;
 }
 
 export interface ValidatedRepositoryInfo {
@@ -28,7 +29,7 @@ export interface ValidatedRepositoryInfo {
     isFork: { value: boolean; isValid: boolean };
     isOwnedByOrg: { value: boolean; isValid: boolean };
     isAdmin: { value: boolean; isValid: boolean };
-    licenseSpdxId: { value: string; isValid: boolean };
+    licenseSpdxId: { value?: string | null; isValid: boolean };
   };
 }
 

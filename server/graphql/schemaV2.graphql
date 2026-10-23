@@ -384,6 +384,11 @@ interface Account {
     Specific account to query the membership of.
     """
     account: AccountReferenceInput
+
+    """
+    Filter members by tier
+    """
+    tier: TierReferenceInput
     orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
 
     """
@@ -762,6 +767,21 @@ interface Account {
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+
+  """
+  Webhooks registered on this account. Only available to admins. Scope: "webhooks".
+  """
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     """
     The number of results to fetch (default 10, max 1000)
@@ -3640,6 +3660,17 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -4083,17 +4114,6 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Number of unique financial contributors.
@@ -5136,6 +5156,11 @@ type PlatformBilling {
   dueDate: DateTime!
   base: PlatformBillingBase!
   additional: PlatformBillingAdditional!
+
+  """
+  Crowdfunding fee charged on contributions for plans without platform tips
+  """
+  crowdfunding: PlatformBillingCrowdfunding!
   totalAmount: Amount!
   expenses: [Expense!]!
 }
@@ -5197,6 +5222,23 @@ type PlatformBillingAdditional {
 type PlatformBillingAdditionalUtilizationCharges {
   activeCollectives: Amount!
   expensesPaid: Amount!
+}
+
+type PlatformBillingCrowdfunding {
+  """
+  Crowdfunding contributions subject to the fee during the billing period
+  """
+  totalAmount: Amount!
+
+  """
+  The fee percentage applied to crowdfunding contributions
+  """
+  feePercent: Float!
+
+  """
+  The resulting crowdfunding fee
+  """
+  fee: Amount!
 }
 
 input PlatformBillingPeriodInput {
@@ -5809,139 +5851,29 @@ enum OppositeAccountScope {
 }
 
 """
-A collection of "Expenses"
+A collection of webhooks
 """
-type ExpenseCollection implements Collection {
+type WebhookCollection implements Collection {
   offset: Int
   limit: Int
   totalCount: Int
-  nodes: [Expense]
-  totalAmount: ExpenseCollectionTotalAmount
-
-  """
-  The accounts that are payees of the expenses in this collection (scoped to the main query arguments), regardless of pagination. Returns a paginated and searchable collection.
-  """
-  payees(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Search term to filter by name or slug
-    """
-    searchTerm: String
-  ): AccountCollection!
-}
-
-type ExpenseCollectionTotalAmount {
-  amount(currency: Currency = USD): Amount
-  amountsByCurrency: [Amount]
+  nodes: [Webhook]
 }
 
 """
-Describes the role of the filtered account/host in an expense. Controls which side the account, accounts, and host/hostContext arguments apply to.
+An webhook attached to an account
 """
-enum ExpenseDirection {
-  """
-  Submitted: The account is the one who submitted the expense and possibly the beneficiary.
-  """
-  SUBMITTED
+type Webhook {
+  id: String!
 
   """
-  Received: The account is the one who received the expense and the one who's paying for it.
+  The resource public id (ie: not_xxxxxxxx)
   """
-  RECEIVED
-}
-
-"""
-Describes the values allowed to filter expenses, namely all the expense statuses and the special "READY_TO_PAY" value.
-"""
-enum ExpenseStatusFilter {
-  DRAFT
-  UNVERIFIED
-  PENDING
-  INCOMPLETE
-  APPROVED
-  REJECTED
-  PROCESSING
-  ERROR
-  PAID
-  SCHEDULED_FOR_PAYMENT
-  SPAM
-  CANCELED
-  INVITE_DECLINED
-
-  """
-  Only expenses that are ready to be paid (must be approved, have the sufficiant balance and have the tax forms completed)
-  """
-  READY_TO_PAY
-
-  """
-  Only expenses that are on hold
-  """
-  ON_HOLD
-}
-
-enum PayoutMethodType {
-  OTHER
-  PAYPAL
-  BANK_ACCOUNT
-  ACCOUNT_BALANCE
-  CREDIT_CARD
-  STRIPE
-}
-
-"""
-The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
-"""
-scalar JSON
-
-"""
-Defines role of the last comment author
-"""
-enum LastCommentBy {
-  """
-  Expense Submitter
-  """
-  USER
-
-  """
-  Last comment author is not an admin of the expense payee (FromCollectiveId)
-  """
-  NON_FROM_ACCOUNT_ADMIN
-
-  """
-  Fiscal Host Admin
-  """
-  HOST_ADMIN
-
-  """
-  Not a Fiscal Host Admin
-  """
-  NON_HOST_ADMIN
-
-  """
-  Collective Admin
-  """
-  COLLECTIVE_ADMIN
-}
-
-input ExpenseActivityFilter {
-  """
-  Activities triggered by this individual
-  """
-  individual: AccountReferenceInput
-
-  """
-  The type(s) of activities to filter by
-  """
-  type: [ActivityType!]
+  publicId: String!
+  legacyId: Int! @deprecated(reason: "2026-02-25: use publicId")
+  activityType: ActivityType
+  webhookUrl: URL
+  account: Account!
 }
 
 enum ActivityType {
@@ -6108,6 +6040,142 @@ enum ActivityType {
   KYC_REQUESTED
   KYC_REVOKED
   KYC_VERIFIED
+}
+
+"""
+A collection of "Expenses"
+"""
+type ExpenseCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [Expense]
+  totalAmount: ExpenseCollectionTotalAmount
+
+  """
+  The accounts that are payees of the expenses in this collection (scoped to the main query arguments), regardless of pagination. Returns a paginated and searchable collection.
+  """
+  payees(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Search term to filter by name or slug
+    """
+    searchTerm: String
+  ): AccountCollection!
+}
+
+type ExpenseCollectionTotalAmount {
+  amount(currency: Currency = USD): Amount
+  amountsByCurrency: [Amount]
+}
+
+"""
+Describes the role of the filtered account/host in an expense. Controls which side the account, accounts, and host/hostContext arguments apply to.
+"""
+enum ExpenseDirection {
+  """
+  Submitted: The account is the one who submitted the expense and possibly the beneficiary.
+  """
+  SUBMITTED
+
+  """
+  Received: The account is the one who received the expense and the one who's paying for it.
+  """
+  RECEIVED
+}
+
+"""
+Describes the values allowed to filter expenses, namely all the expense statuses and the special "READY_TO_PAY" value.
+"""
+enum ExpenseStatusFilter {
+  DRAFT
+  UNVERIFIED
+  PENDING
+  INCOMPLETE
+  APPROVED
+  REJECTED
+  PROCESSING
+  ERROR
+  PAID
+  SCHEDULED_FOR_PAYMENT
+  SPAM
+  CANCELED
+  INVITE_DECLINED
+
+  """
+  Only expenses that are ready to be paid (must be approved, have the sufficiant balance and have the tax forms completed)
+  """
+  READY_TO_PAY
+
+  """
+  Only expenses that are on hold
+  """
+  ON_HOLD
+}
+
+enum PayoutMethodType {
+  OTHER
+  PAYPAL
+  BANK_ACCOUNT
+  ACCOUNT_BALANCE
+  CREDIT_CARD
+  STRIPE
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSON
+
+"""
+Defines role of the last comment author
+"""
+enum LastCommentBy {
+  """
+  Expense Submitter
+  """
+  USER
+
+  """
+  Last comment author is not an admin of the expense payee (FromCollectiveId)
+  """
+  NON_FROM_ACCOUNT_ADMIN
+
+  """
+  Fiscal Host Admin
+  """
+  HOST_ADMIN
+
+  """
+  Not a Fiscal Host Admin
+  """
+  NON_HOST_ADMIN
+
+  """
+  Collective Admin
+  """
+  COLLECTIVE_ADMIN
+}
+
+input ExpenseActivityFilter {
+  """
+  Activities triggered by this individual
+  """
+  individual: AccountReferenceInput
+
+  """
+  The type(s) of activities to filter by
+  """
+  type: [ActivityType!]
 }
 
 """
@@ -7018,6 +7086,51 @@ type AccountStats {
   Total amount received time series
   """
   totalAmountReceivedTimeSeries(
+    """
+    The start date of the time series
+    """
+    dateFrom: DateTime
+
+    """
+    The end date of the time series
+    """
+    dateTo: DateTime
+
+    """
+    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
+    """
+    timeUnit: TimeUnit
+
+    """
+    Return the net amount (with payment processor fees removed)
+    """
+    net: Boolean = false
+
+    """
+    Filter by kind
+    """
+    kind: [TransactionKind]
+
+    """
+    Calculate amount for the last x months. Cannot be used with startDate/endDate
+    """
+    periodInMonths: Int
+
+    """
+    Include transactions from children (Projects and Events)
+    """
+    includeChildren: Boolean = false
+
+    """
+    An optional currency. If not provided, will use the collective currency.
+    """
+    currency: Currency
+  ): TimeSeriesAmount!
+
+  """
+  Total amount spent time series
+  """
+  totalAmountSpentTimeSeries(
     """
     The start date of the time series
     """
@@ -8097,32 +8210,6 @@ type KYCVerificationPermissions {
   Whether this KYC Verification can be revoked by the logged in user
   """
   canRevokeKYCVerification: Boolean!
-}
-
-"""
-A collection of webhooks
-"""
-type WebhookCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-  nodes: [Webhook]
-}
-
-"""
-An webhook attached to an account
-"""
-type Webhook {
-  id: String!
-
-  """
-  The resource public id (ie: not_xxxxxxxx)
-  """
-  publicId: String!
-  legacyId: Int! @deprecated(reason: "2026-02-25: use publicId")
-  activityType: ActivityType
-  webhookUrl: URL
-  account: Account!
 }
 
 """
@@ -11164,6 +11251,17 @@ type Bot implements Account {
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -11609,17 +11707,6 @@ type Bot implements Account {
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 }
 
 """
@@ -12233,6 +12320,17 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -12678,17 +12776,6 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Returns the Fiscal Host
@@ -13892,6 +13979,17 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -14337,17 +14435,6 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Returns the Fiscal Host
@@ -15260,6 +15347,17 @@ type Individual implements Account {
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -15703,17 +15801,6 @@ type Individual implements Account {
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Company slugs the user is part of.
@@ -16654,6 +16741,17 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -17097,17 +17195,6 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Number of unique financial contributors.
@@ -18125,6 +18212,17 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -18570,17 +18668,6 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Returns the Fiscal Host
@@ -19303,6 +19390,17 @@ type Vendor implements Account & AccountWithContributions {
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -19748,17 +19846,6 @@ type Vendor implements Account & AccountWithContributions {
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Number of unique financial contributors.
@@ -20959,12 +21046,17 @@ type Query {
     searchTerm: String!
 
     """
-    Limit the scope of the search to this account and its children
+    The backend to use for this search
+    """
+    backend: SearchBackend! = OPENSEARCH
+
+    """
+    Limit the scope of the search to this account and its children. When used with `host`, results must match both.
     """
     account: AccountReferenceInput
 
     """
-    Limit the scope of the search to this host and its hosted accounts
+    Limit the scope of the search to this host and its hosted accounts. When used with `account`, results must match both.
     """
     host: AccountReferenceInput
 
@@ -23672,6 +23764,17 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -24117,17 +24220,6 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Returns the Fiscal Host
@@ -24898,6 +24990,17 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -25343,17 +25446,6 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Returns the Fiscal Host
@@ -25657,7 +25749,21 @@ type SearchResults {
 
 type SearchResultsAccounts {
   collection: AccountCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
@@ -25665,9 +25771,38 @@ type SearchResultsAccounts {
   highlights: JSONObject
 }
 
+"""
+The score of a search result
+"""
+type SearchResultScore {
+  """
+  The GraphQL ID of the result (same as the node ID)
+  """
+  id: String!
+
+  """
+  Relevance score. With the PostgreSQL backend, scores are comparable across entity types: band * 1000 (5: exact identifier, 4: exact name/title, 3: all words, 2: account name prefix, 1: account name typo) + 500 for accounts + a bonus below 500.
+  """
+  score: Float!
+}
+
 type SearchResultsComments {
   collection: CommentCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
@@ -25677,7 +25812,21 @@ type SearchResultsComments {
 
 type SearchResultsExpenses {
   collection: ExpenseCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
@@ -25687,7 +25836,21 @@ type SearchResultsExpenses {
 
 type SearchResultsHostApplications {
   collection: HostApplicationCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
@@ -25697,7 +25860,21 @@ type SearchResultsHostApplications {
 
 type SearchResultsOrders {
   collection: OrderCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
@@ -25707,7 +25884,21 @@ type SearchResultsOrders {
 
 type SearchResultsTiers {
   collection: TierCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
@@ -25717,7 +25908,21 @@ type SearchResultsTiers {
 
 type SearchResultsTransactions {
   collection: TransactionCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
@@ -25727,12 +25932,41 @@ type SearchResultsTransactions {
 
 type SearchResultsUpdates {
   collection: UpdateCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
   """
   highlights: JSONObject
+}
+
+"""
+The backend used to run a search
+"""
+enum SearchBackend {
+  """
+  OpenSearch cluster (default)
+  """
+  OPENSEARCH
+
+  """
+  [Preview] PostgreSQL: exact totals and numbered pages (up to 50 results per page and offset 5000), search terms up to 200 characters and 12 words.
+  """
+  POSTGRES
 }
 
 input TransactionReferenceInput {
@@ -26142,7 +26376,7 @@ type Mutation {
   ): Account!
 
   """
-  Create WebAuthn public key registration request options
+  Create WebAuthn public key registration request options. Session only (OAuth/Personal tokens are not allowed).
   """
   createWebAuthnRegistrationOptions(
     """
@@ -26152,7 +26386,7 @@ type Mutation {
   ): JSON!
 
   """
-  Add 2FA to the Individual if it does not have it. Scope: "account".
+  Add 2FA to the Individual if it does not have it. Session only (OAuth/Personal tokens are not allowed).
   """
   addTwoFactorAuthTokenToIndividual(
     """
@@ -26172,7 +26406,7 @@ type Mutation {
   ): AddTwoFactorAuthTokenToIndividualResponse!
 
   """
-  Remove 2FA from the Individual if it has been enabled. Scope: "account".
+  Remove 2FA from the Individual if it has been enabled. Session only (OAuth/Personal tokens are not allowed).
   """
   removeTwoFactorAuthTokenFromIndividual(
     """
@@ -26198,7 +26432,7 @@ type Mutation {
   ): Individual!
 
   """
-  Edit 2FA method
+  Edit 2FA method. Session only (OAuth/Personal tokens are not allowed).
   """
   editTwoFactorAuthenticationMethod(
     """
@@ -26238,6 +26472,26 @@ type Mutation {
   ): Account!
 
   """
+  Archive an account and its children: unhosts it, cancels its active contributions and its unprocessed expenses. Scope: "account".
+  """
+  archiveAccount(
+    """
+    Reference to the Account to be archived.
+    """
+    account: AccountReferenceInput!
+  ): Account!
+
+  """
+  Unarchive an account. Scope: "account".
+  """
+  unarchiveAccount(
+    """
+    Reference to the Account to be unarchived.
+    """
+    account: AccountReferenceInput!
+  ): Account!
+
+  """
   Adds or removes a policy on a given account. Scope: "account".
   """
   deleteAccount(
@@ -26264,7 +26518,7 @@ type Mutation {
   ): SendMessageResult
 
   """
-  Regenerate two factor authentication recovery codes
+  Regenerate two factor authentication recovery codes. Session only (OAuth/Personal tokens are not allowed).
   """
   regenerateRecoveryCodes: [String!]
 
@@ -26937,7 +27191,7 @@ type Mutation {
   createIncognitoProfile: Individual!
 
   """
-  Set password to Individual. Scope: "account". 2FA.
+  Set password to Individual. Session only (OAuth/Personal tokens are not allowed). 2FA.
   """
   setPassword(
     """
@@ -27420,6 +27674,11 @@ type Mutation {
     If true, the orders will be moved to the incognito account of "fromAccount"
     """
     makeIncognito: Boolean
+
+    """
+    Bypass the tier amount validation when moving orders to a tier that does not match their amount (root only, for data repair)
+    """
+    force: Boolean
   ): [Order]!
 
   """
@@ -27850,7 +28109,7 @@ type Mutation {
   ): Account!
 
   """
-  [Root only] Merge two accounts, returns the result account
+  [Root only] Merge two accounts, returns the result account. Both accounts must have the same type, except PROJECT accounts that can be merged into a COLLECTIVE hosted by the same host.
   """
   mergeAccounts(
     """

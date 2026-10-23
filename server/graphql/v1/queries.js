@@ -197,55 +197,6 @@ const queries = {
   },
 
   /*
-   * Still used by "Create Gift Cards" form
-   * Returns all hosts
-   */
-  allHosts: {
-    type: CollectiveSearchResultsType,
-    deprecationReason: '2025-07-10: Please use GraphQL V2',
-    description: 'Returns all public hosts that are open for applications',
-    args: {
-      tags: {
-        type: new GraphQLList(GraphQLString),
-        description: 'Fetch all collectives that match at least one of the tags',
-      },
-      currency: {
-        type: GraphQLString,
-        description: 'Filter hosts by currency',
-      },
-      limit: {
-        defaultValue: 10,
-        type: GraphQLInt,
-      },
-      offset: {
-        defaultValue: 0,
-        type: GraphQLInt,
-      },
-      onlyOpenHosts: {
-        type: GraphQLBoolean,
-        defaultValue: true,
-      },
-      minNbCollectivesHosted: {
-        type: new GraphQLNonNull(GraphQLInt),
-        defaultValue: 0,
-      },
-    },
-    async resolve(_, args) {
-      const { collectives, total } = await rawQueries.getHosts({
-        ...args,
-        orderBy: 'collectives',
-        orderDirection: 'DESC',
-      });
-      return {
-        total,
-        collectives,
-        limit: args.limit,
-        offset: args.offset,
-      };
-    },
-  },
-
-  /*
    * Given a collective slug, returns all members/memberships
    * Still used by the images service + frontend widgets.
    */

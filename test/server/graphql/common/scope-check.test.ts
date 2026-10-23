@@ -17,6 +17,7 @@ import {
   checkScope,
   enforceScope,
   rejectOAuthAndPersonalTokenAuth,
+  requireSessionToken,
 } from '../../../../server/graphql/common/scope-check';
 import {
   fakeApplication,
@@ -453,6 +454,43 @@ describe('server/graphql/common/scope-check', () => {
       expect(() => rejectOAuthAndPersonalTokenAuth(req)).to.throw(
         'OAuth and personal tokens cannot be used to manage tokens. Please use the web interface.',
       );
+    });
+  });
+
+  describe('requireSessionToken', () => {
+    const message = 'A session token is required. Please use the web interface.';
+
+    for (const scope of ['session', undefined]) {
+      it(`accepts ${scope || 'legacy'} session tokens`, () => {
+        req.userToken = null;
+        req.jwtPayload = { scope };
+        expect(() => requireSessionToken(req)).to.not.throw();
+      });
+    }
+
+    for (const scope of ['login', 'reset-password', 'oauth', 'twofactorauth', 'connected-account', 'unknown']) {
+      it(`rejects JWTs with ${scope} scope`, () => {
+        req.userToken = null;
+        req.jwtPayload = { scope };
+        expect(() => requireSessionToken(req)).to.throw(message);
+      });
+    }
+
+    it('rejects OAuth authentication', () => {
+      expect(() => requireSessionToken(req)).to.throw(message);
+    });
+
+    it('rejects personal token authentication even with a session JWT', async () => {
+      req.userToken = null;
+      req.personalToken = await fakePersonalToken({ user: userOwningTheToken });
+      req.jwtPayload = { scope: 'session' };
+      expect(() => requireSessionToken(req)).to.throw(message);
+    });
+
+    it('supports a custom rejection message', () => {
+      req.userToken = null;
+      req.jwtPayload = { scope: 'login' };
+      expect(() => requireSessionToken(req, 'Session required')).to.throw('Session required');
     });
   });
 });

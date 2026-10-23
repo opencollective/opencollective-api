@@ -142,6 +142,28 @@ describe('server/graphql/common/transactions', () => {
   });
 
   describe('canRefund', () => {
+    it('requires root scope for cross-account refunds', async () => {
+      const userToken = await fakeUserToken({ user: rootAdminReq.remoteUser, scope: ['transactions'] });
+      const req = makeRequest(rootAdminReq.remoteUser, undefined, undefined, {}, userToken);
+      expect(await canRefund(transaction, undefined, req)).to.be.false;
+      expect(await canReject(transaction, undefined, req)).to.be.false;
+
+      await userToken.update({ scope: ['transactions', 'root'] });
+      expect(await canRefund(transaction, undefined, req)).to.be.true;
+      expect(await canReject(transaction, undefined, req)).to.be.true;
+    });
+
+    it('allows host-admin refunds without root scope, even for a root user', async () => {
+      const root = await fakeUser({ data: { isRoot: true } });
+      await collective.host.addUserWithRole(root, roles.ADMIN);
+      await root.populateRoles();
+      root.rolesByCollectiveId[1] = [roles.ADMIN];
+      const userToken = await fakeUserToken({ user: root, scope: ['transactions'] });
+      const req = makeRequest(root, undefined, undefined, {}, userToken);
+
+      expect(await canRefund(oldTransaction, undefined, req)).to.be.true;
+    });
+
     it('can refund if root or host admin of the collective receiving the contribution', async () => {
       expect(await canRefund(transaction, undefined, publicReq)).to.be.false;
       expect(await canRefund(transaction, undefined, randomUserReq)).to.be.false;

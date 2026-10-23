@@ -62,6 +62,7 @@ import plans, { HostPlan, PlatformSubscriptionTiers } from '../constants/plans';
 import PlatformConstants from '../constants/platform';
 import POLICIES, { DEFAULT_POLICIES, Policies, UseVendorPolicyValue } from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
+import type { VirtualCardLimitIntervals } from '../constants/virtual-cards';
 import {
   getBalanceAmount,
   getBalanceTimeSeries,
@@ -70,6 +71,7 @@ import {
   getTotalAmountReceivedAmount,
   getTotalAmountReceivedTimeSeries,
   getTotalAmountSpentAmount,
+  getTotalAmountSpentTimeSeries,
   getTotalMoneyManagedAmount,
   getYearlyBudgetAmount,
 } from '../lib/budget';
@@ -163,6 +165,7 @@ type Settings = {
   // @deprecated Use `data.features` instead
   features?: {
     contactForm?: boolean;
+    conversations?: boolean;
     paypalDonations?: boolean;
     paypalPayouts?: boolean;
     stripePaymentIntent?: boolean;
@@ -181,6 +184,8 @@ type Settings = {
       period: number;
     };
     requestcard?: boolean;
+    /** Spending limit intervals (`VirtualCardLimitIntervals`) that collectives can pick when requesting a card. All allowed by default. */
+    allowedSpendingLimitIntervals?: Partial<Record<VirtualCardLimitIntervals, boolean>>;
   };
   payoutsTwoFactorAuth?: {
     enabled?: boolean;
@@ -927,7 +932,7 @@ class Collective extends ModelWithPublicId<
         return existingProfile;
       }
 
-      const user = await this.getUser({ transaction }); // Ideally we should store the user that created the profile (can be a root admin), but User.getIncognitoProfile relies on this
+      const user = await this.getUser({ transaction });
       const account = await Collective.create(
         {
           name: 'Incognito',
@@ -1495,21 +1500,6 @@ class Collective extends ModelWithPublicId<
    */
   canBeUsedAsPayoutProfile = function () {
     return !this.isIncognito;
-  };
-
-  /**
-   * Checks if the has been approved by a host.
-   * This function will throw if you try to call it with an event, as you should check the
-   * `isApproved` of the `parentCollective` instead.
-   */
-  isApproved = function () {
-    if (this.type === CollectiveType.EVENT) {
-      throw new Error("isApproved must be called on event's parent collective");
-    } else if (this.id === this.HostCollectiveId) {
-      return true;
-    } else {
-      return Boolean(this.HostCollectiveId && this.isActive && this.approvedAt);
-    }
   };
 
   // This is quite ugly, and only needed for events.
@@ -3095,8 +3085,8 @@ class Collective extends ModelWithPublicId<
     return getBalanceAmount(this, options).then(result => result.value);
   };
 
-  getYearlyBudgetAmount = function () {
-    return getYearlyBudgetAmount(this);
+  getYearlyBudgetAmount = function (options: Record<string, unknown> = {}) {
+    return getYearlyBudgetAmount(this, options);
   };
 
   getYearlyBudget = function () {
@@ -3129,6 +3119,10 @@ class Collective extends ModelWithPublicId<
 
   getTotalAmountReceivedTimeSeries = function (options) {
     return getTotalAmountReceivedTimeSeries(this, options);
+  };
+
+  getTotalAmountSpentTimeSeries = function (options) {
+    return getTotalAmountSpentTimeSeries(this, options);
   };
 
   getBalanceTimeSeries = function (options) {
