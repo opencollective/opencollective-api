@@ -61,6 +61,7 @@ const tokenResponse = {
 
 const verifiedUserInfo = {
   user_id: 'PAYER123',
+  name: 'John Doe',
   verified_account: 'true',
   emails: [
     { value: 'secondary@example.com', primary: false, confirmed: true },
@@ -209,7 +210,9 @@ describe('server/graphql/v2/mutation/PaypalMutations', () => {
       expect(url.searchParams.get('redirect_uri')).to.equal(connectConfig.redirectUri);
       expect(url.searchParams.get('response_type')).to.equal('code');
       expect(url.searchParams.get('flowEntry')).to.equal('static');
-      expect(url.searchParams.get('scope')).to.equal('openid email https://uri.paypal.com/services/paypalattributes');
+      expect(url.searchParams.get('scope')).to.equal(
+        'openid profile email https://uri.paypal.com/services/paypalattributes',
+      );
 
       const state = jwt.verify(url.searchParams.get('state'), config.keys.opencollective.jwtSecret);
       expect(state).to.include({ CollectiveId: collective.id, userId: admin.id, currency: 'EUR' });
@@ -480,6 +483,7 @@ describe('server/graphql/v2/mutation/PaypalMutations', () => {
       expect(payoutMethod.ConnectedAccountId).to.equal(connectedAccount.id);
       expect(payoutMethod.data).to.deep.include({ isPayPalOAuth: true, currency: 'EUR', email: 'john@example.com' });
       expect(payoutMethod.data).to.have.property('verifiedAt');
+      expect(payoutMethod.data).to.have.nested.property('paypalUserInfo.name', 'John Doe');
       expect(payoutMethod.data).not.to.have.property('connectedAccountId');
 
       expect(result.data.connectPaypalPayoutMethod).to.deep.equal({
