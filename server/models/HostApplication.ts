@@ -10,6 +10,8 @@ import {
 } from 'sequelize';
 
 import { activities } from '../constants';
+import type { EcosystemsRepositorySnapshot } from '../lib/ecosystems';
+import type { ValidatedRepositoryInfo } from '../lib/osc-validator';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 
@@ -25,6 +27,44 @@ export enum HostApplicationStatus {
   EXPIRED = 'EXPIRED',
 }
 
+/**
+ * The custom data submitted with a host application (`applicationData` in the `createCollective` /
+ * `applyToHost` mutations). Every field is optional: applications are written by different clients
+ * and the table contains legacy entries. Keep new fields OUT of the public GraphQL allow-list in
+ * `server/graphql/v2/object/HostApplication.ts`.
+ */
+export interface HostApplicationCustomData {
+  // OSC (current form)
+  typeOfProject?: string;
+  repositoryUrl?: string;
+  licenseSpdxId?: string;
+  extraLicenseInfo?: string;
+  amountOfMembers?: string;
+  linksToPreviousEvents?: string;
+  useGithubValidation?: boolean;
+  /** Server-generated when `useGithubValidation` is set */
+  validatedRepositoryInfo?: ValidatedRepositoryInfo;
+  // OSC (legacy)
+  previousEvents?: string;
+  linksToLicenses?: string;
+  githubHandle?: string;
+  /** Marker set by data-migration scripts */
+  migration?: string;
+  // OCF (legacy form)
+  location?: string;
+  initiativeDuration?: string;
+  /** Legacy number values are stored in cents */
+  totalAmountRaised?: string | number;
+  totalAmountToBeRaised?: string | number;
+  expectedFundingPartner?: string;
+  missionImpactExplanation?: string;
+  websiteAndSocialLinks?: string;
+  // Added with the 2026-10 host application maintenance
+  hasLegalEntity?: boolean;
+  ecosystemsRepositoryInfo?: EcosystemsRepositorySnapshot;
+  ruleConfirmations?: string[];
+}
+
 class HostApplication extends ModelWithPublicId<
   EntityShortIdPrefix.HostApplication,
   InferAttributes<HostApplication>,
@@ -38,7 +78,7 @@ class HostApplication extends ModelWithPublicId<
   declare public HostCollectiveId: number;
   declare public CreatedByUserId: ForeignKey<User['id']>;
   declare public status: HostApplicationStatus;
-  declare public customData: Record<string, unknown> | null;
+  declare public customData: HostApplicationCustomData | null;
   declare public message: string;
   declare public createdAt: CreationOptional<Date>;
   declare public updatedAt: CreationOptional<Date>;
