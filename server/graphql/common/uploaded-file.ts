@@ -48,7 +48,7 @@ export async function hasUploadedFilePermission(
 ): Promise<boolean> {
   const actualUrl = uploadedFile.getDataValue('url');
 
-  let expense = options.expenseId && (await Expense.findByPk(options.expenseId));
+  const expense = options.expenseId && (await Expense.findByPk(options.expenseId));
 
   if (expense && expense.status === ExpenseStatus.DRAFT) {
     const itemMatches = ((expense.data?.items as { url?: string }[]) || []).some(
@@ -89,26 +89,20 @@ export async function hasUploadedFilePermission(
     return canUseExportRequestsForAccount(req.remoteUser, account);
   }
 
-  const result = await sequelize.query<Array<{ ExpenseId: number }>>(
+  // A file may (historically) be referenced by more than one expense. Collect all of them and fail closed:
+  // the user must be allowed to see the attachments of every live expense that references the file.
+  const rows = await sequelize.query<{ ExpenseId: number }>(
     `
-    SELECT * FROM (
-      (
-        SELECT "ExpenseId"
-        FROM "ExpenseItems" where url = :url
-        AND "deletedAt" IS NULL LIMIT 1
-      )
-      UNION ALL
-      (
-        SELECT id as "ExpenseId"
-        FROM "Expenses" where "InvoiceFileId" = :invoiceFileId
-        AND "deletedAt" IS NULL LIMIT 1
-      )
-      UNION ALL
-      (
-        SELECT "ExpenseId"
-        FROM "ExpenseAttachedFiles" where url = :url
-      )
-    ) LIMIT 1
+    SELECT e.id AS "ExpenseId"
+    FROM "Expenses" e
+    INNER JOIN (
+      SELECT "ExpenseId" FROM "ExpenseItems" WHERE url = :url AND "deletedAt" IS NULL
+      UNION
+      SELECT id AS "ExpenseId" FROM "Expenses" WHERE "InvoiceFileId" = :invoiceFileId
+      UNION
+      SELECT "ExpenseId" FROM "ExpenseAttachedFiles" WHERE url = :url
+    ) refs ON refs."ExpenseId" = e.id
+    WHERE e."deletedAt" IS NULL
   `,
     {
       type: QueryTypes.SELECT,
@@ -120,15 +114,20 @@ export async function hasUploadedFilePermission(
     },
   );
 
-  const rows = result as Array<{ ExpenseId: number }> | Array<Array<{ ExpenseId: number }>>;
-  const expenseId = (Array.isArray(rows?.[0]) ? (rows[0] as Array<{ ExpenseId: number }>)?.[0] : rows?.[0])?.ExpenseId;
-  if (!expenseId) {
+  if (!rows.length) {
     return req.remoteUser?.id === uploadedFile.CreatedByUserId;
   }
 
-  expense = await Expense.findByPk(expenseId, {
+  const expenses = await Expense.findAll({
+    where: { id: rows.map(row => row.ExpenseId) },
     include: { association: 'fromCollective' },
   });
 
-  return canSeeExpenseAttachments(req, expense);
+  for (const linkedExpense of expenses) {
+    if (!(await canSeeExpenseAttachments(req, linkedExpense))) {
+      return false;
+    }
+  }
+
+  return true;
 }
