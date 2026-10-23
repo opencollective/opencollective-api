@@ -284,6 +284,17 @@ describe('server/paymentProviders/paypal/oauth', () => {
       expect(res.status).to.equal(400);
     });
 
+    it('returns 400 when currency is not supported by PayPal', async () => {
+      const res = await request(expressApp)
+        .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
+        .set('Authorization', `Bearer ${host.jwt()}`)
+        .set('Content-Type', 'application/json')
+        .send({ ...getValidBodyWithState(), currency: 'XAF' });
+
+      expect(res.status).to.equal(400);
+      expect(res.body.error.message).to.equal('This currency is not supported by PayPal');
+    });
+
     it('returns 404 when collective not found', async () => {
       const body = {
         code: 'abc',
@@ -515,6 +526,7 @@ describe('server/paymentProviders/paypal/oauth', () => {
         expect(res.body.error.message).to.equal('PayPal connect failed');
         expect(reportErrorToSentryStub.calledOnce).to.be.true;
         expect(reportErrorToSentryStub.firstCall.args[0].message).to.include('PayPal token exchange failed');
+        expect(reportErrorToSentryStub.firstCall.args[1].req).to.exist;
       });
     });
   });

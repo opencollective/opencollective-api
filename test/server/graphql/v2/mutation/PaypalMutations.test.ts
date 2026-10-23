@@ -215,6 +215,11 @@ describe('server/graphql/v2/mutation/PaypalMutations', () => {
       expect(state).to.include({ CollectiveId: collective.id, userId: admin.id, currency: 'EUR' });
     });
 
+    it('throws if the currency is not supported by PayPal', async () => {
+      const result = await getOAuthUrl(admin, { currency: 'XAF' });
+      expectError(result, 'ValidationFailed', 'This currency is not supported by PayPal');
+    });
+
     it('defaults the currency in the state to USD', async () => {
       const result = await getOAuthUrl(admin);
       expect(result.errors).to.not.exist;
@@ -331,6 +336,13 @@ describe('server/graphql/v2/mutation/PaypalMutations', () => {
         expectError(result, 'Forbidden', 'The payout method is not a PayPal payout method');
       });
 
+      it('throws if the currency is not supported by PayPal, without exchanging the code', async () => {
+        const tokenExchange = nock(PAYPAL_API_URL).post('/v1/oauth2/token').reply(200, tokenResponse);
+        const result = await connectPaypal(admin, { currency: 'XAF' });
+        expectError(result, 'ValidationFailed', 'This currency is not supported by PayPal');
+        expect(tokenExchange.isDone(), 'The PayPal code should not be spent').to.be.false;
+      });
+
       it('throws if the PayPal account has no confirmed email', async () => {
         mockPaypalApi({
           ...verifiedUserInfo,
@@ -390,6 +402,7 @@ describe('server/graphql/v2/mutation/PaypalMutations', () => {
       expect(reportedError.message).to.not.equal('PayPal connect failed');
       expect(reportedError).to.not.have.nested.property('extensions.code');
       expect(params.user).to.equal(admin);
+      expect(params.req).to.exist;
       expect(params.extra).to.deep.include({ CollectiveId: collective.id });
       expect(JSON.stringify(params)).to.not.include('paypal-auth-code-123');
       expect(await countPaypalRecords()).to.deep.equal({ connectedAccounts: 0, payoutMethods: 0 });
