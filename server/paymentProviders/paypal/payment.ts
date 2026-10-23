@@ -5,16 +5,14 @@ import { RefundKind } from '../../constants/refund-kind';
 import * as constants from '../../constants/transactions';
 import { floatAmountToCents, getFxRate, roundCentsAmount } from '../../lib/currency';
 import {
-  calcFee,
   createRefundTransaction,
   getHostFee,
-  getHostFeePercent,
   getHostFeeSharePercent,
   getPlatformTip,
   isPlatformTipEligible,
 } from '../../lib/payments';
 import { paypalAmountToCents } from '../../lib/paypal';
-import { reportErrorToSentry } from '../../lib/sentry';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import { MetricEvent, MetricFlow, MetricProvider, recordPaymentOutcome } from '../../lib/sentry/metrics';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
@@ -25,21 +23,6 @@ import { PaypalCapture, PaypalRefund, PaypalSale, PaypalTransaction } from '../.
 import { BasePaymentProviderService, PaymentProviderServiceWithoutRecurring } from '../types';
 
 import { paypalRequestV2 } from './api';
-import { isPaypalSubscriptionPaymentMethod } from './subscription';
-
-/**
- * Returns true if the order is a recurring contribution managed by a PayPal subscription
- * (billing agreement), which is the only flow where PayPal can charge more than `order.totalAmount`
- * in a single payment (see `recordTransaction`).
- */
-const isPaypalSubscriptionOrder = async (order: Order): Promise<boolean> => {
-  if (order.paymentMethod && isPaypalSubscriptionPaymentMethod(order.paymentMethod)) {
-    return true;
-  }
-
-  const subscription = order.Subscription || (order.SubscriptionId ? await order.getSubscription() : null);
-  return Boolean(subscription?.paypalSubscriptionId);
-};
 
 /** Create transaction in our database to reflect a PayPal charge */
 const recordTransaction = async (
@@ -58,6 +41,24 @@ const recordTransaction = async (
   if (!host) {
     throw new Error(`Cannot create transaction: collective id ${order.collective.id} doesn't have a host`);
   }
+
+  // Fees below are computed on the order amounts, so they will be off if PayPal charged something else. This
+  // happens when a subscription bills its outstanding balance with the next cycle (see `auto_bill_outstanding`
+  // and https://github.com/opencollective/opencollective/issues/6600).
+  if (amount !== order.totalAmount || currency !== order.currency) {
+    reportMessageToSentry('PayPal charged amount does not match the order amount', {
+      feature: FEATURE.PAYPAL_DONATIONS,
+      severity: 'warning',
+      extra: {
+        orderId: order.id,
+        amount,
+        currency,
+        orderTotalAmount: order.totalAmount,
+        orderCurrency: order.currency,
+      },
+    });
+  }
+
   const hostCurrency = host.currency;
   const hostFeeSharePercent = await getHostFeeSharePercent(order);
   const isSharedRevenue = !!hostFeeSharePercent;
@@ -66,35 +67,11 @@ const recordTransaction = async (
   const amountInHostCurrency = roundCentsAmount(amount * hostCurrencyFxRate, hostCurrency);
   const paymentProcessorFeeInHostCurrency = roundCentsAmount(hostCurrencyFxRate * paypalFee, hostCurrency);
 
-  // PayPal subscriptions can bundle multiple billing cycles in a single charge when the subscription
-  // has outstanding balance (e.g. a missed month retried later: $5/mo billed as $10). In that case
-  // `amount` is a multiple of `order.totalAmount` and per-cycle fees must be scaled accordingly.
-  // This never happens for one-time payments. See https://github.com/opencollective/opencollective/issues/6600
-  const orderTotalAmount = order.totalAmount || 0;
-  const chargeRatio = orderTotalAmount ? amount / orderTotalAmount : 1;
-
-  let hostFee: number;
-  let taxAmount: number;
-  let platformTip: number;
-  if (chargeRatio !== 1 && (await isPaypalSubscriptionOrder(order))) {
-    // TODO: consolidate this with `getHostFee` (which always computes fees on `order.totalAmount`) so
-    // that all payment providers scale their fees to the amount actually charged. Kept separate for
-    // now to preserve the legacy behavior of single-cycle and non-PayPal-subscription payments.
-    const hostFeePercent = (await getHostFeePercent(order)) || 0;
-    taxAmount = order.taxAmount ? Math.round(order.taxAmount * chargeRatio) : order.taxAmount;
-    platformTip = Math.round(getPlatformTip(order) * chargeRatio);
-    hostFee = calcFee(amount - (taxAmount || 0) - platformTip, hostFeePercent, currency);
-  } else {
-    // Legacy behavior (single-cycle charges and non-PayPal-subscription payments): fees are computed
-    // on the order amounts, whatever the amount actually charged is.
-    hostFee = await getHostFee(order);
-    taxAmount = order.taxAmount;
-    platformTip = getPlatformTip(order);
-  }
-
+  const hostFee = await getHostFee(order);
   const hostFeeInHostCurrency = roundCentsAmount(hostFee * hostCurrencyFxRate, hostCurrency);
 
   const platformTipEligible = await isPlatformTipEligible(order);
+  const platformTip = getPlatformTip(order);
   const platformTipInHostCurrency = roundCentsAmount(platformTip * hostCurrencyFxRate, hostCurrency);
 
   const transactionData = {
@@ -111,7 +88,7 @@ const recordTransaction = async (
     hostCurrencyFxRate,
     hostFeeInHostCurrency,
     paymentProcessorFeeInHostCurrency,
-    taxAmount,
+    taxAmount: order.taxAmount,
     description: order.description,
     clearedAt,
     createdAt,
