@@ -1,5 +1,4 @@
 import config from 'config';
-import { GraphQLError } from 'graphql';
 import jwt from 'jsonwebtoken';
 
 import { SupportedCurrency } from '../../constants/currencies';
@@ -12,12 +11,7 @@ import {
   UnexpectedError,
   ValidationFailed,
 } from '../../graphql/errors';
-import { idEncode, IDENTIFIER_TYPES } from '../../graphql/v2/identifiers';
-import { fetchAccountWithReference } from '../../graphql/v2/input/AccountReferenceInput';
-import { fetchPayoutMethodWithReference } from '../../graphql/v2/input/PayoutMethodReferenceInput';
-import errors from '../../lib/errors';
 import logger from '../../lib/logger';
-import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../lib/permalink/entity-map';
 import RateLimit from '../../lib/rate-limit';
 import { reportErrorToSentry } from '../../lib/sentry';
 import models, { Collective, ConnectedAccount, sequelize } from '../../models';
@@ -43,13 +37,12 @@ const PAYPAL_CONNECT_SCOPES = [
   'https://uri.paypal.com/services/paypalattributes', // Account verification status + Payer ID
 ].join(' ');
 
-const getRedirectUrl = (remoteUser, CollectiveId, query): string => {
+const getRedirectUrl = (remoteUser: User, CollectiveId: number, { currency }: { currency?: string } = {}): string => {
   const state = jwt.sign(
     {
       CollectiveId,
       userId: remoteUser.id,
-      redirect: query?.redirect || null,
-      currency: query?.currency || 'USD',
+      currency: currency || 'USD',
     },
     config.keys.opencollective.jwtSecret,
     { expiresIn: '30m' },
@@ -248,32 +241,6 @@ export async function connectPaypalPayoutMethod({
   }
 }
 
-/**
- * Converts the GraphQL errors thrown by `connectPaypalPayoutMethod` to the REST errors understood by
- * `server/middleware/error-handler`, to preserve the status codes of the deprecated REST endpoints.
- */
-const toRestError = (e: Error): Error => {
-  if (!(e instanceof GraphQLError)) {
-    return e; // Unknown errors are reported to Sentry by the error handler
-  }
-
-  switch (e.extensions?.code) {
-    case 'BadRequest':
-    case 'ValidationFailed':
-      return new errors.BadRequest(e.message);
-    case 'Unauthorized':
-      return new errors.Unauthorized(e.message);
-    case 'Forbidden':
-      return new errors.Forbidden(e.message);
-    case 'NotFound':
-      return new errors.NotFound(e.message);
-    case 'RateLimitExceeded':
-      return new errors.RateLimitExceeded(e.message);
-    default:
-      return new errors.ServerError(e.message);
-  }
-};
-
 export default {
   types: {
     default: payment,
@@ -287,100 +254,5 @@ export default {
      * The CollectiveId is embedded in a signed JWT state to prevent CSRF / tampering.
      */
     redirectUrl: getRedirectUrl,
-
-    /**
-     * Returns the PayPal Connect public client ID (if configured on this platform).
-     * GET /connected-accounts/paypal/connect-config
-     * Returns: { clientId: string } or 404 if not configured.
-     *
-     * @deprecated Use the `getPaypalOAuthUrl` GraphQL mutation. Kept until the frontend is migrated.
-     */
-    connectConfig: async (req, res, next) => {
-      const clientId = config.paypal?.connect?.clientId;
-      if (!clientId) {
-        return res.status(404).json({ error: 'PayPal Connect is not available at the moment.' });
-      }
-
-      if (!req.remoteUser) {
-        return next(new errors.Unauthorized('You must be logged in'));
-      } else if (!req.query.accountId) {
-        return next(new errors.BadRequest('Missing accountId'));
-      } else if (!req.query.redirect) {
-        return next(new errors.BadRequest('Missing redirect'));
-      }
-
-      const collective = await fetchAccountWithReference({ id: req.query.accountId });
-
-      if (!collective) {
-        return next(new errors.NotFound('Collective not found'));
-      } else if (!req.remoteUser.isAdminOfCollective(collective)) {
-        return next(new errors.Forbidden('You must be an admin of this collective'));
-      }
-
-      return res.json({
-        clientId,
-        redirectUri: config.paypal?.connect?.redirectUri,
-        authorizeUrl: getRedirectUrl(req.remoteUser, collective.id, req.query),
-      });
-    },
-
-    /**
-     * JSON endpoint for the PayPal SDK button flow.
-     * The SDK calls back with an auth code directly in the browser; this endpoint
-     * exchanges it for tokens, upserts the ConnectedAccount, and returns JSON.
-     *
-     * POST /connected-accounts/paypal/connect
-     * Body: { code: string, state: string, accountId: string, payoutMethodId: string, currency: string, name: string }
-     * Returns: { connectedAccountId: string, payoutMethodId: string }
-     *
-     * @deprecated Use the `connectPaypalPayoutMethod` GraphQL mutation. Kept until the frontend is migrated.
-     */
-    connect: async (req, res, next) => {
-      if (!req.remoteUser) {
-        return next(new errors.Unauthorized('You must be logged in'));
-      }
-
-      const { code, state, accountId, payoutMethodId, currency, name } = req.body;
-      if (!accountId) {
-        return next(new errors.BadRequest('Account ID is missing'));
-      }
-
-      try {
-        const collective = await fetchAccountWithReference({ id: accountId });
-        if (!collective) {
-          return next(new errors.NotFound('Collective not found'));
-        } else if (!req.remoteUser.isAdminOfCollective(collective)) {
-          return next(new errors.Forbidden('You must be an admin of this collective'));
-        }
-
-        const payoutMethod = payoutMethodId ? await fetchPayoutMethodWithReference({ id: payoutMethodId }) : null;
-        const result = await connectPaypalPayoutMethod({
-          remoteUser: req.remoteUser,
-          collective,
-          code,
-          state,
-          currency,
-          name,
-          payoutMethod,
-          req,
-        });
-
-        const connectedAccountId = isEntityMigratedToPublicId(
-          EntityShortIdPrefix.ConnectedAccount,
-          result.connectedAccount.createdAt,
-        )
-          ? result.connectedAccount.publicId
-          : idEncode(result.connectedAccount.id, IDENTIFIER_TYPES.CONNECTED_ACCOUNT);
-        const resultPayoutMethodId = isEntityMigratedToPublicId(
-          EntityShortIdPrefix.PayoutMethod,
-          result.payoutMethod.createdAt,
-        )
-          ? result.payoutMethod.publicId
-          : idEncode(result.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
-        return res.json({ connectedAccountId, payoutMethodId: resultPayoutMethodId });
-      } catch (e) {
-        return next(toRestError(e));
-      }
-    },
   },
 };
