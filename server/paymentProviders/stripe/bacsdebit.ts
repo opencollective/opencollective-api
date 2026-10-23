@@ -1,12 +1,11 @@
 import config from 'config';
 import { pick, toUpper } from 'lodash';
-import type Stripe from 'stripe';
 
 import OrderStatuses from '../../constants/order-status';
 import logger from '../../lib/logger';
 import { getApplicationFee } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
-import stripe, { convertToStripeAmount } from '../../lib/stripe';
+import stripe, { convertToStripeAmount, type PaymentIntentCreateParams } from '../../lib/stripe';
 import Order from '../../models/Order';
 import { PaymentProviderServiceWithInternalRecurringManagement } from '../types';
 
@@ -25,7 +24,7 @@ const processOrder = async (order: Order): Promise<void> => {
       : (host?.settings?.isPlatformRevenueDirectlyCollected ?? true);
   const applicationFee = await getApplicationFee(order);
 
-  const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
+  const paymentIntentParams: PaymentIntentCreateParams = {
     customer: order.paymentMethod.customerId,
     currency: order.currency,
     amount: convertToStripeAmount(order.currency, order.totalAmount),

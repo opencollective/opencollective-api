@@ -20,6 +20,15 @@ const stripe = new Stripe(config.stripe.secret, { apiVersion: '2015-04-07', maxN
 
 export default stripe;
 
+/**
+ * stripe-node types follow the latest Stripe API version: since stripe-node 23 (API `2026-09-30.endive`),
+ * `payment_method_types` is `allowed_payment_method_types`. We call the API with `2015-04-07` (see above),
+ * which still expects `payment_method_types`, so we keep sending that.
+ */
+export type PaymentIntentCreateParams = Stripe.PaymentIntentCreateParams & {
+  payment_method_types?: string[];
+};
+
 export const StripeCustomToken = token => {
   // Starting on stripe@v12, the default API version is set by the stripe package.
   // We need to hardcode the API version that we are compatible with.
@@ -106,14 +115,14 @@ export const retrieveChargeWithRefund = async (chargeId, stripeAccount) => {
 
   const refundId = get(charge, 'refunds.data[0].id');
   const refund = refundId
-    ? await stripe.refunds.retrieve(refundId, {
+    ? await stripe.refunds.retrieve(refundId, undefined, {
         stripeAccount: stripeAccount.username,
       })
     : null;
 
   const disputeId = get(charge, 'dispute.id');
   const dispute = disputeId
-    ? await stripe.disputes.retrieve(disputeId, {
+    ? await stripe.disputes.retrieve(disputeId, undefined, {
         stripeAccount: stripeAccount.username,
       })
     : null;
