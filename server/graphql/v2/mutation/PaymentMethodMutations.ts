@@ -334,14 +334,6 @@ const paymentMethodMutations = {
       if (!(await rateLimit.registerCall())) {
         throw new RateLimitExceeded('Too many credit cards added. Please try again later.');
       }
-      const creditCardCount = await models.PaymentMethod.count({
-        where: { CollectiveId: account.id, type: PAYMENT_METHOD_TYPE.CREDITCARD },
-      });
-      if (creditCardCount >= config.limits.maxCreditCardsPerAccount) {
-        throw new RateLimitExceeded(
-          `Accounts cannot have more than ${config.limits.maxCreditCardsPerAccount} credit cards`,
-        );
-      }
 
       const stripeCustomerAccount = await account.getCustomerStripeAccount(args.setupIntent.stripeAccount);
       if (!stripeCustomerAccount) {
@@ -365,6 +357,19 @@ const paymentMethodMutations = {
 
       if (stripeCustomerAccount.username !== setupIntentResponse.customer) {
         throw new Unauthorized('Stripe Setup Intent does not belong to requested account');
+      }
+
+      // Only cards count toward the cap (SEPA, BACS, etc. are exempt). Unexpanded payment methods are treated as cards.
+      const stripePaymentMethod = setupIntentResponse.payment_method;
+      if (typeof stripePaymentMethod === 'string' || stripePaymentMethod?.type === 'card') {
+        const creditCardCount = await models.PaymentMethod.count({
+          where: { CollectiveId: account.id, type: PAYMENT_METHOD_TYPE.CREDITCARD },
+        });
+        if (creditCardCount >= config.limits.maxCreditCardsPerAccount) {
+          throw new RateLimitExceeded(
+            `Accounts cannot have more than ${config.limits.maxCreditCardsPerAccount} credit cards`,
+          );
+        }
       }
 
       return await createOrRetrievePaymentMethodFromSetupIntent(setupIntentResponse);

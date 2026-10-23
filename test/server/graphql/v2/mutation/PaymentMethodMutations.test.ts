@@ -360,23 +360,61 @@ describe('server/graphql/v2/mutation/PaymentMethodMutations', () => {
       expect(retrieveIntent.called).to.be.false;
     });
 
-    it('enforces the account credit card cap in the sibling mutation', async () => {
-      await addOrder();
-      await models.PaymentMethod.bulkCreate(
-        Array.from({ length: config.limits.maxCreditCardsPerAccount }, (_, index) => ({
-          CollectiveId: account.id,
-          CreatedByUserId: user.id,
-          currency: 'USD',
-          name: `${index}`,
-          saved: true,
-          service: PAYMENT_METHOD_SERVICE.STRIPE,
-          token: `pm_${String(index).padStart(24, '0')}`,
-          type: PAYMENT_METHOD_TYPE.CREDITCARD,
-        })),
-      );
-      const result = await graphqlQueryV2(addStripePaymentMethodFromSetupIntentMutation, addVariables(), user);
-      expect(result.errors[0].extensions.code).to.equal('RateLimitExceeded');
-      expect(retrieveIntent.called).to.be.false;
+    describe('account credit card cap in the sibling mutation', () => {
+      beforeEach(async () => {
+        await addOrder();
+        await models.PaymentMethod.bulkCreate(
+          Array.from({ length: config.limits.maxCreditCardsPerAccount }, (_, index) => ({
+            CollectiveId: account.id,
+            CreatedByUserId: user.id,
+            currency: 'USD',
+            name: `${index}`,
+            saved: true,
+            service: PAYMENT_METHOD_SERVICE.STRIPE,
+            token: `pm_${String(index).padStart(24, '0')}`,
+            type: PAYMENT_METHOD_TYPE.CREDITCARD,
+          })),
+        );
+      });
+
+      it('rejects a new card', async () => {
+        /* eslint-disable camelcase -- Stripe API response fields */
+        retrieveIntent.resolves({
+          id: 'seti_context',
+          customer: customer.username,
+          payment_method: { id: 'pm_123456789012345678901234', type: 'card' },
+          status: 'succeeded',
+          usage: 'off_session',
+        });
+        /* eslint-enable camelcase */
+        const result = await graphqlQueryV2(addStripePaymentMethodFromSetupIntentMutation, addVariables(), user);
+        expect(result.errors[0].extensions.code).to.equal('RateLimitExceeded');
+        expect(retrievePaymentMethod.called).to.be.false;
+      });
+
+      it('does not apply to non-card payment methods', async () => {
+        /* eslint-disable camelcase -- Stripe API response fields */
+        const sepaPaymentMethod = {
+          id: 'pm_sepa12345678901234567890',
+          type: 'sepa_debit',
+          sepa_debit: { bank_code: '37040044', last4: '3000', country: 'DE' },
+        };
+        retrieveIntent.resolves({
+          id: 'seti_context',
+          customer: customer.username,
+          payment_method: sepaPaymentMethod,
+          status: 'succeeded',
+          usage: 'off_session',
+        });
+        /* eslint-enable camelcase */
+        retrievePaymentMethod.resolves(sepaPaymentMethod);
+        const result = await graphqlQueryV2(addStripePaymentMethodFromSetupIntentMutation, addVariables(), user);
+        expect(result.errors, JSON.stringify(result.errors)).to.not.exist;
+        const paymentMethod = await models.PaymentMethod.findOne({
+          where: { CollectiveId: account.id, type: PAYMENT_METHOD_TYPE.SEPA_DEBIT },
+        });
+        expect(paymentMethod).to.exist;
+      });
     });
   });
 });
