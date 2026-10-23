@@ -170,15 +170,22 @@ export type EcosystemsRepositorySnapshot = {
   }>;
 };
 
+const stripTrailingSlashes = (value: string): string => {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === '/') {
+    end -= 1;
+  }
+  return value.slice(0, end);
+};
+
+const stripGitSuffix = (value: string): string => (value.endsWith('.git') ? value.slice(0, -4) : value);
+
 export function normalizeRepoKey(url: string): string {
-  const trimmed = (url || '')
-    .trim()
-    .replace(/\.git$/, '')
-    .replace(/\/+$/, '');
+  const trimmed = stripTrailingSlashes(stripGitSuffix((url || '').trim()));
   try {
     const parsed = new URL(trimmed);
-    const host = parsed.host.replace(/^www\./, '').toLowerCase();
-    const pathname = parsed.pathname.replace(/\/+$/, '').replace(/\.git$/, '');
+    const host = (parsed.host.startsWith('www.') ? parsed.host.slice(4) : parsed.host).toLowerCase();
+    const pathname = stripGitSuffix(stripTrailingSlashes(parsed.pathname));
     return `${host}${pathname.toLowerCase()}`;
   } catch {
     return trimmed.toLowerCase();

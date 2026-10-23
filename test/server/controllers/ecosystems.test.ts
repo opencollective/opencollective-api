@@ -70,7 +70,12 @@ describe('server/controllers/ecosystems', () => {
     it('returns 400 when the url is missing or invalid', async () => {
       const fetchStub = stubEcosystemsFetch(sandbox);
 
-      for (const query of [{}, { url: 'not-a-url' }, { url: ['https://github.com/foo/bar'] }]) {
+      for (const query of [
+        {},
+        { url: 'not-a-url' },
+        { url: ['https://github.com/foo/bar'] },
+        { url: 'https://user:token@github.com/foo/bar' },
+      ]) {
         const response = httpMocks.createResponse();
         await getRepositoryInfo(makeRequest(query), response);
         expect(response._getStatusCode()).to.equal(400);
@@ -87,6 +92,20 @@ describe('server/controllers/ecosystems', () => {
 
       expect(response._getStatusCode()).to.equal(200);
       expect(response._getData()).to.deep.equal(EXPECTED_ENTRY);
+    });
+
+    it('strips query strings and fragments before the cache key and upstream lookup', async () => {
+      const fetchStub = stubEcosystemsFetch(sandbox);
+
+      const response = httpMocks.createResponse();
+      await getRepositoryInfo(makeRequest({ url: `${REPO_URL}?ref=main#readme` }), response);
+
+      expect(response._getStatusCode()).to.equal(200);
+      for (const call of fetchStub.getCalls()) {
+        const fetchedUrl = String(call.args[0]);
+        expect(fetchedUrl).not.to.contain('?ref=main');
+        expect(fetchedUrl).not.to.contain('#readme');
+      }
     });
 
     it('caches the upstream response for a same repository URL', async () => {
