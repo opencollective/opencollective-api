@@ -5,6 +5,7 @@ import config from 'config';
 import expressBasicAuth from 'express-basic-auth';
 import { get, pick } from 'lodash';
 
+import { isSensitiveHeader, redactRequestVariables, redactUrl } from './hyperwatch-redaction';
 import { md5, parseToBoolean } from './utils';
 
 const computeMask = req => {
@@ -90,11 +91,19 @@ const load = (app, server) => {
         const executionTime = req.endAt - req.startAt;
         let log = hyperwatch.util.createLog(req, res).set('executionTime', executionTime);
 
-        log = log.deleteIn(['request', 'headers', 'authorization']);
-        log = log.deleteIn(['request', 'headers', 'cookie']);
+        // Redact known sensitive headers, URL values and GraphQL variables before logging: see hyperwatch-redaction.ts
+        log = log.updateIn(['request', 'headers'], headers =>
+          headers
+            .filter((value, name) => !isSensitiveHeader(name))
+            .map((value, name) => (name === 'referer' ? redactUrl(value) : value)),
+        );
+        log = log.updateIn(['request', 'url'], url => redactUrl(url));
 
         if (req.body && req.body.query) {
-          log = log.set('graphql', req.body);
+          log = log.set('graphql', {
+            ...pick(req.body, ['operationName', 'query']),
+            variables: redactRequestVariables(req.body.variables),
+          });
           if (res.servedFromGraphqlCache) {
             log = log.setIn(['graphql', 'servedFromCache'], true);
           }
