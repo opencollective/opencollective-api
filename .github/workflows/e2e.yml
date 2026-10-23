@@ -151,7 +151,11 @@ jobs:
           cp opencollective-frontend/public/static/scripts/pdf.worker.min.mjs /tmp/frontend-next/_generated-public/static/scripts/
           rsync -a opencollective-frontend/public/static/cmaps /tmp/frontend-next/_generated-public/static/
 
+      # Artifact service calls sometimes fail on network errors (e.g. `Failed to CreateArtifact: Unable to make
+      # request: ECONNRESET`) that the action itself does not retry. Retry once so a transient blip doesn't fail the run.
       - name: Upload Next.js build
+        id: upload-next
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: frontend-next
@@ -159,6 +163,17 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
+
+      - name: Upload Next.js build (retry)
+        if: steps.upload-next.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-next
+          path: /tmp/frontend-next
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
 
       - name: Stage service dist artifacts
         run: |
@@ -172,13 +187,27 @@ jobs:
           test -e "$stage/opencollective-images/dist/server"
           test -f "$stage/opencollective-pdf/dist/server/index.js"
 
+      # Artifact service calls sometimes fail on network errors (e.g. `Failed to CreateArtifact: Unable to make
+      # request: ECONNRESET`) that the action itself does not retry. Retry once so a transient blip doesn't fail the run.
       - name: Upload service dist artifacts
+        id: upload-service-dists
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: e2e-service-dists
           path: /tmp/e2e-service-dists
           if-no-files-found: error
           retention-days: 1
+
+      - name: Upload service dist artifacts (retry)
+        if: steps.upload-service-dists.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-service-dists
+          path: /tmp/e2e-service-dists
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
 
   e2e:
     name: e2e (${{ matrix.files }})
@@ -322,13 +351,32 @@ jobs:
         working-directory: opencollective-frontend
         run: npx cypress install
 
+      # Retry downloads once on transient artifact service errors (see "Upload Next.js build")
       - name: Download Next.js build
+        id: download-next
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-next
+          path: /tmp/frontend-next
+
+      - name: Download Next.js build (retry)
+        if: steps.download-next.outcome == 'failure'
         uses: actions/download-artifact@v8
         with:
           name: frontend-next
           path: /tmp/frontend-next
 
       - name: Download service dist artifacts
+        id: download-service-dists
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: e2e-service-dists
+          path: /tmp/e2e-service-dists
+
+      - name: Download service dist artifacts (retry)
+        if: steps.download-service-dists.outcome == 'failure'
         uses: actions/download-artifact@v8
         with:
           name: e2e-service-dists
