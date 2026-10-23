@@ -279,8 +279,9 @@ function hostAndOwnerFromUrl(url: string): { hostName: string; owner: string } |
 export async function fetchRepoSummary(repoUrl: string): Promise<EcosystemsRepoSummary> {
   const [packages, contributors, issues] = await Promise.all([
     fetchRepoPackages(repoUrl),
-    fetchCommitsLookup(repoUrl),
-    fetchIssuesLookup(repoUrl),
+    // Secondary lookups should not fail the whole summary
+    fetchCommitsLookup(repoUrl).catch(() => null),
+    fetchIssuesLookup(repoUrl).catch(() => null),
   ]);
 
   // Same resolution order as the POC: prefer the metadata attached to a package, fall back to the repos lookup
@@ -291,7 +292,7 @@ export async function fetchRepoSummary(repoUrl: string): Promise<EcosystemsRepoS
   const hostName = repository?.host?.name || fromUrl?.hostName;
   const ownerLogin = repository?.owner || fromUrl?.owner;
   if (hostName && ownerLogin) {
-    owner = await fetchOwnerLookup(hostName, ownerLogin);
+    owner = await fetchOwnerLookup(hostName, ownerLogin).catch(() => null);
   }
 
   return { packages, repository, contributors, issues, owner };

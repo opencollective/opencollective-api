@@ -214,9 +214,10 @@ export function sanitizeHTML(content: string, options: SanitizeOptions = optsStr
 }
 
 /**
- * Will remove all HTML content from the string, returning plain text (no HTML entities).
+ * Will remove all HTML content from the string, keeping HTML-escaped text.
+ * Use `sanitizeHostApplicationData`/`sanitizeHostApplicationMessage` for plain-text host data.
  */
-export const stripHTML = (content: string): string => unescape(sanitizeHTML(content, optsStripAll));
+export const stripHTML = (content: string): string => sanitizeHTML(content, optsStripAll);
 
 /**
  * Recursively strips the HTML from all the string values of a JSON-like structure (e.g. the
@@ -225,7 +226,7 @@ export const stripHTML = (content: string): string => unescape(sanitizeHTML(cont
  */
 export function sanitizeHostApplicationData<T>(data: T): T {
   if (typeof data === 'string') {
-    return stripHTML(data) as T;
+    return unescape(stripHTML(data)) as T;
   } else if (Array.isArray(data)) {
     return data.map(item => sanitizeHostApplicationData(item)) as T;
   } else if (data && typeof data === 'object') {
@@ -241,7 +242,7 @@ export function sanitizeHostApplicationData<T>(data: T): T {
  * Strips the HTML from a host application message and trims it. Returns null/undefined as-is.
  */
 export function sanitizeHostApplicationMessage<T extends string | null | undefined>(message: T): T {
-  return (message ? stripHTML(message).trim() : message) as T;
+  return (message ? unescape(stripHTML(message)).trim() : message) as T;
 }
 
 /**
