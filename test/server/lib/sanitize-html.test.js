@@ -107,7 +107,7 @@ describe('server/lib/sanitize-html', () => {
     it('Works with improperly formatted content', () => {
       expect(stripHTML(improperlyFormattedContent)).to.eq(`
   Won't be fooled by your !
-  contentalert("script")&gt;alert("script")
+  contentalert("script")>alert("script")
 `);
     });
   });
@@ -329,6 +329,18 @@ describe('server/lib/sanitize-html', () => {
       expect(sanitizeHostApplicationData(data)).to.deep.equal({ migration: 'legacy', someFutureField: 'kept' });
     });
 
+    it('preserves plain-text ampersands and query strings', () => {
+      expect(
+        sanitizeHostApplicationData({
+          repositoryUrl: 'https://github.com/foo/bar?a=1&b=2',
+          extraLicenseInfo: 'R&D <b>team</b>',
+        }),
+      ).to.deep.equal({
+        repositoryUrl: 'https://github.com/foo/bar?a=1&b=2',
+        extraLicenseInfo: 'R&D team',
+      });
+    });
+
     it('returns null/undefined as-is', () => {
       expect(sanitizeHostApplicationData(null)).to.be.null;
       expect(sanitizeHostApplicationData(undefined)).to.be.undefined;
@@ -339,6 +351,7 @@ describe('server/lib/sanitize-html', () => {
     it('strips the HTML and trims the message', () => {
       expect(sanitizeHostApplicationMessage('  <p>We need a host</p>\n')).to.equal('We need a host');
       expect(sanitizeHostApplicationMessage('<div>Line 1</div><div>Line 2</div>')).to.equal('Line 1Line 2');
+      expect(sanitizeHostApplicationMessage('<p>R&D team</p>')).to.equal('R&D team');
     });
 
     it('returns null/undefined as-is', () => {

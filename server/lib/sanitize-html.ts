@@ -1,5 +1,5 @@
 import config from 'config';
-import { truncate, uniq } from 'lodash';
+import { truncate, unescape, uniq } from 'lodash';
 import LibSanitize from 'sanitize-html';
 
 import { isValidUploadedImage } from './images';
@@ -214,9 +214,9 @@ export function sanitizeHTML(content: string, options: SanitizeOptions = optsStr
 }
 
 /**
- * Will remove all HTML content from the string.
+ * Will remove all HTML content from the string, returning plain text (no HTML entities).
  */
-export const stripHTML = (content: string): string => sanitizeHTML(content, optsStripAll);
+export const stripHTML = (content: string): string => unescape(sanitizeHTML(content, optsStripAll));
 
 /**
  * Recursively strips the HTML from all the string values of a JSON-like structure (e.g. the

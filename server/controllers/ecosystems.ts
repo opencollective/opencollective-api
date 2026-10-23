@@ -11,10 +11,18 @@ const REPOSITORY_INFO_CACHE_TTL = ONE_HOUR_IN_SECONDS;
 const isValidRepositoryUrl = (url: string): boolean => {
   try {
     const parsed = new URL(url);
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+    return (parsed.protocol === 'https:' || parsed.protocol === 'http:') && !parsed.username && !parsed.password;
   } catch {
     return false;
   }
+};
+
+/** Strip query strings/fragments before using a URL as a cache key or upstream lookup. */
+const normalizeRepositoryUrl = (url: string): string => {
+  const parsed = new URL(url);
+  parsed.search = '';
+  parsed.hash = '';
+  return parsed.toString();
 };
 
 export async function getRepositoryInfo(req: express.Request, res: express.Response): Promise<void> {
@@ -37,7 +45,8 @@ export async function getRepositoryInfo(req: express.Request, res: express.Respo
     return;
   }
 
-  const cacheKey = `ecosystems_repository_info_${normalizeRepoKey(url)}`;
+  const repositoryUrl = normalizeRepositoryUrl(url);
+  const cacheKey = `ecosystems_repository_info_${normalizeRepoKey(repositoryUrl)}`;
   const cachedEntry = await cache.get(cacheKey);
   if (cachedEntry) {
     res.send(cachedEntry);
@@ -45,11 +54,11 @@ export async function getRepositoryInfo(req: express.Request, res: express.Respo
   }
 
   try {
-    const entry: EcosystemsRepoSummary = await fetchRepoSummary(url);
+    const entry: EcosystemsRepoSummary = await fetchRepoSummary(repositoryUrl);
     await cache.set(cacheKey, entry, REPOSITORY_INFO_CACHE_TTL);
     res.send(entry);
   } catch (e) {
-    logger.error(`Failed to fetch ecosyste.ms repository info for ${url}: ${e.message}`);
+    logger.error(`Failed to fetch ecosyste.ms repository info for ${repositoryUrl}: ${e.message}`);
     res.status(502).send({
       error: { type: 'bad_gateway', message: 'Failed to fetch the repository information' },
     });
