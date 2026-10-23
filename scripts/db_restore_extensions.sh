@@ -53,18 +53,18 @@ fi
 set -e
 
 # Ensure the opencollective user has superuser (required for migrations)
-$CMD_PSQL -U postgres -h $PG_HOST "${LOCALDBNAME}" -c "DO \$\$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${LOCALDBUSER}') THEN ALTER ROLE ${LOCALDBUSER} WITH SUPERUSER; END IF; END \$\$;"
+$CMD_PSQL -w -U postgres -h $PG_HOST "${LOCALDBNAME}" -c "DO \$\$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${LOCALDBUSER}') THEN ALTER ROLE ${LOCALDBUSER} WITH SUPERUSER; END IF; END \$\$;"
 
 # When restoring old backups, you may need to enable Postgis
 if [ "$USE_POSTGIS" = "1" ]; then
   echo "Enabling Postgis"
-  $CMD_PSQL -U postgres -h $PG_HOST "${LOCALDBNAME}" -c "CREATE EXTENSION postgis;"
-  $CMD_PSQL -U postgres -h $PG_HOST "${LOCALDBNAME}" -c "ALTER TABLE public.spatial_ref_sys OWNER TO ${LOCALDBUSER};"
-  $CMD_PSQL -U postgres -h $PG_HOST "${LOCALDBNAME}" -c "GRANT SELECT, INSERT ON TABLE public.spatial_ref_sys TO public;"
+  $CMD_PSQL -w -U postgres -h $PG_HOST "${LOCALDBNAME}" -c "CREATE EXTENSION postgis;"
+  $CMD_PSQL -w -U postgres -h $PG_HOST "${LOCALDBNAME}" -c "ALTER TABLE public.spatial_ref_sys OWNER TO ${LOCALDBUSER};"
+  $CMD_PSQL -w -U postgres -h $PG_HOST "${LOCALDBNAME}" -c "GRANT SELECT, INSERT ON TABLE public.spatial_ref_sys TO public;"
 fi
 
 echo "Enabling btree_gist"
-$CMD_PSQL -U postgres -h $PG_HOST $LOCALDBNAME -c "CREATE EXTENSION IF NOT EXISTS btree_gist;"
+$CMD_PSQL -w -U postgres -h $PG_HOST $LOCALDBNAME -c "CREATE EXTENSION IF NOT EXISTS btree_gist;"
 
 echo "Enabling pg_trgm"
-$CMD_PSQL -U postgres -h $PG_HOST $LOCALDBNAME -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+$CMD_PSQL -w -U postgres -h $PG_HOST $LOCALDBNAME -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
