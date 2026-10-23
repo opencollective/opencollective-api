@@ -25,6 +25,7 @@ import {
   uniq,
 } from 'lodash';
 import moment from 'moment';
+import type { Transaction as SequelizeTransaction } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import { activities, expenseStatus, roles } from '../../constants';
@@ -73,7 +74,7 @@ import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency } from '../../lib/utils';
 import { canUserUseVendor } from '../../lib/vendor-visibility';
-import models, { Collective, sequelize, TransactionsImportRow, UploadedFile } from '../../models';
+import models, { Collective, Op, sequelize, TransactionsImportRow, UploadedFile } from '../../models';
 import AccountingCategory, { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 import Expense, {
   ExpenseDataValuesByRole,
@@ -4608,11 +4609,60 @@ export const getExpenseAmountInDifferentCurrency = async (expense: Expense, toCu
 };
 
 /**
+ * Moving the transactions of paid expenses is only safe when it doesn't change anything outside of the Collective:
+ * same main account, same host, same currency. Transactions can be recorded in another currency (e.g. the payee's), so
+ * the currency check is on the accounts.
+ */
+const checkCanMoveExpensesTransactions = async (
+  expenses: Expense[],
+  destinationAccount: Collective,
+  dbTransaction: SequelizeTransaction,
+) => {
+  const destinationMainAccountId = destinationAccount.ParentCollectiveId ?? destinationAccount.id;
+  if (
+    expenses.some(
+      expense => (expense.collective.ParentCollectiveId ?? expense.collective.id) !== destinationMainAccountId,
+    )
+  ) {
+    throw new ValidationFailed('Paid expenses can only be moved within the same Collective');
+  } else if (!destinationAccount.HostCollectiveId || !destinationAccount.isActive) {
+    throw new ValidationFailed('Paid expenses can only be moved to an account with an active fiscal host');
+  } else if (expenses.some(expense => expense.collective.currency !== destinationAccount.currency)) {
+    throw new ValidationFailed('Paid expenses can only be moved to an account with the same currency');
+  }
+
+  // Only the entries on the paying account's side: the payee's side is recorded under the payee's own host
+  const mismatchingTransactionsCount = await models.Transaction.count({
+    transaction: dbTransaction,
+    where: {
+      [Op.and]: [
+        { [Op.or]: expenses.map(expense => ({ ExpenseId: expense.id, CollectiveId: expense.CollectiveId })) },
+        { HostCollectiveId: { [Op.or]: [{ [Op.ne]: destinationAccount.HostCollectiveId }, { [Op.is]: null }] } },
+      ],
+    },
+  });
+
+  if (mismatchingTransactionsCount > 0) {
+    throw new ValidationFailed(
+      'Paid expenses can only be moved to an account with the same fiscal host as their transactions',
+    );
+  }
+};
+
+/**
  * DANGER: This function needs pre-authorization and permissions checks
  * Move expenses to destination account
  * @param expenses the list of models.Expense, with the collective association preloaded
+ * @param options.moveTransactions also move the ledger entries of paid expenses. Only supported between accounts of
+ * the same Collective (parent and its children) with the same host and currency, so that the move doesn't
+ * change host balances or amounts.
  */
-export const moveExpenses = async (req: express.Request, expenses: Expense[], destinationAccount: Collective) => {
+export const moveExpenses = async (
+  req: express.Request,
+  expenses: Expense[],
+  destinationAccount: Collective,
+  { moveTransactions = false }: { moveTransactions?: boolean } = {},
+) => {
   if (!expenses.length) {
     return [];
   } else if (destinationAccount.type === CollectiveType.USER) {
@@ -4629,7 +4679,42 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
     });
 
     if (associatedTransactionsCount > 0) {
-      throw new ValidationFailed('Cannot move expenses with associated transactions');
+      if (!moveTransactions) {
+        throw new ValidationFailed('Cannot move expenses with associated transactions');
+      }
+
+      await checkCanMoveExpensesTransactions(expenses, destinationAccount, dbTransaction);
+
+      // Debits (and their fees) are recorded on the account paying the expense, credits come from it
+      const expenseAccounts = expenses.map(expense => ({ ExpenseId: expense.id, collectiveId: expense.CollectiveId }));
+      await models.Transaction.update(
+        { CollectiveId: destinationAccount.id },
+        {
+          transaction: dbTransaction,
+          where: { [Op.or]: expenseAccounts.map(e => ({ ExpenseId: e.ExpenseId, CollectiveId: e.collectiveId })) },
+          hooks: false,
+        },
+      );
+
+      await models.Transaction.update(
+        { FromCollectiveId: destinationAccount.id },
+        {
+          transaction: dbTransaction,
+          where: { [Op.or]: expenseAccounts.map(e => ({ ExpenseId: e.ExpenseId, FromCollectiveId: e.collectiveId })) },
+          hooks: false,
+        },
+      );
+
+      await models.PaymentIntent.update(
+        { PayerCollectiveId: destinationAccount.id },
+        {
+          transaction: dbTransaction,
+          where: {
+            [Op.or]: expenseAccounts.map(e => ({ ExpenseId: e.ExpenseId, PayerCollectiveId: e.collectiveId })),
+          },
+          hooks: false,
+        },
+      );
     }
 
     // Moving associated models

@@ -28149,7 +28149,7 @@ type Mutation {
   ): BanAccountResponse!
 
   """
-  [Root only] A mutation to move expenses from one account to another
+  [Root only] A mutation to move expenses from one account to another. Paid expenses can be moved with their transactions between accounts of the same Collective (with the same host and currency).
   """
   moveExpenses(
     """
