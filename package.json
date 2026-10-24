@@ -141,7 +141,7 @@
     "chai-as-promised": "^8.0.2",
     "chai-jest-snapshot": "^2.0.0",
     "chai-sorted": "^0.2.0",
-    "chokidar": "^5.0.0",
+    "chokidar": "^6.0.0",
     "eslint": "^10.9.1",
     "eslint-config-opencollective": "^7.1.1",
     "eslint-import-resolver-typescript": "^4.4.5",
