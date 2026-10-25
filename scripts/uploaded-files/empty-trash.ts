@@ -43,7 +43,7 @@ const main = async () => {
       }
     };
 
-    queue.on('active', logProgress);
+    queue.addEventListener('active', logProgress);
 
     // Process the queue
     await queue.onIdle();

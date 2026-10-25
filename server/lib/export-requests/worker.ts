@@ -82,7 +82,7 @@ class ExportWorker {
 
   constructor() {
     this.queue = new PQueue({ concurrency: config?.exports?.concurrency || 5 });
-    this.queue.on('next', () => {
+    this.queue.addEventListener('next', () => {
       debug('Queue: task completed, pending tasks:', this.queue.pending, 'queue size:', this.queue.size);
     });
     this.controller = new AbortController();
