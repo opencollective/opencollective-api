@@ -30,3 +30,6 @@ export const PayPalSupportedCurrencies = [
   'THB',
   'USD',
 ] as const;
+
+export const isPayPalSupportedCurrency = (currency: string): currency is (typeof PayPalSupportedCurrencies)[number] =>
+  (PayPalSupportedCurrencies as readonly string[]).includes(currency);

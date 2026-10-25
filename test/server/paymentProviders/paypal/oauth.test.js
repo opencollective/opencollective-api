@@ -5,15 +5,17 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { omit } from 'lodash';
 import nock from 'nock';
-import { stub } from 'sinon';
+import { createSandbox, stub } from 'sinon';
 import request from 'supertest';
 
 import { idEncode, IDENTIFIER_TYPES } from '../../../../server/graphql/v2/identifiers';
 import setupExpress from '../../../../server/lib/express';
+import RateLimit from '../../../../server/lib/rate-limit';
+import * as SentryLib from '../../../../server/lib/sentry';
 import models from '../../../../server/models';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import routes from '../../../../server/routes';
-import { fakeCollective, fakeUser } from '../../../test-helpers/fake-data';
+import { fakeCollective, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 const application = utils.data('application');
@@ -282,6 +284,17 @@ describe('server/paymentProviders/paypal/oauth', () => {
       expect(res.status).to.equal(400);
     });
 
+    it('returns 400 when currency is not supported by PayPal', async () => {
+      const res = await request(expressApp)
+        .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
+        .set('Authorization', `Bearer ${host.jwt()}`)
+        .set('Content-Type', 'application/json')
+        .send({ ...getValidBodyWithState(), currency: 'XAF' });
+
+      expect(res.status).to.equal(400);
+      expect(res.body.error.message).to.equal('This currency is not supported by PayPal');
+    });
+
     it('returns 404 when collective not found', async () => {
       const body = {
         code: 'abc',
@@ -423,6 +436,98 @@ describe('server/paymentProviders/paypal/oauth', () => {
 
       expect(res.status).to.equal(400);
       expect(res.body.error?.message || res.body.message || '').to.include('not verified');
+    });
+
+    describe('with the shared GraphQL logic', () => {
+      const sandbox = createSandbox();
+      let reportErrorToSentryStub;
+
+      const mockPaypalApi = () => {
+        nock('https://api.sandbox.paypal.com')
+          .post('/v1/oauth2/token')
+          .reply(200, { access_token: 'user-access-token', refresh_token: 'user-refresh-token' });
+        nock('https://api.sandbox.paypal.com')
+          .get('/v1/identity/oauth2/userinfo')
+          .query(true)
+          .reply(200, {
+            user_id: 'PAYER123',
+            verified_account: 'true',
+            emails: [{ value: 'john@example.com', primary: true, confirmed: true }],
+          });
+      };
+
+      const postConnect = body =>
+        request(expressApp)
+          .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
+          .set('Authorization', `Bearer ${host.jwt()}`)
+          .set('Content-Type', 'application/json')
+          .send(body);
+
+      beforeEach(async () => {
+        reportErrorToSentryStub = sandbox.stub(SentryLib, 'reportErrorToSentry');
+        await new RateLimit(`paypal-connect-${host.id}`, 10, 30 * 60).reset();
+      });
+
+      afterEach(() => {
+        sandbox.restore();
+      });
+
+      it('updates an existing payout method in place', async () => {
+        const existingPayoutMethod = await fakePayoutMethod({
+          type: PayoutMethodTypes.PAYPAL,
+          CollectiveId: collective.id,
+          currency: 'EUR',
+          data: { email: 'john@example.com', currency: 'EUR' },
+        });
+
+        mockPaypalApi();
+        const res = await postConnect({
+          ...getValidBodyWithState(),
+          payoutMethodId: idEncode(existingPayoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+        });
+
+        expect(res.status).to.equal(200);
+        const connectedAccount = await models.ConnectedAccount.findOne({ where: { CollectiveId: collective.id } });
+        expect(res.body).to.deep.equal({
+          connectedAccountId: idEncode(connectedAccount.id, IDENTIFIER_TYPES.CONNECTED_ACCOUNT),
+          payoutMethodId: idEncode(existingPayoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+        });
+
+        await existingPayoutMethod.reload();
+        expect(existingPayoutMethod.currency).to.equal('USD');
+        expect(existingPayoutMethod.ConnectedAccountId).to.equal(connectedAccount.id);
+        expect(existingPayoutMethod.data.isPayPalOAuth).to.be.true;
+        expect(await models.PayoutMethod.count({ where: { CollectiveId: collective.id } })).to.equal(1);
+      });
+
+      it('returns 404 when the payout method is not found', async () => {
+        const res = await postConnect({
+          ...getValidBodyWithState(),
+          payoutMethodId: idEncode(999999, IDENTIFIER_TYPES.PAYOUT_METHOD),
+        });
+
+        expect(res.status).to.equal(404);
+        expect(reportErrorToSentryStub.called).to.be.false;
+      });
+
+      it('returns 429 when rate limited', async () => {
+        await new RateLimit(`paypal-connect-${host.id}`, 10, 30 * 60).registerCall(10);
+        const res = await postConnect(getValidBodyWithState());
+
+        expect(res.status).to.equal(429);
+        expect(reportErrorToSentryStub.called).to.be.false;
+      });
+
+      it('returns 500 and reports the original error to Sentry when PayPal fails', async () => {
+        nock('https://api.sandbox.paypal.com').post('/v1/oauth2/token').reply(400, { error: 'invalid_grant' });
+        const res = await postConnect(getValidBodyWithState());
+
+        expect(res.status).to.equal(500);
+        expect(res.body.error.message).to.equal('PayPal connect failed');
+        expect(reportErrorToSentryStub.calledOnce).to.be.true;
+        expect(reportErrorToSentryStub.firstCall.args[0].message).to.include('PayPal token exchange failed');
+        expect(reportErrorToSentryStub.firstCall.args[1].req).to.exist;
+      });
     });
   });
 });
