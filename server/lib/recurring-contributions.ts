@@ -142,8 +142,7 @@ export async function processOrderWithSubscription(
     error: null,
     retriesBefore: order.Subscription.chargeRetryCount,
     retriesAfter: null,
-    // TODO: `nextCharge` does not exist on Subscription (it is `nextChargeDate`); kept as-is to preserve behaviour.
-    chargeDateBefore: dateFormat(get(order.Subscription, 'nextCharge')),
+    chargeDateBefore: dateFormat(order.Subscription.nextChargeDate),
     chargeDateAfter: null,
     nextPeriodStartBefore: dateFormat(order.Subscription.nextPeriodStart),
     nextPeriodStartAfter: null,

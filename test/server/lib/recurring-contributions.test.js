@@ -336,6 +336,15 @@ describe('server/lib/recurring-contributions', () => {
       expect(sendSpy.called).to.equal(false);
     });
 
+    it('reports the subscription next charge date as chargeDateBefore', async () => {
+      await utils.resetTestDB();
+      const { order } = await createOrderWithSubscription('month', '2018-01-27');
+
+      const entry = await processOrderWithSubscription(order, { dryRun: true });
+
+      expect(entry.chargeDateBefore).to.equal(moment(new Date('2018-01-27 0:0')).format());
+    });
+
     describe('payment outcome metrics', () => {
       let metricsCountStub;
 
