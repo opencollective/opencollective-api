@@ -3,6 +3,7 @@ import { pick } from 'lodash';
 import { QueryTypes } from 'sequelize';
 
 import { TAX_FORM_IGNORED_EXPENSE_STATUSES, TAX_FORM_IGNORED_EXPENSE_TYPES } from '../constants/tax-form';
+import Collective from '../models/Collective';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 import { memoize } from './cache';
@@ -12,12 +13,58 @@ import { amountsRequireTaxForm } from './tax-forms';
 import { ifStr } from './utils';
 
 const twoHoursInSeconds = 2 * 60 * 60;
-const models = sequelize.models;
+
+type MembersWhere = {
+  CollectiveId?: number | number[];
+  MemberCollectiveId?: number | number[];
+  HostCollectiveId?: number;
+  ParentCollectiveId?: number;
+  role?: string;
+};
+
+type MembersOptions = {
+  since?: Date;
+  until?: Date;
+  type?: string | string[];
+  limit?: number;
+  offset?: number;
+  canSeeAllPrivateCollectives?: boolean;
+  privateCollectiveAccessIds?: number[];
+};
+
+type TaxFormResult = {
+  payoutMethodType: string;
+  year?: number;
+  isUSEntity?: boolean | null;
+  countryISO?: string | null;
+  taxFormThresholds?: { US?: number; NON_US?: number } | null;
+  includePayPalExpenses?: boolean | null;
+  total: number;
+  expenseId?: number;
+  collectiveId?: number;
+};
+
+type TaxFormGroup = {
+  paypalTotal: number;
+  otherTotal: number;
+  year?: number;
+  isUSEntity?: boolean;
+  taxFormThresholds?: { US?: number; NON_US?: number };
+  includePayPalExpenses?: boolean;
+};
+
+type TopSponsorRow = {
+  slug: string;
+  totalDonations?: number;
+  totalDonationsLast3months?: number;
+  collectives: number;
+  publicUrl?: string;
+};
 
 /*
  * Hacky way to do currency conversion
  */
-const generateFXConversionSQL = async aggregate => {
+const generateFXConversionSQL = async (aggregate?: boolean) => {
   let currencyColumn = 't.currency';
   let amountColumn = 't."netAmountInCollectiveCurrency"';
 
@@ -32,9 +79,9 @@ const generateFXConversionSQL = async aggregate => {
     .join('\n')}ELSE 0 END`;
 };
 
-const getTotalAnnualBudgetForHost = HostCollectiveId => {
+const getTotalAnnualBudgetForHost = (HostCollectiveId: number) => {
   return sequelize
-    .query(
+    .query<{ yearlyIncome: string }>(
       `
   WITH
     "collectiveids" AS (
@@ -95,11 +142,11 @@ const getTotalAnnualBudgetForHost = HostCollectiveId => {
     .then(res => Math.round(parseInt(res[0].yearlyIncome, 10)));
 };
 
-const getTotalAnnualBudget = async () => {
+const getTotalAnnualBudget = async (): Promise<number> => {
   const fxConversionSQL = await generateFXConversionSQL();
 
   return sequelize
-    .query(
+    .query<{ yearlyIncome: string }>(
       `
   SELECT
     (SELECT
@@ -265,11 +312,11 @@ export const countMembersToNotifyForUpdateSQLQuery = `
  * Returns top sponsors in the past 3 months ordered by total amount donated and number of collectives they sponsor
  * (excluding open source collective id 9805 and sponsors that have sponsored only one collective)
  */
-const getTopSponsors = () => {
+const getTopSponsors = (): Promise<TopSponsorRow[]> => {
   const d = new Date();
   d.setMonth(d.getMonth() - 3);
   return sequelize
-    .query(
+    .query<TopSponsorRow>(
       `
       WITH
       "topSponsorsLast3Months" as (
@@ -323,18 +370,26 @@ const getCollectivesOrderedByMonthlySpendingQuery = async ({
   orderDirection = 'ASC',
   limit = 0,
   offset = 0,
-}) => {
-  const whereStatement = Object.keys(where).reduce((statement, key) => `${statement} AND c."${key}"=:${key}`, '');
+}: {
+  where?: Record<string, unknown>;
+  orderDirection?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<{ total: number | string | false; collectives: Collective[] }> => {
+  const whereStatement = Object.keys(where).reduce(
+    (statement: string, key: string) => `${statement} AND c."${key}"=:${key}`,
+    '',
+  );
 
   const d = new Date();
   const since = new Date(d.setDate(d.getDate() - 90));
 
   const params = {
     replacements: { ...where, since },
-    model: models.Collective,
+    model: Collective,
   };
 
-  const sql = fields =>
+  const sql = (fields: string) =>
     `
     SELECT c.id,
     (CASE
@@ -357,24 +412,31 @@ const getCollectivesOrderedByMonthlySpendingQuery = async ({
   `.replace(/\s\s+/g, ' ');
 
   // If we use this query to get the monthlySpending of one single collective, we don't need to perform a count query
-  const countPromise =
+  const countPromise: Promise<number | string | false> =
     typeof where.id === 'number'
       ? Promise.resolve(1)
       : sequelize
-          .query(`${sql('COUNT(c.*) OVER() as "total"')} LIMIT 1`, params)
-          .then(res => res.length === 1 && res[0].dataValues.total);
+          .query<{ total: number | string }>(`${sql('COUNT(c.*) OVER() as "total"')} LIMIT 1`, {
+            replacements: params.replacements,
+            type: QueryTypes.SELECT,
+            raw: true,
+          })
+          .then(res => res.length === 1 && res[0].total);
 
   const [total, collectives] = await Promise.all([
     countPromise,
-    sequelize.query(`${sql('c.*')} LIMIT ${limit} OFFSET ${offset}`, params),
+    sequelize.query<Collective>(`${sql('c.*')} LIMIT ${limit} OFFSET ${offset}`, {
+      ...params,
+      type: QueryTypes.SELECT,
+    }),
   ]);
 
   return { total, collectives };
 };
 
-const getMembersOfCollectiveWithRole = CollectiveIds => {
+const getMembersOfCollectiveWithRole = (CollectiveIds: number | number[]): Promise<Collective[]> => {
   const collectiveids = typeof CollectiveIds === 'number' ? [CollectiveIds] : CollectiveIds;
-  return sequelize.query(
+  return sequelize.query<Collective>(
     `
     WITH memberships AS (
       SELECT c.*, MAX(u.email) as email, string_agg(distinct m.role,',') as roles
@@ -389,7 +451,7 @@ const getMembersOfCollectiveWithRole = CollectiveIds => {
     {
       replacements: { collectiveids },
       type: QueryTypes.SELECT,
-      model: models.Collective,
+      model: Collective,
     },
   );
 };
@@ -407,7 +469,7 @@ const getMembersOfCollectiveWithRole = CollectiveIds => {
  * the caller. The generated SQL references the `:privateCollectiveAccessIds`
  * replacement when the user has direct access to some private collectives.
  */
-const getPrivateCollectivesSQLCondition = (options = {}, tableAlias = 'c') => {
+const getPrivateCollectivesSQLCondition = (options: MembersOptions = {}, tableAlias = 'c') => {
   if (options.canSeeAllPrivateCollectives) {
     return '';
   } else if (options.privateCollectiveAccessIds?.length > 0) {
@@ -426,8 +488,8 @@ const getPrivateCollectivesSQLCondition = (options = {}, tableAlias = 'c') => {
  * Returns all the members of a collective with their `totalDonations` and
  * `role` (HOST/ADMIN/BACKER)
  */
-const getMembersWithTotalDonations = (where, options = {}) => {
-  const untilCondition = table => {
+const getMembersWithTotalDonations = (where: MembersWhere, options: MembersOptions = {}): Promise<Collective[]> => {
+  const untilCondition = (table: string) => {
     let condition = '';
     if (options.since) {
       condition += `AND ${table}."createdAt" >= '${options.since.toISOString().toString().substr(0, 10)}'`;
@@ -440,14 +502,14 @@ const getMembersWithTotalDonations = (where, options = {}) => {
 
   const roleCond = where.role ? `AND member.role = :role` : '';
 
-  let types,
+  let types: string[] = undefined,
     filterByMemberCollectiveType = '';
   if (options.type) {
     types = typeof options.type === 'string' ? options.type.split(',') : options.type;
     filterByMemberCollectiveType = 'AND c.type IN (:types)';
   }
 
-  let memberCondAttribute, transactionType, groupBy;
+  let memberCondAttribute: 'CollectiveId' | 'MemberCollectiveId', transactionType: 'CREDIT' | 'DEBIT', groupBy: string;
   if (where.CollectiveId) {
     memberCondAttribute = 'CollectiveId';
     transactionType = 'CREDIT';
@@ -463,7 +525,7 @@ const getMembersWithTotalDonations = (where, options = {}) => {
   const selector = `member."${groupBy}" as "${groupBy}", max(member."${memberCondAttribute}") as "${memberCondAttribute}"`;
 
   // Stats query builder to get stats about transactions
-  const buildTransactionsStatsQuery = sourceCollectiveIdColName => `
+  const buildTransactionsStatsQuery = (sourceCollectiveIdColName: string) => `
     SELECT
       "${sourceCollectiveIdColName}",
       ${
@@ -523,7 +585,7 @@ const getMembersWithTotalDonations = (where, options = {}) => {
     LIMIT :limit OFFSET :offset
   `;
 
-  return sequelize.query(
+  return sequelize.query<Collective>(
     query.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
     {
       replacements: {
@@ -535,18 +597,18 @@ const getMembersWithTotalDonations = (where, options = {}) => {
         privateCollectiveAccessIds: options.privateCollectiveAccessIds || [],
       },
       type: QueryTypes.SELECT,
-      model: models.Collective,
+      model: Collective,
     },
   );
 };
 
-const getMembersWithBalance = (where, options = {}) => {
+const getMembersWithBalance = (where: MembersWhere, options: MembersOptions = {}): Promise<Collective[]> => {
   const { until } = options;
-  const untilCondition = table =>
+  const untilCondition = (table: string) =>
     until ? `AND ${table}."createdAt" < '${until.toISOString().toString().substr(0, 10)}'` : '';
   const roleCond = where.role ? `AND member.role = :role` : '';
 
-  let types,
+  let types: string[] = undefined,
     filterByMemberCollectiveType = '';
   if (options.type) {
     types = typeof options.type === 'string' ? options.type.split(',') : options.type;
@@ -558,7 +620,7 @@ const getMembersWithBalance = (where, options = {}) => {
     whereCondition += `AND c."${key}"=:${key} `;
   });
 
-  let memberCondAttribute, groupBy;
+  let memberCondAttribute: 'CollectiveId' | 'MemberCollectiveId', groupBy: string;
   if (where.CollectiveId) {
     memberCondAttribute = 'CollectiveId';
     groupBy = 'MemberCollectiveId';
@@ -627,21 +689,21 @@ const getMembersWithBalance = (where, options = {}) => {
     privateCollectiveAccessIds: options.privateCollectiveAccessIds || [],
   };
 
-  return sequelize.query(
+  return sequelize.query<Collective>(
     query.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
     {
       replacements,
       type: QueryTypes.SELECT,
-      model: models.Collective,
+      model: Collective,
     },
   );
 };
 
-const getTotalNumberOfActiveCollectives = (since, until) => {
+const getTotalNumberOfActiveCollectives = (since?: Date, until?: Date) => {
   const sinceClause = since ? `AND t."createdAt" >= '${since.toISOString()}'` : '';
   const untilClause = until ? `AND t."createdAt" < '${until.toISOString()}'` : '';
   return sequelize
-    .query(
+    .query<{ count: string }>(
       `
     SELECT COUNT(DISTINCT("CollectiveId")) as count
     FROM "Transactions" t
@@ -657,7 +719,7 @@ const getTotalNumberOfActiveCollectives = (since, until) => {
 
 const getTotalNumberOfDonors = () => {
   return sequelize
-    .query(
+    .query<{ count: string }>(
       `
     SELECT COUNT(DISTINCT("FromCollectiveId")) as count
     FROM "Transactions" t
@@ -681,9 +743,13 @@ const getTotalNumberOfDonors = () => {
  *
  * @argument {Object[]} results - The results of a tax form query.
  */
-const getTaxFormsOverTheLimit = (results, idKey, year = undefined) => {
+const getTaxFormsOverTheLimit = (
+  results: TaxFormResult[],
+  idKey: 'expenseId' | 'collectiveId',
+  year: number = undefined,
+): Set<number> => {
   // Group results in a map like Map<idKey, { paypalTotal, otherTotal, year, isUSEntity, taxFormThresholds, includePayPalExpenses }>
-  const groupedResults = new Map();
+  const groupedResults = new Map<number, TaxFormGroup>();
   for (const result of results) {
     const groupResult = groupedResults.get(result[idKey]) || {
       paypalTotal: 0,
@@ -722,7 +788,7 @@ const getTaxFormsOverTheLimit = (results, idKey, year = undefined) => {
   }
 
   // Filter entries in the map to return a set with only the IDs that require a tax form (over the limits)
-  const resultSet = new Set();
+  const resultSet = new Set<number>();
   groupedResults.forEach((groupResult, id) => {
     if (
       amountsRequireTaxForm(groupResult.paypalTotal, groupResult.otherTotal, year || groupResult.year, {
@@ -741,8 +807,8 @@ const getTaxFormsOverTheLimit = (results, idKey, year = undefined) => {
 /**
  * @returns Set<number> - expenses IDs where a tax form is required
  */
-const getTaxFormsRequiredForExpenses = async expenseIds => {
-  const results = await sequelize.query(
+const getTaxFormsRequiredForExpenses = async (expenseIds: number[]): Promise<Set<number>> => {
+  const results = await sequelize.query<TaxFormResult>(
     `
     SELECT
       analyzed_expenses."FromCollectiveId",
@@ -840,7 +906,13 @@ const getTaxFormsRequiredForAccounts = async ({
   year,
   ignoreReceived = false,
   allTime = false,
-} = {}) => {
+}: {
+  HostCollectiveId?: number | number[];
+  CollectiveId?: number | number[];
+  year?: number;
+  ignoreReceived?: boolean;
+  allTime?: boolean;
+} = {}): Promise<Set<number>> => {
   if (CollectiveId && Array.isArray(CollectiveId) && CollectiveId.length === 0) {
     return new Set();
   } else if (!allTime && !year) {
@@ -933,7 +1005,7 @@ const getTaxFormsRequiredForAccounts = async ({
       OR host.id = c."HostCollectiveId"
     `;
 
-  const results = await sequelize.query(
+  const results = await sequelize.query<TaxFormResult>(
     `
     SELECT
       account.id as "collectiveId",
@@ -1006,18 +1078,21 @@ const getTaxFormsRequiredForAccounts = async ({
 
 const serializeCollectivesResult = JSON.stringify;
 
-const unserializeCollectivesResult = string => {
-  const result = JSON.parse(string);
-  result.collectives = result.collectives.map(collective => models.Collective.build(collective));
+const unserializeCollectivesResult = (value: string) => {
+  const result = JSON.parse(value);
+  result.collectives = result.collectives.map(collective => Collective.build(collective));
   return result;
 };
 
-const getCollectivesOrderedByMonthlySpending = memoize(getCollectivesOrderedByMonthlySpendingQuery, {
-  key: 'collectives_ordered_by_monthly_spending',
-  maxAge: twoHoursInSeconds,
-  serialize: serializeCollectivesResult,
-  unserialize: unserializeCollectivesResult,
-});
+const getCollectivesOrderedByMonthlySpending: typeof getCollectivesOrderedByMonthlySpendingQuery = memoize(
+  getCollectivesOrderedByMonthlySpendingQuery,
+  {
+    key: 'collectives_ordered_by_monthly_spending',
+    maxAge: twoHoursInSeconds,
+    serialize: serializeCollectivesResult,
+    unserialize: unserializeCollectivesResult,
+  },
+);
 
 const queries = {
   getCollectivesOrderedByMonthlySpending,

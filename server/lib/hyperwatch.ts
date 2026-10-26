@@ -2,12 +2,15 @@
 
 import hyperwatch from '@hyperwatch/hyperwatch';
 import config from 'config';
+import type { Application, NextFunction, Request, Response } from 'express';
 import expressBasicAuth from 'express-basic-auth';
+import type { Server } from 'http';
 import { get, pick } from 'lodash';
+import type { Socket } from 'net';
 
 import { md5, parseToBoolean } from './utils';
 
-const computeMask = req => {
+const computeMask = (req: Request) => {
   const maskHeaders = pick(req.headers, [
     'accept',
     'accept-language',
@@ -25,10 +28,10 @@ const computeMask = req => {
 };
 
 /**
- * @param {import('express').Application} app
- * @param {import('http').Server} [server] The HTTP server of the app, needed to serve the Hyperwatch WebSocket streams
+ * @param app
+ * @param server The HTTP server of the app, needed to serve the Hyperwatch WebSocket streams
  */
-const load = (app, server) => {
+const load = (app: Application, server?: Server) => {
   if (!config.hyperwatch || parseToBoolean(config.hyperwatch.enabled) !== true) {
     return;
   }
@@ -62,7 +65,7 @@ const load = (app, server) => {
         // The WebSocket upgrades go through the app like HTTP requests, so basic auth applies to both
         middleware: hyperwatchBasicAuth,
         // We don't serve any other WebSocket: close the upgrades that Hyperwatch doesn't own instead of leaving them hanging
-        fallback: (req, socket) => {
+        fallback: (req: Request, socket: Socket) => {
           socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
           socket.destroy();
         },
@@ -74,7 +77,7 @@ const load = (app, server) => {
 
   const expressInput = input.express.create();
 
-  app.use((req, res, next) => {
+  app.use((req: Request, res: Response, next: NextFunction) => {
     req.startAt = req.startAt || new Date();
 
     req.mask = computeMask(req);
@@ -87,7 +90,7 @@ const load = (app, server) => {
       req.finishedAt = new Date();
       req.endAt = req.endAt || new Date();
       try {
-        const executionTime = req.endAt - req.startAt;
+        const executionTime = req.endAt.getTime() - req.startAt.getTime();
         let log = hyperwatch.util.createLog(req, res).set('executionTime', executionTime);
 
         log = log.deleteIn(['request', 'headers', 'authorization']);

@@ -8,6 +8,7 @@ import intervals from '../constants/intervals';
 import status from '../constants/order-status';
 import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import roles from '../constants/roles';
+import type { Order } from '../models';
 import models from '../models';
 
 import { notify } from './notifications/email';
@@ -31,12 +32,41 @@ import { sleep, toIsoDateStr } from './utils';
 /** Maximum number of attempts before an order gets cancelled. */
 export const MAX_RETRIES = 6;
 
+type ProcessedOrderCsvEntry = {
+  orderId: number;
+  subscriptionId: number;
+  amount: number;
+  from: string;
+  to: string;
+  status: string | null;
+  error: string | null;
+  retriesBefore: number;
+  retriesAfter: number | null;
+  chargeDateBefore: string;
+  chargeDateAfter: string | null;
+  nextPeriodStartBefore: string;
+  nextPeriodStartAfter: string | null;
+};
+
+type ChargeAndPeriodStartDates = {
+  nextPeriodStart?: Date;
+  nextChargeDate?: Date;
+};
+
+type ProcessedOrderActivityData = Record<string, unknown> & {
+  fromCollective: { id: number };
+};
+
 /** Find all orders with subscriptions that are active & due.
  *
  * Subscriptions are considered due if their `nextChargeDate` is
  * already past.
  */
-export async function ordersWithPendingCharges({ limit, startDate, limitedToOrderIds = undefined } = {}) {
+export async function ordersWithPendingCharges({
+  limit,
+  startDate,
+  limitedToOrderIds = undefined,
+}: { limit?: number; startDate?: Date; limitedToOrderIds?: number[] } = {}): Promise<{ count: number; rows: Order[] }> {
   return models.Order.findAndCountAll({
     where: {
       status: { [Op.notIn]: [status.PAUSED, status.PROCESSING] },
@@ -83,7 +113,10 @@ export async function ordersWithPendingCharges({ limit, startDate, limitedToOrde
  * Uses `lib.payments.processOrder()` to charge subscription and
  * handle both success and failure of that processing.
  */
-export async function processOrderWithSubscription(order, options) {
+export async function processOrderWithSubscription(
+  order: Order,
+  options: { dryRun?: boolean; simulate?: boolean },
+): Promise<ProcessedOrderCsvEntry | undefined> {
   // Refetch Order to be on the safe side (maybe it changed since it was retrieved)
   if (!options.dryRun) {
     const refetchOrder = await models.Order.findByPk(order.id);
@@ -99,7 +132,7 @@ export async function processOrderWithSubscription(order, options) {
       `due: ${order.Subscription.nextChargeDate}`,
   );
 
-  const csvEntry = {
+  const csvEntry: ProcessedOrderCsvEntry = {
     orderId: order.id,
     subscriptionId: order.Subscription.id,
     amount: order.totalAmount,
@@ -109,7 +142,8 @@ export async function processOrderWithSubscription(order, options) {
     error: null,
     retriesBefore: order.Subscription.chargeRetryCount,
     retriesAfter: null,
-    chargeDateBefore: dateFormat(order.Subscription.nextCharge),
+    // TODO: `nextCharge` does not exist on Subscription (it is `nextChargeDate`); kept as-is to preserve behaviour.
+    chargeDateBefore: dateFormat(get(order.Subscription, 'nextCharge')),
     chargeDateAfter: null,
     nextPeriodStartBefore: dateFormat(order.Subscription.nextPeriodStart),
     nextPeriodStartAfter: null,
@@ -118,7 +152,7 @@ export async function processOrderWithSubscription(order, options) {
   let orderProcessedStatus = 'unattempted';
   let collectiveIsArchived = false;
   let creditCardNeedsConfirmation = false;
-  let transaction;
+  let transaction: Awaited<ReturnType<typeof processOrder>>;
 
   if (!options.dryRun) {
     if (order.collective.deactivatedAt) {
@@ -153,7 +187,7 @@ export async function processOrderWithSubscription(order, options) {
         order.status = status.ERROR;
         order.data = order.data || {};
         // TODO: we should consolidate on error and remove latestError
-        order.data = { ...order.data, error: { message: error.message }, latestError: error.message };
+        order.data = { ...order.data, error: { message: error.message }, latestError: error.message } as Order['data'];
       }
 
       order.Subscription.chargeRetryCount = getChargeRetryCount(orderProcessedStatus, order);
@@ -226,7 +260,7 @@ export async function processOrderWithSubscription(order, options) {
 }
 
 /** Standard way to format dates in this script */
-function dateFormat(date) {
+function dateFormat(date: Date | string | null): string {
   return moment(date).format();
 }
 
@@ -246,8 +280,8 @@ function dateFormat(date) {
  *   3. WARN_USER: The last attempt failed. Warn user about the
  *      failure and allow them to update the payment method.
  */
-export async function handleRetryStatus(order, transaction) {
-  const errorMessage = get(order, 'data.error.message');
+export async function handleRetryStatus(order: Order, transaction?: Awaited<ReturnType<typeof processOrder>>) {
+  const errorMessage: string | undefined = get(order, 'data.error.message');
   switch (order.Subscription.chargeRetryCount) {
     case 0:
       return recordOrderProcessed(order, transaction);
@@ -280,10 +314,10 @@ export async function handleRetryStatus(order, transaction) {
  *   2. failure: Two days after today.
  *   3. processing: No change
  */
-export function getNextChargeAndPeriodStartDates(status, order) {
+export function getNextChargeAndPeriodStartDates(status: string, order: Order): ChargeAndPeriodStartDates {
   const initial = order.Subscription.nextPeriodStart || order.Subscription.createdAt;
   let nextChargeDate = moment(initial);
-  const response = {};
+  const response: ChargeAndPeriodStartDates = {};
 
   if (status === 'processing') {
     return {
@@ -331,7 +365,7 @@ export function getNextChargeAndPeriodStartDates(status, order) {
  * incremented by one. The counter is reset to zero if the status is
  * 'success'.
  */
-export function getChargeRetryCount(status, order) {
+export function getChargeRetryCount(status: string, order: Order): number {
   return status === 'success' || status === 'updated'
     ? 0
     : status === 'processing'
@@ -348,7 +382,7 @@ export function getChargeRetryCount(status, order) {
  * so a call to `order.Subscription.save()` is required after this
  * function.
  */
-function cancelSubscription(order) {
+function cancelSubscription(order: Order): void {
   order.Subscription.isActive = false;
   order.Subscription.deactivatedAt = new Date();
   order.status = status.CANCELLED;
@@ -373,7 +407,7 @@ function cancelSubscription(order) {
  *     entry is grouped under `past_due`. Otherwise, it's marked as
  *     `canceled`.
  */
-export function groupProcessedOrders(orders) {
+export function groupProcessedOrders(orders: ProcessedOrderCsvEntry[]) {
   return orders.reduce((map, value) => {
     const key = value.status === 'success' ? 'charged' : value.retriesAfter >= MAX_RETRIES ? 'canceled' : 'past_due';
     const group = map.get(key);
@@ -387,17 +421,17 @@ export function groupProcessedOrders(orders) {
       });
     }
     return map;
-  }, new Map());
+  }, new Map<string, { total: number; entries: ProcessedOrderCsvEntry[] }>());
 }
 
 /** Call cancelation function and then send confirmation email */
-async function cancelSubscriptionAndNotifyUser(order) {
+async function cancelSubscriptionAndNotifyUser(order: Order) {
   cancelSubscription(order);
   return createPaymentFailedActivity(order, true);
 }
 
 /** Send `order.cancelled.archived.collective` email */
-async function createOrderCanceledArchivedCollectiveActivity(order) {
+async function createOrderCanceledArchivedCollectiveActivity(order: Order) {
   return models.Activity.create({
     type: activities.ORDER_CANCELED_ARCHIVED_COLLECTIVE,
     CollectiveId: order.CollectiveId,
@@ -413,7 +447,7 @@ async function createOrderCanceledArchivedCollectiveActivity(order) {
 }
 
 /** Send `payment.failed` email */
-async function createPaymentFailedActivity(order, lastAttempt) {
+async function createPaymentFailedActivity(order: Order, lastAttempt: boolean) {
   const errorMessage = get(order, 'data.error.message');
 
   return models.Activity.create({
@@ -437,7 +471,11 @@ async function createPaymentFailedActivity(order, lastAttempt) {
 }
 
 /** Send `Thank you` (order.processed) email */
-export async function recordOrderProcessed(order, transaction, { isFirstPayment = false, skipEmail = false } = {}) {
+export async function recordOrderProcessed(
+  order: Order,
+  transaction?: Awaited<ReturnType<typeof processOrder>>,
+  { isFirstPayment = false, skipEmail = false }: { isFirstPayment?: boolean; skipEmail?: boolean } = {},
+): Promise<void> {
   const attachments = [];
   const { collective, paymentMethod } = order;
 
@@ -445,7 +483,7 @@ export async function recordOrderProcessed(order, transaction, { isFirstPayment 
   const host = await order.collective.getHostCollective();
   const parentCollective = await collective.getParentCollective();
 
-  const data = {
+  const data: ProcessedOrderActivityData = {
     order: order.info,
     transaction: transaction ? transaction.info : { createdAt: new Date() },
     user: user.info,
@@ -499,7 +537,7 @@ export async function recordOrderProcessed(order, transaction, { isFirstPayment 
   }
 }
 
-async function createPaymentCreditCardConfirmationActivity(order) {
+async function createPaymentCreditCardConfirmationActivity(order: Order) {
   return models.Activity.create({
     type: activities.PAYMENT_CREDITCARD_CONFIRMATION,
     CollectiveId: order.CollectiveId,

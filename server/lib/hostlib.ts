@@ -1,11 +1,30 @@
 import { intersection, sum } from 'lodash';
 import pMap from 'p-map';
-import { QueryTypes } from 'sequelize';
+import { FindOptions, InferAttributes, QueryTypes } from 'sequelize';
 
+import type { SupportedCurrency } from '../constants/currencies';
 import { convertToCurrency, roundCentsAmount } from '../lib/currency';
 import models, { Op, sequelize } from '../models';
+import type Transaction from '../models/Transaction';
 
-export function getHostedCollectives(hostid, startDate, endDate = new Date()) {
+type TransactionWhere = NonNullable<FindOptions<InferAttributes<Transaction>>['where']> & {
+  type?: string;
+};
+
+type TransactionSumRow = {
+  amount: number;
+  currency?: SupportedCurrency;
+  hostCurrency?: SupportedCurrency;
+};
+
+export type BackersStats = {
+  total: number;
+  repeat: number;
+  new: number;
+  inactive: number;
+};
+
+export function getHostedCollectives(hostid: number, startDate: Date | string, endDate: Date = new Date()) {
   return sequelize.query(
     `
     with "members" as (
@@ -33,9 +52,13 @@ export function getHostedCollectives(hostid, startDate, endDate = new Date()) {
   );
 }
 
-export function getBackersStats(startDate = new Date('2015-01-01'), endDate = new Date(), collectiveids) {
-  const getBackersIds = (startDate, endDate) => {
-    const where = {
+export function getBackersStats(
+  startDate: Date = new Date('2015-01-01'),
+  endDate: Date = new Date(),
+  collectiveids?: number[],
+): Promise<BackersStats> {
+  const getBackersIds = (startDate: Date, endDate: Date) => {
+    const where: TransactionWhere = {
       type: 'CREDIT',
       createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
     };
@@ -50,7 +73,7 @@ export function getBackersStats(startDate = new Date('2015-01-01'), endDate = ne
     }).then(rows => rows.map(r => r.dataValues.CollectiveId));
   };
 
-  const stats = {};
+  const stats: BackersStats = { total: 0, repeat: 0, new: 0, inactive: 0 };
 
   return Promise.all([
     getBackersIds(new Date('2015-01-01'), endDate),
@@ -65,8 +88,12 @@ export function getBackersStats(startDate = new Date('2015-01-01'), endDate = ne
   });
 }
 
-export async function sumTransactionsBy(groupBy, attribute, query) {
-  const findAllQuery = {
+export async function sumTransactionsBy(
+  groupBy: string,
+  attribute: string,
+  query: FindOptions<InferAttributes<Transaction>>,
+): Promise<TransactionSumRow[]> {
+  const findAllQuery: FindOptions<InferAttributes<Transaction>> = {
     attributes: [[sequelize.fn('SUM', sequelize.fn('COALESCE', sequelize.col(attribute), 0)), 'amount'], groupBy],
     group: [`Transaction.${groupBy}`],
     ...query,
@@ -74,13 +101,16 @@ export async function sumTransactionsBy(groupBy, attribute, query) {
   const transactions = await models.Transaction.findAll(findAllQuery);
   // when it's a raw query, the result is not in dataValues
   if (query.raw) {
-    return transactions;
+    return transactions as TransactionSumRow[];
   } else {
     return transactions.map(r => r.dataValues);
   }
 }
 
-export function sumTransactionsByCurrency(attribute = 'netAmountInCollectiveCurrency', query) {
+export function sumTransactionsByCurrency(
+  attribute = 'netAmountInCollectiveCurrency',
+  query: FindOptions<InferAttributes<Transaction>>,
+) {
   const groupByCurrency = [
     'amountInHostCurrency',
     'paymentProcessorFeeInHostCurrency',
@@ -97,18 +127,22 @@ export function sumTransactionsByCurrency(attribute = 'netAmountInCollectiveCurr
 /**
  * Sum an attribute of the Transactions table and return the result by currency with the total in host currency
  *
- * @param {*} attribute column to sum, e.g. 'netAmountInCollectiveCurrency' or 'hostFeeInHostCurrency'
- * @param {*} query query clause to reduce the scope
- * @param {*} hostCurrency currency of the host
+ * @param attribute column to sum, e.g. 'netAmountInCollectiveCurrency' or 'hostFeeInHostCurrency'
+ * @param query query clause to reduce the scope
+ * @param hostCurrency currency of the host
  *
  * @post {
  *   byCurrency: [ { amount: Float!, currency: 'USD' }]
  *   totalInHostCurrency: Float!
  * }
  */
-export async function sumTransactions(attribute, query = {}, hostCurrency) {
+export async function sumTransactions(
+  attribute: string,
+  query: FindOptions<InferAttributes<Transaction>> = {},
+  hostCurrency?: SupportedCurrency,
+) {
   const amountsByCurrency = await sumTransactionsByCurrency(attribute, query);
-  const targetCurrency = hostCurrency || 'USD';
+  const targetCurrency: SupportedCurrency = hostCurrency || 'USD';
   const convertedAmounts = await pMap(amountsByCurrency, s =>
     convertToCurrency(s.amount, s.currency || s.hostCurrency, targetCurrency),
   );
@@ -119,35 +153,35 @@ export async function sumTransactions(attribute, query = {}, hostCurrency) {
 }
 
 export function getTotalHostFees(
-  collectiveids,
-  type,
-  startDate = new Date('2015-01-01'),
-  endDate = new Date(),
-  hostCurrency = 'USD',
+  collectiveids: number[],
+  type?: string,
+  startDate: Date = new Date('2015-01-01'),
+  endDate: Date = new Date(),
+  hostCurrency: SupportedCurrency = 'USD',
 ) {
-  const where = {
+  const where: TransactionWhere = {
     CollectiveId: { [Op.in]: collectiveids },
     createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
   };
   if (type) {
     where.type = type;
   }
-  return sumTransactions('hostFeeInHostCurrency', where, hostCurrency);
+  return sumTransactions('hostFeeInHostCurrency', { where }, hostCurrency);
 }
 
 export function getTotalNetAmount(
-  collectiveids,
-  type,
-  startDate = new Date('2015-01-01'),
-  endDate = new Date(),
-  hostCurrency = 'USD',
+  collectiveids: number[],
+  type?: string,
+  startDate: Date = new Date('2015-01-01'),
+  endDate: Date = new Date(),
+  hostCurrency: SupportedCurrency = 'USD',
 ) {
-  const where = {
+  const where: TransactionWhere = {
     CollectiveId: { [Op.in]: collectiveids },
     createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
   };
   if (type) {
     where.type = type;
   }
-  return sumTransactions('netAmountInCollectiveCurrency', where, hostCurrency);
+  return sumTransactions('netAmountInCollectiveCurrency', { where }, hostCurrency);
 }
