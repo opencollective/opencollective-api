@@ -1,4 +1,5 @@
 import debugLib from 'debug';
+import type { NextFunction, Request, Response } from 'express';
 import { map } from 'lodash';
 
 import errors from '../lib/errors';
@@ -7,9 +8,16 @@ import { HandlerType, reportErrorToSentry } from '../lib/sentry';
 
 const debug = debugLib('error-handler');
 
-const isKnownError = error => {
+type ExpressError = Error & {
+  code?: number;
+  status?: number;
+  type?: string;
+  errors?: { path?: string }[];
+};
+
+const isKnownError = (error: Error) => {
   try {
-    return Object.keys(errors).some(errorClass => error instanceof errors[errorClass]);
+    return Object.values(errors).some(errorClass => error instanceof errorClass);
   } catch {
     debug('isKnownError crash', error, Object.keys(errors), errors);
     return false;
@@ -19,7 +27,7 @@ const isKnownError = error => {
 /**
  * error handler of the api
  */
-export default (err, req, res, next) => {
+export default (err: ExpressError, req: Request, res: Response, next: NextFunction) => {
   if (res.headersSent) {
     return next(err);
   }

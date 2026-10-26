@@ -1,11 +1,12 @@
 import config from 'config';
+import type { Request, Response } from 'express';
 import { get } from 'lodash';
 
 const GITBOOK_API_URL = get(config, 'gitbook.apiUrl');
 const GITBOOK_API_KEY = get(config, 'gitbook.apiKey');
 const GITBOOK_SPACE_ID = get(config, 'gitbook.spaceId');
 
-export async function search(req, res) {
+export async function search(req: Request, res: Response) {
   const { query } = req.query;
 
   if (typeof query !== 'string') {
