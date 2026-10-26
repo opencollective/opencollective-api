@@ -606,6 +606,117 @@ describe('server/lib/tax-forms', () => {
         expect(accounts.has(accountWithINRBelowThreshold.id)).to.be.false;
       });
 
+      describe('allTime (multi-year thresholds)', () => {
+        // The default threshold changed from $600 to $2,000 in 2026: `allTime` queries must
+        // evaluate each year's totals against that year's threshold instead of summing every
+        // year into a single total.
+        const paidAt = year => new Date(Date.UTC(year, 5, 15));
+
+        const createPayeeWithExpenses = async (expenses, payeeData = {}) => {
+          const payee = await fakeCollective({ type: 'ORGANIZATION', ...payeeData });
+          const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+          for (const { amount, paidAt: expensePaidAt } of expenses) {
+            await fakeExpense({
+              FromCollectiveId: payee.id,
+              CollectiveId: collectives[0].id,
+              HostCollectiveId: hostCollective.id,
+              PayoutMethodId: payoutMethod.id,
+              amount,
+              status: 'PAID',
+              paidAt: expensePaidAt,
+            });
+          }
+
+          return payee;
+        };
+
+        const getAccountsRequiringTaxForm = payee =>
+          SQLQueries.getTaxFormsRequiredForAccounts({
+            HostCollectiveId: hostCollective.id,
+            CollectiveId: [payee.id],
+            allTime: true,
+          });
+
+        it('requires a tax form when a single year crosses its own threshold', async () => {
+          // 2025 alone is over the pre-2026 $600 threshold, while the combined $1,700 is under 2026's $2,000
+          const payee = await createPayeeWithExpenses([
+            { amount: 700e2, paidAt: paidAt(2025) },
+            { amount: 1000e2, paidAt: paidAt(2026) },
+          ]);
+
+          const accounts = await getAccountsRequiringTaxForm(payee);
+          expect(accounts.has(payee.id)).to.be.true;
+        });
+
+        it('does not require a tax form when no single year crosses its threshold', async () => {
+          // Neither year is over its own threshold, while the combined $2,100 is over 2026's $2,000
+          const payee = await createPayeeWithExpenses([
+            { amount: 300e2, paidAt: paidAt(2025) },
+            { amount: 1800e2, paidAt: paidAt(2026) },
+          ]);
+
+          const accounts = await getAccountsRequiringTaxForm(payee);
+          expect(accounts.has(payee.id)).to.be.false;
+        });
+
+        it('requires a tax form when the 2026 total crosses the post-2026 threshold', async () => {
+          // 2025 is below the pre-2026 $600 threshold, while 2026 alone crosses the $2,000 threshold
+          const payee = await createPayeeWithExpenses([
+            { amount: 500e2, paidAt: paidAt(2025) },
+            { amount: 2500e2, paidAt: paidAt(2026) },
+          ]);
+
+          const accounts = await getAccountsRequiringTaxForm(payee);
+          expect(accounts.has(payee.id)).to.be.true;
+        });
+
+        it('applies the fiscal host custom threshold to the 2026 total', async () => {
+          await hostCollective.update({
+            data: {
+              ...hostCollective.data,
+              policies: {
+                ...hostCollective.data?.policies,
+                [POLICIES.TAX_FORM_THRESHOLDS]: { US: 1000e2, NON_US: 1000e2 },
+              },
+            },
+          });
+
+          // 2025 is below $600, and 2026 is above the host's $1,000 custom limit but below the $2,000 default
+          const payee = await createPayeeWithExpenses(
+            [
+              { amount: 500e2, paidAt: paidAt(2025) },
+              { amount: 1200e2, paidAt: paidAt(2026) },
+            ],
+            { countryISO: 'US' },
+          );
+
+          const accounts = await getAccountsRequiringTaxForm(payee);
+          expect(accounts.has(payee.id)).to.be.true;
+        });
+
+        it('only considers the given year when a year is provided alongside allTime', async () => {
+          // Tax form requirements are annual: a provided year must restrict the expenses considered,
+          // even when `allTime` is also passed.
+          const payee = await createPayeeWithExpenses([
+            { amount: 700e2, paidAt: paidAt(2025) },
+            { amount: 1000e2, paidAt: paidAt(2026) },
+          ]);
+
+          const getAccountsForYear = year =>
+            SQLQueries.getTaxFormsRequiredForAccounts({
+              HostCollectiveId: hostCollective.id,
+              CollectiveId: [payee.id],
+              allTime: true,
+              year,
+            });
+
+          // 2025 alone is over the pre-2026 $600 threshold
+          expect((await getAccountsForYear(2025)).has(payee.id)).to.be.true;
+          // 2026 alone is under the post-2026 $2,000 threshold
+          expect((await getAccountsForYear(2026)).has(payee.id)).to.be.false;
+        });
+      });
+
       // The host predicate is expressed as the union of two arms: "the expense was paid by
       // this host" and "the expense's collective is currently hosted by this host". These
       // tests pin the semantics of that union so the SQL can be restructured (to be

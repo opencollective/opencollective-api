@@ -737,31 +737,35 @@ const getTotalNumberOfDonors = () => {
  * Goes through the results of a tax form query and returns the set of IDs (defined by `idKey`)
  * that require a tax form.
  *
+ * Results can span multiple years (e.g. when querying `allTime`): totals are then compared to
+ * each year's threshold independently, and the ID is returned as soon as one year requires a
+ * tax form. The threshold year is always read from the result rows, which already carry the
+ * year they were aggregated for.
+ *
  * Example:
  * > getTaxFormsOverTheLimit([{ ..., expenseId: 4242, payoutMethodType: 'OTHER', total: 1000e2 }], 'expenseId')
  * Set { 4242 }
  *
  * @argument {Object[]} results - The results of a tax form query.
  */
-const getTaxFormsOverTheLimit = (
-  results: TaxFormResult[],
-  idKey: 'expenseId' | 'collectiveId',
-  year: number = undefined,
-): Set<number> => {
-  // Group results in a map like Map<idKey, { paypalTotal, otherTotal, year, isUSEntity, taxFormThresholds, includePayPalExpenses }>
-  const groupedResults = new Map<number, TaxFormGroup>();
+const getTaxFormsOverTheLimit = (results: TaxFormResult[], idKey: 'expenseId' | 'collectiveId'): Set<number> => {
+  // Group results in a map like Map<idKey, Map<year, { paypalTotal, otherTotal, isUSEntity, taxFormThresholds, includePayPalExpenses }>>
+  const groupedResults = new Map<number, Map<number, TaxFormGroup>>();
   for (const result of results) {
-    const groupResult = groupedResults.get(result[idKey]) || {
+    const id = result[idKey];
+    const resultsForId = groupedResults.get(id) || new Map<number, TaxFormGroup>();
+    groupedResults.set(id, resultsForId);
+
+    const groupResult = resultsForId.get(result.year) || {
       paypalTotal: 0,
       otherTotal: 0,
-      year: undefined,
+      year: result.year,
       isUSEntity: undefined,
       taxFormThresholds: undefined,
       includePayPalExpenses: undefined,
     };
     const totalKey = result.payoutMethodType === PayoutMethodTypes.PAYPAL ? 'paypalTotal' : 'otherTotal';
     groupResult[totalKey] += result.total;
-    groupResult.year = result.year;
 
     if (result.isUSEntity !== undefined && result.isUSEntity !== null) {
       groupResult.isUSEntity = Boolean(result.isUSEntity);
@@ -784,20 +788,23 @@ const getTaxFormsOverTheLimit = (
       groupResult.includePayPalExpenses = Boolean(result.includePayPalExpenses);
     }
 
-    groupedResults.set(result[idKey], groupResult);
+    resultsForId.set(result.year, groupResult);
   }
 
   // Filter entries in the map to return a set with only the IDs that require a tax form (over the limits)
   const resultSet = new Set<number>();
-  groupedResults.forEach((groupResult, id) => {
-    if (
-      amountsRequireTaxForm(groupResult.paypalTotal, groupResult.otherTotal, year || groupResult.year, {
-        isUSEntity: groupResult.isUSEntity,
-        taxFormThresholds: groupResult.taxFormThresholds,
-        includePayPalExpenses: groupResult.includePayPalExpenses,
-      })
-    ) {
-      resultSet.add(id);
+  groupedResults.forEach((resultsForId, id) => {
+    for (const groupResult of resultsForId.values()) {
+      if (
+        amountsRequireTaxForm(groupResult.paypalTotal, groupResult.otherTotal, groupResult.year, {
+          isUSEntity: groupResult.isUSEntity,
+          taxFormThresholds: groupResult.taxFormThresholds,
+          includePayPalExpenses: groupResult.includePayPalExpenses,
+        })
+      ) {
+        resultSet.add(id);
+        break;
+      }
     }
   });
 
@@ -894,9 +901,10 @@ const getTaxFormsRequiredForExpenses = async (expenseIds: number[]): Promise<Set
  * @param {Object} options
  * @param {number|number[]} [options.HostCollectiveId] - The host collective IDs.
  * @param {number|number[]} [options.CollectiveId] - The collective IDs.
- * @param {number} [options.year] - The year to check for. Defaults to the current year.
+ * @param {number} [options.year] - The year to check for. When set, only expenses from this
+ *   year are considered, even if `allTime` is also true: tax form requirements are annual.
  * @param {boolean} [options.ignoreReceived] - If true, ignore tax forms that have already been received.
- * @param {boolean} [options.allTime] - If true, ignore the year filter.
+ * @param {boolean} [options.allTime] - If true, ignore the year filter (unless `year` is set).
  *
  * @returns Set<number> - collective IDs where a tax form is required
  */
@@ -1056,7 +1064,7 @@ const getTaxFormsRequiredForAccounts = async ({
     AND (account."type" != 'VENDOR' OR account."data"#>>'{vendorInfo, taxFormRequired}' = 'true') -- Ignore tax from tax exempt vendors
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
-    ${ifStr(!allTime, `AND EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())) = :year`)}
+    ${ifStr(!allTime || Boolean(year), `AND EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())) = :year`)}
     ${ifStr(ignoreReceived, `AND ld.id IS NULL`)}
     GROUP BY account.id, d."documentType", EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())), COALESCE(pm."type"::text, CASE WHEN all_expenses."legacyPayoutMethod" = 'paypal' THEN 'PAYPAL' ELSE 'OTHER' END), account."data", account."countryISO", host."data"
   `,
@@ -1073,7 +1081,7 @@ const getTaxFormsRequiredForAccounts = async ({
     },
   );
 
-  return getTaxFormsOverTheLimit(results, 'collectiveId', year);
+  return getTaxFormsOverTheLimit(results, 'collectiveId');
 };
 
 const serializeCollectivesResult = JSON.stringify;
