@@ -4,6 +4,8 @@ import { readFileSync, statSync } from 'fs';
 import config from 'config';
 import type { Application } from 'express';
 
+import { getDBConf } from '../lib/db';
+
 // Only reachable through `server/e2e/index.ts`, which registers it as a before-routes hook.
 // These checks are defence in depth: environment flags alone must never expose it.
 export async function installE2EFixtures(app: Application): Promise<void> {
@@ -25,7 +27,6 @@ export async function installE2EFixtures(app: Application): Promise<void> {
       return;
     }
     owner = JSON.parse(readFileSync(file, 'utf8'));
-    const { getDBConf } = await import('../lib/db.js');
     if (
       !/^run-[a-zA-Z0-9-]+$/.test(owner.ownerRunId) ||
       !/^opencollective_pw_e2e(?:_[a-z0-9_]+)?$/.test(owner.database) ||

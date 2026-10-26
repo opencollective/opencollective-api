@@ -1,10 +1,18 @@
 import { get } from 'lodash';
 import moment from 'moment';
 
+import type { SupportedCurrency } from '../../constants/currencies';
+import type { RefundKind } from '../../constants/refund-kind';
 import { TransactionKind } from '../../constants/transaction-kind';
 import * as currency from '../../lib/currency';
 import { createRefundTransaction, findPaymentMethodProvider, isProvider } from '../../lib/payments';
+import type { Order, PaymentMethod, Transaction, User } from '../../models';
 import models, { Op } from '../../models';
+import type { BasePaymentProviderService } from '../types';
+
+type OpenCollectivePaymentProvider = Omit<BasePaymentProviderService, 'getBalance'> & {
+  getBalance: typeof getBalance;
+};
 
 /**
  * Gift Card Payment method - This payment Method works basically as an alias
@@ -18,11 +26,11 @@ import models, { Op } from '../../models';
  *  gift card payment method.
  * @return {Object} with amount & currency from the payment method.
  */
-async function getBalance(paymentMethod) {
+async function getBalance(paymentMethod: PaymentMethod): Promise<{ amount: number; currency: SupportedCurrency }> {
   if (!isProvider('opencollective.giftcard', paymentMethod)) {
     throw new Error(`Expected opencollective.giftcard but got ${paymentMethod.service}.${paymentMethod.type}`);
   }
-  let query = {
+  let query: Parameters<typeof models.Transaction.findAll>[0]['where'] = {
     PaymentMethodId: paymentMethod.id,
     kind: { [Op.ne]: TransactionKind.PAYMENT_PROCESSOR_COVER },
     type: 'DEBIT',
@@ -66,7 +74,7 @@ async function getBalance(paymentMethod) {
  * @param {models.Order} order The order instance to be processed.
  * @return {models.Transaction} the double entry generated transactions.
  */
-async function processOrder(order) {
+async function processOrder(order: Order): Promise<Transaction> {
   const paymentMethod = await models.PaymentMethod.findByPk(order.paymentMethod.id);
   // check if payment Method has expired
   if (!paymentMethod.expiryDate || moment(paymentMethod.expiryDate) < moment()) {
@@ -101,13 +109,13 @@ async function processOrder(order) {
   // finding the payment provider lib to execute the order
   const sourcePaymentMethodProvider = findPaymentMethodProvider(sourcePaymentMethod);
 
-  let creditTransaction;
+  let creditTransaction: Transaction;
   try {
     // modifying original order to then process the order of the source payment method
     order.PaymentMethodId = sourcePaymentMethod.id;
     order.paymentMethod = sourcePaymentMethod;
     // gets the Credit transaction generated
-    creditTransaction = await sourcePaymentMethodProvider.processOrder(order);
+    creditTransaction = (await sourcePaymentMethodProvider.processOrder(order)) as Transaction;
     if (order.SubscriptionId) {
       const subscription = await models.Subscription.findByPk(order.SubscriptionId);
       await subscription.update({ lastChargedAt: creditTransaction.clearedAt });
@@ -135,13 +143,13 @@ async function processOrder(order) {
   return creditTransaction;
 }
 
-async function refundTransaction(transaction, user, reason, refundKind) {
+async function refundTransaction(transaction: Transaction, user: User, reason: string, refundKind: RefundKind) {
   /* Create negative transactions for the received transaction */
   return await createRefundTransaction(transaction, 0, null, user, null, null, refundKind);
 }
 
 /* Expected API of a Payment Method Type */
-export default {
+const paymentMethodProvider: OpenCollectivePaymentProvider = {
   features: {
     recurring: true,
     waitToCharge: false,
@@ -150,3 +158,5 @@ export default {
   processOrder,
   refundTransaction,
 };
+
+export default paymentMethodProvider;

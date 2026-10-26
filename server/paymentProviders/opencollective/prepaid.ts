@@ -1,5 +1,7 @@
 import { get } from 'lodash';
 
+import type { SupportedCurrency } from '../../constants/currencies';
+import type { RefundKind } from '../../constants/refund-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate, roundCentsAmount } from '../../lib/currency';
 import {
@@ -10,7 +12,13 @@ import {
   isPlatformTipEligible,
   isProvider,
 } from '../../lib/payments';
+import type { Order, PaymentMethod, Transaction, User } from '../../models';
 import models, { Op } from '../../models';
+import type { BasePaymentProviderService } from '../types';
+
+type OpenCollectivePaymentProvider = Omit<BasePaymentProviderService, 'getBalance'> & {
+  getBalance: typeof getBalance;
+};
 
 /** Get the balance of a prepaid credit card
  *
@@ -23,7 +31,7 @@ import models, { Op } from '../../models';
  *  prepaid credit card payment method.
  * @return {Object} with amount & currency from the payment method.
  */
-async function getBalance(paymentMethod) {
+async function getBalance(paymentMethod: PaymentMethod): Promise<{ amount: number; currency: SupportedCurrency }> {
   if (!isProvider('opencollective.prepaid', paymentMethod)) {
     throw new Error(`Expected opencollective.prepaid but got ${paymentMethod.service}.${paymentMethod.type}`);
   }
@@ -67,7 +75,7 @@ async function getBalance(paymentMethod) {
  *  processing Giftcard orders, the transaction generated from it is
  *  returned.
  */
-async function processOrder(order) {
+async function processOrder(order: Order): Promise<Transaction> {
   const user = order.createdByUser;
   const {
     paymentMethod: { data },
@@ -145,13 +153,13 @@ async function processOrder(order) {
   return transaction;
 }
 
-async function refundTransaction(transaction, user, reason, refundKind) {
+async function refundTransaction(transaction: Transaction, user: User, reason: string, refundKind: RefundKind) {
   /* Create negative transactions for the received transaction */
   return await createRefundTransaction(transaction, 0, null, user, null, null, refundKind);
 }
 
 /* Expected API of a Payment Method Type */
-export default {
+const paymentMethodProvider: OpenCollectivePaymentProvider = {
   features: {
     recurring: true,
     waitToCharge: false,
@@ -160,3 +168,5 @@ export default {
   processOrder,
   refundTransaction,
 };
+
+export default paymentMethodProvider;

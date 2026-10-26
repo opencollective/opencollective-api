@@ -2,18 +2,70 @@ import config from 'config';
 import { orderBy } from 'lodash';
 import { QueryTypes } from 'sequelize';
 
+import type { SupportedCurrency } from '../constants/currencies';
 import PlatformConstants from '../constants/platform';
+import type { Collective } from '../models';
 import { sequelize } from '../models';
 
 import { getTotalMoneyManagedAmount } from './budget';
 import { getFxRate } from './currency';
 import { computeDatesAsISOStrings } from './utils';
 
+type AmountRow = {
+  _amount: number | null;
+  _currency: SupportedCurrency;
+};
+
+type TimeSeriesRow = AmountRow & {
+  date: Date;
+  amount?: number;
+  currency?: SupportedCurrency;
+};
+
+type HostFeeShareRow = TimeSeriesRow & {
+  settlementStatus: string;
+};
+
+type TransactionsTimeSeriesRow = {
+  date: Date;
+  amount: number;
+  currency: SupportedCurrency;
+};
+
+type TransactionsTimeSeriesByKindRow = TransactionsTimeSeriesRow & {
+  kind: string;
+};
+
+type PendingSettlementsOptions = {
+  startDate?: Date | null;
+  endDate?: Date | null;
+  collectiveIds?: number[] | null;
+  status?: string[];
+};
+
+type TimeSeriesOptions = {
+  startDate?: Date | null;
+  endDate?: Date | null;
+  timeUnit?: string;
+};
+
+type TotalMoneyManagedTimeSeriesOptions = TimeSeriesOptions & {
+  collectiveIds?: number[] | null;
+};
+
+type TransactionsTimeSeriesOptions = {
+  type?: string | null;
+  kind?: string | string[] | null;
+  collectiveIds?: number[] | null;
+  dateFrom?: Date | null;
+  dateTo?: Date | null;
+};
+
 /**
  * Compute the sum of the given transactions in `currency`
  * @returns number
  */
-async function computeTotal(results, currency) {
+async function computeTotal(results: AmountRow[], currency: SupportedCurrency): Promise<number> {
   let total = 0;
 
   // For sanity reasons, we handle conversion in case there is any currency mismatch
@@ -32,9 +84,14 @@ async function computeTotal(results, currency) {
 // Counts legacy PLATFORM_TIP_DEBT rows; not aware of the NEW_PLATFORM_TIPS_LEDGER opt-in
 // flow which lives on its own PLATFORM_TIP rows.
 export async function getPendingPlatformTips(
-  host,
-  { startDate = null, endDate = null, collectiveIds = null, status = ['OWED', 'INVOICED'] } = {},
-) {
+  host: Collective,
+  {
+    startDate = null,
+    endDate = null,
+    collectiveIds = null,
+    status = ['OWED', 'INVOICED'],
+  }: PendingSettlementsOptions = {},
+): Promise<number> {
   if (
     config.env === 'production' &&
     (host.slug === 'opencollective' || PlatformConstants.AllPlatformCollectiveIds.includes(host.id))
@@ -42,7 +99,7 @@ export async function getPendingPlatformTips(
     return 0;
   }
 
-  const results = await sequelize.query(
+  const results = await sequelize.query<AmountRow>(
     `SELECT SUM(t."amountInHostCurrency") AS "_amount", t."hostCurrency" as "_currency"
 FROM "Transactions" t
 INNER JOIN "TransactionSettlements" ts
@@ -73,8 +130,11 @@ GROUP BY t."hostCurrency"`,
   return computeTotal(results, host.currency);
 }
 
-async function convertCurrencyForTimeSeries(results, currency) {
-  const fxRates = {}; // FX rates are likely to be the same for all results, better cache them
+async function convertCurrencyForTimeSeries<T extends TimeSeriesRow>(
+  results: T[],
+  currency: SupportedCurrency,
+): Promise<T[]> {
+  const fxRates: Record<string, Record<string, number>> = {}; // FX rates are likely to be the same for all results, better cache them
   for (const result of results) {
     const value = result['_amount'];
     result['currency'] = currency;
@@ -96,8 +156,11 @@ async function convertCurrencyForTimeSeries(results, currency) {
   return results;
 }
 
-export async function getHostFeesTimeSeries(host, { startDate = null, endDate = null, timeUnit } = {}) {
-  const newResults = await sequelize.query(
+export async function getHostFeesTimeSeries(
+  host: Collective,
+  { startDate = null, endDate = null, timeUnit }: TimeSeriesOptions = {},
+) {
+  const newResults = await sequelize.query<TimeSeriesRow>(
     `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
 FROM "Transactions" as t1
 WHERE t1."CollectiveId" = :CollectiveId
@@ -113,11 +176,11 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
     },
   );
 
-  let legacyResults = [];
+  let legacyResults: TimeSeriesRow[] = [];
 
   const newHostFeeIntroductionDate = new Date('2021-07-01T00:00:00.000Z');
   if (startDate < newHostFeeIntroductionDate) {
-    legacyResults = await sequelize.query(
+    legacyResults = await sequelize.query<TimeSeriesRow>(
       `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
 FROM "Transactions" as t1
 WHERE t1."HostCollectiveId" = :HostCollectiveId
@@ -155,8 +218,8 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
 }
 
 export async function getTotalMoneyManagedTimeSeries(
-  host,
-  { startDate = null, endDate = null, collectiveIds = null, timeUnit } = {},
+  host: Collective,
+  { startDate = null, endDate = null, collectiveIds = null, timeUnit }: TotalMoneyManagedTimeSeriesOptions = {},
 ) {
   if (!collectiveIds) {
     const collectives = await host.getHostedCollectives({ attributes: ['id'], raw: true });
@@ -164,7 +227,7 @@ export async function getTotalMoneyManagedTimeSeries(
     collectiveIds.push(host.id);
   }
 
-  const results = await sequelize.query(
+  const results = await sequelize.query<TimeSeriesRow>(
     `SELECT
        SUM(COALESCE("amountInHostCurrency", 0)) +
        SUM(COALESCE("platformFeeInHostCurrency", 0)) +
@@ -192,21 +255,21 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
     },
   );
 
-  const balanceAtStartDate = await getTotalMoneyManagedAmount(host, {
-    endDate: startDate,
-    collectiveIds,
-    currency: host.currency,
-  });
+  const balanceOptions = { endDate: startDate, collectiveIds, currency: host.currency, loaders: null };
+  const balanceAtStartDate = await getTotalMoneyManagedAmount(host, balanceOptions);
   const timeSeries = await convertCurrencyForTimeSeries(results, host.currency);
-  let sum;
+  let sum: number | undefined;
   return timeSeries.map(point => {
     sum = (sum || 0) + point.amount;
     return { ...point, amount: Math.abs(sum + balanceAtStartDate.value) };
   });
 }
 
-export async function getHostFeeShareTimeSeries(host, { startDate = null, endDate = null, timeUnit } = {}) {
-  const results = await sequelize.query(
+export async function getHostFeeShareTimeSeries(
+  host: Collective,
+  { startDate = null, endDate = null, timeUnit }: TimeSeriesOptions = {},
+) {
+  const results = await sequelize.query<HostFeeShareRow>(
     `SELECT
       SUM(t1."amountInHostCurrency") as "_amount",
       t1."hostCurrency" as "_currency",
@@ -235,10 +298,15 @@ export async function getHostFeeShareTimeSeries(host, { startDate = null, endDat
 }
 
 export async function getPendingHostFeeShare(
-  host,
-  { startDate = null, endDate = null, collectiveIds = null, status = ['OWED', 'INVOICED'] } = {},
-) {
-  const results = await sequelize.query(
+  host: Collective,
+  {
+    startDate = null,
+    endDate = null,
+    collectiveIds = null,
+    status = ['OWED', 'INVOICED'],
+  }: PendingSettlementsOptions = {},
+): Promise<number> {
+  const results = await sequelize.query<AmountRow>(
     `SELECT SUM(t."amountInHostCurrency") AS "_amount", t."hostCurrency" as "_currency"
         FROM "Transactions" t
         INNER JOIN "TransactionSettlements" ts
@@ -279,11 +347,17 @@ export async function getPendingHostFeeShare(
  * Ex: [ { date: '2020-01-01', amount: 2000 }, { date: '2021-01-01', amount: 1000 }, ... ]
  */
 export const getTransactionsTimeSeries = async (
-  hostCollectiveId,
-  timeUnit,
-  { type = null, kind = null, collectiveIds = null, dateFrom = null, dateTo = null } = {},
-) => {
-  return sequelize.query(
+  hostCollectiveId: number,
+  timeUnit: string,
+  {
+    type = null,
+    kind = null,
+    collectiveIds = null,
+    dateFrom = null,
+    dateTo = null,
+  }: TransactionsTimeSeriesOptions = {},
+): Promise<TransactionsTimeSeriesRow[]> => {
+  return sequelize.query<TransactionsTimeSeriesRow>(
     `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum("amountInHostCurrency") as "amount", "hostCurrency" as "currency"
        FROM "Transactions"
        WHERE "HostCollectiveId" = :hostCollectiveId
@@ -315,11 +389,17 @@ export const getTransactionsTimeSeries = async (
  * Ex: [ { date: '2020-01-01', amount: 1000, kind: 'CONTRIBUTION' }, { date: '2020-01-01', amount: 1000, kind: 'ADDED_FUNDS' }, ... ]
  */
 export const getTransactionsTimeSeriesByKind = async (
-  hostCollectiveId,
-  timeUnit,
-  { type = null, kind = null, collectiveIds = null, dateFrom = null, dateTo = null } = {},
-) => {
-  return sequelize.query(
+  hostCollectiveId: number,
+  timeUnit: string,
+  {
+    type = null,
+    kind = null,
+    collectiveIds = null,
+    dateFrom = null,
+    dateTo = null,
+  }: TransactionsTimeSeriesOptions = {},
+): Promise<TransactionsTimeSeriesByKindRow[]> => {
+  return sequelize.query<TransactionsTimeSeriesByKindRow>(
     `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum("amountInHostCurrency") as "amount", "hostCurrency" as "currency", "kind"
        FROM "Transactions"
        WHERE "HostCollectiveId" = :hostCollectiveId

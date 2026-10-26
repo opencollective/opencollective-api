@@ -1,5 +1,9 @@
+import type { NextFunction, Request, Response } from 'express';
 import sanitizeHtml from 'sanitize-html';
 
+import type ActivityTypes from '../../constants/activities';
+import type { ActivityClasses } from '../../constants/activities';
+import Channels from '../../constants/channels';
 import { checkCaptcha } from '../../lib/check-captcha';
 import emailLib from '../../lib/email';
 import errors from '../../lib/errors';
@@ -8,9 +12,9 @@ import { reportErrorToSentry } from '../../lib/sentry';
 import { prependHttp } from '../../lib/url-utils';
 import models from '../../models';
 
-export const unsubscribe = async (req, res, next) => {
+export const unsubscribe = async (req: Request, res: Response, next: NextFunction) => {
   const { email, slug, token } = req.params;
-  let type = req.params.type;
+  let type: string = req.params.type;
 
   if (!emailLib.isValidUnsubscribeToken(token, email, slug, type)) {
     return next(new errors.BadRequest('Invalid token'));
@@ -28,14 +32,19 @@ export const unsubscribe = async (req, res, next) => {
       type = 'order.processed';
     }
 
-    await models.Notification.unsubscribe(type, 'email', user.id, collective?.id);
+    await models.Notification.unsubscribe(
+      type as ActivityTypes | ActivityClasses,
+      Channels.EMAIL,
+      user.id,
+      collective?.id,
+    );
     res.send({ response: 'ok' });
   } catch (e) {
     next(e);
   }
 };
 
-export const messageSupport = async (req, res) => {
+export const messageSupport = async (req: Request, res: Response) => {
   const body = req.body;
 
   if (!(body && body.name && body.email && body.message?.length)) {

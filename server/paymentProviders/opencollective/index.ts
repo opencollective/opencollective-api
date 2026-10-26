@@ -1,3 +1,5 @@
+import type { Order, Transaction } from '../../models';
+
 import collective from './collective';
 import giftcard from './giftcard';
 import host from './host';
@@ -6,8 +8,9 @@ import prepaid from './prepaid';
 import test from './test';
 
 /** Process orders from Open Collective payment method types */
-async function processOrder(order) {
-  switch (order.paymentMethod.type) {
+async function processOrder(order: Order): Promise<Transaction | void> {
+  const paymentMethodType: string = order.paymentMethod.type;
+  switch (paymentMethodType) {
     case 'prepaid':
       return prepaid.processOrder(order);
     case 'giftcard':

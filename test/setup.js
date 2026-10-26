@@ -8,7 +8,7 @@ import Sequelize from 'sequelize';
 import sinonChai from 'sinon-chai';
 
 import { checkS3Configured, dangerouslyInitNonProductionBuckets } from '../server/lib/awsS3';
-import { getDBConf } from '../server/lib/db.js';
+import { getDBConf } from '../server/lib/db';
 
 /** Tests truncate and reset data; they must never run against a dev or shared DB. */
 const REQUIRED_TEST_DATABASE_NAME = 'opencollective_test';

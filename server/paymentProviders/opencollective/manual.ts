@@ -1,6 +1,8 @@
 import { pick } from 'lodash';
 
 import { maxInteger } from '../../constants/math';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
+import type { RefundKind } from '../../constants/refund-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate, roundCentsAmount } from '../../lib/currency';
 import {
@@ -10,7 +12,9 @@ import {
   getPlatformTip,
   isPlatformTipEligible,
 } from '../../lib/payments';
+import type { Order, Transaction, User } from '../../models';
 import models from '../../models';
+import type { BasePaymentProviderService } from '../types';
 
 /**
  * Manual Payment method
@@ -22,7 +26,7 @@ import models from '../../models';
  * Since we don't have a way to check the balance of the donor, we return Infinity
  * note: since GraphQL doesn't like Infinity, we use maxInteger
  */
-async function getBalance() {
+async function getBalance(): Promise<number> {
   return maxInteger;
 }
 
@@ -31,13 +35,15 @@ async function getBalance() {
  * @param {models.Order} order The order instance to be processed.
  * @return {models.Transaction} the double entry generated transactions.
  */
-async function processOrder(order) {
+async function processOrder(order: Order): Promise<Transaction> {
   // gets the Credit transaction generated
   const host = await order.collective.getHostCollective();
 
   // In some tests, we don't have an order.paymentMethod set ...
   if (!order.paymentMethod) {
-    order.paymentMethod = { service: 'opencollective', type: 'manual' };
+    Object.assign(order, {
+      paymentMethod: { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.MANUAL },
+    });
   }
 
   const hostFeeSharePercent = await getHostFeeSharePercent(order);
@@ -97,7 +103,7 @@ async function processOrder(order) {
  * There's nothing more to do because it's up to the host/collective to see how
  * they want to actually refund the money.
  */
-const refundTransaction = async (transaction, user, reason, refundKind) => {
+const refundTransaction = async (transaction: Transaction, user: User, reason: string, refundKind: RefundKind) => {
   return createRefundTransaction(
     transaction,
     0,
@@ -110,7 +116,7 @@ const refundTransaction = async (transaction, user, reason, refundKind) => {
 };
 
 /* Expected API of a Payment Method Type */
-export default {
+const paymentMethodProvider: BasePaymentProviderService = {
   features: {
     recurring: false,
     isRecurringManagedExternally: false,
@@ -120,3 +126,5 @@ export default {
   processOrder,
   refundTransaction,
 };
+
+export default paymentMethodProvider;

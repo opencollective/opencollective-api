@@ -40,7 +40,7 @@ if (parseToBoolean(config.database.logQueryOrigin)) {
         return originalQuery.apply(this, args);
       }
 
-      const o = {};
+      const o: { stack?: string } = {};
       Error.captureStackTrace(o, pg.Client.prototype.query);
       const lines = o.stack.split(/\n/g).slice(1);
       const line = lines.find(l => !excludeLineTexts.some(t => l.includes(t)));
