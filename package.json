@@ -86,7 +86,7 @@
     "ipaddr.js": "^2.0.0",
     "jsonwebtoken": "9.0.3",
     "juice": "12.2.0",
-    "kysely": "0.29.6",
+    "kysely": "0.29.7",
     "kysely-sequelize": "^0.2.0",
     "lib-address": "0.7.0",
     "limax": "4.2.3",
