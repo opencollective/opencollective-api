@@ -27,7 +27,7 @@ function extractHostname(url: string): string {
   }
 }
 
-export function getDomain(url = ''): string {
+export function getDomain(url: string = ''): string {
   let domain = extractHostname(url);
   const splitArr = domain.split('.'),
     arrLen = splitArr.length;
@@ -56,18 +56,18 @@ export const days = (d1: Date, d2: Date = new Date()): number => {
 /**
  * export data to CSV
  */
-export function exportToCSV(
-  data: Record<string, any>[],
+export function exportToCSV<T extends object>(
+  data: T[],
   attributes: string[],
   getColumnName: (attr: string) => string = attr => attr,
-  processValue: (attr: string, val: any) => unknown = (attr, val) => val,
+  processValue: (attr: string, val: unknown) => unknown = (attr, val) => val,
 ): string {
-  const lines = [];
+  const lines: string[] = [];
 
   lines.push(`"${attributes.map(getColumnName).join('","')}"`); // Header
 
-  const getLine = row => {
-    const cols = [];
+  const getLine = (row: T): string => {
+    const cols: string[] = [];
     attributes.forEach(attr => {
       cols.push(`${processValue(attr, get(row, attr) || '')}`);
     });
@@ -136,7 +136,10 @@ interface ResizeImageOptions {
   defaultImage?: string;
 }
 
-export function resizeImage(imageUrl: string, { width, height, query, defaultImage }: ResizeImageOptions): string {
+export function resizeImage(
+  imageUrl: string,
+  { width, height, query, defaultImage }: ResizeImageOptions,
+): string | null {
   if (!imageUrl) {
     if (defaultImage) {
       imageUrl = defaultImage.substr(0, 1) === '/' ? `${config.host.website}${defaultImage}` : defaultImage;
@@ -214,7 +217,7 @@ export function formatCurrencyObject(
   currencyObj: Record<string, number>,
   options: FormatCurrencyOptions = { precision: 2, conjunction: 'and' },
 ): string {
-  const array = [];
+  const array: Array<{ value: number; str: string }> = [];
   for (const currency in currencyObj) {
     if (currencyObj[currency] > 0) {
       array.push({
@@ -253,12 +256,12 @@ export function chunkArray<T>(startArray: T[], chunkSize: number): T[][] {
 
 // This generates promises of n-length at a time
 // Useful so we don't go over api quota limit on Stripe
-export function promiseSeq<T>(
+export function promiseSeq<T, R>(
   arr: T[],
-  predicate: (item: T, index: number) => Promise<unknown>,
+  predicate: (item: T, chunkIndex: number) => Promise<R>,
   consecutive = 100,
-): Promise<unknown> {
-  return chunkArray(arr, consecutive).reduce<Promise<unknown>>((prom, items, ix) => {
+): Promise<R[]> {
+  return chunkArray(arr, consecutive).reduce<Promise<R[]>>((prom, items, ix) => {
     // wait for the previous Promise.all() to resolve
     return prom.then(() => {
       return Promise.all(
@@ -275,12 +278,13 @@ export function parseToBoolean(value: unknown): boolean {
     return value;
   }
 
-  let lowerValue = value;
+  let lowerValue: unknown = value;
   // check whether it's string
   if (lowerValue && (typeof lowerValue === 'string' || lowerValue instanceof String)) {
     lowerValue = lowerValue.trim().toLowerCase();
   }
-  if (['on', 'enabled', '1', 'true', 'yes', 1].includes(lowerValue as string | number)) {
+  const truthyValues: unknown[] = ['on', 'enabled', '1', 'true', 'yes', 1];
+  if (truthyValues.includes(lowerValue)) {
     return true;
   }
   return false;
@@ -300,7 +304,7 @@ export const filterUntil = <T>(
   filterFunc: (item: T) => boolean,
   conditionFunc: (result: T[]) => boolean,
 ): T[] => {
-  const result = [];
+  const result: T[] = [];
   for (let i = 0; i < list.length; i++) {
     if (filterFunc(list[i])) {
       result.push(list[i]);
@@ -329,7 +333,9 @@ export const toIsoDateStr = (date: Date): string => {
   return `${year}-${padStart(month.toString(), 2, '0')}-${padStart(day.toString(), 2, '0')}`;
 };
 
-export const getBearerTokenFromRequestHeaders = (req: { headers?: { authorization?: string } }): string => {
+export const getBearerTokenFromRequestHeaders = (req: {
+  headers?: { authorization?: string };
+}): string | null | undefined => {
   const header = req.headers && req.headers.authorization;
   if (!header) {
     return null;
@@ -343,35 +349,43 @@ export const getBearerTokenFromRequestHeaders = (req: { headers?: { authorizatio
   }
 };
 
-export const getBearerTokenFromCookie = (req: { cookies?: Record<string, string> }): string => {
+export const getBearerTokenFromCookie = (req: { cookies?: Record<string, string> }): string | null => {
   return req?.cookies?.accessTokenPayload && req?.cookies?.accessTokenSignature
     ? [req.cookies.accessTokenPayload, req.cookies.accessTokenSignature].join('.')
     : null;
 };
 
-export const sumByWhen = (vector: any[], iteratee: any, predicate: (value: any) => boolean): number =>
-  sumBy(filter(vector, predicate), iteratee);
+export const sumByWhen = <T>(
+  vector: T[],
+  iteratee: ((value: T) => number) | string,
+  predicate: (value: T) => boolean,
+): number => sumBy(filter(vector, predicate), iteratee);
 
 /**
  * Returns the start and end dates as ISO 8601 strings.
  */
 export const computeDatesAsISOStrings = (
-  startDate: Date | moment.Moment,
-  endDate: Date | moment.Moment,
-): { startDate: string; endDate: string } => {
+  startDate: Date | moment.Moment | null | undefined,
+  endDate: Date | moment.Moment | null | undefined,
+): { startDate: string | null; endDate: string | null } => {
   const start = startDate ? startDate.toISOString() : null;
   const end = endDate ? endDate.toISOString() : null;
 
   return { startDate: start, endDate: end };
 };
 
-const thunk = (fnOrVal: unknown): unknown => (typeof fnOrVal === 'function' ? fnOrVal() : fnOrVal);
+type Thunk<T> = T | (() => T);
+
+const thunk = <T>(fnOrVal: Thunk<T>): T => (typeof fnOrVal === 'function' ? (fnOrVal as () => T)() : fnOrVal);
 
 /**
  * Returns string if given condition is truthy, otherwise returns empty string.
  */
-export const ifStr = (condition: unknown, trueExpression: unknown, falseExpression: unknown = undefined): string =>
-  (condition ? thunk(trueExpression) : thunk(falseExpression) || '') as string;
+export const ifStr = (
+  condition: unknown,
+  trueExpression: string | (() => string),
+  falseExpression?: string | (() => string),
+): string => (condition ? thunk(trueExpression) : thunk(falseExpression) || '');
 
 export const redactSensitiveFields = fastRedact({
   serialize: false,
@@ -402,38 +416,42 @@ export const redactSensitiveFields = fastRedact({
 
 export interface TimeSeriesNode {
   date: string | Date;
-  [key: string]: any;
 }
 
-export interface FillTimeSeriesParams {
-  nodes: TimeSeriesNode[];
-  initialData: Record<string, any>;
-  startDate?: string | Date;
-  endDate?: string | Date;
-  timeUnit: any;
+export interface FillTimeSeriesParams<T extends TimeSeriesNode = TimeSeriesNode> {
+  nodes: T[];
+  initialData: Omit<T, 'date'>;
+  startDate?: moment.MomentInput;
+  endDate?: moment.MomentInput;
+  timeUnit: string;
 }
+
+type TimeSeriesPoint<T extends TimeSeriesNode> = { date: string } & Omit<T, 'date'>;
 
 /**
  * Generates a continuous time series array from an array of nodes,
  * ensuring there are entries for each interval between a specified start and end date.
  */
-export function fillTimeSeriesWithNodes({
+export function fillTimeSeriesWithNodes<T extends TimeSeriesNode>({
   nodes,
   initialData,
   startDate = undefined,
   endDate = undefined,
   timeUnit,
-}: FillTimeSeriesParams): any[] {
+}: FillTimeSeriesParams<T>): TimeSeriesPoint<T>[] {
   if (!nodes?.length) {
     return [];
   }
 
   const sortedNodes = [...nodes].sort((a, b) => new Date(a.date).valueOf() - new Date(b.date).valueOf());
 
+  // Moment accepts unit aliases at runtime (including uppercase ones) but its types only list the canonical names.
+  const momentTimeUnit = timeUnit as moment.unitOfTime.DurationConstructor;
+
   // Buckets must match the UTC-truncated node dates (e.g. DATE_TRUNC output): round in
   // UTC, and use the ISO (Monday) week start to match Postgres DATE_TRUNC('week').
   const dateFrom = startDate
-    ? moment.utc(startDate).startOf(String(timeUnit).toUpperCase() === 'WEEK' ? 'isoWeek' : timeUnit)
+    ? moment.utc(startDate).startOf(String(timeUnit).toUpperCase() === 'WEEK' ? 'isoWeek' : momentTimeUnit)
     : moment(sortedNodes[0].date).utc();
   let dateTo = endDate ? moment(endDate).utc() : moment().utc();
   if (endDate) {
@@ -443,7 +461,7 @@ export function fillTimeSeriesWithNodes({
     }
   }
   const currentDate = moment(dateFrom).utc();
-  const keyedData = {};
+  const keyedData: Record<string, TimeSeriesPoint<T>> = {};
 
   // Create entries for each interval between the start and end date
   while (currentDate.isBefore(dateTo)) {
@@ -451,7 +469,7 @@ export function fillTimeSeriesWithNodes({
       date: currentDate.toISOString(),
       ...initialData,
     };
-    currentDate.add(1, timeUnit);
+    currentDate.add(1, momentTimeUnit);
   }
 
   // Add the time series data
@@ -472,8 +490,11 @@ export function fillTimeSeriesWithNodes({
   return Object.values(keyedData);
 }
 
-export const omitDeep = (obj: Record<string, any>, keys: string[]): Record<string, any> =>
-  Object.keys(omit(obj, keys)).reduce(
-    (acc, next) => ({ ...acc, [next]: isObject(obj[next]) ? omitDeep(obj[next], keys) : obj[next] }),
+export const omitDeep = (obj: Record<string, unknown>, keys: string[]): Record<string, unknown> =>
+  Object.keys(omit(obj, keys)).reduce<Record<string, unknown>>(
+    (acc, next) => ({
+      ...acc,
+      [next]: isObject(obj[next]) ? omitDeep(obj[next] as Record<string, unknown>, keys) : obj[next],
+    }),
     {},
   );
