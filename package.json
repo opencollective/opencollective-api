@@ -129,6 +129,7 @@
     "@graphql-eslint/eslint-plugin": "^4.0.0",
     "@sentry/cli": "^3.0.0",
     "@types/express": "^5.0.6",
+    "@types/fast-redact": "^3.0.4",
     "@types/graphql-upload": "17.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/lodash": "^4.17.25",
