@@ -374,18 +374,18 @@ export const computeDatesAsISOStrings = (
   return { startDate: start, endDate: end };
 };
 
-type Thunk<T> = T | (() => T);
-
-const thunk = <T>(fnOrVal: Thunk<T>): T => (typeof fnOrVal === 'function' ? (fnOrVal as () => T)() : fnOrVal);
+type EvalThunkArgs<T> = T | (() => T);
+const evalThunk = <T>(fnOrVal: EvalThunkArgs<T>): T =>
+  typeof fnOrVal === 'function' ? (fnOrVal as () => T)() : fnOrVal;
 
 /**
  * Returns string if given condition is truthy, otherwise returns empty string.
  */
 export const ifStr = (
-  condition: unknown,
+  condition: boolean,
   trueExpression: string | (() => string),
   falseExpression?: string | (() => string),
-): string => (condition ? thunk(trueExpression) : thunk(falseExpression) || '');
+): string => (condition ? evalThunk(trueExpression) : evalThunk(falseExpression) || '');
 
 export const redactSensitiveFields = fastRedact({
   serialize: false,

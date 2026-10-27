@@ -903,8 +903,8 @@ export const generateLoaders = req => {
                     INNER JOIN "Collectives" c ON t."CollectiveId" = c.id
                   WHERE t."CollectiveId" IN (:collectiveIds)
                     AND t."deletedAt" IS NULL
-                    ${ifStr(dateFrom, 'AND t."createdAt" > :dateFrom', 'AND t."createdAt" > c."approvedAt"')}
-                    ${ifStr(dateTo, 'AND t."createdAt" <= :dateTo')}
+                    ${ifStr(Boolean(dateFrom), 'AND t."createdAt" > :dateFrom', 'AND t."createdAt" > c."approvedAt"')}
+                    ${ifStr(Boolean(dateTo), 'AND t."createdAt" <= :dateTo')}
                     AND t."HostCollectiveId" = c."HostCollectiveId"
                   GROUP BY
                     t."CollectiveId", t."hostCurrency"
