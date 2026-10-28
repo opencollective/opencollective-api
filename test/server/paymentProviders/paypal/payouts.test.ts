@@ -3,6 +3,7 @@ import paypalPayoutsSDK from '@paypal/payouts-sdk';
 import * as SentrySdk from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
+import type { SinonStub } from 'sinon';
 import { assert, createSandbox } from 'sinon';
 
 import status from '../../../../server/constants/expense-status';
@@ -18,6 +19,8 @@ import {
   fakeUser,
 } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
+/** `sandbox.stub(obj, key)` replaces the method: cast it back to the sinon stub for chaining. */
+const stubOf = (fn: (...args: never[]) => unknown) => fn as SinonStub;
 
 describe('server/paymentProviders/paypal/payouts.js', () => {
   let expense, host, collective, payoutMethod, sandbox, metricsCountStub;
@@ -93,7 +96,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       await expense.reload();
 
       assert.calledOnce(paypalLib.executePayouts);
-      expect(paypalLib.executePayouts.getCall(0).args[1]).to.containSubset({
+      expect(stubOf(paypalLib.executePayouts).getCall(0).args[1]).to.containSubset({
         sender_batch_header: {
           recipient_type: 'EMAIL',
           email_message: 'Good news, your expense was paid!',
@@ -123,7 +126,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
     });
 
     it('records a failed payment outcome metric for each expense when the batch submit fails', async () => {
-      paypalLib.executePayouts.rejects({
+      stubOf(paypalLib.executePayouts).rejects({
         message: 'PayPal refused the payout batch',
         metadata: { error: { name: 'INTERNAL_ERROR', details: [{ issue: 'INTERNAL_ERROR' }] } },
       });
@@ -154,7 +157,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         ],
       };
 
-      paypalLib.executePayouts.resolves(payoutError);
+      stubOf(paypalLib.executePayouts).resolves(payoutError);
 
       await paypalPayouts.payExpensesBatch([expense, expense2]);
       await expense.reload();
@@ -169,7 +172,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
 
     it('should mark expenses as ERROR when the PayPal request fails but executePayouts returns a parsed error', async () => {
       // Use the real executePayouts to cover its parse-on-failure path
-      paypalLib.executePayouts.restore();
+      stubOf(paypalLib.executePayouts).restore();
       const payoutError = {
         name: 'VALIDATION_ERROR',
         message: 'Invalid request - see details',
@@ -199,7 +202,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
     });
 
     it('should mark expenses as ERROR and record an activity when executePayouts returns an unexpected response', async () => {
-      paypalLib.executePayouts.resolves({ unexpected: 'response' });
+      stubOf(paypalLib.executePayouts).resolves({ unexpected: 'response' });
 
       await paypalPayouts.payExpensesBatch([expense]);
       await expense.reload();
@@ -256,7 +259,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
     });
 
     it('should create a transaction and mark expense as paid if transaction status is SUCCESS', async () => {
-      paypalLib.getBatchInfo.resolves({
+      stubOf(paypalLib.getBatchInfo).resolves({
         items: [
           {
             transaction_status: 'SUCCESS',
@@ -274,7 +277,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       await paypalPayouts.checkBatchStatus([expense]);
       const [transaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
 
-      expect(paypalLib.getBatchInfo.getCall(0)).to.have.property('lastArg', 'fake-batch-id');
+      expect(stubOf(paypalLib.getBatchInfo).getCall(0)).to.have.property('lastArg', 'fake-batch-id');
       expect(expense).to.have.property('status', 'PAID');
       expect(expense.paidAt).to.be.a('date');
       expect(expense.paidAt.toISOString()).to.eq(new Date('2024-08-15T10:30:00Z').toISOString());
@@ -295,7 +298,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
     });
 
     it('records a successful payment outcome metric when the payout item succeeds', async () => {
-      paypalLib.getBatchInfo.resolves({
+      stubOf(paypalLib.getBatchInfo).resolves({
         items: [
           {
             transaction_status: 'SUCCESS',
@@ -332,7 +335,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       });
       expense.collective = collectiveInEur;
 
-      paypalLib.getBatchInfo.resolves({
+      stubOf(paypalLib.getBatchInfo).resolves({
         items: [
           {
             transaction_status: 'SUCCESS',
@@ -354,7 +357,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       await paypalPayouts.checkBatchStatus([expense]);
       const [transaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
 
-      expect(paypalLib.getBatchInfo.getCall(0)).to.have.property('lastArg', 'fake-batch-id-eur');
+      expect(stubOf(paypalLib.getBatchInfo).getCall(0)).to.have.property('lastArg', 'fake-batch-id-eur');
       expect(expense).to.have.property('status', 'PAID');
       expect(transaction).to.have.property('paymentProcessorFeeInHostCurrency', -150); // 1.20 / 0.8
       expect(transaction).to.have.property('amountInHostCurrency', -12500);
@@ -379,7 +382,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       });
       expense.collective = collective;
 
-      paypalLib.getBatchInfo.resolves({
+      stubOf(paypalLib.getBatchInfo).resolves({
         items: [
           {
             transaction_status: 'SUCCESS',
@@ -405,7 +408,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       await paypalPayouts.checkBatchStatus([expense]);
       const [transaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
 
-      expect(paypalLib.getBatchInfo.getCall(0)).to.have.property('lastArg', 'fake-batch-id-eur');
+      expect(stubOf(paypalLib.getBatchInfo).getCall(0)).to.have.property('lastArg', 'fake-batch-id-eur');
       expect(expense).to.have.property('status', 'PAID');
       expect(transaction).to.have.property('paymentProcessorFeeInHostCurrency', -paymentProcessorFeeInHostCurrency);
       expect(transaction).to.have.property('amountInHostCurrency', -12500);
@@ -427,7 +430,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
           payout_item: { sender_item_id: expense.id.toString() },
           errors: { message: `Transaction ${transaction_status}` },
         };
-        paypalLib.getBatchInfo.resolves({ items: [payoutItem] });
+        stubOf(paypalLib.getBatchInfo).resolves({ items: [payoutItem] });
         await paypalPayouts.checkBatchStatus([expense]);
         const transactions = await expense.getTransactions({ where: { type: 'DEBIT' } });
 

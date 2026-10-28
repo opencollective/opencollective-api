@@ -1,12 +1,19 @@
 import { expect } from 'chai';
 import { v4 as uuid } from 'uuid';
 
+import { CollectiveType } from '../../../../server/constants/collectives';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import { executeOrder } from '../../../../server/lib/payments';
+import type { Transaction } from '../../../../server/models';
 import models from '../../../../server/models';
 import prepaid from '../../../../server/paymentProviders/opencollective/prepaid';
 import * as store from '../../../stores';
 import { randEmail } from '../../../stores';
 import * as utils from '../../../utils';
+
+/** These providers always return the created transaction; the shared signature also allows `void`. */
+const processOrder = async (provider, order): Promise<Transaction> =>
+  (await provider.processOrder(order)) as Transaction;
 
 describe('server/paymentProviders/opencollective/prepaid', () => {
   const PREPAID_INITIAL_BALANCE = 5000;
@@ -20,7 +27,7 @@ describe('server/paymentProviders/opencollective/prepaid', () => {
   before(async () => {
     hostAdmin = await models.User.createUserWithCollective({ name: '___', email: randEmail() });
     hostCollective = await models.Collective.create({
-      type: 'ORGANIZATION',
+      type: CollectiveType.ORGANIZATION,
       name: 'Test HOST',
       currency: CURRENCY,
       isActive: true,
@@ -54,8 +61,8 @@ describe('server/paymentProviders/opencollective/prepaid', () => {
       customerId: user.id,
       uuid: uuid(),
       data: { HostCollectiveId: hostCollective.id },
-      service: 'opencollective',
-      type: 'prepaid',
+      service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+      type: PAYMENT_METHOD_TYPE.PREPAID,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -79,7 +86,7 @@ describe('server/paymentProviders/opencollective/prepaid', () => {
       currency: 'USD',
     };
 
-    const transactions = await prepaid.processOrder(orderData);
+    const transactions = await processOrder(prepaid, orderData);
     expect(transactions).to.exist;
 
     // Check balance decreased
@@ -100,7 +107,7 @@ describe('server/paymentProviders/opencollective/prepaid', () => {
       currency: 'USD',
     };
 
-    return expect(prepaid.processOrder(orderData)).to.be.rejectedWith(
+    return expect(processOrder(prepaid, orderData)).to.be.rejectedWith(
       Error,
       "This payment method doesn't have enough funds to complete this order",
     );
@@ -119,7 +126,7 @@ describe('server/paymentProviders/opencollective/prepaid', () => {
       currency: 'USD',
     };
 
-    const transaction = await prepaid.processOrder(orderData);
+    const transaction = await processOrder(prepaid, orderData);
     expect(transaction).to.exist;
 
     // Check balance decreased
@@ -140,16 +147,18 @@ describe('server/paymentProviders/opencollective/prepaid (2)', () => {
       before(utils.resetTestDB);
 
       it('should error if payment method is not a prepaid', async () => {
-        expect(prepaid.getBalance({ service: 'opencollective', type: 'giftcard' })).to.be.eventually.rejectedWith(
-          Error,
-          'Expected opencollective.prepaid but got opencollective.giftcard',
-        );
+        expect(
+          prepaid.getBalance({
+            service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+            type: PAYMENT_METHOD_TYPE.GIFTCARD,
+          } as Parameters<typeof prepaid.getBalance>[0]),
+        ).to.be.eventually.rejectedWith(Error, 'Expected opencollective.prepaid but got opencollective.giftcard');
       });
 
       it('should return initial balance of payment method if nothing was spend on the card', async () => {
         const paymentMethod = await models.PaymentMethod.create({
-          service: 'opencollective',
-          type: 'prepaid',
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.PREPAID,
           initialBalance: 10000,
           currency: 'USD',
         });
@@ -172,8 +181,8 @@ describe('server/paymentProviders/opencollective/prepaid (2)', () => {
           currency: 'USD',
           paymentMethodData: {
             customerId: 'new-user',
-            service: 'opencollective',
-            type: 'prepaid',
+            service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+            type: PAYMENT_METHOD_TYPE.PREPAID,
             initialBalance: 10000,
             currency: 'USD',
             data: { HostCollectiveId: hostCollective.id },
@@ -212,8 +221,8 @@ describe('server/paymentProviders/opencollective/prepaid (2)', () => {
           currency: 'USD',
           paymentMethodData: {
             customerId: 'new-user',
-            service: 'opencollective',
-            type: 'prepaid',
+            service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+            type: PAYMENT_METHOD_TYPE.PREPAID,
             initialBalance: 10000,
             currency: 'USD',
           },
@@ -228,11 +237,11 @@ describe('server/paymentProviders/opencollective/prepaid (2)', () => {
       }); /* End of "should fail if payment method does not have a host id" */
 
       it('should fail if payment method from someone else is used', async () => {
-        const pmData = {
+        const pmData: Parameters<typeof models.PaymentMethod.create>[0] = {
           CollectiveId: user2.CollectiveId,
           CreatedByUserId: user2.id,
-          service: 'opencollective',
-          type: 'prepaid',
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.PREPAID,
           data: { HostCollectiveId: hostCollective.id },
           currency: 'USD',
           initialBalance: 10000,
@@ -266,8 +275,8 @@ describe('server/paymentProviders/opencollective/prepaid (2)', () => {
           currency: 'USD',
           paymentMethodData: {
             customerId: 'new-user',
-            service: 'opencollective',
-            type: 'prepaid',
+            service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+            type: PAYMENT_METHOD_TYPE.PREPAID,
             initialBalance: 10000,
             currency: 'USD',
             data: { HostCollectiveId: 2000 },

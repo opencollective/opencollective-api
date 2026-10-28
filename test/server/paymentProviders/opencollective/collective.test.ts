@@ -1,13 +1,22 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
+import { CollectiveType } from '../../../../server/constants/collectives';
+import { SupportedCurrency } from '../../../../server/constants/currencies';
+import orderStatus from '../../../../server/constants/order-status';
+import { PAYMENT_METHOD_SERVICE } from '../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import * as LibCurrency from '../../../../server/lib/currency';
+import type { Transaction } from '../../../../server/models';
 import models from '../../../../server/models';
 import collectivePaymentProvider from '../../../../server/paymentProviders/opencollective/collective';
 import testPaymentProvider from '../../../../server/paymentProviders/opencollective/test';
 import * as store from '../../../stores';
 import * as utils from '../../../utils';
+
+/** These providers always return the created transaction; the shared signature also allows `void`. */
+const processOrder = async (provider, order): Promise<Transaction> =>
+  (await provider.processOrder(order)) as Transaction;
 
 describe('server/paymentProviders/opencollective/collective', () => {
   before(async () => {
@@ -20,7 +29,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
     /** Create an order from `from` to `to` */
     const createOrder = async (from, to, amount = 5000, hostFeePercent = undefined) => {
       const paymentMethod = await models.PaymentMethod.findOne({
-        where: { type: 'collective', service: 'opencollective', CollectiveId: from.id },
+        where: { type: 'collective', service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, CollectiveId: from.id },
       });
 
       const order = await models.Order.create({
@@ -29,7 +38,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         CollectiveId: to.id,
         totalAmount: amount,
         currency: from.currency,
-        status: 'PENDING',
+        status: orderStatus.PENDING,
         PaymentMethodId: paymentMethod.id,
         data: hostFeePercent === undefined ? undefined : { hostFeePercent },
       });
@@ -37,7 +46,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
       // Bind some required properties
       order.collective = to;
       order.fromCollective = from;
-      order.createByUser = user;
+      Object.assign(order, { createByUser: user });
       order.paymentMethod = paymentMethod;
       return order;
     };
@@ -50,16 +59,19 @@ describe('server/paymentProviders/opencollective/collective', () => {
         CollectiveId: collective.id,
         totalAmount: amount,
         currency: collective.currency,
-        status: 'PENDING',
+        status: orderStatus.PENDING,
       });
       fundingOrder.collective = collective;
       fundingOrder.fromCollective = host;
-      fundingOrder.createByUser = user;
-      return testPaymentProvider.processOrder(fundingOrder);
+      Object.assign(fundingOrder, { createByUser: user });
+      return processOrder(testPaymentProvider, fundingOrder);
     };
 
     /** Create a Host and a pair of hosted Collectives. Host uses `hostCurrency`, Collectives use `collectiveCurrency`. */
-    const setupHostAndCollectives = async (collectiveCurrency, hostCurrency = 'USD') => {
+    const setupHostAndCollectives = async (
+      collectiveCurrency: SupportedCurrency,
+      hostCurrency: SupportedCurrency = 'USD',
+    ) => {
       host = await models.Collective.create({ name: `Host (${hostCurrency})`, currency: hostCurrency, isActive: true });
       user = await models.User.createUserWithCollective({ email: store.randEmail(), name: 'User' });
       const collectiveParams = {
@@ -67,7 +79,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         HostCollectiveId: host.id,
         isActive: true,
         approvedAt: new Date(),
-        type: 'COLLECTIVE',
+        type: CollectiveType.COLLECTIVE,
         CreatedByUserId: user.id,
       };
       fromCollective = await models.Collective.create({
@@ -93,7 +105,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
       it('Creates the opposite transactions', async () => {
         await checkBalances(0, 0);
         const orderData = await createOrder(fromCollective, toCollective);
-        const transaction = await testPaymentProvider.processOrder(orderData);
+        const transaction = await processOrder(testPaymentProvider, orderData);
         await checkBalances(-5000, 5000);
 
         const refund = await collectivePaymentProvider.refundTransaction(transaction, user);
@@ -110,10 +122,10 @@ describe('server/paymentProviders/opencollective/collective', () => {
       it('Cannot reimburse money if it exceeds the Collective balance', async () => {
         await checkBalances(0, 0);
         const orderData = await createOrder(fromCollective, toCollective);
-        const transaction = await testPaymentProvider.processOrder(orderData);
+        const transaction = await processOrder(testPaymentProvider, orderData);
         await checkBalances(-5000, 5000);
         const orderData2 = await createOrder(toCollective, fromCollective, 2500);
-        await testPaymentProvider.processOrder(orderData2);
+        await processOrder(testPaymentProvider, orderData2);
         await checkBalances(-2500, 2500);
         await expect(collectivePaymentProvider.refundTransaction(transaction, user)).to.be.rejectedWith(
           'Not enough funds available ($25.00 left) to process this refund ($50.00)',
@@ -153,7 +165,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         await fundCollective(fromCollective);
 
         const order = await createOrder(fromCollective, toCollective, 5000, HOST_FEE_PERCENT);
-        const transaction = await collectivePaymentProvider.processOrder(order);
+        const transaction = await processOrder(collectivePaymentProvider, order);
 
         // Main CONTRIBUTION transaction: kept in the Collective's currency, converted to the Host's currency
         expect(transaction.type).to.equal('CREDIT');
@@ -189,7 +201,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         const fromCollectiveBalanceAfterFunding = await fromCollective.getBalance({ currency: 'USD' });
 
         const order = await createOrder(fromCollective, toCollective, 5000, HOST_FEE_PERCENT);
-        const transaction = await collectivePaymentProvider.processOrder(order);
+        const transaction = await processOrder(collectivePaymentProvider, order);
         expect(await toCollective.getBalance({ currency: 'USD' })).to.equal(4950);
 
         const updatedTransaction = await collectivePaymentProvider.refundTransaction(transaction, user);
@@ -223,12 +235,12 @@ describe('server/paymentProviders/opencollective/collective', () => {
         await fundCollective(fromCollective);
 
         const order = await createOrder(fromCollective, toCollective, 5000, HOST_FEE_PERCENT);
-        const transaction = await collectivePaymentProvider.processOrder(order);
+        const transaction = await processOrder(collectivePaymentProvider, order);
         expect(await toCollective.getBalance({ currency: 'USD' })).to.equal(4950);
 
         // Send most of toCollective's balance away (no Host Fee on this second transfer)
         const secondOrder = await createOrder(toCollective, fromCollective, 4000, 0);
-        await collectivePaymentProvider.processOrder(secondOrder);
+        await processOrder(collectivePaymentProvider, secondOrder);
         expect(await toCollective.getBalance({ currency: 'USD' })).to.equal(550); // 4950 - (4000 * 1.1)
 
         await expect(collectivePaymentProvider.refundTransaction(transaction, user)).to.be.rejectedWith(
@@ -250,7 +262,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         await fundCollective(fromCollective);
 
         const order = await createOrder(fromCollective, toCollective, 5000, HOST_FEE_PERCENT);
-        const transaction = await collectivePaymentProvider.processOrder(order);
+        const transaction = await processOrder(collectivePaymentProvider, order);
 
         // Main CONTRIBUTION transaction: same currency everywhere, no conversion
         expect(transaction.type).to.equal('CREDIT');
@@ -286,7 +298,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         const fromCollectiveBalanceAfterFunding = await fromCollective.getBalance({ currency: 'USD' });
 
         const order = await createOrder(fromCollective, toCollective, 5000, HOST_FEE_PERCENT);
-        const transaction = await collectivePaymentProvider.processOrder(order);
+        const transaction = await processOrder(collectivePaymentProvider, order);
         expect(await toCollective.getBalance({ currency: 'USD' })).to.equal(4500);
 
         const updatedTransaction = await collectivePaymentProvider.refundTransaction(transaction, user);
@@ -320,12 +332,12 @@ describe('server/paymentProviders/opencollective/collective', () => {
         await fundCollective(fromCollective);
 
         const order = await createOrder(fromCollective, toCollective, 5000, HOST_FEE_PERCENT);
-        const transaction = await collectivePaymentProvider.processOrder(order);
+        const transaction = await processOrder(collectivePaymentProvider, order);
         expect(await toCollective.getBalance({ currency: 'USD' })).to.equal(4500);
 
         // Send most of toCollective's balance away (no Host Fee on this second transfer)
         const secondOrder = await createOrder(toCollective, fromCollective, 4000, 0);
-        await collectivePaymentProvider.processOrder(secondOrder);
+        await processOrder(collectivePaymentProvider, secondOrder);
         expect(await toCollective.getBalance({ currency: 'USD' })).to.equal(500); // 4500 - 4000
 
         await expect(collectivePaymentProvider.refundTransaction(transaction, user)).to.be.rejectedWith(

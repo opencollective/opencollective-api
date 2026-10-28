@@ -4,6 +4,9 @@ import nock from 'nock';
 import { createSandbox } from 'sinon';
 import request from 'supertest';
 
+import ActivityTypes from '../../../server/constants/activities';
+import channels from '../../../server/constants/channels';
+import MemberRoles from '../../../server/constants/roles';
 import app from '../../../server/index';
 import { md5 } from '../../../server/lib/utils';
 import models from '../../../server/models';
@@ -17,28 +20,28 @@ const generateToken = (email, slug, template) => {
 
 const { Collective } = models;
 
-const usersData = [
+const usersData: Array<{ name: string; email: string; role: MemberRoles; image?: string; lists?: string[] }> = [
   {
     name: 'Xavier Damman',
     email: 'xdamman+test@gmail.com',
-    role: 'ADMIN',
+    role: MemberRoles.ADMIN,
     image: 'https://pbs.twimg.com/profile_images/3075727251/5c825534ad62223ae6a539f6a5076d3c.jpeg',
   },
   {
     name: 'Aseem Sood',
     email: randEmail('test@opencollective.com'),
-    role: 'ADMIN',
+    role: MemberRoles.ADMIN,
   },
   {
     name: 'Pia Mancini',
     email: randEmail('test@opencollective.com'),
-    role: 'BACKER',
+    role: MemberRoles.BACKER,
   },
   {
     name: 'github',
     email: 'github+test@opencollective.com',
     image: 'https://assets-cdn.github.com/images/modules/logos_page/GitHub-Logo.png',
-    role: 'BACKER',
+    role: MemberRoles.BACKER,
   },
 ];
 
@@ -85,10 +88,10 @@ describe('server/routes/email', () => {
         return await Promise.all(
           lists.map(list =>
             models.Notification.create({
-              channel: 'email',
+              channel: channels.EMAIL,
               UserId: user.id,
               CollectiveId: collective.id,
-              type: list,
+              type: list as ActivityTypes,
             }),
           ),
         );

@@ -4,14 +4,23 @@ import moment from 'moment';
 import nock from 'nock';
 import { createSandbox, stub } from 'sinon';
 
+import { CollectiveType } from '../../../../server/constants/collectives';
 import { maxInteger } from '../../../../server/constants/math';
+import orderStatus from '../../../../server/constants/order-status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
+import roles from '../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../server/graphql/v2/identifiers';
+import type { Transaction } from '../../../../server/models';
 import models from '../../../../server/models';
 import giftcard from '../../../../server/paymentProviders/opencollective/giftcard';
 import creditCardLib from '../../../../server/paymentProviders/stripe/creditcard';
 import * as store from '../../../stores';
 import { fakeOrder } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
+
+/** These providers always return the created transaction; the shared signature also allows `void`. */
+const processOrder = async (provider, order): Promise<Transaction> =>
+  (await provider.processOrder(order)) as Transaction;
 
 const ORDER_TOTAL_AMOUNT = 5000;
 const STRIPE_FEE_STUBBED_VALUE = 300;
@@ -182,7 +191,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           CreatedByUserId: user1.id,
           MemberCollectiveId: user1.CollectiveId,
           CollectiveId: collective1.id,
-          role: 'ADMIN',
+          role: roles.ADMIN,
         }).then(() => {
           return user1.populateRoles();
         });
@@ -191,8 +200,8 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
       before('create a credit card payment method', () =>
         models.PaymentMethod.create({
           name: '4242',
-          service: 'stripe',
-          type: 'creditcard',
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
           token: 'tok_123456781234567812345678',
           CollectiveId: collective1.id,
           monthlyLimitPerMember: null,
@@ -214,8 +223,8 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           currency: 'USD',
           CollectiveId: userCollective.id,
           CreatedByUserId: user1.id,
-          service: 'opencollective',
-          type: 'giftcard',
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.GIFTCARD,
           confirmedAt: new Date(),
           expiryDate: moment().add(24, 'months').toDate(),
           createdAt: new Date(),
@@ -239,7 +248,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
         order.paymentMethod = giftCardPaymentMethod;
 
         try {
-          await giftcard.processOrder(order);
+          await processOrder(giftcard, order);
           throw Error('Process should not be executed...');
         } catch (error) {
           expect(error).to.exist;
@@ -264,9 +273,9 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
 
         try {
           // should succeed because card has balance
-          await giftcard.processOrder(order);
+          await processOrder(giftcard, order);
           // should fail because gift card has $0 balance
-          await giftcard.processOrder(order);
+          await processOrder(giftcard, order);
           throw Error('Process should not be executed...');
         } catch (error) {
           expect(error).to.exist;
@@ -298,9 +307,9 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
         orderEUR.paymentMethod = orderUSD.paymentMethod = giftCardPaymentMethod;
         try {
           // executing order in USD, has balance
-          await giftcard.processOrder(orderEUR);
+          await processOrder(giftcard, orderEUR);
           // executing order in EUR, still has balance
-          await giftcard.processOrder(orderUSD);
+          await processOrder(giftcard, orderUSD);
           throw Error('Process should not be executed...');
         } catch (error) {
           expect(error).to.exist;
@@ -326,7 +335,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
 
         // checking if transaction generated(CREDIT) matches the correct payment method
         // amount, currency and collectives...
-        const creditTransaction = await giftcard.processOrder(order);
+        const creditTransaction = await processOrder(giftcard, order);
         expect(creditTransaction.type).to.be.equal('CREDIT');
         expect(creditTransaction.PaymentMethodId).to.be.equal(giftCardPaymentMethod.id);
         expect(creditTransaction.UsingGiftCardFromCollectiveId).to.be.equal(giftCardEmitterCollectiveId);
@@ -378,7 +387,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           );
 
           try {
-            await giftcard.processOrder(order);
+            await processOrder(giftcard, order);
           } catch {
             // Ignore error
           }
@@ -400,7 +409,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
 
       before(async () => {
         hostCollective = await models.Collective.create({
-          type: 'ORGANIZATION',
+          type: CollectiveType.ORGANIZATION,
           name: 'Test HOST',
           currency: CURRENCY,
           isActive: true,
@@ -421,8 +430,8 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
         async () =>
           (sourcePm = await models.PaymentMethod.create({
             name: '4242',
-            service: 'stripe',
-            type: 'creditcard',
+            service: PAYMENT_METHOD_SERVICE.STRIPE,
+            type: PAYMENT_METHOD_TYPE.CREDITCARD,
             token: 'tok_123456781234567812345678',
             CollectiveId: user.collective.id,
             monthlyLimitPerMember: null,
@@ -449,8 +458,8 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           CollectiveId: user.collective.id,
           customerId: user.id,
           data: { HostCollectiveId: hostCollective.id },
-          service: 'opencollective',
-          type: 'giftcard',
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.GIFTCARD,
           createdAt: new Date(),
           updatedAt: new Date(),
           expiryDate: new Date(2042, 22, 10),
@@ -468,7 +477,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           currency: 'USD',
         });
 
-        const transaction = await giftcard.processOrder(order);
+        const transaction = await processOrder(giftcard, order);
         expect(transaction).to.exist;
 
         // Check balance decreased
@@ -554,7 +563,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           CreatedByUserId: user1.id,
           MemberCollectiveId: user1.CollectiveId,
           CollectiveId: collective1.id,
-          role: 'ADMIN',
+          role: roles.ADMIN,
         }).then(() => {
           user1.populateRoles();
         });
@@ -562,8 +571,8 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
       before('create a credit card payment method', () =>
         models.PaymentMethod.create({
           name: '4242',
-          service: 'stripe',
-          type: 'creditcard',
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
           token: 'tok_123456781234567812345678',
           CollectiveId: collective1.id,
           monthlyLimitPerMember: null,
@@ -585,8 +594,8 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           currency: 'USD',
           CollectiveId: userGiftCardCollective.id,
           CreatedByUserId: user1.id,
-          service: 'opencollective',
-          type: 'giftcard',
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.GIFTCARD,
           confirmedAt: new Date(),
           expiryDate: moment().add(24, 'months').toDate(),
           limitedToTags: ['open source'],
@@ -633,8 +642,8 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
       it('updateOrder should NOT switch to gift card limited by tags', async () => {
         const stripePm = await models.PaymentMethod.create({
           name: '4242',
-          service: 'stripe',
-          type: 'creditcard',
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
           token: 'tok_123456781234567812345678',
           CollectiveId: userGiftCardCollective.id,
           CreatedByUserId: userGiftCard.id,
@@ -645,7 +654,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           currency: 'USD',
           interval: 'month',
           isActive: true,
-        });
+        } as Parameters<typeof models.Subscription.create>[0]);
         const recurringOrder = await models.Order.create({
           CreatedByUserId: userGiftCard.id,
           FromCollectiveId: userGiftCardCollective.id,
@@ -655,7 +664,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           totalAmount: 1000,
           currency: 'USD',
           interval: 'month',
-          status: 'ACTIVE',
+          status: orderStatus.ACTIVE,
         });
 
         const gqlResult = await utils.graphqlQueryV2(
@@ -698,8 +707,8 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
 
         const stripePm = await models.PaymentMethod.create({
           name: '4242',
-          service: 'stripe',
-          type: 'creditcard',
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
           token: 'tok_123456781234567812345678',
           CollectiveId: userGiftCardCollective.id,
           CreatedByUserId: userGiftCard.id,
@@ -710,7 +719,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           currency: 'USD',
           interval: 'month',
           isActive: true,
-        });
+        } as Parameters<typeof models.Subscription.create>[0]);
         const recurringOrder = await models.Order.create({
           CreatedByUserId: userGiftCard.id,
           FromCollectiveId: userGiftCardCollective.id,
@@ -720,7 +729,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           totalAmount: 1000,
           currency: 'USD',
           interval: 'month',
-          status: 'ACTIVE',
+          status: orderStatus.ACTIVE,
         });
 
         const gqlResult = await utils.graphqlQueryV2(

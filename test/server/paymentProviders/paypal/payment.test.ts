@@ -5,9 +5,12 @@ import config from 'config';
 import nock from 'nock';
 import { stub } from 'sinon';
 
+import orderStatus from '../../../../server/constants/order-status';
 // import request from 'supertest';
 // import { v4 as uuid } from 'uuid';
 // import app from '../../../../server/index';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
+import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import models from '../../../../server/models';
 import * as paypalPayment from '../../../../server/paymentProviders/paypal/payment';
 // import * as store from '../../../stores';
@@ -128,14 +131,14 @@ describe('server/paymentProviders/paypal/payment', () => {
 
       beforeEach(async () => {
         paymentMethod = await fakePaymentMethod({
-          service: 'paypal',
-          type: 'payment',
+          service: PAYMENT_METHOD_SERVICE.PAYPAL,
+          type: PAYMENT_METHOD_TYPE.PAYMENT,
           data: { orderId: 'fake-order-id' },
         });
 
         order = await fakeOrder({
           CollectiveId: collective.id,
-          status: 'NEW',
+          status: orderStatus.NEW,
           PaymentMethodId: paymentMethod.id,
           totalAmount: 1000,
           currency: 'USD',
@@ -194,7 +197,7 @@ describe('server/paymentProviders/paypal/payment', () => {
         await fakeTransaction({
           OrderId: order.id,
           type: 'CREDIT',
-          kind: 'CONTRIBUTION',
+          kind: TransactionKind.CONTRIBUTION,
           data: { paypalCaptureId: 'fake-capture-id' },
         });
         mockPaypalOrderDetail();
@@ -246,7 +249,7 @@ describe('server/paymentProviders/paypal/payment', () => {
             OrderId: order.id,
             amount: 1000,
             currency: 'USD',
-            kind: 'CONTRIBUTION',
+            kind: TransactionKind.CONTRIBUTION,
             data: { paypalCaptureId: captureId },
           },
           { createDoubleEntry: true },

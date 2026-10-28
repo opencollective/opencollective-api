@@ -31,7 +31,7 @@ module.exports = {
         'test/server/graphql/v1/transaction.test.ts',
         'test/server/graphql/v1/user.test.ts',
         'test/server/graphql/v1/zero-decimal-currencies.test.ts',
-        'test/server/paymentProviders/opencollective/giftcard.test.js',
+        'test/server/paymentProviders/opencollective/giftcard.test.ts',
         // The following documents use gql and gqlV1 at the same time, gqlV1 will not be linted
         // grep -rl " gqlV1\`" ./test | xargs grep -rl "gql\`" | sort
         // No file anymore and it should stay like that!

@@ -1,6 +1,7 @@
 /* eslint-disable camelcase */
 
 import { expect } from 'chai';
+import type { SinonStub } from 'sinon';
 import { assert, createSandbox } from 'sinon';
 
 import { Service } from '../../../../server/constants/connected-account';
@@ -8,6 +9,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/
 import PlatformConstants from '../../../../server/constants/platform';
 import cache from '../../../../server/lib/cache';
 import stripe from '../../../../server/lib/stripe';
+import type { Transaction } from '../../../../server/models';
 import * as common from '../../../../server/paymentProviders/stripe/common';
 import creditcard from '../../../../server/paymentProviders/stripe/creditcard';
 import {
@@ -18,6 +20,8 @@ import {
   randStr,
 } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
+/** `sandbox.stub(obj, key)` replaces the method: cast it back to the sinon stub for chaining. */
+const stubOf = (fn: (...args: never[]) => unknown) => fn as SinonStub;
 
 describe('server/paymentProviders/stripe/creditcard', () => {
   describe('#processOrder()', async () => {
@@ -109,7 +113,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
     it('has tax information stored in transaction', async () => {
       await order.update({ taxAmount: 100 });
 
-      const transaction = await creditcard.processOrder(order);
+      const transaction = (await creditcard.processOrder(order)) as Transaction;
       expect(transaction.taxAmount).to.be.equal(-100);
     });
 
@@ -120,7 +124,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
             stripePaymentIntent: { id: 'pi_stored', amount: 1000, currency: 'usd', status: 'requires_action' },
           },
         });
-        stripe.paymentIntents.confirm.resolves({
+        stubOf(stripe.paymentIntents.confirm).resolves({
           id: 'pi_stored',
           status: 'succeeded',
           charges: { data: [{ id: 'ch_id', balance_transaction: 'txn_id' }] },
@@ -169,7 +173,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
 
     describe('platform tips and host revenue share', () => {
       it('should collect the platform fee as application fee', async () => {
-        stripe.balanceTransactions.retrieve.resolves({
+        stubOf(stripe.balanceTransactions.retrieve).resolves({
           amount: 1100,
           currency: 'usd',
           fee: 0,
@@ -215,7 +219,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
           platformTipAmount: 5000,
         });
 
-        stripe.balanceTransactions.retrieve.resolves({
+        stubOf(stripe.balanceTransactions.retrieve).resolves({
           amount: 250,
           currency: 'jpy',
           fee: 0,
@@ -274,7 +278,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
 
         await order.update({ totalAmount: 1100, platformTipAmount: 100 });
 
-        stripe.balanceTransactions.retrieve.resolves({
+        stubOf(stripe.balanceTransactions.retrieve).resolves({
           amount: 1100,
           currency: 'usd',
           fee: 0,
@@ -303,7 +307,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         await host.update({ currency: 'BRL', plan: 'grow-plan-2021' });
         await cache.clear();
 
-        stripe.balanceTransactions.retrieve.resolves({
+        stubOf(stripe.balanceTransactions.retrieve).resolves({
           amount: 1100,
           currency: 'BRL',
           fee_details: [],
@@ -327,7 +331,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         await host.update({ currency: 'USD', plan: 'grow-plan-2021' });
         await cache.clear();
 
-        stripe.balanceTransactions.retrieve.resolves({
+        stubOf(stripe.balanceTransactions.retrieve).resolves({
           amount: 1000,
           currency: 'USD',
           fee_details: [],

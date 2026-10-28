@@ -2,11 +2,17 @@ import { expect } from 'chai';
 import config from 'config';
 import sinon from 'sinon';
 
+import orderStatus from '../../../../server/constants/order-status';
 import * as LibCurrency from '../../../../server/lib/currency';
+import type { Transaction } from '../../../../server/models';
 import models from '../../../../server/models';
 import ManualPaymentMethod from '../../../../server/paymentProviders/opencollective/manual';
 import * as store from '../../../stores';
 import { seedDefaultVendors } from '../../../utils';
+
+/** These providers always return the created transaction; the shared signature also allows `void`. */
+const processOrder = async (provider, order): Promise<Transaction> =>
+  (await provider.processOrder(order)) as Transaction;
 
 describe('server/paymentProviders/opencollective/manual', () => {
   const hostFeePercent = 5;
@@ -14,21 +20,21 @@ describe('server/paymentProviders/opencollective/manual', () => {
   let sandbox, user, host, collective;
 
   /** Create a test PENDING order from `user` to `collective` */
-  const createOrder = async (amount = 5000, collective, options) => {
+  const createOrder = async (amount = 5000, collective, options = undefined) => {
     const order = await models.Order.create({
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
       CollectiveId: collective.id,
       totalAmount: amount,
       currency: 'USD',
-      status: 'PENDING',
+      status: orderStatus.PENDING,
       ...options,
     });
 
     // Bind some required properties
     order.collective = collective;
     order.fromCollective = user.collective;
-    order.createByUser = user;
+    Object.assign(order, { createByUser: user });
     return order;
   };
 
@@ -85,7 +91,7 @@ describe('server/paymentProviders/opencollective/manual', () => {
     it('Returns the CREDIT transaction', async () => {
       const amount = 5000;
       const order = await createOrder(amount, collective);
-      const transaction = await ManualPaymentMethod.processOrder(order);
+      const transaction = await processOrder(ManualPaymentMethod, order);
 
       expect(transaction.type).to.equal('CREDIT');
       expect(transaction.currency).to.equal('USD');
@@ -128,7 +134,7 @@ describe('server/paymentProviders/opencollective/manual', () => {
         },
       });
 
-      const creditTransaction = await ManualPaymentMethod.processOrder(order);
+      const creditTransaction = await processOrder(ManualPaymentMethod, order);
       expect(creditTransaction.currency).to.equal('EUR');
       expect(creditTransaction.hostCurrency).to.equal('USD');
       expect(creditTransaction.hostCurrencyFxRate).to.equal(1.1);
@@ -217,7 +223,7 @@ describe('server/paymentProviders/opencollective/manual', () => {
     it('Create opposite transactions', async () => {
       const amount = 5000;
       const order = await createOrder(amount, collective);
-      const transaction = await ManualPaymentMethod.processOrder(order);
+      const transaction = await processOrder(ManualPaymentMethod, order);
 
       // Check that the original transaction is correctly updated
       const updatedTransaction = await ManualPaymentMethod.refundTransaction(transaction, user);

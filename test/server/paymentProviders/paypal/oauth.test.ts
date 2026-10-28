@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import config from 'config';
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import { omit } from 'lodash';
+import { get, omit } from 'lodash';
 import nock from 'nock';
 import { createSandbox, stub } from 'sinon';
 import request from 'supertest';
@@ -400,7 +400,7 @@ describe('server/paymentProviders/paypal/oauth', () => {
         where: { CollectiveId: collective.id, type: PayoutMethodTypes.PAYPAL },
       });
       expect(payoutMethod).to.exist;
-      expect(payoutMethod.data?.email).to.equal('john@example.com');
+      expect(get(payoutMethod.data, 'email')).to.equal('john@example.com');
       expect(payoutMethod.ConnectedAccountId).to.equal(connectedAccount.id);
       expect(payoutMethod.data).not.to.have.property('connectedAccountId');
     });
@@ -521,7 +521,7 @@ describe('server/paymentProviders/paypal/oauth', () => {
         await existingPayoutMethod.reload();
         expect(existingPayoutMethod.currency).to.equal('USD');
         expect(existingPayoutMethod.ConnectedAccountId).to.equal(connectedAccount.id);
-        expect(existingPayoutMethod.data.isPayPalOAuth).to.be.true;
+        expect(get(existingPayoutMethod.data, 'isPayPalOAuth')).to.be.true;
         expect(await models.PayoutMethod.count({ where: { CollectiveId: collective.id } })).to.equal(1);
       });
 

@@ -2,6 +2,7 @@
 
 import { expect } from 'chai';
 import config from 'config';
+import type { SinonStub } from 'sinon';
 import { assert, createSandbox } from 'sinon';
 
 import { Service } from '../../../../server/constants/connected-account';
@@ -16,6 +17,8 @@ import {
   fakeUser,
 } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
+/** `sandbox.stub(obj, key)` replaces the method: cast it back to the sinon stub for chaining. */
+const stubOf = (fn: (...args: never[]) => unknown) => fn as SinonStub;
 
 describe('server/paymentProviders/stripe/common', () => {
   describe('#getOrCreateStripeCustomer()', async () => {
@@ -32,12 +35,12 @@ describe('server/paymentProviders/stripe/common', () => {
     });
 
     it('creates a new customer on stripe if one does not exist', async () => {
-      stripe.customers.create.resolves({ id: 'cus_test' });
+      stubOf(stripe.customers.create).resolves({ id: 'cus_test' });
 
       const stripeCustomer = await common.getOrCreateStripeCustomer('acc_test', collective, user);
 
       expect(stripeCustomer).to.equal('cus_test');
-      assert.calledWithMatch(stripe.customers.create, { email: user.email }, { stripeAccount: 'acc_test' });
+      assert.calledWithMatch(stubOf(stripe.customers.create), { email: user.email }, { stripeAccount: 'acc_test' });
     });
 
     it('returns existing customer', async () => {
@@ -79,7 +82,7 @@ describe('server/paymentProviders/stripe/common', () => {
     });
 
     it('clones the card payment method if not cloned already', async () => {
-      stripe.tokens.retrieve.resolves({
+      stubOf(stripe.tokens.retrieve).resolves({
         id: 'tok_platformcardtoken1234567',
         card: {
           id: 'card_platform',
@@ -87,11 +90,11 @@ describe('server/paymentProviders/stripe/common', () => {
         },
       });
 
-      stripe.paymentMethods.create.resolves({
+      stubOf(stripe.paymentMethods.create).resolves({
         id: 'pm_aclonedcardinhostaccount',
       });
 
-      stripe.paymentMethods.attach.resolves({
+      stubOf(stripe.paymentMethods.attach).resolves({
         id: 'pm_aclonedcardinhostaccount',
         type: 'card',
         card: {
@@ -178,11 +181,11 @@ describe('server/paymentProviders/stripe/common', () => {
     });
 
     it('attaches card to platform customer account', async () => {
-      stripe.paymentMethods.create.resolves({
+      stubOf(stripe.paymentMethods.create).resolves({
         id: 'pm_platformcard123456789012',
       });
 
-      stripe.paymentMethods.attach.resolves({
+      stubOf(stripe.paymentMethods.attach).resolves({
         id: 'pm_platformcard123456789012',
         type: 'card',
         card: {
@@ -259,11 +262,11 @@ describe('server/paymentProviders/stripe/common', () => {
     });
 
     it('clones card to host account', async () => {
-      stripe.paymentMethods.create.resolves({
+      stubOf(stripe.paymentMethods.create).resolves({
         id: 'pm_clonedcard12345678901234',
       });
 
-      stripe.paymentMethods.attach.resolves({
+      stubOf(stripe.paymentMethods.attach).resolves({
         id: 'pm_clonedcard12345678901234',
         type: 'card',
         card: {

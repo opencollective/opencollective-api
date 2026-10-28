@@ -1,8 +1,10 @@
 import { expect } from 'chai';
 import config from 'config';
 import { createSandbox } from 'sinon';
+import type Stripe from 'stripe';
 
 import PlatformConstants from '../../../../server/constants/platform';
+import VirtualCardProviders from '../../../../server/constants/virtual-card-providers';
 import * as budget from '../../../../server/lib/budget';
 import emailLib from '../../../../server/lib/email';
 import stripe from '../../../../server/lib/stripe';
@@ -54,7 +56,7 @@ describe('server/paymentProviders/stripe/virtual-cards', () => {
       id: 'card_BM7mGwp1Ea8RtL',
       CollectiveId: collective.id,
       HostCollectiveId: host.id,
-      provider: 'STRIPE',
+      provider: VirtualCardProviders.STRIPE,
       UserId: user.id,
     });
 
@@ -77,7 +79,7 @@ describe('server/paymentProviders/stripe/virtual-cards', () => {
       data: {
         object: stripeAuthorization,
       },
-    };
+    } as Stripe.Event;
     const expense = await processAuthorization(stripeEvent);
     await testUtils.waitForCondition(() => sendMessage.callCount === 1);
     const [emailTo, subject, body] = sendMessage.getCall(0).args;

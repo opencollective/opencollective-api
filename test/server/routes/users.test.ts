@@ -1,6 +1,8 @@
 import { expect } from 'chai';
+import type { JwtPayload } from 'jsonwebtoken';
 import moment from 'moment';
 import { generateSecret, generateSync } from 'otplib';
+import type { SinonSpy } from 'sinon';
 import sinon from 'sinon';
 import request from 'supertest';
 
@@ -95,7 +97,7 @@ describe('server/routes/users', () => {
       expect(response.statusCode).to.equal(200);
 
       // And then the response also contains a valid token
-      const parsedToken = auth.verifyJwt(response.body.token);
+      const parsedToken = auth.verifyJwt(response.body.token) as JwtPayload;
       expect(parsedToken).to.be.exist;
 
       // And then the token should have a long expiration
@@ -127,7 +129,7 @@ describe('server/routes/users', () => {
       expect(response.statusCode).to.equal(200);
 
       // And then the response also contains a 2FA token
-      const parsedToken = auth.verifyJwt(response.body.token);
+      const parsedToken = auth.verifyJwt(response.body.token) as JwtPayload;
       expect(parsedToken.scope).to.equal('twofactorauth');
     });
 
@@ -183,7 +185,7 @@ describe('server/routes/users', () => {
       expect(response.statusCode).to.equal(200);
 
       // And then the response also contains a valid token
-      const parsedToken = auth.verifyJwt(response.body.token);
+      const parsedToken = auth.verifyJwt(response.body.token) as JwtPayload;
       expect(parsedToken).to.be.exist;
 
       // And then the token should have a long expiration
@@ -264,7 +266,7 @@ describe('server/routes/users', () => {
       expect(response.statusCode).to.equal(200);
 
       // And then the response also contains a valid token
-      const parsedToken = auth.verifyJwt(response.body.token);
+      const parsedToken = auth.verifyJwt(response.body.token) as JwtPayload;
       expect(parsedToken).to.be.exist;
 
       // And then the token should have a long expiration
@@ -295,7 +297,7 @@ describe('server/routes/users', () => {
         .set('User-Agent', userAgent);
 
     const sentNewPasswordSigninEmails = () =>
-      emailLib.send.getCalls().filter(call => call.args[0] === ActivityTypes.USER_NEW_PASSWORD_SIGNIN);
+      (emailLib.send as SinonSpy).getCalls().filter(call => call.args[0] === ActivityTypes.USER_NEW_PASSWORD_SIGNIN);
 
     const renderEmailFromSendCall = call => {
       const [template, recipient, data] = call.args;
@@ -307,7 +309,7 @@ describe('server/routes/users', () => {
       const user = await fakeUser({ email });
       await user.setPassword('testpassword123');
       await passwordSignin(user.email, 'testpassword123', '192.168.1.1', 'Mozilla/5.0 (Known Device)');
-      emailLib.send.resetHistory();
+      (emailLib.send as SinonSpy).resetHistory();
       return user;
     };
 
