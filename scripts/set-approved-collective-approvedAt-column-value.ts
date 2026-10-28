@@ -8,8 +8,14 @@ import { sequelize } from '../server/models';
  * This script updates the value of Collectives approvedAt
  */
 
-async function run() {
-  const collectives = await sequelize.query(
+/** Row shape of the Collectives query below */
+type CollectiveRow = { id: number; HostCollectiveId: number | null };
+
+/** Row shape of the Members query below */
+type MembershipRow = { since: Date };
+
+async function run(): Promise<[unknown[], unknown] | undefined> {
+  const collectives = await sequelize.query<CollectiveRow>(
     `
       SELECT * FROM "Collectives"
       WHERE "Collectives"."isActive" IS TRUE
@@ -19,7 +25,7 @@ async function run() {
   );
 
   for (const collective of collectives) {
-    const [membership] = await sequelize.query(
+    const [membership] = await sequelize.query<MembershipRow>(
       `
       SELECT "since" FROM "Members" m
       WHERE m."CollectiveId" = :collectiveId

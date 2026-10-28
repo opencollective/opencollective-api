@@ -2,13 +2,27 @@ import '../../server/env';
 
 import { partition } from 'lodash';
 
+import type { Transaction } from '../../server/models';
 import models, { sequelize } from '../../server/models';
 import { TransactionSettlementStatus } from '../../server/models/TransactionSettlement';
 
+/** Rows returned by the query below (`t.*` plus the joined debt/host columns) */
+type TipCreditTransactionRow = Transaction & {
+  __debt_id__?: number;
+  __tip_collected_by_host_id__?: number;
+};
+
+/** Rows returned by the `check` query below */
+type TransactionWithoutSettlementRow = {
+  id: number;
+  DebtTransactionId: number | null;
+  settlementStatus: string;
+};
+
 const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2021-05-01');
 
-const migrate = async () => {
-  const [tipCreditTransactions] = await sequelize.query(
+const migrate = async (): Promise<void> => {
+  const [tipCreditTransactions] = (await sequelize.query(
     `
     SELECT t.*, debt.id as __debt_id__, ot."HostCollectiveId" AS __tip_collected_by_host_id__
     FROM "Transactions" t
@@ -37,7 +51,7 @@ const migrate = async () => {
     {
       replacements: { startDate },
     },
-  );
+  )) as [TipCreditTransactionRow[], unknown];
 
   const results = await Promise.all(
     tipCreditTransactions.map(async transaction => {
@@ -46,8 +60,12 @@ const migrate = async () => {
         const settlementStatus = TransactionSettlementStatus.OWED;
         return models.TransactionSettlement.createForTransaction(transaction, settlementStatus);
       } else {
-        const host = await models.Collective.findByPk(transaction['__tip_collected_by_host_id__'], { paranoid: false });
-        return models.Transaction.createPlatformTipDebtTransactions(transaction, host);
+        // The debt must be recorded against the host that collected the tip, not against the platform
+        const platformTipTransaction = await models.Transaction.findByPk(transaction.id);
+        return models.Transaction.createPlatformTipDebtTransactions({
+          platformTipTransaction,
+          transaction: { ...transaction, HostCollectiveId: transaction['__tip_collected_by_host_id__'] },
+        });
       }
     }),
   );
@@ -55,7 +73,7 @@ const migrate = async () => {
   console.info(`${results.length} platform tips migrated`);
 };
 
-const rollback = async () => {
+const rollback = async (): Promise<void> => {
   await sequelize.query(
     `
     BEGIN;
@@ -87,11 +105,11 @@ const rollback = async () => {
   );
 };
 
-const check = async () => {
+const check = async (): Promise<void> => {
   const nbSettlements = await models.TransactionSettlement.count();
   console.log(`${nbSettlements} active settlements`);
 
-  const [transactionsWithoutSettlements] = await sequelize.query(
+  const [transactionsWithoutSettlements] = (await sequelize.query(
     `
     SELECT t.id as "id", debt.id as "DebtTransactionId", s.status as "settlementStatus"
     FROM "Transactions" t
@@ -116,7 +134,7 @@ const check = async () => {
     {
       replacements: { startDate },
     },
-  );
+  )) as [TransactionWithoutSettlementRow[], unknown];
 
   if (!transactionsWithoutSettlements.length) {
     console.log('All good with debts/settlements');
@@ -137,9 +155,9 @@ const check = async () => {
   }
 };
 
-const main = async () => {
+const main = async (): Promise<void> => {
   if (process.argv.length < 3) {
-    console.error('Usage: ./scripts/create-debts-for-platform-tips.js migrate|rollback|check');
+    console.error('Usage: ./scripts/ledger/create-debts-for-platform-tips.ts migrate|rollback|check');
     process.exit(1);
   }
 

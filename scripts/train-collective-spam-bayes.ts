@@ -8,11 +8,12 @@ import geoip from 'geoip-lite';
 import { get } from 'lodash';
 
 import { collectiveBayesContent } from '../server/lib/spam';
+import type { Collective } from '../server/models';
 import models, { Op, sequelize } from '../server/models';
 
 const classifier = bayes();
 
-async function getIpString(collective) {
+async function getIpString(collective: Collective): Promise<string | undefined> {
   let user = await models.User.findByPk(collective.CreatedByUserId, { paranoid: false });
   if (!user) {
     const adminUsers = await collective.getAdminUsers({ paranoid: false });
@@ -31,7 +32,7 @@ async function getIpString(collective) {
   }
 }
 
-async function run() {
+async function run(): Promise<void> {
   const collectives = await models.Collective.findAll({
     where: {
       approvedAt: { [Op.is]: null },

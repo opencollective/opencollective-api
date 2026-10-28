@@ -2,7 +2,7 @@ import '../server/env';
 
 import models, { Op } from '../server/models';
 
-async function main() {
+async function main(): Promise<void> {
   const collectives = await models.Collective.findAll({
     where: { image: { [Op.eq]: null } },
   });

@@ -223,6 +223,7 @@ class Transaction extends ModelWithPublicId<
   // Class methods
   declare getHostCollective: (options?: { loaders?: Loaders }) => Promise<Collective>;
   declare getCollective: BelongsToGetAssociationMixin<Collective>;
+  declare getFromCollective: BelongsToGetAssociationMixin<Collective>;
   declare getOrder: BelongsToGetAssociationMixin<Order>;
   declare getExpense: BelongsToGetAssociationMixin<Expense>;
   declare hasPlatformTip: () => boolean;

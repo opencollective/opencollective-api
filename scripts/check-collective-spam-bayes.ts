@@ -5,9 +5,10 @@ import { get, padEnd } from 'lodash';
 import moment from 'moment';
 
 import { collectiveBayesCheck } from '../server/lib/spam';
+import type { Collective } from '../server/models';
 import models, { Op, sequelize } from '../server/models';
 
-async function getIpString(collective) {
+async function getIpString(collective: Collective): Promise<string | undefined> {
   let user = await models.User.findByPk(collective.CreatedByUserId, { paranoid: false });
   if (!user) {
     const adminUsers = await collective.getAdminUsers({ paranoid: false });
@@ -26,14 +27,14 @@ async function getIpString(collective) {
   }
 }
 
-function report(collective, context) {
+function report(collective: Collective, context: string): void {
   console.log(
     padEnd(`('${collective.slug}'),`, 32, ' '),
     `-- ${context} ${collective.type} https://opencollective.com/${collective.slug}`,
   );
 }
 
-async function run() {
+async function run(): Promise<void> {
   const collectives = await models.Collective.findAll({
     where: {
       approvedAt: { [Op.is]: null },

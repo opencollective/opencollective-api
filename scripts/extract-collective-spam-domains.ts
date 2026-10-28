@@ -7,13 +7,13 @@ import moment from 'moment';
 import { NON_SPAMMERS_DOMAINS, resolveRedirect, SPAMMERS_DOMAINS } from '../server/lib/spam';
 import models, { Op, sequelize } from '../server/models';
 
-const domains = {};
+const domains: Record<string, number> = {};
 
-const compareEntries = ([, countA], [, countB]) => {
+const compareEntries = ([, countA]: [string, number], [, countB]: [string, number]): number => {
   return countB <= countA ? -1 : 1;
 };
 
-async function run() {
+async function run(): Promise<void> {
   const collectives = await models.Collective.findAll({
     where: {
       approvedAt: { [Op.is]: null },

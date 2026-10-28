@@ -3,7 +3,7 @@ import '../server/env';
 import { deleteApplicationWebhook, listApplicationWebhooks } from '../server/lib/transferwise';
 import transferwise from '../server/paymentProviders/transferwise';
 
-const run = async () => {
+const run = async (): Promise<void> => {
   const action = process.argv?.[2];
   if (action === 'up') {
     console.log('Creating TransferWise app webhook...');
@@ -48,7 +48,7 @@ const run = async () => {
     });
     return;
   } else {
-    console.log('Usage: npm run script scripts/setup-transferwise-webhook.js [up|list|down] [id]');
+    console.log('Usage: npm run script scripts/setup-transferwise-webhook.ts [up|list|down] [id]');
     process.exit();
   }
 

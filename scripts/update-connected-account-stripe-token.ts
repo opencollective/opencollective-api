@@ -2,11 +2,11 @@ import '../server/env';
 
 import models, { sequelize } from '../server/models';
 
-async function run() {
+async function run(): Promise<void> {
   console.log(process.argv);
 
   if (process.argv.length < 4) {
-    console.error('Usage: npm run script ./scripts/update-connected-account-stripe-token.js HOST_ID STRIPE_TOKEN');
+    console.error('Usage: npm run script ./scripts/update-connected-account-stripe-token.ts HOST_ID STRIPE_TOKEN');
     process.exit(1);
   }
 

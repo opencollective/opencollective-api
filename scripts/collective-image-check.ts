@@ -2,7 +2,7 @@ import '../server/env';
 
 import models, { Op } from '../server/models';
 
-async function main() {
+async function main(): Promise<void> {
   const searchPattern = process.argv[2];
   if (!searchPattern) {
     console.log('Please pass a search pattern to filter collective images to process.');

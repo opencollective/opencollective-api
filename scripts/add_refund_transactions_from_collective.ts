@@ -11,8 +11,10 @@ import '../server/env';
  */
 import debug from 'debug';
 
+import ORDER_STATUS from '../server/constants/order-status';
 import { purgeCacheForCollective } from '../server/lib/cache';
 import { findPaymentMethodProvider } from '../server/lib/payments';
+import type { Transaction, User } from '../server/models';
 import models from '../server/models';
 
 // the user id of the one who's running this script, will be set on the field `CreatedByUserId`.
@@ -24,7 +26,7 @@ const fromCollectiveIds = process.env.FROM_COLLECTIVE_IDS ? process.env.FROM_COL
 
 const debugRefund = debug('refundTransactions');
 
-async function refundTransaction(transaction) {
+async function refundTransaction(transaction: Transaction): Promise<Transaction> {
   // find the kind of payment method type
   const paymentMethod = findPaymentMethodProvider(transaction.PaymentMethod);
   // look for the Stripe Connected Account
@@ -40,7 +42,7 @@ async function refundTransaction(transaction) {
     debugRefund('refunding transaction.', transaction);
     try {
       // try to do both stripe and database refunds
-      const refundTransactions = await paymentMethod.refundTransaction(transaction, { id: UPDATER_USER_ID });
+      const refundTransactions = await paymentMethod.refundTransaction(transaction, { id: UPDATER_USER_ID } as User);
       debugRefund(`Stripe refundTransactions: ${JSON.stringify(refundTransactions, null, 2)}`);
     } catch {
       // Error means stripe has already refunded
@@ -48,7 +50,7 @@ async function refundTransaction(transaction) {
       try {
         const refundTransactions = await paymentMethod.refundTransactionOnlyInDatabase(transaction, {
           id: UPDATER_USER_ID,
-        });
+        } as User);
         debugRefund(`Database ONLY refundTransactions: ${JSON.stringify(refundTransactions, null, 2)}`);
       } catch (error) {
         // throwing error on purpose to stop everything if something unexpected happens..
@@ -60,7 +62,7 @@ async function refundTransaction(transaction) {
   const order = transaction.Order;
   // We mark then Active Orders as CANCELLED and deactivated their subscriptions
   if (order && order.status === 'ACTIVE' && order.SubscriptionId) {
-    order.status = 'CANCELLED';
+    order.status = ORDER_STATUS.CANCELLED;
     await order.save();
     debugRefund('updating subscription to be deactived');
 
@@ -85,7 +87,7 @@ async function refundTransaction(transaction) {
   return models.Transaction.findByPk(transaction.id);
 }
 
-async function run() {
+async function run(): Promise<void> {
   debugRefund(`Running refund scripts to get Transactions with the following FromCollectiveId:
     ${JSON.stringify(fromCollectiveIds, null, 2)}`);
   const transactions = await models.Transaction.findAll({

@@ -3,16 +3,17 @@ import '../server/env';
 import { get, padEnd, uniq } from 'lodash';
 import moment from 'moment';
 
+import type { Collective } from '../server/models';
 import models, { Op, sequelize } from '../server/models';
 
-function report(collective, context) {
+function report(collective: Collective, context: string): void {
   console.log(
     padEnd(`('${collective.slug}'),`, 32, ' '),
     `-- ${context} ${collective.type} https://opencollective.com/${collective.slug}`,
   );
 }
 
-async function run() {
+async function run(): Promise<void> {
   const bannedCollectives = await models.Collective.findAll({
     where: {
       data: { isBanned: true },
@@ -22,7 +23,7 @@ async function run() {
     paranoid: false,
   });
 
-  let ips = [];
+  let ips: string[] = [];
 
   for (const collective of bannedCollectives) {
     console.log(collective.slug, collective.updatedAt);

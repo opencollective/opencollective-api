@@ -2,7 +2,7 @@ import '../../server/env';
 
 import { sequelize } from '../../server/models';
 
-async function run() {
+async function run(): Promise<void> {
   await sequelize.query(`WITH
 "CollectivesWithTransactions" as (
   SELECT "CollectiveId" as "id" FROM "Transactions" WHERE "deletedAt" IS NULL GROUP BY "CollectiveId"

@@ -1,8 +1,16 @@
 import '../server/env';
 
 import { Command } from 'commander';
+import type pg from 'pg';
 
 import * as libdb from '../server/lib/db';
+
+/** Options passed by the user to run the script */
+type ScriptArgs = {
+  file?: string;
+  quiet?: boolean;
+  force: boolean;
+};
 
 /** Help on how to use this script */
 function usage() {
@@ -11,7 +19,7 @@ function usage() {
 }
 
 /** Return true if there's any data within the Collectives table */
-async function hasData(client) {
+async function hasData(client: pg.Client): Promise<boolean> {
   try {
     return (await client.query('SELECT 1 FROM "Collectives"')).rowCount > 0;
   } catch {
@@ -20,7 +28,7 @@ async function hasData(client) {
 }
 
 /** Launcher that recreates a database & load a dump into it. */
-export async function main(args) {
+export async function main(args: ScriptArgs): Promise<void> {
   if (!args.file) {
     usage();
     return;
@@ -38,7 +46,7 @@ export async function main(args) {
 }
 
 /** Return the options passed by the user to run the script */
-function parseCommandLineArguments() {
+function parseCommandLineArguments(): ScriptArgs {
   const program = new Command()
     .description('Restore dump file into a Database')
     .argument('<file>', 'Path for the dump file')

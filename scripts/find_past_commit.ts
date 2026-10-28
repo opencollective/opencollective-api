@@ -5,7 +5,7 @@ import '../server/env';
  * Useful to find out when something changed in the code
  */
 
-const test = stdout => !stdout.match(/relation "Notifications" does not exist/);
+const test = (stdout: string): boolean => !stdout.match(/relation "Notifications" does not exist/);
 const command = `mocha test/transactions.routes.test.js`;
 
 const initialIndex = 0;
@@ -19,12 +19,12 @@ const commits = execSync(`git log --pretty=%H:%cd --date=short`, {
 
 const commitsArray = commits.split('\n');
 
-let index;
-let stdout;
+let index: number;
+let stdout: string;
 
-let lastGoodCommit, lastBadCommit;
+let lastGoodCommit: string, lastBadCommit: string;
 
-const run = (startIndex, steps) => {
+const run = (startIndex: number, steps: number): void => {
   console.log('Running starting from index', startIndex, 'with steps', steps);
   index = startIndex;
   let commit, date;

@@ -2,11 +2,11 @@ import '../server/env';
 
 import models, { Op } from '../server/models';
 
-async function main() {
+async function main(): Promise<void> {
   const collectives = await models.Collective.findAll({
     where: {
       image: { [Op.ne]: null },
-      name: { [Op.or]: { [Op.eq]: null, [Op.eq]: 'anonymous' } },
+      name: { [Op.or]: [{ [Op.eq]: null }, { [Op.eq]: 'anonymous' }] },
     },
   });
   for (const collective of collectives) {
