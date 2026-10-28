@@ -1,4 +1,7 @@
+const application: { name: string; api_key: string } | null = null;
+
 export default {
+  application,
   host1: {
     name: 'WWCode',
     slug: 'wwcode',

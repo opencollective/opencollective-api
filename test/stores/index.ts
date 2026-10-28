@@ -7,8 +7,13 @@
 import { createSandbox } from 'sinon';
 import { v4 as uuid } from 'uuid';
 
+import { CollectiveType } from '../../server/constants/collectives';
+import { SupportedCurrency } from '../../server/constants/currencies';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../server/constants/paymentMethods';
+import MemberRoles from '../../server/constants/roles';
 import * as expenses from '../../server/graphql/common/expenses';
 import { executeOrder } from '../../server/lib/payments';
+import type { Collective, User } from '../../server/models';
 /* Libraries that create the objects */
 import models from '../../server/models';
 import { randStr } from '../test-helpers/fake-data';
@@ -37,7 +42,7 @@ export function randUrl(base = 'example.com') {
 }
 
 /** Convert string to lower case and swap spaces with dashes */
-function slugify(value) {
+function slugify(value: string) {
   return value.toLowerCase().replace(/\s/g, '-');
 }
 
@@ -51,7 +56,10 @@ function slugify(value) {
  * @return {Object} with references for `user` and `userCollective`.
  * @deprecated Prefer the `fake-data` lib: use `fakeUser()`
  */
-export async function newUser(name = undefined, data = {}) {
+export async function newUser(
+  name = undefined,
+  data = {},
+): Promise<{ user: User; userCollective: Collective } & Record<string, User>> {
   name = name || uuid().split('-')[0];
   const slug = slugify(name);
   const email = randEmail(`${slug}@oc.com`);
@@ -62,7 +70,10 @@ export async function newUser(name = undefined, data = {}) {
     name,
     description: `A user called ${name}`,
   });
-  return { user, userCollective: user.collective, [slug]: user };
+  return { user, userCollective: user.collective, [slug]: user } as { user: User; userCollective: Collective } & Record<
+    string,
+    User
+  >;
 }
 
 /**
@@ -78,7 +89,7 @@ export async function newIncognitoProfile(user) {
   const incognitoCollective = await models.Collective.create({
     CreatedByUserId: user.id,
     isIncognito: true,
-    type: 'USER',
+    type: CollectiveType.USER,
     name: 'incognito',
     slug: 'incognito-agefede29',
   });
@@ -86,7 +97,7 @@ export async function newIncognitoProfile(user) {
     CreatedByUserId: user.id,
     CollectiveId: incognitoCollective.id,
     MemberCollectiveId: user.CollectiveId,
-    role: 'ADMIN',
+    role: MemberRoles.ADMIN,
   });
   return incognitoCollective;
 }
@@ -100,11 +111,17 @@ export async function newIncognitoProfile(user) {
  * @returns {Object} with references for `hostCollective`,
  *  `hostAdmin`.
  */
-export async function newHost(name, currency, hostFee, userData = {}, hostData = {}) {
+export async function newHost(
+  name?: string,
+  currency?: SupportedCurrency,
+  hostFee?: string | number,
+  userData = {},
+  hostData = {},
+): Promise<{ hostAdmin: User; hostCollective: Collective } & Record<string, Collective>> {
   // Host Admin
   const slug = slugify(name);
   const hostAdmin = (await newUser(`${name} Admin`, { name: 'host admin', ...userData })).user;
-  const hostFeePercent = hostFee ? parseInt(hostFee) : 0;
+  const hostFeePercent = hostFee ? parseInt(String(hostFee)) : 0;
   const hostCollective = await models.Collective.create({
     name,
     slug,
@@ -117,7 +134,10 @@ export async function newHost(name, currency, hostFee, userData = {}, hostData =
     ...hostData,
   });
   await hostCollective.addUserWithRole(hostAdmin, 'ADMIN');
-  return { hostAdmin, hostCollective, [slug]: hostCollective };
+  return { hostAdmin, hostCollective, [slug]: hostCollective } as {
+    hostAdmin: User;
+    hostCollective: Collective;
+  } & Record<string, Collective>;
 }
 
 /** Create an organization
@@ -136,7 +156,7 @@ export async function newHost(name, currency, hostFee, userData = {}, hostData =
  *  collective instance.
  */
 export async function newOrganization(orgData, adminUser) {
-  return models.Collective.createOrganization(orgData, adminUser);
+  return models.Collective.createOrganization(orgData, adminUser, undefined);
 }
 
 /** Create new a host, a collective and add collective to the host
@@ -153,7 +173,14 @@ export async function newOrganization(orgData, adminUser) {
  *  `hostAdmin`, and `collective`.
  * @deprecated Prefer the `fake-data` lib: use `fakeCollective()`
  */
-export async function newCollectiveWithHost(name, currency, hostCurrency, hostFee, user = null, data = {}) {
+export async function newCollectiveWithHost(
+  name?: string,
+  currency?: SupportedCurrency,
+  hostCurrency?: SupportedCurrency,
+  hostFee?: string | number,
+  user = null,
+  data = {},
+): Promise<{ hostCollective: Collective; hostAdmin: User; collective: Collective } & Record<string, Collective>> {
   name = name || randStr();
   const { hostAdmin, hostCollective } = await newHost(`${name} Host`, hostCurrency, hostFee, { currency });
   const slug = slugify(name);
@@ -176,7 +203,11 @@ export async function newCollectiveWithHost(name, currency, hostCurrency, hostFe
   if (user) {
     await collective.addUserWithRole(user, 'ADMIN');
   }
-  return { hostCollective, hostAdmin, collective, [slug]: collective };
+  return { hostCollective, hostAdmin, collective, [slug]: collective } as {
+    hostCollective: Collective;
+    hostAdmin: User;
+    collective: Collective;
+  } & Record<string, Collective>;
 }
 
 /** Create a collective and associate to an existing host.
@@ -191,7 +222,13 @@ export async function newCollectiveWithHost(name, currency, hostCurrency, hostFe
  * @return {models.Collective} a newly created collective hosted by
  *  `hostCollective`.
  */
-export async function newCollectiveInHost(name, currency, hostCollective, user = null, data = {}) {
+export async function newCollectiveInHost(
+  name: string,
+  currency: SupportedCurrency,
+  hostCollective,
+  user = null,
+  data = {},
+): Promise<{ collective: Collective } & Record<string, Collective>> {
   const slug = slugify(name);
   const { hostFeePercent } = hostCollective;
   const args = { ...data, name, slug, currency, hostFeePercent };
@@ -204,7 +241,7 @@ export async function newCollectiveInHost(name, currency, hostCollective, user =
   await collective.addHost(hostCollective, user, { shouldAutomaticallyApprove: true });
   collective.isActive = true;
   await collective.save();
-  return { collective, [slug]: collective };
+  return { collective, [slug]: collective } as { collective: Collective } & Record<string, Collective>;
 }
 
 /** Create a new expense in a collective
@@ -367,8 +404,8 @@ export function createCreditCard(collectiveId, otherParams = {}) {
     Object.assign(
       {
         name: '4242',
-        service: 'stripe',
-        type: 'creditcard',
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
         token: 'tok_123456781234567812345678',
         CollectiveId: collectiveId,
         monthlyLimitPerMember: null,

@@ -197,7 +197,7 @@ describe('server/routes/images', () => {
   it('should throw an error if file type is invalid', async () => {
     const res = await request(expressApp)
       .post(`/images/?api_key=${application.api_key}`)
-      .attach('file', 'test/mocks/data.js')
+      .attach('file', 'test/mocks/data.ts')
       .field('kind', 'ACCOUNT_AVATAR')
       .set('Authorization', `Bearer ${user.jwt()}`);
 
