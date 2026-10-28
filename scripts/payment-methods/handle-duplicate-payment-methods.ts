@@ -2,7 +2,7 @@ import '../../server/env';
 
 import { sequelize } from '../../server/models';
 
-async function run() {
+async function run(): Promise<void> {
   // Un-save all non-deleted duplicate credit cards, but not the latest
   await sequelize.query(
     `WITH "DuplicatePaymentMethods" AS (

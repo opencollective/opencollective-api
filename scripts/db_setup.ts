@@ -12,6 +12,7 @@ import '../server/env';
  *
  * More info here https://github.com/brianc/node-postgres/issues/1337
  */
+import type { Client } from 'pg';
 import format from 'pg-format';
 
 import * as libdb from '../server/lib/db';
@@ -25,7 +26,7 @@ import { sequelize } from '../server/models';
  * @param {string} name of the user to be created.
  * @param {string} password of the user.
  */
-async function createUser(client, name, password) {
+async function createUser(client: Client, name: string, password: string): Promise<void> {
   const exists = await client.query('SELECT 1 FROM pg_roles WHERE rolname=$1', [name]);
   if (!exists.rowCount) {
     await client.query(format("CREATE USER %s WITH PASSWORD '%s' SUPERUSER;", name, password));
@@ -36,7 +37,7 @@ async function createUser(client, name, password) {
 }
 
 /** Kick things off */
-async function main() {
+async function main(): Promise<void> {
   /* Connect with maintenance account */
   const client = await libdb.getConnectedClient(libdb.getDBUrl('maintenancedb'));
   const { username, password } = libdb.getDBConf('database');

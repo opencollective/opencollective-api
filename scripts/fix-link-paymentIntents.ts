@@ -1,6 +1,7 @@
 import '../server/env';
 
 import { get, last, omit } from 'lodash';
+import type Stripe from 'stripe';
 
 import OrderStatuses from '../server/constants/order-status';
 import logger from '../server/lib/logger';
@@ -18,7 +19,7 @@ const NB_CHARGES_PER_QUERY = 100; // Max allowed by Stripe
 const NB_PAGES = NB_CHARGES_TO_CHECK / NB_CHARGES_PER_QUERY;
 const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : false;
 
-const getHostStripeAccountUsername = async slug => {
+const getHostStripeAccountUsername = async (slug: string): Promise<string> => {
   const hostId = (await models.Collective.findOne({ where: { slug } }))?.id;
   if (!hostId) {
     throw new Error('Host not found');
@@ -32,7 +33,11 @@ const getHostStripeAccountUsername = async slug => {
   return stripeAccount.username;
 };
 
-async function checkAndRecordCharge(charge, stripePaymentIntent, stripeAccount) {
+async function checkAndRecordCharge(
+  charge: Stripe.Charge,
+  stripePaymentIntent: Stripe.PaymentIntent,
+  stripeAccount: string,
+): Promise<void> {
   // Copy code from Stripe webhook (paymentIntentSucceeded)
   const order = await models.Order.findOne({
     where: {
@@ -55,7 +60,7 @@ async function checkAndRecordCharge(charge, stripePaymentIntent, stripeAccount) 
     where: { OrderId: order.id, data: { charge: { id: charge.id } } },
   });
   if (existingChargeTransaction) {
-    logger.info(`Stripe Webhook: ${order.id} already processed charge ${charge.id}, ignoring event ${event.id}`);
+    logger.info(`Stripe Webhook: ${order.id} already processed charge ${charge.id}, ignoring event`);
     return;
   }
 
@@ -93,9 +98,9 @@ async function checkAndRecordCharge(charge, stripePaymentIntent, stripeAccount) 
   sendEmailNotifications(order, transaction);
 }
 
-async function main() {
+async function main(): Promise<void> {
   if (process.argv.length < 3) {
-    console.error('Usage: ./scripts/fix-link-paymentIntents.js HOST_SLUG [NB_CHARGES_TO_CHECK=100] [LAST_CHARGE_ID]');
+    console.error('Usage: ./scripts/fix-link-paymentIntents.ts HOST_SLUG [NB_CHARGES_TO_CHECK=100] [LAST_CHARGE_ID]');
     process.exit(1);
   }
 
@@ -117,6 +122,8 @@ async function main() {
     for (let idx = 0; idx < stripePaymentIntents.data.length; idx++) {
       const stripePaymentIntent = stripePaymentIntents.data[idx];
       if (stripePaymentIntent.status === 'succeeded') {
+        // `charges` is not part of the latest Stripe types but is still returned for the API version pinned in server/lib/stripe
+        // @ts-expect-error typing mismatch only with the latest Stripe types
         const charge = stripePaymentIntent.charges.data[0];
         if (charge.payment_method_details.type === 'link') {
           await checkAndRecordCharge(charge, stripePaymentIntent, stripeUserName);

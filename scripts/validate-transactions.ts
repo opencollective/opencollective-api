@@ -2,7 +2,7 @@ import '../server/env';
 
 import models, { Op, sequelize } from '../server/models';
 
-async function run() {
+async function run(): Promise<void> {
   let page = 0;
 
   while (true) {

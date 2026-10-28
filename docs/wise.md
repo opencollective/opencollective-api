@@ -26,10 +26,10 @@ $ ngrok http 3060
 To set up the Wise webhook, run:
 
 ```sh
-$ API_URL="https://cd6e-2-138-96-138.ngrok.io" npm run script scripts/setup-transferwise-webhook.js up
+$ API_URL="https://cd6e-2-138-96-138.ngrok.io" npm run script scripts/setup-transferwise-webhook.ts up
 
 > script
-> babel-node --extensions .js,.ts $1 scripts/setup-transferwise-webhook.js up
+> babel-node --extensions .js,.ts $1 scripts/setup-transferwise-webhook.ts up
 
 info: Connecting to postgres://127.0.0.1/opencollective_dvl
 info: Fixer API is not configured, lib/currency will always return 1.1
@@ -43,10 +43,10 @@ Done.
 Make sure you delete the webhook later on with:
 
 ```sh
-$ npm run script scripts/setup-transferwise-webhook.js down "b0acf39d-73ed-4ad2-a3c6-25f11ac785d5"
+$ npm run script scripts/setup-transferwise-webhook.ts down "b0acf39d-73ed-4ad2-a3c6-25f11ac785d5"
 
 > script
-> babel-node --extensions .js,.ts $1 scripts/setup-transferwise-webhook.js down b0acf39d-73ed-4ad2-a3c6-25f11ac785d5
+> babel-node --extensions .js,.ts $1 scripts/setup-transferwise-webhook.ts down b0acf39d-73ed-4ad2-a3c6-25f11ac785d5
 
 info: Connecting to postgres://127.0.0.1/opencollective_dvl
 info: Fixer API is not configured, lib/currency will always return 1.1

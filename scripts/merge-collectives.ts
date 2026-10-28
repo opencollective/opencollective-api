@@ -2,11 +2,12 @@ import '../server/env';
 
 import { mergeAccounts, simulateMergeAccounts } from '../server/lib/merge-accounts';
 import { parseToBoolean } from '../server/lib/utils';
+import type { Collective } from '../server/models';
 import models from '../server/models';
 
 import { confirm } from './common/helpers';
 
-const printMergeSummary = async (fromCollective, intoCollective) => {
+const printMergeSummary = async (fromCollective: Collective, intoCollective: Collective): Promise<void> => {
   console.log('==============================================================');
   console.log(
     `You are about to merge ${fromCollective.slug} (#${fromCollective.id}) into ${intoCollective.slug} (#${intoCollective.id})`,
@@ -17,13 +18,13 @@ const printMergeSummary = async (fromCollective, intoCollective) => {
   console.log(summary);
 };
 
-function sleep(ms) {
+function sleep(ms: number): Promise<void> {
   return new Promise(resolve => {
     setTimeout(resolve, ms);
   });
 }
 
-async function main() {
+async function main(): Promise<void> {
   const fromCollective = await models.Collective.findOne({ where: { slug: process.argv[2] } });
   const intoCollective = await models.Collective.findOne({ where: { slug: process.argv[3] } });
 
@@ -40,7 +41,7 @@ async function main() {
 
   let isConfirmed = parseToBoolean(process.env.CONFIRM);
   if (!isConfirmed) {
-    isConfirmed = await confirm('This action is irreversible. Are you sure you want to continue? (Yes/No)');
+    isConfirmed = Boolean(await confirm('This action is irreversible. Are you sure you want to continue? (Yes/No)'));
   }
   if (isConfirmed) {
     console.log(

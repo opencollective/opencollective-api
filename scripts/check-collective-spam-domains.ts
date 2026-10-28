@@ -5,16 +5,17 @@ import { padEnd } from 'lodash';
 import moment from 'moment';
 
 import { resolveRedirect, SPAMMERS_DOMAINS } from '../server/lib/spam';
+import type { Collective } from '../server/models';
 import models, { Op, sequelize } from '../server/models';
 
-function report(collective, context) {
+function report(collective: Collective, context: string): void {
   console.log(
     padEnd(`('${collective.slug}'),`, 32, ' '),
     `-- ${context} ${collective.type} https://opencollective.com/${collective.slug}`,
   );
 }
 
-async function run() {
+async function run(): Promise<void> {
   const collectives = await models.Collective.findAll({
     where: {
       updatedAt: { [Op.gte]: moment().subtract(3, 'month').toDate() },

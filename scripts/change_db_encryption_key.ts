@@ -8,6 +8,14 @@ import { sequelize } from '../server/models';
 const CIPHER = config.dbEncryption.cipher;
 const SECRET_KEY = config.dbEncryption.secretKey;
 
+/** Row shape of the ConnectedAccounts query below */
+type ConnectedAccountRow = {
+  id: number;
+  service: string;
+  token: string;
+  refreshToken: string | null;
+};
+
 /**
  * Change the DB encryption key by reencrypting the DB fields.
  *
@@ -15,11 +23,11 @@ const SECRET_KEY = config.dbEncryption.secretKey;
  * pagination would probably make it crash in production. It needs to be updated to work
  * outside of dev environments.
  */
-async function main(args) {
+async function main(args: ScriptArgs) {
   if (!args.oldKey || !args.newKey) {
     console.error('You need to provide both old and new key.');
     console.error(
-      `Usage: npm run script scripts/change_db_encryption_key.js -- [-f] [--fromCipher DES] [--toCipher DES] oldKey newKey`,
+      `Usage: npm run script scripts/change_db_encryption_key.ts -- [-f] [--fromCipher DES] [--toCipher DES] oldKey newKey`,
     );
     process.exit(1);
   }
@@ -33,16 +41,17 @@ async function main(args) {
   }
   console.log(`Re-encrypting from cipher ${args.fromCipher} to cipher ${args.toCipher}...`);
 
-  const [accounts] = await sequelize.query(
+  const [accounts] = (await sequelize.query(
     `SELECT "id", "service", "token", "refreshToken" FROM "ConnectedAccounts" WHERE "token" IS NOT NULL`,
-  );
+  )) as [ConnectedAccountRow[], unknown];
 
   console.info(`Re-encrypting ${accounts.length} ConnectedAccounts...`);
   // `refreshToken` is nullable, and the ConnectedAccount model stores NULL rather than an encrypted
   // empty string for missing values (`value ? crypto.encrypt(value) : null`). We update with raw SQL
   // here, which bypasses those accessors, so the same semantics have to be preserved by hand.
-  const encrypt = message => (message ? encryptWithCipher(message, args.newKey, args.toCipher) : null);
-  const decrypt = encryptedMessage =>
+  const encrypt = (message: string): string | null =>
+    message ? encryptWithCipher(message, args.newKey, args.toCipher) : null;
+  const decrypt = (encryptedMessage: string): string | null =>
     isNil(encryptedMessage) ? null : decryptWithCipher(encryptedMessage, args.oldKey, args.fromCipher);
 
   try {
@@ -76,8 +85,18 @@ async function main(args) {
   process.exit(0);
 }
 
+/** Options passed by the user to run the script */
+type ScriptArgs = {
+  oldKey?: string;
+  newKey?: string;
+  fromCipher: string;
+  toCipher: string;
+  force: boolean;
+  ignoreEnv: boolean;
+};
+
 /** Return the options passed by the user to run the script */
-function parseCommandLineArguments() {
+function parseCommandLineArguments(): ScriptArgs {
   const program = new Command()
     .description('Change DB Encryption keys by reencrypting the DB fields')
     .argument('<oldKey>', 'The current key being used')

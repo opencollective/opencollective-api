@@ -1,4 +1,6 @@
-const entries = [
+// Recipes are loaded dynamically by `scripts/smart-dump.ts` with `require(recipe)`
+// ts-unused-exports:disable-next-line
+export const entries = [
   {
     model: 'Collective',
     where: {
@@ -60,7 +62,8 @@ const entries = [
   },
 ];
 
-const defaultDependencies = {
+// ts-unused-exports:disable-next-line
+export const defaultDependencies = {
   Collective: ['ConnectedAccount', { model: 'User', from: 'CreatedByUserId' }],
   Expense: [
     'Transaction',
@@ -108,10 +111,4 @@ const defaultDependencies = {
       from: 'FromCollectiveId',
     },
   ],
-};
-
-// eslint-disable-next-line import/no-commonjs
-module.exports = {
-  entries,
-  defaultDependencies,
 };

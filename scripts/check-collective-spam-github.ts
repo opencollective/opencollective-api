@@ -4,16 +4,17 @@ import { padEnd } from 'lodash';
 import moment from 'moment';
 
 import { getGithubHandleFromUrl, getOrg, getRepo, getUser } from '../server/lib/github';
+import type { Collective } from '../server/models';
 import models, { Op, sequelize } from '../server/models';
 
-function report(collective, context) {
+function report(collective: Collective, context: string): void {
   console.log(
     padEnd(`('${collective.slug}'),`, 32, ' '),
     `-- ${context} ${collective.type} https://opencollective.com/${collective.slug}`,
   );
 }
 
-async function checkGithubExists(githubHandle, accessToken) {
+async function checkGithubExists(githubHandle: string, accessToken?: string) {
   // console.log(`Checking ${githubHandle}`);
   if (githubHandle.includes('/')) {
     // A repository GitHub Handle (most common)

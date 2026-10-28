@@ -2,9 +2,9 @@ import '../server/env';
 
 import { crypto } from '../server/lib/encryption';
 
-const run = () => {
+const run = (): void => {
   if (process.argv.length < 2) {
-    console.error('Usage: npm run script ./scripts/encrypt.js [+d] CONTENT');
+    console.error('Usage: npm run script ./scripts/encrypt.ts [+d] CONTENT');
     process.exit(1);
   }
   const decrypt = process.argv[2] === '+d';

@@ -1,16 +1,17 @@
 import '../server/env';
 
+import type { FileKind } from '../server/constants/file-kind';
 import models, { Op, sequelize } from '../server/models';
 import UploadedFile from '../server/models/UploadedFile';
 
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 
-const FIELDS = [
+const FIELDS: Array<{ name: 'image' | 'backgroundImage'; kind: FileKind }> = [
   { name: 'image', kind: 'ACCOUNT_AVATAR' },
   { name: 'backgroundImage', kind: 'ACCOUNT_BANNER' },
 ];
 
-const isCloudinaryUrl = url => {
+const isCloudinaryUrl = (url: string): boolean => {
   try {
     const { hostname } = new URL(url);
     return hostname === 'cloudinary.com' || hostname.endsWith('.cloudinary.com');
@@ -19,7 +20,7 @@ const isCloudinaryUrl = url => {
   }
 };
 
-async function main() {
+async function main(): Promise<void> {
   console.log(`Running in ${DRY_RUN ? 'DRY RUN' : 'REAL RUN'} mode`);
   const stats = { migrated: 0, skipped: 0, failed: 0 };
 

@@ -1,11 +1,12 @@
 import '../server/env';
 
 import { get, last } from 'lodash';
+import type Stripe from 'stripe';
 
 import stripe from '../server/lib/stripe';
 import models from '../server/models';
 
-async function checkCharge(charge) {
+async function checkCharge(charge: Stripe.Charge): Promise<void> {
   if (charge.failure_code) {
     // Ignore failed transaction
     console.log(`Ignoring ${charge.id} (failed transaction)`);
@@ -43,7 +44,7 @@ async function checkCharge(charge) {
   }
 }
 
-const getHostStripeAccountUsername = async slug => {
+const getHostStripeAccountUsername = async (slug: string): Promise<string> => {
   const hostId = (await models.Collective.findOne({ where: { slug } }))?.id;
   if (!hostId) {
     throw new Error('Host not found');
@@ -57,9 +58,9 @@ const getHostStripeAccountUsername = async slug => {
   return stripeAccount.username;
 };
 
-async function main() {
+async function main(): Promise<void> {
   if (process.argv.length < 3) {
-    console.error('Usage: ./scripts/diff-stripe-transactions.js HOST_SLUG [NB_CHARGES_TO_CHECK=100] [LAST_CHARGE_ID]');
+    console.error('Usage: ./scripts/diff-stripe-transactions.ts HOST_SLUG [NB_CHARGES_TO_CHECK=100] [LAST_CHARGE_ID]');
     process.exit(1);
   }
 

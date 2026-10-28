@@ -11,7 +11,7 @@ import { getMailer } from '../server/lib/email';
 import libEmailTemplates from '../server/lib/emailTemplates';
 
 const templateName = process.argv[2];
-const data = {};
+const data: Record<string, Record<string, unknown>> = {};
 data['user.new.token'] = {
   loginLink: 'https://opencollective.com/signin?next=',
 };
@@ -468,10 +468,10 @@ const defaultData = {
 /*
  * Gets the body from a string (usually a template)
  */
-const getTemplateAttributes = str => {
+const getTemplateAttributes = (str: string): Record<string, string> => {
   let index = 0;
   const lines = str.split('\n');
-  const attributes = {};
+  const attributes: Record<string, string> = {};
   let tokens;
   do {
     tokens = lines[index++].match(/^([a-z]+):(.+)/i);
@@ -494,7 +494,7 @@ if (!templateName) {
   console.log('Note: Edit the script to specify the data that is passed to the template.');
 } else if (!data[templateName]) {
   console.log('There is no mocked data defined for this template:', templateName);
-  console.log('Please add mocked data by editing `scripts/compile-email.js`.');
+  console.log('Please add mocked data by editing `scripts/compile-email.ts`.');
 } else {
   const template = libEmailTemplates[templateName];
   if (template) {
