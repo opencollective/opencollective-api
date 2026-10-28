@@ -40,6 +40,8 @@ async function reconcileConnectedAccount(connectedAccount) {
           expenses.map(expense => expense.data?.transactionId || expense.data?.refundTransactionId),
         );
 
+        // `stripe`'s default export is a callable function at runtime, but its typings only declare it as a class constructor
+        // @ts-expect-error typing mismatch only, calling `Stripe(...)` works at runtime
         const stripe = Stripe(
           host.id === PlatformConstants.PlatformCollectiveId ? config.stripe.secret : connectedAccount.token,
         );

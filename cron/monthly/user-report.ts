@@ -13,8 +13,59 @@ import emailLib from '../../server/lib/email';
 import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { formatCurrencyObject, parseToBoolean } from '../../server/lib/utils';
+import type { Collective, User } from '../../server/models';
 import models, { Op } from '../../server/models';
 import { runCronJob } from '../utils';
+
+/** Aggregated stats included in the report email */
+type ReportStats = {
+  collectives: number;
+  expenses: number;
+  totalSpentPerCurrency: Record<string, number>;
+  totalDonatedPerCurrency: Record<string, number>;
+  allTags?: Record<string, number>;
+  totalSpentString?: string;
+  totalDonatedString?: string;
+};
+
+/** An attachment returned by `getConsolidatedInvoicePdfs` */
+type EmailAttachment = { filename: string; content: string };
+
+/** Data passed to the `user.monthlyreport` template */
+type BackerReportData = {
+  config: { host: typeof config.host };
+  month: string;
+  fromCollective: unknown;
+  collectives: unknown[];
+  manageSubscriptionsUrl: string;
+  stats: ReportStats;
+  tags: Record<string, unknown>;
+  consolidatedPdfs: boolean | null;
+  recipient?: unknown;
+  [key: string]: unknown;
+};
+
+/** Collective data gathered for the report */
+type CollectiveReport = {
+  collective: {
+    [key: string]: unknown;
+    id: number;
+    stats: {
+      [key: string]: unknown;
+      balance?: number;
+      totalDonations?: number;
+      totalPaidExpenses?: number;
+      updates?: number;
+      backers?: { lastMonth: number };
+    };
+    contributorsCount?: number;
+    yearlyIncome?: unknown;
+    expenses?: unknown[];
+    events?: unknown;
+    updates?: unknown[];
+    nextGoal?: unknown;
+  };
+};
 
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 d.setMonth(d.getMonth() - 1);
@@ -30,7 +81,7 @@ const debug = debugLib('monthlyreport');
  * for the current backer collective (User/Org/Collective)
  * @param {*} backerCollective
  */
-const fetchUserSubscribers = async (notificationType, backerCollective) => {
+const fetchUserSubscribers = async (notificationType: string, backerCollective: Collective): Promise<User[]> => {
   const unsubscriptions = await models.Notification.findAll({
     attributes: ['UserId'],
     where: {
@@ -50,7 +101,7 @@ const fetchUserSubscribers = async (notificationType, backerCollective) => {
   return subscribers;
 };
 
-const init = async () => {
+const init = async (): Promise<void> => {
   const startTime = new Date();
   const query = {
     attributes: ['FromCollectiveId'],
@@ -89,11 +140,11 @@ const init = async () => {
     await processBacker(FromCollectiveId);
   }
 
-  const timeLapsed = Math.round((new Date() - startTime) / 1000);
+  const timeLapsed = Math.round((new Date().getTime() - startTime.getTime()) / 1000);
   console.log(`Total run time: ${timeLapsed}s`);
 };
 
-const processBacker = async FromCollectiveId => {
+const processBacker = async (FromCollectiveId: number) => {
   const backerCollective = await models.Collective.findByPk(FromCollectiveId);
   console.log('>>> Processing backer', backerCollective.slug);
   const query = {
@@ -176,7 +227,7 @@ const processBacker = async FromCollectiveId => {
 
   try {
     for (const user of subscribers) {
-      const data = {
+      const data: BackerReportData = {
         config: { host: config.host },
         month,
         fromCollective: backerCollective.info,
@@ -239,8 +290,8 @@ const processEvents = events => {
  *   nextGoal
  * }
  */
-const collectivesData = {};
-const processCollective = async CollectiveId => {
+const collectivesData: Record<number, CollectiveReport['collective']> = {};
+const processCollective = async (CollectiveId: number): Promise<CollectiveReport['collective']> => {
   if (collectivesData[CollectiveId]) {
     return collectivesData[CollectiveId];
   }
@@ -251,7 +302,7 @@ const processCollective = async CollectiveId => {
     collective.getBalance({ endDate }),
     collective.getTotalTransactions(startDate, endDate, 'donation'),
     collective.getTotalTransactions(startDate, endDate, 'expense'),
-    collective.getExpenses(null, startDate, endDate),
+    collective.getExpenses(null, startDate, endDate, undefined, undefined),
     collective.getYearlyBudget(),
     models.Expense.findAll({
       where: {
@@ -279,22 +330,24 @@ const processCollective = async CollectiveId => {
 
   const results = await Promise.all(promises);
   console.log('***', collective.name, '***');
-  const data = {};
-  data.collective = pick(collective, [
-    'id',
-    'name',
-    'slug',
-    'website',
-    'image',
-    'currency',
-    'publicUrl',
-    'tags',
-    'backgroundImage',
-    'settings',
-    'totalDonations',
-    'contributorsCount',
-    'description',
-  ]);
+  // `pick` is typed loosely by lodash, but the returned properties match `CollectiveReport`
+  const data = {
+    collective: pick(collective, [
+      'id',
+      'name',
+      'slug',
+      'website',
+      'image',
+      'currency',
+      'publicUrl',
+      'tags',
+      'backgroundImage',
+      'settings',
+      'totalDonations',
+      'contributorsCount',
+      'description',
+    ]),
+  } as CollectiveReport;
   data.collective.stats = results[0];
   data.collective.stats.balance = results[1];
   data.collective.stats.totalDonations = results[2];
@@ -340,7 +393,7 @@ const computeOrderSummary = orders => {
 
 const computeStats = async collectives => {
   const tagsIndex = {};
-  const stats = {
+  const stats: ReportStats = {
     collectives: collectives.length,
     expenses: 0,
     totalSpentPerCurrency: {},
@@ -375,8 +428,8 @@ const computeStats = async collectives => {
   return stats;
 };
 
-const sendEmail = (recipient, data, options = {}) => {
-  if (recipient.length === 0) {
+const sendEmail = (recipient: User, data: BackerReportData, options: { attachments?: EmailAttachment[] } = {}) => {
+  if (!recipient) {
     return;
   }
   data.recipient = recipient;
@@ -413,7 +466,7 @@ if (require.main === module) {
     process.exit();
   }
 
-  process.env.PORT = 3066;
+  process.env.PORT = '3066';
 
   console.log('startDate', startDate, 'endDate', endDate);
 

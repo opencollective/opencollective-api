@@ -2,38 +2,39 @@ import '../../server/env';
 
 import PlatformConstants from '../../server/constants/platform';
 import { processHostOnBoardingTemplate, processOnBoardingTemplate } from '../../server/lib/onboarding';
+import type { Collective } from '../../server/models';
 import models, { Op } from '../../server/models';
 import { runCronJob } from '../utils';
 
-const XDaysAgo = days => {
+const XDaysAgo = (days: number): Date => {
   const d = new Date();
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() - days);
 };
 
-Date.prototype.toString = function () {
+Date.prototype.toString = function (this: Date) {
   const mm = this.getMonth() + 1; // getMonth() is zero-based
   const dd = this.getDate();
 
   return [this.getFullYear(), (mm > 9 ? '' : '0') + mm, (dd > 9 ? '' : '0') + dd].join('-');
 };
 
-const onlyCollectivesWithoutTransactions = collective => {
+const onlyCollectivesWithoutTransactions = (collective: Collective): Promise<boolean> => {
   return models.Transaction.count({
     where: { CollectiveId: collective.id },
   }).then(count => count === 0);
 };
 
-const onlyCollectivesWithoutExpenses = collective => {
+const onlyCollectivesWithoutExpenses = (collective: Collective): Promise<boolean> => {
   return models.Expense.count({ where: { CollectiveId: collective.id } }).then(count => count === 0);
 };
 
-const onlyCollectivesWithoutUpdates = collective => {
+const onlyCollectivesWithoutUpdates = (collective: Collective): Promise<boolean> => {
   return models.Update.count({
     where: { CollectiveId: collective.id, publishedAt: { [Op.ne]: null } },
   }).then(count => count === 0);
 };
 
-const onlyCollectivesWithoutCustomHostOnboarding = collective => {
+const onlyCollectivesWithoutCustomHostOnboarding = (collective: Collective): boolean => {
   return ![PlatformConstants.FiscalHostOSCCollectiveId].includes(collective.HostCollectiveId);
 };
 

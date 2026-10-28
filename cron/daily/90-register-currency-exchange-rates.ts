@@ -12,11 +12,11 @@ import { runCronJob } from '../utils';
 const PLATFORM_BASE_CURRENCY = 'USD';
 const CURRENCIES_TO_FETCH = without(SUPPORTED_CURRENCIES, PLATFORM_BASE_CURRENCY);
 
-const run = async () => {
+const run = async (): Promise<void> => {
   logger.info(`Storing FX rates for ${CURRENCIES_TO_FETCH}...`);
 
   for (const currency of SUPPORTED_CURRENCIES) {
-    const currencyRates = await fetchFxRates(currency, SUPPORTED_CURRENCIES);
+    const currencyRates = await fetchFxRates(currency, [...SUPPORTED_CURRENCIES]);
     const targetCurrencies = keys(currencyRates);
     if (targetCurrencies.length) {
       const exchangeRates = targetCurrencies.map(to => ({

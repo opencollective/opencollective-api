@@ -21,6 +21,16 @@ const json2csv = (data, opts = undefined) => new Parser(opts).parse(data);
 
 const REPORT_EMAIL = 'ops@opencollective.com';
 
+/** Options accepted by `run`, as returned by `parseCommandLineArguments` */
+type RunOptions = {
+  dryRun: boolean;
+  limit: number;
+  concurrency: number;
+  simulate: boolean;
+  orderIds?: number[];
+  startDate?: Date;
+};
+
 // These field names are the ones returned by
 // processOrderWithSubscription().
 const csvFields = [
@@ -42,7 +52,7 @@ const csvFields = [
 const startTime = new Date();
 
 /** Run the script with parameters read from the command line */
-async function run(options) {
+async function run(options: RunOptions) {
   options.startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 
   const queue = new PQueue({ concurrency: options.concurrency });
@@ -135,7 +145,7 @@ async function emailReport(orders, data, attachments) {
 
   // Time we spent running the whole script
   const now = new Date();
-  const end = now - startTime;
+  const end = now.getTime() - startTime.getTime();
   result.push(`\n\nTotal time taken: ${end}ms`);
 
   // Subject line of the email
@@ -149,7 +159,7 @@ async function emailReport(orders, data, attachments) {
 }
 
 /** Return the options passed by the user to run the script */
-function parseCommandLineArguments() {
+function parseCommandLineArguments(): RunOptions {
   const program = new Command()
     .description('Charge due recurring contributions')
     .option('--dryrun', "Don't perform any payment or change to the database", false)

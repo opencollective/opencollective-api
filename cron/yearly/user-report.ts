@@ -8,8 +8,75 @@ import emailLib from '../../server/lib/email';
 import queries from '../../server/lib/queries';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { formatCurrencyObject } from '../../server/lib/utils';
+import type { Collective } from '../../server/models';
 import models, { Op, sequelize } from '../../server/models';
 import { runCronJob } from '../utils';
+
+/** Row shape of `GetCollectiveTransactionsQuery` */
+type CollectiveTransactionsRow = {
+  CollectiveId: number;
+  HostCollectiveId: number | null;
+  amountInHostCurrency: string;
+  hostCurrency: string;
+  platformFeeInHostCurrency: string;
+  hostFeeInHostCurrency: string;
+  paymentProcessorFeeInHostCurrency: string;
+  hostSlug: string;
+  hostName: string;
+  hostLogo: string;
+  hostTwitterHandle: string;
+  hostDescription: string;
+  slug: string;
+  name: string;
+  description: string;
+  image: string;
+  backgroundImage: string;
+  twitterHandle: string;
+  settings: unknown;
+  data: unknown;
+};
+
+/** A collective listed in the yearly report */
+type YearlyCollectiveInfo = {
+  slug: string;
+  name: string;
+  description: string;
+  image: string;
+  backgroundImage: string;
+  twitterHandle: string;
+  settings: unknown;
+  data: unknown;
+  totalDonations: number;
+  tier: string;
+  currency: string;
+};
+
+/** A host (or the platform fees pseudo-host) of the yearly report */
+type YearlyHostInfo = {
+  slug?: string;
+  name: string;
+  image?: string;
+  twitterHandle?: string;
+  description?: string;
+  totalFees?: Record<string, number>;
+  collectivesBySlug?: Record<string, YearlyCollectiveInfo>;
+  collectives?: YearlyCollectiveInfo[];
+};
+
+/** Data passed to the `user.yearlyreport` template */
+type YearlyReportData = {
+  stats: {
+    totalCollectives: number;
+    totalDonations: Record<string, number>;
+    totalDonationsString: string;
+  };
+  fees: { stripe: Record<string, number>; opencollective: Record<string, number> };
+  hosts: Record<string, YearlyHostInfo>;
+  year: number;
+  collective?: unknown;
+  platformStats?: unknown;
+  recipients?: string[];
+};
 
 // Only run on the first of the year
 const today = new Date();
@@ -59,9 +126,9 @@ const getPlatformStats = async () => {
   };
 };
 
-const processCollective = collective => {
+const processCollective = (collective: Collective) => {
   return sequelize
-    .query(GetCollectiveTransactionsQuery, {
+    .query<CollectiveTransactionsRow>(GetCollectiveTransactionsQuery, {
       type: QueryTypes.SELECT,
       replacements: { FromCollectiveId: collective.id, startDate, endDate },
     })
@@ -72,13 +139,13 @@ const processCollective = collective => {
       }
       console.log('>>> processing collective', collective.slug);
       totalUsersProcessed++;
-      const hosts = {
+      const hosts: Record<string, YearlyHostInfo> = {
         opencollective: { name: 'Platform fees' },
         stripe: { name: 'Credit Card Processing Fees (Stripe)' },
       };
       const totalCollectives = transactions.length;
-      const totalDonations = {};
-      const collectivesBySlug = {};
+      const totalDonations: Record<string, number> = {};
+      const collectivesBySlug: Record<string, YearlyCollectiveInfo> = {};
       transactions.forEach(row => {
         if (!row.hostName) {
           return console.log('>>> no hostname for', row);
@@ -161,7 +228,7 @@ const processCollective = collective => {
         year,
       };
     })
-    .then(data => {
+    .then((data: YearlyReportData) => {
       return getUsers(collective).then(users => {
         data.collective = collective.info;
         data.platformStats = platformStats;
@@ -170,6 +237,8 @@ const processCollective = collective => {
           console.log('>>> recipients for ', collective.type.toLowerCase(), collective.slug, ':', data.recipients);
         }
         if (data.recipients.length > 0) {
+          // `emailLib.send` is typed with a single recipient but supports arrays at runtime (see its `isArray` check)
+          // @ts-expect-error passing multiple recipients, supported by `emailLib.send`
           return emailLib.send('user.yearlyreport', data.recipients, data);
         }
       });
@@ -189,7 +258,7 @@ const getHosts = async () => {
 };
 
 const getCollectives = () => {
-  const where = {};
+  const where: { slug?: { [Op.in]: string[] } } = {};
   if (process.env.DEBUG && process.env.DEBUG.match(/preview/)) {
     where.slug = {
       [Op.in]: ['xdamman', 'digitalocean', 'fbopensource', 'piamancini', 'brusselstogether', 'wwcode'],
@@ -206,7 +275,7 @@ const getCollectives = () => {
   });
 };
 
-const getUsers = collective => {
+const getUsers = (collective: Collective) => {
   return models.Notification.findAll({
     where: {
       channel: 'email',
@@ -215,7 +284,7 @@ const getUsers = collective => {
       active: false,
     },
   }).then(unsubscriptions => {
-    const excludeUnsubscribed = {};
+    const excludeUnsubscribed: { id?: { [Op.notIn]: number[] } } = {};
     const unsubscribedUserIds = unsubscriptions.map(u => u.UserId);
     if (unsubscribedUserIds.length > 0) {
       console.log(
@@ -269,15 +338,19 @@ const init = () => {
     .then(() => getHosts())
     .then(h => (hosts = h))
     .then(() => getCollectives())
-    .map(collective => {
-      if (hosts.indexOf(collective.id) !== -1) {
-        totalUsersSkipped++;
-        return console.log(collective.slug, 'is a host, skipping');
-      }
-      return processCollective(collective);
-    })
+    .then(collectives =>
+      Promise.all(
+        collectives.map(collective => {
+          if (hosts.indexOf(collective.id) !== -1) {
+            totalUsersSkipped++;
+            return console.log(collective.slug, 'is a host, skipping');
+          }
+          return processCollective(collective);
+        }),
+      ),
+    )
     .then(() => {
-      const timeLapsed = Math.round((new Date() - startTime) / 1000);
+      const timeLapsed = Math.round((new Date().getTime() - startTime.getTime()) / 1000);
       console.log('Total user/organizations processed: ', totalUsersProcessed);
       console.log('Total user/organizations skipped: ', totalUsersSkipped);
       console.log(`Total run time: ${timeLapsed}s`);
@@ -290,6 +363,6 @@ if (require.main === module) {
     process.exit();
   }
 
-  process.env.PORT = 3066;
+  process.env.PORT = '3066';
   runCronJob('yearly-user-report', init, 23 * 60 * 60);
 }

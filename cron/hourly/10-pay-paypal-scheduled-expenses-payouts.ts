@@ -9,7 +9,7 @@ import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import * as paypal from '../../server/paymentProviders/paypal/payouts';
 import { runCronJob } from '../utils';
 
-export async function run() {
+export async function run(): Promise<void> {
   const expenses = await models.Expense.findAll({
     where: {
       status: status.SCHEDULED_FOR_PAYMENT,

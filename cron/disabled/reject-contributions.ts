@@ -25,6 +25,15 @@ const query = `SELECT "Orders"."id"
   AND "FromCollectives"."data"->'categories' IS NOT NULL
   ORDER BY "Orders"."createdAt" ASC`;
 
+/** Row shape of the raw query above */
+type OrderRow = { id: number };
+
+type RunOptions = {
+  dryRun?: boolean;
+  limit?: number;
+  force?: boolean;
+};
+
 const getContributorRejectedCategories = (fromCollective, collective) => {
   const rejectedCategories = get(collective, 'settings.moderation.rejectedCategories', []);
   const contributorCategories = get(fromCollective, 'data.categories', []);
@@ -47,8 +56,8 @@ const getContributorRejectedCategories = (fromCollective, collective) => {
   return intersection(rejectedCategories, contributorRejectedCategories);
 };
 
-async function run({ dryRun, limit, force } = {}) {
-  let rows = await sequelize.query(query, { type: QueryTypes.SELECT });
+async function run({ dryRun, limit, force }: RunOptions = {}) {
+  let rows = await sequelize.query<OrderRow>(query, { type: QueryTypes.SELECT });
 
   if (rows.length > 0 && limit) {
     rows = rows.slice(0, limit);
@@ -107,7 +116,7 @@ async function run({ dryRun, limit, force } = {}) {
             if (paymentMethodProvider.refundTransaction) {
               await refundTransaction(transaction, null, 'Contribution rejected');
             } else if (force) {
-              await createRefundTransaction(transaction, 0, null);
+              await createRefundTransaction(transaction, 0, null, null);
             } else {
               if (order.status === 'PAID' || order.status === 'CANCELLED') {
                 shouldNotifyContributor = false;

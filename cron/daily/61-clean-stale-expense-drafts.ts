@@ -3,10 +3,13 @@ import '../../server/env';
 import { sequelize } from '../../server/models';
 import { runCronJob } from '../utils';
 
-const cleanStaleExpenseDrafts = async () => {
+/** pg returns the number of affected rows as the second element of the result tuple */
+type UpdateResult = [unknown[], { rowCount: number }];
+
+const cleanStaleExpenseDrafts = async (): Promise<void> => {
   console.log('Cleaning Expense drafts older than 1 month...');
 
-  const [, meta] = await sequelize.query(
+  const [, meta] = (await sequelize.query(
     `
     UPDATE "Expenses"
     SET "deletedAt" = NOW()
@@ -14,7 +17,7 @@ const cleanStaleExpenseDrafts = async () => {
     AND ("status" = 'DRAFT' OR "status" = 'UNVERIFIED')
     AND "updatedAt" <= (NOW() - interval '2 month');
     `,
-  );
+  )) as UpdateResult;
 
   console.log(`>>> Done: ${meta?.rowCount} draft(s) deleted.`);
 };

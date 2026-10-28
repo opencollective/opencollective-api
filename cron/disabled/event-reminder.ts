@@ -3,12 +3,13 @@ import '../../server/env';
 import { get } from 'lodash';
 
 import emailLib from '../../server/lib/email';
+import type { Collective } from '../../server/models';
 import models, { Op } from '../../server/models';
 import { runCronJob } from '../utils';
 
 let totalEvents = 0;
 
-Date.prototype.toString = function () {
+Date.prototype.toString = function (this: Date) {
   const mm = this.getMonth() + 1; // getMonth() is zero-based
   const dd = this.getDate();
   const hours = this.getHours();
@@ -56,7 +57,7 @@ async function run() {
     nextWeekStartsAt.toString(),
     nextWeekEndsAt.toString(),
   );
-  const nextWeekEvents = models.Collective.findAll({
+  const nextWeekEvents = await models.Collective.findAll({
     where: {
       type: 'EVENT',
       startsAt: { [Op.gte]: nextWeekStartsAt, [Op.lt]: nextWeekEndsAt },
@@ -68,7 +69,7 @@ async function run() {
   });
 }
 
-async function processEvent(event, template) {
+async function processEvent(event: Collective & { path?: string }, template: string) {
   totalEvents++;
 
   console.log('>>> processing', event.slug);
