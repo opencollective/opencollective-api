@@ -5,6 +5,8 @@ import config from 'config';
 import { createSandbox } from 'sinon';
 
 import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../../../server/constants/activities';
+import channels from '../../../server/constants/channels';
+import { CollectiveType } from '../../../server/constants/collectives';
 import roles from '../../../server/constants/roles';
 import emailLib from '../../../server/lib/email';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../server/lib/rate-limit';
@@ -13,6 +15,9 @@ import { fakeCollective, fakeNotification, fakeUser, multiple } from '../../test
 import * as utils from '../../utils';
 
 const { User, Collective, Notification, Tier, Order } = models;
+
+/** `Notification.type` also allows arbitrary mailing list types, which are not part of the enums. */
+const notificationType = ({ type }: { type: string }) => type as ActivityTypes | ActivityClasses;
 
 describe('server/models/Notification', () => {
   let host, collective, hostAdmin, sandbox, emailSendMessageSpy;
@@ -30,13 +35,13 @@ describe('server/models/Notification', () => {
     hostAdmin = await User.createUserWithCollective({ name: 'host admin', email: 'admin@host.com' });
     host = await Collective.create({
       name: 'host',
-      type: 'ORGANIZATION',
+      type: CollectiveType.ORGANIZATION,
       CreatedByUserId: hostAdmin.id,
       settings: { apply: true },
       hasHosting: true,
       hasMoneyManagement: true,
     });
-    collective = await Collective.create({ name: 'webpack', type: 'COLLECTIVE' });
+    collective = await Collective.create({ name: 'webpack', type: CollectiveType.COLLECTIVE });
     await host.addUserWithRole(hostAdmin, 'ADMIN');
     await hostAdmin.populateRoles({ force: true });
     await collective.addHost(host, hostAdmin);
@@ -45,7 +50,7 @@ describe('server/models/Notification', () => {
   describe('unsubscribe', () => {
     it('should unsubscribe from ActivityType', async () => {
       const user = await fakeUser();
-      const notification = await Notification.unsubscribe(ActivityTypes.COLLECTIVE_APPROVED, 'email', user.id);
+      const notification = await Notification.unsubscribe(ActivityTypes.COLLECTIVE_APPROVED, channels.EMAIL, user.id);
 
       expect(notification).to.have.property('type').equal(ActivityTypes.COLLECTIVE_APPROVED);
       expect(notification).to.have.property('channel').equal('email');
@@ -55,7 +60,12 @@ describe('server/models/Notification', () => {
 
     it('should unsubscribe from ActivityClass', async () => {
       const user = await fakeUser();
-      const notification = await Notification.unsubscribe(ActivityClasses.EXPENSES, 'email', user.id, collective.id);
+      const notification = await Notification.unsubscribe(
+        ActivityClasses.EXPENSES,
+        channels.EMAIL,
+        user.id,
+        collective.id,
+      );
 
       expect(notification).to.have.property('type').equal(ActivityClasses.EXPENSES);
       expect(notification).to.have.property('channel').equal('email');
@@ -66,7 +76,7 @@ describe('server/models/Notification', () => {
     it('should delete existing ActivityType when unsubscribe from ActivityClass of such type', async () => {
       const user = await fakeUser();
 
-      await Notification.unsubscribe(ActivityTypes.COLLECTIVE_EXPENSE_CREATED, 'email', user.id, collective.id);
+      await Notification.unsubscribe(ActivityTypes.COLLECTIVE_EXPENSE_CREATED, channels.EMAIL, user.id, collective.id);
       let userNotifications = await Notification.findAll({ where: { UserId: user.id } });
       expect(userNotifications).to.have.length(1);
       expect(userNotifications[0]).to.have.property('type').equal(ActivityTypes.COLLECTIVE_EXPENSE_CREATED);
@@ -74,7 +84,7 @@ describe('server/models/Notification', () => {
       expect(userNotifications[0]).to.have.property('UserId').equal(user.id);
       expect(userNotifications[0]).to.have.property('CollectiveId').equal(collective.id);
 
-      await Notification.unsubscribe(ActivityClasses.EXPENSES, 'email', user.id, collective.id);
+      await Notification.unsubscribe(ActivityClasses.EXPENSES, channels.EMAIL, user.id, collective.id);
       userNotifications = await Notification.findAll({ where: { UserId: user.id } });
       expect(userNotifications).to.have.length(1);
       expect(userNotifications[0]).to.have.property('type').equal(ActivityClasses.EXPENSES);
@@ -89,7 +99,7 @@ describe('server/models/Notification', () => {
       const user = await fakeUser();
       const notification = await fakeNotification({
         UserId: user.id,
-        channel: 'email',
+        channel: channels.EMAIL,
         active: false,
         type: ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
       });
@@ -97,7 +107,12 @@ describe('server/models/Notification', () => {
       let userNotifications = await Notification.findAll({ where: { UserId: user.id } });
       expect(userNotifications).to.have.length(1);
 
-      await Notification.subscribe(notification.type, notification.channel, user.id, notification.CollectiveId);
+      await Notification.subscribe(
+        notificationType(notification),
+        notification.channel,
+        user.id,
+        notification.CollectiveId,
+      );
 
       userNotifications = await Notification.findAll({ where: { UserId: user.id } });
       expect(userNotifications).to.have.length(0);
@@ -107,7 +122,7 @@ describe('server/models/Notification', () => {
       const user = await fakeUser();
       const notification = await fakeNotification({
         UserId: user.id,
-        channel: 'email',
+        channel: channels.EMAIL,
         active: false,
         type: ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
       });
@@ -135,7 +150,12 @@ describe('server/models/Notification', () => {
       const subscribers = await Notification.getSubscribersUsers(collective.slug, 'backers');
       expect(subscribers.length).to.equal(2);
 
-      await Notification.unsubscribe('mailinglist.backers', 'email', subscribers[0].id, collective.id);
+      await Notification.unsubscribe(
+        notificationType({ type: 'mailinglist.backers' }),
+        channels.EMAIL,
+        subscribers[0].id,
+        collective.id,
+      );
       const subscribers2 = await Notification.getSubscribers(collective.slug, 'backers');
       expect(subscribers2.length).to.equal(1);
     });
@@ -147,10 +167,11 @@ describe('server/models/Notification', () => {
         ...eventData,
         ParentCollectiveId: collective.id,
       });
+      // NOTE: `tier` is not awaited (pre-existing bug, preserved as-is: `tier.id` below is `undefined`).
       const tier = Tier.create({
         ...tierData,
         CollectiveId: event.id,
-      });
+      }) as Promise<InstanceType<typeof Tier>> & InstanceType<typeof Tier>;
       await Promise.all(
         users.map(user => {
           return Order.create({
@@ -176,7 +197,12 @@ describe('server/models/Notification', () => {
       const subscribers = await Notification.getSubscribers(event.slug, event.slug);
       expect(subscribers.length).to.equal(2);
 
-      await Notification.unsubscribe(`mailinglist.${event.slug}`, 'email', users[0].id, event.id);
+      await Notification.unsubscribe(
+        notificationType({ type: `mailinglist.${event.slug}` }),
+        channels.EMAIL,
+        users[0].id,
+        event.id,
+      );
       const subscribers2 = await Notification.getSubscribers(event.slug, event.slug);
       expect(subscribers2.length).to.equal(1);
     });
@@ -189,25 +215,25 @@ describe('server/models/Notification', () => {
 
     it('should return user who unsubscribed for activity type', async () => {
       const notification = await fakeNotification({
-        channel: 'email',
+        channel: channels.EMAIL,
         CollectiveId: null,
         active: false,
         type: ActivityTypes.COLLECTIVE_APPLY,
       });
-      const unsubscribers = await models.Notification.getUnsubscribers({ type: notification.type });
+      const unsubscribers = await models.Notification.getUnsubscribers({ type: notificationType(notification) });
 
       expect(unsubscribers).to.containSubset([{ id: notification.UserId }]);
     });
 
     it('can return only specific user attributes', async () => {
       const notification = await fakeNotification({
-        channel: 'email',
+        channel: channels.EMAIL,
         CollectiveId: null,
         active: false,
         type: ActivityTypes.COLLECTIVE_APPLY,
       });
       const unsubscribers = await models.Notification.getUnsubscribers({
-        type: notification.type,
+        type: notificationType(notification),
         attributes: ['email'],
       });
 
@@ -218,7 +244,7 @@ describe('server/models/Notification', () => {
 
     it('should return user who unsubscribed for activity class that contains the type', async () => {
       const notification = await fakeNotification({
-        channel: 'email',
+        channel: channels.EMAIL,
         CollectiveId: null,
         type: ActivityClasses.CONTRIBUTIONS,
         active: false,
@@ -233,7 +259,7 @@ describe('server/models/Notification', () => {
     it('should return user who unsubscribed for activity type in the collective', async () => {
       const collective = await fakeCollective();
       const notification = await fakeNotification({
-        channel: 'email',
+        channel: channels.EMAIL,
         CollectiveId: collective.id,
         UserId: collective.CreatedByUserId,
         active: false,
@@ -241,7 +267,7 @@ describe('server/models/Notification', () => {
       });
 
       const unsubscribers = await models.Notification.getUnsubscribers({
-        type: notification.type,
+        type: notificationType(notification),
         CollectiveId: collective.id,
       });
 
@@ -253,7 +279,7 @@ describe('server/models/Notification', () => {
       const parentCollective = await fakeCollective();
       const collective = await fakeCollective({ ParentCollectiveId: parentCollective.id });
       const notification = await fakeNotification({
-        channel: 'email',
+        channel: channels.EMAIL,
         CollectiveId: parentCollective.id,
         UserId: parentCollective.CreatedByUserId,
         active: false,
@@ -261,7 +287,7 @@ describe('server/models/Notification', () => {
       });
 
       const unsubscribers = await models.Notification.getUnsubscribers({
-        type: notification.type,
+        type: notificationType(notification),
         CollectiveId: collective.id,
       });
 
@@ -273,7 +299,7 @@ describe('server/models/Notification', () => {
       const host = await fakeCollective();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
       const notification = await fakeNotification({
-        channel: 'email',
+        channel: channels.EMAIL,
         CollectiveId: host.id,
         UserId: host.CreatedByUserId,
         active: false,
@@ -281,7 +307,7 @@ describe('server/models/Notification', () => {
       });
 
       const unsubscribers = await models.Notification.getUnsubscribers({
-        type: notification.type,
+        type: notificationType(notification),
         CollectiveId: collective.id,
       });
 
@@ -293,28 +319,28 @@ describe('server/models/Notification', () => {
       const host = await fakeCollective();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
       const notification = await fakeNotification({
-        channel: 'email',
+        channel: channels.EMAIL,
         CollectiveId: host.id,
         UserId: host.CreatedByUserId,
         active: false,
         type: ActivityTypes.COLLECTIVE_COMMENT_CREATED,
       });
       await fakeNotification({
-        channel: 'email',
-        type: notification.type,
+        channel: channels.EMAIL,
+        type: notificationType(notification),
         CollectiveId: collective.id,
         UserId: host.CreatedByUserId,
         active: true,
       });
       const otherNotification = await fakeNotification({
-        channel: 'email',
-        type: notification.type,
+        channel: channels.EMAIL,
+        type: notificationType(notification),
         CollectiveId: collective.id,
         active: false,
       });
 
       const unsubscribers = await models.Notification.getUnsubscribers({
-        type: notification.type,
+        type: notificationType(notification),
         CollectiveId: collective.id,
       });
 
@@ -358,7 +384,7 @@ describe('server/models/Notification', () => {
       await expense.createActivity('collective.expense.paid');
       await utils.waitForCondition(() => emailSendMessageSpy.callCount === 2, {
         tag: '$100.00 from webpack for pizza AND Expense paid on webpack',
-      });
+      } as Parameters<typeof utils.waitForCondition>[1]);
 
       expect(emailSendMessageSpy.callCount).to.equal(2);
       expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user.email);
@@ -371,7 +397,7 @@ describe('server/models/Notification', () => {
         UserId: hostAdmin.id,
         type: 'collective.expense.paid.for.host',
         active: false,
-        channel: 'email',
+        channel: channels.EMAIL,
       });
 
       await expense.createActivity('collective.expense.paid');
@@ -441,7 +467,7 @@ describe('server/models/Notification', () => {
         .rejects(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }));
 
       const notif = await Notification.create({
-        channel: 'webhook',
+        channel: channels.WEBHOOK,
         webhookUrl: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX',
       });
 
@@ -455,7 +481,7 @@ describe('server/models/Notification', () => {
       sandbox.stub(dns.promises, 'resolve6').rejects(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }));
 
       const notif = await Notification.create({
-        channel: 'webhook',
+        channel: channels.WEBHOOK,
         webhookUrl: 'https://example.com/hook',
       });
       expect(resolve4).to.have.been.calledOnce;
@@ -473,7 +499,7 @@ describe('server/models/Notification', () => {
       sandbox.stub(dns.promises, 'resolve6').rejects(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }));
 
       const notif = await Notification.create({
-        channel: 'webhook',
+        channel: channels.WEBHOOK,
         webhookUrl: 'https://example.com/hook',
       });
       resolve4.resetHistory();
@@ -495,7 +521,7 @@ describe('server/models/Notification', () => {
 
       await expect(
         Notification.create({
-          channel: 'webhook',
+          channel: channels.WEBHOOK,
           webhookUrl: 'https://example.com/hook',
           UserId: user.id,
         }),

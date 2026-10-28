@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import models, { sequelize } from '../../../server/models';
-import { ManualPaymentProviderTypes } from '../../../server/models/ManualPaymentProvider';
+import { ManualPaymentProviderData, ManualPaymentProviderTypes } from '../../../server/models/ManualPaymentProvider';
 import { fakeCollective, fakeOrder } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
@@ -18,7 +18,7 @@ describe('server/models/ManualPaymentProvider', () => {
         type: ManualPaymentProviderTypes.BANK_TRANSFER,
         name: 'Wire Transfer',
         instructions: 'Please send payment to our bank account.',
-        data: { bankName: 'Test Bank', accountNumber: '123456789' },
+        data: { bankName: 'Test Bank', accountNumber: '123456789' } as ManualPaymentProviderData,
       });
       expect(provider.type).to.equal(ManualPaymentProviderTypes.BANK_TRANSFER);
       expect(provider.name).to.equal('Wire Transfer');
@@ -87,7 +87,7 @@ describe('server/models/ManualPaymentProvider', () => {
       await expect(
         models.ManualPaymentProvider.create({
           CollectiveId: collective.id,
-          type: 'INVALID_TYPE',
+          type: 'INVALID_TYPE' as ManualPaymentProviderTypes,
           name: 'Test',
           instructions: 'Some instructions',
         }),

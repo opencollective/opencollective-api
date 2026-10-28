@@ -1,10 +1,19 @@
 import { expect } from 'chai';
 
+import { SupportedCurrency } from '../../../server/constants/currencies';
+import type { Collective as CollectiveModel, RequiredLegalDocument } from '../../../server/models';
 import models from '../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../server/models/LegalDocument';
 import * as utils from '../../utils';
 
 const { Collective } = models;
+
+/**
+ * The `hostCollective` association is registered in `models/index.ts` but not declared on the
+ * `RequiredLegalDocument` model type.
+ */
+const getHostCollective = (doc: RequiredLegalDocument) =>
+  (doc as RequiredLegalDocument & { getHostCollective: () => Promise<CollectiveModel> }).getHostCollective();
 
 describe('server/models/RequiredLegalDocument', () => {
   // globals to be set in the before hooks.
@@ -13,7 +22,7 @@ describe('server/models/RequiredLegalDocument', () => {
   const hostCollectiveData = {
     slug: 'myhost',
     name: 'myhost',
-    currency: 'USD',
+    currency: 'USD' as SupportedCurrency,
     tags: ['#brusselstogether'],
     tiers: [
       {
@@ -57,7 +66,7 @@ describe('server/models/RequiredLegalDocument', () => {
     );
     const doc = await models.RequiredLegalDocument.create(requiredDoc);
 
-    const retrievedHost = await doc.getHostCollective();
+    const retrievedHost = await getHostCollective(doc);
 
     expect(retrievedHost.id).to.eq(hostCollective.id);
   });

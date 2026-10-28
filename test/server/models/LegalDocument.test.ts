@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import moment from 'moment';
 import sinon from 'sinon';
 
+import { SupportedCurrency } from '../../../server/constants/currencies';
 import { US_TAX_FORM_THRESHOLD_POST_2026, US_TAX_FORM_THRESHOLD_PRE_2026 } from '../../../server/constants/tax-form';
 import emailLib from '../../../server/lib/email';
 import models from '../../../server/models';
@@ -55,7 +56,7 @@ describe('server/models/LegalDocument', () => {
   const hostCollectiveData = {
     slug: 'myhost',
     name: 'myhost',
-    currency: 'USD',
+    currency: 'USD' as SupportedCurrency,
     tags: ['#brusselstogether'],
     tiers: [
       {
@@ -175,7 +176,7 @@ describe('server/models/LegalDocument', () => {
 
     expect(doc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED);
 
-    doc.requestStatus = 'SCUTTLEBUTT';
+    doc.requestStatus = 'SCUTTLEBUTT' as LEGAL_DOCUMENT_REQUEST_STATUS;
     expect(doc.save()).to.be.rejected;
   });
 

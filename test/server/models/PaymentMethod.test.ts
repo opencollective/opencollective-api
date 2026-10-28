@@ -3,6 +3,7 @@ import config from 'config';
 import nock from 'nock';
 import { useFakeTimers } from 'sinon';
 
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
 import * as utils from '../../utils';
@@ -26,8 +27,8 @@ describe('server/models/PaymentMethod', () => {
   describe('validation', () => {
     it('validates the token for Stripe', done => {
       models.PaymentMethod.create({
-        service: 'stripe',
-        type: 'creditcard',
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
         token: 'invalid token',
       }).catch(e => {
         expect(e.message).to.equal('Invalid Stripe token invalid token');
@@ -55,8 +56,8 @@ describe('server/models/PaymentMethod', () => {
     before('create a payment method', () =>
       models.PaymentMethod.create({
         name: '4242',
-        service: 'stripe',
-        type: 'creditcard',
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
         token: 'tok_123456781234567812345678',
         CollectiveId: organization.id,
         monthlyLimitPerMember: 10000,

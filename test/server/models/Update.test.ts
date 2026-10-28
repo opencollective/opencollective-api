@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import { flatten, reduce, times } from 'lodash';
 
+import MemberRoles from '../../../server/constants/roles';
+import type { User } from '../../../server/models';
 import models, { Op } from '../../../server/models';
 import { randEmail } from '../../stores';
 import {
@@ -13,7 +15,7 @@ import {
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
-const addRandomMemberUsers = (collective, count, role) => {
+const addRandomMemberUsers = (collective, count: number, role: MemberRoles) => {
   return Promise.all(
     times(count, async () => {
       const user = await fakeUser();
@@ -154,7 +156,7 @@ describe('server/models/Update', () => {
       backerOrganizations,
       expectedTotal;
 
-    const adminsOfMemberOrganizations = {};
+    const adminsOfMemberOrganizations: Record<string, User[]> = {};
     const countAdminsOfMemberOrganizations = () => {
       return reduce(adminsOfMemberOrganizations, (result, users) => result + users.length, 0);
     };
@@ -169,19 +171,23 @@ describe('server/models/Update', () => {
       collective.parentCollective = parentCollective;
 
       // Create backer organizations
-      backerOrganizations = await Promise.all(times(4, fakeOrganization));
+      backerOrganizations = await Promise.all(times(4, () => fakeOrganization()));
 
       // Add individual members
-      parentCollectiveAdmins = await addRandomMemberUsers(parentCollective, 5, 'ADMIN');
-      collectiveAdmins = await addRandomMemberUsers(collective, 2, 'ADMIN');
-      individualBackersUsers = await addRandomMemberUsers(collective, 5, 'BACKER');
+      parentCollectiveAdmins = await addRandomMemberUsers(parentCollective, 5, MemberRoles.ADMIN);
+      collectiveAdmins = await addRandomMemberUsers(collective, 2, MemberRoles.ADMIN);
+      individualBackersUsers = await addRandomMemberUsers(collective, 5, MemberRoles.BACKER);
 
       // Initialize the backer organizations
       for (const organization of backerOrganizations) {
         // Add some admins to the organizations
-        adminsOfMemberOrganizations[organization.id] = await addRandomMemberUsers(organization, 3, 'ADMIN');
+        adminsOfMemberOrganizations[organization.id] = await addRandomMemberUsers(organization, 3, MemberRoles.ADMIN);
         // Add org as a backer of collective
-        await fakeMember({ MemberCollectiveId: organization.id, CollectiveId: collective.id, role: 'BACKER' });
+        await fakeMember({
+          MemberCollectiveId: organization.id,
+          CollectiveId: collective.id,
+          role: MemberRoles.BACKER,
+        });
       }
 
       // Compute expected totals
@@ -192,16 +198,16 @@ describe('server/models/Update', () => {
         countAdminsOfMemberOrganizations();
 
       // Pollute the DB with some random data to make sure it doesn't interfere
-      parentCollectiveBackers = await addRandomMemberUsers(parentCollective, 7, 'BACKER');
-      await Promise.all(times(15, fakeMember)); // random members on different collectives
+      parentCollectiveBackers = await addRandomMemberUsers(parentCollective, 7, MemberRoles.BACKER);
+      await Promise.all(times(15, () => fakeMember())); // random members on different collectives
       // Add some admins as BACKER (to test grouping)
-      await collective.addUserWithRole(collectiveAdmins[0], 'BACKER');
-      await collective.addUserWithRole(parentCollectiveAdmins[0], 'BACKER');
+      await collective.addUserWithRole(collectiveAdmins[0], MemberRoles.BACKER);
+      await collective.addUserWithRole(parentCollectiveAdmins[0], MemberRoles.BACKER);
 
       // Add some deleted members
       await Promise.all(
         [parentCollective, collective, ...backerOrganizations].map(async account => {
-          const users = await addRandomMemberUsers(account, 3, 'BACKER');
+          const users = await addRandomMemberUsers(account, 3, MemberRoles.BACKER);
           const usersCollectiveIds = users.map(u => u.CollectiveId);
           await models.Member.destroy({ where: { MemberCollectiveId: { [Op.in]: usersCollectiveIds } } });
         }),
@@ -224,7 +230,7 @@ describe('server/models/Update', () => {
 
       it('notifies only the admin if there is only one', async () => {
         const collectiveWithOneAdmin = await fakeCollective();
-        await addRandomMemberUsers(collectiveWithOneAdmin, 1, 'ADMIN');
+        await addRandomMemberUsers(collectiveWithOneAdmin, 1, MemberRoles.ADMIN);
         const update = await fakeUpdate({ CollectiveId: collectiveWithOneAdmin.id });
         const usersIdsToNotify = await update.getUsersIdsToNotify();
         expect(usersIdsToNotify.length).to.eq(1);
@@ -303,25 +309,25 @@ describe('server/models/Update', () => {
       it('returns 0 everywhere array when the collective has no member', async () => {
         const emptyCollective = await fakeCollective();
         const update = await fakeUpdate({ CollectiveId: emptyCollective.id });
-        const count = await update.countUsersToNotify();
+        const count = await update.countUsersToNotify(undefined);
         expect(count).to.eq(0);
       });
 
       it('returns 0 when the audience is NO_ONE', async () => {
         const update = await fakeUpdate({ CollectiveId: collective.id, notificationAudience: 'NO_ONE' });
-        const count = await update.countUsersToNotify();
+        const count = await update.countUsersToNotify(undefined);
         expect(count).to.eq(0);
       });
 
       it('When the update is public', async () => {
         const update = await fakeUpdate({ CollectiveId: collective.id, isPrivate: false });
-        const count = await update.countUsersToNotify();
+        const count = await update.countUsersToNotify(undefined);
         expect(count).to.eq(expectedTotal);
       });
 
       it('When the update is private', async () => {
         const update = await fakeUpdate({ CollectiveId: collective.id, isPrivate: true });
-        const count = await update.countUsersToNotify();
+        const count = await update.countUsersToNotify(undefined);
         expect(count).to.eq(expectedTotal);
       });
     });
@@ -330,13 +336,13 @@ describe('server/models/Update', () => {
       it('returns an empty object when the collective has no member', async () => {
         const emptyCollective = await fakeCollective({ HostCollectiveId: null });
         const update = await fakeUpdate({ CollectiveId: emptyCollective.id });
-        const stats = await update.getAudienceMembersStats();
+        const stats = (await update.getAudienceMembersStats(undefined)) as Record<string, number>;
         expect(stats).to.be.empty;
       });
 
       it('When the update is public', async () => {
         const update = await fakeUpdate({ CollectiveId: collective.id, isPrivate: false });
-        const stats = await update.getAudienceMembersStats();
+        const stats = (await update.getAudienceMembersStats(undefined)) as Record<string, number>;
         expect(stats.ORGANIZATION).to.eq(backerOrganizations.length);
         expect(stats.CORE_CONTRIBUTOR).to.eq(parentCollectiveAdmins.length + collectiveAdmins.length);
         expect(stats.USER).to.eq(individualBackersUsers.length);
@@ -344,7 +350,7 @@ describe('server/models/Update', () => {
 
       it('When the update is private', async () => {
         const update = await fakeUpdate({ CollectiveId: collective.id, isPrivate: true });
-        const stats = await update.getAudienceMembersStats();
+        const stats = (await update.getAudienceMembersStats(undefined)) as Record<string, number>;
         expect(stats.ORGANIZATION).to.eq(backerOrganizations.length);
         expect(stats.CORE_CONTRIBUTOR).to.eq(parentCollectiveAdmins.length + collectiveAdmins.length);
         expect(stats.USER).to.eq(individualBackersUsers.length);
@@ -352,7 +358,7 @@ describe('server/models/Update', () => {
 
       it('When parent collective public update is made', async () => {
         const update = await fakeUpdate({ CollectiveId: parentCollective.id, isPrivate: false });
-        const stats = await update.getAudienceMembersStats();
+        const stats = (await update.getAudienceMembersStats(undefined)) as Record<string, number>;
         expect(stats.ORGANIZATION).to.eq(backerOrganizations.length);
         expect(stats.CORE_CONTRIBUTOR).to.eq(parentCollectiveAdmins.length + collectiveAdmins.length);
         expect(stats.USER).to.eq(individualBackersUsers.length + parentCollectiveBackers.length);
@@ -360,7 +366,7 @@ describe('server/models/Update', () => {
 
       it('When parent collective private update is made', async () => {
         const update = await fakeUpdate({ CollectiveId: parentCollective.id, isPrivate: true });
-        const stats = await update.getAudienceMembersStats();
+        const stats = (await update.getAudienceMembersStats(undefined)) as Record<string, number>;
         expect(stats.ORGANIZATION).to.eq(backerOrganizations.length);
         expect(stats.CORE_CONTRIBUTOR).to.eq(parentCollectiveAdmins.length + collectiveAdmins.length);
         expect(stats.USER).to.eq(individualBackersUsers.length + parentCollectiveBackers.length);

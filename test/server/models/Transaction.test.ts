@@ -1,13 +1,21 @@
 import { expect } from 'chai';
 import config from 'config';
+import { get } from 'lodash';
+import type { Order } from 'sequelize';
 import { createSandbox } from 'sinon';
+import type Stripe from 'stripe';
 
 import { activities } from '../../../server/constants';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
+import { TransactionTypes } from '../../../server/constants/transactions';
 import * as LibActivities from '../../../server/lib/activities';
 import { getHostPlatformTipsAccount } from '../../../server/lib/transactions';
+import type { Transaction as TransactionModel } from '../../../server/models';
 import models, { Op } from '../../../server/models';
+
+type TransactionPayload = Partial<TransactionModel> & { totalAmount?: number; platformTipAmount?: number };
 import {
   fakeCollective,
   fakeHost,
@@ -113,7 +121,7 @@ describe('server/models/Transaction', () => {
   });
 
   it('createFromContributionPayload creates a double entry transaction for a Stripe payment in EUR with VAT', () => {
-    const transactionPayload = {
+    const transactionPayload: TransactionPayload = {
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
       CollectiveId: collective.id,
@@ -127,8 +135,8 @@ describe('server/models/Transaction', () => {
       hostFeeInHostCurrency: 500,
       paymentProcessorFeeInHostCurrency: 300,
       taxAmount: 2100,
-      type: 'CREDIT',
-      createdAt: '2015-05-29T07:00:00.000Z',
+      type: TransactionTypes.CREDIT,
+      createdAt: new Date('2015-05-29T07:00:00.000Z'),
       PaymentMethodId: 1,
     };
 
@@ -163,7 +171,7 @@ describe('server/models/Transaction', () => {
   });
 
   it('createFromContributionPayload creates a double entry transaction for a Stripe donation in EUR on a USD host', () => {
-    const transactionPayload = {
+    const transactionPayload: TransactionPayload = {
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
       CollectiveId: collective.id,
@@ -176,8 +184,8 @@ describe('server/models/Transaction', () => {
       platformFeeInHostCurrency: 550,
       hostFeeInHostCurrency: 550,
       paymentProcessorFeeInHostCurrency: 330,
-      type: 'CREDIT',
-      createdAt: '2015-05-29T07:00:00.000Z',
+      type: TransactionTypes.CREDIT,
+      createdAt: new Date('2015-05-29T07:00:00.000Z'),
       PaymentMethodId: 1,
     };
 
@@ -229,7 +237,7 @@ describe('server/models/Transaction', () => {
     sandbox.stub(LibActivities, 'shouldGenerateTransactionActivities').returns(true);
 
     const description = randStr('contribution-');
-    const transactionPayload = {
+    const transactionPayload: TransactionPayload = {
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
       CollectiveId: collective.id,
@@ -241,7 +249,7 @@ describe('server/models/Transaction', () => {
       hostFeeInHostCurrency: 0,
       platformFeeInHostCurrency: 0,
       paymentProcessorFeeInHostCurrency: 0,
-      type: 'CREDIT',
+      type: TransactionTypes.CREDIT,
       kind: TransactionKind.CONTRIBUTION,
     };
 
@@ -279,7 +287,7 @@ describe('server/models/Transaction', () => {
 
   describe('fees on top', () => {
     it('should deduct the platform fee from the main transactions', async () => {
-      const transactionPayload = {
+      const transactionPayload: TransactionPayload = {
         CreatedByUserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
@@ -291,8 +299,8 @@ describe('server/models/Transaction', () => {
         hostCurrencyFxRate: 1,
         hostFeeInHostCurrency: 500,
         paymentProcessorFeeInHostCurrency: 300,
-        type: 'CREDIT',
-        createdAt: '2015-05-29T07:00:00.000Z',
+        type: TransactionTypes.CREDIT,
+        createdAt: new Date('2015-05-29T07:00:00.000Z'),
         PaymentMethodId: 1,
         data: { platformTip: 1000 },
       };
@@ -318,7 +326,7 @@ describe('server/models/Transaction', () => {
         CollectiveId: collective.id,
       });
 
-      const transactionPayload = {
+      const transactionPayload: TransactionPayload = {
         CreatedByUserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
@@ -331,8 +339,8 @@ describe('server/models/Transaction', () => {
         hostCurrencyFxRate: 1,
         hostFeeInHostCurrency: 500,
         paymentProcessorFeeInHostCurrency: 200,
-        type: 'CREDIT',
-        createdAt: '2015-05-29T07:00:00.000Z',
+        type: TransactionTypes.CREDIT,
+        createdAt: new Date('2015-05-29T07:00:00.000Z'),
         PaymentMethodId: 1,
         OrderId: order.id,
         data: { platformTip: 1000 },
@@ -344,7 +352,7 @@ describe('server/models/Transaction', () => {
       // - 2 for contributions
       // - 2 for platform tip (contributor -> Open Collective)
       // - 2 for platform tip debt (host -> Open Collective)
-      const sqlOrder = [['id', 'ASC']];
+      const sqlOrder: Order = [['id', 'ASC']];
       const include = [{ association: 'host' }];
       const allTransactions = await Transaction.findAll({ where: { OrderId: order.id }, order: sqlOrder, include });
       await models.TransactionSettlement.attachStatusesToTransactions(allTransactions);
@@ -384,7 +392,7 @@ describe('server/models/Transaction', () => {
         CollectiveId: collective.id,
       });
 
-      const transactionPayload = {
+      const transactionPayload: TransactionPayload = {
         CreatedByUserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
@@ -397,8 +405,8 @@ describe('server/models/Transaction', () => {
         hostCurrencyFxRate: 1,
         hostFeeInHostCurrency: 500,
         paymentProcessorFeeInHostCurrency: 200,
-        type: 'CREDIT',
-        createdAt: '2015-05-29T07:00:00.000Z',
+        type: TransactionTypes.CREDIT,
+        createdAt: new Date('2015-05-29T07:00:00.000Z'),
         PaymentMethodId: 1,
         OrderId: order.id,
         data: { platformTip: -100 },
@@ -417,7 +425,7 @@ describe('server/models/Transaction', () => {
         currency: 'EUR',
       });
 
-      const transactionPayload = {
+      const transactionPayload: TransactionPayload = {
         CreatedByUserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
@@ -430,8 +438,8 @@ describe('server/models/Transaction', () => {
         hostCurrencyFxRate: 1,
         hostFeeInHostCurrency: 500,
         paymentProcessorFeeInHostCurrency: 200,
-        type: 'CREDIT',
-        createdAt: '2015-05-29T07:00:00.000Z',
+        type: TransactionTypes.CREDIT,
+        createdAt: new Date('2015-05-29T07:00:00.000Z'),
         PaymentMethodId: 1,
         OrderId: order.id,
         data: { platformTip: 1000 },
@@ -478,7 +486,7 @@ describe('server/models/Transaction', () => {
           CollectiveId: collective.id,
         });
 
-        const transactionPayload = {
+        const transactionPayload: TransactionPayload = {
           CreatedByUserId: user.id,
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
@@ -491,8 +499,8 @@ describe('server/models/Transaction', () => {
           hostCurrencyFxRate: 1,
           hostFeeInHostCurrency: 500,
           paymentProcessorFeeInHostCurrency: 200,
-          type: 'CREDIT',
-          createdAt: '2015-05-29T07:00:00.000Z',
+          type: TransactionTypes.CREDIT,
+          createdAt: new Date('2015-05-29T07:00:00.000Z'),
           PaymentMethodId: 1,
           OrderId: order.id,
           // No isPlatformRevenueDirectlyCollected flag: behaves like PayPal
@@ -533,7 +541,7 @@ describe('server/models/Transaction', () => {
           CollectiveId: collective.id,
         });
 
-        const transactionPayload = {
+        const transactionPayload: TransactionPayload = {
           CreatedByUserId: user.id,
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
@@ -546,8 +554,8 @@ describe('server/models/Transaction', () => {
           hostCurrencyFxRate: 1,
           hostFeeInHostCurrency: 500,
           paymentProcessorFeeInHostCurrency: 200,
-          type: 'CREDIT',
-          createdAt: '2015-05-29T07:00:00.000Z',
+          type: TransactionTypes.CREDIT,
+          createdAt: new Date('2015-05-29T07:00:00.000Z'),
           PaymentMethodId: 1,
           OrderId: order.id,
           data: { platformTip: 1000, isPlatformRevenueDirectlyCollected: true },
@@ -596,7 +604,7 @@ describe('server/models/Transaction', () => {
         currency: 'EUR',
       });
 
-      const transactionPayload = {
+      const transactionPayload: TransactionPayload = {
         CreatedByUserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
@@ -609,8 +617,8 @@ describe('server/models/Transaction', () => {
         hostCurrencyFxRate: 1,
         hostFeeInHostCurrency: 500,
         paymentProcessorFeeInHostCurrency: 200,
-        type: 'CREDIT',
-        createdAt: '2015-05-29T07:00:00.000Z',
+        type: TransactionTypes.CREDIT,
+        createdAt: new Date('2015-05-29T07:00:00.000Z'),
         PaymentMethodId: 1,
         OrderId: order.id,
         data: { platformTip: 0 },
@@ -631,7 +639,7 @@ describe('server/models/Transaction', () => {
       currency: 'USD',
     });
 
-    const transactionPayload = {
+    const transactionPayload: TransactionPayload = {
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
       CollectiveId: collective.id,
@@ -644,15 +652,15 @@ describe('server/models/Transaction', () => {
       platformFeeInHostCurrency: 0,
       hostFeeInHostCurrency: 0,
       paymentProcessorFeeInHostCurrency: -31,
-      type: 'CREDIT',
+      type: TransactionTypes.CREDIT,
       PaymentMethodId: 1,
       OrderId: order.id,
       data: {
-        charge: { currency: 'usd' },
+        charge: { currency: 'usd' } as Stripe.Charge,
         balanceTransaction: {
           currency: 'eur',
           exchange_rate: 0.803246, // eslint-disable-line camelcase
-        },
+        } as Stripe.BalanceTransaction,
       },
     };
 
@@ -686,7 +694,7 @@ describe('server/models/Transaction', () => {
       const amount = 1000;
 
       // Helper to test with a given payment provider
-      const testFeesWithPaymentMethod = async (service, type) => {
+      const testFeesWithPaymentMethod = async (service: PAYMENT_METHOD_SERVICE, type: PAYMENT_METHOD_TYPE) => {
         const paymentMethod = await fakePaymentMethod({ service, type });
         const order = await fakeOrder({
           CollectiveId: collective.id,
@@ -694,30 +702,39 @@ describe('server/models/Transaction', () => {
           PaymentMethodId: paymentMethod.id,
         });
         const transaction = await fakeTransaction({ OrderId: order.id, amount }, { createDoubleEntry: true });
-        const hostFeeTransaction = { amountInHostCurrency: amount * 0.1, hostCurrency: host.currency };
+        const hostFeeTransaction: TransactionModel = {
+          amountInHostCurrency: amount * 0.1,
+          hostCurrency: host.currency,
+        } as TransactionModel;
         return Transaction.createHostFeeShareTransactions({ transaction, hostFeeTransaction }, host);
       };
 
       // Paypal payment
-      let result = await testFeesWithPaymentMethod('paypal', 'payment');
-      expect(result).to.be.undefined; // no host fee share
+      const paypalResult = await testFeesWithPaymentMethod(PAYMENT_METHOD_SERVICE.PAYPAL, PAYMENT_METHOD_TYPE.PAYMENT);
+      expect(paypalResult).to.be.undefined; // no host fee share
 
       // Stripe
-      result = await testFeesWithPaymentMethod('stripe', 'creditcard');
-      expect(result).to.be.undefined; // no host fee share
+      const stripeResult = await testFeesWithPaymentMethod(
+        PAYMENT_METHOD_SERVICE.STRIPE,
+        PAYMENT_METHOD_TYPE.CREDITCARD,
+      );
+      expect(stripeResult).to.be.undefined; // no host fee share
 
       // Manual
-      result = await testFeesWithPaymentMethod('opencollective', 'manual');
-      expect(result.hostFeeShareTransaction.amount).to.equal(Math.round(amount * 0.1 * 0.2));
-      expect(result.hostFeeShareDebtTransaction.amount).to.equal(-Math.round(amount * 0.1 * 0.2));
+      const manualResult = await testFeesWithPaymentMethod(
+        PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        PAYMENT_METHOD_TYPE.MANUAL,
+      );
+      expect(get(manualResult, 'hostFeeShareTransaction.amount')).to.equal(Math.round(amount * 0.1 * 0.2));
+      expect(get(manualResult, 'hostFeeShareDebtTransaction.amount')).to.equal(-Math.round(amount * 0.1 * 0.2));
     });
   });
 
   describe('createDoubleEntry', () => {
     it('works an expense that has amount=0 (only payment processor fees)', async () => {
       const result = await models.Transaction.createDoubleEntry({
-        type: 'DEBIT',
-        kind: 'EXPENSE',
+        type: TransactionTypes.DEBIT,
+        kind: TransactionKind.EXPENSE,
         CollectiveId: collective.id,
         FromCollectiveId: user.CollectiveId,
         amount: 0,
@@ -777,7 +794,7 @@ describe('server/models/Transaction', () => {
           FromCollectiveId: order.FromCollectiveId,
           CollectiveId: order.CollectiveId,
           PaymentMethodId: order.PaymentMethodId,
-          type: 'CREDIT',
+          type: TransactionTypes.CREDIT,
           OrderId: order.id,
           amount: 5000,
           currency: 'USD',
@@ -788,8 +805,8 @@ describe('server/models/Transaction', () => {
           paymentProcessorFeeInHostCurrency: 175,
           description: 'Monthly subscription to Webpack',
           platformTipAmount: 500,
-          clearedAt: '2024-02-20T14:11:00.000Z',
-        });
+          clearedAt: new Date('2024-02-20T14:11:00.000Z'),
+        } as TransactionPayload);
 
         const associatedTransactions = await models.Transaction.findAll({
           where: { TransactionGroup: transaction.TransactionGroup },
@@ -809,8 +826,8 @@ describe('server/models/Transaction', () => {
       });
       const paymentMethod = await fakePaymentMethod({
         CollectiveId: otherCollective.id,
-        service: 'stripe',
-        type: 'creditcard',
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
       });
 
       const order = await fakeOrder({
@@ -820,7 +837,7 @@ describe('server/models/Transaction', () => {
         currency: 'USD',
       });
 
-      const transactionPayload = {
+      const transactionPayload: TransactionPayload = {
         CreatedByUserId: user.id,
         FromCollectiveId: otherCollective.id,
         CollectiveId: collective.id,
@@ -833,8 +850,8 @@ describe('server/models/Transaction', () => {
         hostCurrencyFxRate: 1,
         hostFeeInHostCurrency: 500,
         paymentProcessorFeeInHostCurrency: 200,
-        type: 'CREDIT',
-        createdAt: '2015-05-29T07:00:00.000Z',
+        type: TransactionTypes.CREDIT,
+        createdAt: new Date('2015-05-29T07:00:00.000Z'),
         PaymentMethodId: paymentMethod.id,
         OrderId: order.id,
         data: { platformTip: 0 },

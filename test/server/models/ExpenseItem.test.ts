@@ -40,7 +40,7 @@ describe('test/server/models/ExpenseItem', () => {
         currency: 'NZD',
       };
 
-      const item = await models.ExpenseItem.createFromData(data, user, expense);
+      const item = await models.ExpenseItem.createFromData(data, user, expense, null);
       expect(item.url).to.equal(data.url);
       expect(item.amount).to.equal(data.amount);
       expect(item.incurredAt.getTime()).to.equal(data.incurredAt.getTime());

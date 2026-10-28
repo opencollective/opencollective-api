@@ -2,7 +2,8 @@ import { URL } from 'url';
 
 import { expect } from 'chai';
 import config from 'config';
-import { SequelizeValidationError } from 'sequelize';
+import type { JwtPayload } from 'jsonwebtoken';
+import { ValidationError } from 'sequelize';
 import { stub, useFakeTimers } from 'sinon';
 
 import { Service } from '../../../server/constants/connected-account';
@@ -13,6 +14,10 @@ import { randEmail } from '../../stores';
 import { fakeCollective, fakeConnectedAccount, fakeEvent, fakeUser, multiple } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 const userData = utils.data('user1');
+
+/** `password` is not a model attribute: it is ignored by Sequelize, but kept to preserve the original fixtures. */
+const withLegacyPassword = (email: string, password = '123456') =>
+  ({ email, password }) as Parameters<typeof User.create>[0];
 
 const { User } = models;
 
@@ -25,7 +30,7 @@ describe('server/models/User', () => {
   describe('#create', () => {
     it('fails without email', () => {
       return expect(User.create({})).to.be.rejectedWith(
-        SequelizeValidationError,
+        ValidationError,
         'notNull Violation: User.email cannot be null',
       );
     });
@@ -105,16 +110,13 @@ describe('server/models/User', () => {
 
     it('should generate valid JWTokens with user data', async () => {
       // Given a user instance
-      const user = await User.create({
-        email: 'foo@oc.com',
-        password: '123456',
-      });
+      const user = await User.create(withLegacyPassword('foo@oc.com'));
 
       // When the token is generated
       const token = user.jwt();
 
       // Then the token should be valid
-      const decoded = auth.verifyJwt(token);
+      const decoded = auth.verifyJwt(token) as JwtPayload;
 
       // And then the decoded token should contain the user data
       expect(Number(decoded.sub)).to.equal(user.id);
@@ -222,14 +224,11 @@ describe('server/models/User', () => {
   describe('#generateLoginLink', () => {
     it('contains the right base URL from config and the right query parameter', async () => {
       // Given a user instance with a mocked `jwt` method
-      const user = await User.create({
-        email: 'foo@oc.com',
-        password: '123456',
-      });
+      const user = await User.create(withLegacyPassword('foo@oc.com'));
       const mockUser = stub(user, 'jwt').callsFake(() => 'foo');
 
       // When a login link is created
-      const link = user.generateLoginLink('/path/to/redirect');
+      const link = user.generateLoginLink('/path/to/redirect', undefined);
 
       // Then the link should contain the right url
       const parsedUrl = new URL(link);
@@ -245,10 +244,7 @@ describe('server/models/User', () => {
   describe('#generateConnectedAccountVerifiedToken', () => {
     it('generates a valid token with right expiration time', async () => {
       // Given a user instance with a mocked `jwt` method
-      const user = await User.create({
-        email: 'foo@oc.com',
-        password: '123456',
-      });
+      const user = await User.create(withLegacyPassword('foo@oc.com'));
       const mockUser = stub(user, 'jwt').callsFake((payload, expiration) => ({ payload, expiration }));
 
       // When an account verification link is created

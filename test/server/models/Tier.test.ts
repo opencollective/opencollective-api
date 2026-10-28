@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 import { random, times } from 'lodash';
-import { SequelizeValidationError } from 'sequelize';
+import { ValidationError } from 'sequelize';
 
+import { SupportedCurrency } from '../../../server/constants/currencies';
 import models from '../../../server/models';
 import { AllTierTypes } from '../../../server/models/Tier';
 import { newCollectiveWithHost, randEmail } from '../../stores';
@@ -11,13 +12,12 @@ import * as utils from '../../utils';
 const { Collective, User } = models;
 
 describe('server/models/Tier', () => {
-  let collective = {},
-    tiers;
+  let collective, tiers;
 
   const collectiveData = {
     slug: 'tipbox',
     name: 'tipbox',
-    currency: 'USD',
+    currency: 'USD' as SupportedCurrency,
     tags: ['#brusselstogether'],
     tiers: [
       {
@@ -88,7 +88,7 @@ describe('server/models/Tier', () => {
           interval: 'year',
           CollectiveId: collective.id,
         }),
-      ).to.be.rejectedWith(SequelizeValidationError, 'Validation min on amount failed');
+      ).to.be.rejectedWith(ValidationError, 'Validation min on amount failed');
     });
 
     it('can have a 0 value', () => {
@@ -152,7 +152,7 @@ describe('server/models/Tier', () => {
         });
 
         await expect(createPromise).to.be.rejectedWith(
-          SequelizeValidationError,
+          ValidationError,
           "Validation error: In A valid tier name's tier, minimum amount cannot be less than minimum suggested amounts",
         );
       });

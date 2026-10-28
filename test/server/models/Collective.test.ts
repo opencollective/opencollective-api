@@ -4,14 +4,22 @@ import { repeat, uniq } from 'lodash';
 import { createSandbox } from 'sinon';
 
 import { expenseStatus, roles } from '../../../server/constants';
+import { CollectiveType } from '../../../server/constants/collectives';
+import { Service } from '../../../server/constants/connected-account';
+import { SupportedCurrency } from '../../../server/constants/currencies';
 import FEATURE from '../../../server/constants/feature';
+import status from '../../../server/constants/order-status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import plans from '../../../server/constants/plans';
 import POLICIES from '../../../server/constants/policies';
 import { getFxRate } from '../../../server/lib/currency';
 import emailLib from '../../../server/lib/email';
 import * as ImagesLib from '../../../server/lib/images';
+import type { SpamAnalysisReport } from '../../../server/lib/spam';
+import type { Transaction as TransactionModel } from '../../../server/models';
 import models, { Op, sequelize } from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
+import type { Location } from '../../../server/types/Location';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -35,18 +43,21 @@ import * as utils from '../../utils';
 
 const { Transaction, Collective, User, Member } = models;
 
+/**
+ * `location` payloads are validated by the model: these fixtures are intentionally invalid.
+ * `geoLocationLatLong` is not part of the `Location` type but is written by `setLocation`.
+ */
+type CollectiveLocationFixture = Location & { geoLocationLatLong?: unknown };
+const locationData = (location: CollectiveLocationFixture) => location;
+
 describe('server/models/Collective', () => {
-  let collective = {},
-    opensourceCollective,
-    user1,
-    user2,
-    hostUser;
+  let collective, opensourceCollective, user1, user2, hostUser;
   let sandbox, sendEmailSpy;
 
   const collectiveData = {
     slug: 'tipbox',
     name: 'tipbox',
-    currency: 'USD',
+    currency: 'USD' as SupportedCurrency,
     tags: ['#brusselstogether'],
     CreatedByUserId: 1,
     tiers: [
@@ -76,7 +87,7 @@ describe('server/models/Collective', () => {
     },
   ];
 
-  const transactions = [
+  const transactions: Array<Partial<TransactionModel> & { tags?: string[] }> = [
     {
       createdAt: new Date('2016-06-14'),
       amount: -1000,
@@ -155,7 +166,7 @@ describe('server/models/Collective', () => {
       tags: ['open source'],
       isActive: true,
     });
-    await collective.addUserWithRole(user1, 'BACKER');
+    await collective.addUserWithRole(user1, roles.BACKER);
     await models.Expense.create({
       description: 'pizza',
       amount: 1000,
@@ -207,7 +218,7 @@ describe('server/models/Collective', () => {
   });
 
   it('validates currency', async () => {
-    await expect(fakeCollective({ currency: 'XXX' })).to.be.rejectedWith(
+    await expect(fakeCollective({ currency: 'XXX' as SupportedCurrency })).to.be.rejectedWith(
       Error,
       'Validation error: Currency not supported',
     );
@@ -284,7 +295,7 @@ describe('server/models/Collective', () => {
     });
 
     it('throws when called on a non-USER collective', async () => {
-      const collective = await fakeCollective({ type: 'COLLECTIVE' });
+      const collective = await fakeCollective({ type: CollectiveType.COLLECTIVE });
       await expect(collective.getOrCreateIncognitoProfile()).to.be.rejectedWith(
         /Incognito profiles can only be created for users/,
       );
@@ -358,15 +369,16 @@ describe('server/models/Collective', () => {
   });
 
   describe('images', () => {
+    let isValidUploadedImageStub;
     const validImage = 'https://example.com/valid.jpg';
     const invalidImage = 'https://example.com/invalid.jpg';
 
     before(() => {
-      sandbox.stub(ImagesLib, 'isValidUploadedImage').callsFake(url => url === validImage);
+      isValidUploadedImageStub = sandbox.stub(ImagesLib, 'isValidUploadedImage').callsFake(url => url === validImage);
     });
 
     after(() => {
-      ImagesLib.isValidUploadedImage.restore();
+      isValidUploadedImageStub.restore();
     });
 
     describe('image (avatar)', () => {
@@ -540,11 +552,12 @@ describe('server/models/Collective', () => {
   describe('events', () => {
     it('generates the ICS for an EVENT collective', async () => {
       const d = new Date();
-      const startsAt = d.setMonth(d.getMonth() + 1);
+      d.setMonth(d.getMonth() + 1);
+      const startsAt = d;
       const endsAt = new Date(startsAt);
       endsAt.setHours(endsAt.getHours() + 2);
       const event = await models.Collective.create({
-        type: 'EVENT',
+        type: CollectiveType.EVENT,
         ParentCollectiveId: collective.id,
         name: 'Sustain OSS London 2019',
         description: 'Short description',
@@ -601,7 +614,7 @@ describe('server/models/Collective', () => {
         name: 'BrusselsTogether',
         slug: 'brusselstogether',
         hostFeePercent: 0,
-        type: 'ORGANIZATION',
+        type: CollectiveType.ORGANIZATION,
         currency: 'EUR',
         hasMoneyManagement: true,
         CreatedByUserId: user1.id,
@@ -609,25 +622,25 @@ describe('server/models/Collective', () => {
       await models.Member.create({
         CollectiveId: newHost.id,
         MemberCollectiveId: user1.CollectiveId,
-        role: 'ADMIN',
+        role: roles.ADMIN,
         CreatedByUserId: user1.id,
       });
       newCollective = await models.Collective.create({
         name: 'New collective',
         slug: 'new-collective',
-        type: 'COLLECTIVE',
+        type: CollectiveType.COLLECTIVE,
         isActive: false,
         CreatedByUserId: user1.id,
       });
       await Promise.all([
         user1.populateRoles(),
         user2.populateRoles(),
-        newCollective.addUserWithRole(user1, 'ADMIN'),
+        newCollective.addUserWithRole(user1, roles.ADMIN),
         newCollective.addHost(hostUser.collective, user1),
       ]);
       await utils.waitForCondition(() => sendEmailSpy.callCount === 2, {
         tag: 'New collective would love to be hosted AND Thanks for applying',
-      });
+      } as Parameters<typeof utils.waitForCondition>[1]);
     });
 
     it('fails to add another host', async () => {
@@ -641,7 +654,7 @@ describe('server/models/Collective', () => {
 
     it('fails to change host if there is a pending balance', async () => {
       try {
-        await collective.changeHost();
+        await collective.changeHost(undefined, undefined, undefined);
         throw new Error("Didn't throw expected error!");
       } catch (e) {
         expect(e.message).to.contain('Unable to change host: you still have a balance of $1,125.00');
@@ -679,13 +692,13 @@ describe('server/models/Collective', () => {
       await models.Member.create({
         CollectiveId: temporaryHost.id,
         MemberCollectiveId: user1.CollectiveId,
-        role: 'ADMIN',
+        role: roles.ADMIN,
         CreatedByUserId: user1.id,
       });
       const pendingCollective = await models.Collective.create({
         name: 'Pending collective',
         slug: 'pending-collective',
-        type: 'COLLECTIVE',
+        type: CollectiveType.COLLECTIVE,
         isActive: false,
         CreatedByUserId: user2.id,
       });
@@ -746,7 +759,7 @@ describe('server/models/Collective', () => {
       const stripeAccount = await fakeConnectedAccount({ CollectiveId: selfHostedCollective.id, service: 'stripe' });
       const transferwiseAccount = await fakeConnectedAccount({
         CollectiveId: selfHostedCollective.id,
-        service: 'transferwise',
+        service: Service.TRANSFERWISE,
       });
       const githubAccount = await fakeConnectedAccount({ CollectiveId: selfHostedCollective.id, service: 'github' });
 
@@ -808,7 +821,7 @@ describe('server/models/Collective', () => {
 
       await utils.waitForCondition(() => sendEmailSpy.callCount === 2, {
         tag: '"would love to be hosted" by AND "Thanks for applying"',
-      });
+      } as Parameters<typeof utils.waitForCondition>[1]);
       expect(sendEmailSpy.callCount).to.equal(2);
 
       const hostedArgs = sendEmailSpy.args.find(callArgs => callArgs[1].includes('wants to be hosted by'));
@@ -957,12 +970,12 @@ describe('server/models/Collective', () => {
       const host = await fakeActiveHost({ admin: hostAdmin });
       const collective = await fakeCollective({ HostCollectiveId: host.id, isActive: true, approvedAt: new Date() });
       const child = await fakeProject({ ParentCollectiveId: collective.id, isActive: true, approvedAt: new Date() });
-      await collective.freeze();
+      await collective.freeze(undefined, undefined);
       await child.reload();
       expect(collective.isFrozen()).to.be.true;
       expect(child.isFrozen()).to.be.true;
 
-      await collective.changeHost(null, hostAdmin);
+      await collective.changeHost(null, hostAdmin, undefined);
       await collective.reload();
       await child.reload();
       expect(collective.isFrozen()).to.be.false;
@@ -972,8 +985,10 @@ describe('server/models/Collective', () => {
 
   it('creates an organization with an admin user', async () => {
     sendEmailSpy.resetHistory();
-    await models.Collective.createOrganization({ name: 'Coinbase' }, user1);
-    await utils.waitForCondition(() => sendEmailSpy.callCount === 1, { tag: 'Your Organization on Open Collective' });
+    await models.Collective.createOrganization({ name: 'Coinbase' }, user1, undefined);
+    await utils.waitForCondition(() => sendEmailSpy.callCount === 1, {
+      tag: 'Your Organization on Open Collective',
+    } as Parameters<typeof utils.waitForCondition>[1]);
     expect(sendEmailSpy.firstCall.args[0]).to.equal(user1.email);
     expect(sendEmailSpy.firstCall.args[1]).to.equal('Your Organization on Open Collective');
     expect(sendEmailSpy.firstCall.args[2]).to.contain('Discover');
@@ -1147,7 +1162,7 @@ describe('server/models/Collective', () => {
     it('gets the latest transactions of a user collective', () => {
       return Collective.findOne({ where: { id: user1.CollectiveId } }).then(userCollective => {
         return userCollective
-          .getLatestTransactions(new Date('2016-06-01'), new Date('2016-08-01'))
+          .getLatestTransactions(new Date('2016-06-01'), new Date('2016-08-01'), undefined)
           .then(transactions => {
             expect(transactions.length).to.equal(5);
           });
@@ -1175,17 +1190,17 @@ describe('server/models/Collective', () => {
     const shouldNotBeUsableAsPayout = account => expect(account.canBeUsedAsPayoutProfile()).to.be.false;
 
     it('is true for users and organizations (even if host)', async () => {
-      shouldBeUsableAsPayout(await fakeCollective({ type: 'USER' }));
-      shouldBeUsableAsPayout(await fakeCollective({ type: 'ORGANIZATION' }));
-      shouldBeUsableAsPayout(await fakeCollective({ type: 'ORGANIZATION', hasMoneyManagement: true }));
-      shouldBeUsableAsPayout(await fakeCollective({ type: 'COLLECTIVE' }));
-      shouldBeUsableAsPayout(await fakeCollective({ type: 'EVENT' }));
-      shouldBeUsableAsPayout(await fakeCollective({ type: 'PROJECT' }));
-      shouldBeUsableAsPayout(await fakeCollective({ type: 'FUND' }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: CollectiveType.USER }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: CollectiveType.ORGANIZATION }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: CollectiveType.ORGANIZATION, hasMoneyManagement: true }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: CollectiveType.COLLECTIVE }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: CollectiveType.EVENT }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: CollectiveType.PROJECT }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: CollectiveType.FUND }));
     });
 
     it('is false for incognito profiles', async () => {
-      shouldNotBeUsableAsPayout(await fakeCollective({ type: 'USER', isIncognito: true }));
+      shouldNotBeUsableAsPayout(await fakeCollective({ type: CollectiveType.USER, isIncognito: true }));
     });
   });
 
@@ -1259,10 +1274,10 @@ describe('server/models/Collective', () => {
           CollectiveId: collective.id,
           MemberCollectiveId: org.id,
           CreatedByUserId: backer.id,
-          role: 'BACKER',
+          role: roles.BACKER,
         });
-        await collective.addUserWithRole(backer, 'BACKER');
-        await collective.addUserWithRole(admin, 'ADMIN');
+        await collective.addUserWithRole(backer, roles.BACKER);
+        await collective.addUserWithRole(admin, roles.ADMIN);
 
         // Check results
         const resultAdmins = await collective.getMembersUsers({ role: roles.ADMIN });
@@ -1297,7 +1312,7 @@ describe('server/models/Collective', () => {
         let members = await collective.editMembers(
           [
             {
-              role: 'ADMIN',
+              role: roles.ADMIN,
               member: {
                 id: user1.CollectiveId,
               },
@@ -1417,7 +1432,12 @@ describe('server/models/Collective', () => {
       await utils.resetTestDB();
 
       collective = await fakeCollective({ hasMoneyManagement: true });
-      order = await fakeOrder({ status: 'PAID', PaymentMethodId: null, totalAmount: 100000, processedAt: new Date() });
+      order = await fakeOrder({
+        status: status.PAID,
+        PaymentMethodId: null,
+        totalAmount: 100000,
+        processedAt: new Date(),
+      });
       await fakeTransaction({
         amount: 100000,
         HostCollectiveId: collective.id,
@@ -1433,7 +1453,7 @@ describe('server/models/Collective', () => {
 
     it('should consider the fx rate if another currency', async () => {
       order = await fakeOrder({
-        status: 'PAID',
+        status: status.PAID,
         currency: 'EUR',
         PaymentMethodId: null,
         totalAmount: 20000,
@@ -1460,13 +1480,13 @@ describe('server/models/Collective', () => {
 
       collective = await fakeCollective({ hasMoneyManagement: true });
       paymentMethod = await fakePaymentMethod({
-        service: 'opencollective',
-        type: 'host',
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.HOST,
         data: {},
         CollectiveId: collective.id,
       });
       order = await fakeOrder({
-        status: 'PAID',
+        status: status.PAID,
         totalAmount: 100000,
         processedAt: new Date(),
         PaymentMethodId: paymentMethod.id,
@@ -1486,7 +1506,7 @@ describe('server/models/Collective', () => {
 
     it('should consider the fx rate if another currency', async () => {
       order = await fakeOrder({
-        status: 'PAID',
+        status: status.PAID,
         currency: 'EUR',
         PaymentMethodId: paymentMethod.id,
         totalAmount: 20000,
@@ -1516,7 +1536,7 @@ describe('server/models/Collective', () => {
         type: PayoutMethodTypes.BANK_ACCOUNT,
       });
       expense = await fakeExpense({
-        status: 'PAID',
+        status: status.PAID,
         amount: 100000,
         PayoutMethodId: payoutMethod.id,
       });
@@ -1536,7 +1556,7 @@ describe('server/models/Collective', () => {
 
     it('should consider the fx rate if another currency', async () => {
       await fakeExpense({
-        status: 'PAID',
+        status: status.PAID,
         amount: 50000,
         PayoutMethodId: payoutMethod.id,
       });
@@ -1574,21 +1594,26 @@ describe('server/models/Collective', () => {
   describe('location', () => {
     it('validates latitude/longitude', async () => {
       // Invalid
-      await expect(fakeCollective({ location: { geoLocationLatLong: 42 } })).to.be.rejected;
-      await expect(fakeCollective({ location: { geoLocationLatLong: 'nope' } })).to.be.rejected;
-      await expect(fakeCollective({ location: { geoLocationLatLong: {} } })).to.be.rejected;
-      await expect(fakeCollective({ location: { geoLocationLatLong: { type: 'Point' } } })).to.be.rejected;
-      await expect(fakeCollective({ location: { geoLocationLatLong: { type: 'Point', coordinates: 42 } } })).to.be
+      await expect(fakeCollective({ location: locationData({ geoLocationLatLong: 42 }) })).to.be.rejected;
+      await expect(fakeCollective({ location: locationData({ geoLocationLatLong: 'nope' }) })).to.be.rejected;
+      await expect(fakeCollective({ location: locationData({ geoLocationLatLong: {} }) })).to.be.rejected;
+      await expect(fakeCollective({ location: locationData({ geoLocationLatLong: { type: 'Point' } }) })).to.be
         .rejected;
-      await expect(fakeCollective({ location: { geoLocationLatLong: { type: 'Point', coordinates: [55] } } })).to.be
-        .rejected;
-      await expect(fakeCollective({ location: { geoLocationLatLong: { type: 'TOTO', coordinates: [55, -66] } } })).to.be
-        .rejected;
+      await expect(
+        fakeCollective({ location: locationData({ geoLocationLatLong: { type: 'Point', coordinates: 42 } }) }),
+      ).to.be.rejected;
+      await expect(
+        fakeCollective({ location: locationData({ geoLocationLatLong: { type: 'Point', coordinates: [55] } }) }),
+      ).to.be.rejected;
+      await expect(
+        fakeCollective({ location: locationData({ geoLocationLatLong: { type: 'TOTO', coordinates: [55, -66] } }) }),
+      ).to.be.rejected;
 
       // Valid
-      await expect(fakeCollective({ location: { geoLocationLatLong: null } })).to.be.fulfilled;
-      await expect(fakeCollective({ location: { geoLocationLatLong: { type: 'Point', coordinates: [55, -66] } } })).to
-        .be.fulfilled;
+      await expect(fakeCollective({ location: locationData({ geoLocationLatLong: null }) })).to.be.fulfilled;
+      await expect(
+        fakeCollective({ location: locationData({ geoLocationLatLong: { type: 'Point', coordinates: [55, -66] } }) }),
+      ).to.be.fulfilled;
     });
   });
 
@@ -1643,23 +1668,23 @@ describe('server/models/Collective', () => {
   describe('getAccountForPaymentProvider', () => {
     it('returns the connected account for specific service', async () => {
       const collective = await fakeCollective();
-      const connectedAccount = await fakeConnectedAccount({ CollectiveId: collective.id, service: 'stripe' });
+      const connectedAccount = await fakeConnectedAccount({ CollectiveId: collective.id, service: Service.STRIPE });
 
-      const account = await collective.getAccountForPaymentProvider('stripe');
+      const account = await collective.getAccountForPaymentProvider(Service.STRIPE);
       expect(account.id).to.equal(connectedAccount.id);
     });
 
     it('returns the mirrored Wise connected account', async () => {
       const collective = await fakeCollective();
-      const connectedAccount = await fakeConnectedAccount({ service: 'transferwise' });
+      const connectedAccount = await fakeConnectedAccount({ service: Service.TRANSFERWISE });
       await fakeConnectedAccount({
         CollectiveId: collective.id,
-        service: 'transferwise',
+        service: Service.TRANSFERWISE,
         data: { MirrorConnectedAccountId: connectedAccount.id },
       });
-      await multiple(fakeConnectedAccount, 2, { service: 'transferwise' });
+      await multiple(fakeConnectedAccount, 2, { service: Service.TRANSFERWISE });
 
-      const account = await collective.getAccountForPaymentProvider('transferwise');
+      const account = await collective.getAccountForPaymentProvider(Service.TRANSFERWISE);
       expect(account.id).to.equal(connectedAccount.id);
     });
   });
@@ -1667,7 +1692,7 @@ describe('server/models/Collective', () => {
   describe('info', () => {
     it('does not include the raw data JSONB column', async () => {
       const collective = await fakeCollective({
-        data: { privateInstructions: 'secret', spamReport: { score: 0.1 } },
+        data: { privateInstructions: 'secret', spamReport: { score: 0.1 } as SpamAnalysisReport },
       });
 
       expect(collective.info).to.not.have.property('data');

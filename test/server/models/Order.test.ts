@@ -1,7 +1,10 @@
 import { expect } from 'chai';
+import { get } from 'lodash';
 import moment from 'moment';
 import sinon from 'sinon';
 
+import status from '../../../server/constants/order-status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
 import { fakeCollective, fakeOrder, fakePaymentMethod, randStr } from '../../test-helpers/fake-data';
@@ -80,7 +83,7 @@ describe('server/models/Order', () => {
       });
       const firstCall = order.lock(
         () =>
-          new Promise(resolve => {
+          new Promise<void>(resolve => {
             markFirstLockAcquired();
             setTimeout(() => {
               resolve();
@@ -132,7 +135,7 @@ describe('server/models/Order', () => {
 
       await orderWithExpiredLock.reload();
       expect(orderWithExpiredLock.isLocked()).to.be.false;
-      expect(orderWithExpiredLock.data.deadlocks).to.deep.equal([expiredOrderLockDate.toISOString()]);
+      expect(get(orderWithExpiredLock.data, 'deadlocks')).to.deep.equal([expiredOrderLockDate.toISOString()]);
 
       // Calling it a second time should happen the second deadlock
       const secondLockDate = moment().subtract(45, 'minutes').toDate();
@@ -142,7 +145,7 @@ describe('server/models/Order', () => {
       expect(nbUnlocked2).to.equal(1);
       await orderWithExpiredLock.reload();
       expect(orderWithExpiredLock.isLocked()).to.be.false;
-      expect(orderWithExpiredLock.data.deadlocks).to.deep.equal([
+      expect(get(orderWithExpiredLock.data, 'deadlocks')).to.deep.equal([
         expiredOrderLockDate.toISOString(),
         secondLockDate.toISOString(),
       ]);
@@ -155,26 +158,26 @@ describe('server/models/Order', () => {
 
       // Payment methods
       const paypalPm = await fakePaymentMethod({
-        service: 'paypal',
-        type: 'subscription',
+        service: PAYMENT_METHOD_SERVICE.PAYPAL,
+        type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
       });
       const stripePm = await fakePaymentMethod({
-        service: 'stripe',
-        type: 'creditcard',
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
       });
       const stripeGiftCardPm = await fakePaymentMethod({
-        service: 'opencollective',
-        type: 'giftcard',
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.GIFTCARD,
         SourcePaymentMethodId: stripePm.id,
       });
       const stripeConnectPm = await fakePaymentMethod({
-        service: 'stripe',
-        type: 'creditcard',
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
         data: { stripeAccount: randStr() },
       });
       const stripeConnectGiftCardPm = await fakePaymentMethod({
-        service: 'opencollective',
-        type: 'giftcard',
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.GIFTCARD,
         SourcePaymentMethodId: stripeConnectPm.id,
       });
 
@@ -183,7 +186,7 @@ describe('server/models/Order', () => {
         return fakeOrder(
           {
             CollectiveId: collective.id,
-            status: 'ACTIVE',
+            status: status.ACTIVE,
             PaymentMethodId,
           },
           {
@@ -199,12 +202,12 @@ describe('server/models/Order', () => {
       const activeStripeConnectGiftCardOrder = await fakeActiveOrder(stripeConnectGiftCardPm.id);
       const inactiveOrder = await fakeOrder({
         CollectiveId: collective.id,
-        status: 'PAID',
+        status: status.PAID,
         PaymentMethodId: paypalPm.id,
       });
 
       // Trigger the update
-      await models.Order.stopActiveSubscriptions(collective.id, 'PAUSED', { messageForContributors: 'Testing' });
+      await models.Order.stopActiveSubscriptions(collective.id, status.PAUSED, { messageForContributors: 'Testing' });
 
       // Check the results
       await activePaypalOrder.reload({ include: [models.Subscription] });

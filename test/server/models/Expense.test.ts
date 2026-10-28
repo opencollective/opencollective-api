@@ -5,6 +5,7 @@ import moment from 'moment';
 import sinon from 'sinon';
 
 import { expenseStatus, expenseTypes } from '../../../server/constants';
+import { SupportedCurrency } from '../../../server/constants/currencies';
 import models from '../../../server/models';
 import Expense from '../../../server/models/Expense';
 import {
@@ -25,9 +26,9 @@ describe('test/server/models/Expense', () => {
         description: 'A valid expense',
         FromCollectiveId: user.CollectiveId,
         CollectiveId: (await fakeCollective()).id,
-        type: 'INVOICE',
+        type: expenseTypes.INVOICE,
         amount: 4200,
-        currency: 'EUR',
+        currency: 'EUR' as SupportedCurrency,
         UserId: user.id,
         lastEditedById: user.id,
         incurredAt: new Date(),
@@ -110,21 +111,21 @@ describe('test/server/models/Expense', () => {
       collective = await fakeCollective();
       await fakePaidExpense({
         CollectiveId: collective.id,
-        createdAt: moment().subtract(1, 'days'),
+        createdAt: moment().subtract(1, 'days').toDate(),
         amount: 200,
         tags: ['food', 'team'],
         paymentProcessorFeeInHostCurrency: 10,
       });
       await fakePaidExpense({
         CollectiveId: collective.id,
-        createdAt: moment().subtract(2, 'days'),
+        createdAt: moment().subtract(2, 'days').toDate(),
         amount: 400,
         tags: ['food', 'team'],
         paymentProcessorFeeInHostCurrency: 20,
       });
       await fakePaidExpense({
         CollectiveId: collective.id,
-        createdAt: moment().subtract(3, 'days'),
+        createdAt: moment().subtract(3, 'days').toDate(),
         amount: 800,
         tags: ['team', 'office'],
         paymentProcessorFeeInHostCurrency: 40,

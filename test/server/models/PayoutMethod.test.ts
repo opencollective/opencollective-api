@@ -1,6 +1,7 @@
 /* eslint-disable camelcase */
 import { expect } from 'chai';
-import { SequelizeValidationError, ValidationError } from 'sequelize';
+import { get } from 'lodash';
+import { ValidationError } from 'sequelize';
 
 import models from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
@@ -85,7 +86,7 @@ describe('server/models/PayoutMethod', () => {
         },
       });
       expect(filtered).to.not.have.property('connectedAccountId');
-      expect(filtered.paypalUserInfo).to.not.have.property('sensitiveField');
+      expect(get(filtered, 'paypalUserInfo')).to.not.have.property('sensitiveField');
     });
 
     it('filters OTHER data to currency and content', () => {
@@ -173,6 +174,8 @@ describe('server/models/PayoutMethod', () => {
       const payoutMethod = await models.PayoutMethod.createFromUserData(
         {
           type: PayoutMethodTypes.BANK_ACCOUNT,
+          name: undefined,
+          currency: undefined,
           isSaved: false,
           data: {
             accountHolderName: 'Jane Smith',
@@ -261,7 +264,7 @@ describe('server/models/PayoutMethod', () => {
       await fakePayoutMethod({
         type: PayoutMethodTypes.BANK_ACCOUNT,
         email: 'john@cusack.com',
-      });
+      } as Parameters<typeof fakePayoutMethod>[0]);
 
       const similarPayoutMethods = await pm.findSimilar();
       expect(similarPayoutMethods).to.have.length(1);
@@ -306,7 +309,7 @@ describe('server/models/PayoutMethod', () => {
 
         // Invalid
         const promise = models.PayoutMethod.create({ ...baseData, data: { email: 'Nope' } });
-        await expect(promise).to.be.rejectedWith(SequelizeValidationError, 'Invalid PayPal email address');
+        await expect(promise).to.be.rejectedWith(ValidationError, 'Invalid PayPal email address');
 
         // Valid
         const pm = await models.PayoutMethod.create({ ...baseData, data: { email: randEmail(), currency: 'USD' } });
@@ -392,7 +395,7 @@ describe('server/models/PayoutMethod', () => {
       .forEach(t => {
         it(`return true for ${t}`, async () => {
           const pm = await fakePayoutMethod({
-            type: t,
+            type: t as PayoutMethodTypes,
           });
           expect(pm.canBeArchived()).to.be.true;
         });
