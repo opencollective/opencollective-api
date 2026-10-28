@@ -9,10 +9,17 @@ import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../../server/constants/transactions';
 import {
   getBalances,
+  getBalanceTimeSeries,
+  getBlockedContributionsCount,
+  getContributionsAndContributorsCount,
   getCurrentCollectiveBalances,
   getCurrentCollectiveTransactionStats,
   getHistoricalCollectiveBalances,
   getSumCollectivesAmountSpent,
+  getTotalAmountPaidExpenses,
+  getTotalAmountReceivedAmount,
+  getTotalAmountReceivedTimeSeries,
+  getTotalAmountSpentAmount,
   getTotalAmountSpentTimeSeries,
   getTotalMoneyManagedAmount,
   getYearlyBudgets,
@@ -20,7 +27,7 @@ import {
 } from '../../../server/lib/budget';
 import * as libcurrency from '../../../server/lib/currency';
 import { sequelize } from '../../../server/models';
-import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
 import { makeRequest, resetTestDB } from '../../utils';
 
 describe('server/lib/budget', () => {
@@ -111,8 +118,8 @@ describe('server/lib/budget', () => {
 
       const txs = await sumCollectivesTransactions([collective.id], {
         column: 'netAmountInHostCurrency',
-        startDate: moment().subtract(1, 'day'),
-        endDate: moment(),
+        startDate: moment().subtract(1, 'day').toDate(),
+        endDate: moment().toDate(),
         kind: null,
       });
       const sum = txs[collective.id];
@@ -816,6 +823,614 @@ describe('server/lib/budget', () => {
       });
 
       expect(series.nodes).to.deep.equal([]);
+    });
+  });
+
+  describe('getTotalAmountReceivedAmount', () => {
+    let collective;
+
+    beforeEach(async () => {
+      collective = await fakeCollective({ currency: 'USD' });
+    });
+
+    it('sums received transactions in the collective currency', async () => {
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 20e2 }, { createDoubleEntry: true });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 30e2 }, { createDoubleEntry: true });
+
+      const result = await getTotalAmountReceivedAmount(collective);
+      expect(result).to.deep.equal({ value: 50e2, currency: 'USD' });
+    });
+
+    it('returns the same amount through the loaders path', async () => {
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 20e2 }, { createDoubleEntry: true });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 30e2 }, { createDoubleEntry: true });
+
+      const viaLoaders = await getTotalAmountReceivedAmount(collective, { loaders: makeRequest().loaders });
+      expect(viaLoaders).to.deep.equal({ value: 50e2, currency: 'USD' });
+    });
+
+    it('applies the date range and net amount used by the dashboards', async () => {
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: collective.id,
+          amount: 100e2,
+          paymentProcessorFeeInHostCurrency: -10e2,
+          createdAt: new Date('2025-06-15'),
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: collective.id,
+          amount: 40e2,
+          createdAt: new Date('2025-07-10'),
+        },
+        { createDoubleEntry: true },
+      );
+
+      const options = { startDate: new Date('2025-06-01'), endDate: new Date('2025-07-01') };
+      const gross = await getTotalAmountReceivedAmount(collective, options);
+      const net = await getTotalAmountReceivedAmount(collective, { ...options, net: true });
+
+      expect(gross).to.deep.equal({ value: 100e2, currency: 'USD' });
+      expect(net).to.deep.equal({ value: 90e2, currency: 'USD' });
+
+      // No date filters: exercises the materialized-stats column selection.
+      const netWithoutDates = await getTotalAmountReceivedAmount(collective, { net: true });
+      expect(netWithoutDates).to.deep.equal({ value: 130e2, currency: 'USD' });
+    });
+
+    it('includes children accounts', async () => {
+      const child = await fakeCollective({ type: CollectiveType.PROJECT, ParentCollectiveId: collective.id });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 20e2 }, { createDoubleEntry: true });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: child.id, amount: 30e2 }, { createDoubleEntry: true });
+
+      const withoutChildren = await getTotalAmountReceivedAmount(collective);
+      const withChildren = await getTotalAmountReceivedAmount(collective, { includeChildren: true });
+
+      expect(withoutChildren.value).to.equal(20e2);
+      expect(withChildren.value).to.equal(50e2);
+    });
+
+    it('filters by transaction kind', async () => {
+      await fakeTransaction(
+        { type: 'CREDIT', kind: TransactionKind.CONTRIBUTION, CollectiveId: collective.id, amount: 20e2 },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        { type: 'CREDIT', kind: TransactionKind.ADDED_FUNDS, CollectiveId: collective.id, amount: 30e2 },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        { type: 'CREDIT', kind: TransactionKind.PLATFORM_TIP, CollectiveId: collective.id, amount: 40e2 },
+        { createDoubleEntry: true },
+      );
+
+      const result = await getTotalAmountReceivedAmount(collective, {
+        kind: [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS],
+      });
+      expect(result.value).to.equal(50e2);
+    });
+  });
+
+  describe('getTotalAmountSpentAmount', () => {
+    let collective;
+
+    beforeEach(async () => {
+      collective = await fakeCollective({ currency: 'USD' });
+    });
+
+    it('sums spent transactions as negative amounts', async () => {
+      await fakeTransaction(
+        { type: 'DEBIT', kind: TransactionKind.EXPENSE, CollectiveId: collective.id, amount: -50e2 },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        { type: 'DEBIT', kind: TransactionKind.EXPENSE, CollectiveId: collective.id, amount: -30e2 },
+        { createDoubleEntry: true },
+      );
+
+      const result = await getTotalAmountSpentAmount(collective);
+      expect(result).to.deep.equal({ value: -80e2, currency: 'USD' });
+    });
+
+    it('returns the same amount through the loaders path', async () => {
+      await fakeTransaction(
+        { type: 'DEBIT', kind: TransactionKind.EXPENSE, CollectiveId: collective.id, amount: -50e2 },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        { type: 'DEBIT', kind: TransactionKind.EXPENSE, CollectiveId: collective.id, amount: -30e2 },
+        { createDoubleEntry: true },
+      );
+
+      const viaLoaders = await getTotalAmountSpentAmount(collective, { loaders: makeRequest().loaders });
+      expect(viaLoaders).to.deep.equal({ value: -80e2, currency: 'USD' });
+    });
+
+    it('applies the date range and net amount used by the dashboards', async () => {
+      await fakeTransaction(
+        {
+          type: 'DEBIT',
+          kind: TransactionKind.EXPENSE,
+          CollectiveId: collective.id,
+          amount: -50e2,
+          paymentProcessorFeeInHostCurrency: -2e2,
+          createdAt: new Date('2025-06-15'),
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: 'DEBIT',
+          kind: TransactionKind.EXPENSE,
+          CollectiveId: collective.id,
+          amount: -30e2,
+          createdAt: new Date('2025-07-10'),
+        },
+        { createDoubleEntry: true },
+      );
+
+      const options = { startDate: new Date('2025-06-01'), endDate: new Date('2025-07-01') };
+      const gross = await getTotalAmountSpentAmount(collective, options);
+      const net = await getTotalAmountSpentAmount(collective, { ...options, net: true });
+
+      expect(gross.value).to.equal(-50e2);
+      expect(net.value).to.equal(-52e2);
+
+      // No date filters: exercises the materialized-stats column selection.
+      const netWithoutDates = await getTotalAmountSpentAmount(collective, { net: true });
+      expect(netWithoutDates.value).to.equal(-82e2);
+    });
+
+    it('includes children accounts', async () => {
+      const child = await fakeCollective({ type: CollectiveType.PROJECT, ParentCollectiveId: collective.id });
+      await fakeTransaction(
+        { type: 'DEBIT', kind: TransactionKind.EXPENSE, CollectiveId: collective.id, amount: -50e2 },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        { type: 'DEBIT', kind: TransactionKind.EXPENSE, CollectiveId: child.id, amount: -30e2 },
+        { createDoubleEntry: true },
+      );
+
+      const withoutChildren = await getTotalAmountSpentAmount(collective);
+      const withChildren = await getTotalAmountSpentAmount(collective, { includeChildren: true });
+
+      expect(withoutChildren.value).to.equal(-50e2);
+      expect(withChildren.value).to.equal(-80e2);
+    });
+  });
+
+  describe('getTotalAmountPaidExpenses', () => {
+    let collective;
+
+    beforeEach(async () => {
+      collective = await fakeCollective({ currency: 'USD' });
+    });
+
+    it('sums paid expenses', async () => {
+      await fakeExpense({
+        FromCollectiveId: collective.id,
+        status: ExpenseStatuses.PAID,
+        amount: 20e2,
+        currency: 'USD',
+      });
+      await fakeExpense({
+        FromCollectiveId: collective.id,
+        status: ExpenseStatuses.PAID,
+        amount: 30e2,
+        currency: 'USD',
+      });
+      await fakeExpense({
+        FromCollectiveId: collective.id,
+        status: ExpenseStatuses.PENDING,
+        amount: 40e2,
+        currency: 'USD',
+      });
+
+      const result = await getTotalAmountPaidExpenses(collective);
+      expect(result).to.deep.equal({ value: 50e2, currency: 'USD' });
+    });
+
+    it('filters by expense type', async () => {
+      await fakeExpense({
+        FromCollectiveId: collective.id,
+        status: ExpenseStatuses.PAID,
+        type: 'INVOICE',
+        amount: 20e2,
+        currency: 'USD',
+      });
+      await fakeExpense({
+        FromCollectiveId: collective.id,
+        status: ExpenseStatuses.PAID,
+        type: 'RECEIPT',
+        amount: 30e2,
+        currency: 'USD',
+      });
+
+      const result = await getTotalAmountPaidExpenses(collective, { expenseType: 'INVOICE' });
+      expect(result).to.deep.equal({ value: 20e2, currency: 'USD' });
+    });
+
+    it('filters by multiple expense types and date range', async () => {
+      await fakeExpense({
+        FromCollectiveId: collective.id,
+        status: ExpenseStatuses.PAID,
+        type: 'INVOICE',
+        amount: 20e2,
+        currency: 'USD',
+        createdAt: new Date('2025-06-15'),
+      });
+      await fakeExpense({
+        FromCollectiveId: collective.id,
+        status: ExpenseStatuses.PAID,
+        type: 'RECEIPT',
+        amount: 30e2,
+        currency: 'USD',
+        createdAt: new Date('2025-06-20'),
+      });
+      await fakeExpense({
+        FromCollectiveId: collective.id,
+        status: ExpenseStatuses.PAID,
+        type: 'INVOICE',
+        amount: 40e2,
+        currency: 'USD',
+        createdAt: new Date('2025-07-10'),
+      });
+
+      const result = await getTotalAmountPaidExpenses(collective, {
+        expenseType: ['INVOICE', 'RECEIPT'],
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-07-01'),
+      });
+
+      expect(result).to.deep.equal({ value: 50e2, currency: 'USD' });
+    });
+  });
+
+  describe('getContributionsAndContributorsCount', () => {
+    let collective;
+    let contributor1;
+    let contributor2;
+
+    beforeEach(async () => {
+      collective = await fakeCollective();
+      contributor1 = await fakeUser();
+      contributor2 = await fakeUser();
+    });
+
+    const createContribution = (FromCollectiveId: number, amount: number, createdAt?: Date) =>
+      fakeTransaction(
+        {
+          type: 'CREDIT',
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: collective.id,
+          FromCollectiveId,
+          amount,
+          createdAt,
+        },
+        { createDoubleEntry: true },
+      );
+
+    it('counts contributions and distinct contributors', async () => {
+      await createContribution(contributor1.CollectiveId, 10e2);
+      await createContribution(contributor1.CollectiveId, 20e2);
+      await createContribution(contributor2.CollectiveId, 30e2);
+
+      const result = await getContributionsAndContributorsCount(collective);
+      expect(result).to.deep.equal({ contributionsCount: 3, contributorsCount: 2 });
+    });
+
+    it('returns zeros without contributions', async () => {
+      const result = await getContributionsAndContributorsCount(collective);
+      expect(result).to.deep.equal({ contributionsCount: 0, contributorsCount: 0 });
+    });
+
+    it('returns the same counts through the loaders path', async () => {
+      await createContribution(contributor1.CollectiveId, 10e2);
+      await createContribution(contributor2.CollectiveId, 30e2);
+
+      const result = await getContributionsAndContributorsCount(collective, { loaders: makeRequest().loaders });
+      expect(result).to.deep.equal({ contributionsCount: 2, contributorsCount: 2 });
+    });
+
+    it('filters by date range', async () => {
+      await createContribution(contributor1.CollectiveId, 10e2, new Date('2025-06-15'));
+      await createContribution(contributor2.CollectiveId, 20e2, new Date('2025-07-10'));
+
+      const result = await getContributionsAndContributorsCount(collective, {
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-07-01'),
+      });
+
+      expect(result).to.deep.equal({ contributionsCount: 1, contributorsCount: 1 });
+    });
+
+    it('includes children accounts', async () => {
+      const child = await fakeCollective({ type: CollectiveType.PROJECT, ParentCollectiveId: collective.id });
+      await createContribution(contributor1.CollectiveId, 10e2);
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: child.id,
+          FromCollectiveId: contributor2.CollectiveId,
+          amount: 20e2,
+        },
+        { createDoubleEntry: true },
+      );
+
+      const withoutChildren = await getContributionsAndContributorsCount(collective);
+      const withChildren = await getContributionsAndContributorsCount(collective, { includeChildren: true });
+
+      expect(withoutChildren).to.deep.equal({ contributionsCount: 1, contributorsCount: 1 });
+      expect(withChildren).to.deep.equal({ contributionsCount: 2, contributorsCount: 2 });
+    });
+  });
+
+  describe('getTotalAmountReceivedTimeSeries', () => {
+    let collective;
+
+    beforeEach(async () => {
+      collective = await fakeCollective({ currency: 'USD' });
+
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: collective.id, amount: 50e2, createdAt: new Date('2025-06-15') },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: collective.id, amount: 30e2, createdAt: new Date('2025-07-10') },
+        { createDoubleEntry: true },
+      );
+    });
+
+    const getNodesByDate = (series: { nodes: { date: Date | string; amount: { value: number } }[] }) =>
+      series.nodes
+        .map(node => ({ date: new Date(node.date).toISOString(), value: node.amount.value }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+    it('returns one node per period', async () => {
+      const series = await getTotalAmountReceivedTimeSeries(collective, {
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-08-01'),
+        timeUnit: 'MONTH',
+      });
+
+      expect(getNodesByDate(series)).to.deep.equal([
+        { date: '2025-06-01T00:00:00.000Z', value: 50e2 },
+        { date: '2025-07-01T00:00:00.000Z', value: 30e2 },
+      ]);
+    });
+
+    it('returns the same nodes through the loaders path', async () => {
+      const options = {
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-08-01'),
+        timeUnit: 'MONTH',
+      };
+      const direct = await getTotalAmountReceivedTimeSeries(collective, options);
+      const viaLoaders = await getTotalAmountReceivedTimeSeries(collective, {
+        ...options,
+        loaders: makeRequest().loaders,
+      });
+
+      expect(getNodesByDate(viaLoaders)).to.deep.equal(getNodesByDate(direct));
+    });
+
+    it('returns net amounts', async () => {
+      const netCollective = await fakeCollective({ currency: 'USD' });
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: netCollective.id,
+          amount: 100e2,
+          paymentProcessorFeeInHostCurrency: -10e2,
+          createdAt: new Date('2025-06-15'),
+        },
+        { createDoubleEntry: true },
+      );
+
+      const options = {
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-07-01'),
+        timeUnit: 'MONTH',
+      };
+      const gross = await getTotalAmountReceivedTimeSeries(netCollective, options);
+      const net = await getTotalAmountReceivedTimeSeries(netCollective, {
+        ...options,
+        net: true,
+        loaders: makeRequest().loaders,
+      });
+
+      expect(getNodesByDate(gross)).to.deep.equal([{ date: '2025-06-01T00:00:00.000Z', value: 100e2 }]);
+      expect(getNodesByDate(net)).to.deep.equal([{ date: '2025-06-01T00:00:00.000Z', value: 90e2 }]);
+    });
+
+    it('includes children accounts', async () => {
+      const child = await fakeCollective({ type: CollectiveType.PROJECT, ParentCollectiveId: collective.id });
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: child.id, amount: 40e2, createdAt: new Date('2025-06-20') },
+        { createDoubleEntry: true },
+      );
+
+      const options = {
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-08-01'),
+        timeUnit: 'MONTH',
+      };
+      const withoutChildren = await getTotalAmountReceivedTimeSeries(collective, options);
+      const withChildren = await getTotalAmountReceivedTimeSeries(collective, { ...options, includeChildren: true });
+
+      expect(getNodesByDate(withoutChildren)).to.deep.equal([
+        { date: '2025-06-01T00:00:00.000Z', value: 50e2 },
+        { date: '2025-07-01T00:00:00.000Z', value: 30e2 },
+      ]);
+      expect(getNodesByDate(withChildren)).to.deep.equal([
+        { date: '2025-06-01T00:00:00.000Z', value: 90e2 },
+        { date: '2025-07-01T00:00:00.000Z', value: 30e2 },
+      ]);
+    });
+
+    it('returns empty nodes when there are no transactions', async () => {
+      const emptyCollective = await fakeCollective({ currency: 'USD' });
+      const series = await getTotalAmountReceivedTimeSeries(emptyCollective, {
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-08-01'),
+        timeUnit: 'MONTH',
+      });
+
+      expect(series.nodes).to.deep.equal([]);
+    });
+  });
+
+  describe('getBalanceTimeSeries', () => {
+    let collective;
+
+    beforeEach(async () => {
+      collective = await fakeCollective({ currency: 'USD' });
+    });
+
+    const getNodesByDate = (series: { nodes: { date: Date | string; amount: { value: number } }[] }) =>
+      series.nodes
+        .map(node => ({ date: new Date(node.date).toISOString(), value: node.amount.value }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+    it('accumulates the balance across periods', async () => {
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: collective.id, amount: 50e2, createdAt: new Date('2025-06-15') },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: collective.id, amount: 30e2, createdAt: new Date('2025-07-10') },
+        { createDoubleEntry: true },
+      );
+
+      const series = await getBalanceTimeSeries(collective, {
+        endDate: new Date('2025-08-01'),
+        timeUnit: 'MONTH',
+      });
+
+      expect(getNodesByDate(series)).to.deep.equal([
+        { date: '2025-06-01T00:00:00.000Z', value: 50e2 },
+        { date: '2025-07-01T00:00:00.000Z', value: 80e2 },
+      ]);
+    });
+
+    it('starts from the balance before startDate', async () => {
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: collective.id, amount: 10e2, createdAt: new Date('2025-05-10') },
+        { createDoubleEntry: true },
+      );
+      await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
+      await sequelize.query('REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"');
+
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: collective.id, amount: 50e2, createdAt: new Date('2025-06-15') },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: collective.id, amount: 30e2, createdAt: new Date('2025-07-10') },
+        { createDoubleEntry: true },
+      );
+
+      const series = await getBalanceTimeSeries(collective, {
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2025-08-01'),
+        timeUnit: 'MONTH',
+      });
+
+      expect(getNodesByDate(series)).to.deep.equal([
+        { date: '2025-06-01T00:00:00.000Z', value: 60e2 },
+        { date: '2025-07-01T00:00:00.000Z', value: 90e2 },
+      ]);
+    });
+
+    it('includes children accounts', async () => {
+      const child = await fakeCollective({ type: CollectiveType.PROJECT, ParentCollectiveId: collective.id });
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: collective.id, amount: 50e2, createdAt: new Date('2025-06-15') },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: child.id, amount: 30e2, createdAt: new Date('2025-06-20') },
+        { createDoubleEntry: true },
+      );
+
+      const options = { endDate: new Date('2025-08-01'), timeUnit: 'MONTH' };
+      const withoutChildren = await getBalanceTimeSeries(collective, options);
+      const withChildren = await getBalanceTimeSeries(collective, { ...options, includeChildren: true });
+
+      expect(getNodesByDate(withoutChildren)).to.deep.equal([
+        { date: '2025-06-01T00:00:00.000Z', value: 50e2 },
+        { date: '2025-07-01T00:00:00.000Z', value: 50e2 },
+      ]);
+      expect(getNodesByDate(withChildren)).to.deep.equal([
+        { date: '2025-06-01T00:00:00.000Z', value: 80e2 },
+        { date: '2025-07-01T00:00:00.000Z', value: 80e2 },
+      ]);
+    });
+
+    it('returns empty nodes when there are no transactions', async () => {
+      const emptyCollective = await fakeCollective({ currency: 'USD' });
+      const series = await getBalanceTimeSeries(emptyCollective, {
+        endDate: new Date('2025-08-01'),
+        timeUnit: 'MONTH',
+      });
+
+      expect(series.nodes).to.deep.equal([]);
+    });
+  });
+
+  describe('getBlockedContributionsCount', () => {
+    let collective;
+
+    beforeEach(async () => {
+      collective = await fakeCollective();
+    });
+
+    it('counts disputed contributions', async () => {
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: collective.id,
+          amount: 20e2,
+          isDisputed: true,
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        { type: 'CREDIT', kind: TransactionKind.CONTRIBUTION, CollectiveId: collective.id, amount: 30e2 },
+        { createDoubleEntry: true },
+      );
+
+      expect(await getBlockedContributionsCount(collective.id)).to.equal(1);
+    });
+
+    it('ignores refunded contributions', async () => {
+      const original = await fakeTransaction(
+        { type: 'CREDIT', kind: TransactionKind.CONTRIBUTION, CollectiveId: collective.id, amount: 20e2 },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: collective.id,
+          amount: 20e2,
+          isDisputed: true,
+          RefundTransactionId: original.id,
+        },
+        { createDoubleEntry: true },
+      );
+
+      expect(await getBlockedContributionsCount(collective.id)).to.equal(0);
     });
   });
 });
