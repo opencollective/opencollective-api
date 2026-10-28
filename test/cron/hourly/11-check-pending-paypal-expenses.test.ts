@@ -1,6 +1,7 @@
 /* eslint-disable camelcase */
 import { expect } from 'chai';
 import moment from 'moment';
+import type { SinonStub } from 'sinon';
 import { createSandbox } from 'sinon';
 
 import { run as checkPendingPaypalExpenses } from '../../../cron/hourly/11-check-pending-paypal-expenses';
@@ -20,6 +21,7 @@ import {
   multiple,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
+import { makeRequest } from '../../utils';
 
 describe('cron/hourly/11-check-pending-paypal-expenses', () => {
   const sandbox = createSandbox();
@@ -198,7 +200,7 @@ describe('cron/hourly/11-check-pending-paypal-expenses', () => {
     expense.collective = collective;
 
     // Step 1: simulate PayPal reporting the payout as SUCCESS → expense becomes PAID
-    paypalLib.getBatchInfo.resolves({
+    (paypalLib.getBatchInfo as SinonStub).resolves({
       items: [
         {
           transaction_status: 'SUCCESS',
@@ -215,15 +217,15 @@ describe('cron/hourly/11-check-pending-paypal-expenses', () => {
     expect(expense.status).to.equal(status.PAID);
 
     // Step 2: a host admin marks the expense as unpaid (clears payout_batch_id from data)
-    await markExpenseAsUnpaid({ remoteUser: hostAdmin }, expense.id, false);
+    await markExpenseAsUnpaid(makeRequest(hostAdmin), expense.id, false);
     await expense.reload();
     expect(expense.status).to.equal(status.APPROVED);
     expect(expense.data.payout_batch_id).to.be.undefined;
 
     // Step 3: run the cron again — the expense must NOT be picked up or re-paid
-    paypalLib.getBatchInfo.reset();
+    (paypalLib.getBatchInfo as SinonStub).reset();
     await checkPendingPaypalExpenses();
-    expect(paypalLib.getBatchInfo.callCount).to.equal(0);
+    expect((paypalLib.getBatchInfo as SinonStub).callCount).to.equal(0);
 
     await expense.reload();
     expect(expense.status).to.equal(status.APPROVED);

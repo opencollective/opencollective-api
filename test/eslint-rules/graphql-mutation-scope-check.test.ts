@@ -4,6 +4,7 @@
  * Uses ESLint's RuleTester which integrates with Mocha's describe/it globals.
  */
 
+import type { Rule } from 'eslint';
 import { RuleTester } from 'eslint';
 
 import rule from '../../eslint-rules/graphql-mutation-scope-check.js';
@@ -15,7 +16,7 @@ const ruleTester = new RuleTester({
   },
 });
 
-ruleTester.run('graphql-mutations/require-scope-check', rule, {
+ruleTester.run('graphql-mutations/require-scope-check', rule as Rule.RuleModule, {
   valid: [
     {
       name: 'requireSessionToken call',

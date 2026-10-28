@@ -8,6 +8,7 @@ import { times } from 'lodash';
 import { QueryTypes } from 'sequelize';
 
 import PlatformConstants from '../../server/constants/platform';
+import { TransactionKind } from '../../server/constants/transaction-kind';
 import models, { sequelize } from '../../server/models';
 import {
   fakeCollective,
@@ -58,7 +59,7 @@ const createCollectiveWithData = async () => {
   const contributionTransaction = await fakeTransaction(
     {
       type: 'CREDIT',
-      kind: 'CONTRIBUTION',
+      kind: TransactionKind.CONTRIBUTION,
       PaymentMethodId: null,
       FromCollectiveId: user.collective.id,
       CollectiveId: collective.id,
@@ -77,7 +78,7 @@ const createCollectiveWithData = async () => {
   const hostedTransaction = await fakeTransaction(
     {
       type: 'CREDIT',
-      kind: 'CONTRIBUTION',
+      kind: TransactionKind.CONTRIBUTION,
       PaymentMethodId: null,
       HostCollectiveId: collective.id,
     },
@@ -567,7 +568,7 @@ describe('sql/ban-collectives and unban-collectives', () => {
       const transactionsImportRow = await fakeTransactionsImportRow({
         TransactionsImportId: transactionsImport.id,
         CollectiveId: collective.id,
-      });
+      } as Parameters<typeof fakeTransactionsImportRow>[0]);
       const otherTransactionsImportRow = await fakeTransactionsImportRow(); // Should not be deleted
 
       await sequelize.query(banCollectivesQuery, {
@@ -691,7 +692,10 @@ describe('sql/ban-collectives and unban-collectives', () => {
       const bannedCollective = await models.Collective.findByPk(collective.id, { paranoid: false });
       const bannedEvent = await models.Collective.findByPk(event.id, { paranoid: false });
 
-      const [result] = await sequelize.query(unbanCollectivesQuery, {
+      const [result] = await sequelize.query<{
+        nb_restored_collectives: number;
+        restored_collectives_ids: number[];
+      }>(unbanCollectivesQuery, {
         bind: { collectiveSlugs: [bannedCollective.slug, bannedEvent.slug], restoredAfterDate },
         type: QueryTypes.SELECT,
       });

@@ -3,14 +3,18 @@ import moment from 'moment';
 import sinon, { useFakeTimers } from 'sinon';
 
 import { run as invoicePlatformFees } from '../../../cron/monthly/host-settlement';
+import orderStatus from '../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
+import { TransactionTypes } from '../../../server/constants/transactions';
 import { createRefundTransaction } from '../../../server/lib/payments';
 import { getHostPlatformTipsAccount, getTaxesSummary } from '../../../server/lib/transactions';
+import type { Transaction } from '../../../server/models';
 import models, { sequelize } from '../../../server/models';
 import { ExpenseType } from '../../../server/models/Expense';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
+import { TransactionSettlementStatus } from '../../../server/models/TransactionSettlement';
 import {
   fakeCollective,
   fakeConnectedAccount,
@@ -26,6 +30,12 @@ import {
   randStr,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
+
+type HostFeeResult = { transaction: Partial<Transaction>; hostFeeTransaction: Transaction };
+
+/** `newPlatformTipsLedger` is an internal settings flag that is not part of the `Settings` type. */
+const withNewPlatformTipsLedger = (): Parameters<typeof fakeHost>[0]['settings'] =>
+  ({ newPlatformTipsLedger: true }) as Parameters<typeof fakeHost>[0]['settings'];
 
 describe('cron/monthly/host-settlement', () => {
   const lastMonth = moment.utc().subtract(1, 'month').startOf('month');
@@ -68,7 +78,7 @@ describe('cron/monthly/host-settlement', () => {
         currency: 'USD',
       },
       CollectiveId: oc.id,
-      type: 'BANK_ACCOUNT',
+      type: PayoutMethodTypes.BANK_ACCOUNT,
     };
     const defaultBankAccountPayoutMethod = await fakePayoutMethod({
       ...payoutProto,
@@ -86,7 +96,7 @@ describe('cron/monthly/host-settlement', () => {
       name: 'GBP host',
       currency: 'GBP',
       plan: 'grow-plan-2021',
-      data: { plan: { pricePerCollective: 100 } },
+      data: { plan: { pricePerCollective: 100 } } as Parameters<typeof fakeHost>[0]['data'],
     });
     await fakeConnectedAccount({ CollectiveId: gbpHost.id, service: 'transferwise' });
     const gbpHostBankPaymentMethod = await fakePaymentMethod({
@@ -98,20 +108,20 @@ describe('cron/monthly/host-settlement', () => {
       CollectiveId: gbpHost.id,
       FromCollectiveId: oc.id,
       type: ExpenseType.SETTLEMENT,
-      status: 'PAID',
+      status: orderStatus.PAID,
       PayoutMethodId: defaultBankAccountPayoutMethod.id,
       PaymentMethodId: gbpHostBankPaymentMethod.id,
     });
 
     const socialCollective = await fakeCollective({ HostCollectiveId: gbpHost.id });
-    const transactionProps = {
-      type: 'CREDIT',
+    const transactionProps: Partial<Transaction> = {
+      type: TransactionTypes.CREDIT,
       kind: TransactionKind.CONTRIBUTION,
       CollectiveId: socialCollective.id,
       currency: 'GBP',
       hostCurrency: 'GBP',
       HostCollectiveId: gbpHost.id,
-      createdAt: lastMonth,
+      createdAt: lastMonth.toDate(),
       data: {
         hostFeeSharePercent: 15,
       },
@@ -152,14 +162,14 @@ describe('cron/monthly/host-settlement', () => {
       kind: TransactionKind.CONTRIBUTION,
       amount: 4200,
       hostFeeInHostCurrency: -420,
-      createdAt: moment(lastMonth).subtract(1, 'month'),
+      createdAt: moment(lastMonth).subtract(1, 'month').toDate(),
       TransactionGroup: fakeUUID('00000005'),
     });
 
     // Create host fee share
     const hostFeeResults = await Promise.all(
       [contribution1, contribution2, contribution3, unsettledRefundedContribution, settledRefundedContribution].map(
-        transaction => models.Transaction.createHostFeeTransactions(transaction),
+        async transaction => (await models.Transaction.createHostFeeTransactions(transaction)) as HostFeeResult,
       ),
     );
 
@@ -186,7 +196,7 @@ describe('cron/monthly/host-settlement', () => {
       data: { hostToPlatformFxRate: 1.23 },
       TransactionGroup: contributionWithTipToSettle.TransactionGroup,
       kind: TransactionKind.PLATFORM_TIP,
-      createdAt: lastMonth,
+      createdAt: lastMonth.toDate(),
     });
     const firstTipDebtCredit = await fakeTransaction({
       type: 'CREDIT',
@@ -200,7 +210,7 @@ describe('cron/monthly/host-settlement', () => {
       data: { hostToPlatformFxRate: 1.23 },
       TransactionGroup: contributionWithTipToSettle.TransactionGroup,
       kind: TransactionKind.PLATFORM_TIP_DEBT,
-      createdAt: lastMonth,
+      createdAt: lastMonth.toDate(),
       isDebt: true,
     });
     await models.TransactionSettlement.createForTransaction(firstTipDebtCredit);
@@ -210,7 +220,10 @@ describe('cron/monthly/host-settlement', () => {
       ...transactionProps,
       TransactionGroup: fakeUUID('00000007'),
     });
-    const paymentMethod = await fakePaymentMethod({ service: 'stripe', token: 'tok_bypassPending' });
+    const paymentMethod = await fakePaymentMethod({
+      service: PAYMENT_METHOD_SERVICE.STRIPE,
+      token: 'tok_bypassPending',
+    });
     await fakeTransaction({
       type: 'CREDIT',
       CollectiveId: oc.id,
@@ -223,12 +236,12 @@ describe('cron/monthly/host-settlement', () => {
       kind: TransactionKind.PLATFORM_TIP,
       paymentProcessorFeeInHostCurrency: -100,
       PaymentMethodId: paymentMethod.id,
-      createdAt: lastMonth,
+      createdAt: lastMonth.toDate(),
     });
 
     // Mark settledRefundedContribution as already settled, which suppose we'll have to INVOICE the opposite settlement
     await models.TransactionSettlement.update(
-      { status: 'SETTLED' },
+      { status: TransactionSettlementStatus.SETTLED },
       { where: { TransactionGroup: settledRefundedContribution.TransactionGroup } },
     );
 
@@ -249,15 +262,15 @@ describe('cron/monthly/host-settlement', () => {
       hostFeePercent: 10,
       country: 'BE',
       data: { plan: { hostFeeSharePercent: 50 } },
-      settings: { VAT: { type: 'OWN' } },
+      settings: { VAT: { type: 'OWN' } } as Parameters<typeof fakeHost>[0]['settings'],
       admin: eurHostAdmin,
-    });
+    } as Parameters<typeof fakeHost>[0]);
     await fakeConnectedAccount({ CollectiveId: eurHost.id, service: 'transferwise' });
 
     eurCollective = await fakeCollective({
       HostCollectiveId: eurHost.id,
       currency: 'EUR',
-      settings: { VAT: { type: 'HOST' } },
+      settings: { VAT: { type: 'HOST' } } as Parameters<typeof fakeCollective>[0]['settings'],
     });
 
     // Create Contributions
@@ -266,7 +279,7 @@ describe('cron/monthly/host-settlement', () => {
       description: 'Old EUR Contribution with tip + host fee',
       CollectiveId: eurCollective.id,
       currency: 'EUR',
-      status: 'PENDING',
+      status: orderStatus.PENDING,
       data: { tax: { id: 'VAT', percentage: 21 } },
       // 1000€ contribution + 300€ platform tip + 210€ VAT (21% of 1000€) = 1510€
       // Will also include 100€ host fee (10% of 1000€), of which 50% will be shared with OC (hostFeeSharePercent: 50)
@@ -282,7 +295,7 @@ describe('cron/monthly/host-settlement', () => {
       description: 'EUR Contribution with tip + host fee',
       CollectiveId: eurCollective.id,
       currency: 'EUR',
-      status: 'PENDING',
+      status: orderStatus.PENDING,
       data: { tax: { id: 'VAT', percentage: 21 } },
       // 1000€ contribution + 300€ platform tip + 210€ VAT (21% of 1000€) = 1510€
       // Will also include 100€ host fee (10% of 1000€), of which 50% will be shared with OC (hostFeeSharePercent: 50)
@@ -303,7 +316,7 @@ describe('cron/monthly/host-settlement', () => {
       description: 'Contribution with tip + host fee',
       CollectiveId: newHost.id,
       currency: 'USD',
-      status: 'PENDING',
+      status: orderStatus.PENDING,
       platformTipAmount: 300e2,
       taxAmount: 210e2,
       totalAmount: 1510e2,
@@ -320,11 +333,14 @@ describe('cron/monthly/host-settlement', () => {
       hostFeePercent: 10,
       data: { plan: { hostFeeSharePercent: 50 } },
       // Migration date falls within the billing period being settled.
-      settings: { automaticBillingMigration: lastMonth.toDate() },
+      settings: { automaticBillingMigration: lastMonth.toDate() } as Parameters<typeof fakeHost>[0]['settings'],
       admin: migratedHostAdmin,
     });
     await fakeConnectedAccount({ CollectiveId: migratedHost.id, service: 'transferwise' });
-    await fakePlatformSubscription({ CollectiveId: migratedHost.id, plan: { pricing: { platformTips: true } } });
+    await fakePlatformSubscription({
+      CollectiveId: migratedHost.id,
+      plan: { pricing: { platformTips: true } },
+    } as Parameters<typeof fakePlatformSubscription>[0]);
 
     const migratedCollective = await fakeCollective({ HostCollectiveId: migratedHost.id, currency: 'USD' });
     clock = useFakeTimers({ now: lastMonth.toDate(), toFake: ['Date'] });
@@ -332,7 +348,7 @@ describe('cron/monthly/host-settlement', () => {
       description: 'Contribution on migrated host',
       CollectiveId: migratedCollective.id,
       currency: 'USD',
-      status: 'PENDING',
+      status: orderStatus.PENDING,
       platformTipAmount: 300e2,
       totalAmount: 1300e2,
     });
@@ -346,7 +362,7 @@ describe('cron/monthly/host-settlement', () => {
     smallMigratedHost = await fakeHost({
       name: 'small-migrated-host',
       currency: 'USD',
-      settings: { automaticBillingMigration: lastMonth.toDate() },
+      settings: { automaticBillingMigration: lastMonth.toDate() } as Parameters<typeof fakeHost>[0]['settings'],
     });
     await fakePlatformSubscription({ CollectiveId: smallMigratedHost.id });
     const smallMigratedCollective = await fakeCollective({
@@ -362,12 +378,12 @@ describe('cron/monthly/host-settlement', () => {
       hostCurrency: 'USD',
       amount: 100,
       hostFeeInHostCurrency: -10,
-      createdAt: lastMonth,
+      createdAt: lastMonth.toDate(),
       data: { hostFeeSharePercent: 15 },
       TransactionGroup: fakeUUID('00000020'),
     });
     const { transaction: smallWithHostFee, hostFeeTransaction: smallHostFee } =
-      await models.Transaction.createHostFeeTransactions(smallContribution);
+      (await models.Transaction.createHostFeeTransactions(smallContribution)) as HostFeeResult;
     await models.Transaction.createHostFeeShareTransactions({
       transaction: smallWithHostFee,
       hostFeeTransaction: smallHostFee,
@@ -404,7 +420,7 @@ describe('cron/monthly/host-settlement', () => {
       TransactionGroup: fakeUUID('00000030'),
     });
     const { transaction: anomalyWithHostFee, hostFeeTransaction: anomalyHostFee } =
-      await models.Transaction.createHostFeeTransactions(anomalyContribution);
+      (await models.Transaction.createHostFeeTransactions(anomalyContribution)) as HostFeeResult;
     await models.Transaction.createHostFeeShareTransactions({
       transaction: anomalyWithHostFee,
       hostFeeTransaction: anomalyHostFee,
@@ -673,7 +689,7 @@ describe('cron/monthly/host-settlement', () => {
       // The cron requires a USD BANK_ACCOUNT payout method on the platform org.
       await fakePayoutMethod({
         CollectiveId: oc.id,
-        type: 'BANK_ACCOUNT',
+        type: PayoutMethodTypes.BANK_ACCOUNT,
         data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
       });
 
@@ -686,7 +702,7 @@ describe('cron/monthly/host-settlement', () => {
         currency: 'USD',
         plan: 'grow-plan-2021',
         admin: hostAdmin,
-        settings: { newPlatformTipsLedger: true },
+        settings: withNewPlatformTipsLedger(),
       });
       await fakeConnectedAccount({ CollectiveId: newLedgerHost.id, service: 'transferwise' });
 
@@ -699,7 +715,7 @@ describe('cron/monthly/host-settlement', () => {
         description: 'Contribution with $50 tip on new-ledger host',
         CollectiveId: collective.id,
         currency: 'USD',
-        status: 'PENDING',
+        status: orderStatus.PENDING,
         platformTipAmount: 5000,
         totalAmount: 15000,
       });
@@ -821,7 +837,7 @@ describe('cron/monthly/host-settlement', () => {
       await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
       await fakePayoutMethod({
         CollectiveId: oc.id,
-        type: 'BANK_ACCOUNT',
+        type: PayoutMethodTypes.BANK_ACCOUNT,
         data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
       });
 
@@ -834,7 +850,7 @@ describe('cron/monthly/host-settlement', () => {
         currency: 'USD',
         plan: 'grow-plan-2021',
         admin: hostAdmin,
-        settings: { newPlatformTipsLedger: true },
+        settings: withNewPlatformTipsLedger(),
       });
       await fakeConnectedAccount({ CollectiveId: deductionHost.id, service: 'transferwise' });
       // hostFeePercent 0 keeps the settlement to tips only (no Platform Share item)
@@ -849,7 +865,7 @@ describe('cron/monthly/host-settlement', () => {
         currency: 'USD',
         plan: 'grow-plan-2021',
         admin: hostAdmin,
-        settings: { newPlatformTipsLedger: true },
+        settings: withNewPlatformTipsLedger(),
       });
       await fakeConnectedAccount({ CollectiveId: negativeNetHost.id, service: 'transferwise' });
       const negativeNetCollective = await fakeCollective({
@@ -865,7 +881,7 @@ describe('cron/monthly/host-settlement', () => {
           description: 'Contribution with $50 tip, still held',
           CollectiveId: collective.id,
           currency: 'USD',
-          status: 'PENDING',
+          status: orderStatus.PENDING,
           platformTipAmount: 5000,
           totalAmount: 15000,
         });
@@ -876,7 +892,7 @@ describe('cron/monthly/host-settlement', () => {
           description: 'Contribution with $20 tip, invoiced then refunded',
           CollectiveId: collective.id,
           currency: 'USD',
-          status: 'PENDING',
+          status: orderStatus.PENDING,
           platformTipAmount: 2000,
           totalAmount: 12000,
         });
@@ -886,7 +902,7 @@ describe('cron/monthly/host-settlement', () => {
           where: { OrderId: orderB.id, kind: TransactionKind.PLATFORM_TIP, type: 'CREDIT' },
         });
         const tipBSettlement = await models.TransactionSettlement.getByTransaction(tipBCredit);
-        await tipBSettlement.update({ status: 'INVOICED' });
+        await tipBSettlement.update({ status: TransactionSettlementStatus.INVOICED });
 
         const contributionBCredit = await models.Transaction.findOne({
           where: { OrderId: orderB.id, kind: TransactionKind.CONTRIBUTION, type: 'CREDIT' },
@@ -899,7 +915,7 @@ describe('cron/monthly/host-settlement', () => {
           description: 'Contribution with $20 tip, invoiced then refunded (negative-net host)',
           CollectiveId: negativeNetCollective.id,
           currency: 'USD',
-          status: 'PENDING',
+          status: orderStatus.PENDING,
           platformTipAmount: 2000,
           totalAmount: 12000,
         });
@@ -907,7 +923,9 @@ describe('cron/monthly/host-settlement', () => {
         const tipCCredit = await models.Transaction.findOne({
           where: { OrderId: orderC.id, kind: TransactionKind.PLATFORM_TIP, type: 'CREDIT' },
         });
-        await (await models.TransactionSettlement.getByTransaction(tipCCredit)).update({ status: 'INVOICED' });
+        await (
+          await models.TransactionSettlement.getByTransaction(tipCCredit)
+        ).update({ status: TransactionSettlementStatus.INVOICED });
         const contributionCCredit = await models.Transaction.findOne({
           where: { OrderId: orderC.id, kind: TransactionKind.CONTRIBUTION, type: 'CREDIT' },
         });
@@ -1076,7 +1094,7 @@ describe('cron/monthly/host-settlement', () => {
       await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
       await fakePayoutMethod({
         CollectiveId: oc.id,
-        type: 'BANK_ACCOUNT',
+        type: PayoutMethodTypes.BANK_ACCOUNT,
         data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
       });
 
@@ -1089,7 +1107,7 @@ describe('cron/monthly/host-settlement', () => {
         currency: 'USD',
         plan: 'grow-plan-2021',
         admin: hostAdmin,
-        settings: { newPlatformTipsLedger: true },
+        settings: withNewPlatformTipsLedger(),
       });
       await fakeConnectedAccount({ CollectiveId: optedOutHost.id, service: 'transferwise' });
       const collective = await fakeCollective({
@@ -1105,7 +1123,7 @@ describe('cron/monthly/host-settlement', () => {
           description: 'Contribution with $50 tip before opting out',
           CollectiveId: collective.id,
           currency: 'USD',
-          status: 'PENDING',
+          status: orderStatus.PENDING,
           platformTipAmount: 5000,
           totalAmount: 15000,
         });
@@ -1174,7 +1192,7 @@ describe('cron/monthly/host-settlement', () => {
       await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
       await fakePayoutMethod({
         CollectiveId: oc.id,
-        type: 'BANK_ACCOUNT',
+        type: PayoutMethodTypes.BANK_ACCOUNT,
         data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
       });
 
@@ -1187,7 +1205,7 @@ describe('cron/monthly/host-settlement', () => {
         currency: 'USD',
         plan: 'grow-plan-2021',
         admin: hostAdmin,
-        settings: { newPlatformTipsLedger: true },
+        settings: withNewPlatformTipsLedger(),
       });
       await fakeConnectedAccount({ CollectiveId: mixedHost.id, service: 'transferwise' });
       const collective = await fakeCollective({ HostCollectiveId: mixedHost.id, currency: 'USD', hostFeePercent: 0 });
@@ -1205,11 +1223,14 @@ describe('cron/monthly/host-settlement', () => {
         currency: 'USD',
         hostCurrency: 'USD',
         kind: TransactionKind.PLATFORM_TIP_DEBT,
-        createdAt: twoMonthsAgo,
+        createdAt: twoMonthsAgo.toDate(),
         isDebt: true,
         TransactionGroup: legacyGroup,
       });
-      await models.TransactionSettlement.createForTransaction(legacyOriginalDebtCredit, 'SETTLED');
+      await models.TransactionSettlement.createForTransaction(
+        legacyOriginalDebtCredit,
+        TransactionSettlementStatus.SETTLED,
+      );
       // The refund pair's debt row: negative, OWED — must be deducted from the next invoice.
       legacyRefundDebit = await fakeTransaction({
         type: 'DEBIT',
@@ -1221,7 +1242,7 @@ describe('cron/monthly/host-settlement', () => {
         currency: 'USD',
         hostCurrency: 'USD',
         kind: TransactionKind.PLATFORM_TIP_DEBT,
-        createdAt: lastMonth,
+        createdAt: lastMonth.toDate(),
         isDebt: true,
         isRefund: true,
         TransactionGroup: fakeUUID('10000002'),
@@ -1235,7 +1256,7 @@ describe('cron/monthly/host-settlement', () => {
           description: 'Contribution with $50 tip on converted host',
           CollectiveId: collective.id,
           currency: 'USD',
-          status: 'PENDING',
+          status: orderStatus.PENDING,
           platformTipAmount: 5000,
           totalAmount: 15000,
         });
@@ -1317,7 +1338,7 @@ describe('cron/monthly/host-settlement', () => {
       await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
       await fakePayoutMethod({
         CollectiveId: oc.id,
-        type: 'BANK_ACCOUNT',
+        type: PayoutMethodTypes.BANK_ACCOUNT,
         data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
       });
 
@@ -1330,7 +1351,7 @@ describe('cron/monthly/host-settlement', () => {
         currency: 'EUR',
         plan: 'grow-plan-2021',
         admin: hostAdmin,
-        settings: { newPlatformTipsLedger: true },
+        settings: withNewPlatformTipsLedger(),
       });
       await fakeConnectedAccount({ CollectiveId: eurLedgerHost.id, service: 'transferwise' });
 
@@ -1341,7 +1362,7 @@ describe('cron/monthly/host-settlement', () => {
         description: 'EUR contribution with 300€ tip on new-ledger host',
         CollectiveId: collective.id,
         currency: 'EUR',
-        status: 'PENDING',
+        status: orderStatus.PENDING,
         platformTipAmount: TIP_EUR,
         totalAmount: 1300e2,
       });
@@ -1450,7 +1471,7 @@ describe('cron/monthly/host-settlement', () => {
       await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
       await fakePayoutMethod({
         CollectiveId: oc.id,
-        type: 'BANK_ACCOUNT',
+        type: PayoutMethodTypes.BANK_ACCOUNT,
         data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
       });
 
@@ -1463,7 +1484,7 @@ describe('cron/monthly/host-settlement', () => {
         currency: 'USD',
         plan: 'grow-plan-2021',
         admin: hostAdmin,
-        settings: { newPlatformTipsLedger: true },
+        settings: withNewPlatformTipsLedger(),
       });
       await fakeConnectedAccount({ CollectiveId: belowThresholdHost.id, service: 'transferwise' });
 
@@ -1474,7 +1495,7 @@ describe('cron/monthly/host-settlement', () => {
         description: 'Contribution with a $3 tip on new-ledger host',
         CollectiveId: collective.id,
         currency: 'USD',
-        status: 'PENDING',
+        status: orderStatus.PENDING,
         platformTipAmount: SMALL_TIP,
         totalAmount: 5000,
       });
@@ -1534,7 +1555,7 @@ describe('cron/monthly/host-settlement', () => {
       // The cron requires a USD BANK_ACCOUNT payout method on the platform org.
       await fakePayoutMethod({
         CollectiveId: oc.id,
-        type: 'BANK_ACCOUNT',
+        type: PayoutMethodTypes.BANK_ACCOUNT,
         data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
       });
 
@@ -1555,7 +1576,7 @@ describe('cron/monthly/host-settlement', () => {
         currency: 'USD',
         hostCurrency: 'USD',
         kind: TransactionKind.PLATFORM_TIP_DEBT,
-        createdAt: lastMonth,
+        createdAt: lastMonth.toDate(),
         isDebt: true,
       });
       await models.TransactionSettlement.createForTransaction(ociTipDebtCredit);
@@ -1573,7 +1594,7 @@ describe('cron/monthly/host-settlement', () => {
         currency: 'USD',
         hostCurrency: 'USD',
         kind: TransactionKind.PLATFORM_TIP_DEBT,
-        createdAt: lastMonth,
+        createdAt: lastMonth.toDate(),
         isDebt: true,
       });
       await models.TransactionSettlement.createForTransaction(liveTipDebtCredit);
@@ -1587,7 +1608,7 @@ describe('cron/monthly/host-settlement', () => {
         currency: 'USD',
         hostCurrency: 'USD',
         kind: TransactionKind.PLATFORM_TIP_DEBT,
-        createdAt: lastMonth,
+        createdAt: lastMonth.toDate(),
         isDebt: true,
       });
       await models.TransactionSettlement.createForTransaction(deletedTipDebtCredit);
@@ -1600,7 +1621,7 @@ describe('cron/monthly/host-settlement', () => {
         name: 'fixed-fee-only-host',
         currency: 'USD',
         plan: 'grow-plan-2021',
-        data: { plan: { pricePerCollective: 1200 } },
+        data: { plan: { pricePerCollective: 1200 } } as Parameters<typeof fakeHost>[0]['data'],
       });
       await fakeConnectedAccount({ CollectiveId: fixedFeeOnlyHost.id, service: 'transferwise' });
       const hostedCollective = await fakeCollective({ HostCollectiveId: fixedFeeOnlyHost.id });
@@ -1613,7 +1634,7 @@ describe('cron/monthly/host-settlement', () => {
         amount: 5000,
         currency: 'USD',
         hostCurrency: 'USD',
-        createdAt: lastMonth,
+        createdAt: lastMonth.toDate(),
       });
 
       await invoicePlatformFees();

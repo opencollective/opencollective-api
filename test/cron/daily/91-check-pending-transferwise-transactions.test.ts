@@ -19,6 +19,9 @@ import {
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
+/** The fixtures use partial Wise payloads; the model only stores them as JSON. */
+const transactionData = (data: Record<string, unknown>) => data as Parameters<typeof fakeTransaction>[0]['data'];
+
 describe('cron/daily/check-pending-transferwise-transactions', () => {
   const sandbox = createSandbox();
   let getTransfer, sendMessage;
@@ -120,11 +123,11 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
         FromCollectiveId: expense.FromCollectiveId,
         CollectiveId: expense.CollectiveId,
         ExpenseId: expense.id,
-        data: {
+        data: transactionData({
           transfer: { id: 1234 },
           quote: { fee: 1, rate: 1 },
           fees: { hostFeeInHostCurrency: 1, platformFeeInHostCurrency: 1 },
-        },
+        }),
       },
       { createDoubleEntry: true },
     );
