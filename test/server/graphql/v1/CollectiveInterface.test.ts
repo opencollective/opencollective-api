@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import gqlV1 from 'fake-tag';
 
+import roles from '../../../../server/constants/roles';
 import { executeOrder } from '../../../../server/lib/payments';
 import * as store from '../../../stores';
 import {
@@ -256,7 +257,7 @@ describe('server/graphql/v1/CollectiveInterface - members private accounts visib
     await fakeMember({
       CollectiveId: 1,
       MemberCollectiveId: rootAdmin.CollectiveId,
-      role: 'ADMIN',
+      role: roles.ADMIN,
       CreatedByUserId: rootAdmin.id,
     });
 
@@ -269,12 +270,12 @@ describe('server/graphql/v1/CollectiveInterface - members private accounts visib
     // account, which exercises the relaxation branch without granting access to `privateOrg`.
     await fakePrivateOrganization({ admin: otherPrivateOrgAdmin.collective });
 
-    await fakeMember({ CollectiveId: publicCollective.id, MemberCollectiveId: privateOrg.id, role: 'BACKER' });
-    await fakeMember({ CollectiveId: publicCollective.id, MemberCollectiveId: publicOrg.id, role: 'BACKER' });
+    await fakeMember({ CollectiveId: publicCollective.id, MemberCollectiveId: privateOrg.id, role: roles.BACKER });
+    await fakeMember({ CollectiveId: publicCollective.id, MemberCollectiveId: publicOrg.id, role: roles.BACKER });
     await fakeMember({
       CollectiveId: publicCollective.id,
       MemberCollectiveId: publicBacker.CollectiveId,
-      role: 'BACKER',
+      role: roles.BACKER,
     });
   });
 
@@ -303,7 +304,7 @@ describe('server/graphql/v1/CollectiveInterface - members private accounts visib
       const result = await utils.graphqlQuery(membersQuery, {
         slug: publicCollective.slug,
         type: 'ORGANIZATION',
-        role: 'BACKER',
+        role: roles.BACKER,
       });
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
@@ -333,7 +334,7 @@ describe('server/graphql/v1/CollectiveInterface - members private accounts visib
     it('returns the private organization to its own admin when filtering on the account type', async () => {
       const result = await utils.graphqlQuery(
         membersQuery,
-        { slug: publicCollective.slug, type: 'ORGANIZATION', role: 'BACKER' },
+        { slug: publicCollective.slug, type: 'ORGANIZATION', role: roles.BACKER },
         privateOrgAdmin,
       );
       expect(result.errors).to.not.exist;

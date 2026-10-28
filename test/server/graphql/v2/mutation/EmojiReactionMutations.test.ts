@@ -4,6 +4,7 @@ import gql from 'fake-tag';
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
+import type { EmojiReaction, User } from '../../../../../server/models';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -19,6 +20,10 @@ import {
 import { createPrivateAccountFixture } from '../../../../test-helpers/private-account-fixture';
 import * as utils from '../../../../utils';
 import { graphqlQueryV2, oAuthGraphqlQueryV2 } from '../../../../utils';
+
+/** The `User` association is registered in `models/index.ts` but not declared on the model type. */
+const getReactionUser = (reaction: EmojiReaction) =>
+  (reaction as EmojiReaction & { getUser: () => Promise<User> }).getUser();
 
 const createHostApplicationCommentContext = async () => {
   const host = await fakeActiveHost();
@@ -122,7 +127,7 @@ describe('server/graphql/v2/mutation/EmojiReactionMutations', () => {
       const expense = await fakeExpense({ FromCollectiveId: user.CollectiveId });
       const comment = await fakeComment({ ExpenseId: expense.id });
       const publicId = `${EntityShortIdPrefix.Comment}_${comment.id}`;
-      await comment.update({ publicId });
+      await comment.update({ publicId } as Parameters<typeof comment.update>[0]);
 
       const result = await graphqlQueryV2(addReactionMutation, { comment: { id: publicId }, emoji: '🎉' }, user);
 
@@ -446,7 +451,7 @@ describe('server/graphql/v2/mutation/EmojiReactionMutations', () => {
     it('Removes a reaction', async () => {
       const reaction = await fakeEmojiReaction(undefined, { isComment: true });
       const commentId = idEncode(reaction.CommentId, IDENTIFIER_TYPES.COMMENT);
-      const user = await reaction.getUser();
+      const user = await getReactionUser(reaction);
       const mutationParams = { comment: { id: commentId }, emoji: reaction.emoji };
       const result = await graphqlQueryV2(removeReactionMutation, mutationParams, user);
       expect(result.data.removeEmojiReaction).to.exist;

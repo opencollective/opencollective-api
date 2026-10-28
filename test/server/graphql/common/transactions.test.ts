@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { useFakeTimers } from 'sinon';
 
 import { roles } from '../../../../server/constants';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import { canDownloadInvoice, canRefund, canReject } from '../../../../server/graphql/common/transactions';
 import {
@@ -52,7 +53,11 @@ describe('server/graphql/common/transactions', () => {
     contributor = await fakeUser({}, { name: 'Contributor' });
     collective = await fakeCollective({ name: 'Collective' });
     const order = await fakeOrder({ FromCollectiveId: contributor.CollectiveId, CollectiveId: collective.id });
-    const creditCard = await fakePaymentMethod({ service: 'stripe', type: 'creditcard', name: '4242' });
+    const creditCard = await fakePaymentMethod({
+      service: PAYMENT_METHOD_SERVICE.STRIPE,
+      type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      name: '4242',
+    });
     transaction = await fakeTransaction({
       description: 'Contribution',
       CollectiveId: collective.id,

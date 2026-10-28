@@ -4,6 +4,7 @@ import nock from 'nock';
 import { createSandbox } from 'sinon';
 
 import { activities } from '../../../../../server/constants';
+import { CollectiveType } from '../../../../../server/constants/collectives';
 import roles from '../../../../../server/constants/roles';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
@@ -67,7 +68,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
     host = await fakeActiveHost({
       name: 'Open Source Collective',
       slug: 'opensource',
-      type: 'ORGANIZATION',
+      type: CollectiveType.ORGANIZATION,
       settings: { apply: true },
       hasMoneyManagement: true,
       hasHosting: true,

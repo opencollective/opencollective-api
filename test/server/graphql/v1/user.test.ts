@@ -163,7 +163,7 @@ describe('server/graphql/v1/user', () => {
         const result = await graphqlQueryV2(CREATE_ORDER_MUTATION, { order: generateLoggedInOrder() }, user1);
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
-        const paymentMethods = await PaymentMethod.findAll({
+        const paymentMethods: PaymentMethod[] & { errors?: unknown } = await PaymentMethod.findAll({
           where: { CreatedByUserId: user1.id },
         });
         paymentMethods.errors && console.error(paymentMethods.errors);
@@ -178,7 +178,7 @@ describe('server/graphql/v1/user', () => {
         const result = await graphqlQueryV2(CREATE_ORDER_MUTATION, { order }, user1);
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
-        const paymentMethods = await PaymentMethod.findAll({
+        const paymentMethods: PaymentMethod[] & { errors?: unknown } = await PaymentMethod.findAll({
           where: { CreatedByUserId: user1.id },
         });
         expect(paymentMethods).to.have.length(1);

@@ -3,7 +3,9 @@ import gql from 'fake-tag';
 import { shuffle, times } from 'lodash';
 
 import { roles } from '../../../../../server/constants';
+import { CollectiveType } from '../../../../../server/constants/collectives';
 import OrderStatuses from '../../../../../server/constants/order-status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models from '../../../../../server/models';
 import { randEmail } from '../../../../stores';
@@ -269,7 +271,7 @@ describe('server/graphql/v2/query/AccountQuery', () => {
     it('can fetch an account by publicId', async () => {
       const user = await fakeUser({}, { legalName: 'PRIVATE!' });
       const publicId = `${EntityShortIdPrefix.Collective}_${user.collective.id}`;
-      await user.collective.update({ publicId });
+      await user.collective.update({ publicId } as Parameters<typeof user.collective.update>[0]);
 
       const accountByIdQuery = gql`
         query AccountById($id: String!) {
@@ -459,7 +461,11 @@ describe('server/graphql/v2/query/AccountQuery', () => {
     describe('incognito profiles', () => {
       it('are returned if user is an admin', async () => {
         const user = await fakeUser();
-        const incognitoProfile = await fakeCollective({ type: 'USER', isIncognito: true, CreatedByUserId: user.id });
+        const incognitoProfile = await fakeCollective({
+          type: CollectiveType.USER,
+          isIncognito: true,
+          CreatedByUserId: user.id,
+        });
         await incognitoProfile.addUserWithRole(user, roles.ADMIN);
         const result = await graphqlQueryV2(accountQuery, { slug: user.collective.slug }, user);
 
@@ -469,7 +475,11 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       it('are not returned if user is not an admin', async () => {
         const user = await fakeUser();
         const otherUser = await fakeUser();
-        const incognitoProfile = await fakeCollective({ type: 'USER', isIncognito: true, CreatedByUserId: user.id });
+        const incognitoProfile = await fakeCollective({
+          type: CollectiveType.USER,
+          isIncognito: true,
+          CreatedByUserId: user.id,
+        });
         await incognitoProfile.addUserWithRole(user, roles.ADMIN);
         const resultUnauthenticated = await graphqlQueryV2(accountQuery, { slug: user.collective.slug });
         const resultAsAnotherUser = await graphqlQueryV2(accountQuery, { slug: user.collective.slug }, otherUser);
@@ -553,8 +563,8 @@ describe('server/graphql/v2/query/AccountQuery', () => {
     before(async () => {
       collective = await fakeCollective();
       adminUser = await fakeUser();
-      collectiveBackers = await Promise.all(times(5, fakeUser));
-      await Promise.all(collectiveBackers.map(u => collective.addUserWithRole(u, 'BACKER')));
+      collectiveBackers = await Promise.all(times(5, () => fakeUser()));
+      await Promise.all(collectiveBackers.map(u => collective.addUserWithRole(u, roles.BACKER)));
       await collective.addUserWithRole(adminUser, 'ADMIN');
     });
 
@@ -601,8 +611,8 @@ describe('server/graphql/v2/query/AccountQuery', () => {
     });
 
     it('inherith Admins and Accountants from ParentCollective if Event or Project', async () => {
-      const event = await fakeCollective({ ParentCollectiveId: collective.id, type: 'EVENT' });
-      const project = await fakeCollective({ ParentCollectiveId: collective.id, type: 'PROJECT' });
+      const event = await fakeCollective({ ParentCollectiveId: collective.id, type: CollectiveType.EVENT });
+      const project = await fakeCollective({ ParentCollectiveId: collective.id, type: CollectiveType.PROJECT });
 
       let resultPublic = await graphqlQueryV2(membersQuery, { slug: event.slug });
       const eventMembers = resultPublic.data.account.members.nodes;
@@ -647,37 +657,37 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       await Promise.all([
         fakeCollective({
           ParentCollectiveId: collective.id,
-          type: 'EVENT',
+          type: CollectiveType.EVENT,
           startsAt: new Date('2024-01-01'),
           endsAt: new Date('2024-01-02'),
           createdAt: new Date('2024-01-01'),
         }),
         fakeCollective({
           ParentCollectiveId: collective.id,
-          type: 'EVENT',
+          type: CollectiveType.EVENT,
           startsAt: new Date('2024-02-01'),
           endsAt: new Date('2024-02-02'),
           createdAt: new Date('2024-02-01'),
         }),
         fakeCollective({
           ParentCollectiveId: collective.id,
-          type: 'EVENT',
+          type: CollectiveType.EVENT,
           startsAt: new Date('2024-03-01'),
           endsAt: new Date('2024-03-02'),
           createdAt: new Date('2024-03-01'),
         }),
       ]);
-      await multiple(fakeCollective, 4, { ParentCollectiveId: collective.id, type: 'PROJECT' });
+      await multiple(fakeCollective, 4, { ParentCollectiveId: collective.id, type: CollectiveType.PROJECT });
       // Internal platform-owned account (e.g. the per-host platform-tips account), created at a date
       // that would interleave with the events under a plain createdAt sort
       await fakeCollective({
         ParentCollectiveId: collective.id,
-        type: 'PLATFORM',
+        type: CollectiveType.PLATFORM,
         createdAt: new Date('2024-02-15'),
         data: { isPlatformTipsAccount: true },
       });
       user = await fakeUser();
-      await collective.addUserWithRole(user, 'ADMIN');
+      await collective.addUserWithRole(user, roles.ADMIN);
     });
 
     it('can list all childrens if admin', async () => {
@@ -1003,8 +1013,8 @@ describe('server/graphql/v2/query/AccountQuery', () => {
 
       // Add a payment method with pending confirmations
       paymentMethod = await fakePaymentMethod({
-        type: 'creditcard',
-        service: 'stripe',
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
         CollectiveId: user.CollectiveId,
       });
 
@@ -1012,7 +1022,7 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         {
           FromCollectiveId: user.CollectiveId,
           PaymentMethodId: paymentMethod.id,
-          status: 'REQUIRE_CLIENT_CONFIRMATION',
+          status: OrderStatuses.REQUIRE_CLIENT_CONFIRMATION,
           data: { needsConfirmation: true },
         },
         { withSubscription: true },

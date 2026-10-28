@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import type { Request } from 'express';
 import { cloneDeep } from 'lodash';
 import moment from 'moment';
 
@@ -58,6 +59,7 @@ import { getApolloErrorCode, getOrCreatePlatformAccount, makeRequest, resetTestD
 
 describe('server/graphql/common/expenses', () => {
   const contextShape = {
+    name: null,
     expense: null,
     collective: null,
     host: null,
@@ -71,8 +73,17 @@ describe('server/graphql/common/expenses', () => {
       hostAccountant: null,
       limitedHostAdmin: null,
       expenseOwner: null,
+      platformAdmin: null,
     },
   };
+
+  type ContextRequests = typeof contextShape.req;
+
+  /**
+   * Some tests set context permissions on the request map itself (the same object is passed to
+   * both `allowContextPermission` and the permission helpers).
+   */
+  const withContextPermissions = (reqs: ContextRequests) => reqs as ContextRequests & Request;
 
   /**
    * Use this object to store different test contexts.
@@ -88,7 +99,7 @@ describe('server/graphql/common/expenses', () => {
     collectiveWithSpecialPayoutPolicy: cloneDeep(contextShape),
   };
 
-  const prepareContext = async ({ host = undefined, collective = undefined, name } = {}) => {
+  const prepareContext = async ({ host = undefined, collective = undefined, name = undefined } = {}) => {
     const platformAdmin = await fakeUser();
     const platformCollective = await getOrCreatePlatformAccount();
     await platformCollective.addUserWithRole(platformAdmin, 'ADMIN');
@@ -126,7 +137,9 @@ describe('server/graphql/common/expenses', () => {
       ].map(u => u.populateRoles()),
     );
 
-    await limitedHostAdmin.update({ data: { features: { ALL: false } } });
+    await limitedHostAdmin.update({ data: { features: { ALL: false } } } as Parameters<
+      typeof limitedHostAdmin.update
+    >[0]);
 
     return {
       name,
@@ -225,7 +238,7 @@ describe('server/graphql/common/expenses', () => {
    * @param {Partial<typeof contexts[keyof typeof contexts]>} options - The options to filter the contexts
    * @returns {Promise<void>}
    */
-  const runForAllContexts = async (fn, options = {}) => {
+  const runForAllContexts = async (fn, options: { except?: unknown } = {}) => {
     for (const key in contexts) {
       if (contexts[key] !== options.except) {
         try {
@@ -240,7 +253,7 @@ describe('server/graphql/common/expenses', () => {
   };
 
   /** A helper to run the same test on all contexts, to make sure they behave the same way */
-  const runEachForAllContexts = (fn, options = {}) => {
+  const runEachForAllContexts = (fn, options: { except?: unknown } = {}) => {
     for (const key in contexts) {
       if (contexts[key] !== options.except) {
         fn(key);
@@ -474,8 +487,12 @@ describe('server/graphql/common/expenses', () => {
       // Using a new context to make sure we don't pollute another request's context
       const context = await prepareContext();
       const { req, expense } = context;
-      allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS, expense.id);
-      expect(await canSeeExpenseDraftPrivateDetails(req, expense)).to.be.true;
+      allowContextPermission(
+        withContextPermissions(req),
+        PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS,
+        expense.id,
+      );
+      expect(await canSeeExpenseDraftPrivateDetails(withContextPermissions(req), expense)).to.be.true;
     });
   });
 
@@ -1555,7 +1572,7 @@ describe('server/graphql/common/expenses', () => {
       await hostAdmin.populateRoles();
 
       const platformAccount = await fakeCollective({
-        type: 'PLATFORM',
+        type: CollectiveType.PLATFORM,
         ParentCollectiveId: host.id,
         HostCollectiveId: host.id,
         isActive: true,
@@ -1577,7 +1594,7 @@ describe('server/graphql/common/expenses', () => {
 
       const host = await fakeHost();
       const platformAccount = await fakeCollective({
-        type: 'PLATFORM',
+        type: CollectiveType.PLATFORM,
         ParentCollectiveId: host.id,
         HostCollectiveId: host.id,
         isActive: true,
@@ -1735,7 +1752,7 @@ describe('server/graphql/common/expenses', () => {
         const { req, collective } = contexts.normal;
         await collective.setPolicies({
           [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true, amountInCents: 10e2 },
-        });
+        } as Parameters<typeof collective.setPolicies>[0]);
         collective.host = await collective.host.setPolicies({
           [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
             enabled: true,
@@ -1890,7 +1907,7 @@ describe('server/graphql/common/expenses', () => {
 
         await collective.setPolicies({
           [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true, amountInCents: 10e2 },
-        });
+        } as Parameters<typeof collective.setPolicies>[0]);
         await host.setPolicies({
           [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
             enabled: true,
@@ -2587,7 +2604,10 @@ describe('server/graphql/common/expenses', () => {
   describe('getExpenseAmountInDifferentCurrency', () => {
     describe('Wise', () => {
       it('returns the amount in expense currency', async () => {
-        const payoutMethod = await fakePayoutMethod({ service: 'TRANSFERWISE', type: 'BANK_ACCOUNT' });
+        const payoutMethod = await fakePayoutMethod({
+          service: 'TRANSFERWISE',
+          type: PayoutMethodTypes.BANK_ACCOUNT,
+        } as Parameters<typeof fakePayoutMethod>[0]);
         const expense = await fakeExpense({ PayoutMethodId: payoutMethod.id, amount: 1000, currency: 'EUR' });
         const amount = await getExpenseAmountInDifferentCurrency(expense, 'EUR', contexts.normal.req.public);
         expect(amount).to.deep.eq({
@@ -2601,7 +2621,10 @@ describe('server/graphql/common/expenses', () => {
         let expense;
 
         before(async () => {
-          const payoutMethod = await fakePayoutMethod({ service: 'TRANSFERWISE', type: 'BANK_ACCOUNT' });
+          const payoutMethod = await fakePayoutMethod({
+            service: 'TRANSFERWISE',
+            type: PayoutMethodTypes.BANK_ACCOUNT,
+          } as Parameters<typeof fakePayoutMethod>[0]);
           const collective = await fakeCollective({ currency: 'USD' });
           expense = await fakeExpense({
             PayoutMethodId: payoutMethod.id,
@@ -2659,7 +2682,9 @@ describe('server/graphql/common/expenses', () => {
       let expense;
 
       before(async () => {
-        const payoutMethod = await fakePayoutMethod({ service: 'PAYPAL', type: 'PAYPAL' });
+        const payoutMethod = await fakePayoutMethod({ service: 'PAYPAL', type: PayoutMethodTypes.PAYPAL } as Parameters<
+          typeof fakePayoutMethod
+        >[0]);
         const collective = await fakeCollective({ currency: 'USD' });
         expense = await fakeExpense({
           PayoutMethodId: payoutMethod.id,
@@ -2720,7 +2745,7 @@ describe('server/graphql/common/expenses', () => {
       let expense;
 
       before(async () => {
-        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
         const collective = await fakeCollective({ currency: 'USD' });
         expense = await fakeExpense({
           PayoutMethodId: payoutMethod.id,
@@ -2767,7 +2792,7 @@ describe('server/graphql/common/expenses', () => {
     before(async () => {
       host = await fakeHost({ currency: 'USD' });
       collective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id });
-      payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+      payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
       await fakeTransaction({
         type: 'CREDIT',
         CollectiveId: collective.id,

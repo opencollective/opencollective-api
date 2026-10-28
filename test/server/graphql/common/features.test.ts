@@ -1,11 +1,14 @@
 import { expect } from 'chai';
 
+import { CollectiveType } from '../../../../server/constants/collectives';
+import { Service } from '../../../../server/constants/connected-account';
 import FEATURE from '../../../../server/constants/feature';
 import FEATURE_STATUS from '../../../../server/constants/feature-status';
 import {
   checkReceiveFinancialContributions,
   getFeatureStatusResolver,
 } from '../../../../server/graphql/common/features';
+import type { Collective as CollectiveModel } from '../../../../server/models';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -18,46 +21,50 @@ import {
   fakeVendor,
 } from '../../../test-helpers/fake-data';
 
+/** The resolver takes `(collective, args, req)`; these tests only exercise `collective`. */
+const resolveFeatureStatus = (feature: FEATURE, collective) =>
+  getFeatureStatusResolver(feature)(collective, undefined, undefined);
+
 describe('server/graphql/common/features', () => {
   describe('getFeatureStatusResolver', () => {
     describe('UPDATES', () => {
       it('Returns UNSUPPORTED when the feature is not supported', async () => {
-        const collective = await fakeCollective({ type: 'USER' });
-        const result = await getFeatureStatusResolver(FEATURE.UPDATES)(collective);
+        const collective = await fakeCollective({ type: CollectiveType.USER });
+        const result = await resolveFeatureStatus(FEATURE.UPDATES, collective);
         expect(result).to.eq(FEATURE_STATUS.UNSUPPORTED);
       });
 
       it('Returns AVAILABLE if no update yet', async () => {
-        const collective = await fakeCollective({ type: 'COLLECTIVE' });
-        const result = await getFeatureStatusResolver(FEATURE.UPDATES)(collective);
+        const collective = await fakeCollective({ type: CollectiveType.COLLECTIVE });
+        const result = await resolveFeatureStatus(FEATURE.UPDATES, collective);
         expect(result).to.eq(FEATURE_STATUS.AVAILABLE);
       });
 
       it("Returns ACTIVE if enabled and there's data", async () => {
-        const collective = await fakeCollective({ type: 'COLLECTIVE' });
-        await fakeUpdate({ CollectiveId: collective.id, publishedAt: Date.now() });
-        const result = await getFeatureStatusResolver(FEATURE.UPDATES)(collective);
+        const collective = await fakeCollective({ type: CollectiveType.COLLECTIVE });
+        await fakeUpdate({ CollectiveId: collective.id, publishedAt: new Date() });
+        const result = await resolveFeatureStatus(FEATURE.UPDATES, collective);
         expect(result).to.eq(FEATURE_STATUS.ACTIVE);
       });
     });
 
     describe('CONVERSATIONS', () => {
       it('Returns UNSUPPORTED when the feature is not supported', async () => {
-        const collective = await fakeCollective({ type: 'USER' });
-        const result = await getFeatureStatusResolver(FEATURE.CONVERSATIONS)(collective);
+        const collective = await fakeCollective({ type: CollectiveType.USER });
+        const result = await resolveFeatureStatus(FEATURE.CONVERSATIONS, collective);
         expect(result).to.eq(FEATURE_STATUS.UNSUPPORTED);
       });
 
       it('Returns AVAILABLE if enabled but no conversation yet', async () => {
-        const collective = await fakeCollective({ type: 'COLLECTIVE' });
-        const result = await getFeatureStatusResolver(FEATURE.CONVERSATIONS)(collective);
+        const collective = await fakeCollective({ type: CollectiveType.COLLECTIVE });
+        const result = await resolveFeatureStatus(FEATURE.CONVERSATIONS, collective);
         expect(result).to.eq(FEATURE_STATUS.AVAILABLE);
       });
 
       it("Returns ACTIVE if enabled and there's data", async () => {
-        const collective = await fakeCollective({ type: 'COLLECTIVE' });
+        const collective = await fakeCollective({ type: CollectiveType.COLLECTIVE });
         await fakeConversation({ CollectiveId: collective.id });
-        const result = await getFeatureStatusResolver(FEATURE.CONVERSATIONS)(collective);
+        const result = await resolveFeatureStatus(FEATURE.CONVERSATIONS, collective);
         expect(result).to.eq(FEATURE_STATUS.ACTIVE);
       });
     });
@@ -121,59 +128,68 @@ describe('server/graphql/common/features', () => {
 
     describe('PUBLIC_PROFILE', () => {
       it('Returns ACTIVE for a regular (non-vendor) public collective', async () => {
-        const collective = await fakeCollective({ type: 'COLLECTIVE' });
-        const result = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(collective);
+        const collective = await fakeCollective({ type: CollectiveType.COLLECTIVE });
+        const result = await resolveFeatureStatus(FEATURE.PUBLIC_PROFILE, collective);
         expect(result).to.eq(FEATURE_STATUS.ACTIVE);
       });
 
       it('Returns UNSUPPORTED for a private account', async () => {
-        const collective = await fakeCollective({ type: 'COLLECTIVE', isPrivate: true });
-        const result = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(collective);
+        const collective = await fakeCollective({ type: CollectiveType.COLLECTIVE, isPrivate: true });
+        const result = await resolveFeatureStatus(FEATURE.PUBLIC_PROFILE, collective);
         expect(result).to.eq(FEATURE_STATUS.UNSUPPORTED);
       });
 
       it('Returns DISABLED for a vendor when publicProfile is not explicitly enabled', async () => {
         const vendor = await fakeVendor();
-        const result = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(vendor);
+        const result = await resolveFeatureStatus(FEATURE.PUBLIC_PROFILE, vendor);
         expect(result).to.eq(FEATURE_STATUS.DISABLED);
       });
 
       it('Returns DISABLED for a vendor when publicProfile is explicitly disabled', async () => {
         const vendor = await fakeVendor({ settings: { features: { publicProfile: false } } });
-        const result = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(vendor);
+        const result = await resolveFeatureStatus(FEATURE.PUBLIC_PROFILE, vendor);
         expect(result).to.eq(FEATURE_STATUS.DISABLED);
       });
 
       it('Returns ACTIVE for a vendor when publicProfile is explicitly enabled by the fiscal host admin', async () => {
         const vendor = await fakeVendor({ settings: { features: { publicProfile: true } } });
-        const result = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(vendor);
+        const result = await resolveFeatureStatus(FEATURE.PUBLIC_PROFILE, vendor);
         expect(result).to.eq(FEATURE_STATUS.ACTIVE);
       });
     });
 
     describe('TRANSFERWISE', () => {
       it('Returns UNSUPPORTED when the feature is not supported', async () => {
-        const collective = await fakeCollective({ type: 'USER' });
-        const result = await getFeatureStatusResolver(FEATURE.TRANSFERWISE)(collective);
+        const collective = await fakeCollective({ type: CollectiveType.USER });
+        const result = await resolveFeatureStatus(FEATURE.TRANSFERWISE, collective);
         expect(result).to.eq(FEATURE_STATUS.UNSUPPORTED);
       });
 
       it('Returns DISABLED when the feature is disabled', async () => {
-        const collective = await fakeHost({ plan: 'start-plan-2021', settings: { features: { transferwise: false } } });
-        const result = await getFeatureStatusResolver(FEATURE.TRANSFERWISE)(collective);
+        const collective = await fakeHost({
+          plan: 'start-plan-2021',
+          settings: { features: { transferwise: false } } as CollectiveModel['settings'],
+        });
+        const result = await resolveFeatureStatus(FEATURE.TRANSFERWISE, collective);
         expect(result).to.eq(FEATURE_STATUS.DISABLED);
       });
 
       it('Returns AVAILABLE when the feature is available', async () => {
-        const collective = await fakeHost({ plan: 'start-plan-2021', settings: { features: { transferwise: true } } });
-        const result = await getFeatureStatusResolver(FEATURE.TRANSFERWISE)(collective);
+        const collective = await fakeHost({
+          plan: 'start-plan-2021',
+          settings: { features: { transferwise: true } } as CollectiveModel['settings'],
+        });
+        const result = await resolveFeatureStatus(FEATURE.TRANSFERWISE, collective);
         expect(result).to.eq(FEATURE_STATUS.AVAILABLE);
       });
 
       it("Returns ACTIVE if there's a linked transferwise account", async () => {
-        const collective = await fakeHost({ plan: 'start-plan-2021', settings: { features: { transferwise: true } } });
-        await fakeConnectedAccount({ CollectiveId: collective.id, service: 'transferwise' });
-        const result = await getFeatureStatusResolver(FEATURE.TRANSFERWISE)(collective);
+        const collective = await fakeHost({
+          plan: 'start-plan-2021',
+          settings: { features: { transferwise: true } } as CollectiveModel['settings'],
+        });
+        await fakeConnectedAccount({ CollectiveId: collective.id, service: Service.TRANSFERWISE });
+        const result = await resolveFeatureStatus(FEATURE.TRANSFERWISE, collective);
         expect(result).to.eq(FEATURE_STATUS.ACTIVE);
       });
     });

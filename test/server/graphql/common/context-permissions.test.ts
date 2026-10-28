@@ -25,7 +25,7 @@ describe('server/graphql/common/context-permissions', () => {
   });
 
   it('raise an error if permission type is unknown', () => {
-    expect(() => allowContextPermission(req, 'nope', 1)).to.throw();
-    expect(() => getContextPermission(req, 'nope', 1)).to.throw();
+    expect(() => allowContextPermission(req, 'nope' as PERMISSION_TYPE, 1)).to.throw();
+    expect(() => getContextPermission(req, 'nope' as PERMISSION_TYPE, 1)).to.throw();
   });
 });

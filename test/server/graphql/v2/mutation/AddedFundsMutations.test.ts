@@ -12,6 +12,7 @@ import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import * as libcurrency from '../../../../../server/lib/currency';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models, { Op } from '../../../../../server/models';
+import { BalanceSheetAccountingCategoryKind } from '../../../../../server/models/AccountingCategory';
 import {
   fakeAccountingCategory,
   fakeActiveHost,
@@ -341,7 +342,9 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       const host = await fakeActiveHost({ data: { isTrustedHost: true } });
       const collective = await fakeCollective({
         HostCollectiveId: host.id,
-        settings: { features: { RECEIVE_FINANCIAL_CONTRIBUTIONS: false } },
+        settings: { features: { RECEIVE_FINANCIAL_CONTRIBUTIONS: false } } as Parameters<
+          typeof fakeCollective
+        >[0]['settings'],
       });
       const hostAdmin = await fakeUser();
       await collective.host.addUserWithRole(hostAdmin, roles.ADMIN);
@@ -383,7 +386,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       const host = collective.host;
       const vendor = await fakeVendor({ HostCollectiveId: host.id, ParentCollectiveId: host.id });
       const vendorPublicId = `${EntityShortIdPrefix.Collective}_${vendor.id}`;
-      await vendor.update({ publicId: vendorPublicId });
+      await vendor.update({ publicId: vendorPublicId } as Parameters<typeof vendor.update>[0]);
 
       const result = await graphqlQueryV2(
         addFundsMutation,
@@ -812,7 +815,10 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       });
 
       it('rejects balance and clearing account categories', async () => {
-        for (const kind of ['BALANCE_ACCOUNT', 'CLEARING_ACCOUNT']) {
+        for (const kind of [
+          BalanceSheetAccountingCategoryKind.BALANCE_ACCOUNT,
+          BalanceSheetAccountingCategoryKind.CLEARING_ACCOUNT,
+        ]) {
           const accountingCategory = await fakeAccountingCategory({
             kind,
             CollectiveId: collective.host.id,

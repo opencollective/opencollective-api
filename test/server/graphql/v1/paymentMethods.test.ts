@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import gqlV1 from 'fake-tag';
 
+import { CollectiveType } from '../../../../server/constants/collectives';
+import { Service } from '../../../../server/constants/connected-account';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import roles from '../../../../server/constants/roles';
 import models from '../../../../server/models';
@@ -62,7 +64,7 @@ describe('server/graphql/v1/paymentMethods', () => {
     host = await fakeActiveHost({
       admin,
       name: 'open source collective',
-      type: 'ORGANIZATION',
+      type: CollectiveType.ORGANIZATION,
       currency: 'USD',
     });
 
@@ -72,7 +74,7 @@ describe('server/graphql/v1/paymentMethods', () => {
   beforeEach(() =>
     models.ConnectedAccount.create({
       CollectiveId: host.id,
-      service: 'stripe',
+      service: Service.STRIPE,
       username: 'stripeAccount',
     }),
   );
@@ -80,7 +82,7 @@ describe('server/graphql/v1/paymentMethods', () => {
   beforeEach(async () => {
     collective = await models.Collective.create({
       name: 'tipbox',
-      type: 'COLLECTIVE',
+      type: CollectiveType.COLLECTIVE,
       isActive: true,
       approvedAt: new Date(),
       currency: 'EUR',
@@ -146,7 +148,7 @@ describe('server/graphql/v1/paymentMethods privacy', () => {
     );
   });
 
-  const queryDestA = remoteUser =>
+  const queryDestA = (remoteUser = undefined) =>
     utils.graphqlQuery(paymentMethodFromTransactionsQuery, { collectiveId: destA.id }, remoteUser);
 
   const creditPaymentMethod = result => {

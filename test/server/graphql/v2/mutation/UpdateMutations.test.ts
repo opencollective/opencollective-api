@@ -4,6 +4,8 @@ import { describe, it } from 'mocha';
 import { assert, createSandbox } from 'sinon';
 
 import ActivityTypes from '../../../../../server/constants/activities';
+import channels from '../../../../../server/constants/channels';
+import { CollectiveType } from '../../../../../server/constants/collectives';
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
@@ -210,7 +212,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
       await models.Update.update({ publishedAt: null }, { where: { id: update1.id } });
       await utils.waitForCondition(() => sendEmailSpy.callCount === 1, {
         tag: 'first update & "love"',
-      });
+      } as Parameters<typeof utils.waitForCondition>[1]);
     });
 
     describe('publishes an update', async () => {
@@ -221,12 +223,12 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         await collective1.addUserWithRole(user2, roles.BACKER);
         await utils.waitForCondition(() => sendEmailSpy.callCount === 1, {
           tag: "Anish Bas joined Scouts d'Arlon as backer",
-        });
+        } as Parameters<typeof utils.waitForCondition>[1]);
         sendEmailSpy.resetHistory();
         user4 = await models.User.createUserWithCollective(utils.data('user4'));
         const org = await models.Collective.create({
           name: 'facebook',
-          type: 'ORGANIZATION',
+          type: CollectiveType.ORGANIZATION,
         });
         await org.addUserWithRole(user4, roles.ADMIN);
         await models.Member.create({
@@ -240,7 +242,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         await org.addUserWithRole(unsubscribedUser, roles.BACKER, {}, { skipActivity: true });
         await models.Notification.unsubscribe(
           ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
-          'email',
+          channels.EMAIL,
           unsubscribedUser.id,
           org.id,
         );
@@ -261,7 +263,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
       it('sends the update to all users including admins of sponsor org', async () => {
         await utils.waitForCondition(() => sendEmailSpy.callCount >= 3, {
           tag: 'first update & "love"',
-        });
+        } as Parameters<typeof utils.waitForCondition>[1]);
 
         assert.calledWithMatch(sendEmailSpy, user1.email, 'first update & "love"');
         assert.calledWithMatch(sendEmailSpy, user2.email, 'first update & "love"');

@@ -4,6 +4,8 @@ import { before, describe, it } from 'mocha';
 import sinon, { createSandbox } from 'sinon';
 
 import { activities as ACTIVITY } from '../../../../server/constants';
+import { CollectiveType } from '../../../../server/constants/collectives';
+import roles from '../../../../server/constants/roles';
 import * as expenses from '../../../../server/graphql/common/expenses';
 import cache from '../../../../server/lib/cache';
 import * as ContributorsLib from '../../../../server/lib/contributors';
@@ -221,7 +223,7 @@ describe('server/graphql/v1/collective', () => {
     const { collective } = await store.newCollectiveInHost('brusselstogether collective', 'EUR', hostCollective);
     // and an event in that collective
     const event = (await store.newCollectiveInHost('meetup 5', 'EUR', hostCollective)).collective;
-    await event.update({ type: 'EVENT', ParentCollectiveId: collective.id });
+    await event.update({ type: CollectiveType.EVENT, ParentCollectiveId: collective.id });
 
     // When the following query is executed
     const query = gqlV1 /* GraphQL */ `
@@ -630,7 +632,7 @@ describe('server/graphql/v1/collective', () => {
     it('gets the members by memberCollectiveSlug by role', async () => {
       const result = await utils.graphqlQuery(allMembersQuery, {
         memberCollectiveSlug: 'xdamman',
-        role: 'ADMIN',
+        role: roles.ADMIN,
       });
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
@@ -1057,10 +1059,10 @@ describe('server/graphql/v1/collective', () => {
       const collective = await fakeCollective({ HostCollectiveId: null });
       const tier1 = await fakeTier({ CollectiveId: collective.id });
       const tier2 = await fakeTier({ CollectiveId: collective.id });
-      await fakeMember({ CollectiveId: collective.id, role: 'ADMIN' });
-      await fakeMember({ CollectiveId: collective.id, role: 'BACKER' });
-      await fakeMember({ CollectiveId: collective.id, role: 'BACKER', TierId: tier1.id });
-      await fakeMember({ CollectiveId: collective.id, role: 'BACKER', TierId: tier2.id });
+      await fakeMember({ CollectiveId: collective.id, role: roles.ADMIN });
+      await fakeMember({ CollectiveId: collective.id, role: roles.BACKER });
+      await fakeMember({ CollectiveId: collective.id, role: roles.BACKER, TierId: tier1.id });
+      await fakeMember({ CollectiveId: collective.id, role: roles.BACKER, TierId: tier2.id });
 
       // Spy on `getContributorsForCollective` and `cache.set`
       const getContributorsForCollectiveSpy = sinon.spy(ContributorsLib, 'getContributorsForCollective');
@@ -1307,7 +1309,7 @@ describe('server/graphql/v1/allMembers - private collectives visibility', () => 
     await fakeMember({
       CollectiveId: 1,
       MemberCollectiveId: rootAdmin.CollectiveId,
-      role: 'ADMIN',
+      role: roles.ADMIN,
       CreatedByUserId: rootAdmin.id,
     });
 
@@ -1322,12 +1324,12 @@ describe('server/graphql/v1/allMembers - private collectives visibility', () => 
     await fakeMember({
       CollectiveId: privateCollective.id,
       MemberCollectiveId: collectiveAccountant.CollectiveId,
-      role: 'ACCOUNTANT',
+      role: roles.ACCOUNTANT,
     });
     await fakeMember({
       CollectiveId: privateCollective.id,
       MemberCollectiveId: publicBacker.CollectiveId,
-      role: 'BACKER',
+      role: roles.BACKER,
     });
 
     // A second, unrelated private collective, used to check that access does not leak across accounts.
@@ -1339,12 +1341,12 @@ describe('server/graphql/v1/allMembers - private collectives visibility', () => 
     await fakeMember({
       CollectiveId: publicCollective.id,
       MemberCollectiveId: privateOrg.id,
-      role: 'BACKER',
+      role: roles.BACKER,
     });
     await fakeMember({
       CollectiveId: publicCollective.id,
       MemberCollectiveId: publicBacker.CollectiveId,
-      role: 'BACKER',
+      role: roles.BACKER,
     });
   });
 

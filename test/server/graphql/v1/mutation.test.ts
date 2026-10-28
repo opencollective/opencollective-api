@@ -6,6 +6,8 @@ import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
 
 import ActivityTypes from '../../../../server/constants/activities';
+import { CollectiveType } from '../../../../server/constants/collectives';
+import status from '../../../../server/constants/order-status';
 import roles from '../../../../server/constants/roles';
 import { createOrder } from '../../../../server/graphql/v1/mutations/orders';
 import * as CacheLib from '../../../../server/lib/cache';
@@ -124,10 +126,10 @@ describe('server/graphql/v1/mutation', () => {
     `;
 
     describe('creates an event collective', () => {
-      const getEventData = collective => {
+      const getEventData = (collective): { id?: number; [key: string]: unknown } => {
         return {
           name: 'BrusselsTogether Meetup 3',
-          type: 'EVENT',
+          type: CollectiveType.EVENT,
           longDescription:
             'Hello Brussels!\n\nAccording to the UN, by 2050 66% of the world’s population will be urban dwellers, which will profoundly affect the role of modern city-states on Earth.\n\nToday, citizens are already anticipating this futurist trend by creating numerous initiatives inside their local communities and outside of politics.\n\nIf you want to be part of the change, please come have a look to our monthly events! You will have the opportunity to meet real actors of change and question them about their purpose. \n\nWe also offer the opportunity for anyone interested to come before the audience and share their ideas in 60 seconds at the end of the event.\n\nSee more about #BrusselsTogether radical way of thinking below.\n\nhttps://brusselstogether.org/\n\nGet your ticket below and get a free drink thanks to our sponsor! 🍻🎉\n\n**Schedule**\n\n7 pm - Doors open\n\n7:30 pm - Introduction to #BrusselsTogether\n\n7:40 pm - Co-Labs, Citizen Lab of Social Innovations\n\n7:55 pm - BeCode.org, growing today’s talented youth into tomorrow’s best developers.\n\n8:10 pm - OURB, A city building network\n\n8:30 pm - How do YOU make Brussels better \nPitch your idea in 60 seconds or less\n',
           location: {
@@ -299,7 +301,7 @@ describe('server/graphql/v1/mutation', () => {
         const admin = await fakeUser();
         const project = await fakeProject({ admin });
         const order = await fakeOrder(
-          { CollectiveId: project.id, status: 'ACTIVE', subscription: { isManagedExternally: true } },
+          { CollectiveId: project.id, status: status.ACTIVE, subscription: { isManagedExternally: true } },
           { withSubscription: true },
         );
 

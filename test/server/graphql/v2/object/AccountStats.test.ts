@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
+import { CollectiveType } from '../../../../../server/constants/collectives';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import * as identifiers from '../../../../../server/graphql/v2/identifiers';
 import * as budgetLib from '../../../../../server/lib/budget';
@@ -35,15 +36,36 @@ describe('server/graphql/v2/object/AccountStats', () => {
 
   let collective, project;
   beforeEach(async () => {
-    collective = await fakeCollective({ type: 'COLLECTIVE' });
-    const order1 = await fakeOrder({ CollectiveId: collective.id, amount: 100000 }, { withSubscription: false });
-    await fakeTransaction({ CollectiveId: collective.id, kind: 'CONTRIBUTION', amount: 100000, OrderId: order1.id });
-    const order2 = await fakeOrder({ CollectiveId: collective.id, amount: 50000 }, { withSubscription: true });
-    await fakeTransaction({ CollectiveId: collective.id, kind: 'CONTRIBUTION', amount: 50000, OrderId: order2.id });
+    collective = await fakeCollective({ type: CollectiveType.COLLECTIVE });
+    const order1 = await fakeOrder({ CollectiveId: collective.id, amount: 100000 } as Parameters<typeof fakeOrder>[0], {
+      withSubscription: false,
+    });
+    await fakeTransaction({
+      CollectiveId: collective.id,
+      kind: TransactionKind.CONTRIBUTION,
+      amount: 100000,
+      OrderId: order1.id,
+    });
+    const order2 = await fakeOrder({ CollectiveId: collective.id, amount: 50000 } as Parameters<typeof fakeOrder>[0], {
+      withSubscription: true,
+    });
+    await fakeTransaction({
+      CollectiveId: collective.id,
+      kind: TransactionKind.CONTRIBUTION,
+      amount: 50000,
+      OrderId: order2.id,
+    });
 
-    project = await fakeCollective({ ParentCollectiveId: collective.id, type: 'PROJECT' });
-    const order3 = await fakeOrder({ CollectiveId: project.id, amount: 10000 }, { withSubscription: false });
-    await fakeTransaction({ CollectiveId: project.id, kind: 'CONTRIBUTION', amount: 10000, OrderId: order3.id });
+    project = await fakeCollective({ ParentCollectiveId: collective.id, type: CollectiveType.PROJECT });
+    const order3 = await fakeOrder({ CollectiveId: project.id, amount: 10000 } as Parameters<typeof fakeOrder>[0], {
+      withSubscription: false,
+    });
+    await fakeTransaction({
+      CollectiveId: project.id,
+      kind: TransactionKind.CONTRIBUTION,
+      amount: 10000,
+      OrderId: order3.id,
+    });
   });
 
   describe('contributionsAmount', () => {
@@ -65,11 +87,21 @@ describe('server/graphql/v2/object/AccountStats', () => {
 
     it('should ignore contributions between parent and children collective', async () => {
       await fakeTransaction(
-        { CollectiveId: project.id, FromCollectiveId: collective.id, kind: 'CONTRIBUTION', amount: 20000 },
+        {
+          CollectiveId: project.id,
+          FromCollectiveId: collective.id,
+          kind: TransactionKind.CONTRIBUTION,
+          amount: 20000,
+        },
         { createDoubleEntry: true },
       );
       await fakeTransaction(
-        { CollectiveId: collective.id, FromCollectiveId: project.id, kind: 'CONTRIBUTION', amount: 30000 },
+        {
+          CollectiveId: collective.id,
+          FromCollectiveId: project.id,
+          kind: TransactionKind.CONTRIBUTION,
+          amount: 30000,
+        },
         { createDoubleEntry: true },
       );
 
@@ -120,9 +152,9 @@ describe('server/graphql/v2/object/AccountStats', () => {
     let spendCollective, spendProject;
 
     beforeEach(async () => {
-      spendCollective = await fakeCollective({ type: 'COLLECTIVE', currency: 'USD' });
+      spendCollective = await fakeCollective({ type: CollectiveType.COLLECTIVE, currency: 'USD' });
       spendProject = await fakeCollective({
-        type: 'PROJECT',
+        type: CollectiveType.PROJECT,
         currency: 'USD',
         ParentCollectiveId: spendCollective.id,
       });

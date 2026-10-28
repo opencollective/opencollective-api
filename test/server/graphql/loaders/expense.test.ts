@@ -5,6 +5,7 @@ import { US_TAX_FORM_THRESHOLD_POST_2026, US_TAX_FORM_THRESHOLD_PRE_2026 } from 
 import { taxFormRequiredBeforePayment } from '../../../../server/graphql/loaders/expenses';
 import models from '../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../server/models/LegalDocument';
+import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import {
   fakeCollective,
   fakeCurrencyExchangeRate,
@@ -23,7 +24,7 @@ const fakeHostWithRequiredLegalDocument = async (hostData = {}) => {
   const host = await fakeHost(hostData);
   const requiredDoc = {
     HostCollectiveId: host.id,
-    documentType: 'US_TAX_FORM',
+    documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
   };
 
   await models.RequiredLegalDocument.create(requiredDoc);
@@ -35,7 +36,7 @@ describe('server/graphql/loaders/expense', () => {
 
   before(async () => {
     await resetTestDB();
-    otherPayoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+    otherPayoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
     loader = taxFormRequiredBeforePayment();
   });
 
@@ -122,7 +123,7 @@ describe('server/graphql/loaders/expense', () => {
           PayoutMethodId: otherPayoutMethod.id,
         });
         await models.LegalDocument.create({
-          year: parseInt(new Date().toISOString().split('-')) - 4,
+          year: parseInt(new Date().toISOString().split('-')[0]) - 4,
           documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
           documentLink: 'https://opencollective.com/tos',
           requestStatus: 'RECEIVED',
@@ -235,7 +236,7 @@ describe('server/graphql/loaders/expense', () => {
           PayoutMethodId: otherPayoutMethod.id,
         });
         await models.LegalDocument.create({
-          year: parseInt(new Date().toISOString().split('-')),
+          year: parseInt(new Date().toISOString().split('-')[0]),
           documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
           documentLink: 'https://opencollective.com/tos',
           requestStatus: 'RECEIVED',
@@ -256,7 +257,7 @@ describe('server/graphql/loaders/expense', () => {
           PayoutMethodId: otherPayoutMethod.id,
         });
         await models.LegalDocument.create({
-          year: parseInt(new Date().toISOString().split('-')) - 1,
+          year: parseInt(new Date().toISOString().split('-')[0]) - 1,
           documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
           documentLink: 'https://opencollective.com/tos',
           requestStatus: 'RECEIVED',

@@ -2,7 +2,9 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import POLICIES from '../../../../../server/constants/policies';
+import roles from '../../../../../server/constants/roles';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
+import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -75,9 +77,9 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       collectiveAdminUser = await fakeUser();
       randomUser = await fakeUser();
       const host = await fakeActiveHost({ admin: hostAdminUser.collective });
-      await host.addUserWithRole(hostAccountantUser, 'ACCOUNTANT');
+      await host.addUserWithRole(hostAccountantUser, roles.ACCOUNTANT);
       const collective = await fakeCollective({ admin: collectiveAdminUser.collective, HostCollectiveId: host.id });
-      payoutMethod = await fakePayoutMethod({ type: 'OTHER', data: { content: 'Test content' } });
+      payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER, data: { content: 'Test content' } });
       expense = await fakeExpense({
         FromCollectiveId: ownerUser.collective.id,
         CollectiveId: collective.id,
