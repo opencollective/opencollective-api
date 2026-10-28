@@ -4,6 +4,7 @@ import moment from 'moment';
 import nock from 'nock';
 import sinon from 'sinon';
 
+import { SupportedCurrency } from '../../../server/constants/currencies';
 import * as CurrencyLib from '../../../server/lib/currency';
 import { fakeCurrencyExchangeRate } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
@@ -195,7 +196,7 @@ describe('server/lib/currency', () => {
     });
 
     it('rounds to the nearest 100 for all supported zero-decimal currencies', () => {
-      const zeroDecimal = [
+      const zeroDecimal: SupportedCurrency[] = [
         'BIF',
         'CLP',
         'DJF',

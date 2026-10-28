@@ -22,7 +22,7 @@ async function donation(collective, user, amount, currency, createdAt) {
  * We use sanitized data from wwcode for this
  */
 describe('server/lib/host', () => {
-  const where = {}; // Will be filled in by 'get hosted collectives'
+  const where: { CollectiveId?: { [Op.in]: number[] } } = {}; // Will be filled in by 'get hosted collectives'
   const startDate = new Date('2017-02-01');
   const endDate = new Date('2017-03-01');
   let sandbox, hostId, collectiveids;

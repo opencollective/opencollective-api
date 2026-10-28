@@ -1,6 +1,9 @@
 import { expect } from 'chai';
 import moment from 'moment';
 
+import { CollectiveType } from '../../../server/constants/collectives';
+import { SupportedCurrency } from '../../../server/constants/currencies';
+import ExpenseStatus from '../../../server/constants/expense-status';
 import expenseTypes from '../../../server/constants/expense-type';
 import POLICIES from '../../../server/constants/policies';
 import {
@@ -11,6 +14,7 @@ import {
 import SQLQueries from '../../../server/lib/queries';
 import { amountsRequireTaxForm } from '../../../server/lib/tax-forms';
 import models from '../../../server/models';
+import type { ExpenseType } from '../../../server/models/Expense';
 import {
   LEGAL_DOCUMENT_REQUEST_STATUS,
   LEGAL_DOCUMENT_SERVICE,
@@ -69,11 +73,20 @@ describe('server/lib/tax-forms', () => {
     FromCollectiveId,
     PayoutMethodId,
     status,
+  }: {
+    incurredAt: Date;
+    UserId: number;
+    CollectiveId: number;
+    amount?: number;
+    type?: ExpenseType;
+    FromCollectiveId: number;
+    PayoutMethodId: number;
+    status?: keyof typeof ExpenseStatus;
   }) {
     return {
       description: 'pizza',
       amount: amount || US_TAX_FORM_THRESHOLD + 100e2,
-      currency: 'USD',
+      currency: 'USD' as SupportedCurrency,
       UserId,
       FromCollectiveId,
       lastEditedById: UserId,
@@ -82,7 +95,7 @@ describe('server/lib/tax-forms', () => {
       CollectiveId,
       type: type || INVOICE,
       PayoutMethodId,
-      status,
+      status: status || ExpenseStatus.PENDING,
     };
   }
 
@@ -117,16 +130,16 @@ describe('server/lib/tax-forms', () => {
     await utils.resetTestDB();
     users = await Promise.all(usersData.map(userData => User.createUserWithCollective(userData)));
     hostCollective = await fakeHost();
-    organizationWithTaxForm = await fakeCollective({ type: 'ORGANIZATION' });
-    accountAlreadyNotified = await fakeCollective({ type: 'ORGANIZATION' });
-    accountWithTaxFormFromLastYear = await fakeCollective({ type: 'ORGANIZATION' });
+    organizationWithTaxForm = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+    accountAlreadyNotified = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+    accountWithTaxFormFromLastYear = await fakeCollective({ type: CollectiveType.ORGANIZATION });
     accountWithTaxFormSubmittedByHost = await fakeCollective();
     accountWithOnlyADraft = (await fakeUser()).collective;
-    accountWithTaxFormFrom4YearsAgo = await fakeCollective({ type: 'ORGANIZATION' });
-    accountWithPaypalBelowThreshold = await fakeCollective({ type: 'ORGANIZATION' });
-    accountWithPaypalOverThreshold = await fakeCollective({ type: 'ORGANIZATION' });
-    accountWithINRBelowThreshold = await fakeCollective({ type: 'ORGANIZATION' });
-    accountWithINROverThreshold = await fakeCollective({ type: 'ORGANIZATION' });
+    accountWithTaxFormFrom4YearsAgo = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+    accountWithPaypalBelowThreshold = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+    accountWithPaypalOverThreshold = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+    accountWithINRBelowThreshold = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+    accountWithINROverThreshold = await fakeCollective({ type: CollectiveType.ORGANIZATION });
     collectives = await Promise.all([
       fakeCollective({ HostCollectiveId: hostCollective.id }),
       fakeCollective({ HostCollectiveId: hostCollective.id }),
@@ -173,7 +186,7 @@ describe('server/lib/tax-forms', () => {
         UserId: users[0].id,
         FromCollectiveId: users[0].CollectiveId,
         CollectiveId: collectives[0].id,
-        incurredAt: moment(),
+        incurredAt: moment().toDate(),
         PayoutMethodId: otherPayoutMethod.id,
       }),
     );
@@ -202,7 +215,7 @@ describe('server/lib/tax-forms', () => {
         UserId: accountAlreadyNotified.CreatedByUserId,
         FromCollectiveId: accountAlreadyNotified.id,
         CollectiveId: collectives[0].id,
-        incurredAt: moment(),
+        incurredAt: moment().toDate(),
         PayoutMethodId: otherPayoutMethod.id,
       }),
     );
@@ -212,7 +225,7 @@ describe('server/lib/tax-forms', () => {
         UserId: accountWithTaxFormFromLastYear.CreatedByUserId,
         FromCollectiveId: accountWithTaxFormFromLastYear.id,
         CollectiveId: collectives[0].id,
-        incurredAt: moment(),
+        incurredAt: moment().toDate(),
         PayoutMethodId: otherPayoutMethod.id,
       }),
     );
@@ -222,7 +235,7 @@ describe('server/lib/tax-forms', () => {
         UserId: accountWithTaxFormFrom4YearsAgo.CreatedByUserId,
         FromCollectiveId: accountWithTaxFormFrom4YearsAgo.id,
         CollectiveId: collectives[0].id,
-        incurredAt: moment(),
+        incurredAt: moment().toDate(),
         PayoutMethodId: otherPayoutMethod.id,
       }),
     );
@@ -232,7 +245,7 @@ describe('server/lib/tax-forms', () => {
         UserId: hostCollective.CreatedByUserId,
         FromCollectiveId: hostCollective.id,
         CollectiveId: collectives[0].id,
-        incurredAt: moment(),
+        incurredAt: moment().toDate(),
         PayoutMethodId: otherPayoutMethod.id,
       }),
     );
@@ -242,7 +255,7 @@ describe('server/lib/tax-forms', () => {
         UserId: users[2].id,
         FromCollectiveId: users[2].CollectiveId,
         CollectiveId: collectives[0].id,
-        incurredAt: moment(),
+        incurredAt: moment().toDate(),
         PayoutMethodId: otherPayoutMethod.id,
         type: RECEIPT,
       }),
@@ -253,7 +266,7 @@ describe('server/lib/tax-forms', () => {
         UserId: accountWithOnlyADraft.CreatedByUserId,
         FromCollectiveId: accountWithOnlyADraft.id,
         CollectiveId: collectives[0].id,
-        incurredAt: moment(),
+        incurredAt: moment().toDate(),
         PayoutMethodId: otherPayoutMethod.id,
         status: 'DRAFT',
       }),
@@ -264,7 +277,7 @@ describe('server/lib/tax-forms', () => {
         UserId: users[2].id,
         FromCollectiveId: accountWithTaxFormSubmittedByHost.id,
         CollectiveId: collectives[0].id,
-        incurredAt: moment(),
+        incurredAt: moment().toDate(),
         PayoutMethodId: otherPayoutMethod.id,
         type: INVOICE,
       }),
@@ -275,7 +288,7 @@ describe('server/lib/tax-forms', () => {
         UserId: users[1].id,
         FromCollectiveId: users[1].CollectiveId,
         CollectiveId: collectives[0].id,
-        incurredAt: moment(),
+        incurredAt: moment().toDate(),
         PayoutMethodId: otherPayoutMethod.id,
       }),
     );
@@ -285,7 +298,7 @@ describe('server/lib/tax-forms', () => {
         UserId: users[1].id,
         FromCollectiveId: users[1].CollectiveId,
         CollectiveId: collectives[0].id,
-        incurredAt: moment(),
+        incurredAt: moment().toDate(),
         PayoutMethodId: otherPayoutMethod.id,
         amount: US_TAX_FORM_THRESHOLD - 200e2,
       }),
@@ -296,7 +309,7 @@ describe('server/lib/tax-forms', () => {
         UserId: users[4].id,
         FromCollectiveId: users[4].CollectiveId,
         CollectiveId: collectives[0].id,
-        incurredAt: moment(),
+        incurredAt: moment().toDate(),
         PayoutMethodId: otherPayoutMethod.id,
         amount: US_TAX_FORM_THRESHOLD - 200e2,
       }),
@@ -307,7 +320,7 @@ describe('server/lib/tax-forms', () => {
         UserId: users[0].id,
         FromCollectiveId: users[0].CollectiveId,
         CollectiveId: collectives[1].id,
-        incurredAt: moment(),
+        incurredAt: moment().toDate(),
         PayoutMethodId: otherPayoutMethod.id,
       }),
     );
@@ -317,7 +330,7 @@ describe('server/lib/tax-forms', () => {
         UserId: users[0].id,
         FromCollectiveId: users[0].CollectiveId,
         CollectiveId: collectives[0].id,
-        incurredAt: moment().set('year', 2016),
+        incurredAt: moment().set('year', 2016).toDate(),
         PayoutMethodId: otherPayoutMethod.id,
       }),
     );
@@ -327,7 +340,7 @@ describe('server/lib/tax-forms', () => {
         UserId: users[0].id,
         FromCollectiveId: (await fakeCollective({ HostCollectiveId: collectives[0].HostCollectiveId })).id,
         CollectiveId: collectives[0].id,
-        incurredAt: moment(),
+        incurredAt: moment().toDate(),
         PayoutMethodId: otherPayoutMethod.id,
       }),
     );
@@ -338,7 +351,7 @@ describe('server/lib/tax-forms', () => {
         UserId: users[3].id,
         FromCollectiveId: users[3].CollectiveId,
         CollectiveId: collectives[0].id,
-        incurredAt: moment(),
+        incurredAt: moment().toDate(),
         PayoutMethodId: otherPayoutMethod.id,
       }),
     );
@@ -613,7 +626,7 @@ describe('server/lib/tax-forms', () => {
         const paidAt = year => new Date(Date.UTC(year, 5, 15));
 
         const createPayeeWithExpenses = async (expenses, payeeData = {}) => {
-          const payee = await fakeCollective({ type: 'ORGANIZATION', ...payeeData });
+          const payee = await fakeCollective({ type: CollectiveType.ORGANIZATION, ...payeeData });
           const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
           for (const { amount, paidAt: expensePaidAt } of expenses) {
             await fakeExpense({
@@ -724,7 +737,7 @@ describe('server/lib/tax-forms', () => {
       describe('host predicate (expense host vs collective host)', () => {
         let payoutMethod, otherHost;
 
-        const getAccounts = options =>
+        const getAccounts = (options = {}) =>
           SQLQueries.getTaxFormsRequiredForAccounts({
             HostCollectiveId: hostCollective.id,
             year: YEAR,
@@ -732,7 +745,7 @@ describe('server/lib/tax-forms', () => {
           });
 
         const createPayee = async (data = {}) => {
-          return fakeCollective({ type: 'ORGANIZATION', countryISO: 'US', ...data });
+          return fakeCollective({ type: CollectiveType.ORGANIZATION, countryISO: 'US', ...data });
         };
 
         const createExpense = (payee, collective, data = {}) => {

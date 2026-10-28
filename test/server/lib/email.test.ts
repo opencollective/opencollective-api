@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
-import nodemailer from 'nodemailer';
-import { stub } from 'sinon';
+import nodemailer, { SMTPTransportOptions } from 'nodemailer';
+import sinon, { stub } from 'sinon';
 
 import emailLib from '../../../server/lib/email';
 import { md5 } from '../../../server/lib/utils';
@@ -12,6 +12,7 @@ const emailData = utils.data('emailData');
 describe('server/lib/email', () => {
   describe('Sending emails', () => {
     let nm;
+    let createTransportStub: sinon.SinonStub;
 
     // create a fake nodemailer transport
     beforeEach(done => {
@@ -21,12 +22,9 @@ describe('server/lib/email', () => {
       nm = nodemailer.createTransport({
         name: 'testsend',
         service: 'Mailgun',
-        sendMail(data, callback) {
-          callback();
-        },
         logger: false,
-      });
-      stub(nodemailer, 'createTransport').callsFake(() => {
+      } satisfies SMTPTransportOptions);
+      createTransportStub = stub(nodemailer, 'createTransport').callsFake(() => {
         return nm;
       });
       done();
@@ -48,7 +46,7 @@ describe('server/lib/email', () => {
     afterEach(() => {
       config.mailgun.user = '';
       config.mailgun.password = '';
-      nodemailer.createTransport.restore();
+      createTransportStub.restore();
     });
 
     it('sends the order.processed.fr email template', async () => {
@@ -68,7 +66,7 @@ describe('server/lib/email', () => {
         from: `"${collective.name}" <hello@opencollective.com>`,
       };
       await emailLib.send(template, data.user.email, data, options);
-      let amountStr = 50;
+      let amountStr: string | number = 50;
       amountStr = amountStr.toLocaleString('fr-FR', {
         style: 'currency',
         currency: 'EUR',

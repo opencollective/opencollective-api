@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
+import type Stripe from 'stripe';
 
 import { activities } from '../../../server/constants';
 import status from '../../../server/constants/order-status';
@@ -12,6 +13,7 @@ import emailLib from '../../../server/lib/email';
 import { createRefundTransaction, executeOrder, sendOrderPendingEmail } from '../../../server/lib/payments';
 import stripe from '../../../server/lib/stripe';
 import models from '../../../server/models';
+import type { TransactionData } from '../../../server/models/Transaction';
 import stripeMocks from '../../mocks/stripe';
 import {
   fakeCollective,
@@ -363,11 +365,11 @@ describe('server/lib/payments-legacy', () => {
         taxAmount: 100,
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Monthly subscription to Webpack',
-        data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } },
+        data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } as Stripe.Charge },
       });
 
       // When the refund transaction is created
-      await createRefundTransaction(transaction, 0, { dataField: 'foo' }, user);
+      await createRefundTransaction(transaction, 0, { dataField: 'foo' } as TransactionData, user);
 
       // And when transactions for that order are retrieved
       const allTransactions = await models.Transaction.findAll({
@@ -412,7 +414,7 @@ describe('server/lib/payments-legacy', () => {
       const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
       const contributorUser = await fakeUser(undefined, { name: 'User' });
       const order = await fakeOrder({
-        status: 'ACTIVE',
+        status: status.ACTIVE,
         CollectiveId: collective.id,
         FromCollectiveId: contributorUser.CollectiveId,
       });
@@ -431,7 +433,7 @@ describe('server/lib/payments-legacy', () => {
         hostFeeInHostCurrency: 250,
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Monthly subscription to Webpack',
-        data: { charge: { id: 'ch_refunded_charge' }, platformTip: 500 },
+        data: { charge: { id: 'ch_refunded_charge' } as Stripe.Charge, platformTip: 500 },
       });
 
       // Should have 6 transactions:
@@ -476,7 +478,7 @@ describe('server/lib/payments-legacy', () => {
       const host = await fakeHost({ name: 'Host' });
       const contributorUser = await fakeUser(undefined, { name: 'User' });
       const order = await fakeOrder({
-        status: 'ACTIVE',
+        status: status.ACTIVE,
         CollectiveId: host.id,
         FromCollectiveId: contributorUser.CollectiveId,
       });
@@ -494,7 +496,7 @@ describe('server/lib/payments-legacy', () => {
         hostCurrencyFxRate: 1,
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Contribution to Open Collective',
-        data: { charge: { id: 'ch_refunded_charge' } },
+        data: { charge: { id: 'ch_refunded_charge' } as Stripe.Charge },
       });
 
       // Should have 2 transactions:
@@ -561,7 +563,7 @@ describe('server/lib/payments-legacy', () => {
       order = await fakeOrder({
         CollectiveId: collective.id,
         ManualPaymentProviderId: manualPaymentProvider.id,
-        status: 'PENDING',
+        status: status.PENDING,
       });
       order = await models.Order.findByPk(order.id, {
         include: [{ association: 'collective' }, { association: 'fromCollective' }, { association: 'createdByUser' }],

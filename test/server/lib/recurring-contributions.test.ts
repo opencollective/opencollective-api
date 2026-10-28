@@ -6,7 +6,9 @@ import moment from 'moment';
 import { createSandbox, useFakeTimers } from 'sinon';
 
 import activities from '../../../server/constants/activities';
+import { SupportedCurrency } from '../../../server/constants/currencies';
 import status from '../../../server/constants/order-status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import emailLib from '../../../server/lib/email';
 import * as paymentsLib from '../../../server/lib/payments';
 import {
@@ -18,14 +20,28 @@ import {
   ordersWithPendingCharges,
   processOrderWithSubscription,
 } from '../../../server/lib/recurring-contributions';
+import type { Order, Subscription } from '../../../server/models';
 import models from '../../../server/models';
 import collective from '../../../server/paymentProviders/opencollective/collective';
 import { randEmail } from '../../stores';
 import { fakeCollective, fakeOrder, fakePaymentMethod, fakeTransaction } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
-async function createOrderWithSubscription(interval, date) {
-  const payment = { amount: 1000, currency: 'USD', interval };
+type OrderFixture = Partial<Omit<Order, 'Subscription'>> & {
+  Subscription?: {
+    interval?: string;
+    chargeRetryCount?: number;
+    nextPeriodStart?: Date;
+    nextChargeDate?: Date;
+    createdAt?: Date;
+  };
+};
+
+/** These tests only exercise a subset of the order/subscription fields. */
+const mockOrder = (order: OrderFixture): Order => order as Order;
+
+async function createOrderWithSubscription(interval: Subscription['interval'], date: string) {
+  const payment = { amount: 1000, currency: 'USD' as SupportedCurrency, interval };
   const user = await models.User.createUserWithCollective({ email: randEmail(), name: 'Test McTesterson' });
   const fromCollective = user.collective;
   const collective = await models.Collective.create({ name: 'Parcel' });
@@ -68,7 +84,7 @@ describe('server/lib/recurring-contributions', () => {
       };
 
       // When dates are updated with success
-      const updatedDates = getNextChargeAndPeriodStartDates('new', order);
+      const updatedDates = getNextChargeAndPeriodStartDates('new', mockOrder(order));
 
       // Then both dates should be advanced to the first day of the
       // next month
@@ -87,7 +103,7 @@ describe('server/lib/recurring-contributions', () => {
       };
 
       // When dates are updated with success
-      const updatedDates = getNextChargeAndPeriodStartDates('new', order);
+      const updatedDates = getNextChargeAndPeriodStartDates('new', mockOrder(order));
 
       // The subscription was made after the 15th the next charge should be in 2 months time, first day.
       expect(updatedDates.nextPeriodStart.getTime()).to.equal(new Date('2018-03-01 0:0').getTime());
@@ -105,7 +121,7 @@ describe('server/lib/recurring-contributions', () => {
       };
 
       // When dates are updated with success
-      const updatedDates = getNextChargeAndPeriodStartDates('new', order);
+      const updatedDates = getNextChargeAndPeriodStartDates('new', mockOrder(order));
 
       // Then both dates should be advanced
       expect(updatedDates.nextPeriodStart.getTime()).to.equal(new Date('2019-01-01 0:0').getTime());
@@ -126,7 +142,7 @@ describe('server/lib/recurring-contributions', () => {
       const clock = useFakeTimers({ now: new Date('2018-01-28 0:0').getTime(), toFake: ['Date'] });
 
       // When dates are updated with failure
-      const updatedDates = getNextChargeAndPeriodStartDates('failure', order);
+      const updatedDates = getNextChargeAndPeriodStartDates('failure', mockOrder(order));
 
       try {
         // Then just the nextCharge date should be updated. The date
@@ -149,7 +165,7 @@ describe('server/lib/recurring-contributions', () => {
       };
 
       // When dates are updated with success
-      const updatedDates = getNextChargeAndPeriodStartDates('success', order);
+      const updatedDates = getNextChargeAndPeriodStartDates('success', mockOrder(order));
 
       // Then both dates should be updated based on nextPeriodStart
       // rather than nextChargeDate
@@ -169,7 +185,7 @@ describe('server/lib/recurring-contributions', () => {
       };
 
       // When dates are updated with success
-      const updatedDates = getNextChargeAndPeriodStartDates('new', order);
+      const updatedDates = getNextChargeAndPeriodStartDates('new', mockOrder(order));
 
       // Then both dates should be updated according to createdAt
       expect(updatedDates.nextPeriodStart.getTime()).to.equal(new Date('2018-02-01 0:0').getTime());
@@ -190,7 +206,7 @@ describe('server/lib/recurring-contributions', () => {
       const clock = useFakeTimers({ now: new Date('2018-01-28 0:0').getTime(), toFake: ['Date'] });
 
       // when dates are updated with 'updated' status
-      const updatedDates = getNextChargeAndPeriodStartDates('updated', order);
+      const updatedDates = getNextChargeAndPeriodStartDates('updated', mockOrder(order));
 
       try {
         // Then only nextChargeDate should be set to today;
@@ -209,7 +225,7 @@ describe('server/lib/recurring-contributions', () => {
         },
       };
 
-      const updatedDates = getNextChargeAndPeriodStartDates('processing', order);
+      const updatedDates = getNextChargeAndPeriodStartDates('processing', mockOrder(order));
 
       expect(updatedDates.nextPeriodStart.getTime()).to.equal(new Date('2018-01-20 0:0').getTime());
       expect(updatedDates.nextChargeDate.getTime()).to.equal(new Date('2018-01-22 0:0').getTime());
@@ -219,22 +235,22 @@ describe('server/lib/recurring-contributions', () => {
   describe('#getChargeRetryCount', () => {
     it('should increment the counter if status is fail', () => {
       const order = { Subscription: { chargeRetryCount: 0 } };
-      const chargeRetryCount = getChargeRetryCount('failure', order);
+      const chargeRetryCount = getChargeRetryCount('failure', mockOrder(order));
       expect(chargeRetryCount).to.equal(1);
     });
     it('should reset the counter to zero on success', () => {
       const order = { Subscription: { chargeRetryCount: 5 } };
-      const chargeRetryCount = getChargeRetryCount('success', order);
+      const chargeRetryCount = getChargeRetryCount('success', mockOrder(order));
       expect(chargeRetryCount).to.equal(0);
     });
     it('should reset the counter to zero on updated', () => {
       const order = { Subscription: { chargeRetryCount: 5 } };
-      const chargeRetryCount = getChargeRetryCount('updated', order);
+      const chargeRetryCount = getChargeRetryCount('updated', mockOrder(order));
       expect(chargeRetryCount).to.equal(0);
     });
     it('should keep the counter unchanged when status is processing', () => {
       const order = { Subscription: { chargeRetryCount: 3 } };
-      const chargeRetryCount = getChargeRetryCount('processing', order);
+      const chargeRetryCount = getChargeRetryCount('processing', mockOrder(order));
       expect(chargeRetryCount).to.equal(3);
     });
   });
@@ -324,7 +340,7 @@ describe('server/lib/recurring-contributions', () => {
 
     it('not do anything if dryRun is true', async () => {
       const order = await fakeOrder({}, { withSubscription: true, withBackerMember: true });
-      sandbox.spy(order.Subscription, 'save');
+      const saveSpy = sandbox.spy(order.Subscription, 'save');
 
       const entry = await processOrderWithSubscription(order, { dryRun: true });
       // Wait for potential emails
@@ -332,7 +348,7 @@ describe('server/lib/recurring-contributions', () => {
 
       // Then nothing was attempted
       expect(entry.status).to.equal('unattempted');
-      expect(order.Subscription.save.called).to.equal(false);
+      expect(saveSpy.called).to.equal(false);
       expect(sendSpy.called).to.equal(false);
     });
 
@@ -356,7 +372,10 @@ describe('server/lib/recurring-contributions', () => {
 
       it('records a successful thirdparty payment outcome when a recurring charge succeeds', async () => {
         const { order } = await createOrderWithSubscription('month', '2018-01-27');
-        order.paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+        order.paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        });
         sandbox.stub(paymentsLib, 'processOrder').resolves(await fakeTransaction({ OrderId: order.id }));
 
         await processOrderWithSubscription(order, { dryRun: false });
@@ -371,7 +390,10 @@ describe('server/lib/recurring-contributions', () => {
 
       it('records a failed thirdparty payment outcome when a recurring charge fails', async () => {
         const { order } = await createOrderWithSubscription('month', '2018-01-27');
-        order.paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+        order.paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        });
         sandbox.stub(paymentsLib, 'processOrder').rejects(new Error('Your card was declined.'));
 
         await processOrderWithSubscription(order, { dryRun: false });
@@ -386,7 +408,10 @@ describe('server/lib/recurring-contributions', () => {
 
       it('does not record metrics when the charge requires 3D Secure confirmation', async () => {
         const { order } = await createOrderWithSubscription('month', '2018-01-27');
-        order.paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+        order.paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        });
         const error = new Error('Payment Intent require action');
         error['stripeResponse'] = { paymentIntent: { id: 'pi_1', status: 'requires_action' } };
         sandbox.stub(paymentsLib, 'processOrder').rejects(error);
@@ -624,7 +649,11 @@ describe('server/lib/recurring-contributions', () => {
 
     it('should return orders with subscription active & due', async () => {
       // Given an order with a subscription
-      const payment = { amount: 1000, currency: 'USD', interval: 'month' };
+      const payment = {
+        amount: 1000,
+        currency: 'USD' as SupportedCurrency,
+        interval: 'month' as const,
+      };
       const subscription = await models.Subscription.create({
         ...payment,
         isActive: true,
@@ -661,7 +690,11 @@ describe('server/lib/recurring-contributions', () => {
 
     it('should exclude orders in PROCESSING status', async () => {
       // Given two due subscription orders, one ACTIVE and one PROCESSING
-      const payment = { amount: 1000, currency: 'USD', interval: 'month' };
+      const payment = {
+        amount: 1000,
+        currency: 'USD' as SupportedCurrency,
+        interval: 'month' as const,
+      };
       const activeSubscription = await models.Subscription.create({
         ...payment,
         isActive: true,
@@ -720,7 +753,7 @@ describe('server/lib/recurring-contributions', () => {
           amount: 3000,
           retriesAfter: MAX_RETRIES,
         },
-      ];
+      ] as Parameters<typeof groupProcessedOrders>[0];
 
       // When the orders are grouped by their different statuses
       const groupedOrders = groupProcessedOrders(data);

@@ -6,11 +6,14 @@ import { createSandbox, stub } from 'sinon';
 import { activities } from '../../../../server/constants';
 import { sessionCache } from '../../../../server/lib/cache';
 import twoFactorAuthLib from '../../../../server/lib/two-factor-authentication';
-import { TwoFactorAuthenticationHeader } from '../../../../server/lib/two-factor-authentication/lib';
+import { Token, TwoFactorAuthenticationHeader } from '../../../../server/lib/two-factor-authentication/lib';
 import totpProvider from '../../../../server/lib/two-factor-authentication/totp';
 import models from '../../../../server/models';
 import { fakePersonalToken, fakeUser, fakeUserToken } from '../../../test-helpers/fake-data';
-import { waitForCondition } from '../../../utils';
+import { makeGenericRequest, waitForCondition } from '../../../utils';
+
+/** Partial fixtures: these tests only set the fields they exercise. */
+const partialToken = (token: Partial<Token>) => token as Token;
 
 describe('lib/two-factor-authentication', () => {
   describe('validateToken', () => {
@@ -23,11 +26,11 @@ describe('lib/two-factor-authentication', () => {
 
     it('fails if auth type is not supported', async () => {
       const user = await fakeUser();
-      const token = {
-        type: 'fake-type',
-      };
+      const token = partialToken({
+        type: 'fake-type' as Token['type'],
+      });
 
-      await expect(twoFactorAuthLib.validateToken(user, token)).to.be.eventually.rejectedWith(
+      await expect(twoFactorAuthLib.validateToken(user, token, undefined)).to.be.eventually.rejectedWith(
         Error,
         'Unsupported 2FA type fake-type',
       );
@@ -37,11 +40,11 @@ describe('lib/two-factor-authentication', () => {
       const validateTokenStub = sandbox.stub(totpProvider, 'validateToken');
 
       const user = await fakeUser();
-      const token = {
-        type: 'totp',
-      };
+      const token = partialToken({
+        type: 'totp' as Token['type'],
+      });
 
-      await expect(twoFactorAuthLib.validateToken(user, token)).to.be.eventually.fulfilled;
+      await expect(twoFactorAuthLib.validateToken(user, token, undefined)).to.be.eventually.fulfilled;
       expect(validateTokenStub).to.have.been.calledOnce;
       expect(validateTokenStub).to.have.been.calledWith(user, token);
     });
@@ -49,17 +52,17 @@ describe('lib/two-factor-authentication', () => {
 
   describe('getTwoFactorAuthTokenFromRequest', () => {
     it('returns null token if not present', async () => {
-      const req = {
+      const req = Object.assign(makeGenericRequest(), {
         get: stub().withArgs(TwoFactorAuthenticationHeader).returns(null),
-      };
+      });
 
       expect(twoFactorAuthLib.getTwoFactorAuthTokenFromRequest(req)).to.be.null;
     });
 
     it('throws an error if value is malformed', async () => {
-      const req = {
+      const req = Object.assign(makeGenericRequest(), {
         get: stub(),
-      };
+      });
 
       req.get.withArgs(TwoFactorAuthenticationHeader).returns('totp');
       expect(() => twoFactorAuthLib.getTwoFactorAuthTokenFromRequest(req)).to.throw('Malformed 2FA token header');
@@ -69,9 +72,9 @@ describe('lib/two-factor-authentication', () => {
     });
 
     it('parses value correctly', async () => {
-      const req = {
+      const req = Object.assign(makeGenericRequest(), {
         get: stub(),
-      };
+      });
 
       req.get.withArgs(TwoFactorAuthenticationHeader).returns('totp 12345');
       expect(twoFactorAuthLib.getTwoFactorAuthTokenFromRequest(req)).to.eql({
@@ -112,7 +115,7 @@ describe('lib/two-factor-authentication', () => {
     afterEach(() => sandbox.restore());
 
     it('throws error if req does not have remoteUser', async () => {
-      const req = {};
+      const req = Object.assign(makeGenericRequest(), {});
 
       await expect(twoFactorAuthLib.validateRequest(req)).to.eventually.rejectedWith(
         Error,
@@ -121,9 +124,9 @@ describe('lib/two-factor-authentication', () => {
     });
 
     it('throws error if user does not have 2fa and 2fa is required', async () => {
-      const req = {
+      const req = Object.assign(makeGenericRequest(), {
         remoteUser: await fakeUser(),
-      };
+      });
 
       try {
         await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
@@ -134,15 +137,15 @@ describe('lib/two-factor-authentication', () => {
     });
 
     it('succeeds if there is no token and 2fa is not required', async () => {
-      const req = {
+      const req = Object.assign(makeGenericRequest(), {
         remoteUser: await fakeUser(),
-      };
+      });
 
       await expect(twoFactorAuthLib.validateRequest(req)).to.eventually.be.fulfilled;
     });
 
     it('fails if there is no token and 2fa token is always required', async () => {
-      const req = {
+      const req = Object.assign(makeGenericRequest(), {
         remoteUser: await fakeUser({ twoFactorAuthToken: '12345' }),
         get: stub().withArgs(TwoFactorAuthenticationHeader).returns('totp 1234'),
         isGraphQL: true,
@@ -150,7 +153,7 @@ describe('lib/two-factor-authentication', () => {
           operationName: 'Test',
           query: 'query Test { hello }',
         },
-      };
+      });
 
       const totpValidateStub = sandbox.stub(totpProvider, 'validateToken');
       totpValidateStub.resolves();
@@ -189,10 +192,10 @@ describe('lib/two-factor-authentication', () => {
     });
 
     it('fails if the token is invalid', async () => {
-      const req = {
+      const req = Object.assign(makeGenericRequest(), {
         remoteUser: await fakeUser({ twoFactorAuthToken: '12345' }),
         get: stub().withArgs(TwoFactorAuthenticationHeader).returns('totp 12345'),
-      };
+      });
 
       try {
         await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
@@ -203,10 +206,10 @@ describe('lib/two-factor-authentication', () => {
     });
 
     it('uses session to validate token', async () => {
-      const req = {
+      const req = Object.assign(makeGenericRequest(), {
         remoteUser: await fakeUser({ twoFactorAuthToken: '12345' }),
         get: stub().withArgs(TwoFactorAuthenticationHeader).returns('totp 12345'),
-      };
+      });
 
       const totpValidateStub = sandbox.stub(totpProvider, 'validateToken');
       totpValidateStub.resolves();
@@ -260,10 +263,10 @@ describe('lib/two-factor-authentication', () => {
     });
 
     it('succeeds if token is valid', async () => {
-      const req = {
+      const req = Object.assign(makeGenericRequest(), {
         remoteUser: await fakeUser({ twoFactorAuthToken: '12345' }),
         get: stub().withArgs(TwoFactorAuthenticationHeader).returns('totp 12345'),
-      };
+      });
 
       const totpValidateStub = sandbox.stub(totpProvider, 'validateToken');
       totpValidateStub.resolves();
@@ -274,10 +277,10 @@ describe('lib/two-factor-authentication', () => {
     });
 
     it('invalidates session after session duration', async () => {
-      const req = {
+      const req = Object.assign(makeGenericRequest(), {
         remoteUser: await fakeUser({ twoFactorAuthToken: '12345' }),
         get: stub().withArgs(TwoFactorAuthenticationHeader).returns('totp 12345'),
-      };
+      });
 
       const totpValidateStub = sandbox.stub(totpProvider, 'validateToken');
       totpValidateStub.resolves();
@@ -306,13 +309,13 @@ describe('lib/two-factor-authentication', () => {
     });
 
     it('does not check for any code if onlyAskOnLogin is true', async () => {
-      const req = { remoteUser: await fakeUser({ twoFactorAuthToken: '12345' }) };
+      const req = Object.assign(makeGenericRequest(), { remoteUser: await fakeUser({ twoFactorAuthToken: '12345' }) });
       await expect(twoFactorAuthLib.validateRequest(req, { onlyAskOnLogin: true, requireTwoFactorAuthEnabled: true }))
         .to.eventually.be.false;
     });
 
     it('still throws if onlyAskOnLogin is true and user has not 2FA enabled', async () => {
-      const req = { remoteUser: await fakeUser() };
+      const req = Object.assign(makeGenericRequest(), { remoteUser: await fakeUser() });
       await expect(
         twoFactorAuthLib.validateRequest(req, { onlyAskOnLogin: true, requireTwoFactorAuthEnabled: true }),
       ).to.eventually.be.rejected.and.deep.include({
@@ -324,7 +327,7 @@ describe('lib/two-factor-authentication', () => {
       it('fails if using a personal token that has not been pre-authorized', async () => {
         const user = await fakeUser({ twoFactorAuthToken: '12345' });
         const personalToken = await fakePersonalToken({ user }); // Pre-authorize should be false by default
-        const req = { remoteUser: user, personalToken };
+        const req = Object.assign(makeGenericRequest(), { remoteUser: user, personalToken });
 
         await expect(twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true })).to.eventually.be.rejectedWith(
           'This personal token is not pre-authorized for 2FA',
@@ -337,7 +340,7 @@ describe('lib/two-factor-authentication', () => {
       it('fails if using an OAuth token that has not been pre-authorized', async () => {
         const user = await fakeUser({ twoFactorAuthToken: '12345' });
         const userToken = await fakeUserToken({ user }); // Pre-authorize should be false by default
-        const req = { remoteUser: user, userToken };
+        const req = Object.assign(makeGenericRequest(), { remoteUser: user, userToken });
 
         await expect(twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true })).to.eventually.be.rejectedWith(
           'This OAuth token is not pre-authorized for 2FA',
@@ -350,7 +353,7 @@ describe('lib/two-factor-authentication', () => {
       it('works if using a personal token that has been pre-authorized', async () => {
         const user = await fakeUser({ twoFactorAuthToken: '12345' });
         const personalToken = await fakePersonalToken({ user, preAuthorize2FA: true }); // Pre-authorize should be false by default
-        const req = { remoteUser: user, personalToken };
+        const req = Object.assign(makeGenericRequest(), { remoteUser: user, personalToken });
 
         await expect(twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true })).to.eventually.be.fulfilled;
       });
@@ -358,7 +361,7 @@ describe('lib/two-factor-authentication', () => {
       it('works if using an OAuth token that has been pre-authorized', async () => {
         const user = await fakeUser({ twoFactorAuthToken: '12345' });
         const userToken = await fakeUserToken({ user, preAuthorize2FA: true }); // Pre-authorize should be false by default
-        const req = { remoteUser: user, userToken };
+        const req = Object.assign(makeGenericRequest(), { remoteUser: user, userToken });
 
         await expect(twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true })).to.eventually.be.fulfilled;
       });

@@ -14,10 +14,10 @@ describe('server/lib/auth', () => {
     });
 
     // When the token is generated
-    const token = auth.createJwt('subject', { foo: 'bar' }, 5);
+    const token = auth.createJwt('subject', { foo: 'bar' } as Parameters<typeof auth.createJwt>[1], 5);
 
     // Then the token should be verifiable
-    const decoded = jwt.verify(token, config.keys.opencollective.jwtSecret);
+    const decoded = jwt.verify(token, config.keys.opencollective.jwtSecret) as jwt.JwtPayload;
     clock.restore();
 
     // And then it should contain all the important fields
@@ -66,7 +66,7 @@ quLDCejRhHBkI/i5vZXyk4MqC5q4COJlxKU=
 
   it('should set auth cookies with SameSite=Lax', () => {
     const token = auth.createJwt('subject', { scope: 'session' }, 60);
-    const cookies = {};
+    const cookies: Record<string, { value: string; options: Record<string, unknown> }> = {};
     const res = {
       cookie(name, value, options) {
         cookies[name] = { value, options };

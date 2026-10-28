@@ -44,12 +44,12 @@ describe('server/lib/errors', () => {
   });
 
   it('Timeout', () => {
-    const e = new errors.Timeout('message');
+    const e = new errors.Timeout('message', undefined);
     expect(e).to.have.property('code', 408);
   });
 
   it('ConflictError', () => {
-    const e = new errors.ConflictError('message');
+    const e = new errors.ConflictError('message', undefined);
     expect(e).to.have.property('message', 'message');
   });
 

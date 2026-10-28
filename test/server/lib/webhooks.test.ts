@@ -3,6 +3,7 @@ import dns from 'dns';
 import axios from 'axios';
 import { expect } from 'chai';
 import config from 'config';
+import { get } from 'lodash';
 import { assert, createSandbox } from 'sinon';
 
 import { activities } from '../../../server/constants';
@@ -18,8 +19,15 @@ import {
   isTrustedWebhookProviderUrl,
   sanitizeActivityForWebhookPayload,
 } from '../../../server/lib/webhooks';
+import type { Activity } from '../../../server/models';
 import { fakeActivity, fakeCollective, fakeNotification } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
+
+/**
+ * `sanitizeActivityForWebhookPayload` only reads a subset of an activity's fields, so these
+ * unit tests build activities from partial fixtures instead of database rows.
+ */
+const mockActivity = (activity: Pick<Activity, 'type'> & Partial<Activity>): Activity => activity as Activity;
 
 describe('server/lib/webhooks', () => {
   describe('webhook URL security', () => {
@@ -212,159 +220,175 @@ describe('server/lib/webhooks', () => {
 
   describe('sanitizeActivity', () => {
     it('Strips the data for unknown types', () => {
-      const sanitized = sanitizeActivityForWebhookPayload({ type: 'NOT_A_VALID_TYPE', data: { hello: 'world' } });
+      const sanitized = sanitizeActivityForWebhookPayload(
+        mockActivity({ type: 'NOT_A_VALID_TYPE' as Activity['type'], data: { hello: 'world' } }),
+      );
       expect(sanitized.data).to.be.empty;
     });
 
     it('COLLECTIVE_MEMBER_CREATED', () => {
-      const sanitized = sanitizeActivityForWebhookPayload({
-        type: activities.COLLECTIVE_MEMBER_CREATED,
-        data: {
-          order: { totalAmount: 4200 },
-          member: {
-            role: 'BACKER',
-            memberCollective: {
-              id: 42,
+      const sanitized = sanitizeActivityForWebhookPayload(
+        mockActivity({
+          type: activities.COLLECTIVE_MEMBER_CREATED,
+          data: {
+            order: { totalAmount: 4200 },
+            member: {
+              role: 'BACKER',
+              memberCollective: {
+                id: 42,
+              },
             },
           },
-        },
-      });
+        }),
+      );
 
-      expect(sanitized.data.order.totalAmount).to.eq(4200);
-      expect(sanitized.data.member.memberCollective.id).to.eq(42);
+      expect(get(sanitized.data, 'order.totalAmount')).to.eq(4200);
+      expect(get(sanitized.data, 'member.memberCollective.id')).to.eq(42);
       expect(sanitized.data.collective).to.not.exist;
     });
 
     it('Sanitizes COLLECTIVE_REJECTED, without leaking the reviewer email or the rejection reason', () => {
-      const sanitized = sanitizeActivityForWebhookPayload({
-        type: activities.COLLECTIVE_REJECTED,
-        data: {
-          collective: { id: 42, slug: 'babel' },
-          host: { id: 43, slug: 'europe' },
-          rejectionReason: 'Out of scope',
-          user: { email: 'admin@opencollective.com' },
-        },
-      });
+      const sanitized = sanitizeActivityForWebhookPayload(
+        mockActivity({
+          type: activities.COLLECTIVE_REJECTED,
+          data: {
+            collective: { id: 42, slug: 'babel' },
+            host: { id: 43, slug: 'europe' },
+            rejectionReason: 'Out of scope',
+            user: { email: 'admin@opencollective.com' },
+          },
+        }),
+      );
 
-      expect(sanitized.data.collective.id).to.eq(42);
-      expect(sanitized.data.host.id).to.eq(43);
+      expect(get(sanitized.data, 'collective.id')).to.eq(42);
+      expect(get(sanitized.data, 'host.id')).to.eq(43);
       expect(sanitized.data.rejectionReason).to.not.exist;
       expect(sanitized.data.user).to.not.exist;
     });
 
     it('Sanitizes COLLECTIVE_APPROVED, without leaking the reviewer email', () => {
-      const sanitized = sanitizeActivityForWebhookPayload({
-        type: activities.COLLECTIVE_APPROVED,
-        data: {
-          collective: { id: 42, slug: 'babel' },
-          host: { id: 43, slug: 'europe' },
-          user: { email: 'admin@opencollective.com' },
-        },
-      });
+      const sanitized = sanitizeActivityForWebhookPayload(
+        mockActivity({
+          type: activities.COLLECTIVE_APPROVED,
+          data: {
+            collective: { id: 42, slug: 'babel' },
+            host: { id: 43, slug: 'europe' },
+            user: { email: 'admin@opencollective.com' },
+          },
+        }),
+      );
 
-      expect(sanitized.data.collective.id).to.eq(42);
-      expect(sanitized.data.host.id).to.eq(43);
+      expect(get(sanitized.data, 'collective.id')).to.eq(42);
+      expect(get(sanitized.data, 'host.id')).to.eq(43);
       expect(sanitized.data.user).to.not.exist;
     });
 
     it('Sanitizes COLLECTIVE_APPLY, without leaking the applicant email', () => {
-      const sanitized = sanitizeActivityForWebhookPayload({
-        type: activities.COLLECTIVE_APPLY,
-        data: {
-          collective: { id: 42, slug: 'babel' },
-          host: { id: 43, slug: 'europe' },
-          user: { email: 'applicant@opencollective.com' },
-          application: { message: 'Please host us' },
-        },
-      });
+      const sanitized = sanitizeActivityForWebhookPayload(
+        mockActivity({
+          type: activities.COLLECTIVE_APPLY,
+          data: {
+            collective: { id: 42, slug: 'babel' },
+            host: { id: 43, slug: 'europe' },
+            user: { email: 'applicant@opencollective.com' },
+            application: { message: 'Please host us' },
+          },
+        }),
+      );
 
-      expect(sanitized.data.collective.slug).to.eq('babel');
-      expect(sanitized.data.host.slug).to.eq('europe');
+      expect(get(sanitized.data, 'collective.slug')).to.eq('babel');
+      expect(get(sanitized.data, 'host.slug')).to.eq('europe');
       expect(sanitized.data.user).to.not.exist;
       expect(sanitized.data.application).to.not.exist;
       expect(sanitized.data.rejectionReason).to.not.exist;
     });
 
     it('Sanitizes COLLECTIVE_EXPENSE_CREATED', () => {
-      const sanitized = sanitizeActivityForWebhookPayload({
-        type: activities.COLLECTIVE_EXPENSE_CREATED,
-        data: {
-          user: {
-            id: 2,
+      const sanitized = sanitizeActivityForWebhookPayload(
+        mockActivity({
+          type: activities.COLLECTIVE_EXPENSE_CREATED,
+          data: {
+            user: {
+              id: 2,
+            },
+            fromCollective: { slug: 'cslug' },
+            expense: {
+              id: 42,
+              amount: 100,
+              lastEditedById: 2,
+            },
           },
-          fromCollective: { slug: 'cslug' },
-          expense: {
-            id: 42,
-            amount: 100,
-            lastEditedById: 2,
-          },
-        },
-      });
+        }),
+      );
 
-      expect(sanitized.data.expense.id).to.eq(42);
-      expect(sanitized.data.expense.amount).to.eq(100);
-      expect(sanitized.data.expense.lastEditedById).to.not.exist;
-      expect(sanitized.data.fromCollective.slug).to.eq('cslug');
+      expect(get(sanitized.data, 'expense.id')).to.eq(42);
+      expect(get(sanitized.data, 'expense.amount')).to.eq(100);
+      expect(get(sanitized.data, 'expense.lastEditedById')).to.not.exist;
+      expect(get(sanitized.data, 'fromCollective.slug')).to.eq('cslug');
       expect(sanitized.data.user).to.not.exist;
     });
 
     it('Sanitizes COLLECTIVE_EXPENSE_REJECTED', () => {
-      const sanitized = sanitizeActivityForWebhookPayload({
-        type: activities.COLLECTIVE_EXPENSE_REJECTED,
-        data: {
-          user: {
-            id: 2,
+      const sanitized = sanitizeActivityForWebhookPayload(
+        mockActivity({
+          type: activities.COLLECTIVE_EXPENSE_REJECTED,
+          data: {
+            user: {
+              id: 2,
+            },
+            fromCollective: { slug: 'cslug' },
+            expense: {
+              id: 42,
+              amount: 100,
+              lastEditedById: 2,
+            },
           },
-          fromCollective: { slug: 'cslug' },
-          expense: {
-            id: 42,
-            amount: 100,
-            lastEditedById: 2,
-          },
-        },
-      });
+        }),
+      );
 
-      expect(sanitized.data.expense.id).to.eq(42);
-      expect(sanitized.data.expense.amount).to.eq(100);
-      expect(sanitized.data.expense.lastEditedById).to.not.exist;
-      expect(sanitized.data.fromCollective.slug).to.eq('cslug');
+      expect(get(sanitized.data, 'expense.id')).to.eq(42);
+      expect(get(sanitized.data, 'expense.amount')).to.eq(100);
+      expect(get(sanitized.data, 'expense.lastEditedById')).to.not.exist;
+      expect(get(sanitized.data, 'fromCollective.slug')).to.eq('cslug');
       expect(sanitized.data.user).to.not.exist;
     });
 
     it('Sanitizes TICKET_CONFIRMED', () => {
-      const sanitized = sanitizeActivityForWebhookPayload({
-        type: activities.TICKET_CONFIRMED,
-        id: 42,
-        UserId: 7676,
-        data: {
-          recipient: {
-            name: 'Oratione Loremipsum',
-            legalName: 'George Carver',
+      const sanitized = sanitizeActivityForWebhookPayload(
+        mockActivity({
+          type: activities.TICKET_CONFIRMED,
+          id: 42,
+          UserId: 7676,
+          data: {
+            recipient: {
+              name: 'Oratione Loremipsum',
+              legalName: 'George Carver',
+            },
+            tier: {
+              id: 11052,
+              name: 'Test for data',
+            },
+            order: {
+              id: 8989,
+              totalAmount: 1000,
+              currency: 'USD',
+              tags: ['atag', 'btag'],
+              TierId: 11052,
+              customData: { secret: 'Do not tell' },
+            },
           },
-          tier: {
-            id: 11052,
-            name: 'Test for data',
-          },
-          order: {
-            id: 8989,
-            totalAmount: 1000,
-            currency: 'USD',
-            tags: ['atag', 'btag'],
-            TierId: 11052,
-            customData: { secret: 'Do not tell' },
-          },
-        },
-      });
+        }),
+      );
 
       expect(sanitized.id).to.eq(42);
-      expect(sanitized.data.order.id).to.eq(8989);
-      expect(sanitized.data.order.UserId).to.not.exist;
-      expect(sanitized.data.order.totalAmount).to.eq(1000);
-      expect(sanitized.data.order.tags).to.be.an('array');
-      expect(sanitized.data.order.tags).to.include('atag');
-      expect(sanitized.data.order.customData).to.not.exist;
-      expect(sanitized.data.recipient.name).to.eq('Oratione Loremipsum');
-      expect(sanitized.data.recipient.legalName).to.not.exist;
+      expect(get(sanitized.data, 'order.id')).to.eq(8989);
+      expect(get(sanitized.data, 'order.UserId')).to.not.exist;
+      expect(get(sanitized.data, 'order.totalAmount')).to.eq(1000);
+      expect(get(sanitized.data, 'order.tags')).to.be.an('array');
+      expect(get(sanitized.data, 'order.tags')).to.include('atag');
+      expect(get(sanitized.data, 'order.customData')).to.not.exist;
+      expect(get(sanitized.data, 'recipient.name')).to.eq('Oratione Loremipsum');
+      expect(get(sanitized.data, 'recipient.legalName')).to.not.exist;
     });
   });
 

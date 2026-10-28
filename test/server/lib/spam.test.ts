@@ -9,6 +9,7 @@ import {
   notifyTeamAboutSuspiciousCollective,
   resolveRedirect,
 } from '../../../server/lib/spam';
+import { Collective } from '../../../server/models';
 import { fakeCollective } from '../../test-helpers/fake-data';
 
 // To prevent false positives with random values, we initialize all collectives with safe values
@@ -50,7 +51,7 @@ describe('server/lib/spam', () => {
         ...LEGIT_VALUES,
         longDescription: 'Some PORN stuff',
       });
-      expect(await collectiveSpamCheck(collectiveWithBadLongDescription)).to.deep.eq({
+      expect(await collectiveSpamCheck(collectiveWithBadLongDescription, undefined)).to.deep.eq({
         score: 0.2,
         keywords: ['porn'],
         domains: [],
@@ -62,7 +63,7 @@ describe('server/lib/spam', () => {
 
       // Website
       const collectiveWithBadWebsite = await fakeCollective({ ...LEGIT_VALUES, website: 'https://maxketo.com' });
-      expect(await collectiveSpamCheck(collectiveWithBadWebsite)).to.deep.eq({
+      expect(await collectiveSpamCheck(collectiveWithBadWebsite, undefined)).to.deep.eq({
         score: 0.3,
         keywords: ['keto'],
         domains: [],
@@ -74,7 +75,7 @@ describe('server/lib/spam', () => {
 
       // Name
       const collectiveWithBadName = await fakeCollective({ ...LEGIT_VALUES, name: 'BEST KeTo!!!' });
-      expect(await collectiveSpamCheck(collectiveWithBadName)).to.deep.eq({
+      expect(await collectiveSpamCheck(collectiveWithBadName, undefined)).to.deep.eq({
         score: 0.3,
         keywords: ['keto'],
         domains: [],
@@ -91,7 +92,7 @@ describe('server/lib/spam', () => {
         ...LEGIT_VALUES,
         website: 'https://supplementslove.com/promotion',
       });
-      expect(await collectiveSpamCheck(collectiveWithBlockedWebsite)).to.deep.eq({
+      expect(await collectiveSpamCheck(collectiveWithBlockedWebsite, undefined)).to.deep.eq({
         score: 1,
         keywords: [],
         domains: ['supplementslove.com'],
@@ -108,7 +109,7 @@ describe('server/lib/spam', () => {
         longDescription: 'Come and buy stuff on <a href="https://dasilex.co.uk/test">our website</a>!',
       });
 
-      expect(await collectiveSpamCheck(collective)).to.deep.eq({
+      expect(await collectiveSpamCheck(collective, undefined)).to.deep.eq({
         score: 1,
         keywords: [],
         domains: ['dasilex.co.uk'],
@@ -125,7 +126,7 @@ describe('server/lib/spam', () => {
         longDescription: 'Come and buy stuff on <a href="https://google.fr">our website</a>!',
       });
 
-      expect(await collectiveSpamCheck(collective)).to.deep.eq({
+      expect(await collectiveSpamCheck(collective, undefined)).to.deep.eq({
         score: 0,
         keywords: [],
         domains: [],
@@ -149,7 +150,7 @@ describe('server/lib/spam', () => {
     });
 
     it('notifies Slack with the report info', async () => {
-      const report = await collectiveSpamCheck({ name: 'Keto stuff', slug: 'ketoooo' });
+      const report = await collectiveSpamCheck({ name: 'Keto stuff', slug: 'ketoooo' } as Collective, undefined);
       await notifyTeamAboutSuspiciousCollective(report);
       expect(slackPostMessageStub.calledOnce).to.be.true;
 

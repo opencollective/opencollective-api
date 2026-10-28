@@ -29,7 +29,7 @@ describe('server/lib/slack', () => {
     it('with message succeeds', done => {
       expectPayload(sandbox, basePayload);
 
-      callSlackLib(done, message, webhookUrl);
+      callSlackLib(done, message, webhookUrl, undefined);
     });
 
     it('with attachment succeeds', done => {
@@ -127,7 +127,7 @@ describe('server/lib/slack', () => {
       const axiosPost = sandbox.stub(axios, 'post').resolves({ status: 200 });
       const webhookUrl = 'https://discord.com/api/webhooks/123/abc';
 
-      await slackLib.postMessage(message, webhookUrl);
+      await slackLib.postMessage(message, webhookUrl, undefined);
 
       expect(axiosPost.calledOnce).to.be.true;
       expect(axiosPost.firstCall.args[0]).to.equal('https://discord.com/api/webhooks/123/abc/slack');
@@ -137,7 +137,7 @@ describe('server/lib/slack', () => {
       const axiosPost = sandbox.stub(axios, 'post').resolves({ status: 200 });
       const webhookUrl = 'https://discord.com/api/webhooks/123/abc/slack';
 
-      await slackLib.postMessage(message, webhookUrl);
+      await slackLib.postMessage(message, webhookUrl, undefined);
 
       expect(axiosPost.calledOnce).to.be.true;
       expect(axiosPost.firstCall.args[0]).to.equal(webhookUrl);
@@ -147,7 +147,7 @@ describe('server/lib/slack', () => {
       const axiosPost = sandbox.stub(axios, 'post').resolves({ status: 200 });
       const webhookUrl = 'https://hooks.slack.com/services/T000/B000/XXXX';
 
-      await slackLib.postMessage(message, webhookUrl);
+      await slackLib.postMessage(message, webhookUrl, undefined);
 
       expect(axiosPost.calledOnce).to.be.true;
       expect(axiosPost.firstCall.args[0]).to.equal(webhookUrl);

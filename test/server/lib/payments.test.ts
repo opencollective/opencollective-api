@@ -3,8 +3,10 @@ import { expect } from 'chai';
 import config from 'config';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
+import type Stripe from 'stripe';
 
 import { activities } from '../../../server/constants';
+import { SupportedCurrency } from '../../../server/constants/currencies';
 import status from '../../../server/constants/order-status';
 import PaymentIntentStatus from '../../../server/constants/payment-intent-status';
 import PaymentIntentType from '../../../server/constants/payment-intent-type';
@@ -25,7 +27,10 @@ import {
 } from '../../../server/lib/payments';
 import stripe from '../../../server/lib/stripe';
 import { getHostPlatformTipsAccount } from '../../../server/lib/transactions';
+import type { PaymentMethod } from '../../../server/models';
 import models from '../../../server/models';
+import type { TransactionData } from '../../../server/models/Transaction';
+import { TransactionSettlementStatus } from '../../../server/models/TransactionSettlement';
 import * as paypalAPI from '../../../server/paymentProviders/paypal/api';
 import stripeMocks from '../../mocks/stripe';
 import {
@@ -43,6 +48,13 @@ import {
   expectTransactionsLinkedToPaymentIntent,
 } from '../../test-helpers/payment-intent';
 import * as utils from '../../utils';
+
+/** `newPlatformTipsLedger` is an internal settings flag that is not part of the `Settings` type. */
+const withNewPlatformTipsLedger = <T extends object>(settings: T) => ({ ...settings, newPlatformTipsLedger: true });
+
+/** `paid` is a flag read dynamically from the payment method by the payment providers. */
+const mockPaymentMethod = (paymentMethod: Partial<PaymentMethod> & { paid?: boolean }) =>
+  paymentMethod as PaymentMethod;
 
 const AMOUNT = 1099;
 const AMOUNT2 = 199;
@@ -456,11 +468,11 @@ describe('server/lib/payments', () => {
         taxAmount: 100,
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Monthly subscription to Webpack',
-        data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } },
+        data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } as Stripe.Charge },
       });
 
       // When the refund transaction is created
-      await createRefundTransaction(transaction, 0, { dataField: 'foo' }, user);
+      await createRefundTransaction(transaction, 0, { dataField: 'foo' } as TransactionData, user);
 
       // And when transactions for that order are retrieved
       const allTransactions = await models.Transaction.findAll({
@@ -529,7 +541,7 @@ describe('server/lib/payments', () => {
       const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
       const contributorUser = await fakeUser(undefined, { name: 'User' });
       const order = await fakeOrder({
-        status: 'ACTIVE',
+        status: status.ACTIVE,
         CollectiveId: collective.id,
         FromCollectiveId: contributorUser.CollectiveId,
       });
@@ -548,7 +560,7 @@ describe('server/lib/payments', () => {
         hostFeeInHostCurrency: 250,
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Monthly subscription to Webpack',
-        data: { charge: { id: 'ch_refunded_charge' }, platformTip: 500 },
+        data: { charge: { id: 'ch_refunded_charge' } as Stripe.Charge, platformTip: 500 },
       });
 
       // Should have 8 transactions:
@@ -595,7 +607,7 @@ describe('server/lib/payments', () => {
       const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
       const contributorUser = await fakeUser(undefined, { name: 'User' });
       const order = await fakeOrder({
-        status: 'ACTIVE',
+        status: status.ACTIVE,
         CollectiveId: collective.id,
         FromCollectiveId: contributorUser.CollectiveId,
       });
@@ -614,7 +626,7 @@ describe('server/lib/payments', () => {
         hostFeeInHostCurrency: 250,
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Monthly subscription to Webpack',
-        data: { charge: { id: 'ch_refunded_charge' }, platformTip: 500 },
+        data: { charge: { id: 'ch_refunded_charge' } as Stripe.Charge, platformTip: 500 },
       });
 
       // Simulate inconsistent data: the debt exists but its settlement row is missing
@@ -646,7 +658,7 @@ describe('server/lib/payments', () => {
       const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
       const contributorUser = await fakeUser(undefined, { name: 'User' });
       const order = await fakeOrder({
-        status: 'ACTIVE',
+        status: status.ACTIVE,
         CollectiveId: collective.id,
         FromCollectiveId: contributorUser.CollectiveId,
       });
@@ -665,7 +677,7 @@ describe('server/lib/payments', () => {
         hostFeeInHostCurrency: 250,
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Monthly subscription to Webpack',
-        data: { charge: { id: 'ch_refunded_charge' }, hostFeeSharePercent: 20 },
+        data: { charge: { id: 'ch_refunded_charge' } as Stripe.Charge, hostFeeSharePercent: 20 },
       });
 
       // Simulate inconsistent data: the debt exists but its settlement row is missing
@@ -695,11 +707,11 @@ describe('server/lib/payments', () => {
       // Create Open Collective Inc
       await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
       const host = await fakeHost({ name: 'Host' });
-      await host.update({ settings: { ...host.settings, newPlatformTipsLedger: true } });
+      await host.update({ settings: withNewPlatformTipsLedger(host.settings) });
       const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
       const contributorUser = await fakeUser(undefined, { name: 'User' });
       const order = await fakeOrder({
-        status: 'ACTIVE',
+        status: status.ACTIVE,
         CollectiveId: collective.id,
         FromCollectiveId: contributorUser.CollectiveId,
       });
@@ -719,7 +731,7 @@ describe('server/lib/payments', () => {
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Monthly subscription to Webpack',
         // No isPlatformRevenueDirectlyCollected flag: behaves like PayPal
-        data: { charge: { id: 'ch_refunded_charge' }, platformTip: 500 },
+        data: { charge: { id: 'ch_refunded_charge' } as Stripe.Charge, platformTip: 500 },
       });
 
       // New ledger: no per-tip debt, the OWED settlement lives on the PLATFORM_TIP credit
@@ -746,11 +758,11 @@ describe('server/lib/payments', () => {
       // Create Open Collective Inc
       await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
       const host = await fakeHost({ name: 'Host' });
-      await host.update({ settings: { ...host.settings, newPlatformTipsLedger: true } });
+      await host.update({ settings: withNewPlatformTipsLedger(host.settings) });
       const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
       const contributorUser = await fakeUser(undefined, { name: 'User' });
       const order = await fakeOrder({
-        status: 'ACTIVE',
+        status: status.ACTIVE,
         CollectiveId: collective.id,
         FromCollectiveId: contributorUser.CollectiveId,
       });
@@ -770,14 +782,14 @@ describe('server/lib/payments', () => {
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Monthly subscription to Webpack',
         // No isPlatformRevenueDirectlyCollected flag: behaves like PayPal
-        data: { charge: { id: 'ch_invoiced_then_refunded' }, platformTip: 500 },
+        data: { charge: { id: 'ch_invoiced_then_refunded' } as Stripe.Charge, platformTip: 500 },
       });
 
       // Simulate last month's settlement run: the tip was invoiced to the host
       const tipSettlement = await models.TransactionSettlement.findOne({
         where: { TransactionGroup: transaction.TransactionGroup, kind: TransactionKind.PLATFORM_TIP },
       });
-      await tipSettlement.update({ status: 'INVOICED' });
+      await tipSettlement.update({ status: TransactionSettlementStatus.INVOICED });
 
       // Do refund
       await createRefundTransaction(transaction, 0, null, user);
@@ -803,11 +815,11 @@ describe('server/lib/payments', () => {
       // Create Open Collective Inc
       await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
       const host = await fakeHost({ name: 'Host' });
-      await host.update({ settings: { ...host.settings, newPlatformTipsLedger: true } });
+      await host.update({ settings: withNewPlatformTipsLedger(host.settings) });
       const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
       const contributorUser = await fakeUser(undefined, { name: 'User' });
       const order = await fakeOrder({
-        status: 'ACTIVE',
+        status: status.ACTIVE,
         CollectiveId: collective.id,
         FromCollectiveId: contributorUser.CollectiveId,
       });
@@ -826,7 +838,11 @@ describe('server/lib/payments', () => {
         hostFeeInHostCurrency: 250,
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Monthly subscription to Webpack',
-        data: { charge: { id: 'ch_refunded_charge' }, platformTip: 500, isPlatformRevenueDirectlyCollected: true },
+        data: {
+          charge: { id: 'ch_refunded_charge' } as Stripe.Charge,
+          platformTip: 500,
+          isPlatformRevenueDirectlyCollected: true,
+        },
       });
 
       // Stripe direct-collected: tip is auto-settled through an APPLICATION_FEE pair, no debt
@@ -862,11 +878,11 @@ describe('server/lib/payments', () => {
       // host) stays permanently short by the fee, even though the account-level total still nets to zero.
       await fakeHost({ id: PlatformConstants.PlatformCollectiveId, name: 'Open Collective' });
       const host = await fakeHost({ name: 'Host' });
-      await host.update({ settings: { ...host.settings, newPlatformTipsLedger: true } });
+      await host.update({ settings: withNewPlatformTipsLedger(host.settings) });
       const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
       const contributorUser = await fakeUser(undefined, { name: 'User' });
       const order = await fakeOrder({
-        status: 'ACTIVE',
+        status: status.ACTIVE,
         CollectiveId: collective.id,
         FromCollectiveId: contributorUser.CollectiveId,
       });
@@ -885,7 +901,11 @@ describe('server/lib/payments', () => {
         hostFeeInHostCurrency: 250,
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Monthly subscription to Webpack',
-        data: { charge: { id: 'ch_refunded_charge' }, platformTip: 500, isPlatformRevenueDirectlyCollected: true },
+        data: {
+          charge: { id: 'ch_refunded_charge' } as Stripe.Charge,
+          platformTip: 500,
+          isPlatformRevenueDirectlyCollected: true,
+        },
       });
 
       await createRefundTransaction(transaction, 0, null, user);
@@ -917,7 +937,7 @@ describe('server/lib/payments', () => {
       const host = await fakeHost({ name: 'Host' });
       const contributorUser = await fakeUser(undefined, { name: 'User' });
       const order = await fakeOrder({
-        status: 'ACTIVE',
+        status: status.ACTIVE,
         CollectiveId: host.id,
         FromCollectiveId: contributorUser.CollectiveId,
       });
@@ -935,7 +955,7 @@ describe('server/lib/payments', () => {
         hostCurrencyFxRate: 1,
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Contribution to Open Collective',
-        data: { charge: { id: 'ch_refunded_charge' } },
+        data: { charge: { id: 'ch_refunded_charge' } as Stripe.Charge },
       });
 
       // Should have 4 transactions:
@@ -967,7 +987,7 @@ describe('server/lib/payments', () => {
       const contributorUser = await fakeUser(undefined, { name: 'User' });
       const collective = await fakeCollective({ name: 'Collective', HostCollectiveId: host.id });
       const order = await fakeOrder({
-        status: 'PAID',
+        status: status.PAID,
         CollectiveId: collective.id,
         FromCollectiveId: contributorUser.CollectiveId,
       });
@@ -1018,7 +1038,7 @@ describe('server/lib/payments', () => {
       const contributorUser = await fakeUser(undefined, { name: 'User' });
       const collective = await fakeCollective({ name: 'Collective', HostCollectiveId: host.id });
       const order = await fakeOrder({
-        status: 'PAID',
+        status: status.PAID,
         CollectiveId: collective.id,
         FromCollectiveId: contributorUser.CollectiveId,
       });
@@ -1090,11 +1110,11 @@ describe('server/lib/payments', () => {
           taxAmount: 100,
           paymentProcessorFeeInHostCurrency: 175,
           description: 'Monthly subscription to Webpack',
-          data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } },
+          data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } as Stripe.Charge },
         });
 
         // When the refund transaction is created
-        await createRefundTransaction(transaction, 100, { dataField: 'foo' }, user);
+        await createRefundTransaction(transaction, 100, { dataField: 'foo' } as TransactionData, user);
 
         // And when transactions for that order are retrieved
         const allTransactions = await models.Transaction.findAll({
@@ -1149,11 +1169,11 @@ describe('server/lib/payments', () => {
           taxAmount: 100,
           paymentProcessorFeeInHostCurrency: 175,
           description: 'Monthly subscription to Webpack',
-          data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } },
+          data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } as Stripe.Charge },
         });
 
         // When the refund transaction is created
-        await createRefundTransaction(transaction, 100, { dataField: 'foo' }, user);
+        await createRefundTransaction(transaction, 100, { dataField: 'foo' } as TransactionData, user);
 
         // And when transactions for that order are retrieved
         const allTransactions = await models.Transaction.findAll({
@@ -1235,7 +1255,7 @@ describe('server/lib/payments', () => {
       order = await fakeOrder({
         CollectiveId: collective.id,
         ManualPaymentProviderId: manualPaymentProvider.id,
-        status: 'PENDING',
+        status: status.PENDING,
       });
       order = await models.Order.findByPk(order.id, {
         include: [{ association: 'collective' }, { association: 'fromCollective' }, { association: 'createdByUser' }],
@@ -1260,8 +1280,15 @@ describe('server/lib/payments', () => {
       let orderToPause;
 
       it('pauses order', async () => {
-        const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
-        const orderValues = { status: 'ACTIVE', interval: 'month', PaymentMethodId: paymentMethod.id };
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        });
+        const orderValues: Parameters<typeof fakeOrder>[0] = {
+          status: status.ACTIVE,
+          interval: 'month',
+          PaymentMethodId: paymentMethod.id,
+        };
         orderToPause = await fakeOrder(orderValues, { withSubscription: true });
         await pauseOrder(orderToPause, 'Paused for no reason', 'HOST');
         const updatedOrder = await models.Order.findByPk(orderToPause.id, { include: { association: 'Subscription' } });
@@ -1273,8 +1300,15 @@ describe('server/lib/payments', () => {
       });
 
       it('resumes order', async () => {
-        const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
-        const orderValues = { status: 'PAUSED', interval: 'month', PaymentMethodId: paymentMethod.id };
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        });
+        const orderValues: Parameters<typeof fakeOrder>[0] = {
+          status: status.PAUSED,
+          interval: 'month',
+          PaymentMethodId: paymentMethod.id,
+        };
         orderToPause = await fakeOrder(orderValues, { withSubscription: true });
         await resumeOrder(orderToPause, "Let's continue");
         const updatedOrder = await models.Order.findByPk(orderToPause.id, { include: { association: 'Subscription' } });
@@ -1296,8 +1330,15 @@ describe('server/lib/payments', () => {
       });
 
       it('pauses order', async () => {
-        const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'subscription' });
-        const orderValues = { status: 'ACTIVE', interval: 'month', PaymentMethodId: paymentMethod.id };
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.PAYPAL,
+          type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
+        });
+        const orderValues: Parameters<typeof fakeOrder>[0] = {
+          status: status.ACTIVE,
+          interval: 'month',
+          PaymentMethodId: paymentMethod.id,
+        };
         orderToPause = await fakeOrder(orderValues, { withSubscription: true });
         await pauseOrder(orderToPause, 'Paused for no reason', 'HOST');
         const updatedOrder = await models.Order.findByPk(orderToPause.id, { include: { association: 'Subscription' } });
@@ -1310,8 +1351,15 @@ describe('server/lib/payments', () => {
       });
 
       it('resumes order', async () => {
-        const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'subscription' });
-        const orderValues = { status: 'PAUSED', interval: 'month', PaymentMethodId: paymentMethod.id };
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.PAYPAL,
+          type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
+        });
+        const orderValues: Parameters<typeof fakeOrder>[0] = {
+          status: status.PAUSED,
+          interval: 'month',
+          PaymentMethodId: paymentMethod.id,
+        };
         orderToPause = await fakeOrder(orderValues, { withSubscription: true });
         await resumeOrder(orderToPause, "Let's continue");
         const updatedOrder = await models.Order.findByPk(orderToPause.id, { include: { association: 'Subscription' } });
@@ -1322,8 +1370,15 @@ describe('server/lib/payments', () => {
       });
 
       it('throws if cancellation fails on PayPal', async () => {
-        const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'subscription' });
-        const orderValues = { status: 'ACTIVE', interval: 'month', PaymentMethodId: paymentMethod.id };
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.PAYPAL,
+          type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
+        });
+        const orderValues: Parameters<typeof fakeOrder>[0] = {
+          status: status.ACTIVE,
+          interval: 'month',
+          PaymentMethodId: paymentMethod.id,
+        };
         orderToPause = await fakeOrder(orderValues, { withSubscription: true });
         paypalRequestStub.rejects(new Error('PayPal error'));
         await expect(pauseOrder(orderToPause, 'Paused for no reason', 'HOST')).to.be.rejectedWith(
@@ -1807,11 +1862,11 @@ describe('server/lib/payments', () => {
         totalAmount: AMOUNT,
         currency: collective.currency,
       });
-      order.paymentMethod = {
+      order.paymentMethod = mockPaymentMethod({
         service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
         type: PAYMENT_METHOD_TYPE.MANUAL,
         paid: true,
-      };
+      });
       await executeOrder(user, order);
 
       expect(applyContributionAccountingCategoryRulesSpy).to.have.been.calledWith(order);
@@ -1839,7 +1894,7 @@ describe('server/lib/payments', () => {
     });
 
     it('never produces a non-multiple-of-100 result for zero-decimal currencies', () => {
-      const zeroDecimal = [
+      const zeroDecimal: SupportedCurrency[] = [
         'BIF',
         'CLP',
         'DJF',

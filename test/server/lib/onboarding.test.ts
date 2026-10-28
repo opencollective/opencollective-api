@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
+import { CollectiveType } from '../../../server/constants/collectives';
+import MemberRoles from '../../../server/constants/roles';
 import emailLib from '../../../server/lib/email';
 import { processHostOnBoardingTemplate, processOnBoardingTemplate } from '../../../server/lib/onboarding';
 import models from '../../../server/models';
@@ -35,7 +37,7 @@ describe('server/lib/onboarding', () => {
       const org = await models.Collective.create({
         name: 'airbnb',
         isActive: true,
-        type: 'ORGANIZATION',
+        type: CollectiveType.ORGANIZATION,
         CreatedByUserId: admins[0].id,
         createdAt,
       });
@@ -46,7 +48,7 @@ describe('server/lib/onboarding', () => {
             CreatedByUserId: admins[0].id,
             CollectiveId: org.id,
             MemberCollectiveId: admin.CollectiveId,
-            role: 'ADMIN',
+            role: MemberRoles.ADMIN,
           }),
         ),
       );
@@ -74,7 +76,7 @@ describe('server/lib/onboarding', () => {
       const org = await models.Collective.create({
         name: 'airbnb',
         isActive: true,
-        type: 'ORGANIZATION',
+        type: CollectiveType.ORGANIZATION,
         CreatedByUserId: admins[0].id,
         createdAt,
       });
@@ -85,7 +87,7 @@ describe('server/lib/onboarding', () => {
             CreatedByUserId: admins[0].id,
             CollectiveId: org.id,
             MemberCollectiveId: admin.CollectiveId,
-            role: 'ADMIN',
+            role: MemberRoles.ADMIN,
           }),
         ),
       );
