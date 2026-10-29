@@ -17,6 +17,7 @@ const createCollectiveMutation = gql`
     $host: AccountReferenceInput
     $inviteMembers: [InviteMemberInput]
     $applicationData: JSON
+    $message: String
     $skipDefaultAdmin: Boolean
   ) {
     createCollective(
@@ -24,6 +25,7 @@ const createCollectiveMutation = gql`
       host: $host
       inviteMembers: $inviteMembers
       applicationData: $applicationData
+      message: $message
       skipDefaultAdmin: $skipDefaultAdmin
     ) {
       name
@@ -121,6 +123,44 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
       expect(resultAccount.host.slug).to.equal(host.slug);
       expect(resultAccount.isActive).to.be.false;
       expect(resultAccount.isApproved).to.be.false;
+    });
+
+    it('sanitizes the applicationData and the message', async () => {
+      const result = await utils.graphqlQueryV2(
+        createCollectiveMutation,
+        {
+          collective: newCollectiveData,
+          host: { slug: host.slug },
+          applicationData: {
+            typeOfProject: '<b>CODE</b>',
+            repositoryUrl: 'https://github.com/opencollective/opencollective',
+            extraLicenseInfo: '<p>MIT</p>',
+            amountOfMembers: '<script>alert("xss")</script>0-10',
+            hasLegalEntity: true,
+            ruleConfirmations: ['<i>copyright</i>'],
+          },
+          message: '  <p>We need a host</p><script>alert("xss")</script>  ',
+        },
+        user,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const collective = await models.Collective.findOne({ where: { slug: result.data.createCollective.slug } });
+      const application = await models.HostApplication.findOne({
+        where: { CollectiveId: collective.id, HostCollectiveId: host.id },
+      });
+
+      expect(application).to.exist;
+      expect(application.customData).to.deep.equal({
+        typeOfProject: 'CODE',
+        repositoryUrl: 'https://github.com/opencollective/opencollective',
+        extraLicenseInfo: 'MIT',
+        amountOfMembers: '0-10',
+        hasLegalEntity: true,
+        ruleConfirmations: ['copyright'],
+      });
+      expect(application.message).to.equal('We need a host');
     });
 
     it('collective created with host argument by a user that is a host admin', async () => {

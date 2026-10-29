@@ -14,7 +14,7 @@ import { isBlockedForUnpaidPlatformBilling } from '../../../lib/platform-subscri
 import { getPolicy } from '../../../lib/policies';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
-import { stripHTML } from '../../../lib/sanitize-html';
+import { sanitizeHostApplicationData, sanitizeHostApplicationMessage, stripHTML } from '../../../lib/sanitize-html';
 import models, { Collective, sequelize } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { processInviteMembersInput } from '../../common/members';
@@ -209,8 +209,8 @@ async function createCollective(_, args, req) {
   if (host) {
     await collective.addHost(host, remoteUser, {
       shouldAutomaticallyApprove,
-      message: args.message,
-      applicationData: { ...args.applicationData, validatedRepositoryInfo },
+      message: sanitizeHostApplicationMessage(args.message),
+      applicationData: sanitizeHostApplicationData({ ...args.applicationData, validatedRepositoryInfo }),
     });
     purgeCacheForCollective(host.slug);
   }

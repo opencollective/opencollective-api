@@ -75,5 +75,32 @@ describe('server/lib/activities', () => {
         'Expense approved: EUR 12.34 for <http://localhost:3000/blah/expenses/42|for pizza> in <blah.com|Blah>',
       );
     });
+
+    it(`${constants.COLLECTIVE_APPLY} escapes user-provided text`, () => {
+      const activity = {
+        type: constants.COLLECTIVE_APPLY,
+        data: {
+          collective: { slug: 'foo', name: 'Foo' },
+          host: { slug: 'opensource', name: 'Open Source Collective' },
+          application: {
+            message: '<https://evil.example|click> <!channel>',
+            customData: {
+              repositoryUrl: '<!here>',
+              ecosystemsRepositoryInfo: { fullName: 'example/repo' },
+              ruleConfirmations: ['copyright'],
+            },
+          },
+        },
+      };
+
+      const { options } = activitiesLib.formatMessageForPublicChannel(activity, 'slack');
+
+      // Slack mrkdwn links and mentions embedded in the application cannot be activated
+      expect(options.attachments[0].text).to.equal('&lt;https://evil.example|click&gt; &lt;!channel&gt;');
+      expect(options.attachments[1].fields[0].value).to.equal('&lt;!here&gt;');
+      // Structured values are serialized, since Slack attachment field values must be strings
+      expect(options.attachments[1].fields[1].value).to.equal('{"fullName":"example/repo"}');
+      expect(options.attachments[1].fields[2].value).to.equal('["copyright"]');
+    });
   });
 });

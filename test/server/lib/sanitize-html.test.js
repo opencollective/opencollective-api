@@ -4,6 +4,8 @@ import config from 'config';
 import {
   buildSanitizerOptions,
   generateSummaryForHTML,
+  sanitizeHostApplicationData,
+  sanitizeHostApplicationMessage,
   sanitizeHTML,
   stripHTML,
   YOUTUBE_IFRAME_REFERRER_POLICY,
@@ -268,6 +270,93 @@ describe('server/lib/sanitize-html', () => {
 
     it('Truncating tags in middle works as expected', () => {
       expect(generateSummaryForHTML("I'd like to say <strong>Hello World</strong>", 20)).to.to.eq("I'd like to say...");
+    });
+  });
+
+  describe('sanitizeHostApplicationData', () => {
+    it('strips HTML from all string values and preserves other types', () => {
+      const data = {
+        repositoryUrl: 'https://github.com/opencollective/opencollective',
+        extraLicenseInfo: '<p>MIT <b>and</b> Apache</p>',
+        amountOfMembers: '<script>alert("xss")</script>0-10',
+        hasLegalEntity: true,
+        totalAmountRaised: 1500,
+        missionImpactExplanation: null,
+      };
+
+      expect(sanitizeHostApplicationData(data)).to.deep.equal({
+        repositoryUrl: 'https://github.com/opencollective/opencollective',
+        extraLicenseInfo: 'MIT and Apache',
+        amountOfMembers: '0-10',
+        hasLegalEntity: true,
+        totalAmountRaised: 1500,
+        missionImpactExplanation: null,
+      });
+    });
+
+    it('strips HTML recursively in nested objects and arrays', () => {
+      const data = {
+        validatedRepositoryInfo: {
+          allValidationsPassed: true,
+          fields: {
+            lastCommitDate: { value: '<b>2026-01-01</b>', isValid: true },
+            isAdmin: { value: false, isValid: false },
+          },
+        },
+        ruleConfirmations: ['<i>copyright</i>', 'license'],
+        ecosystemsRepositoryInfo: {
+          packages: [{ name: '<b>pkg</b>name', maintainers: [{ login: 'leo', name: '<b>Leo</b>' }] }],
+        },
+      };
+
+      expect(sanitizeHostApplicationData(data)).to.deep.equal({
+        validatedRepositoryInfo: {
+          allValidationsPassed: true,
+          fields: {
+            lastCommitDate: { value: '2026-01-01', isValid: true },
+            isAdmin: { value: false, isValid: false },
+          },
+        },
+        ruleConfirmations: ['copyright', 'license'],
+        ecosystemsRepositoryInfo: {
+          packages: [{ name: 'pkgname', maintainers: [{ login: 'leo', name: 'Leo' }] }],
+        },
+      });
+    });
+
+    it('preserves unknown keys instead of whitelisting them', () => {
+      const data = { migration: '<p>legacy</p>', someFutureField: 'kept' };
+      expect(sanitizeHostApplicationData(data)).to.deep.equal({ migration: 'legacy', someFutureField: 'kept' });
+    });
+
+    it('preserves plain-text ampersands and query strings', () => {
+      expect(
+        sanitizeHostApplicationData({
+          repositoryUrl: 'https://github.com/foo/bar?a=1&b=2',
+          extraLicenseInfo: 'R&D <b>team</b>',
+        }),
+      ).to.deep.equal({
+        repositoryUrl: 'https://github.com/foo/bar?a=1&b=2',
+        extraLicenseInfo: 'R&D team',
+      });
+    });
+
+    it('returns null/undefined as-is', () => {
+      expect(sanitizeHostApplicationData(null)).to.be.null;
+      expect(sanitizeHostApplicationData(undefined)).to.be.undefined;
+    });
+  });
+
+  describe('sanitizeHostApplicationMessage', () => {
+    it('strips the HTML and trims the message', () => {
+      expect(sanitizeHostApplicationMessage('  <p>We need a host</p>\n')).to.equal('We need a host');
+      expect(sanitizeHostApplicationMessage('<div>Line 1</div><div>Line 2</div>')).to.equal('Line 1Line 2');
+      expect(sanitizeHostApplicationMessage('<p>R&D team</p>')).to.equal('R&D team');
+    });
+
+    it('returns null/undefined as-is', () => {
+      expect(sanitizeHostApplicationMessage(null)).to.be.null;
+      expect(sanitizeHostApplicationMessage(undefined)).to.be.undefined;
     });
   });
 });
