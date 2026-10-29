@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 import { shuffle, times } from 'lodash';
 
 import { roles } from '../../../../../server/constants';
+import OrderStatuses from '../../../../../server/constants/order-status';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models from '../../../../../server/models';
 import { randEmail } from '../../../../stores';
@@ -126,6 +127,142 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         expect(result.data.account.legalName).to.be.null;
       });
     });
+
+    describe('for processing orders', () => {
+      it('is visible to host admins for a PROCESSING order created by the user', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeHost({ admin: hostAdmin });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const contributor = await fakeUser({}, { legalName: 'PROCESSING_ORDER!' });
+        await fakeOrder({
+          CreatedByUserId: contributor.id,
+          CollectiveId: collective.id,
+          status: OrderStatuses.PROCESSING,
+        });
+
+        const result = await graphqlQueryV2(accountQuery, { slug: contributor.collective.slug }, hostAdmin);
+        expect(result.errors).to.not.exist;
+        expect(result.data.account.legalName).to.eq('PROCESSING_ORDER!');
+      });
+
+      it('is hidden from collective admins for a PROCESSING order created by the user', async () => {
+        const collectiveAdmin = await fakeUser();
+        const host = await fakeHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+        const contributor = await fakeUser({}, { legalName: 'PROCESSING_ORDER!' });
+        await fakeOrder({
+          CreatedByUserId: contributor.id,
+          CollectiveId: collective.id,
+          status: OrderStatuses.PROCESSING,
+        });
+
+        const result = await graphqlQueryV2(accountQuery, { slug: contributor.collective.slug }, collectiveAdmin);
+        expect(result.errors).to.not.exist;
+        expect(result.data.account.legalName).to.be.null;
+      });
+
+      it('is hidden for orders that are not PROCESSING', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeHost({ admin: hostAdmin });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const contributor = await fakeUser({}, { legalName: 'PROCESSING_ORDER!' });
+        await fakeOrder({
+          CreatedByUserId: contributor.id,
+          CollectiveId: collective.id,
+          status: OrderStatuses.ACTIVE,
+        });
+
+        const result = await graphqlQueryV2(accountQuery, { slug: contributor.collective.slug }, hostAdmin);
+        expect(result.errors).to.not.exist;
+        expect(result.data.account.legalName).to.be.null;
+      });
+
+      it('is hidden when the order was created by someone else', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeHost({ admin: hostAdmin });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const contributor = await fakeUser({}, { legalName: 'PROCESSING_ORDER!' });
+        const otherUser = await fakeUser();
+        await fakeOrder({
+          FromCollectiveId: contributor.collective.id,
+          CreatedByUserId: otherUser.id,
+          CollectiveId: collective.id,
+          status: OrderStatuses.PROCESSING,
+        });
+
+        const result = await graphqlQueryV2(accountQuery, { slug: contributor.collective.slug }, hostAdmin);
+        expect(result.errors).to.not.exist;
+        expect(result.data.account.legalName).to.be.null;
+      });
+    });
+  });
+
+  describe('emails for processing orders', () => {
+    it('is visible to host admins for a PROCESSING order created by the user', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const contributor = await fakeUser();
+      await fakeOrder({
+        CreatedByUserId: contributor.id,
+        CollectiveId: collective.id,
+        status: OrderStatuses.PROCESSING,
+      });
+
+      const result = await graphqlQueryV2(accountQuery, { slug: contributor.collective.slug }, hostAdmin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.emails).to.deep.eq([contributor.email]);
+    });
+
+    it('is hidden from collective admins for a PROCESSING order created by the user', async () => {
+      const collectiveAdmin = await fakeUser();
+      const host = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+      const contributor = await fakeUser();
+      await fakeOrder({
+        CreatedByUserId: contributor.id,
+        CollectiveId: collective.id,
+        status: OrderStatuses.PROCESSING,
+      });
+
+      const result = await graphqlQueryV2(accountQuery, { slug: contributor.collective.slug }, collectiveAdmin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.emails).to.be.null;
+    });
+
+    it('is hidden for orders that are not PROCESSING', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const contributor = await fakeUser();
+      await fakeOrder({
+        CreatedByUserId: contributor.id,
+        CollectiveId: collective.id,
+        status: OrderStatuses.ACTIVE,
+      });
+
+      const result = await graphqlQueryV2(accountQuery, { slug: contributor.collective.slug }, hostAdmin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.emails).to.be.null;
+    });
+
+    it('is hidden when the order was created by someone else', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const contributor = await fakeUser();
+      const otherUser = await fakeUser();
+      await fakeOrder({
+        FromCollectiveId: contributor.collective.id,
+        CreatedByUserId: otherUser.id,
+        CollectiveId: collective.id,
+        status: OrderStatuses.PROCESSING,
+      });
+
+      const result = await graphqlQueryV2(accountQuery, { slug: contributor.collective.slug }, hostAdmin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.emails).to.be.null;
+    });
   });
 
   describe('publicId', () => {
@@ -245,6 +382,74 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         const user = await fakeUser(null, { location: { address: 'PRIVATE!' } });
         const incognitoProfile = await user.collective.getOrCreateIncognitoProfile();
         const result = await graphqlQueryV2(accountQuery, { slug: incognitoProfile.slug });
+        expect(result.data.account.location).to.be.null;
+      });
+    });
+
+    describe('for processing orders', () => {
+      it('is visible to host admins for a PROCESSING order created by the user', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeHost({ admin: hostAdmin });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const contributor = await fakeUser(null, { location: { address: 'PROCESSING_ORDER!' } });
+        await fakeOrder({
+          CreatedByUserId: contributor.id,
+          CollectiveId: collective.id,
+          status: OrderStatuses.PROCESSING,
+        });
+
+        const result = await graphqlQueryV2(accountQuery, { slug: contributor.collective.slug }, hostAdmin);
+        expect(result.errors).to.not.exist;
+        expect(result.data.account.location.address).to.eq('PROCESSING_ORDER!');
+      });
+
+      it('is hidden from collective admins for a PROCESSING order created by the user', async () => {
+        const collectiveAdmin = await fakeUser();
+        const host = await fakeHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+        const contributor = await fakeUser(null, { location: { address: 'PROCESSING_ORDER!' } });
+        await fakeOrder({
+          CreatedByUserId: contributor.id,
+          CollectiveId: collective.id,
+          status: OrderStatuses.PROCESSING,
+        });
+
+        const result = await graphqlQueryV2(accountQuery, { slug: contributor.collective.slug }, collectiveAdmin);
+        expect(result.errors).to.not.exist;
+        expect(result.data.account.location).to.be.null;
+      });
+
+      it('is hidden for orders that are not PROCESSING', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeHost({ admin: hostAdmin });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const contributor = await fakeUser(null, { location: { address: 'PROCESSING_ORDER!' } });
+        await fakeOrder({
+          CreatedByUserId: contributor.id,
+          CollectiveId: collective.id,
+          status: OrderStatuses.ACTIVE,
+        });
+
+        const result = await graphqlQueryV2(accountQuery, { slug: contributor.collective.slug }, hostAdmin);
+        expect(result.errors).to.not.exist;
+        expect(result.data.account.location).to.be.null;
+      });
+
+      it('is hidden when the order was created by someone else', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeHost({ admin: hostAdmin });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const contributor = await fakeUser(null, { location: { address: 'PROCESSING_ORDER!' } });
+        const otherUser = await fakeUser();
+        await fakeOrder({
+          FromCollectiveId: contributor.collective.id,
+          CreatedByUserId: otherUser.id,
+          CollectiveId: collective.id,
+          status: OrderStatuses.PROCESSING,
+        });
+
+        const result = await graphqlQueryV2(accountQuery, { slug: contributor.collective.slug }, hostAdmin);
+        expect(result.errors).to.not.exist;
         expect(result.data.account.location).to.be.null;
       });
     });

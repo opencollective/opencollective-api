@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import moment from 'moment';
 
 import { CollectiveType } from '../../../../server/constants/collectives';
+import OrderStatuses from '../../../../server/constants/order-status';
 import MemberRoles from '../../../../server/constants/roles';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import CollectiveLoaders from '../../../../server/graphql/loaders/collective';
@@ -10,6 +11,8 @@ import {
   fakeActiveHost,
   fakeCollective,
   fakeMember,
+  fakeOrder,
+  fakeOrganization,
   fakeTransaction,
   fakeUser,
   multiple,
@@ -261,6 +264,110 @@ describe('server/graphql/loaders/collective', () => {
         expect(result).to.be.false;
       });
     });
+
+    describe('Processing orders', () => {
+      let hostAdmin, host, collective, target;
+
+      beforeEach(async () => {
+        hostAdmin = await fakeUser();
+        host = await fakeActiveHost({ admin: hostAdmin });
+        collective = await fakeCollective({ HostCollectiveId: host.id });
+        target = await fakeUser();
+      });
+
+      const canSeeProfileInfo = (remoteUser = hostAdmin) =>
+        CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser }).load(target.collective.id);
+
+      it('grants access for a PROCESSING order created by the target', async () => {
+        await fakeOrder({
+          CreatedByUserId: target.id,
+          FromCollectiveId: target.collective.id,
+          CollectiveId: collective.id,
+          status: OrderStatuses.PROCESSING,
+        });
+        expect(await canSeeProfileInfo()).to.be.true;
+      });
+
+      it('grants access when the target created the order for another account', async () => {
+        const organization = await fakeOrganization({ admin: target });
+        await fakeOrder({
+          FromCollectiveId: organization.id,
+          CreatedByUserId: target.id,
+          CollectiveId: collective.id,
+          status: OrderStatuses.PROCESSING,
+        });
+        expect(await canSeeProfileInfo()).to.be.true;
+      });
+
+      it('does not grant access based on the order from-collective alone', async () => {
+        const otherUser = await fakeUser();
+        await fakeOrder({
+          FromCollectiveId: target.collective.id,
+          CreatedByUserId: otherUser.id,
+          CollectiveId: collective.id,
+          status: OrderStatuses.PROCESSING,
+        });
+        expect(await canSeeProfileInfo()).to.be.false;
+      });
+
+      it('does not grant access for orders that are not PROCESSING', async () => {
+        for (const status of [OrderStatuses.ACTIVE, OrderStatuses.DISPUTED, OrderStatuses.PENDING]) {
+          await fakeOrder({
+            FromCollectiveId: target.collective.id,
+            CreatedByUserId: target.id,
+            CollectiveId: collective.id,
+            status,
+          });
+        }
+        expect(await canSeeProfileInfo()).to.be.false;
+      });
+
+      it('does not grant access when the collective is hosted by another host', async () => {
+        const otherHost = await fakeActiveHost();
+        const otherCollective = await fakeCollective({ HostCollectiveId: otherHost.id });
+        await fakeOrder({
+          CreatedByUserId: target.id,
+          CollectiveId: otherCollective.id,
+          status: OrderStatuses.PROCESSING,
+        });
+        expect(await canSeeProfileInfo()).to.be.false;
+      });
+
+      it('does not grant access to collective admins', async () => {
+        const collectiveAdmin = await fakeUser();
+        await collective.addUserWithRole(collectiveAdmin, MemberRoles.ADMIN);
+        await fakeOrder({
+          FromCollectiveId: target.collective.id,
+          CreatedByUserId: target.id,
+          CollectiveId: collective.id,
+          status: OrderStatuses.PROCESSING,
+        });
+        expect(await canSeeProfileInfo(collectiveAdmin)).to.be.false;
+      });
+
+      it('does not grant access to host accountants', async () => {
+        const accountant = await fakeUser();
+        await host.addUserWithRole(accountant, MemberRoles.ACCOUNTANT);
+        await fakeOrder({
+          FromCollectiveId: target.collective.id,
+          CreatedByUserId: target.id,
+          CollectiveId: collective.id,
+          status: OrderStatuses.PROCESSING,
+        });
+        expect(await canSeeProfileInfo(accountant)).to.be.false;
+      });
+
+      it('does not grant access to random users', async () => {
+        const randomUser = await fakeUser();
+        await fakeOrder({
+          FromCollectiveId: target.collective.id,
+          CreatedByUserId: target.id,
+          CollectiveId: collective.id,
+          status: OrderStatuses.PROCESSING,
+        });
+        expect(await canSeeProfileInfo(randomUser)).to.be.false;
+      });
+    });
   });
 
   describe('canSeePrivateLocation', () => {
@@ -306,6 +413,110 @@ describe('server/graphql/loaders/collective', () => {
       const loader = CollectiveLoaders.canSeePrivateLocation({ remoteUser: hostAdmin });
       const result = await loader.load(userWithPrivateInfo.CollectiveId);
       expect(result).to.be.true;
+    });
+  });
+
+  describe('canSeePrivateLocation with processing orders', () => {
+    let hostAdmin, host, collective, target;
+
+    beforeEach(async () => {
+      hostAdmin = await fakeUser();
+      host = await fakeActiveHost({ admin: hostAdmin });
+      collective = await fakeCollective({ HostCollectiveId: host.id });
+      target = await fakeUser();
+    });
+
+    const canSeeLocation = (remoteUser = hostAdmin) =>
+      CollectiveLoaders.canSeePrivateLocation({ remoteUser }).load(target.collective.id);
+
+    it('grants access for a PROCESSING order created by the target', async () => {
+      await fakeOrder({
+        CreatedByUserId: target.id,
+        FromCollectiveId: target.collective.id,
+        CollectiveId: collective.id,
+        status: OrderStatuses.PROCESSING,
+      });
+      expect(await canSeeLocation()).to.be.true;
+    });
+
+    it('grants access when the target created the order for another account', async () => {
+      const organization = await fakeOrganization({ admin: target });
+      await fakeOrder({
+        FromCollectiveId: organization.id,
+        CreatedByUserId: target.id,
+        CollectiveId: collective.id,
+        status: OrderStatuses.PROCESSING,
+      });
+      expect(await canSeeLocation()).to.be.true;
+    });
+
+    it('does not grant access based on the order from-collective alone', async () => {
+      const otherUser = await fakeUser();
+      await fakeOrder({
+        FromCollectiveId: target.collective.id,
+        CreatedByUserId: otherUser.id,
+        CollectiveId: collective.id,
+        status: OrderStatuses.PROCESSING,
+      });
+      expect(await canSeeLocation()).to.be.false;
+    });
+
+    it('does not grant access for orders that are not PROCESSING', async () => {
+      for (const status of [OrderStatuses.ACTIVE, OrderStatuses.DISPUTED, OrderStatuses.PENDING]) {
+        await fakeOrder({
+          FromCollectiveId: target.collective.id,
+          CreatedByUserId: target.id,
+          CollectiveId: collective.id,
+          status,
+        });
+      }
+      expect(await canSeeLocation()).to.be.false;
+    });
+
+    it('does not grant access when the collective is hosted by another host', async () => {
+      const otherHost = await fakeActiveHost();
+      const otherCollective = await fakeCollective({ HostCollectiveId: otherHost.id });
+      await fakeOrder({
+        CreatedByUserId: target.id,
+        CollectiveId: otherCollective.id,
+        status: OrderStatuses.PROCESSING,
+      });
+      expect(await canSeeLocation()).to.be.false;
+    });
+
+    it('does not grant access to collective admins', async () => {
+      const collectiveAdmin = await fakeUser();
+      await collective.addUserWithRole(collectiveAdmin, MemberRoles.ADMIN);
+      await fakeOrder({
+        FromCollectiveId: target.collective.id,
+        CreatedByUserId: target.id,
+        CollectiveId: collective.id,
+        status: OrderStatuses.PROCESSING,
+      });
+      expect(await canSeeLocation(collectiveAdmin)).to.be.false;
+    });
+
+    it('does not grant access to host accountants', async () => {
+      const accountant = await fakeUser();
+      await host.addUserWithRole(accountant, MemberRoles.ACCOUNTANT);
+      await fakeOrder({
+        FromCollectiveId: target.collective.id,
+        CreatedByUserId: target.id,
+        CollectiveId: collective.id,
+        status: OrderStatuses.PROCESSING,
+      });
+      expect(await canSeeLocation(accountant)).to.be.false;
+    });
+
+    it('does not grant access to random users', async () => {
+      const randomUser = await fakeUser();
+      await fakeOrder({
+        FromCollectiveId: target.collective.id,
+        CreatedByUserId: target.id,
+        CollectiveId: collective.id,
+        status: OrderStatuses.PROCESSING,
+      });
+      expect(await canSeeLocation(randomUser)).to.be.false;
     });
   });
 
