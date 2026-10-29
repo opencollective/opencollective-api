@@ -26,18 +26,28 @@ import status from '../../constants/expense-status';
 import expenseType from '../../constants/expense-type';
 import { isAccountHolderNameAndLegalNameMatch } from '../../graphql/common/expenses';
 import type { ConvertToCurrencyArgs } from '../../graphql/loaders/currency-exchange-rate';
-import models, { ExpenseAttachedFile, ExpenseItem, Op, sequelize, UploadedFile } from '../../models';
+import models, { Collective, ExpenseAttachedFile, ExpenseItem, Op, sequelize, UploadedFile } from '../../models';
 import Expense from '../../models/Expense';
+import LegalDocument, { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
 import { PayoutMethodTypes, PaypalPayoutMethodData } from '../../models/PayoutMethod';
+import { Location as LocationType } from '../../types/Location';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
 import { handleExpenseKycSecurityChecks } from '../kyc/expenses/kyc-expenses-check';
 import { expenseMightBeSubjectToTaxForm } from '../tax-forms';
+import {
+  getLegalDocumentAddressMismatchDetails,
+  getLegalDocumentCountryMismatchDetails,
+  getLegalDocumentIdentity,
+  getLegalDocumentNameMismatchDetails,
+  LegalDocumentIdentity,
+} from '../tax-forms/identity';
 import { formatCurrency } from '../utils';
 
 export enum Scope {
   USER = 'USER',
   COLLECTIVE = 'COLLECTIVE',
   PAYEE = 'PAYEE',
+  LEGAL_DOCUMENT = 'LEGAL_DOCUMENT',
   PAYOUT_METHOD = 'PAYOUT_METHOD',
   ATTACHMENTS = 'ATTACHMENTS',
 }
@@ -416,6 +426,252 @@ const getCollectiveBalances = async (
   return keyBy(balancesInHostCurrency, 'CollectiveId');
 };
 
+const getCollectiveHosts = async (
+  req: Express.Request,
+  expenses: Array<Expense>,
+): Promise<Map<number, Collective | null>> => {
+  const hostsByCollectiveId = new Map<number, Collective | null>();
+  const collectiveIds = uniq(expenses.map(expense => expense.CollectiveId));
+  const collectivesById = new Map<number, Collective>();
+  for (const expense of expenses) {
+    if (expense.collective && !collectivesById.has(expense.CollectiveId)) {
+      collectivesById.set(expense.CollectiveId, expense.collective);
+    }
+  }
+
+  await Promise.all(
+    collectiveIds.map(async collectiveId => {
+      const collective = collectivesById.get(collectiveId) || (await req.loaders.Collective.byId.load(collectiveId));
+      const host =
+        collective?.host || (collective ? await collective.getHostCollective({ loaders: req.loaders }) : null);
+      hostsByCollectiveId.set(collectiveId, host || null);
+    }),
+  );
+
+  return hostsByCollectiveId;
+};
+
+type LegalDocumentIdentitiesContext = {
+  /** Normalized identity of the payees whose expenses are processed by a host collecting tax forms. */
+  identitiesByPayeeId: Map<number, LegalDocumentIdentity>;
+  /** Ids of the collectives (paying the expenses) whose fiscal host requires a US tax form. */
+  collectiveIdsWithRequiredTaxForms: Set<number>;
+};
+
+/**
+ * Loads the latest RECEIVED US tax form of each payee in the batch and normalizes its identity. Documents
+ * are decrypted once, here, and never exposed outside of the security checks.
+ *
+ * Legal documents are global to a payee, so they are scoped to the fiscal host processing each expense:
+ * only hosts that require a US tax form are considered, and checks are only run for their expenses.
+ */
+const getPayeeLegalDocumentIdentities = async (
+  req: Express.Request,
+  expenses: Array<Expense>,
+): Promise<LegalDocumentIdentitiesContext> => {
+  const identitiesByPayeeId = new Map<number, LegalDocumentIdentity>();
+  const collectiveIdsWithRequiredTaxForms = new Set<number>();
+  const result = { identitiesByPayeeId, collectiveIdsWithRequiredTaxForms };
+  if (!expenses.length) {
+    return result;
+  }
+
+  // Load the payees' latest RECEIVED tax form first. When there is none, there is nothing to compare
+  // and we can skip the host and tax-form requirement lookups entirely.
+  const payeeIds = uniq(expenses.map(expense => expense.FromCollectiveId));
+  const legalDocuments = await models.LegalDocument.findAll({
+    where: {
+      CollectiveId: { [Op.in]: payeeIds },
+      documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+      requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+    },
+    order: [
+      ['createdAt', 'DESC'],
+      ['id', 'DESC'],
+    ],
+  });
+  if (!legalDocuments.length) {
+    return result;
+  }
+
+  // Load the fiscal host processing each expense, through the expense's collective
+  const hostsByCollectiveId = await getCollectiveHosts(req, expenses);
+  const hostIds = uniq(compact(Array.from(hostsByCollectiveId.values()).map(host => host?.id)));
+  if (!hostIds.length) {
+    return result;
+  }
+
+  // Only hosts connected to the tax form system can have relevant legal documents
+  const requiredLegalDocuments = await models.RequiredLegalDocument.findAll({
+    where: {
+      HostCollectiveId: { [Op.in]: hostIds },
+      documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+    },
+    attributes: ['HostCollectiveId'],
+    raw: true,
+  });
+  const hostIdsWithRequiredTaxForms = new Set(requiredLegalDocuments.map(doc => doc.HostCollectiveId));
+  for (const [collectiveId, host] of hostsByCollectiveId) {
+    if (host && hostIdsWithRequiredTaxForms.has(host.id)) {
+      collectiveIdsWithRequiredTaxForms.add(collectiveId);
+    }
+  }
+
+  const payeeIdsWithRequiredTaxForms = new Set(
+    expenses
+      .filter(expense => collectiveIdsWithRequiredTaxForms.has(expense.CollectiveId))
+      .map(expense => expense.FromCollectiveId),
+  );
+
+  // Keep only the latest document of each payee, and only for payees whose host requires a tax form
+  const latestLegalDocumentByPayeeId = new Map<number, LegalDocument>();
+  for (const legalDocument of legalDocuments) {
+    if (
+      payeeIdsWithRequiredTaxForms.has(legalDocument.CollectiveId) &&
+      !latestLegalDocumentByPayeeId.has(legalDocument.CollectiveId)
+    ) {
+      latestLegalDocumentByPayeeId.set(legalDocument.CollectiveId, legalDocument);
+    }
+  }
+
+  for (const [payeeId, legalDocument] of latestLegalDocumentByPayeeId) {
+    const identity = getLegalDocumentIdentity(legalDocument);
+    if (identity) {
+      identitiesByPayeeId.set(payeeId, identity);
+    }
+  }
+
+  return result;
+};
+
+const getPayeeLocations = async (req: Express.Request, payeeIds: Array<number>): Promise<Map<number, LocationType>> => {
+  const locationsByPayeeId = new Map<number, LocationType>();
+  if (!payeeIds.length) {
+    return locationsByPayeeId;
+  }
+
+  const locations = await req.loaders.Location.byCollectiveId.loadMany(payeeIds);
+  for (const location of locations) {
+    if (location instanceof models.Location) {
+      locationsByPayeeId.set(location.CollectiveId, location);
+    }
+  }
+
+  return locationsByPayeeId;
+};
+
+type BankAccountIdentity = {
+  accountHolderName: string | null;
+  address: {
+    city: string | null;
+    postalCode: string | null;
+    country: string | null;
+  };
+};
+
+const getBankAccountIdentity = (
+  payoutMethodData: BankAccountPayoutMethodData | null | undefined,
+): BankAccountIdentity | null => {
+  if (!payoutMethodData) {
+    return null;
+  }
+
+  const address = payoutMethodData.details?.address;
+  return {
+    accountHolderName: payoutMethodData.accountHolderName || null,
+    address: {
+      city: address?.city || null,
+      postalCode: address?.postCode || null,
+      country: address?.country || address?.countryCode || null,
+    },
+  };
+};
+
+const checkLegalDocumentIdentity = (
+  checks: Array<SecurityCheck>,
+  expense: Expense,
+  identity: LegalDocumentIdentity,
+  payeeLocation?: LocationType | null,
+  bankAccount?: BankAccountIdentity | null,
+) => {
+  const payeeName = expense.fromCollective.legalName || expense.fromCollective.name;
+  const payeeAddress =
+    expense.payeeLocation?.structured || payeeLocation?.structured || expense.fromCollective.data?.address;
+  const payeeCountry = expense.payeeLocation?.country || payeeLocation?.country || expense.fromCollective.countryISO;
+
+  const nameMismatchDetails = getLegalDocumentNameMismatchDetails(identity, payeeName);
+  if (nameMismatchDetails) {
+    checks.push({
+      scope: Scope.LEGAL_DOCUMENT,
+      level: Level.MEDIUM,
+      message: 'Legal document name does not match the payee name',
+      details: nameMismatchDetails,
+    });
+  }
+
+  const addressMismatchDetails = getLegalDocumentAddressMismatchDetails(identity, payeeAddress, payeeCountry);
+  if (addressMismatchDetails) {
+    checks.push({
+      scope: Scope.LEGAL_DOCUMENT,
+      level: Level.MEDIUM,
+      message: 'Legal document address does not match the payee address',
+      details: addressMismatchDetails,
+    });
+  }
+
+  const countryMismatchDetails = getLegalDocumentCountryMismatchDetails(identity, payeeCountry);
+  if (countryMismatchDetails) {
+    checks.push({
+      scope: Scope.LEGAL_DOCUMENT,
+      level: Level.MEDIUM,
+      message: 'Legal document country does not match the payee country',
+      details: countryMismatchDetails,
+    });
+  }
+
+  // Also compare the legal document to the bank account used to pay the expense, when there is one
+  if (bankAccount) {
+    const bankNameMismatchDetails = getLegalDocumentNameMismatchDetails(identity, bankAccount.accountHolderName, {
+      nameLabel: 'payout method account holder name',
+    });
+    if (bankNameMismatchDetails) {
+      checks.push({
+        scope: Scope.LEGAL_DOCUMENT,
+        level: Level.MEDIUM,
+        message: 'Legal document name does not match the payout method account holder name',
+        details: bankNameMismatchDetails,
+      });
+    }
+
+    const bankAddressMismatchDetails = getLegalDocumentAddressMismatchDetails(
+      identity,
+      bankAccount.address,
+      bankAccount.address.country,
+      { counterpartyLabel: 'payout method' },
+    );
+    if (bankAddressMismatchDetails) {
+      checks.push({
+        scope: Scope.LEGAL_DOCUMENT,
+        level: Level.MEDIUM,
+        message: 'Legal document address does not match the payout method address',
+        details: bankAddressMismatchDetails,
+      });
+    }
+
+    const bankCountryMismatchDetails = getLegalDocumentCountryMismatchDetails(identity, bankAccount.address.country, {
+      counterpartyLabel: 'payout method',
+    });
+    if (bankCountryMismatchDetails) {
+      checks.push({
+        scope: Scope.LEGAL_DOCUMENT,
+        level: Level.MEDIUM,
+        message: 'Legal document country does not match the payout method country',
+        details: bankCountryMismatchDetails,
+      });
+    }
+  }
+};
+
 export const checkExpensesBatch = async (
   req: Express.Request,
   expenses: Array<Expense>,
@@ -448,6 +704,11 @@ export const checkExpensesBatch = async (
   });
 
   const checkExpenseAttachments = await buildExpenseAttachmentChecker(req, expenses);
+  const legalDocumentIdentitiesContext = await getPayeeLegalDocumentIdentities(req, expenses);
+  const payeeLocationsByPayeeId = await getPayeeLocations(
+    req,
+    uniq(Array.from(legalDocumentIdentitiesContext.identitiesByPayeeId.keys())),
+  );
 
   const usersByIp = await models.User.findAll({
     where: { [Op.or]: usersByIpConditions },
@@ -648,6 +909,25 @@ export const checkExpensesBatch = async (
           message: `Pending required legal documents`,
           details: `Expense is pending a US tax form (W9/W8-BEN)`,
         });
+      }
+
+      // Add checks comparing the identity submitted in the legal document to the payee account.
+      // Only run them when the fiscal host processing this expense requires a US tax form.
+      if (legalDocumentIdentitiesContext.collectiveIdsWithRequiredTaxForms.has(expense.CollectiveId)) {
+        const legalDocumentIdentity = legalDocumentIdentitiesContext.identitiesByPayeeId.get(expense.FromCollectiveId);
+        if (legalDocumentIdentity) {
+          const bankAccountIdentity =
+            payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT
+              ? getBankAccountIdentity(payoutMethod.data as BankAccountPayoutMethodData)
+              : null;
+          checkLegalDocumentIdentity(
+            checks,
+            expense,
+            legalDocumentIdentity,
+            payeeLocationsByPayeeId.get(expense.FromCollectiveId),
+            bankAccountIdentity,
+          );
+        }
       }
 
       const orderStats:
