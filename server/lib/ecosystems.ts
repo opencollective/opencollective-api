@@ -277,11 +277,30 @@ function hostAndOwnerFromUrl(url: string): { hostName: string; owner: string } |
 }
 
 export async function fetchRepoSummary(repoUrl: string): Promise<EcosystemsRepoSummary> {
+  const { summary } = await fetchRepoSummaryWithStatus(repoUrl);
+  return summary;
+}
+
+/**
+ * Same as `fetchRepoSummary`, but also reports whether every secondary lookup succeeded.
+ * Callers that cache the result (e.g. the repository info controller) must not persist a
+ * partial summary: a transient upstream failure would otherwise be served for the cache TTL.
+ */
+export async function fetchRepoSummaryWithStatus(
+  repoUrl: string,
+): Promise<{ summary: EcosystemsRepoSummary; isComplete: boolean }> {
+  let isComplete = true;
+  const tolerateFailure = <T>(promise: Promise<T>): Promise<T | null> =>
+    promise.catch(() => {
+      isComplete = false;
+      return null;
+    });
+
   const [packages, contributors, issues] = await Promise.all([
     fetchRepoPackages(repoUrl),
     // Secondary lookups should not fail the whole summary
-    fetchCommitsLookup(repoUrl).catch(() => null),
-    fetchIssuesLookup(repoUrl).catch(() => null),
+    tolerateFailure(fetchCommitsLookup(repoUrl)),
+    tolerateFailure(fetchIssuesLookup(repoUrl)),
   ]);
 
   // Same resolution order as the POC: prefer the metadata attached to a package, fall back to the repos lookup
@@ -292,8 +311,8 @@ export async function fetchRepoSummary(repoUrl: string): Promise<EcosystemsRepoS
   const hostName = repository?.host?.name || fromUrl?.hostName;
   const ownerLogin = repository?.owner || fromUrl?.owner;
   if (hostName && ownerLogin) {
-    owner = await fetchOwnerLookup(hostName, ownerLogin).catch(() => null);
+    owner = await tolerateFailure(fetchOwnerLookup(hostName, ownerLogin));
   }
 
-  return { packages, repository, contributors, issues, owner };
+  return { summary: { packages, repository, contributors, issues, owner }, isComplete };
 }

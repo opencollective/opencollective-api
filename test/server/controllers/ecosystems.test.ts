@@ -18,13 +18,16 @@ const REPOSITORY_METADATA = {
 };
 
 /** Replies with the appropriate upstream body for each ecosyste.ms endpoint */
-const stubEcosystemsFetch = (sandbox: sinon.SinonSandbox) =>
+const stubEcosystemsFetch = (sandbox: sinon.SinonSandbox, { commitsStatus = 200 } = {}) =>
   sandbox.stub(globalThis, 'fetch').callsFake(async (input: any) => {
     const url = String(input);
     let body;
     if (url.includes('packages.ecosyste.ms')) {
       body = [];
     } else if (url.includes('commits.ecosyste.ms')) {
+      if (commitsStatus !== 200) {
+        return { ok: false, status: commitsStatus, json: () => Promise.resolve({ error: 'boom' }) } as Response;
+      }
       body = { total_commits: 10 };
     } else if (url.includes('issues.ecosyste.ms')) {
       body = { issues_count: 3 };
@@ -123,6 +126,21 @@ describe('server/controllers/ecosystems', () => {
       expect(secondResponse._getData()).to.deep.equal(EXPECTED_ENTRY);
       expect(upstreamCallsCount).to.be.greaterThan(0);
       expect(fetchStub.callCount).to.equal(upstreamCallsCount); // Served from the cache, no extra upstream call
+    });
+
+    it('does not cache a partial summary when a secondary lookup fails', async () => {
+      const fetchStub = stubEcosystemsFetch(sandbox, { commitsStatus: 500 });
+
+      const firstResponse = httpMocks.createResponse();
+      await getRepositoryInfo(makeRequest({ url: REPO_URL }), firstResponse);
+      expect(firstResponse._getStatusCode()).to.equal(200);
+      const upstreamCallsAfterFirst = fetchStub.callCount;
+
+      // The partial result is returned but not cached, so the next request retries upstream
+      const secondResponse = httpMocks.createResponse();
+      await getRepositoryInfo(makeRequest({ url: REPO_URL }), secondResponse);
+      expect(secondResponse._getStatusCode()).to.equal(200);
+      expect(fetchStub.callCount).to.be.greaterThan(upstreamCallsAfterFirst);
     });
 
     it('returns 429 when the rate limit is reached', async () => {

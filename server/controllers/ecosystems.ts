@@ -2,7 +2,7 @@ import config from 'config';
 import type express from 'express';
 
 import cache from '../lib/cache';
-import { EcosystemsRepoSummary, fetchRepoSummary, normalizeRepoKey } from '../lib/ecosystems';
+import { EcosystemsRepoSummary, fetchRepoSummaryWithStatus, normalizeRepoKey } from '../lib/ecosystems';
 import logger from '../lib/logger';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
 
@@ -54,8 +54,12 @@ export async function getRepositoryInfo(req: express.Request, res: express.Respo
   }
 
   try {
-    const entry: EcosystemsRepoSummary = await fetchRepoSummary(repositoryUrl);
-    await cache.set(cacheKey, entry, REPOSITORY_INFO_CACHE_TTL);
+    const { summary, isComplete } = await fetchRepoSummaryWithStatus(repositoryUrl);
+    const entry: EcosystemsRepoSummary = summary;
+    // Do not cache a partial summary: a transient upstream failure must not be served for the TTL
+    if (isComplete) {
+      await cache.set(cacheKey, entry, REPOSITORY_INFO_CACHE_TTL);
+    }
     res.send(entry);
   } catch (e) {
     logger.error(`Failed to fetch ecosyste.ms repository info for ${repositoryUrl}: ${e.message}`);

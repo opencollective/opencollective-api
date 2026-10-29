@@ -4,6 +4,7 @@ import sinon from 'sinon';
 import {
   EcosystemsPackage,
   fetchRepoSummary,
+  fetchRepoSummaryWithStatus,
   findRepoMetadata,
   normalizeRepoKey,
   RepoMetadata,
@@ -221,6 +222,34 @@ describe('server/lib/ecosystems', () => {
       expect(entry.contributors).to.be.null;
       expect(entry.issues).to.be.null;
       expect(entry.owner).to.be.null;
+    });
+
+    it('reports secondary lookup failures so callers can avoid caching a partial summary', async () => {
+      fetchStub = mockEcosystemsFetch([
+        { match: PACKAGES_ROUTE.match, body: [PACKAGE] },
+        REPOSITORY_ROUTE,
+        { match: COMMITS_ROUTE.match, status: 500, body: { error: 'boom' } },
+        ISSUES_ROUTE,
+        OWNER_ROUTE,
+      ]);
+
+      const { summary, isComplete } = await fetchRepoSummaryWithStatus(REPO_URL);
+
+      expect(summary.repository).to.deep.equal(REPO_METADATA);
+      expect(summary.contributors).to.be.null;
+      expect(isComplete).to.be.false;
+
+      // A complete summary is reported as such
+      fetchStub.restore();
+      fetchStub = mockEcosystemsFetch([
+        { match: PACKAGES_ROUTE.match, body: [PACKAGE] },
+        REPOSITORY_ROUTE,
+        COMMITS_ROUTE,
+        ISSUES_ROUTE,
+        OWNER_ROUTE,
+      ]);
+      const complete = await fetchRepoSummaryWithStatus(REPO_URL);
+      expect(complete.isComplete).to.be.true;
     });
 
     it('throws when a core repository lookup fails', async () => {
