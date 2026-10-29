@@ -277,7 +277,8 @@ const doFormatMessage = (activity, format): string | { message: string; options:
 };
 
 /** Escapes Slack control characters so user-provided text cannot create links or mentions */
-const escapeSlackText = text => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const escapeSlackText = (text: unknown) =>
+  String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 const handleCollectiveApply = (activity, format) => {
   const { collective, host } = activity.data;
@@ -299,7 +300,7 @@ const handleCollectiveApply = (activity, format) => {
         title: 'Custom data',
         fields: Object.entries(activity.data.application.customData).map(([key, value]) => ({
           title: capitalize(lowerCase(key)),
-          value: typeof value === 'string' ? escapeSlackText(value) : value,
+          value: escapeSlackText(typeof value === 'string' ? value : JSON.stringify(value)),
         })),
       });
     }
