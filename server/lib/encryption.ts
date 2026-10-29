@@ -114,7 +114,7 @@ const getCipherConfig = (cipher: string): CipherConfig => {
  * resistance against brute-forcing the passphrase. It is *not* a new weakness though: crypto-js
  * ran this exact derivation internally for every `encrypt`/`decrypt` call, so this is the format
  * every encrypted column in the database is already stored with. It cannot be changed without
- * re-encrypting all of that data (see `scripts/change_db_encryption_key.js`), which is out of
+ * re-encrypting all of that data (see `scripts/change_db_encryption_key.ts`), which is out of
  * scope for the crypto-js removal. Moving to a modern KDF + authenticated cipher should be done
  * as a follow-up, along with the migration of the existing rows.
  */

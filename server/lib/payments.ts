@@ -652,7 +652,7 @@ export async function refundHostFee(
           if (!hostFeeShareSettlement || hostFeeShareSettlement.status === TransactionSettlementStatus.OWED) {
             // If the Host Fee Share is not INVOICED or SETTLED, we don't need to care about recording it.
             // Otherwise, the Host Fee Share refund will be marked as OWED and deduced from the next invoice.
-            // A missing settlement row (inconsistent data, see scripts/ledger/create-debts-for-platform-tips.js)
+            // A missing settlement row (inconsistent data, see scripts/ledger/create-debts-for-platform-tips.ts)
             // means the debt was never invoiced, so it gets the same treatment as OWED.
             await hostFeeShareSettlement?.update(
               { status: TransactionSettlementStatus.SETTLED },
@@ -836,7 +836,7 @@ export async function createRefundTransaction(
         if (!tipSettlement || tipSettlement.status === TransactionSettlementStatus.OWED) {
           // If the tip is not INVOICED or SETTLED, we don't need to care about recording it.
           // Otherwise, the tip refund will be marked as OWED and deduced from the next invoice.
-          // A missing settlement row (inconsistent data, see scripts/ledger/create-debts-for-platform-tips.js)
+          // A missing settlement row (inconsistent data, see scripts/ledger/create-debts-for-platform-tips.ts)
           // means the debt was never invoiced, so it gets the same treatment as OWED.
           await tipSettlement?.update({ status: TransactionSettlementStatus.SETTLED }, { transaction: sqlTransaction });
           tipRefundSettlementStatus = TransactionSettlementStatus.SETTLED;
