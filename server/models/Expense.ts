@@ -10,6 +10,7 @@ import {
   InferAttributes,
   InferCreationAttributes,
   NonAttribute,
+  Transaction as SequelizeTransaction,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 import Stripe from 'stripe';
@@ -760,6 +761,40 @@ class Expense extends ModelWithPublicId<
     return Promise.all(expenses.map(expense => expense.verify(user)));
   };
 
+  /**
+   * Soft-deletes an invoice file, unless another live expense still references it. Invoice files
+   * were historically allowed to be shared between expenses, so we can't assume exclusive ownership.
+   */
+  static destroyInvoiceFileIfUnreferenced = async function (
+    uploadedFileId: number,
+    { excludeExpenseId, transaction }: { excludeExpenseId?: number; transaction?: SequelizeTransaction } = {},
+  ): Promise<boolean> {
+    const destroyFile = async (t: SequelizeTransaction) => {
+      // Lock the file row so that concurrent destroys/attachments are serialized
+      const uploadedFile = await UploadedFile.findByPk(uploadedFileId, { transaction: t, lock: t.LOCK.UPDATE });
+      if (!uploadedFile) {
+        return false;
+      }
+
+      const otherReferences = await Expense.count({
+        where: {
+          InvoiceFileId: uploadedFileId,
+          ...(excludeExpenseId ? { id: { [Op.ne]: excludeExpenseId } } : {}),
+        },
+        transaction: t,
+      });
+
+      if (otherReferences > 0) {
+        return false;
+      }
+
+      await uploadedFile.destroy({ transaction: t });
+      return true;
+    };
+
+    return transaction ? destroyFile(transaction) : sequelize.transaction(destroyFile);
+  };
+
   static computeTotalAmountForExpense = (items: Partial<ExpenseItem>[], taxes: ExpenseTaxDefinition[]): number => {
     return Math.round(
       sumBy(items, item => {
@@ -1069,7 +1104,7 @@ Expense.init(
       },
       async afterDestroy(expense: Expense, options) {
         // Not considering ExpensesAttachedFiles because they don't support soft delete (they should)
-        const promises = [
+        const promises: Promise<unknown>[] = [
           ExpenseItem.destroy({ where: { ExpenseId: expense.id }, transaction: options.transaction }),
           models.Comment.destroy({ where: { ExpenseId: expense.id }, transaction: options.transaction }),
           models.TransactionsImportRow.update(
@@ -1085,7 +1120,10 @@ Expense.init(
         }
         if (expense.InvoiceFileId) {
           promises.push(
-            UploadedFile.destroy({ where: { id: expense.InvoiceFileId }, transaction: options.transaction }),
+            Expense.destroyInvoiceFileIfUnreferenced(expense.InvoiceFileId, {
+              excludeExpenseId: expense.id,
+              transaction: options.transaction,
+            }),
           );
         }
 

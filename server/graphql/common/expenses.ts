@@ -25,6 +25,7 @@ import {
   uniq,
 } from 'lodash';
 import moment from 'moment';
+import type { Transaction as SequelizeTransaction } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import { activities, expenseStatus, roles } from '../../constants';
@@ -73,7 +74,7 @@ import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency } from '../../lib/utils';
 import { canUserUseVendor } from '../../lib/vendor-visibility';
-import models, { Collective, sequelize, TransactionsImportRow, UploadedFile } from '../../models';
+import models, { Collective, Op, sequelize, TransactionsImportRow, UploadedFile } from '../../models';
 import AccountingCategory, { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 import Expense, {
   ExpenseDataValuesByRole,
@@ -2245,6 +2246,10 @@ export async function prepareAttachedFiles(req: express.Request, attachedFiles: 
 export async function prepareInvoiceFile(
   req: express.Request,
   invoiceFile: ExpenseData['invoiceFile'],
+  {
+    expense,
+    transaction,
+  }: { expense?: Pick<Expense, 'id' | 'InvoiceFileId'>; transaction?: SequelizeTransaction } = {},
 ): Promise<UploadedFile> {
   if (!invoiceFile) {
     return null;
@@ -2258,7 +2263,32 @@ export async function prepareInvoiceFile(
     throw new ValidationFailed('Invalid expense invoice file url');
   }
 
-  return await UploadedFile.getFromURL(invoiceFile.url);
+  const uploadedFile = await UploadedFile.getFromURL(invoiceFile.url);
+
+  // Keeping the current invoice file is always allowed, even if it was (historically) shared with another expense
+  if (expense?.InvoiceFileId && expense.InvoiceFileId === uploadedFile.id) {
+    return uploadedFile;
+  }
+
+  // An invoice file belongs to a single expense: sharing it would let one expense's lifecycle (edit, delete)
+  // affect the other, and would make permissions on the file ambiguous.
+  if (transaction) {
+    // Serialize with concurrent attachments/destroys of the same file (see `Expense.destroyInvoiceFileIfUnreferenced`)
+    await UploadedFile.findByPk(uploadedFile.id, { transaction, lock: transaction.LOCK.UPDATE });
+  }
+
+  const isUsedByAnotherExpense = await models.Expense.count({
+    where: {
+      InvoiceFileId: uploadedFile.id,
+      ...(expense ? { id: { [Op.ne]: expense.id } } : {}),
+    },
+    transaction,
+  });
+  if (isUsedByAnotherExpense) {
+    throw new ValidationFailed('This invoice file is already attached to another expense');
+  }
+
+  return uploadedFile;
 }
 
 export const prepareExpenseItemInputs = async (
@@ -2695,7 +2725,7 @@ export async function createExpense(
   const expense = await sequelize.transaction(async t => {
     let invoiceFileId: number;
     if (expenseData.type === ExpenseType.INVOICE && expenseData.invoiceFile) {
-      const invoiceFile = await prepareInvoiceFile(req, expenseData.invoiceFile);
+      const invoiceFile = await prepareInvoiceFile(req, expenseData.invoiceFile, { transaction: t });
       invoiceFileId = invoiceFile.id;
     }
 
@@ -3136,7 +3166,7 @@ export async function editExpenseDraft(
   if (expenseData.invoiceFile !== undefined) {
     const newInvoiceFile =
       (expenseData.type || existingExpense.type) === ExpenseType.INVOICE
-        ? await prepareInvoiceFile(req, expenseData.invoiceFile)
+        ? await prepareInvoiceFile(req, expenseData.invoiceFile, { expense: existingExpense })
         : null;
 
     if (newInvoiceFile) {
@@ -3723,12 +3753,14 @@ export async function editExpense(
 
     if (!isUndefined(expenseData.invoiceFile) && (expenseData.type || expense.type) === ExpenseType.INVOICE) {
       const newInvoiceUploadedFile = expenseData.invoiceFile
-        ? await prepareInvoiceFile(req, expenseData.invoiceFile)
+        ? await prepareInvoiceFile(req, expenseData.invoiceFile, { expense, transaction })
         : null;
 
       if (expense.InvoiceFileId && (!newInvoiceUploadedFile || expense.InvoiceFileId !== newInvoiceUploadedFile.id)) {
-        const oldInvoiceUploadedFile = await UploadedFile.findByPk(expense.InvoiceFileId, { transaction });
-        await oldInvoiceUploadedFile.destroy({ transaction });
+        await models.Expense.destroyInvoiceFileIfUnreferenced(expense.InvoiceFileId, {
+          excludeExpenseId: expense.id,
+          transaction,
+        });
         cleanExpenseData['InvoiceFileId'] = null;
       }
 
