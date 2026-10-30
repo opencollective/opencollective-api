@@ -91,23 +91,33 @@ const makeTimelineQuery = async (
     };
   } else if (collective.hasHosting) {
     return {
-      type: {
-        [Op.in]: [
-          ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
-          ActivityTypes.COLLECTIVE_APPROVED,
-          ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
-          ActivityTypes.COLLECTIVE_CORE_MEMBER_REMOVED,
-          ActivityTypes.COLLECTIVE_FROZEN,
-          ActivityTypes.COLLECTIVE_UNFROZEN,
-          ActivityTypes.COLLECTIVE_ARCHIVED,
-          ActivityTypes.COLLECTIVE_UNHOSTED,
-          ActivityTypes.COLLECTIVE_APPLY,
-        ],
-      },
       [Op.or]: [
-        { CollectiveId: collective.id },
-        { FromCollectiveId: collective.id },
-        { HostCollectiveId: collective.id },
+        {
+          type: {
+            [Op.in]: [
+              ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
+              ActivityTypes.COLLECTIVE_APPROVED,
+              ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
+              ActivityTypes.COLLECTIVE_CORE_MEMBER_REMOVED,
+              ActivityTypes.COLLECTIVE_FROZEN,
+              ActivityTypes.COLLECTIVE_UNFROZEN,
+              ActivityTypes.COLLECTIVE_ARCHIVED,
+              ActivityTypes.COLLECTIVE_UNHOSTED,
+              ActivityTypes.COLLECTIVE_APPLY,
+            ],
+          },
+          [Op.or]: [
+            { CollectiveId: collective.id },
+            { FromCollectiveId: collective.id },
+            { HostCollectiveId: collective.id },
+          ],
+        },
+        {
+          type: {
+            [Op.in]: [ActivityTypes.FISCAL_HOST_NOTE_SET, ActivityTypes.FISCAL_HOST_NOTE_REMOVED],
+          },
+          HostCollectiveId: collective.id,
+        },
       ],
     };
   }
@@ -215,7 +225,7 @@ debug('Cache TTL: %d (%d days)', TTL, config.timeline.daysCached);
  */
 const getCacheKey = (collectiveSlug: string, classes: ActivityClasses[]): string => {
   const sortedClasses = [...classes].sort().join('-');
-  return `timeline-v2-${collectiveSlug}-${sortedClasses || 'none'}`;
+  return `timeline-v3-${collectiveSlug}-${sortedClasses || 'none'}`;
 };
 
 /**

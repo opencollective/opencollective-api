@@ -183,6 +183,10 @@ enum ActivityTypes {
   ACTIVATED_HOSTING = 'activated.hosting',
   DEACTIVATED_HOSTING = 'deactivated.hosting',
 
+  // Fiscal host notes
+  FISCAL_HOST_NOTE_SET = 'fiscal.host.note.set',
+  FISCAL_HOST_NOTE_REMOVED = 'fiscal.host.note.removed',
+
   // Agreements
   AGREEMENT_CREATED = 'agreement.created',
   AGREEMENT_EDITED = 'agreement.edited',
@@ -281,6 +285,8 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.COLLECTIVE_TRANSACTION_CREATED, // TODO: Should not be here. See https://github.com/opencollective/opencollective/issues/5903
     ActivityTypes.COLLECTIVE_EDITED,
     ActivityTypes.COLLECTIVE_DELETED,
+    ActivityTypes.FISCAL_HOST_NOTE_SET,
+    ActivityTypes.FISCAL_HOST_NOTE_REMOVED,
   ],
   [ActivityClasses.EXPENSES]: [
     ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
