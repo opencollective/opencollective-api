@@ -92,13 +92,14 @@ import { GraphQLExpense } from '../object/Expense';
 import GraphQLStripePaymentIntent from '../object/StripePaymentIntent';
 
 const populatePayoutMethodId = async (
-  payoutMethod: { id?: string | number; legacyId?: number },
+  payoutMethod: { id?: string | number; publicId?: string; legacyId?: number },
   { loaders = null }: { loaders?: Loaders } = {},
 ) => {
-  if (isEntityPublicId(payoutMethod?.id as string, EntityShortIdPrefix.PayoutMethod)) {
+  const publicId = payoutMethod?.publicId || payoutMethod?.id;
+  if (isEntityPublicId(publicId as string, EntityShortIdPrefix.PayoutMethod)) {
     const id = await (loaders
-      ? loaders.PayoutMethod.idByPublicId.load(payoutMethod.id as string)
-      : models.PayoutMethod.findOne({ where: { publicId: payoutMethod.id as string } }).then(
+      ? loaders.PayoutMethod.idByPublicId.load(publicId as string)
+      : models.PayoutMethod.findOne({ where: { publicId: publicId as string } }).then(
           payoutMethod => payoutMethod?.id,
         ));
     payoutMethod.id = id;
