@@ -520,6 +520,50 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.data.createExpense.legacyId).to.be.a('number');
     });
 
+    describe('with an existing payout method', () => {
+      const createWithPayoutMethodReference = async getReference => {
+        const user = await fakeUser();
+        const collective = await fakeCollective();
+        const payoutMethod = await fakePayoutMethod({
+          CollectiveId: user.CollectiveId,
+          type: PayoutMethodTypes.PAYPAL,
+          data: { email: randEmail(), currency: 'USD' },
+        });
+        const expenseData = {
+          ...getValidExpenseData(),
+          payee: { legacyId: user.CollectiveId },
+          payoutMethod: getReference(payoutMethod),
+        };
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          { expense: expenseData, account: { legacyId: collective.id } },
+          user,
+        );
+        return { result, payoutMethod };
+      };
+
+      it('references it by publicId', async () => {
+        const { result, payoutMethod } = await createWithPayoutMethodReference(pm => ({ publicId: pm.publicId }));
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createExpense.payoutMethod.id).to.equal(payoutMethod.publicId);
+      });
+
+      it('references it by a public id passed in id', async () => {
+        const { result, payoutMethod } = await createWithPayoutMethodReference(pm => ({ id: pm.publicId }));
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createExpense.payoutMethod.id).to.equal(payoutMethod.publicId);
+      });
+
+      it('references it by legacyId', async () => {
+        const { result, payoutMethod } = await createWithPayoutMethodReference(pm => ({ legacyId: pm.id }));
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createExpense.payoutMethod.id).to.equal(payoutMethod.publicId);
+      });
+    });
+
     describe('payoutMethod payload sanitization for ConnectedAccount linkage', () => {
       beforeEach(resetTestDB);
 
