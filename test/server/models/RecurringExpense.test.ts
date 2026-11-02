@@ -91,7 +91,8 @@ describe('server/models/RecurringExpense', () => {
   });
 
   it('accepts endsAt as an ISO string', async () => {
-    const endsAt = moment().add(1, 'month').toISOString();
+    // Not `add(1, 'month')`: on month-end days (e.g. Jan 31 -> Feb 28), that lands before the first recurrence
+    const endsAt = moment().add(2, 'months').toISOString();
     const recurringExpenseWithEndDate = await models.RecurringExpense.createFromExpense(
       expense,
       models.RecurringExpense.RecurringExpenseIntervals.MONTH,

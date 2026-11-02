@@ -707,7 +707,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         /^The end date for a recurring expense must be later than its first recurrence/,
       );
 
-      // The end date is validated before the expense is created: no orphan rows
+      // The expense and its recurring schedule are created in the same transaction: no orphan rows
       expect(await models.RecurringExpense.count()).to.eq(recurringExpensesCount);
       expect(await models.Expense.count()).to.eq(expensesCount);
     });

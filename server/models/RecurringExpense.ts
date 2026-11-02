@@ -9,7 +9,7 @@ import expenseStatus from '../constants/expense-status';
 import { ValidationFailed } from '../graphql/errors';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { reportErrorToSentry } from '../lib/sentry';
-import sequelize, { DataTypes, Op } from '../lib/sequelize';
+import sequelize, { DataTypes, Op, Transaction as SequelizeTransaction } from '../lib/sequelize';
 
 import Collective from './Collective';
 import Expense from './Expense';
@@ -179,17 +179,25 @@ class RecurringExpense extends ModelWithPublicId<
     return endsAtMoment.toDate();
   }
 
-  static async createFromExpense(expense: Expense, interval: RecurringExpenseIntervals, endsAt?: string | Date | null) {
+  static async createFromExpense(
+    expense: Expense,
+    interval: RecurringExpenseIntervals,
+    endsAt?: string | Date | null,
+    { transaction }: { transaction?: SequelizeTransaction } = {},
+  ) {
     const parsedEndsAt = this.assertValidEndsAt(endsAt, interval);
 
-    const recurringExpense = await this.create({
-      CollectiveId: expense.CollectiveId,
-      FromCollectiveId: expense.FromCollectiveId,
-      lastDraftedAt: new Date(),
-      interval,
-      endsAt: parsedEndsAt,
-    });
-    await expense.update({ RecurringExpenseId: recurringExpense.id });
+    const recurringExpense = await this.create(
+      {
+        CollectiveId: expense.CollectiveId,
+        FromCollectiveId: expense.FromCollectiveId,
+        lastDraftedAt: new Date(),
+        interval,
+        endsAt: parsedEndsAt,
+      },
+      { transaction },
+    );
+    await expense.update({ RecurringExpenseId: recurringExpense.id }, { transaction });
     return recurringExpense;
   }
 

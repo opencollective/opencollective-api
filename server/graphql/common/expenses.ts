@@ -85,6 +85,7 @@ import Expense, {
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
 import ExpenseItem, { ExpenseItemsDiff, sanitizeExpenseItemDescription } from '../../models/ExpenseItem';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
+import { RecurringExpenseIntervals } from '../../models/RecurringExpense';
 import User from '../../models/User';
 import paymentProviders from '../../paymentProviders';
 import { estimatePaypalPayoutFeeInExpenseCurrency } from '../../paymentProviders/paypal/payouts';
@@ -2498,7 +2499,10 @@ export const checkCanCreateExpenseForCollective = (collective: Collective, req: 
 export async function createExpense(
   req: express.Request,
   expenseData: ExpenseData,
-  opts?: { isNewExpenseFlow?: boolean },
+  opts?: {
+    isNewExpenseFlow?: boolean;
+    recurring?: { interval: RecurringExpenseIntervals; endsAt?: string | Date | null };
+  },
 ): Promise<Expense> {
   const { remoteUser } = req;
 
@@ -2739,6 +2743,14 @@ export async function createExpense(
         { ExpenseId: createdExpense.id, status: 'LINKED' },
         { transaction: t },
       );
+    }
+
+    // Create the recurring schedule in the same transaction, so an invalid end date doesn't
+    // leave behind an expense without it.
+    if (opts?.recurring) {
+      await models.RecurringExpense.createFromExpense(createdExpense, opts.recurring.interval, opts.recurring.endsAt, {
+        transaction: t,
+      });
     }
 
     return createdExpense;
