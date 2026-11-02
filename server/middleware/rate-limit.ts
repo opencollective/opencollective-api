@@ -6,7 +6,8 @@ import RateLimit from '../lib/rate-limit';
 /**
  * Route-level rate limiter backed by the shared session cache (see `server/lib/rate-limit.ts`).
  * Calls are bucketed by authenticated user when `req.remoteUser` is set, otherwise by client IP,
- * and are counted before the route handler runs (including requests that later fail authorization).
+ * and are counted before the route handler runs (including requests that later fail authorization in the handler).
+ * Place it after middlewares that reject credentials, so rejected requests don't consume the user's budget.
  */
 export const rateLimitPerUserOrIp = (keyPrefix: string, limit: number, expiryTimeInSeconds: number) => {
   return async (req: Request, res: Response, next: NextFunction) => {

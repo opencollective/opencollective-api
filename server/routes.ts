@@ -428,8 +428,9 @@ export default async (app: express.Application) => {
   app.post(
     '/services/transferwise/pay-batch',
     noCache,
-    rateLimitPerUserOrIp('wise-pay-batch', config.limits.wiseBatchPaymentPerHour, ONE_HOUR_IN_SECONDS),
+    // Before the limiter, so rejected OAuth/personal tokens don't consume the user's budget
     authentication.requireSessionToken,
+    rateLimitPerUserOrIp('wise-pay-batch', config.limits.wiseBatchPaymentPerHour, ONE_HOUR_IN_SECONDS),
     transferwise.payBatch,
   );
 

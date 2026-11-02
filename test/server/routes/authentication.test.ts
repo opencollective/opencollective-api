@@ -171,7 +171,7 @@ describe('REST session authentication and connected-account rate limiting', () =
         await sessionCache.delete([userKey(user.id), userKey(otherUser.id), ...testIps.map(ipKey)]);
       });
 
-      it('limits calls per user before token checks and payment provider handling', async () => {
+      it('limits calls per user after the session-token check and before payment provider handling', async () => {
         expect(limit).to.be.a('number').and.to.be.above(0);
         await sessionCache.set(userKey(user.id), limit - 1, 3600);
         const token = await user.generateSessionToken({ createActivity: false });
@@ -195,12 +195,13 @@ describe('REST session authentication and connected-account rate limiting', () =
           .expect(429);
         expect(response.body.error.message).to.eq('Rate limit exceeded');
 
-        // Limiter runs before the session-token check
-        await request(expressApp)
+        // Session-token check runs before the limiter, so rejected tokens are not counted
+        const loginTokenResponse = await request(expressApp)
           .post('/services/transferwise/pay-batch')
           .set('Authorization', `Bearer ${user.jwt({ scope: 'login' })}`)
           .send({ hostId, expenseIds: [] })
-          .expect(429);
+          .expect(401);
+        expect(loginTokenResponse.body.error.message).to.include('A session token is required on this endpoint');
         expect(payBatchSpy).to.have.been.calledOnce;
 
         // Other users have their own budget
