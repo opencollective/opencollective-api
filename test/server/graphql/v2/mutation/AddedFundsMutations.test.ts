@@ -406,7 +406,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       expect(result.data.addFunds.fromAccount.legacyId).to.equal(vendor.id);
     });
 
-    // Imported/adapted from `test/server/graphql/v1/paymentMethods.test.js`
+    // Imported/adapted from `test/server/graphql/v1/paymentMethods.test.ts`
     it('adds funds from the host (USD) to the collective (EUR)', async () => {
       /**
        * collective ledger:
@@ -460,7 +460,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       expect(transaction.amountInHostCurrency).to.equal(1165);
     });
 
-    // Imported/adapted from `test/server/graphql/v1/paymentMethods.test.js`
+    // Imported/adapted from `test/server/graphql/v1/paymentMethods.test.ts`
     it('adds funds from the host (USD) to the collective (EUR) on behalf of a new organization', async () => {
       const hostAdmin = await fakeUser();
       const org = await fakeOrganization();

@@ -21,10 +21,8 @@ module.exports = {
         // grep -rl " gqlV1\`" ./test | xargs grep -rL "gql\`" | sort
         'test/server/graphql/v1/CollectiveInterface.test.ts',
         'test/server/graphql/v1/collective.test.ts',
-        'test/server/graphql/v1/connectedAccounts.test.ts',
         'test/server/graphql/v1/invoices.test.ts',
         'test/server/graphql/v1/mutation.test.ts',
-        'test/server/graphql/v1/notifications.test.ts',
         'test/server/graphql/v1/paymentMethods.test.ts',
         'test/server/graphql/v1/search.test.ts',
         'test/server/graphql/v1/tiers.test.ts',

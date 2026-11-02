@@ -232,7 +232,7 @@
     "test:coverage": "NODE_ENV=test TZ=UTC nyc --all -- mocha --reporter ./test/reporters/spec-and-junit.cjs",
     "test:update": "CHAI_JEST_SNAPSHOT_UPDATE_ALL=true npm run test",
     "test:clean-db-snapshots": "rm -rf test/dbdumps/snapshots/*",
-    "test:update-db-snapshots": "npm run test:clean-db-snapshots && UPDATE_DB_SNAPSHOTS=true npm run test $(grep -rH 'getOrCreateDBSnapshot' --include='*.test.js' --include='*.test.ts' . | cut -d ':' -f 1 | uniq)",
+    "test:update-db-snapshots": "npm run test:clean-db-snapshots && UPDATE_DB_SNAPSHOTS=true npm run test $(grep -rH 'getOrCreateDBSnapshot' --include='*.test.ts' . | cut -d ':' -f 1 | uniq)",
     "test:clean": "rm -rf .nyc_output coverage",
     "test:generate": "./scripts/dev/create-test.sh $1",
     "test:graphql": "npm run test test/server/graphql",
