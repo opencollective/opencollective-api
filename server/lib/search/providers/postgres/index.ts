@@ -36,7 +36,7 @@ const getAccess = (request: SearchRequest, entityRequest: SearchEntityRequest): 
 
   return {
     forbidPrivate: false,
-    isRoot: remoteUser.isRoot(),
+    isRoot: request.isRoot,
     adminIds: remoteUser.getAdministratedCollectiveIds(),
     deniedOAuthScopes,
   };

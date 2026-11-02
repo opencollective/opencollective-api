@@ -511,7 +511,7 @@ const ignoreWebhookEvent = (req: Request): Promise<void> => {
 
 const EventHandlers: Record<WatchedPaypalWebhookEvent, (req: Request) => Promise<void>> = {
   // These payout events are all ignored, especially since https://github.com/opencollective/opencollective-api/commit/641ce51e57e818530571e86d23d54b292bee52a8#diff-439d2ae7fe1dcbd7d538ed0df2359e38309366f6a9785f9e7ebc297e5e0a7068
-  // opencollective-api/cron/hourly/11-check-pending-paypal-expenses.js is handling the sync, so data should still be up-to-date
+  // opencollective-api/cron/hourly/11-check-pending-paypal-expenses.ts is handling the sync, so data should still be up-to-date
   // Handling them would allow for faster sync: https://github.com/opencollective/opencollective/issues/8789
   [WatchedPaypalWebhookEvent.PAYOUTS_BATCH_DENIED]: ignoreWebhookEvent,
   [WatchedPaypalWebhookEvent.PAYOUTS_BATCH_PROCESSING]: ignoreWebhookEvent,
