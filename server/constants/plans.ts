@@ -8,7 +8,6 @@ export type HostPlan = {
   manualPayments?: boolean;
   hostDashboard?: boolean;
   hostFees?: boolean;
-  hostFeeSharePercent?: number;
   level?: number;
   platformTips?: boolean;
 };
@@ -24,7 +23,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: true,
     platformTips: false,
     hostFees: true,
-    hostFeeSharePercent: 0,
     level: 60,
   },
   'legacy-large-host-plan': {
@@ -36,7 +34,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: true,
     platformTips: false,
     hostFees: true,
-    hostFeeSharePercent: 0,
     level: 50,
   },
   'legacy-medium-host-plan': {
@@ -48,7 +45,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: true,
     platformTips: false,
     hostFees: true,
-    hostFeeSharePercent: 0,
     level: 40,
   },
   'legacy-small-host-plan': {
@@ -60,7 +56,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: true,
     platformTips: false,
     hostFees: true,
-    hostFeeSharePercent: 0,
     level: 30,
   },
   'legacy-single-host-plan': {
@@ -72,7 +67,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: true,
     platformTips: false,
     hostFees: true,
-    hostFeeSharePercent: 0,
     level: 20,
   },
   // Plans (for customers from 2020)
@@ -87,7 +81,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: true,
     platformTips: false,
     hostFees: true,
-    hostFeeSharePercent: 0,
     level: 60,
   },
   'large-host-plan': {
@@ -99,7 +92,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: true,
     platformTips: false,
     hostFees: true,
-    hostFeeSharePercent: 0,
     level: 50,
   },
   'medium-host-plan': {
@@ -111,7 +103,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: false,
     platformTips: false,
     hostFees: true,
-    hostFeeSharePercent: 0,
     level: 40,
   },
   'small-host-plan': {
@@ -123,7 +114,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: false,
     platformTips: false,
     hostFees: true,
-    hostFeeSharePercent: 0,
     level: 30,
   },
   'single-host-plan': {
@@ -135,7 +125,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: true,
     platformTips: false,
     hostFees: true,
-    hostFeeSharePercent: 0,
     level: 20,
   },
   // Special plan for COVID-19 hosts
@@ -148,7 +137,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: true,
     platformTips: false,
     hostFees: true,
-    hostFeeSharePercent: 0,
     level: 20,
   },
   // Special plan for everyone without a plan
@@ -161,7 +149,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: true,
     platformTips: false,
     hostFees: true,
-    hostFeeSharePercent: 0,
     level: 10,
   },
   // Plans for 2021
@@ -174,7 +161,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: true,
     platformTips: true,
     hostFees: true,
-    hostFeeSharePercent: 15,
     level: 10,
   },
   'grow-plan-2021': {
@@ -186,7 +172,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: true,
     platformTips: true,
     hostFees: true,
-    hostFeeSharePercent: 15,
     level: 50,
   },
   // Special plan for Open Collective own Hosts
@@ -199,7 +184,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: true,
     platformTips: false,
     hostFees: true,
-    hostFeeSharePercent: 0,
     level: 100,
   },
   // Special plan for Hosts without limit
@@ -212,7 +196,6 @@ const legacyPlans: Record<string, HostPlan> = {
     hostDashboard: true,
     platformTips: false,
     hostFees: true,
-    hostFeeSharePercent: 0,
     level: 100,
   },
 } as const;

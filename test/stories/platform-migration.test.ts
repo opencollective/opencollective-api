@@ -114,54 +114,8 @@ describe('platform transactions', () => {
         expect(platformTipDebtTransaction.fromAccount.legacyId).to.eql(845576);
       },
     },
-    {
-      title: 'Platform share uses current platform collective id',
-      hostParams: {
-        hostFeePercent: 20,
-        data: {
-          hostFeeSharePercent: 10,
-          plan: {
-            platformTips: true,
-          },
-        },
-      } satisfies Parameters<typeof makeContribution>[0],
-      orderData: StripeOrderData,
-      expect(result: Awaited<ReturnType<typeof makeContribution>>) {
-        const hostFeeShareTransaction = result.data?.createOrder?.order?.transactions?.find(
-          txn => txn.type === TransactionTypes.CREDIT && txn.kind === TransactionKind.HOST_FEE_SHARE,
-        );
-        expect(hostFeeShareTransaction).to.exist;
-        expect(hostFeeShareTransaction.toAccount.legacyId).to.eql(845576);
-      },
-    },
-    {
-      title: 'Platform share debt uses current platform collective id',
-      hostParams: {
-        hostFeePercent: 20,
-        data: {
-          hostFeeSharePercent: 10,
-          plan: {
-            platformTips: true,
-          },
-        },
-      } satisfies Parameters<typeof makeContribution>[0],
-      orderData: PaypalOrderData,
-      expect(result: Awaited<ReturnType<typeof makeContribution>>) {
-        const hostFeeShareTransaction = result.data?.createOrder?.order?.transactions?.find(
-          txn => txn.type === TransactionTypes.CREDIT && txn.kind === TransactionKind.HOST_FEE_SHARE,
-        );
-        expect(hostFeeShareTransaction).to.exist;
-        expect(hostFeeShareTransaction.toAccount.legacyId).to.eql(845576);
-
-        const hostFeeShareDebtTransaction = result.data?.createOrder?.order?.transactions?.find(
-          txn => txn.type === TransactionTypes.CREDIT && txn.kind === TransactionKind.HOST_FEE_SHARE_DEBT,
-        );
-        expect(hostFeeShareDebtTransaction).to.exist;
-        expect(hostFeeShareDebtTransaction.fromAccount.legacyId).to.eql(845576);
-      },
-    },
   ].map(tc =>
-    ('only' in tc && tc.only ? it.only : it)(tc.title, async () => {
+    it(tc.title, async () => {
       const result = await makeContribution(
         {
           data: {
@@ -169,7 +123,6 @@ describe('platform transactions', () => {
               platformTips: true,
             },
           },
-          ...tc.hostParams,
         },
         tc.orderData,
       );

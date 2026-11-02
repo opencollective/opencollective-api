@@ -248,11 +248,11 @@ describe('test/stories/ledger-legacy', () => {
       expect(await collective.getBalance()).to.eq(8550); // (10000 Total - 1000 platform tip) - 5% host fee (450)
       expect(await collective.getTotalAmountReceived()).to.eq(9000);
       expect(await collective.getTotalAmountReceived({ net: true })).to.eq(8550);
-      expect(await host.getTotalMoneyManaged()).to.eq(8932); // 10000 - 1000 (platform tip) - 68 (host fee share)
-      expect(await host.getBalance()).to.eq(382); // 450 (host fee) - 68 (host fee share)
-      expect(await host.getBalanceWithBlockedFunds()).to.eq(382);
-      expect(await ocInc.getBalance()).to.eq(1068); // 1000 (platform tip) + 98 (host fee share)
-      expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(1068);
+      expect(await host.getTotalMoneyManaged()).to.eq(9000); // 10000 - 1000 (platform tip)
+      expect(await host.getBalance()).to.eq(450); // 450 (host fee)
+      expect(await host.getBalanceWithBlockedFunds()).to.eq(450);
+      expect(await ocInc.getBalance()).to.eq(1000); // 1000 (platform tip)
+      expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(1000);
     });
 
     it('5. Refunded contribution with host fees, payment processor fees and indirect platform tip', async () => {
@@ -276,7 +276,7 @@ describe('test/stories/ledger-legacy', () => {
       expect(await collective.getBalance()).to.eq(8350); // (10000 Total - 1000 platform tip) - 5% host fee (450) - 200 processor fees
       expect(await collective.getTotalAmountReceived()).to.eq(9000);
       expect(await collective.getTotalAmountReceived({ net: true })).to.eq(8350);
-      expect(await host.getTotalMoneyManaged()).to.eq(8732); // 10000 - 1000 (tip) - 200 (processor fee) - 68 (host fee share)
+      expect(await host.getTotalMoneyManaged()).to.eq(8800); // 10000 - 1000 (tip) - 200 (processor fee)
 
       // ---- Refund transaction -----
       const contributionTransaction = await models.Transaction.findOne({
@@ -290,11 +290,11 @@ describe('test/stories/ledger-legacy', () => {
       expect(await collective.getBalance()).to.eq(0);
       expect(await collective.getTotalAmountReceived()).to.eq(0);
       expect(await collective.getTotalAmountReceived({ net: true })).to.eq(0);
-      expect(await host.getTotalMoneyManaged()).to.eq(-1268);
-      expect(await host.getBalance()).to.eq(-1268); // Will be -200 after settlement (platform tip)
-      expect(await host.getBalanceWithBlockedFunds()).to.eq(-1268);
-      expect(await ocInc.getBalance()).to.eq(1068);
-      expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(1068);
+      expect(await host.getTotalMoneyManaged()).to.eq(-1200);
+      expect(await host.getBalance()).to.eq(-1200); // Will be -200 after settlement (platform tip)
+      expect(await host.getBalanceWithBlockedFunds()).to.eq(-1200);
+      expect(await ocInc.getBalance()).to.eq(1000);
+      expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(1000);
 
       // Run OC settlement
       // TODO: We should run the opposite settlement and check amount
@@ -368,14 +368,14 @@ describe('test/stories/ledger-legacy', () => {
 
       // Check data
       const hostToPlatformFxRate = RATES[host.currency]['USD'];
-      expect(await host.getBalance()).to.eq(382);
-      expect(await host.getBalanceWithBlockedFunds()).to.eq(382);
-      expect(await ocInc.getBalance()).to.eq(Math.round(1068 * hostToPlatformFxRate));
-      expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(Math.round(1068 * hostToPlatformFxRate));
+      expect(await host.getBalance()).to.eq(450);
+      expect(await host.getBalanceWithBlockedFunds()).to.eq(450);
+      expect(await ocInc.getBalance()).to.eq(Math.round(1000 * hostToPlatformFxRate));
+      expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(Math.round(1000 * hostToPlatformFxRate));
       expect(await collective.getBalance()).to.eq(8350); // (10000 Total - 1000 platform tip) - 5% host fee (450) - 200 processor fees
       expect(await collective.getTotalAmountReceived()).to.eq(9000);
       expect(await collective.getTotalAmountReceived({ net: true })).to.eq(8350);
-      expect(await host.getTotalMoneyManaged()).to.eq(8732); // 10000 - 1000 - 200 - 68
+      expect(await host.getTotalMoneyManaged()).to.eq(8800); // 10000 - 1000 - 200
 
       // ---- Refund transaction -----
       const contributionTransaction = await models.Transaction.findOne({
@@ -389,11 +389,11 @@ describe('test/stories/ledger-legacy', () => {
       expect(await collective.getBalance()).to.eq(0);
       expect(await collective.getTotalAmountReceived()).to.eq(0); // refunds should not count in amountReceived
       expect(await collective.getTotalAmountReceived({ net: true })).to.eq(0);
-      expect(await host.getTotalMoneyManaged()).to.eq(-1268);
-      expect(await host.getBalance()).to.eq(-1268); // Will be +200 after settlement (platform tip refund) +68 (host fee share refund)
-      expect(await host.getBalanceWithBlockedFunds()).to.eq(-1268);
-      expect(await ocInc.getBalance()).to.eq(Math.round(1068 * hostToPlatformFxRate));
-      expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(Math.round(1068 * hostToPlatformFxRate));
+      expect(await host.getTotalMoneyManaged()).to.eq(-1200);
+      expect(await host.getBalance()).to.eq(-1200); // Will be +200 after settlement (platform tip refund)
+      expect(await host.getBalanceWithBlockedFunds()).to.eq(-1200);
+      expect(await ocInc.getBalance()).to.eq(Math.round(1000 * hostToPlatformFxRate));
+      expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(Math.round(1000 * hostToPlatformFxRate));
 
       // Run OC settlement
       // TODO: We should run the opposite settlement and check amount
@@ -425,7 +425,8 @@ describe('test/stories/ledger-legacy', () => {
         processorFeeInHostCurrency * hostToCollectiveFxRate,
         collective.currency,
       );
-      const expectedHostFeeShareInHostCurrency = Math.round(expectedHostFeeInHostCurrency * 0.15);
+      // Host fee share is deprecated, no new HOST_FEE_SHARE transactions are generated
+      const expectedHostFeeShareInHostCurrency = 0;
       const expectedHostProfitInHostCurrency = expectedHostFeeInHostCurrency - expectedHostFeeShareInHostCurrency;
       const expectedPlatformProfitInHostCurrency = expectedHostFeeShareInHostCurrency + platformTipInHostCurrency;
       const expectedNetAmountInHostCurrency =
