@@ -37,6 +37,7 @@ import {
   fakeProject,
   fakeTransaction,
   fakeUser,
+  fakeVendor,
   randStr,
 } from '../../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../../utils';
@@ -672,6 +673,40 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
           fromAccount: { legacyId: submitter.CollectiveId },
           lastCommentBy: ['HOST_ADMIN'],
         },
+        submitter,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expense.id);
+    });
+
+    it('expense submitter can filter by lastCommentBy on expenses they submitted for a vendor', async () => {
+      const submitter = await fakeUser();
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const vendor = await fakeVendor({ ParentCollectiveId: host.id });
+
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: vendor.id,
+        UserId: submitter.id,
+        HostCollectiveId: host.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+      await fakeComment({
+        ExpenseId: expense.id,
+        CollectiveId: collective.id,
+        CreatedByUserId: hostAdmin.id,
+        FromCollectiveId: hostAdmin.CollectiveId,
+        mainCommenterRole: CommentMainRole.HOST_ADMIN,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        { fromAccount: { legacyId: vendor.id }, lastCommentBy: ['HOST_ADMIN'] },
         submitter,
       );
 

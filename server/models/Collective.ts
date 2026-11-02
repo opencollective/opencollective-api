@@ -198,6 +198,10 @@ type Settings = {
   apply?: boolean;
   applyMessage?: string;
   tos?: string;
+  hostApplication?: {
+    /** Whether the eligibility rules block applicants from submitting (defaults to true) */
+    blockOnErrors?: boolean;
+  };
   expenseTypes?: Partial<Record<ExpenseType, boolean>>;
   disabledTierTypes?: string[];
   /** Set when the account was automatically migrated to the new platform subscription pricing. */
@@ -3085,8 +3089,8 @@ class Collective extends ModelWithPublicId<
     return getBalanceAmount(this, options).then(result => result.value);
   };
 
-  getYearlyBudgetAmount = function () {
-    return getYearlyBudgetAmount(this);
+  getYearlyBudgetAmount = function (options: Record<string, unknown> = {}) {
+    return getYearlyBudgetAmount(this, options);
   };
 
   getYearlyBudget = function () {

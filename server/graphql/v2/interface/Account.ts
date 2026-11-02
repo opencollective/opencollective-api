@@ -479,6 +479,10 @@ const accountFieldsDefinition = () => ({
         type: GraphQLAccountReferenceInput,
         description: 'Specific account to query the membership of.',
       },
+      tier: {
+        type: GraphQLTierReferenceInput,
+        description: 'Filter members by tier',
+      },
       orderBy: {
         type: new GraphQLNonNull(GraphQLOrderByInput),
         defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },

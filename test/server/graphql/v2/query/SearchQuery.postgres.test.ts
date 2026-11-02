@@ -29,6 +29,7 @@ import {
   fakeProject,
   fakeUser,
   fakeUserToken,
+  fakeVendor,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, oAuthGraphqlQueryV2, resetCaches, resetTestDB } from '../../../../utils';
 
@@ -564,6 +565,19 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
       expect(withScope.data.search.results.accounts.collection.totalCount).to.eq(1);
     });
 
+    it('does not grant root permissions to OAuth tokens without the root scope', async () => {
+      const query = (scope: OAuthScopes[]) =>
+        fakeUserToken({ scope, UserId: rootUser.id }).then(token =>
+          oAuthGraphqlQueryV2(accountsSearchQuery, { searchTerm: 'secretlegalword', backend: 'POSTGRES' }, token),
+        );
+
+      const withoutRootScope = await query([OAuthScopes.account]);
+      expect(withoutRootScope.errors).to.not.exist;
+      expect(withoutRootScope.data.search.results.accounts.collection.totalCount).to.eq(0);
+      const withRootScope = await query([OAuthScopes.account, OAuthScopes.root]);
+      expect(withRootScope.data.search.results.accounts.collection.totalCount).to.eq(1);
+    });
+
     it('scopes accounts to the account itself and its children', async () => {
       expect(await getSlugs('capybara', { account: { slug: collective.slug } })).to.have.members([
         collective.slug,
@@ -606,6 +620,66 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
       expect(await getSlugs('hippopotamus')).to.deep.eq([project.slug]);
       await project.update({ isPrivate: true });
       expect(await getSlugs('hippopotamus', {}, rootUser)).to.deep.eq([]);
+    });
+  });
+
+  describe('vendors', () => {
+    let hostAdmin: User, otherHostAdmin: User, randomUser: User, rootUser: User;
+    let host: Collective, organization: Collective, vendor: Collective;
+
+    before(async () => {
+      hostAdmin = await fakeUser();
+      otherHostAdmin = await fakeUser();
+      randomUser = await fakeUser();
+      rootUser = await fakeUser({ data: { isRoot: true } });
+      const platform = await Collective.findByPk(PlatformConstants.PlatformCollectiveId);
+      await platform.addUserWithRole(rootUser, 'ADMIN');
+
+      host = await fakeActiveHost({ name: 'Mongoose Host', slug: 'mongoose-host', admin: hostAdmin });
+      await fakeActiveHost({ name: 'Other Mongoose Host', slug: 'other-mongoose-host', admin: otherHostAdmin });
+      organization = await fakeOrganization({ name: 'Mongoose Supplies', slug: 'mongoose-supplies' });
+      // Created last: with the same score, it would rank first (ties are broken by descending ID)
+      vendor = await fakeVendor({
+        name: 'MONGOOSE SUPPLIES',
+        slug: 'mongoose-supplies-vendor',
+        ParentCollectiveId: host.id,
+        HostCollectiveId: null,
+        isActive: false,
+      });
+    });
+
+    it('only returns vendors to the administrators of their host, even for root', async () => {
+      const expectations: Array<[string, User | null, boolean]> = [
+        ['unauthenticated', null, false],
+        ['random user', randomUser, false],
+        ['admin of another host', otherHostAdmin, false],
+        ['root', rootUser, false],
+        ['host admin', hostAdmin, true],
+      ];
+
+      for (const [label, user, canSee] of expectations) {
+        expect(await getSlugs('mongoose supplies', {}, user), label).to.have.members(
+          canSee ? [organization.slug, vendor.slug] : [organization.slug],
+        );
+        expect(await getSlugs('mongoose supplies', { type: 'VENDOR' }, user), label).to.deep.eq(
+          canSee ? [vendor.slug] : [],
+        );
+      }
+    });
+
+    it('returns vendors on account-scoped searches of their host, for its administrators', async () => {
+      expect(await getSlugs('mongoose', { account: { slug: host.slug } }, hostAdmin)).to.have.members([
+        host.slug,
+        vendor.slug,
+      ]);
+      expect(await getSlugs('mongoose', { account: { slug: host.slug } }, randomUser)).to.deep.eq([host.slug]);
+    });
+
+    it('ranks vendors below other accounts of the same band', async () => {
+      const accounts = await getAccounts('mongoose supplies', {}, hostAdmin);
+      expect(accounts.collection.nodes.map(n => n.slug)).to.deep.eq([organization.slug, vendor.slug]);
+      expect(accounts.scores[0].score).to.be.within(4500, 4999); // Exact label, Account
+      expect(accounts.scores[1].score).to.be.within(4000, 4499); // Exact label, vendor
     });
   });
 

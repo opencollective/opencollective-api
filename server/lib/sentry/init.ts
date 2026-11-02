@@ -114,7 +114,7 @@ Sentry.init({
     urlQueryParams: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
     genAI: { inputs: false, outputs: false },
     databaseQueryData: false,
-    graphQL: { document: false, variables: false },
+    graphQL: { document: true, variables: false },
   },
   // v11 streams spans by default, and beforeSendTransaction (our redaction) only runs on transactions
   traceLifecycle: 'static',

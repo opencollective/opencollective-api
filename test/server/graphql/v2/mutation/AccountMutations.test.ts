@@ -419,6 +419,21 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(activity).to.not.exist;
     });
 
+    it('can set the host application rules setting', async () => {
+      const result = await graphqlQueryV2(
+        editSettingsMutation,
+        {
+          account: { legacyId: collective.id },
+          key: 'hostApplication.blockOnErrors',
+          value: false,
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccountSetting.settings).to.deep.eq({ hostApplication: { blockOnErrors: false } });
+    });
+
     it('can set the virtual card spending limit intervals allowed for requests', async () => {
       const value = {
         ALL_TIME: true,

@@ -3,6 +3,7 @@ import openCollectiveConfig from 'eslint-config-opencollective/eslint-node.confi
 import globals from 'globals';
 
 import graphqlMutationScopeCheck from './eslint-rules/graphql-mutation-scope-check.js';
+import noBareIsRoot from './eslint-rules/no-bare-is-root.js';
 import noMathRoundAmountNames from './eslint-rules/no-math-round-amount-names.js';
 import requirePrivateAccountCheck from './eslint-rules/require-private-account-check.js';
 import sequelizeModelRequirePublicIdPrefix from './eslint-rules/sequelize-model-public-id-prefix.js';
@@ -294,6 +295,21 @@ export default [
           ],
         },
       ],
+    },
+  },
+  // Root privileges must honor the `root` OAuth scope
+  {
+    files: ['server/**/*.+(js|ts)'],
+    ignores: ['server/graphql/common/scope-check.ts'],
+    plugins: {
+      'oauth-scopes': {
+        rules: {
+          'no-bare-is-root': noBareIsRoot,
+        },
+      },
+    },
+    rules: {
+      'oauth-scopes/no-bare-is-root': 'error',
     },
   },
   // GraphQL mutation scope-check enforcement

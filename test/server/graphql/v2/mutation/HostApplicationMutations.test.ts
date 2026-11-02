@@ -40,9 +40,16 @@ const APPLY_TO_HOST_MUTATION = gql`
     $collective: AccountReferenceInput!
     $host: AccountReferenceInput!
     $message: String
+    $applicationData: JSON
     $inviteMembers: [InviteMemberInput]
   ) {
-    applyToHost(collective: $collective, host: $host, message: $message, inviteMembers: $inviteMembers) {
+    applyToHost(
+      collective: $collective
+      host: $host
+      message: $message
+      applicationData: $applicationData
+      inviteMembers: $inviteMembers
+    ) {
       id
       isActive
       currency
@@ -693,6 +700,38 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       expect(memberInvitationActivities).to.have.length(2);
       expect(memberInvitationActivities[0].data.memberCollective.slug).to.eq(existingUserToInvite.collective.slug);
       expect(memberInvitationActivities[1].data.memberCollective.name).to.eq('Another admin');
+    });
+
+    it('sanitizes the applicationData and the message', async () => {
+      const host = await fakeHost({ settings: { apply: true } });
+      const adminUser = await fakeUser();
+      const collective = await fakeCollective({ HostCollectiveId: null, admin: adminUser });
+      const result = await graphqlQueryV2(
+        APPLY_TO_HOST_MUTATION,
+        {
+          host: { slug: host.slug },
+          collective: { slug: collective.slug },
+          message: '  <p>We need a host</p><script>alert("xss")</script>  ',
+          applicationData: {
+            typeOfProject: '<b>CODE</b>',
+            hasLegalEntity: true,
+            ruleConfirmations: ['<i>copyright</i>'],
+          },
+        },
+        adminUser,
+      );
+      expect(result.errors).to.not.exist;
+
+      const hostApplication = await models.HostApplication.findOne({
+        where: { CollectiveId: collective.id, HostCollectiveId: host.id },
+      });
+      expect(hostApplication).to.exist;
+      expect(hostApplication.customData).to.deep.equal({
+        typeOfProject: 'CODE',
+        hasLegalEntity: true,
+        ruleConfirmations: ['copyright'],
+      });
+      expect(hostApplication.message).to.equal('We need a host');
     });
 
     it('allows applying to multiple hosts and approving after withdraw/reject sets HostCollectiveId correctly', async () => {

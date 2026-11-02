@@ -139,6 +139,11 @@ const buildSearchResultsType = (entity: SearchEntity, name: string, collectionTy
       name: `SearchResults${name}`,
       fields: {
         collection: { type: new GraphQLNonNull(collectionType) },
+        totalCountIsCapped: {
+          type: new GraphQLNonNull(GraphQLBoolean),
+          description:
+            'Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound',
+        },
         maxScore: {
           type: new GraphQLNonNull(GraphQLFloat),
           description: 'Highest score among all the matching results, regardless of the requested page',
@@ -175,6 +180,7 @@ const buildSearchResultsType = (entity: SearchEntity, name: string, collectionTy
 
       if (!result || result.totalCount === 0) {
         return {
+          totalCountIsCapped: false,
           maxScore: 0,
           scores: [],
           collection: { totalCount: 0, offset, limit, nodes: () => [] },
@@ -189,6 +195,7 @@ const buildSearchResultsType = (entity: SearchEntity, name: string, collectionTy
       }));
 
       return {
+        totalCountIsCapped: Boolean(result.totalCountIsCapped),
         maxScore: result.maxScore,
         scores: result.hits.map(hit => ({ id: strategy.getGraphQLId(hit), score: hit.score })),
         highlights,

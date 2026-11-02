@@ -10,6 +10,7 @@ import {
   fakeKYCVerification,
   fakeMember,
   fakeOrganization,
+  fakeTier,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
@@ -352,6 +353,104 @@ describe('server/graphql/v2/interface/Account', () => {
       const result = await graphqlQueryV2(query, { slug: host.slug }, otherUser);
       expect(result.errors).to.not.exist;
       expect(result.data.account.isUSEntity).to.be.null;
+    });
+  });
+
+  describe('memberOf', () => {
+    const query = gql`
+      query MemberOfTest($slug: String!, $tier: TierReferenceInput, $account: AccountReferenceInput) {
+        account(slug: $slug) {
+          memberOf(tier: $tier, account: $account) {
+            totalCount
+            nodes {
+              tier {
+                legacyId
+              }
+              account {
+                slug
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    beforeEach(async () => {
+      await resetTestDB();
+    });
+
+    it('returns only the memberships recorded with the given tier', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+      const otherCollective = await fakeCollective();
+      const tier = await fakeTier({ CollectiveId: collective.id });
+      await fakeMember({
+        CollectiveId: collective.id,
+        MemberCollectiveId: user.CollectiveId,
+        role: MemberRoles.BACKER,
+        TierId: tier.id,
+      });
+      await fakeMember({
+        CollectiveId: otherCollective.id,
+        MemberCollectiveId: user.CollectiveId,
+        role: MemberRoles.BACKER,
+      });
+
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug, tier: { legacyId: tier.id } }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.memberOf.totalCount).to.equal(1);
+      expect(result.data.account.memberOf.nodes[0].account.slug).to.equal(collective.slug);
+      expect(result.data.account.memberOf.nodes[0].tier.legacyId).to.equal(tier.id);
+    });
+
+    it('returns only the memberships without tier when tier is null', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+      const otherCollective = await fakeCollective();
+      const tier = await fakeTier({ CollectiveId: collective.id });
+      await fakeMember({
+        CollectiveId: collective.id,
+        MemberCollectiveId: user.CollectiveId,
+        role: MemberRoles.BACKER,
+        TierId: tier.id,
+      });
+      await fakeMember({
+        CollectiveId: otherCollective.id,
+        MemberCollectiveId: user.CollectiveId,
+        role: MemberRoles.BACKER,
+      });
+
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug, tier: null }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.memberOf.totalCount).to.equal(1);
+      expect(result.data.account.memberOf.nodes[0].account.slug).to.equal(otherCollective.slug);
+    });
+
+    it('rejects a tier that belongs to another account when the query is scoped to a single account', async () => {
+      // Note: the account-scoped check is the only place where the tier ownership is asserted: `memberOf` lists
+      // memberships in *other* accounts, so the tier never belongs to the account the memberships are listed for.
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+      const otherCollective = await fakeCollective();
+      const otherTier = await fakeTier({ CollectiveId: otherCollective.id });
+      await fakeMember({
+        CollectiveId: collective.id,
+        MemberCollectiveId: user.CollectiveId,
+        role: MemberRoles.BACKER,
+      });
+
+      const result = await graphqlQueryV2(
+        query,
+        {
+          slug: user.collective.slug,
+          account: { legacyId: collective.id },
+          tier: { legacyId: otherTier.id },
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Tier is not associated with this collective');
     });
   });
 });

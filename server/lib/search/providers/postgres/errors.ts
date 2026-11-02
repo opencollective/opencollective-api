@@ -14,8 +14,8 @@ export class UnsupportedSearchEntityError extends BadRequest {
 }
 
 /**
- * The search could not complete within its budget. Counts are never capped or estimated: the user must narrow the
- * search instead.
+ * The search could not complete within its budget. Counts are never estimated (only capped, for adapters with
+ * `constantScorePerArm`): the user must narrow the search instead.
  */
 export class SearchTooBroadError extends ApolloError {
   constructor(entity: SearchEntity) {

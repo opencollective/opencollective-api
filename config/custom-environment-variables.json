@@ -17,7 +17,8 @@
       "concurrencyPerRequest": "SEARCH_POSTGRES_CONCURRENCY_PER_REQUEST",
       "maxConcurrentQueries": "SEARCH_POSTGRES_MAX_CONCURRENT_QUERIES",
       "workMem": "SEARCH_POSTGRES_WORK_MEM",
-      "typoSimilarityThreshold": "SEARCH_POSTGRES_TYPO_SIMILARITY_THRESHOLD"
+      "typoSimilarityThreshold": "SEARCH_POSTGRES_TYPO_SIMILARITY_THRESHOLD",
+      "maxCountedMatches": "SEARCH_POSTGRES_MAX_COUNTED_MATCHES"
     }
   },
   "opensearch": {

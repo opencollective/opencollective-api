@@ -384,6 +384,11 @@ interface Account {
     Specific account to query the membership of.
     """
     account: AccountReferenceInput
+
+    """
+    Filter members by tier
+    """
+    tier: TierReferenceInput
     orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
 
     """
@@ -10418,6 +10423,7 @@ enum SecurityCheckScope {
   USER
   COLLECTIVE
   PAYEE
+  LEGAL_DOCUMENT
   PAYOUT_METHOD
   ATTACHMENTS
 }
@@ -25746,6 +25752,11 @@ type SearchResultsAccounts {
   collection: AccountCollection!
 
   """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
   Highest score among all the matching results, regardless of the requested page
   """
   maxScore: Float!
@@ -25780,6 +25791,11 @@ type SearchResultsComments {
   collection: CommentCollection!
 
   """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
   Highest score among all the matching results, regardless of the requested page
   """
   maxScore: Float!
@@ -25797,6 +25813,11 @@ type SearchResultsComments {
 
 type SearchResultsExpenses {
   collection: ExpenseCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
 
   """
   Highest score among all the matching results, regardless of the requested page
@@ -25818,6 +25839,11 @@ type SearchResultsHostApplications {
   collection: HostApplicationCollection!
 
   """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
   Highest score among all the matching results, regardless of the requested page
   """
   maxScore: Float!
@@ -25835,6 +25861,11 @@ type SearchResultsHostApplications {
 
 type SearchResultsOrders {
   collection: OrderCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
 
   """
   Highest score among all the matching results, regardless of the requested page
@@ -25856,6 +25887,11 @@ type SearchResultsTiers {
   collection: TierCollection!
 
   """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
   Highest score among all the matching results, regardless of the requested page
   """
   maxScore: Float!
@@ -25875,6 +25911,11 @@ type SearchResultsTransactions {
   collection: TransactionCollection!
 
   """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
   Highest score among all the matching results, regardless of the requested page
   """
   maxScore: Float!
@@ -25892,6 +25933,11 @@ type SearchResultsTransactions {
 
 type SearchResultsUpdates {
   collection: UpdateCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
 
   """
   Highest score among all the matching results, regardless of the requested page
@@ -27972,6 +28018,56 @@ type Mutation {
     """
     state: NonEmptyString!
   ): StripeConnectAccountResponse!
+
+  """
+  Get the PayPal OAuth URL to initiate the "Log in with PayPal" payout method flow. Scope: "expenses".
+  """
+  getPaypalOAuthUrl(
+    """
+    The account to connect a PayPal payout method for
+    """
+    account: AccountReferenceInput!
+
+    """
+    Currency for the payout method (stored in OAuth state)
+    """
+    currency: Currency
+  ): URL!
+
+  """
+  Complete the PayPal OAuth flow and create or update a verified PayPal payout method. Scope: "expenses".
+  """
+  connectPaypalPayoutMethod(
+    """
+    The authorization code returned by PayPal in the OAuth callback
+    """
+    code: NonEmptyString!
+
+    """
+    The OAuth state token from the PayPal authorize URL
+    """
+    state: NonEmptyString!
+
+    """
+    The account to connect a PayPal payout method for
+    """
+    account: AccountReferenceInput!
+
+    """
+    When verifying an existing payout method, pass its reference here
+    """
+    payoutMethod: PayoutMethodReferenceInput
+
+    """
+    Currency for the payout method
+    """
+    currency: Currency!
+
+    """
+    A friendly name for the payout method
+    """
+    name: String
+  ): PaypalConnectPayoutMethodResponse!
 
   """
   Get the Wise (TransferWise) OAuth URL to initiate the account connection flow for a host. Scope: "connectedAccounts".
@@ -31018,6 +31114,18 @@ type StripeConnectAccountResponse {
   The URL to redirect the user to once the connection is complete
   """
   redirectUrl: URL
+}
+
+type PaypalConnectPayoutMethodResponse {
+  """
+  The connected account that was created for this PayPal login
+  """
+  connectedAccount: ConnectedAccount!
+
+  """
+  The payout method that was created or updated
+  """
+  payoutMethod: PayoutMethod!
 }
 
 type TransferwiseConnectAccountResponse {

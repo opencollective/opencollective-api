@@ -28,9 +28,9 @@
  * - account scope: the ledger of the account and of its children (`CollectiveId`). With double-entry accounting,
  *   every transaction of an account has a row on its ledger.
  *
- * Broad words match millions of transactions ("contribution", "fee"): searches estimated to match more than can be
- * counted within the budget fail before running (`estimatedMatchesPerSecond`). Scopes are index-backed (host or
- * account with description words), so scoped searches stay fast.
+ * Broad words match millions of transactions ("contribution", "fee"): every arm has a constant score, so pages stop
+ * early and totals are capped (`constantScorePerArm`). Scopes are index-backed (host or account with description
+ * words), so scoped searches stay fast.
  *
  * Queries select from "Transactions" only (other tables in subqueries) so that unqualified column names keep
  * matching the index expressions.
@@ -72,7 +72,7 @@ const and = (conditions: RawBuilder<unknown>[]): RawBuilder<boolean> =>
  * builder keeps one). Supplied account and host scopes intersect.
  *
  * When a scope fixes an account column, its eligibility is checked once (`isEligibleAccountId`): the planner's
- * estimates must stay realistic for `estimatedMatchesPerSecond`.
+ * estimates must stay realistic for it to choose between the text index and an early-stopping scan.
  */
 const getScopeVariants = ({ scope }: TransactionsContext): RawBuilder<unknown>[][] => {
   const base = [
@@ -156,11 +156,7 @@ const getMerchantIdConditions = (merchantId: string): RawBuilder<unknown>[][] =>
 
 export const TransactionsAdapter: PostgresSearchAdapter<SearchEntity.TRANSACTIONS> = {
   entity: SearchEntity.TRANSACTIONS,
-  // Measured on 13M synthetic transactions (docs/postgres-search.md): 270k-570k matches/s with a warm cache, 40k-300k/s
-  // cold (scattered matches of a host scope are the slowest). 50k/s keeps every search that can complete cold within
-  // the budget (e.g. 250k matches in 10 s), and rejects in milliseconds the unscoped broad terms ("contribution", "fee",
-  // "credit") that match millions of rows instead of holding a connection until `statement_timeout`.
-  estimatedMatchesPerSecond: 50_000,
+  constantScorePerArm: true,
   buildArms(db: Kysely<DatabaseWithViews>, context: TransactionsContext): SearchArm[] {
     const { input } = context;
     const scopeVariants = getScopeVariants(context);
@@ -198,12 +194,14 @@ export const TransactionsAdapter: PostgresSearchAdapter<SearchEntity.TRANSACTION
       }
     }
 
-    // All the words of the description. Exact descriptions are ranked as exact labels: they always contain all their
-    // words, so they don't need their own index.
-    addArms(
-      sql<number>`CASE WHEN ${sql.raw(Exp.normalizedDescription)} = ${normalizedValue(input.term)} THEN ${scoreExpression(QualityBand.EXACT_LABEL)} ELSE ${scoreExpression(QualityBand.WORDS)} END`,
-      [sql`${sql.raw(Exp.descriptionVector)} @@ ${wordsTsQuery(input.term)}`],
-    );
+    // Exact description, then all the words of the description. Exact descriptions always contain all their words, so
+    // they are found through the words index and don't need their own.
+    const descriptionWords = sql`${sql.raw(Exp.descriptionVector)} @@ ${wordsTsQuery(input.term)}`;
+    addArms(scoreExpression(QualityBand.EXACT_LABEL), [
+      descriptionWords,
+      sql`${sql.raw(Exp.normalizedDescription)} = ${normalizedValue(input.term)}`,
+    ]);
+    addArms(scoreExpression(QualityBand.WORDS), [descriptionWords]);
 
     // Kind and type, when the whole input is one of their values
     const kind = parseKind(input.term);

@@ -96,6 +96,7 @@ const searchWithTopHits = async (
     const indexesRequests = queryRequests.map(toIndexRequest);
     const response = await openSearchMultiIndexGlobalSearch(indexesRequests, request.term, {
       user: request.remoteUser,
+      isRoot: request.isRoot,
       account: request.scope.account,
       host: request.scope.host,
       limit: max(queryRequests.map(r => r.limit)),
@@ -139,6 +140,7 @@ const searchSeparately = async (
   for (const entityRequest of entityRequests) {
     const response = await openSearchSingleIndexSearch(toIndexRequest(entityRequest), request.term, {
       user: request.remoteUser,
+      isRoot: request.isRoot,
       account: request.scope.account,
       host: request.scope.host,
       limit: entityRequest.limit,
