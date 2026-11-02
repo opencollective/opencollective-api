@@ -1864,7 +1864,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await fakeExpense({ type: 'INVOICE', UserId: user.id, InvoiceFileId: invoiceUploadedFile.id });
         const collective = await fakeCollective();
         const payee = await fakeCollective({
-          type: 'ORGANIZATION',
+          type: CollectiveType.ORGANIZATION,
           admin: user.collective,
           location: { address: null },
         });
