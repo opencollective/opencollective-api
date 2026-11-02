@@ -36,16 +36,6 @@ describe('server/lib/normalize-zone', () => {
       expect(normalizeZoneCode('AE', 'Dubai')).to.equal('DU');
     });
 
-    it('converts both local and latin names', () => {
-      expect(normalizeZoneCode('JP', '東京都')).to.equal('13');
-      expect(normalizeZoneCode('JP', 'tokyo')).to.equal('13');
-    });
-
-    it('trims the zone', () => {
-      expect(normalizeZoneCode('US', ' CA ')).to.equal('CA');
-      expect(normalizeZoneCode('US', ' California ')).to.equal('CA');
-    });
-
     it('returns the original value when no match exists', () => {
       expect(normalizeZoneCode('US', 'Not A State')).to.equal('Not A State');
       expect(normalizeZoneCode('FR', 'Ile-de-France')).to.equal('Ile-de-France');

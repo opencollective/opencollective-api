@@ -1,6 +1,7 @@
+import { CountryCode, formatAddress as libFormatAddress } from 'lib-address';
+
 import { Location } from '../types/Location';
 
-import { CountryCode, formatAddress as libFormatAddress } from './address';
 import { normalizeZoneCode } from './normalize-zone';
 import { reportErrorToSentry } from './sentry';
 
@@ -31,10 +32,14 @@ export async function formatAddress(
         state: normalizedZone,
         zip: postalCode,
       },
-      { appendCountry: includeCountry, lang: locale },
+      {
+        appendCountry: includeCountry,
+        lang: locale,
+        preserveCase: true,
+      },
     );
 
-    // The address lib returns a newline-separated string, convert to requested divider
+    // lib-address returns newline-separated string, convert to requested divider
     if (lineDivider === '\n') {
       return formatted;
     } else {

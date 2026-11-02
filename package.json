@@ -88,6 +88,7 @@
     "juice": "12.2.0",
     "kysely": "0.29.7",
     "kysely-sequelize": "^0.2.0",
+    "lib-address": "0.7.0",
     "limax": "4.2.3",
     "lodash": "4.18.1",
     "lossless-json": "4.3.3",
