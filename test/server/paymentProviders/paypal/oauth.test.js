@@ -312,6 +312,31 @@ describe('server/paymentProviders/paypal/oauth', () => {
       expect(res.status).to.equal(404);
     });
 
+    it('returns 400 (not 403) when a non-admin sends an incomplete body', async () => {
+      const res = await request(expressApp)
+        .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
+        .set('Authorization', `Bearer ${user.jwt()}`)
+        .set('Content-Type', 'application/json')
+        .send(omit(getValidBodyWithState(), 'code'));
+
+      expect(res.status).to.equal(400);
+      expect(res.body.error.message).to.equal('PayPal code is missing');
+    });
+
+    it('returns 400 (not 404) when the body is incomplete and the payout method does not exist', async () => {
+      const res = await request(expressApp)
+        .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
+        .set('Authorization', `Bearer ${host.jwt()}`)
+        .set('Content-Type', 'application/json')
+        .send({
+          ...omit(getValidBodyWithState(), 'currency'),
+          payoutMethodId: idEncode(999999, IDENTIFIER_TYPES.PAYOUT_METHOD),
+        });
+
+      expect(res.status).to.equal(400);
+      expect(res.body.error.message).to.equal('Currency not provided');
+    });
+
     it('returns 403 when user is not admin of collective', async () => {
       const body = getValidBodyWithState();
       body.state = createPaypalConnectState(collective.id, user.id);

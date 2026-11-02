@@ -340,9 +340,16 @@ export default {
         return next(new errors.Unauthorized('You must be logged in'));
       }
 
+      // Validate the input before the lookups and permission checks, to keep the status codes of this endpoint
       const { code, state, accountId, payoutMethodId, currency, name } = req.body;
       if (!accountId) {
         return next(new errors.BadRequest('Account ID is missing'));
+      } else if (!code) {
+        return next(new errors.BadRequest('PayPal code is missing'));
+      } else if (!state) {
+        return next(new errors.BadRequest('OAuth state is missing. Please restart the PayPal connect flow.'));
+      } else if (!currency) {
+        return next(new errors.BadRequest('Currency not provided'));
       }
 
       try {
