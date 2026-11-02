@@ -1477,8 +1477,17 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           const { offset, limit } = args;
+          // Finding which accounts require a tax form is expensive when done host-wide. When the
+          // caller already targets specific accounts, scope the query to them: Postgres then starts
+          // from the payees' expenses instead of scanning every expense of the host (see
+          // `getTaxFormsRequiredForAccounts`).
+          const requestedAccountIds =
+            args.account?.length > 0
+              ? uniq(await fetchAccountsIdsWithReference(args.account, { throwIfMissing: true }))
+              : null;
           const accountIds = await SQLQueries.getTaxFormsRequiredForAccounts({
             HostCollectiveId: host.id,
+            CollectiveId: requestedAccountIds ?? undefined,
             allTime: true,
           });
           if (!accountIds.size) {
@@ -1491,11 +1500,6 @@ export const GraphQLHost = new GraphQLObjectType({
           }
           if (args.status) {
             where['requestStatus'] = args.status;
-          }
-
-          if (args.account && args.account.length > 0) {
-            const accountIds = await fetchAccountsIdsWithReference(args.account, { throwIfMissing: true });
-            where['CollectiveId'] = uniq(accountIds);
           }
 
           if (args.requestedAtFrom) {

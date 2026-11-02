@@ -57,6 +57,8 @@ export type SearchRequest = {
   scope: SearchScope;
   /** Access context: the user on whose behalf the search runs (`null` when unauthenticated) */
   remoteUser: User | null;
+  /** Access context: whether the user is root AND authenticated with the `root` scope (see `isRemoteUserRoot`) */
+  isRoot: boolean;
   /** Maximum time to wait for a single entity search. Providers that have their own budget may ignore it. */
   timeoutInMs: number;
   /** Rank all entities together (no pagination with offset) */

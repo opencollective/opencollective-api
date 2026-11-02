@@ -2,11 +2,14 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import { flatten } from 'lodash';
 import moment from 'moment';
+import { createSandbox } from 'sinon';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import { PlatformSubscriptionTiers, PlatformSubscriptionTierTypes } from '../../../../../server/constants/plans';
 import MemberRoles from '../../../../../server/constants/roles';
+import SQLQueries from '../../../../../server/lib/queries';
 import models, { PlatformSubscription } from '../../../../../server/models';
+import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import { BillingMonth } from '../../../../../server/models/PlatformSubscription';
 import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
 import {
@@ -14,8 +17,11 @@ import {
   fakeCollective,
   fakeEvent,
   fakeExpense,
+  fakeLegalDocument,
   fakeMember,
+  fakePayoutMethod,
   fakeProject,
+  fakeRequiredLegalDocument,
   fakeUploadedFile,
   fakeUser,
   fakeVirtualCard,
@@ -217,6 +223,108 @@ describe('server/graphql/v2/object/Host', () => {
       expect(result.errors).to.be.undefined;
       expect(result.data.host.hostedAccountAgreements.totalCount).to.eql(1);
       expect(result.data.host.hostedAccountAgreements.nodes[0].title).to.eql('pubid agreement');
+    });
+  });
+
+  describe('hostedLegalDocuments', () => {
+    const taxFormsQuery = gql`
+      query HostTaxForms($slug: String!, $accounts: [AccountReferenceInput]) {
+        host(slug: $slug) {
+          id
+          hostedLegalDocuments(type: US_TAX_FORM, account: $accounts, orderBy: { field: CREATED_AT, direction: DESC }) {
+            totalCount
+            nodes {
+              id
+              account {
+                id
+                legacyId
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    let sandbox;
+    let host, hostAdmin, payee, otherPayee;
+
+    const setup = async () => {
+      hostAdmin = await fakeUser();
+      host = await fakeActiveHost({ admin: hostAdmin });
+      await fakeRequiredLegalDocument({ HostCollectiveId: host.id });
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id });
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      payee = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+      otherPayee = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+
+      // Both payees have been paid by the host above the tax form threshold
+      for (const fromCollective of [payee, otherPayee]) {
+        await fakeExpense({
+          FromCollectiveId: fromCollective.id,
+          CollectiveId: hostedCollective.id,
+          HostCollectiveId: host.id,
+          PayoutMethodId: payoutMethod.id,
+          amount: 1_000_000e2,
+          status: 'PAID',
+        });
+        await fakeLegalDocument({ CollectiveId: fromCollective.id });
+      }
+    };
+
+    before(resetTestDB);
+
+    beforeEach(async () => {
+      sandbox = createSandbox();
+      await setup();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('returns legal documents for all accounts requiring one', async () => {
+      const result = await graphqlQueryV2(taxFormsQuery, { slug: host.slug }, hostAdmin);
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.hostedLegalDocuments.totalCount).to.eql(2);
+    });
+
+    it('only returns legal documents of the requested accounts', async () => {
+      const result = await graphqlQueryV2(
+        taxFormsQuery,
+        { slug: host.slug, accounts: [{ id: payee.publicId }] },
+        hostAdmin,
+      );
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.hostedLegalDocuments.totalCount).to.eql(1);
+      expect(result.data.host.hostedLegalDocuments.nodes[0].account.legacyId).to.eql(payee.id);
+    });
+
+    it('scopes the tax forms requirement query to the requested accounts', async () => {
+      const spy = sandbox.spy(SQLQueries, 'getTaxFormsRequiredForAccounts');
+      const result = await graphqlQueryV2(
+        taxFormsQuery,
+        { slug: host.slug, accounts: [{ id: payee.publicId }] },
+        hostAdmin,
+      );
+      expect(result.errors).to.be.undefined;
+      expect(spy).to.have.been.calledOnceWith({
+        HostCollectiveId: host.id,
+        CollectiveId: [payee.id],
+        allTime: true,
+      });
+    });
+
+    it('does not return legal documents of accounts that do not require a tax form for this host', async () => {
+      const unrelatedAccount = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+      await fakeLegalDocument({ CollectiveId: unrelatedAccount.id });
+
+      const result = await graphqlQueryV2(
+        taxFormsQuery,
+        { slug: host.slug, accounts: [{ id: unrelatedAccount.publicId }] },
+        hostAdmin,
+      );
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.hostedLegalDocuments.totalCount).to.eql(0);
     });
   });
 

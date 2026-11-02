@@ -162,6 +162,42 @@ describe('server/graphql/v2/mutation/PlatformSubscriptionsMutations', () => {
         });
       }
 
+      for (const auth of ['OAuth', 'personal token']) {
+        it(`rejects an account-scoped ${auth} selecting a plan for an unrelated account`, async () => {
+          const variables = { account: { legacyId: host.id }, planId: 'basic-5' };
+          const result =
+            auth === 'OAuth'
+              ? await oAuthGraphqlQueryV2(
+                  updateAccountPlatformSubscriptionMutation,
+                  variables,
+                  await fakeUserToken({ user: root, scope: ['account'] }),
+                )
+              : await personalTokenGraphqlQueryV2(
+                  updateAccountPlatformSubscriptionMutation,
+                  variables,
+                  await fakePersonalToken({ user: root, scope: [OAuthScopes.account] }),
+                );
+
+          expect(result.errors).to.not.be.empty;
+          expect(result.errors[0].extensions.code).to.equal('Forbidden');
+          expect(result.errors[0].message).to.equal(
+            `The ${auth === 'OAuth' ? 'User' : 'Personal'} Token is not allowed for operations in scope "root".`,
+          );
+          expect(await PlatformSubscription.count({ where: { CollectiveId: host.id } })).to.equal(0);
+        });
+      }
+
+      it('allows a root-scoped token to select a plan for an unrelated account', async () => {
+        const result = await oAuthGraphqlQueryV2(
+          updateAccountPlatformSubscriptionMutation,
+          { account: { legacyId: host.id }, planId: 'basic-5' },
+          await fakeUserToken({ user: root, scope: ['account', 'root'] }),
+        );
+
+        expect(result.errors).to.be.undefined;
+        expect(await PlatformSubscription.getCurrentSubscription(host.id)).to.exist;
+      });
+
       it('allows an account admin to select a plan with only account scope', async () => {
         await fakeMember({ CollectiveId: host.id, MemberCollectiveId: root.CollectiveId, role: roles.ADMIN });
         const result = await oAuthGraphqlQueryV2(

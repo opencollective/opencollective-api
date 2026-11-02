@@ -249,7 +249,13 @@ program
     }
 
     const indexInputs = indexes.map(index => ({ index }));
-    const result = await openSearchMultiIndexGlobalSearch(indexInputs, query, { account, host, limit, user });
+    const result = await openSearchMultiIndexGlobalSearch(indexInputs, query, {
+      account,
+      host,
+      limit,
+      user,
+      isRoot: Boolean(user?.isRoot()), // CLI: no OAuth/personal token involved
+    });
     console.log('Result', JSON.stringify(result, null, 2));
   });
 
