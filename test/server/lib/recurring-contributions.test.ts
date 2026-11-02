@@ -761,7 +761,7 @@ describe('server/lib/recurring-contributions', () => {
     });
 
     it('should exclude orders in CANCELLED and PAUSED status', async () => {
-      const payment = { amount: 1000, currency: 'USD', interval: 'month' };
+      const payment = { amount: 1000, currency: 'USD' as SupportedCurrency, interval: 'month' as const };
       const createDueOrder = async orderStatus => {
         const subscription = await models.Subscription.create({
           ...payment,

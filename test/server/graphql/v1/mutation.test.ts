@@ -335,7 +335,7 @@ describe('server/graphql/v1/mutation', () => {
         const admin = await fakeUser();
         const parent = await fakeCollective({ admin });
         const project = await fakeProject({ ParentCollectiveId: parent.id });
-        const order = await fakeOrder({ CollectiveId: project.id, status: 'ACTIVE' }, { withSubscription: true });
+        const order = await fakeOrder({ CollectiveId: project.id, status: status.ACTIVE }, { withSubscription: true });
 
         const response = await utils.graphqlQuery(archiveCollectiveMutation, { id: parent.id }, admin);
         expect(response.errors).to.not.exist;
@@ -352,7 +352,7 @@ describe('server/graphql/v1/mutation', () => {
         const recipient = await fakeCollective();
         const order = await fakeOrder(
           {
-            status: 'ACTIVE',
+            status: status.ACTIVE,
             CollectiveId: recipient.id,
             FromCollectiveId: archivedAccount.id,
             subscription: { isManagedExternally: true },

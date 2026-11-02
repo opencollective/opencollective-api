@@ -294,14 +294,14 @@ describe('server/models/Order', () => {
       const tier = await fakeTier({ CollectiveId: collective.id });
       const otherTier = await fakeTier({ CollectiveId: collective.id });
       const fakeRecurringOrder = (orderData = {}) =>
-        fakeOrder({ CollectiveId: collective.id, status: 'ACTIVE', ...orderData }, { withSubscription: true });
+        fakeOrder({ CollectiveId: collective.id, status: status.ACTIVE, ...orderData }, { withSubscription: true });
 
       const tierOrder = await fakeRecurringOrder({ TierId: tier.id });
       const pausedTierOrder = await fakeOrder(
         {
           CollectiveId: collective.id,
           TierId: tier.id,
-          status: 'PAUSED',
+          status: status.PAUSED,
           subscription: { isActive: false, deactivatedAt: new Date() },
         },
         { withSubscription: true },
@@ -334,16 +334,16 @@ describe('server/models/Order', () => {
       const collective = await fakeCollective({ HostCollectiveId: host.id, approvedAt: null });
       const tier = await fakeTier({ CollectiveId: collective.id });
       const tierOrder = await fakeOrder(
-        { CollectiveId: collective.id, TierId: tier.id, status: 'ACTIVE' },
+        { CollectiveId: collective.id, TierId: tier.id, status: status.ACTIVE },
         { withSubscription: true },
       );
       const flexibleOrder = await fakeOrder(
-        { CollectiveId: collective.id, TierId: null, status: 'ACTIVE' },
+        { CollectiveId: collective.id, TierId: null, status: status.ACTIVE },
         { withSubscription: true },
       );
 
       // Without a tier, the approval guard still applies
-      await models.Order.stopActiveSubscriptions(collective.id, 'PAUSED');
+      await models.Order.stopActiveSubscriptions(collective.id, status.PAUSED);
       await tierOrder.reload();
       expect(tierOrder.status).to.equal('ACTIVE');
 
@@ -361,15 +361,15 @@ describe('server/models/Order', () => {
       const archivedAccount = await fakeCollective();
       const otherAccount = await fakeCollective();
       const order = await fakeOrder(
-        { CollectiveId: recipient.id, FromCollectiveId: archivedAccount.id, status: 'ACTIVE' },
+        { CollectiveId: recipient.id, FromCollectiveId: archivedAccount.id, status: status.ACTIVE },
         { withSubscription: true },
       );
       const otherOrder = await fakeOrder(
-        { CollectiveId: recipient.id, FromCollectiveId: otherAccount.id, status: 'ACTIVE' },
+        { CollectiveId: recipient.id, FromCollectiveId: otherAccount.id, status: status.ACTIVE },
         { withSubscription: true },
       );
 
-      await models.Order.stopActiveSubscriptionsFromAccounts(archivedAccount.id, 'CANCELLED');
+      await models.Order.stopActiveSubscriptionsFromAccounts(archivedAccount.id, status.CANCELLED);
 
       await order.reload();
       await otherOrder.reload();
@@ -385,7 +385,7 @@ describe('server/models/Order', () => {
       const pausedOrder = await fakeOrder(
         {
           CollectiveId: collective.id,
-          status: 'PAUSED',
+          status: status.PAUSED,
           data: { pausedBy: 'USER' },
           subscription: { isActive: false, deactivatedAt: new Date() },
         },
@@ -393,7 +393,7 @@ describe('server/models/Order', () => {
       );
 
       // e.g. un-hosting without pausing the contributions
-      await models.Order.stopActiveSubscriptions(collective.id, 'CANCELLED', { includeChildren: false });
+      await models.Order.stopActiveSubscriptions(collective.id, status.CANCELLED, { includeChildren: false });
 
       await pausedOrder.reload();
       expect(pausedOrder.status).to.equal('PAUSED');
@@ -405,13 +405,13 @@ describe('server/models/Order', () => {
       const collective = await fakeCollective({ HostCollectiveId: host.id });
       const tier = await fakeTier({ CollectiveId: collective.id });
       const order = await fakeOrder(
-        { CollectiveId: collective.id, TierId: tier.id, status: 'ACTIVE' },
+        { CollectiveId: collective.id, TierId: tier.id, status: status.ACTIVE },
         { withSubscription: true },
       );
 
       await models.Order.stopActiveSubscriptionsForTier(tier.id);
       // e.g. freezing the collective before the 10-minute job deactivated the subscription
-      await models.Order.stopActiveSubscriptions(collective.id, 'PAUSED', { paymentProviderAction: 'PAUSE' });
+      await models.Order.stopActiveSubscriptions(collective.id, status.PAUSED, { paymentProviderAction: 'PAUSE' });
 
       await order.reload();
       expect(order.status).to.equal('CANCELLED');
@@ -421,9 +421,12 @@ describe('server/models/Order', () => {
 
     it('does not touch terminal orders', async () => {
       const collective = await fakeCollective();
-      const paidOrder = await fakeOrder({ CollectiveId: collective.id, status: 'PAID' }, { withSubscription: true });
+      const paidOrder = await fakeOrder(
+        { CollectiveId: collective.id, status: status.PAID },
+        { withSubscription: true },
+      );
 
-      await models.Order.stopActiveSubscriptions(collective.id, 'PAUSED');
+      await models.Order.stopActiveSubscriptions(collective.id, status.PAUSED);
 
       await paidOrder.reload();
       expect(paidOrder.status).to.equal('PAID');

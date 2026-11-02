@@ -124,10 +124,13 @@ export async function ordersWithPendingCharges({
  * month though, so a flagged order older than that is stuck (e.g. a provider-side cancel that keeps failing) and is
  * reported. `needsAsyncReactivation` is not excluded: the job never reactivates a subscription that is still active.
  *
- * Used as a tripwire by `cron/hourly/00-charge-recurring-contributions.js`: it never blocks charging, it only
+ * Used as a tripwire by `cron/hourly/00-charge-recurring-contributions.ts`: it never blocks charging, it only
  * makes the inconsistency visible.
  */
-export async function findCancelledOrdersWithActiveSubscriptions({ limit = 100 } = {}) {
+export async function findCancelledOrdersWithActiveSubscriptions({ limit = 100 } = {}): Promise<{
+  count: number;
+  orderIds: number[];
+}> {
   const where = `
     "Orders"."status" = 'CANCELLED'
     AND "Orders"."deletedAt" IS NULL
@@ -143,14 +146,14 @@ export async function findCancelledOrdersWithActiveSubscriptions({ limit = 100 }
   `;
 
   const [countRows, rows] = await Promise.all([
-    sequelize.query(
+    sequelize.query<{ count: number }>(
       `SELECT COUNT(*)::int AS count
        FROM "Orders"
        INNER JOIN "Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
        WHERE ${where}`,
       { type: QueryTypes.SELECT },
     ),
-    sequelize.query(
+    sequelize.query<{ id: number }>(
       `SELECT "Orders".id
        FROM "Orders"
        INNER JOIN "Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
