@@ -4,9 +4,8 @@ import type Express from 'express';
 import ActivityTypes from '../../../../server/constants/activities';
 import { sanitizeActivityData } from '../../../../server/graphql/common/activities';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../../server/graphql/common/context-permissions';
-import models from '../../../../server/models';
 import { fakeExpense, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data';
-import { resetTestDB } from '../../../utils';
+import { makeRequest, resetTestDB } from '../../../utils';
 
 describe('server/graphql/common/activities', () => {
   describe('sanitizeActivityData - COLLECTIVE_EXPENSE_UPDATED payout snapshots', () => {
@@ -24,14 +23,7 @@ describe('server/graphql/common/activities', () => {
 
       // Viewer with no role on the expense, granted access to the old method only
       const viewer = await fakeUser();
-      const req = {
-        remoteUser: viewer,
-        loaders: {
-          Expense: { byId: { load: async () => expense } },
-          PayoutMethod: { byId: { load: async (id: number) => models.PayoutMethod.findByPk(id) } },
-          Collective: { byId: { load: async (id: number) => models.Collective.findByPk(id) } },
-        },
-      } as unknown as Express.Request;
+      const req = makeRequest(viewer) as unknown as Express.Request;
       allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, oldPayoutMethod.id);
 
       const activity = {
