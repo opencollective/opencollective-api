@@ -6,7 +6,10 @@ import '../server/env';
  */
 
 const test = (stdout: string): boolean => !stdout.match(/relation "Notifications" does not exist/);
-const command = `mocha test/transactions.routes.test.js`;
+// The Notification test moved from `.js` to `.ts` in #12407: pick whichever file exists in the
+// commit being checked out, otherwise mocha exits non-zero and `execSync` throws before we can
+// classify the commit.
+const command = `mocha "$(ls test/server/models/Notification.test.ts test/server/models/Notification.test.js 2>/dev/null | head -n 1)"`;
 
 const initialIndex = 0;
 const initialSteps = 100;
