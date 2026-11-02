@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { expect } from 'chai';
+import config from 'config';
 import _ from 'lodash';
 import { createSandbox, stub } from 'sinon';
 
@@ -124,6 +125,21 @@ describe('server/lib/slack', () => {
     });
 
     it('silently skips channels whose webhook is not configured', async () => {
+      // Load the config without the SLACK_WEBHOOK_ENGINEERING_ALERTS override so the test checks the default value
+      const envOverride = process.env.SLACK_WEBHOOK_ENGINEERING_ALERTS;
+      delete process.env.SLACK_WEBHOOK_ENGINEERING_ALERTS;
+      let defaultConfig;
+      try {
+        // `loadFileConfigs` is an instance method of `config.util` at runtime, but its type is only declared as static
+        defaultConfig = (config.util as unknown as { loadFileConfigs: () => typeof config }).loadFileConfigs();
+      } finally {
+        if (envOverride !== undefined) {
+          process.env.SLACK_WEBHOOK_ENGINEERING_ALERTS = envOverride;
+        }
+      }
+
+      expect(defaultConfig.slack.webhooks.engineeringAlerts).to.be.null;
+      sandbox.stub(config.slack, 'webhooks').value(defaultConfig.slack.webhooks);
       const axiosPost = sandbox.stub(axios, 'post').resolves({ status: 200 });
       const loggerWarn = sandbox.stub(logger, 'warn');
 
