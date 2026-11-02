@@ -289,6 +289,7 @@ PaymentMethod.hasMany(Transaction);
 
 // Payout method
 PayoutMethod.belongsTo(Collective);
+PayoutMethod.belongsTo(ConnectedAccount);
 PayoutMethod.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
 
 // PaypalPlan

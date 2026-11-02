@@ -6,6 +6,7 @@ import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/pe
 import type { Collective, Conversation, Expense, Order, Transaction, Update } from '../../../models';
 import ActivityModel from '../../../models/Activity';
 import { sanitizeActivityData } from '../../common/activities';
+import { isRemoteUserRoot } from '../../common/scope-check';
 import { hasUpdatesScopeForNonPublicUpdate } from '../../common/update';
 import { GraphQLActivityType } from '../enum';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -95,7 +96,7 @@ export const GraphQLActivity = new GraphQLObjectType({
           isIncognito = Boolean(fromCollective?.isIncognito);
         }
 
-        if (isIncognito && !req.remoteUser?.isRoot() && !req.remoteUser?.isAdminOfCollective(userCollective)) {
+        if (isIncognito && !isRemoteUserRoot(req) && !req.remoteUser?.isAdminOfCollective(userCollective)) {
           return null;
         }
 

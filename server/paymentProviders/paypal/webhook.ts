@@ -23,7 +23,7 @@ import { PayoutWebhookRequest, PaypalCapture, PaypalRefund } from '../../types/p
 import { paypalRequestV2 } from './api';
 import { findTransactionByPaypalId, recordPaypalCapture, recordPaypalSale } from './payment';
 import { checkBatchItemStatus } from './payouts';
-import { CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON, CONTRIBUTION_PAUSED_MSG } from './subscription';
+import { CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON, markPaypalSubscriptionAsCancelledInDb } from './subscription';
 
 const debug = Debug('paypal:webhook');
 
@@ -456,22 +456,10 @@ async function handleSubscriptionCancelled(req: Request): Promise<void> {
   }
 
   const { order } = result;
-  if (order.status !== OrderStatus.CANCELLED) {
-    const shouldKeepPaused = subscription.status_change_note === CONTRIBUTION_PAUSED_MSG;
-    await order.update({
-      status: order.status === OrderStatus.PAUSED && shouldKeepPaused ? OrderStatus.PAUSED : OrderStatus.CANCELLED,
-      data: { ...order.data, paypalStatusChangeNote: subscription.status_change_note },
-    });
-  }
-
-  if (order.Subscription.isActive || !order.Subscription.deactivatedAt) {
-    await order.Subscription.update({
-      isActive: false,
-      deactivatedAt: new Date(),
-      nextChargeDate: null,
-      data: { ...order.Subscription.data, deactivatedFromPayPalWebhook: true },
-    });
-  }
+  await markPaypalSubscriptionAsCancelledInDb(order, {
+    statusChangeNote: subscription.status_change_note,
+    subscriptionData: { deactivatedFromPayPalWebhook: true },
+  });
 }
 
 /**
@@ -523,7 +511,7 @@ const ignoreWebhookEvent = (req: Request): Promise<void> => {
 
 const EventHandlers: Record<WatchedPaypalWebhookEvent, (req: Request) => Promise<void>> = {
   // These payout events are all ignored, especially since https://github.com/opencollective/opencollective-api/commit/641ce51e57e818530571e86d23d54b292bee52a8#diff-439d2ae7fe1dcbd7d538ed0df2359e38309366f6a9785f9e7ebc297e5e0a7068
-  // opencollective-api/cron/hourly/11-check-pending-paypal-expenses.js is handling the sync, so data should still be up-to-date
+  // opencollective-api/cron/hourly/11-check-pending-paypal-expenses.ts is handling the sync, so data should still be up-to-date
   // Handling them would allow for faster sync: https://github.com/opencollective/opencollective/issues/8789
   [WatchedPaypalWebhookEvent.PAYOUTS_BATCH_DENIED]: ignoreWebhookEvent,
   [WatchedPaypalWebhookEvent.PAYOUTS_BATCH_PROCESSING]: ignoreWebhookEvent,

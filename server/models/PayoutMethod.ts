@@ -21,7 +21,7 @@ import { PayPalSupportedCurrencies } from '../paymentProviders/paypal/constants'
 import { PaypalUserInfo } from '../paymentProviders/paypal/types';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
-import type { Collective, Expense, User } from '.';
+import type { Collective, ConnectedAccount, Expense, User } from '.';
 import { ModelWithPublicId } from './ModelWithPublicId';
 
 /**
@@ -63,8 +63,6 @@ export const IDENTIFIABLE_DATA_FIELDS = [
 /** An interface for the values stored in `data` field for PayPal payout methods */
 export interface PaypalPayoutMethodData {
   email: string;
-  /** ID of the ConnectedAccount that verified this PayPal account via OAuth */
-  connectedAccountId?: number;
   verifiedAt?: string;
   currency?: string;
   paypalUserInfo?: PaypalUserInfo;
@@ -72,7 +70,6 @@ export interface PaypalPayoutMethodData {
 }
 
 interface StripePayoutMethodData {
-  connectedAccountId: number;
   stripeAccountId: string;
   publishableKey: string;
 }
@@ -113,6 +110,8 @@ class PayoutMethod extends ModelWithPublicId<
   declare public data: PayoutMethodDataType;
   declare public isSaved: boolean;
   declare public CollectiveId: number;
+  /** Connected account linked by the payment provider, never by user-submitted data. */
+  declare public ConnectedAccountId: ForeignKey<ConnectedAccount['id']> | null;
   declare public CreatedByUserId: ForeignKey<User['id']>;
   declare public currency: SupportedCurrency | null;
 
@@ -383,16 +382,7 @@ PayoutMethod.init(
           if (this.type === PayoutMethodTypes.PAYPAL) {
             if (!value || !value.email || !isEmail(value.email)) {
               throw new Error('Invalid PayPal email address');
-            } else if (
-              !objHasOnlyKeys(value, [
-                'email',
-                'currency',
-                'connectedAccountId',
-                'isPayPalOAuth',
-                'verifiedAt',
-                'paypalUserInfo',
-              ])
-            ) {
+            } else if (!objHasOnlyKeys(value, ['email', 'currency', 'isPayPalOAuth', 'verifiedAt', 'paypalUserInfo'])) {
               throw new Error('Data for this payout method contains too much information');
             } else if (!PayPalSupportedCurrencies.includes(value.currency)) {
               throw new Error('This currency is not supported by PayPal');
@@ -412,7 +402,7 @@ PayoutMethod.init(
               throw new Error('Invalid format of CREDIT_CARD payout method data');
             }
           } else if (this.type === PayoutMethodTypes.STRIPE) {
-            if (!value || !value.stripeAccountId || !value.connectedAccountId) {
+            if (!value || !value.stripeAccountId || !this.ConnectedAccountId) {
               throw new Error('Invalid format of STRIPE payout method data');
             }
           } else if (!value || Object.keys(value).length > 0) {
@@ -449,6 +439,13 @@ PayoutMethod.init(
       onDelete: 'CASCADE',
       onUpdate: 'CASCADE',
       allowNull: false,
+    },
+    ConnectedAccountId: {
+      type: DataTypes.INTEGER,
+      references: { model: 'ConnectedAccounts', key: 'id' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
     },
     CreatedByUserId: {
       type: DataTypes.INTEGER,

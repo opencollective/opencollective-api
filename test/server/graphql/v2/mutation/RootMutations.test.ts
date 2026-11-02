@@ -7,9 +7,11 @@ import { CollectiveType } from '../../../../../server/constants/collectives';
 import PlatformConstants from '../../../../../server/constants/platform';
 import roles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import cache, { fetchCollectiveId } from '../../../../../server/lib/cache';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
 import {
+  fakeActiveHost,
   fakeActivity,
   fakeCollective,
   fakeComment,
@@ -47,6 +49,17 @@ const EDIT_ACCOUNT_FLAGS_MUTATION = gql`
   mutation EditAccountFlags($account: AccountReferenceInput!, $isBlockedForUnpaidPlatformBilling: Boolean) {
     editAccountFlags(account: $account, isBlockedForUnpaidPlatformBilling: $isBlockedForUnpaidPlatformBilling) {
       id
+    }
+  }
+`;
+
+const MERGE_ACCOUNTS_MUTATION = gql`
+  mutation MergeAccounts($fromAccount: AccountReferenceInput!, $toAccount: AccountReferenceInput!, $dryRun: Boolean!) {
+    mergeAccounts(fromAccount: $fromAccount, toAccount: $toAccount, dryRun: $dryRun) {
+      message
+      account {
+        id
+      }
     }
   }
 `;
@@ -662,6 +675,49 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('Expected currency');
+    });
+  });
+
+  describe('mergeAccounts', () => {
+    const callMergeAccountsMutation = (variables, user = rootUser, useValid2FA = true) => {
+      const headers = {};
+      if (useValid2FA) {
+        headers[TwoFactorAuthenticationHeader] = generateValid2FAHeader(rootUser);
+      }
+
+      return graphqlQueryV2(MERGE_ACCOUNTS_MUTATION, variables, user, undefined, headers);
+    };
+
+    it('purges the source parent caches and the source slug cache after a merge', async () => {
+      const host = await fakeActiveHost();
+      const parent = await fakeCollective({ HostCollectiveId: host.id });
+      const project = await fakeCollective({
+        type: CollectiveType.PROJECT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: host.id,
+      });
+      const target = await fakeCollective({ HostCollectiveId: host.id });
+
+      // Seed the caches that would otherwise survive the merge
+      await fetchCollectiveId(project.slug);
+      await cache.set(`graphqlCache_${parent.slug}_seed`, 'parent-cache');
+      await cache.set(`graphqlCache_${project.slug}_seed`, 'project-cache');
+      expect(await fetchCollectiveId(project.slug)).to.eq(project.id);
+      expect(await cache.get(`graphqlCache_${parent.slug}_seed`)).to.eq('parent-cache');
+
+      const result = await callMergeAccountsMutation({
+        fromAccount: { legacyId: project.id },
+        toAccount: { legacyId: target.id },
+        dryRun: false,
+      });
+      expect(result.errors, result.errors?.map(error => error.message).join(', ')).to.not.exist;
+
+      // The source's old slug no longer resolves from the cache
+      expect(await fetchCollectiveId(project.slug)).to.be.undefined;
+
+      // The source's and its parent's caches are purged (the parent lists its children)
+      expect(await cache.get(`graphqlCache_${project.slug}_seed`)).to.be.undefined;
+      expect(await cache.get(`graphqlCache_${parent.slug}_seed`)).to.be.undefined;
     });
   });
 });

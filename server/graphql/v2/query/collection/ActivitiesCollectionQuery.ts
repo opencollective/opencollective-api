@@ -11,7 +11,7 @@ import { CollectiveType } from '../../../../constants/collectives';
 import { assertCanSeeAccount, assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import models, { Activity, Collective, Op, User } from '../../../../models';
 import { CommentType } from '../../../../models/Comment';
-import { checkRemoteUserCanUseAccount } from '../../../common/scope-check';
+import { checkRemoteUserCanUseAccount, isRemoteUserRoot } from '../../../common/scope-check';
 import { BadRequest, NotFound } from '../../../errors';
 import { GraphQLActivityCollection } from '../../collection/ActivityCollection';
 import { GraphQLActivityAndClassesType } from '../../enum/ActivityType';
@@ -91,7 +91,7 @@ const ActivitiesCollectionQuery = {
   args: ActivitiesCollectionArgs,
   async resolve(_: void, args, req): Promise<CollectionReturnType> {
     checkRemoteUserCanUseAccount(req, { signedOutMessage: 'You need to be logged in to view activities.' });
-    const isRoot = req.remoteUser.isRoot();
+    const isRoot = isRemoteUserRoot(req);
     const { offset, limit } = args;
 
     // Load accounts

@@ -26,10 +26,11 @@ import { getContextPermission, PERMISSION_TYPE } from '../../common/context-perm
 import { getFeatureStatusResolver } from '../../common/features';
 import {
   checkRemoteUserCanUseAccount,
-  checkRemoteUserCanUseHost,
+  checkRemoteUserCanUseApplications,
   checkRemoteUserCanUseKYC,
   checkScope,
-  rejectOAuthAndPersonalTokenAuth,
+  isRemoteUserRoot,
+  requireSessionToken,
 } from '../../common/scope-check';
 import { BadRequest, ContentNotReady, Forbidden, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
@@ -478,6 +479,10 @@ const accountFieldsDefinition = () => ({
         type: GraphQLAccountReferenceInput,
         description: 'Specific account to query the membership of.',
       },
+      tier: {
+        type: GraphQLTierReferenceInput,
+        description: 'Filter members by tier',
+      },
       orderBy: {
         type: new GraphQLNonNull(GraphQLOrderByInput),
         defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
@@ -503,6 +508,13 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLOrderCollection),
     args: {
       ...OrdersCollectionArgs,
+    },
+  },
+  webhooks: {
+    type: new GraphQLNonNull(GraphQLWebhookCollection),
+    description: 'Webhooks registered on this account. Only available to admins. Scope: "webhooks".',
+    args: {
+      ...omit(WebhookCollectionArgs, ['account']),
     },
   },
   expenses: {
@@ -622,7 +634,7 @@ const accountFieldsDefinition = () => ({
       if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'applications')) {
         return null;
       }
-      rejectOAuthAndPersonalTokenAuth(req);
+      requireSessionToken(req);
 
       const { limit, offset } = args;
       const where = { CollectiveId: collective.id, type: 'oAuth' };
@@ -1019,7 +1031,7 @@ const accountFieldsDefinition = () => ({
   },
   hostApplicationRequests: {
     type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-    description: 'Host application requests. Scope: "host".',
+    description: 'Host application requests. Scope: "applications".',
     args: {
       ...CollectionArgs,
       orderBy: {
@@ -1052,7 +1064,7 @@ const accountFieldsDefinition = () => ({
       },
     },
     async resolve(collective: Collective, args, req) {
-      if (!req.remoteUser?.isAdminOfCollective(collective) && !req.remoteUser?.isRoot()) {
+      if (!req.remoteUser?.isAdminOfCollective(collective) && !isRemoteUserRoot(req)) {
         throw new Unauthorized('You need to be logged in as an admin of this collective to see its activity');
       }
 
@@ -1662,7 +1674,7 @@ export const AccountFields = {
   },
   hostApplicationRequests: {
     type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-    description: 'Host application requests. Scope: "host".',
+    description: 'Host application requests. Scope: "applications".',
     args: {
       ...CollectionArgs,
       orderBy: {
@@ -1676,7 +1688,7 @@ export const AccountFields = {
       },
     },
     async resolve(account: Collective, args, req: Express.Request) {
-      checkRemoteUserCanUseHost(req);
+      checkRemoteUserCanUseApplications(req);
       if (!req.remoteUser?.isAdmin(account.id)) {
         throw new Unauthorized(
           'You need to be logged in as an admin of the collective to see its host applications requests',

@@ -607,7 +607,7 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       hostApplications: {
         type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-        description: 'Applications for this host',
+        description: 'Applications for this host. Scope: "applications".',
         args: {
           ...CollectionArgs,
           searchTerm: {
@@ -629,7 +629,6 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         resolve: async (host, args, req) => {
-          checkRemoteUserCanUseHost(req);
           checkRemoteUserCanUseApplications(req);
           if (!req.remoteUser.isAdminOfCollective(host)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its applications');
@@ -701,7 +700,7 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       pendingApplications: {
         type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-        description: 'Pending applications for this host',
+        description: 'Pending applications for this host. Scope: "applications".',
         deprecationReason: '2023-08-25: Deprecated in favour of host.hostApplications(status: PENDING).',
         args: {
           ...CollectionArgs,
@@ -717,7 +716,6 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         resolve: async (host, args, req) => {
-          checkRemoteUserCanUseHost(req);
           checkRemoteUserCanUseApplications(req);
           if (!req.remoteUser.isAdminOfCollective(host)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its pending applications');
@@ -1479,8 +1477,17 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           const { offset, limit } = args;
+          // Finding which accounts require a tax form is expensive when done host-wide. When the
+          // caller already targets specific accounts, scope the query to them: Postgres then starts
+          // from the payees' expenses instead of scanning every expense of the host (see
+          // `getTaxFormsRequiredForAccounts`).
+          const requestedAccountIds =
+            args.account?.length > 0
+              ? uniq(await fetchAccountsIdsWithReference(args.account, { throwIfMissing: true }))
+              : null;
           const accountIds = await SQLQueries.getTaxFormsRequiredForAccounts({
             HostCollectiveId: host.id,
+            CollectiveId: requestedAccountIds ?? undefined,
             allTime: true,
           });
           if (!accountIds.size) {
@@ -1493,11 +1500,6 @@ export const GraphQLHost = new GraphQLObjectType({
           }
           if (args.status) {
             where['requestStatus'] = args.status;
-          }
-
-          if (args.account && args.account.length > 0) {
-            const accountIds = await fetchAccountsIdsWithReference(args.account, { throwIfMissing: true });
-            where['CollectiveId'] = uniq(accountIds);
           }
 
           if (args.requestedAtFrom) {

@@ -17,6 +17,7 @@ import { canSeePrivateAccount } from '../../../lib/private-accounts';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, sequelize } from '../../../models';
+import { isRemoteUserRoot } from '../../common/scope-check';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { VENDOR_INFO_FIELDS } from '../../v2/mutation/VendorMutations';
 import { CollectiveInputType } from '../inputTypes';
@@ -75,9 +76,9 @@ export async function createCollective(_, args, req: express.Request) {
     parentCollective = await req.loaders.Collective.byId.load(args.collective.ParentCollectiveId);
     if (!parentCollective) {
       return Promise.reject(new Error(`Parent collective with id ${args.collective.ParentCollectiveId} not found`));
-    } else if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parentCollective.id)) {
+    } else if (!req.remoteUser.hasRole([roles.ADMIN], parentCollective.id)) {
       throw new Unauthorized(
-        `You must be logged in as a member of the ${parentCollective.slug} collective to create an event`,
+        `You must be logged in as an admin of the ${parentCollective.slug} collective to create an account under it`,
       );
     }
 
@@ -515,7 +516,7 @@ export async function archiveCollective(_, args, req) {
     throw new NotFound(`Collective with id ${args.id} not found`);
   }
 
-  if (!req.remoteUser.isAdminOfCollective(collective) && !req.remoteUser.isRoot()) {
+  if (!req.remoteUser.isAdminOfCollective(collective) && !isRemoteUserRoot(req)) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
@@ -650,7 +651,7 @@ export async function deleteCollective(_, args, req) {
     throw new NotFound(`Collective with id ${args.id} not found`);
   }
 
-  if (!req.remoteUser.isAdminOfCollective(collective) && !req.remoteUser.isRoot()) {
+  if (!req.remoteUser.isAdminOfCollective(collective) && !isRemoteUserRoot(req)) {
     throw new Unauthorized(`You don't have permission to delete this collective.`);
   }
 
@@ -669,53 +670,4 @@ export async function deleteCollective(_, args, req) {
   await twoFactorAuthLib.enforceForAccount(req, collective, { alwaysAskForToken: true });
 
   return collectivelib.deleteCollective(collective, req.remoteUser);
-}
-
-export async function activateCollectiveAsHost(_, args, req) {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to activate a collective as Host.');
-  }
-
-  const collective = await req.loaders.Collective.byId.load(args.id);
-  if (!collective) {
-    throw new NotFound(`Collective with id ${args.id} not found`);
-  }
-
-  if (!req.remoteUser.isAdminOfCollective(collective)) {
-    throw new Unauthorized('You need to be logged in as an Admin.');
-  }
-
-  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
-
-  // This is now equivalent to activate "Money Management"
-  return collective.activateMoneyManagement({ remoteUser: req.remoteUser });
-}
-
-export async function deactivateCollectiveAsHost(_, args, req: express.Request) {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to deactivate a collective as Host.');
-  }
-
-  const collective = await req.loaders.Collective.byId.load(args.id);
-  if (!collective) {
-    throw new NotFound(`Collective with id ${args.id} not found`);
-  }
-
-  if (!req.remoteUser.isAdminOfCollective(collective)) {
-    throw new Unauthorized('You need to be logged in as an Admin.');
-  }
-
-  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
-
-  // This is expected as a combination of deactivateHosting and deactivateMoneyManagement
-  await sequelize.transaction(async transaction => {
-    if (collective.hasHosting) {
-      await collective.deactivateHosting({ remoteUser: req.remoteUser, transaction });
-    }
-    if (collective.hasMoneyManagement) {
-      await collective.deactivateMoneyManagement({ remoteUser: req.remoteUser, transaction });
-    }
-  });
-
-  return collective;
 }

@@ -15,6 +15,7 @@ import isEmail from 'validator/lib/isEmail';
 
 import { CollectiveType } from '../constants/collectives';
 import { MemberRolesForPrivateAccounts } from '../constants/roles';
+import { isRemoteUserRoot } from '../graphql/common/scope-check';
 import { BadRequest, RateLimitExceeded } from '../graphql/errors';
 import { ORDER_BY_PSEUDO_FIELDS } from '../graphql/v2/enum/OrderByFieldType';
 import {
@@ -52,7 +53,7 @@ const buildPrivateAccountSearchVisibilitySQL = async (
     return { sql: 'AND c."isPrivate" IS FALSE ' };
   }
 
-  if (remoteUser.isRoot()) {
+  if (isRemoteUserRoot(req)) {
     return { sql: '' };
   }
 
@@ -268,12 +269,14 @@ const getSortSubQuery = (
     },
     [ORDER_BY_PSEUDO_FIELDS.RANK]: {
       query: `
-      CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTermForILike)
-        THEN 1
+      CASE
+        WHEN c."slug" = :slugifiedTerm THEN 3
+        WHEN c."name" ILIKE :sanitizedTermForILike THEN 2
         ELSE
           ${
+            // Normalization 33 (1 | 32) scales the rank to [0, 1) so it never outranks exact matches
             searchTermConditions.tsQueryFunc
-              ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}), 1)`
+              ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}), 33)`
               : '0'
           }
       END`,

@@ -2,7 +2,6 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import querystring from 'querystring';
 import { Readable } from 'stream';
 
 import { expect } from 'chai';
@@ -139,6 +138,7 @@ export const makeRequest = (
     get: a => {
       return headers[a];
     },
+    setTimeout: () => {}, // Express `req.setTimeout` - the timeout itself is not relevant in tests
     userToken,
     personalToken,
     res: {
@@ -674,8 +674,12 @@ export const nockFixerRates = ratesConfig => {
         return false;
       }
     })
-    .reply(url => {
-      const { base, symbols } = querystring.parse(url) as { base: string; symbols: string };
+    .reply((uri: string | { url: string }) => {
+      // nock passes the request path (v14) or a fetch `Request` (absolute URL, v15) to reply functions
+      const requestUrl = typeof uri === 'string' ? uri : uri.url;
+      const searchParams = new URL(requestUrl, 'https://data.fixer.io').searchParams;
+      const base = searchParams.get('base');
+      const symbols = searchParams.get('symbols');
       return [
         200,
         {

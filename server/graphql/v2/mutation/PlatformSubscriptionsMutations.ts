@@ -6,7 +6,7 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { PlatformSubscriptionPlan, PlatformSubscriptionTiers } from '../../../constants/plans';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { Collective, PlatformSubscription, sequelize } from '../../../models';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLPlatformSubscriptionInput } from '../input/PlatformSubcriptionInput';
 import { GraphQLAccount } from '../interface/Account';
@@ -40,13 +40,11 @@ const platformSubscriptionMutations = {
           throw new Error('Invalid plan ID');
         }
 
-        if (!req.remoteUser.isRoot() && !req.remoteUser.isAdminOfCollective(account)) {
-          throw new Error('User cannot update subscription');
+        if (!req.remoteUser.isAdminOfCollective(account)) {
+          checkRemoteUserCanRoot(req, { rootOnlyMessage: 'User cannot update subscription' });
         }
       } else {
-        if (!req.remoteUser.isRoot()) {
-          throw new Error('Only root users can set custom platform plans');
-        }
+        checkRemoteUserCanRoot(req, { rootOnlyMessage: 'Only root users can set custom platform plans' });
 
         assert(
           args.subscription.plan.pricing.pricePerMonth.currency === 'USD',

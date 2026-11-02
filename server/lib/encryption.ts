@@ -1,4 +1,10 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes as cryptoRandomBytes } from 'crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes as cryptoRandomBytes,
+  timingSafeEqual,
+} from 'crypto';
 
 import config from 'config';
 import { secretbox as _secretbox } from 'tweetnacl';
@@ -108,7 +114,7 @@ const getCipherConfig = (cipher: string): CipherConfig => {
  * resistance against brute-forcing the passphrase. It is *not* a new weakness though: crypto-js
  * ran this exact derivation internally for every `encrypt`/`decrypt` call, so this is the format
  * every encrypted column in the database is already stored with. It cannot be changed without
- * re-encrypting all of that data (see `scripts/change_db_encryption_key.js`), which is out of
+ * re-encrypting all of that data (see `scripts/change_db_encryption_key.ts`), which is out of
  * scope for the crypto-js removal. Moving to a modern KDF + authenticated cipher should be done
  * as a follow-up, along with the migration of the existing rows.
  */
@@ -174,6 +180,21 @@ export const decryptWithCipher = (encryptedMessage: string, secretKey: string, c
   const decipheriv = createDecipheriv(algorithm, expandKey ? expandKey(key) : key, iv);
   return Buffer.concat([decipheriv.update(payload.subarray(headerLength)), decipheriv.final()]).toString('utf8');
 };
+
+/**
+ * Compare secrets in constant time. Both sides are hashed first so that
+ * `crypto.timingSafeEqual` never sees inputs of different lengths, which would
+ * make it throw and leak the length of the expected secret.
+ */
+export function timingSafeEqualString(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') {
+    return false;
+  }
+
+  const left = createHash('sha512').update(a).digest();
+  const right = createHash('sha512').update(b).digest();
+  return timingSafeEqual(left, right);
+}
 
 /**
  * SecretKey based authentication.

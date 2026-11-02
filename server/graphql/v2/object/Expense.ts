@@ -9,7 +9,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { findLast, pick, round, takeRightWhile, toString, uniq } from 'lodash';
+import { findLast, omit, pick, round, takeRightWhile, toString, uniq } from 'lodash';
 import { WhereOptions } from 'sequelize';
 
 import { roles } from '../../../constants';
@@ -32,7 +32,7 @@ import LegalDocument, { LEGAL_DOCUMENT_TYPE, LegalDocumentAttributes } from '../
 import transferwise from '../../../paymentProviders/transferwise';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
-import { checkScope } from '../../common/scope-check';
+import { checkScope, isRemoteUserRoot } from '../../common/scope-check';
 import { Unauthorized } from '../../errors';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
@@ -645,6 +645,16 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
             }
 
             const draftData = pick(expense.data, draftFields);
+
+            // Keep tax IDs consistent with the structured `Expense.taxes` resolver.
+            if (Array.isArray(draftData.taxes) && !(await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense))) {
+              draftData.taxes = (draftData.taxes as ExpenseTaxDefinition[]).map(tax => {
+                if (tax && typeof tax === 'object' && 'idNumber' in tax) {
+                  return omit(tax, 'idNumber');
+                }
+                return tax;
+              });
+            }
             const items = ((expense.data.items as { url?: string }[]) || []).map(item => pick(item, itemsFields));
             for (const item of items) {
               if (item.url) {
@@ -852,7 +862,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
       platformBillingData: {
         type: GraphQLJSON,
         async resolve(expense, _, req) {
-          if (req.remoteUser.isRoot()) {
+          if (isRemoteUserRoot(req)) {
             return expense.data.bill;
           }
         },

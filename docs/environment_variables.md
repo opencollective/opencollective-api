@@ -10,6 +10,11 @@
 | OPENSEARCH_URL                                | .opensearch.url                                        | OpenSearch URL                                                                     |
 | OPENSEARCH_MAX_SYNC_DELAY                     | .opensearch.maxSyncDelay                               | Maximum sync delay for OpenSearch                                                  |
 | OPENSEARCH_INDEXES_PREFIX                     | .opensearch.indexesPrefix                              | Prefix for OpenSearch indexes                                                      |
+| SEARCH_POSTGRES_ENABLED                       | .search.postgres.enabled                               | PostgreSQL search kill switch (`false`: `backend: POSTGRES` fails). Default `true` |
+| SEARCH_POSTGRES_CONCURRENCY_PER_REQUEST       | .search.postgres.concurrencyPerRequest                 | PostgreSQL search: entity queries run in parallel per request. Default `2`         |
+| SEARCH_POSTGRES_MAX_CONCURRENT_QUERIES        | .search.postgres.maxConcurrentQueries                  | PostgreSQL search: concurrent search statements per API process. Default `8`       |
+| SEARCH_POSTGRES_WORK_MEM                      | .search.postgres.workMem                               | PostgreSQL search: transaction-local `work_mem`. Default `32MB`                    |
+| SEARCH_POSTGRES_TYPO_SIMILARITY_THRESHOLD     | .search.postgres.typoSimilarityThreshold               | PostgreSQL search: Account name typo threshold, in [0, 1]. Default `0.5`           |
 | PG_URL                                        | .database.url                                          | Postgres database URL                                                              |
 | PG_DATABASE                                   | .database.override.database                            | Postgres database name                                                             |
 | PG_USERNAME                                   | .database.override.username                            | Postgres database username                                                         |

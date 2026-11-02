@@ -119,6 +119,8 @@ class Order extends ModelWithPublicId<
     customData?: Record<string, unknown>;
     needsConfirmation?: boolean;
     paypalStatusChangeNote?: string;
+    paypalStatusUpdateTime?: Date | string;
+    cancelledFromPayPalReconciliation?: boolean;
     paypalCaptureId?: string;
     savePaymentMethod?: boolean;
     isBalanceTransfer?: boolean;
@@ -867,9 +869,10 @@ Order.prototype.getOrCreateMembers = async function () {
     { order: this },
   );
 
-  // Register user as backer of Open Collective
+  // Register user as backer of Open Collective, unless the tip is recorded on the host's own platform-tips account
   let platformTipMember;
-  if (this.platformTipAmount) {
+  const host = this.platformTipAmount && (await this.collective.getHostCollective({ returnEvenIfNotApproved: true }));
+  if (this.platformTipAmount && !host?.hasNewPlatformTipsLedger()) {
     const platform = await Collective.findByPk(PlatformConstants.PlatformCollectiveId);
     platformTipMember = await platform.findOrAddUserWithRole(
       { id: this.CreatedByUserId, CollectiveId: this.FromCollectiveId },

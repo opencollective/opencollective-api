@@ -1,5 +1,3 @@
-import config from 'config';
-
 import { ValidationFailed } from '../graphql/errors';
 
 const HTTP_PROTOCOLS = new Set(['http:', 'https:']);
@@ -11,12 +9,6 @@ type ParseHttpUrlOptions = {
    */
   allowHttp?: boolean;
 };
-
-/**
- * HTTP redirect URIs are allowed outside production so local OAuth clients can use
- * `http://localhost`. Mirrors the non-production URL checks in `url-utils.ts`.
- */
-export const areHttpRedirectUrisAllowed = (): boolean => config.env !== 'production';
 
 /**
  * Parse `value` as a navigable HTTP(S) URL.
@@ -50,9 +42,20 @@ export function parseNavigableHttpUrl(value: unknown, options: ParseHttpUrlOptio
 }
 
 /**
+ * Loopback hosts for which `http:` redirect URIs are accepted.
+ * See RFC 8252 section 7.3 and RFC 9700 section 2.1: traffic to these hosts never leaves the device.
+ */
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/**
  * Validate an OAuth application redirect URI at registration time.
- * Production allows only `https:`; other environments also allow `http:` for local dev.
+ * Only `https:` is allowed, except for loopback hosts (local development).
  */
 export function assertOAuthRedirectUri(redirectUri: string): string {
-  return parseNavigableHttpUrl(redirectUri, { allowHttp: areHttpRedirectUrisAllowed() }).toString();
+  const parsed = parseNavigableHttpUrl(redirectUri);
+  if (parsed.protocol === 'http:' && !LOOPBACK_HOSTNAMES.has(parsed.hostname)) {
+    throw new ValidationFailed(`URL must use HTTPS: ${redirectUri}`);
+  }
+
+  return parsed.toString();
 }

@@ -100,6 +100,14 @@ type ContextualLoaders = {
 /** Members/financial contributors count per collective type */
 type CollectiveStats = Partial<Record<CollectiveType, number>> & Record<'all' | 'id', number>;
 
+/** Aggregated per-collective amounts, bucketed per `groupByAttributes` alias (e.g. `date`) when grouping is requested */
+type AmountTimeSeriesSummary = {
+  CollectiveId: number;
+  value: number;
+  currency: string;
+  groupBy?: Record<string, Record<string, { amount: number; date?: Date }>>;
+};
+
 export type Loaders = ReturnType<typeof generateLoaders>;
 
 export const generateLoaders = req => {
@@ -226,6 +234,7 @@ export const generateLoaders = req => {
       idByPublicId: generateEntityIdByPublicIdLoader(Collective),
       byUserId: collectiveLoaders.byUserId(),
       mainProfileFromIncognito: collectiveLoaders.mainProfileFromIncognito(),
+      isApproved: collectiveLoaders.isApproved(),
       hostByCollectiveId: new DataLoader<number, Collective>(ids =>
         Collective.findAll({
           attributes: ['id'],
@@ -405,7 +414,13 @@ export const generateLoaders = req => {
           startDate = null,
           endDate = null,
           includeChildren = false,
-        }: { net?: boolean; kind?: string; startDate?: Date; endDate?: Date; includeChildren?: boolean } = {}) {
+        }: {
+          net?: boolean;
+          kind?: string | string[];
+          startDate?: Date;
+          endDate?: Date;
+          includeChildren?: boolean;
+        } = {}) {
           const key = `amountReceived-${net}-${kind}-${startDate}-${endDate}-${includeChildren}`;
           if (!cachedLoaders[key]) {
             cachedLoaders[key] = new DataLoader<number, { CollectiveId: number; value: number; currency: string }>(
@@ -442,7 +457,7 @@ export const generateLoaders = req => {
           timeUnit,
         }: {
           net?: boolean;
-          kind?: string;
+          kind?: string | string[];
           startDate?: Date;
           endDate?: Date;
           includeChildren?: boolean;
@@ -450,28 +465,20 @@ export const generateLoaders = req => {
         } = {}) {
           const key = `amountReceivedTimeSeries-${net}-${kind}-${startDate}-${endDate}-${includeChildren}-${timeUnit}`;
           if (!cachedLoaders[key]) {
-            cachedLoaders[key] = new DataLoader<number, { CollectiveId: number; value: number; currency: string }>(
-              ids =>
-                getSumCollectivesAmountReceived(ids, {
-                  net,
-                  kind,
-                  startDate,
-                  endDate,
-                  includeChildren,
-                  groupByAttributes: [
-                    [sequelize.fn('DATE_TRUNC', timeUnit, sequelize.col('Transaction.createdAt')), 'date'],
-                  ],
-                }).then(
-                  results =>
-                    sortResults(ids, Object.values(results), 'CollectiveId') as {
-                      CollectiveId: number;
-                      value: number;
-                      currency: string;
-                    }[],
-                ),
+            cachedLoaders[key] = new DataLoader<number, AmountTimeSeriesSummary>(ids =>
+              getSumCollectivesAmountReceived(ids, {
+                net,
+                kind,
+                startDate,
+                endDate,
+                includeChildren,
+                groupByAttributes: [
+                  [sequelize.fn('DATE_TRUNC', timeUnit, sequelize.col('Transaction.createdAt')), 'date'],
+                ],
+              }).then(results => sortResults(ids, Object.values(results), 'CollectiveId') as AmountTimeSeriesSummary[]),
             );
           }
-          return cachedLoaders[key] as DataLoader<number, { CollectiveId: number; value: number; currency: string }>;
+          return cachedLoaders[key] as DataLoader<number, AmountTimeSeriesSummary>;
         },
       },
 
@@ -486,7 +493,7 @@ export const generateLoaders = req => {
           includeGiftCards,
         }: {
           net?: boolean;
-          kind?: TransactionTypes;
+          kind?: string | string[];
           startDate?: Date;
           endDate?: Date;
           includeChildren?: boolean;
@@ -515,6 +522,42 @@ export const generateLoaders = req => {
             );
           }
           return cachedLoaders[key] as DataLoader<number, { CollectiveId: number; value: number; currency: string }>;
+        },
+      },
+
+      // // Collective -  Amount Spent Time Series
+      amountSpentTimeSeries: {
+        buildLoader({
+          net,
+          kind,
+          startDate,
+          endDate,
+          includeChildren,
+          timeUnit,
+        }: {
+          net?: boolean;
+          kind?: string | string[];
+          startDate?: Date;
+          endDate?: Date;
+          includeChildren?: boolean;
+          timeUnit?: string;
+        } = {}) {
+          const key = `amountSpentTimeSeries-${net}-${kind}-${startDate}-${endDate}-${includeChildren}-${timeUnit}`;
+          if (!cachedLoaders[key]) {
+            cachedLoaders[key] = new DataLoader<number, AmountTimeSeriesSummary>(ids =>
+              getSumCollectivesAmountSpent(ids, {
+                net,
+                kind,
+                startDate,
+                endDate,
+                includeChildren,
+                groupByAttributes: [
+                  [sequelize.fn('DATE_TRUNC', timeUnit, sequelize.col('Transaction.createdAt')), 'date'],
+                ],
+              }).then(results => sortResults(ids, Object.values(results), 'CollectiveId') as AmountTimeSeriesSummary[]),
+            );
+          }
+          return cachedLoaders[key] as DataLoader<number, AmountTimeSeriesSummary>;
         },
       },
 
@@ -866,8 +909,8 @@ export const generateLoaders = req => {
                     INNER JOIN "Collectives" c ON t."CollectiveId" = c.id
                   WHERE t."CollectiveId" IN (:collectiveIds)
                     AND t."deletedAt" IS NULL
-                    ${ifStr(dateFrom, 'AND t."createdAt" > :dateFrom', 'AND t."createdAt" > c."approvedAt"')}
-                    ${ifStr(dateTo, 'AND t."createdAt" <= :dateTo')}
+                    ${ifStr(Boolean(dateFrom), 'AND t."createdAt" > :dateFrom', 'AND t."createdAt" > c."approvedAt"')}
+                    ${ifStr(Boolean(dateTo), 'AND t."createdAt" <= :dateTo')}
                     AND t."HostCollectiveId" = c."HostCollectiveId"
                   GROUP BY
                     t."CollectiveId", t."hostCurrency"
@@ -1453,7 +1496,7 @@ export const generateLoaders = req => {
       totalContributedToHost: contributorsLoaders.generateTotalContributedToHost(),
     },
 
-    search: generateSearchLoaders(req),
+    search: generateSearchLoaders(),
   };
 
   return loaders;

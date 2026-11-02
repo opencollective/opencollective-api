@@ -19,20 +19,17 @@ module.exports = {
       documents: [
         // The following documents only use gqlV1
         // grep -rl " gqlV1\`" ./test | xargs grep -rL "gql\`" | sort
-        'test/server/graphql/v1/CollectiveInterface.test.js',
-        'test/server/graphql/v1/allHosts.test.js',
-        'test/server/graphql/v1/collective.test.js',
-        'test/server/graphql/v1/connectedAccounts.test.js',
-        'test/server/graphql/v1/invoices.test.js',
-        'test/server/graphql/v1/mutation.test.js',
-        'test/server/graphql/v1/notifications.test.js',
-        'test/server/graphql/v1/paymentMethods.test.js',
-        'test/server/graphql/v1/search.test.js',
-        'test/server/graphql/v1/tiers.test.js',
-        'test/server/graphql/v1/transaction.test.js',
-        'test/server/graphql/v1/user.test.js',
-        'test/server/graphql/v1/zero-decimal-currencies.test.js',
-        'test/server/paymentProviders/opencollective/giftcard.test.js',
+        'test/server/graphql/v1/CollectiveInterface.test.ts',
+        'test/server/graphql/v1/collective.test.ts',
+        'test/server/graphql/v1/invoices.test.ts',
+        'test/server/graphql/v1/mutation.test.ts',
+        'test/server/graphql/v1/paymentMethods.test.ts',
+        'test/server/graphql/v1/search.test.ts',
+        'test/server/graphql/v1/tiers.test.ts',
+        'test/server/graphql/v1/transaction.test.ts',
+        'test/server/graphql/v1/user.test.ts',
+        'test/server/graphql/v1/zero-decimal-currencies.test.ts',
+        'test/server/paymentProviders/opencollective/giftcard.test.ts',
         // The following documents use gql and gqlV1 at the same time, gqlV1 will not be linted
         // grep -rl " gqlV1\`" ./test | xargs grep -rl "gql\`" | sort
         // No file anymore and it should stay like that!

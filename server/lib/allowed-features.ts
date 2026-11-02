@@ -88,10 +88,6 @@ const FeaturesAccess: Partial<
     accountTypes: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION],
     onlyPublicAccounts: true,
   },
-  [FEATURE.EMIT_GIFT_CARDS]: {
-    accountTypes: [CollectiveType.ORGANIZATION],
-    onlyPublicAccounts: true,
-  },
   [FEATURE.EVENTS]: {
     onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
     accountTypes: [CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],

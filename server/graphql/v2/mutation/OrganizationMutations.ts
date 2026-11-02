@@ -18,9 +18,9 @@ import { sequelize } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { SocialLinkType } from '../../../models/SocialLink';
 import { processInviteMembersInput } from '../../common/members';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { createUser, sendLoginEmail } from '../../common/user';
-import { Forbidden, RateLimitExceeded, ValidationFailed } from '../../errors';
+import { RateLimitExceeded, ValidationFailed } from '../../errors';
 import { CaptchaInputType } from '../../v1/inputTypes';
 import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -226,8 +226,8 @@ export default {
         throwIfMissing: true,
       });
 
-      if (!req.remoteUser.isAdminOfCollective(organization) && !req.remoteUser.isRoot()) {
-        throw new Forbidden();
+      if (!req.remoteUser.isAdminOfCollective(organization)) {
+        checkRemoteUserCanRoot(req, { rootOnlyMessage: 'You are authenticated but forbidden to perform this action' });
       }
 
       await twoFactorAuthLib.enforceForAccount(req, organization, { alwaysAskForToken: true });
@@ -273,8 +273,8 @@ export default {
         throwIfMissing: true,
       });
 
-      if (!req.remoteUser.isAdminOfCollective(organization) && !req.remoteUser.isRoot()) {
-        throw new Forbidden();
+      if (!req.remoteUser.isAdminOfCollective(organization)) {
+        checkRemoteUserCanRoot(req, { rootOnlyMessage: 'You are authenticated but forbidden to perform this action' });
       }
 
       if (organization.type !== ORGANIZATION) {

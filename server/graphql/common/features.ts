@@ -159,33 +159,6 @@ export const checkCanRequestVirtualCards = async (req: Express.Request, collecti
   return balance > 0 ? FEATURE_STATUS.AVAILABLE : FEATURE_STATUS.DISABLED;
 };
 
-export const checkCanEmitGiftCards = async collective => {
-  // Ignore type if the account already has some gift cards setup. Useful for Organizations that were turned into Funds.
-
-  const hasCreatedGiftCards = await checkExistsInDB(
-    `
-    SELECT 1 FROM "PaymentMethods" pm
-    INNER JOIN "PaymentMethods" source ON source.id = pm."SourcePaymentMethodId"
-    WHERE source."CollectiveId" = :CollectiveId
-    AND source."deletedAt" IS NULL
-    AND pm."deletedAt" IS NULL
-    AND pm.service = 'opencollective'
-    AND pm.type = 'giftcard'
-  `,
-    {
-      replacements: { CollectiveId: collective.id },
-    },
-  );
-
-  if (hasCreatedGiftCards) {
-    return FEATURE_STATUS.ACTIVE;
-  } else if ([CollectiveType.USER, CollectiveType.ORGANIZATION].includes(collective.type)) {
-    return FEATURE_STATUS.AVAILABLE;
-  } else {
-    return FEATURE_STATUS.UNSUPPORTED;
-  }
-};
-
 const checkMultiCurrencyExpense = async (collective, req: Express.Request): Promise<FEATURE_STATUS> => {
   if (!collective.HostCollectiveId || !collective.isActive) {
     return FEATURE_STATUS.UNSUPPORTED;
@@ -305,8 +278,6 @@ export const getFeatureStatusResolver =
         );
       case FEATURE.USE_PAYMENT_METHODS:
         return checkCanUsePaymentMethods(collective);
-      case FEATURE.EMIT_GIFT_CARDS:
-        return checkCanEmitGiftCards(collective);
       case FEATURE.VIRTUAL_CARDS:
         return checkVirtualCardFeatureStatus(collective);
       case FEATURE.REQUEST_VIRTUAL_CARDS:
