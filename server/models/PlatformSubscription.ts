@@ -14,7 +14,6 @@ import {
   Range,
   Transaction as SequelizeTransaction,
 } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 
 import ActivityTypes from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
@@ -33,6 +32,7 @@ import { convertToCurrency, roundCentsAmount } from '../lib/currency';
 import { chargeExpense, getPreferredPlatformPayout } from '../lib/platform-subscriptions';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 
 import Activity from './Activity';
 import Collective from './Collective';
