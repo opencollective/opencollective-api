@@ -1092,7 +1092,7 @@ export const fakeLegalDocument = async (data: Partial<InferCreationAttributes<Le
     year: new Date().getFullYear(),
     requestStatus: 'REQUESTED',
     ...data,
-    service: sample([LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS, LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE]),
+    service: data.service || sample([LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS, LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE]),
     CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
   });
 };

@@ -1,0 +1,160 @@
+import '../server/env';
+
+import { get, last, omit } from 'lodash';
+import type Stripe from 'stripe';
+
+import OrderStatuses from '../server/constants/order-status';
+import logger from '../server/lib/logger';
+import { createSubscription, sendEmailNotifications } from '../server/lib/payments';
+import stripe from '../server/lib/stripe';
+import { parseToBoolean } from '../server/lib/utils';
+import models from '../server/models';
+import { createChargeTransactions } from '../server/paymentProviders/stripe/common';
+import { createOrUpdateOrderStripePaymentMethod } from '../server/paymentProviders/stripe/webhook';
+
+const HOST_SLUG = process.argv[2];
+const NB_CHARGES_TO_CHECK = parseInt(process.argv[3]) || 100;
+const LAST_CHARGE_ID = process.argv[4] || undefined;
+const NB_CHARGES_PER_QUERY = 100; // Max allowed by Stripe
+const NB_PAGES = NB_CHARGES_TO_CHECK / NB_CHARGES_PER_QUERY;
+const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : false;
+
+const getHostStripeAccountUsername = async (slug: string): Promise<string> => {
+  const hostId = (await models.Collective.findOne({ where: { slug } }))?.id;
+  if (!hostId) {
+    throw new Error('Host not found');
+  }
+
+  const stripeAccount = await models.ConnectedAccount.findOne({ where: { service: 'stripe', CollectiveId: hostId } });
+  if (!stripeAccount) {
+    throw new Error('No stripe account found for this host');
+  }
+
+  return stripeAccount.username;
+};
+
+async function checkAndRecordCharge(
+  charge: Stripe.Charge,
+  stripePaymentIntent: Stripe.PaymentIntent,
+  stripeAccount: string,
+): Promise<void> {
+  // Copy code from Stripe webhook (paymentIntentSucceeded)
+  const order = await models.Order.findOne({
+    where: {
+      data: { stripePaymentIntent: { id: stripePaymentIntent.id } },
+    },
+    include: [
+      { association: 'collective', required: true },
+      { association: 'fromCollective', required: true },
+      { association: 'createdByUser', required: true },
+    ],
+  });
+
+  if (!order) {
+    logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${stripePaymentIntent.id}`);
+    return;
+  }
+
+  // If charge was already processed, ignore event. (Potential edge-case: if the webhook is called while processing a 3DS validation)
+  const existingChargeTransaction = await models.Transaction.findOne({
+    where: { OrderId: order.id, data: { charge: { id: charge.id } } },
+  });
+  if (existingChargeTransaction) {
+    logger.info(`Stripe Webhook: ${order.id} already processed charge ${charge.id}, ignoring event`);
+    return;
+  }
+
+  logger.info(`🚨️ Missing transaction for stripe charge ${charge.id}`);
+  if (DRY_RUN) {
+    // logger.info(`Not recording charge (DRY_RUN)`);
+    return;
+  } else {
+    logger.info(`Recording charge ...`);
+  }
+
+  await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, stripePaymentIntent);
+
+  const transaction = await createChargeTransactions(charge, { order });
+
+  // after successful first payment of a recurring subscription where the payment confirmation is async
+  // and the subscription is managed by us.
+  if (order.interval && !order.SubscriptionId) {
+    await createSubscription(order);
+  }
+
+  await order.update({
+    status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
+    processedAt: new Date(),
+    data: {
+      ...omit(order.data, 'stripePaymentIntent'),
+      previousStripePaymentIntents: [...(order.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
+    },
+  });
+
+  if (order.fromCollective?.ParentCollectiveId !== order.collective.id) {
+    await order.getOrCreateMembers();
+  }
+
+  sendEmailNotifications(order, transaction);
+}
+
+async function main(): Promise<void> {
+  if (process.argv.length < 3) {
+    console.error('Usage: ./scripts/fix-link-paymentIntents.ts HOST_SLUG [NB_CHARGES_TO_CHECK=100] [LAST_CHARGE_ID]');
+    process.exit(1);
+  }
+
+  const stripeUserName = await getHostStripeAccountUsername(HOST_SLUG);
+  let lastChargeId = LAST_CHARGE_ID;
+  let totalAlreadyChecked = 0;
+
+  console.info(`Starting the diff of Stripe VS Transactions for the latest ${NB_CHARGES_TO_CHECK} paymentIntents`);
+  for (let pageNum = 0; pageNum < NB_PAGES; pageNum++) {
+    // Log the current page
+    const nbToCheckInThisPage = Math.min(NB_CHARGES_PER_QUERY, NB_CHARGES_TO_CHECK - totalAlreadyChecked);
+    console.info(`🔎️ Checking paymentIntents ${totalAlreadyChecked} to ${totalAlreadyChecked + nbToCheckInThisPage}`);
+
+    // Retrieve the list and check all charges
+    const stripePaymentIntents = await stripe.paymentIntents.list(
+      { limit: nbToCheckInThisPage, starting_after: lastChargeId }, // eslint-disable-line camelcase
+      { stripeAccount: stripeUserName },
+    );
+    for (let idx = 0; idx < stripePaymentIntents.data.length; idx++) {
+      const stripePaymentIntent = stripePaymentIntents.data[idx];
+      if (stripePaymentIntent.status === 'succeeded') {
+        // `charges` is not part of the latest Stripe types but is still returned for the API version pinned in server/lib/stripe
+        // @ts-expect-error typing mismatch only with the latest Stripe types
+        const charge = stripePaymentIntent.charges.data[0];
+        if (charge.payment_method_details.type === 'link') {
+          await checkAndRecordCharge(charge, stripePaymentIntent, stripeUserName);
+        } else {
+          // Non-link Payment Method type
+        }
+      } else {
+        // Payment Intent not succeeded
+      }
+
+      totalAlreadyChecked += 1;
+      if (idx >= nbToCheckInThisPage) {
+        break;
+      }
+    }
+
+    // We reached the end
+    if (!stripePaymentIntents.has_more) {
+      break;
+    }
+
+    // Register last charge for pagination
+    lastChargeId = get(last(stripePaymentIntents.data), 'id');
+  }
+
+  console.info('--------------------------------------\nDone!');
+}
+
+main()
+  .then(() => process.exit())
+  .catch(e => {
+    console.error(e);
+    process.exit(1);
+  });

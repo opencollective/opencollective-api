@@ -23,7 +23,7 @@ PAYPAL_APP_ID=
 3\. Encrypt your client secret, from the API repository:
 
 ```bash
-npm run script scripts/encrypt.js PAYPAL_CLIENT_SECRET
+npm run script scripts/encrypt.ts PAYPAL_CLIENT_SECRET
 ```
 
 4\. Manually create a ConnectedAccount with your `clientId` and your encrypted `clientSecret`:
