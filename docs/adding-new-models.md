@@ -127,4 +127,4 @@ m.MyTable.belongsTo(m.Collective, { foreignKey: 'CollectiveId', as: 'collective'
 
 4. Update the script to ban collectives in `sql/ban-collectives.sql` to make sure relevant data is deleted
 
-5. Update `scripts/merge-collectives.js` to make sure the data is transferred when merging accounts
+5. Update `scripts/merge-collectives.ts` to make sure the data is transferred when merging accounts
