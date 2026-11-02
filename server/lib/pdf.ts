@@ -1,7 +1,8 @@
 import config from 'config';
-import { get } from 'lodash';
+import { get, uniq } from 'lodash';
 import moment from 'moment';
 
+import { TransactionKind } from '../constants/transaction-kind';
 import models, { Op } from '../models';
 import { USTaxFormType } from '../models/LegalDocument';
 
@@ -59,9 +60,43 @@ export const getConsolidatedInvoicesData = async fromCollective => {
   }
 
   const transactions = await models.Transaction.findAll({
-    attributes: ['createdAt', 'HostCollectiveId'],
+    attributes: ['createdAt', 'HostCollectiveId', 'kind', 'TransactionGroup'],
     where,
   });
+
+  const platformTipGroups = transactions
+    .filter(t => t.kind === TransactionKind.PLATFORM_TIP)
+    .map(t => t.TransactionGroup);
+  let contributionByGroup = {};
+  const contributionHostsById = {};
+  if (platformTipGroups.length) {
+    const contributions = await models.Transaction.findAll({
+      attributes: ['HostCollectiveId', 'TransactionGroup'],
+      where: {
+        TransactionGroup: platformTipGroups,
+        kind: TransactionKind.CONTRIBUTION,
+        type: 'CREDIT',
+      },
+    });
+
+    contributionByGroup = contributions.reduce((result, contribution) => {
+      result[contribution.TransactionGroup] = contribution;
+      return result;
+    }, {});
+
+    // Pre-fetch the contribution hosts in a single query (with their settings) to avoid an
+    // N+1 lookup when checking the single-receipt opt-in for each platform tip below.
+    const contributionHostIds = uniq(contributions.map(c => c.HostCollectiveId).filter(Boolean));
+    if (contributionHostIds.length) {
+      const contributionHosts = await models.Collective.findAll({
+        attributes: ['id', 'settings'],
+        where: { id: contributionHostIds },
+      });
+      for (const host of contributionHosts) {
+        contributionHostsById[host.id] = host;
+      }
+    }
+  }
 
   const hostsById = {};
   const invoicesByKey: Record<
@@ -76,6 +111,21 @@ export const getConsolidatedInvoicesData = async fromCollective => {
     }
   > = {};
   for (const transaction of transactions) {
+    if (transaction.kind === TransactionKind.PLATFORM_TIP) {
+      // For hosts that opted in to single contributor receipts, platform tips are rendered as line
+      // items on the host-issued contribution receipt. Keep legacy standalone OFiTech tip receipts
+      // for all other hosts until the setting is fully rolled out.
+      const relatedContribution = contributionByGroup[transaction.TransactionGroup];
+      if (relatedContribution?.HostCollectiveId) {
+        const contributionHost = contributionHostsById[relatedContribution.HostCollectiveId];
+        if (contributionHost && get(contributionHost, 'settings.singleReceiptPlatformTip') === true) {
+          // Do not add this platform tip to `invoicesByKey`, otherwise the dashboard would still
+          // show a separate OFiTech receipt alongside the host-issued contribution receipt.
+          continue;
+        }
+      }
+    }
+
     const HostCollectiveId = transaction.HostCollectiveId;
     if (!HostCollectiveId) {
       continue;
@@ -86,12 +136,16 @@ export const getConsolidatedInvoicesData = async fromCollective => {
         attributes: ['id', 'slug'],
       });
     }
+    const host = hostsById[HostCollectiveId];
+    if (!host) {
+      continue;
+    }
 
     const createdAt = new Date(transaction.createdAt);
     const year = createdAt.getFullYear();
     const month = createdAt.getMonth() + 1;
     const monthToDigit = month < 10 ? `0${month}` : `${month}`;
-    const slug = `${year}${monthToDigit}.${hostsById[HostCollectiveId].slug}.${fromCollective.slug}`;
+    const slug = `${year}${monthToDigit}.${host.slug}.${fromCollective.slug}`;
     const totalTransactions = invoicesByKey[slug] ? invoicesByKey[slug].totalTransactions + 1 : 1;
 
     invoicesByKey[slug] = {
