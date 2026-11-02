@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import config from 'config';
 
 import { sessionCache } from './cache';
@@ -12,6 +14,7 @@ const DISABLE_RATE_LIMITING = parseToBoolean(process.env.DISABLE_RATE_LIMITING);
 
 /**
  * A small wrapper around the cache specialized to handle rate limitings.
+ * Counters live in fixed windows of `expiryTimeInSeconds`, starting at the first registered call.
  */
 export default class RateLimit {
   /** The cache key this limit is bucketed by. Also identifies the bucket in security logs. */
@@ -21,18 +24,34 @@ export default class RateLimit {
   private ignoreTests: boolean;
 
   constructor(cacheKey: string, limit: number, expiryTimeInSeconds: number = ONE_HOUR_IN_SECONDS, ignoreTests = false) {
+    // Redis only accepts integer expiries: a rejected one would leave a counter that never expires
+    assert(
+      Number.isInteger(expiryTimeInSeconds) && expiryTimeInSeconds > 0,
+      `Invalid rate limit expiry for ${cacheKey}: ${expiryTimeInSeconds}`,
+    );
     this.cacheKey = cacheKey;
     this.limit = limit;
     this.expiryTimeInSeconds = expiryTimeInSeconds;
     this.ignoreTests = ignoreTests;
   }
 
-  /** Load the count from cache if required and check if the limit has been reached */
-  public async hasReachedLimit(): Promise<boolean> {
+  private isDisabled(): boolean {
     if (this.ignoreTests && isTestEnvironment) {
-      return false;
+      return true;
     } else if (DISABLE_RATE_LIMITING) {
       logger.debug(`Rate limiting is disabled`);
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  /**
+   * Load the count from cache and check if the limit has been reached. This doesn't register anything, so concurrent
+   * requests can all pass it: to enforce the limit, use `registerCall` before the action.
+   */
+  public async hasReachedLimit(): Promise<boolean> {
+    if (this.isDisabled()) {
       return false;
     }
 
@@ -40,22 +59,32 @@ export default class RateLimit {
     return count >= this.limit;
   }
 
-  /** Register `nbCalls` in the cache. Returns false if limit has been reached. */
+  /**
+   * Atomically register `nbCalls` in the cache. Returns false if the limit had already been reached.
+   * Rejected calls are counted too. The counter was already at the limit, so this only matters if calls are later
+   * given back with `unregisterCall`.
+   */
   public async registerCall(nbCalls = 1): Promise<boolean> {
-    if (this.ignoreTests && isTestEnvironment) {
-      return true;
-    } else if (DISABLE_RATE_LIMITING) {
-      logger.debug(`Rate limiting is disabled`);
+    if (this.isDisabled()) {
       return true;
     }
 
-    const count = await this.getCallsCount();
-    if (count >= this.limit) {
-      return false;
-    } else {
-      await sessionCache.set(this.cacheKey, count + nbCalls, this.expiryTimeInSeconds);
+    const count = await sessionCache.increment(this.cacheKey, nbCalls, this.expiryTimeInSeconds);
+    if (count === undefined) {
+      logger.warn(`Rate limit store is not available, allowing ${this.cacheKey}`);
       return true;
     }
+
+    return count - nbCalls < this.limit;
+  }
+
+  /** Give back calls registered with `registerCall`, e.g. to only count failed attempts */
+  public async unregisterCall(nbCalls = 1): Promise<void> {
+    if (this.isDisabled()) {
+      return;
+    }
+
+    await sessionCache.increment(this.cacheKey, -nbCalls, this.expiryTimeInSeconds);
   }
 
   // Same as registerCall but throws an error if the limit has been reached

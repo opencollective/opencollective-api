@@ -32,6 +32,12 @@ const makeMemoryProvider = opts => {
       }
       return k;
     },
+    /** Atomic: no await between the read and the write. The TTL is only set when the key is created (fixed window). */
+    increment: async (key: string, amount: number, expirationInSeconds: number): Promise<number | undefined> => {
+      const count = (Number(cache.get(key)) || 0) + amount;
+      cache.set(key, count, { ttl: expirationInSeconds * 1000, noUpdateTTL: true });
+      return count;
+    },
     /** Atomically return the value if present and remove the key (no await between checks - safe vs concurrent callers). */
     consume: async (key: string, options?: unknown) => {
       void options;

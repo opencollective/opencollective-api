@@ -331,7 +331,7 @@ const transactionImportsMutations = {
       // Rate limit on the number of imports per hour
       const maxImportsPerHour = config.limits.transactionsImports.perHourPerUser;
       const rateLimit = new RateLimit(`transactions-imports-${req.remoteUser.id}`, maxImportsPerHour);
-      if (await rateLimit.hasReachedLimit()) {
+      if (!(await rateLimit.registerCall())) {
         throw new RateLimitExceeded('You have reached the limit of transactions imports per hour');
       }
 
@@ -340,9 +340,6 @@ const transactionImportsMutations = {
       if (args.file) {
         file = await UploadedFile.uploadGraphQl(await args.file, 'TRANSACTIONS_IMPORT', req.remoteUser);
       }
-
-      // Register rate limit call as soon as the file is uploaded
-      rateLimit.registerCall();
 
       return sequelize.transaction(async transaction => {
         if (file || args.csvConfig) {
