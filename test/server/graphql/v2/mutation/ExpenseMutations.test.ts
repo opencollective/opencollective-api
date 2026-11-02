@@ -766,6 +766,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       // The expense and its recurring schedule are created in the same transaction: no orphan rows
       expect(await models.RecurringExpense.count()).to.eq(recurringExpensesCount);
       expect(await models.Expense.count()).to.eq(expensesCount);
+
+      // The end date is validated before the side effects that run outside the expense transaction
+      const payeeLocation = await payee.getLocation();
+      expect(payeeLocation?.address ?? null).to.be.null;
+      expect(await models.PayoutMethod.count({ where: { CollectiveId: payee.id } })).to.eq(0);
     });
 
     it('fails to create a recurring expense with an end date before its first recurrence', async () => {

@@ -2531,6 +2531,11 @@ export async function createExpense(
 
   checkCanCreateExpenseForCollective(collective, req);
 
+  // Validate before the side effects that run outside the expense transaction (location, payout method)
+  if (opts?.recurring) {
+    models.RecurringExpense.assertValidEndsAt(opts.recurring.endsAt, opts.recurring.interval);
+  }
+
   // Validate description length
   if (expenseData.description && expenseData.description.length > 255) {
     throw new ValidationFailed(
