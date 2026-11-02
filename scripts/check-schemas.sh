@@ -4,8 +4,13 @@
 # Ensure we are on root folder
 cd -- "$(dirname $0)/.."
 
+# Start the API in its own process group so the whole tree (npm, nodemon, babel-node) can be stopped on exit.
+# Killing only the npm PID leaves the server running and holding the output pipe, which makes `turbo run schema:check` hang.
+set -m
 npm run dev:task &
 API_PID=$!
+set +m
+trap 'kill -- -"$API_PID" 2>/dev/null || true' EXIT
 
 # Wait for a service to be up
 function wait_for_service() {
@@ -34,9 +39,7 @@ if [ -n "${CHANGED}" ] ; then
   git status
   echo "-------- DIFF --------"
   git --no-pager diff
-  kill $API_PID;
   exit 1
 else
-  kill $API_PID;
   echo "Eveything's up to date 🌞️"
 fi
