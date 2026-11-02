@@ -276,6 +276,10 @@ const doFormatMessage = (activity, format): string | { message: string; options:
   }
 };
 
+/** Escapes Slack control characters so user-provided text cannot create links or mentions */
+const escapeSlackText = (text: unknown) =>
+  String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 const handleCollectiveApply = (activity, format) => {
   const { collective, host } = activity.data;
   const collectiveStr = linkify(format, `${config.host.website}/${collective.slug}`, collective.name);
@@ -289,14 +293,14 @@ const handleCollectiveApply = (activity, format) => {
   if (activity.data.application) {
     options = { attachments: [] };
     if (activity.data.application.message) {
-      options.attachments.push({ text: activity.data.application.message });
+      options.attachments.push({ text: escapeSlackText(activity.data.application.message) });
     }
     if (activity.data.application.customData && !isEmpty(activity.data.application.customData)) {
       options.attachments.push({
         title: 'Custom data',
         fields: Object.entries(activity.data.application.customData).map(([key, value]) => ({
           title: capitalize(lowerCase(key)),
-          value,
+          value: escapeSlackText(typeof value === 'string' ? value : JSON.stringify(value)),
         })),
       });
     }

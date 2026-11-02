@@ -12,7 +12,7 @@ import { assertCanSeeAccount } from '../../../../lib/private-accounts';
 import { parseSearchTerm, sanitizeSearchTermForILike } from '../../../../lib/sql-search';
 import { Collective } from '../../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../common/context-permissions';
-import { enforceScope } from '../../../common/scope-check';
+import { enforceScope, isRemoteUserRoot } from '../../../common/scope-check';
 import { BadRequest } from '../../../errors';
 import { GraphQLAccountCollection } from '../../collection/AccountCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../../enum/AccountType';
@@ -283,7 +283,7 @@ const CommunityQuery = {
     if (isNil(args.offset) || args.offset < 0) {
       args.offset = 0;
     }
-    if (args.limit > DEFAULT_LIMIT && !req.remoteUser?.isRoot()) {
+    if (args.limit > DEFAULT_LIMIT && !isRemoteUserRoot(req)) {
       throw new Error(`Cannot fetch more than ${DEFAULT_LIMIT} members at the same time, please adjust the limit`);
     }
 

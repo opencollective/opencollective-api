@@ -33,11 +33,13 @@ import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { PAYPAL_SUSPEND_MAX_REASON_LENGTH } from '../../../paymentProviders/paypal/subscription';
 import { sendMessage } from '../../common/collective';
 import {
+  checkRemoteUserCanRoot,
   checkRemoteUserCanUseAccount,
   checkRemoteUserCanUseHost,
-  rejectOAuthAndPersonalTokenAuth,
+  requireSessionToken,
 } from '../../common/scope-check';
 import { BadRequest, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { archiveCollective, unarchiveCollective } from '../../v1/mutations/collectives';
 import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLAccountUpdateInput } from '../input/AccountUpdateInput';
@@ -363,11 +365,8 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request) {
-      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
-      rejectOAuthAndPersonalTokenAuth(
-        req,
-        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
-      );
+      // 2FA management requires a session token to change credentials.
+      requireSessionToken(req, 'A session token is required to manage two-factor authentication.');
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
@@ -409,11 +408,8 @@ const accountMutations = {
       args: { account: Record<string, unknown>; type?: TwoFactorMethod; token: string },
       req: express.Request,
     ): Promise<Record<string, unknown>> {
-      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
-      rejectOAuthAndPersonalTokenAuth(
-        req,
-        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
-      );
+      // 2FA management requires a session token to change credentials.
+      requireSessionToken(req, 'A session token is required to manage two-factor authentication.');
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
@@ -546,11 +542,8 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
-      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
-      rejectOAuthAndPersonalTokenAuth(
-        req,
-        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
-      );
+      // 2FA management requires a session token to change credentials.
+      requireSessionToken(req, 'A session token is required to manage two-factor authentication.');
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
@@ -627,11 +620,8 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request) {
-      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
-      rejectOAuthAndPersonalTokenAuth(
-        req,
-        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
-      );
+      // 2FA management requires a session token to change credentials.
+      requireSessionToken(req, 'A session token is required to manage two-factor authentication.');
       checkRemoteUserCanUseAccount(req);
 
       const userTwoFactorMethod = await fetchUserTwoFactorMethodWithReference(args.userTwoFactorMethod, {
@@ -665,8 +655,8 @@ const accountMutations = {
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
-      if (!req.remoteUser.isAdminOfCollective(account) && !req.remoteUser.isRoot()) {
-        throw new Forbidden();
+      if (!req.remoteUser.isAdminOfCollective(account)) {
+        checkRemoteUserCanRoot(req, { rootOnlyMessage: 'You are authenticated but forbidden to perform this action' });
       }
 
       await TwoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
@@ -900,6 +890,37 @@ const accountMutations = {
       return account;
     },
   },
+  archiveAccount: {
+    type: new GraphQLNonNull(GraphQLAccount),
+    description:
+      'Archive an account and its children: unhosts it, cancels its active contributions and its unprocessed expenses. Scope: "account".',
+    args: {
+      account: {
+        description: 'Reference to the Account to be archived.',
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+      },
+    },
+    async resolve(_, args, req: express.Request): Promise<Collective> {
+      checkRemoteUserCanUseAccount(req);
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+      return archiveCollective(_, { id: account.id }, req);
+    },
+  },
+  unarchiveAccount: {
+    type: new GraphQLNonNull(GraphQLAccount),
+    description: 'Unarchive an account. Scope: "account".',
+    args: {
+      account: {
+        description: 'Reference to the Account to be unarchived.',
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+      },
+    },
+    async resolve(_, args, req: express.Request): Promise<Collective> {
+      checkRemoteUserCanUseAccount(req);
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+      return unarchiveCollective(_, { id: account.id }, req);
+    },
+  },
   deleteAccount: {
     type: GraphQLAccount,
     description: 'Adds or removes a policy on a given account. Scope: "account".',
@@ -966,11 +987,8 @@ const accountMutations = {
     description:
       'Regenerate two factor authentication recovery codes. Session only (OAuth/Personal tokens are not allowed).',
     async resolve(_, args, req) {
-      // 2FA management is session-only: OAuth/Personal Tokens must not be able to change credentials.
-      rejectOAuthAndPersonalTokenAuth(
-        req,
-        'OAuth and Personal Tokens are not allowed to manage two-factor authentication.',
-      );
+      // 2FA management requires a session token to change credentials.
+      requireSessionToken(req, 'A session token is required to manage two-factor authentication.');
       checkRemoteUserCanUseAccount(req);
 
       const hasTwoFactorEnabled = await TwoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser);
@@ -1014,8 +1032,13 @@ const accountMutations = {
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
-      if (!req.remoteUser.isAdminOfCollective(account) && !req.remoteUser.isRoot()) {
-        throw new Forbidden();
+      if (!req.remoteUser.isAdminOfCollective(account)) {
+        checkRemoteUserCanRoot(req, { rootOnlyMessage: 'You are authenticated but forbidden to perform this action' });
+      }
+
+      // Disallow if archived
+      if (account.deactivatedAt) {
+        throw new ValidationFailed("Can't convert an archived account. Please unarchive it first.");
       }
 
       // Disallow if not Collective or Fund

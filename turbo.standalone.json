@@ -366,7 +366,12 @@
       "cache": false,
       "persistent": true,
       "passThroughEnv": ["*"],
-      "dependsOn": ["db:migrate:e2e", "build:finalize"]
+      "dependsOn": ["db:migrate:e2e", "build:e2e:task"]
+    },
+    "build:e2e:task": {
+      "cache": false,
+      "passThroughEnv": ["*"],
+      "dependsOn": ["build:finalize"]
     },
     "prettier:write:task": {
       "cache": false,

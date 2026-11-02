@@ -1,0 +1,1120 @@
+import config from 'config';
+import { pick } from 'lodash';
+import { QueryTypes } from 'sequelize';
+
+import { TAX_FORM_IGNORED_EXPENSE_STATUSES, TAX_FORM_IGNORED_EXPENSE_TYPES } from '../constants/tax-form';
+import Collective from '../models/Collective';
+import { PayoutMethodTypes } from '../models/PayoutMethod';
+
+import { memoize } from './cache';
+import { getFxRates } from './currency';
+import sequelize from './sequelize';
+import { amountsRequireTaxForm } from './tax-forms';
+import { ifStr } from './utils';
+
+const twoHoursInSeconds = 2 * 60 * 60;
+
+type MembersWhere = {
+  CollectiveId?: number | number[];
+  MemberCollectiveId?: number | number[];
+  HostCollectiveId?: number;
+  ParentCollectiveId?: number;
+  role?: string;
+};
+
+type MembersOptions = {
+  since?: Date;
+  until?: Date;
+  type?: string | string[];
+  limit?: number;
+  offset?: number;
+  canSeeAllPrivateCollectives?: boolean;
+  privateCollectiveAccessIds?: number[];
+};
+
+type TaxFormResult = {
+  payoutMethodType: string;
+  year?: number;
+  isUSEntity?: boolean | null;
+  countryISO?: string | null;
+  taxFormThresholds?: { US?: number; NON_US?: number } | null;
+  includePayPalExpenses?: boolean | null;
+  total: number;
+  expenseId?: number;
+  collectiveId?: number;
+};
+
+type TaxFormGroup = {
+  paypalTotal: number;
+  otherTotal: number;
+  year?: number;
+  isUSEntity?: boolean;
+  taxFormThresholds?: { US?: number; NON_US?: number };
+  includePayPalExpenses?: boolean;
+};
+
+type TopSponsorRow = {
+  slug: string;
+  totalDonations?: number;
+  totalDonationsLast3months?: number;
+  collectives: number;
+  publicUrl?: string;
+};
+
+/*
+ * Hacky way to do currency conversion
+ */
+const generateFXConversionSQL = async (aggregate?: boolean) => {
+  let currencyColumn = 't.currency';
+  let amountColumn = 't."netAmountInCollectiveCurrency"';
+
+  if (aggregate) {
+    currencyColumn = 'MAX(t.currency)';
+    amountColumn = 'SUM("t."netAmountInCollectiveCurrency"")';
+  }
+
+  const fxRates = await getFxRates('USD', ['AUD', 'CAD', 'EUR', 'GBP', 'INR', 'MXN', 'SEK', 'USD', 'UYU']);
+  return `CASE ${Object.entries(fxRates)
+    .map(([currency, fxRate]) => `WHEN ${currencyColumn} = '${currency}' THEN ${amountColumn} / ${fxRate}`)
+    .join('\n')}ELSE 0 END`;
+};
+
+const getTotalAnnualBudgetForHost = (HostCollectiveId: number) => {
+  return sequelize
+    .query<{ yearlyIncome: string }>(
+      `
+  WITH
+    "collectiveids" AS (
+      SELECT id FROM "Collectives"
+      WHERE "HostCollectiveId" = :HostCollectiveId
+      AND "isActive"=true
+      AND "deletedAt" IS NULL
+    ),
+    "monthlyOrdersWithAmountInHostCurrency" AS (
+      SELECT o.id, MAX(o."CollectiveId") as "CollectiveId", MAX(t.currency) AS currency, MAX(t."amountInHostCurrency") as "amountInHostCurrency"
+      FROM "Orders" o
+      LEFT JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
+      LEFT JOIN "Transactions" t ON t."OrderId" = o.id
+      WHERE s.interval = 'month' AND s."isActive" = true
+        AND o."CollectiveId" IN (SELECT id FROM collectiveids)
+        AND o."deletedAt" IS NULL
+        AND s."deletedAt" IS NULL
+        AND t."deletedAt" IS NULL
+      GROUP BY o.id
+    ),
+    "yearlyAndOneTimeOrdersWithAmountInHostCurrency" AS (
+      SELECT o.id, MAX(o."CollectiveId") as "CollectiveId", MAX(t.currency) AS currency, MAX(t."amountInHostCurrency") as "amountInHostCurrency"
+      FROM "Orders" o
+      LEFT JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
+      LEFT JOIN "Transactions" t ON t."OrderId" = o.id
+      WHERE ((s.interval = 'year' AND s."isActive" = true) OR s.interval IS NULL)
+        AND o."CollectiveId" IN (SELECT id FROM collectiveids)
+        AND o."deletedAt" IS NULL
+        AND s."deletedAt" IS NULL
+        AND t."createdAt" > (current_date - INTERVAL '12 months')
+        AND t."deletedAt" IS NULL
+      GROUP BY o.id
+    )
+
+  SELECT
+    ( SELECT COALESCE(SUM("amountInHostCurrency") * 12, 0) FROM "monthlyOrdersWithAmountInHostCurrency" t )
+    +
+    ( SELECT COALESCE(SUM("amountInHostCurrency"), 0) FROM "yearlyAndOneTimeOrdersWithAmountInHostCurrency" t )
+    +
+    (SELECT
+      COALESCE(SUM("amountInHostCurrency"),0) FROM "Transactions" t
+      LEFT JOIN "Orders" o on t."OrderId" = o.id
+      LEFT JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
+      WHERE t.type='CREDIT' AND t."CollectiveId" IN (SELECT id FROM collectiveids)
+        AND t."deletedAt" IS NULL
+        AND t."createdAt" > (current_date - INTERVAL '12 months')
+        AND s.interval = 'month' AND s."isActive" IS FALSE AND s."deletedAt" IS NULL
+        AND t."deletedAt" IS NULL
+        AND o."deletedAt" IS NULL
+    )
+    "yearlyIncome"
+  `,
+      {
+        replacements: { HostCollectiveId },
+        type: QueryTypes.SELECT,
+      },
+    )
+    .then(res => Math.round(parseInt(res[0].yearlyIncome, 10)));
+};
+
+const getTotalAnnualBudget = async (): Promise<number> => {
+  const fxConversionSQL = await generateFXConversionSQL();
+
+  return sequelize
+    .query<{ yearlyIncome: string }>(
+      `
+  SELECT
+    (SELECT
+      COALESCE(SUM(${fxConversionSQL} * 12),0)
+      FROM "Subscriptions" s
+      LEFT JOIN "Orders" d ON s.id = d."SubscriptionId"
+      LEFT JOIN "Transactions" t
+      ON (s.id = d."SubscriptionId"
+        AND t.id = (SELECT MAX(id) from "Transactions" t where t."OrderId" = d.id))
+      WHERE t.type='CREDIT' AND t."CollectiveId" != 1
+        AND t."deletedAt" IS NULL
+        AND s.interval = 'month'
+        AND s."isActive" IS TRUE
+        AND s."deletedAt" IS NULL)
+    +
+    (SELECT
+      COALESCE(SUM(${fxConversionSQL}),0) FROM "Transactions" t
+      LEFT JOIN "Orders" d ON t."OrderId" = d.id
+      LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
+      WHERE t.type='CREDIT' AND t."CollectiveId" != 1
+        AND t."deletedAt" IS NULL
+        AND t."createdAt" > (current_date - INTERVAL '12 months')
+        AND ((s.interval = 'year' AND s."isActive" IS TRUE AND s."deletedAt" IS NULL) OR s.interval IS NULL))
+    +
+    (SELECT
+      COALESCE(SUM(${fxConversionSQL}),0) FROM "Transactions" t
+      LEFT JOIN "Orders" d on t."OrderId" = d.id
+      LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
+      WHERE t.type='CREDIT' AND t."CollectiveId" != 1
+        AND t."deletedAt" IS NULL
+        AND t."createdAt" > (current_date - INTERVAL '12 months')
+        AND s.interval = 'month' AND s."isActive" IS FALSE AND s."deletedAt" IS NULL)
+    "yearlyIncome"
+  `,
+      {
+        type: QueryTypes.SELECT,
+      },
+    )
+    .then(res => Math.round(parseInt(res[0].yearlyIncome, 10)));
+};
+
+export const usersToNotifyForUpdateSQLQuery = `
+  WITH collective AS (
+    SELECT c.*
+    FROM "Collectives" c
+    WHERE id = :collectiveId OR "ParentCollectiveId" = :collectiveId
+  ), hosted_collectives AS (
+    SELECT hc.*
+    FROM "Collectives" hc
+    INNER JOIN "Members" m ON hc.id = m."CollectiveId"
+    INNER JOIN "Collectives" mc ON mc."id" = m."CollectiveId"
+    INNER JOIN collective c ON m."MemberCollectiveId" = c.id
+    WHERE :includeHostedAccounts = TRUE
+    AND c."hasMoneyManagement" = TRUE
+    AND m."role" = 'HOST'
+    AND m."deletedAt" IS NULL
+    AND mc."isActive" IS TRUE
+    AND mc."approvedAt" IS NOT NULL
+    GROUP BY hc.id
+  ), member_collectives AS (
+    SELECT mc.*
+    FROM "Members" m
+    INNER JOIN "Collectives" mc ON m."MemberCollectiveId" = mc.id
+    CROSS JOIN collective
+    WHERE m."deletedAt" IS NULL
+    AND mc."deletedAt" IS NULL
+    AND (
+      (
+        -- Direct members
+        :includeMembers = TRUE
+        AND m."CollectiveId" = collective.id
+        AND m."role" IN (:targetRoles)
+      ) OR (
+        -- Collective admins
+        m."CollectiveId" = collective.id AND m."role" IN ('ADMIN', 'MEMBER')
+      ) OR (
+        -- Parent collective admins
+        collective."ParentCollectiveId" IS NOT NULL
+        AND m."CollectiveId" = collective."ParentCollectiveId"
+        AND m."role" IN ('ADMIN', 'MEMBER')
+      ) OR (
+        --- Include child collective's contributors
+        collective."ParentCollectiveId" = :collectiveId
+        AND collective.id = m."CollectiveId"
+        AND m."role" IN (:targetRoles)
+      )
+    )
+    GROUP BY mc.id
+  ), admins_of_members AS (
+    -- For all member_collectives and hosted_collectives, get admin profiles
+    SELECT mc.*
+    FROM "Members" m
+    INNER JOIN "Collectives" mc ON m."MemberCollectiveId" = mc.id
+    LEFT JOIN member_collectives org_admin_collectives
+      ON (
+        org_admin_collectives."type" != 'USER'
+        AND m."CollectiveId" = org_admin_collectives.id
+      )
+    LEFT JOIN hosted_collectives hosted_collective_admins
+      ON (
+        hosted_collective_admins."type" != 'USER'
+        AND m."CollectiveId" = hosted_collective_admins.id
+      )
+    WHERE
+      (org_admin_collectives.id IS NOT NULL OR hosted_collective_admins.id IS NOT NULL)
+      AND m."role" IN ('ADMIN', 'MEMBER')
+      AND m."deletedAt" IS NULL
+      AND mc."type" = 'USER'
+    GROUP BY
+      mc.id
+  ) SELECT u.id
+  -- Get all user entries, either the direct members, the admins of member_collectives or the admins of parent collectives
+  FROM "Users" u
+  LEFT JOIN admins_of_members
+    ON u."CollectiveId" = admins_of_members.id
+  LEFT JOIN member_collectives
+    ON (member_collectives."type" = 'USER' AND u."CollectiveId" = member_collectives.id)
+  LEFT JOIN "Notifications" n
+    ON n.channel = 'email' AND n.type = 'collective.update.published' AND n."UserId" = u.id AND n."CollectiveId" = :collectiveId
+  WHERE (admins_of_members.id IS NOT NULL OR member_collectives.id IS NOT NULL)
+  AND n.active IS NOT FALSE
+  AND u."deletedAt" IS NULL
+  GROUP BY u.id
+`;
+
+export const countUsersToNotifyForUpdateSQLQuery = `
+  SELECT COUNT(*) FROM (${usersToNotifyForUpdateSQLQuery}) AS users_to_notify
+`;
+
+export const countMembersToNotifyForUpdateSQLQuery = `
+  WITH member_collectives_to_notify AS (
+    SELECT mc.id, mc."type", array_agg(m."role")::text[] && ARRAY['ADMIN', 'MEMBER'] AS is_core_contributor
+    FROM "Members" m
+    INNER JOIN "Collectives" mc ON m."MemberCollectiveId" = mc.id
+    FULL OUTER JOIN "Collectives" collective ON (collective.id = :collectiveId OR collective."ParentCollectiveId" = :collectiveId)
+    WHERE m."deletedAt" IS NULL
+    AND mc."deletedAt" IS NULL
+    AND ((
+        m."CollectiveId" = collective.id AND m."role" IN (:targetRoles)
+      ) OR (
+        -- Include parent collective's core contributors
+        collective."ParentCollectiveId" IS NOT NULL
+        AND m."CollectiveId" = collective."ParentCollectiveId"
+        AND m."role" IN ('ADMIN', 'MEMBER')
+      ) OR (
+        --- Include child collective's contributors
+        collective."ParentCollectiveId" = :collectiveId
+        AND collective.id = m."CollectiveId"
+        AND m."role" IN (:targetRoles)
+      )
+    )
+    GROUP BY mc.id
+  ) SELECT
+    CASE WHEN is_core_contributor IS TRUE THEN 'CORE_CONTRIBUTOR' ELSE "type" END AS "type",
+    COUNT(*) AS "count"
+  FROM
+    member_collectives_to_notify
+  GROUP BY
+    CASE WHEN is_core_contributor IS TRUE THEN 'CORE_CONTRIBUTOR' ELSE "type" END
+`;
+
+/**
+ * Returns top sponsors in the past 3 months ordered by total amount donated and number of collectives they sponsor
+ * (excluding open source collective id 9805 and sponsors that have sponsored only one collective)
+ */
+const getTopSponsors = (): Promise<TopSponsorRow[]> => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 3);
+  return sequelize
+    .query<TopSponsorRow>(
+      `
+      WITH
+      "topSponsorsLast3Months" as (
+        SELECT "CollectiveId", MAX(c.slug) as slug, MAX(c.type) as type, MAX(c.name) as name, MAX(c.description) as description, MAX(c.image) as image, -SUM(amount) as "totalDonationsLast3months", MAX(c.currency) as currency, COUNT(DISTINCT t."FromCollectiveId") as collectives
+        FROM "Collectives" c LEFT JOIN "Transactions" t ON t."CollectiveId" = c.id
+        WHERE c.type = 'ORGANIZATION'
+          AND t.type='DEBIT'
+          AND t.currency='USD'
+          AND t."platformFeeInHostCurrency" < 0
+          AND c.id != 9805
+          AND t."createdAt" > :since
+        GROUP BY t."CollectiveId"
+        ORDER BY "totalDonationsLast3months" DESC, collectives DESC LIMIT 20
+      ),
+      "topSponsorsTotalDonations" as (
+        SELECT -sum(amount) as "totalDonations", max(t."CollectiveId") as "CollectiveId"
+        FROM "Transactions" t WHERE t."CollectiveId" IN (
+          SELECT s."CollectiveId" FROM "topSponsorsLast3Months" s WHERE s.collectives > 1 LIMIT 6
+        )
+        GROUP BY t."CollectiveId"
+      )
+      SELECT d."totalDonations", s."totalDonationsLast3months", s.*
+      FROM "topSponsorsLast3Months" s
+      LEFT JOIN "topSponsorsTotalDonations" d ON d."CollectiveId" = s."CollectiveId"
+      WHERE collectives > 1
+      ORDER BY d."totalDonations" DESC NULLS LAST
+      LIMIT :limit
+    `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
+      {
+        replacements: { limit: 6, since: d },
+        type: QueryTypes.SELECT,
+      },
+    )
+    .then(sponsors =>
+      sponsors.map(sponsor => {
+        sponsor.publicUrl = `${config.host.website}/${sponsor.slug}`;
+        return sponsor;
+      }),
+    );
+};
+
+/**
+ * Returns collectives ordered by average monthly spending in the last 90 days
+ * excluding:
+ * - id 9805 (open source collective host)
+ * - id 1 (opencollective-company)
+ * - id 51 and 9804 (wwcode host)
+ */
+const getCollectivesOrderedByMonthlySpendingQuery = async ({
+  where = {},
+  orderDirection = 'ASC',
+  limit = 0,
+  offset = 0,
+}: {
+  where?: Record<string, unknown>;
+  orderDirection?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<{ total: number | string | false; collectives: Collective[] }> => {
+  const whereStatement = Object.keys(where).reduce(
+    (statement: string, key: string) => `${statement} AND c."${key}"=:${key}`,
+    '',
+  );
+
+  const d = new Date();
+  const since = new Date(d.setDate(d.getDate() - 90));
+
+  const params = {
+    replacements: { ...where, since },
+    model: Collective,
+  };
+
+  const sql = (fields: string) =>
+    `
+    SELECT c.id,
+    (CASE
+      WHEN (DATE_PART('day', max(t."createdAt") - min(t."createdAt")) < 30) THEN -SUM(amount)
+      WHEN (DATE_PART('day', max(t."createdAt") - min(t."createdAt")) < 60) THEN -SUM(amount) / 2
+      ELSE -SUM(amount) / 3
+    END) as "monthlySpending",
+    ${fields}
+    FROM "Collectives" c
+    LEFT JOIN "Transactions" t on t."CollectiveId" = c.id
+    WHERE c."isActive" IS TRUE
+      AND c."deletedAt" IS NULL
+      AND c.id NOT IN (1, 51, 9804, 9805)
+      AND t."deletedAt" IS NULL
+      AND t."type" = 'DEBIT'
+      AND t."createdAt" >= :since
+      ${whereStatement}
+    GROUP BY c.id
+    ORDER BY "monthlySpending" ${orderDirection} NULLS LAST
+  `.replace(/\s\s+/g, ' ');
+
+  // If we use this query to get the monthlySpending of one single collective, we don't need to perform a count query
+  const countPromise: Promise<number | string | false> =
+    typeof where.id === 'number'
+      ? Promise.resolve(1)
+      : sequelize
+          .query<{ total: number | string }>(`${sql('COUNT(c.*) OVER() as "total"')} LIMIT 1`, {
+            replacements: params.replacements,
+            type: QueryTypes.SELECT,
+            raw: true,
+          })
+          .then(res => res.length === 1 && res[0].total);
+
+  const [total, collectives] = await Promise.all([
+    countPromise,
+    sequelize.query<Collective>(`${sql('c.*')} LIMIT ${limit} OFFSET ${offset}`, {
+      ...params,
+      type: QueryTypes.SELECT,
+    }),
+  ]);
+
+  return { total, collectives };
+};
+
+const getMembersOfCollectiveWithRole = (CollectiveIds: number | number[]): Promise<Collective[]> => {
+  const collectiveids = typeof CollectiveIds === 'number' ? [CollectiveIds] : CollectiveIds;
+  return sequelize.query<Collective>(
+    `
+    WITH memberships AS (
+      SELECT c.*, MAX(u.email) as email, string_agg(distinct m.role,',') as roles
+      FROM "Collectives" c
+        LEFT JOIN "Members" m ON c.id = m."MemberCollectiveId"
+        LEFT JOIN "Users" u ON u."CollectiveId" = c.id
+      WHERE m."CollectiveId" IN (:collectiveids) AND m."deletedAt" IS NULL AND c."deletedAt" IS NULL
+      GROUP BY c.id
+    )
+    SELECT (CASE WHEN roles LIKE '%HOST%' THEN 'HOST' WHEN roles LIKE '%ADMIN%' THEN 'ADMIN' ELSE 'BACKER' END) as role, * FROM memberships
+`,
+    {
+      replacements: { collectiveids },
+      type: QueryTypes.SELECT,
+      model: Collective,
+    },
+  );
+};
+
+/**
+ * Builds the SQL condition used to filter out private collectives the current user
+ * cannot see. Mirrors the logic used in the GraphQL V2 `HasMembers` interface:
+ * - Root users can see everything (no condition).
+ * - Users with an ADMIN/ACCOUNTANT role on some collectives can see those private
+ *   collectives (as well as their events/projects and hosted collectives).
+ * - Everyone else can only see public collectives.
+ *
+ * Expects `options.canSeeAllPrivateCollectives` (boolean) and
+ * `options.privateCollectiveAccessIds` (array of collective ids) to be provided by
+ * the caller. The generated SQL references the `:privateCollectiveAccessIds`
+ * replacement when the user has direct access to some private collectives.
+ */
+const getPrivateCollectivesSQLCondition = (options: MembersOptions = {}, tableAlias = 'c') => {
+  if (options.canSeeAllPrivateCollectives) {
+    return '';
+  } else if (options.privateCollectiveAccessIds?.length > 0) {
+    return `AND (
+      ${tableAlias}."isPrivate" IS FALSE
+      OR ${tableAlias}.id IN (:privateCollectiveAccessIds)
+      OR ${tableAlias}."ParentCollectiveId" IN (:privateCollectiveAccessIds)
+      OR ${tableAlias}."HostCollectiveId" IN (:privateCollectiveAccessIds)
+    )`;
+  } else {
+    return `AND ${tableAlias}."isPrivate" IS FALSE`;
+  }
+};
+
+/**
+ * Returns all the members of a collective with their `totalDonations` and
+ * `role` (HOST/ADMIN/BACKER)
+ */
+const getMembersWithTotalDonations = (where: MembersWhere, options: MembersOptions = {}): Promise<Collective[]> => {
+  const untilCondition = (table: string) => {
+    let condition = '';
+    if (options.since) {
+      condition += `AND ${table}."createdAt" >= '${options.since.toISOString().toString().substr(0, 10)}'`;
+    }
+    if (options.until) {
+      condition += `AND ${table}."createdAt" < '${options.until.toISOString().toString().substr(0, 10)}'`;
+    }
+    return condition;
+  };
+
+  const roleCond = where.role ? `AND member.role = :role` : '';
+
+  let types: string[] = undefined,
+    filterByMemberCollectiveType = '';
+  if (options.type) {
+    types = typeof options.type === 'string' ? options.type.split(',') : options.type;
+    filterByMemberCollectiveType = 'AND c.type IN (:types)';
+  }
+
+  let memberCondAttribute: 'CollectiveId' | 'MemberCollectiveId', transactionType: 'CREDIT' | 'DEBIT', groupBy: string;
+  if (where.CollectiveId) {
+    memberCondAttribute = 'CollectiveId';
+    transactionType = 'CREDIT';
+    groupBy = 'MemberCollectiveId';
+  } else if (where.MemberCollectiveId) {
+    memberCondAttribute = 'MemberCollectiveId';
+    transactionType = 'DEBIT';
+    groupBy = 'CollectiveId';
+  }
+  const collectiveids =
+    typeof where[memberCondAttribute] === 'number' ? [where[memberCondAttribute]] : where[memberCondAttribute];
+
+  const selector = `member."${groupBy}" as "${groupBy}", max(member."${memberCondAttribute}") as "${memberCondAttribute}"`;
+
+  // Stats query builder to get stats about transactions
+  const buildTransactionsStatsQuery = (sourceCollectiveIdColName: string) => `
+    SELECT
+      "${sourceCollectiveIdColName}",
+      ${
+        transactionType === 'DEBIT' ? 'SUM("netAmountInCollectiveCurrency") * -1' : 'SUM("amount")'
+      } as "totalDonations",
+      max("createdAt") as "lastDonation",
+      min("createdAt") as "firstDonation"
+    FROM "Transactions" t
+    WHERE t."CollectiveId" IN (:collectiveids)
+    AND t.amount ${transactionType === 'CREDIT' ? '>=' : '<='} 0 ${untilCondition('t')}
+    AND t."deletedAt" IS NULL
+    GROUP BY t."${sourceCollectiveIdColName}"
+  `;
+
+  const query = `
+    WITH
+      DirectStats AS (
+        ${buildTransactionsStatsQuery('FromCollectiveId')}
+      ),
+      IndirectStats AS (
+        ${buildTransactionsStatsQuery('UsingGiftCardFromCollectiveId')}
+      )
+    SELECT
+      ${selector},
+      member.role,
+      max(member.id) as "MemberId",
+      max(member."TierId") as "TierId",
+      max(member."createdAt") as "createdAt",
+      max(c.id) as id,
+      max(c.type) as type,
+      max(c."HostCollectiveId") as "HostCollectiveId",
+      max(c."ParentCollectiveId") as "ParentCollectiveId",
+      max(c.name) as name,
+      max(c.description) as description,
+      max(c.slug) as slug,
+      max(c.image) as image,
+      max(c.website) as website,
+      max(c.currency) as currency,
+      max(u.email) as email,
+      max(c."twitterHandle") as "twitterHandle",
+      COALESCE(max(dstats."totalDonations"), 0) as "directDonations",
+      COALESCE(max(dstats."totalDonations"), 0) +  COALESCE(max(istats."totalDonations"), 0) as "totalDonations",
+      LEAST(Max(dstats."firstDonation"), Max(istats."firstDonation")) AS "firstDonation",
+      GREATEST(Max(dstats."lastDonation"), Max(istats."lastDonation")) AS "lastDonation"
+    FROM "Collectives" c
+    LEFT JOIN DirectStats dstats ON c.id = dstats."FromCollectiveId"
+    LEFT JOIN IndirectStats istats ON c.id = istats."UsingGiftCardFromCollectiveId"
+    LEFT JOIN "Members" member ON c.id = member."${groupBy}"
+    LEFT JOIN "Users" u ON c.id = u."CollectiveId"
+    WHERE member."${memberCondAttribute}" IN (:collectiveids)
+      ${getPrivateCollectivesSQLCondition(options, 'c')}
+    ${roleCond}
+    AND member."deletedAt" IS NULL ${untilCondition('member')}
+    ${filterByMemberCollectiveType}
+    GROUP BY member.role, member."${groupBy}"
+    ORDER BY "totalDonations" DESC, "createdAt" ASC
+    LIMIT :limit OFFSET :offset
+  `;
+
+  return sequelize.query<Collective>(
+    query.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
+    {
+      replacements: {
+        collectiveids,
+        limit: options.limit || 100000, // we should reduce this to 100 by default but right now Webpack depends on it
+        offset: options.offset || 0,
+        types,
+        role: where.role,
+        privateCollectiveAccessIds: options.privateCollectiveAccessIds || [],
+      },
+      type: QueryTypes.SELECT,
+      model: Collective,
+    },
+  );
+};
+
+const getMembersWithBalance = (where: MembersWhere, options: MembersOptions = {}): Promise<Collective[]> => {
+  const { until } = options;
+  const untilCondition = (table: string) =>
+    until ? `AND ${table}."createdAt" < '${until.toISOString().toString().substr(0, 10)}'` : '';
+  const roleCond = where.role ? `AND member.role = :role` : '';
+
+  let types: string[] = undefined,
+    filterByMemberCollectiveType = '';
+  if (options.type) {
+    types = typeof options.type === 'string' ? options.type.split(',') : options.type;
+    filterByMemberCollectiveType = 'AND c.type IN (:types)';
+  }
+
+  let whereCondition = '';
+  Object.keys(pick(where, ['HostCollectiveId', 'ParentCollectiveId'])).forEach(key => {
+    whereCondition += `AND c."${key}"=:${key} `;
+  });
+
+  let memberCondAttribute: 'CollectiveId' | 'MemberCollectiveId', groupBy: string;
+  if (where.CollectiveId) {
+    memberCondAttribute = 'CollectiveId';
+    groupBy = 'MemberCollectiveId';
+  } else if (where.MemberCollectiveId) {
+    memberCondAttribute = 'MemberCollectiveId';
+    groupBy = 'CollectiveId';
+  }
+  const collectiveids =
+    typeof where[memberCondAttribute] === 'number' ? [where[memberCondAttribute]] : where[memberCondAttribute];
+  const selector = `member."${groupBy}" as "${groupBy}", max(member."${memberCondAttribute}") as "${memberCondAttribute}"`;
+
+  // xdamman: this query can be optimized by first computing all the memberships
+  // and only computing the balance for the member.collective selected #TODO
+  const query = `
+    with "balance" AS (
+      SELECT t."CollectiveId", SUM("netAmountInCollectiveCurrency") as "balance"
+      FROM "Collectives" c
+      LEFT JOIN "Transactions" t ON t."CollectiveId" = c.id
+      WHERE
+        c.type = 'COLLECTIVE'
+        AND c."isActive" IS TRUE
+        ${getPrivateCollectivesSQLCondition(options, 'c')}
+        ${whereCondition}
+        AND c."deletedAt" IS NULL
+        GROUP BY t."CollectiveId"
+    )
+    SELECT
+      ${selector},
+      member.role,
+      max(member.id) as "MemberId",
+      max(member."TierId") as "TierId",
+      max(member."createdAt") as "createdAt",
+      max(c.id) as id,
+      max(c.type) as type,
+      max(c."HostCollectiveId") as "HostCollectiveId",
+      max(c."ParentCollectiveId") as "ParentCollectiveId",
+      max(c.name) as name,
+      max(c.slug) as slug,
+      max(c.image) as image,
+      max(c.website) as website,
+      max(c.currency) as currency,
+      max(u.email) as email,
+      max(c."twitterHandle") as "twitterHandle",
+      COALESCE(max(b."balance"), 0) as "balance"
+    FROM "Collectives" c
+    LEFT JOIN balance b ON c.id = b."CollectiveId"
+    LEFT JOIN "Members" member ON c.id = member."${groupBy}"
+    LEFT JOIN "Users" u ON c.id = u."CollectiveId"
+    WHERE member."${memberCondAttribute}" IN (:collectiveids)
+      ${getPrivateCollectivesSQLCondition(options, 'c')}
+    ${roleCond}
+    ${whereCondition}
+    AND member."deletedAt" IS NULL ${untilCondition('member')}
+    ${filterByMemberCollectiveType}
+    GROUP BY member.role, member."${groupBy}"
+    ORDER BY "balance" DESC, "createdAt" ASC
+    LIMIT :limit OFFSET :offset
+  `;
+
+  const replacements = {
+    ...where,
+    collectiveids,
+    limit: options.limit || 100000, // we should reduce this to 100 by default but right now Webpack depends on it
+    offset: options.offset || 0,
+    types,
+    privateCollectiveAccessIds: options.privateCollectiveAccessIds || [],
+  };
+
+  return sequelize.query<Collective>(
+    query.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
+    {
+      replacements,
+      type: QueryTypes.SELECT,
+      model: Collective,
+    },
+  );
+};
+
+const getTotalNumberOfActiveCollectives = (since?: Date, until?: Date) => {
+  const sinceClause = since ? `AND t."createdAt" >= '${since.toISOString()}'` : '';
+  const untilClause = until ? `AND t."createdAt" < '${until.toISOString()}'` : '';
+  return sequelize
+    .query<{ count: string }>(
+      `
+    SELECT COUNT(DISTINCT("CollectiveId")) as count
+    FROM "Transactions" t
+      LEFT JOIN "Collectives" c ON t."CollectiveId" = c.id
+    WHERE c.type='COLLECTIVE' ${sinceClause} ${untilClause}
+  `,
+      {
+        type: QueryTypes.SELECT,
+      },
+    )
+    .then(res => parseInt(res[0].count));
+};
+
+const getTotalNumberOfDonors = () => {
+  return sequelize
+    .query<{ count: string }>(
+      `
+    SELECT COUNT(DISTINCT("FromCollectiveId")) as count
+    FROM "Transactions" t
+      LEFT JOIN "Collectives" c ON t."CollectiveId" = c.id
+    WHERE c.type='COLLECTIVE'
+  `,
+      {
+        type: QueryTypes.SELECT,
+      },
+    )
+    .then(res => parseInt(res[0].count));
+};
+
+/**
+ * Goes through the results of a tax form query and returns the set of IDs (defined by `idKey`)
+ * that require a tax form.
+ *
+ * Results can span multiple years (e.g. when querying `allTime`): totals are then compared to
+ * each year's threshold independently, and the ID is returned as soon as one year requires a
+ * tax form. The threshold year is always read from the result rows, which already carry the
+ * year they were aggregated for.
+ *
+ * Example:
+ * > getTaxFormsOverTheLimit([{ ..., expenseId: 4242, payoutMethodType: 'OTHER', total: 1000e2 }], 'expenseId')
+ * Set { 4242 }
+ *
+ * @argument {Object[]} results - The results of a tax form query.
+ */
+const getTaxFormsOverTheLimit = (results: TaxFormResult[], idKey: 'expenseId' | 'collectiveId'): Set<number> => {
+  // Group results in a map like Map<idKey, Map<year, { paypalTotal, otherTotal, isUSEntity, taxFormThresholds, includePayPalExpenses }>>
+  const groupedResults = new Map<number, Map<number, TaxFormGroup>>();
+  for (const result of results) {
+    const id = result[idKey];
+    const resultsForId = groupedResults.get(id) || new Map<number, TaxFormGroup>();
+    groupedResults.set(id, resultsForId);
+
+    const groupResult = resultsForId.get(result.year) || {
+      paypalTotal: 0,
+      otherTotal: 0,
+      year: result.year,
+      isUSEntity: undefined,
+      taxFormThresholds: undefined,
+      includePayPalExpenses: undefined,
+    };
+    const totalKey = result.payoutMethodType === PayoutMethodTypes.PAYPAL ? 'paypalTotal' : 'otherTotal';
+    groupResult[totalKey] += result.total;
+
+    if (result.isUSEntity !== undefined && result.isUSEntity !== null) {
+      groupResult.isUSEntity = Boolean(result.isUSEntity);
+    } else if (result.countryISO) {
+      groupResult.isUSEntity = result.countryISO === 'US';
+    }
+
+    if (result.taxFormThresholds) {
+      try {
+        groupResult.taxFormThresholds =
+          typeof result.taxFormThresholds === 'string'
+            ? JSON.parse(result.taxFormThresholds)
+            : result.taxFormThresholds;
+      } catch {
+        // ignore JSON parse error
+      }
+    }
+
+    if (result.includePayPalExpenses !== undefined && result.includePayPalExpenses !== null) {
+      groupResult.includePayPalExpenses = Boolean(result.includePayPalExpenses);
+    }
+
+    resultsForId.set(result.year, groupResult);
+  }
+
+  // Filter entries in the map to return a set with only the IDs that require a tax form (over the limits)
+  const resultSet = new Set<number>();
+  groupedResults.forEach((resultsForId, id) => {
+    for (const groupResult of resultsForId.values()) {
+      if (
+        amountsRequireTaxForm(groupResult.paypalTotal, groupResult.otherTotal, groupResult.year, {
+          isUSEntity: groupResult.isUSEntity,
+          taxFormThresholds: groupResult.taxFormThresholds,
+          includePayPalExpenses: groupResult.includePayPalExpenses,
+        })
+      ) {
+        resultSet.add(id);
+        break;
+      }
+    }
+  });
+
+  return resultSet;
+};
+
+/**
+ * @returns Set<number> - expenses IDs where a tax form is required
+ */
+const getTaxFormsRequiredForExpenses = async (expenseIds: number[]): Promise<Set<number>> => {
+  const results = await sequelize.query<TaxFormResult>(
+    `
+    SELECT
+      analyzed_expenses."FromCollectiveId",
+      analyzed_expenses.id as "expenseId",
+      COALESCE(pm."type"::text, CASE WHEN all_expenses."legacyPayoutMethod" = 'paypal' THEN 'PAYPAL' ELSE 'OTHER' END) AS "payoutMethodType",
+      EXTRACT('year' FROM NOW()) AS "year",
+      (from_collective."data"#>>'{isUSEntity}')::boolean AS "isUSEntity",
+      from_collective."countryISO" AS "countryISO",
+      host."data"#>>'{policies,TAX_FORM_THRESHOLDS}' AS "taxFormThresholds",
+      (host."data"#>>'{policies,TAX_FORM_THRESHOLDS,includePayPalExpenses}')::boolean AS "includePayPalExpenses",
+      SUM(all_expenses."amount" * (
+        CASE
+          WHEN all_expenses."currency" = host.currency THEN 1
+          ELSE (
+            SELECT COALESCE("rate", 1)
+            FROM "CurrencyExchangeRates" er
+            WHERE er."from" = all_expenses."currency"
+            AND er."to" = host.currency
+            -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
+            AND er."createdAt" <= COALESCE(all_expenses."paidAt", NOW())
+            ORDER BY "createdAt" DESC
+            LIMIT 1
+          )
+        END
+      )) AS "total"
+    FROM
+      "Expenses" analyzed_expenses
+    INNER JOIN "Expenses" all_expenses
+      ON all_expenses."FromCollectiveId" = analyzed_expenses."FromCollectiveId"
+    INNER JOIN "Collectives" from_collective
+      ON from_collective.id = analyzed_expenses."FromCollectiveId"
+    INNER JOIN "Collectives" c
+      ON c.id = analyzed_expenses."CollectiveId"
+    INNER JOIN "Collectives" host
+      ON host.id = all_expenses."HostCollectiveId" -- Prefer joining on Expense's host, as the collective may have changed host since
+      OR host.id = c."HostCollectiveId"
+    INNER JOIN "RequiredLegalDocuments" d
+      ON d."HostCollectiveId" = host."id"
+      AND d."documentType" = 'US_TAX_FORM'
+    INNER JOIN "Collectives" all_expenses_collectives
+      ON all_expenses_collectives.id = all_expenses."CollectiveId"
+      AND all_expenses_collectives."HostCollectiveId" = d."HostCollectiveId"
+    LEFT JOIN "LegalDocuments" ld
+      ON ld."documentType" = 'US_TAX_FORM'
+      AND ld."requestStatus" = 'RECEIVED'
+      AND (
+        ld."CollectiveId" = from_collective.id -- Either use the payee's legal document
+        OR (from_collective."HostCollectiveId" IS NOT NULL AND ld."CollectiveId" = from_collective."HostCollectiveId") -- Or the host's legal document
+      )
+    LEFT JOIN "PayoutMethods" pm
+      ON all_expenses."PayoutMethodId" = pm.id
+    WHERE analyzed_expenses.id IN (:expenseIds)
+    AND analyzed_expenses."FromCollectiveId" != d."HostCollectiveId"
+    AND analyzed_expenses.type NOT IN (:ignoredExpenseTypes)
+    AND analyzed_expenses.status IN ('PENDING', 'APPROVED')
+    AND analyzed_expenses."deletedAt" IS NULL
+    AND (from_collective."HostCollectiveId" IS NULL OR from_collective."HostCollectiveId" != c."HostCollectiveId")
+    AND (from_collective."type" != 'VENDOR' OR from_collective."data"#>>'{vendorInfo, taxFormRequired}' = 'true') -- Ignore tax from tax exempt vendors
+    AND all_expenses.type NOT IN (:ignoredExpenseTypes)
+    AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
+    AND all_expenses."deletedAt" IS NULL
+    AND date_trunc('year', COALESCE(all_expenses."paidAt", NOW())) = date_trunc('year', NOW())
+    AND ld.id IS NULL -- Ignore documents that have already been received
+    GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType", COALESCE(pm."type"::text, CASE WHEN all_expenses."legacyPayoutMethod" = 'paypal' THEN 'PAYPAL' ELSE 'OTHER' END), from_collective."data", from_collective."countryISO", host."data"
+  `,
+    {
+      type: QueryTypes.SELECT,
+      raw: true,
+      replacements: {
+        expenseIds,
+        ignoredExpenseTypes: TAX_FORM_IGNORED_EXPENSE_TYPES,
+        ignoredExpenseStatuses: TAX_FORM_IGNORED_EXPENSE_STATUSES,
+      },
+    },
+  );
+
+  return getTaxFormsOverTheLimit(results, 'expenseId');
+};
+
+/**
+ * Returns the collective IDs where a tax form is required.
+ *
+ * @param {Object} options
+ * @param {number|number[]} [options.HostCollectiveId] - The host collective IDs.
+ * @param {number|number[]} [options.CollectiveId] - The collective IDs.
+ * @param {number} [options.year] - The year to check for. When set, only expenses from this
+ *   year are considered, even if `allTime` is also true: tax form requirements are annual.
+ * @param {boolean} [options.ignoreReceived] - If true, ignore tax forms that have already been received.
+ * @param {boolean} [options.allTime] - If true, ignore the year filter (unless `year` is set).
+ *
+ * @returns Set<number> - collective IDs where a tax form is required
+ */
+const getTaxFormsRequiredForAccounts = async ({
+  HostCollectiveId = null,
+  CollectiveId = null,
+  year,
+  ignoreReceived = false,
+  allTime = false,
+}: {
+  HostCollectiveId?: number | number[];
+  CollectiveId?: number | number[];
+  year?: number;
+  ignoreReceived?: boolean;
+  allTime?: boolean;
+} = {}): Promise<Set<number>> => {
+  if (CollectiveId && Array.isArray(CollectiveId) && CollectiveId.length === 0) {
+    return new Set();
+  } else if (!allTime && !year) {
+    throw new Error('year is required when allTime is false');
+  }
+
+  // When the query is host-scoped, select the expenses through two indexable arms instead of
+  // joining `host` with a cross-relation OR (which prevented Postgres from using the Expenses
+  // host index). An expense matches a host either because that host paid it, or because the
+  // collective is hosted by it now (the collective may have changed host since the payment).
+  // Both arms repeat the `deletedAt`/`status` filters already present below so that the
+  // partial `expenses__host_paid_at` and `expenses__collective_id` indexes stay usable, and
+  // the second arm excludes rows already selected by the first one, so an expense is counted
+  // once per matching host. `matchedHostCollectiveId` carries the matching host so it can be
+  // joined back directly instead of with an OR.
+  //
+  // When a payee (`CollectiveId`) is also provided, callers are checking a single account or
+  // expense rather than browsing the host: keep the previous account-driven join so Postgres
+  // starts from the payee's expenses instead of reading the whole host slice for a one-account
+  // answer. The OR join is harmless there because it only runs on the payee's (small) slice.
+  const expensesFrom =
+    HostCollectiveId && !CollectiveId
+      ? `
+    INNER JOIN (
+      -- Arm 1: the expense was paid by one of the hosts
+      SELECT
+        e."FromCollectiveId",
+        e."PayoutMethodId",
+        e."legacyPayoutMethod",
+        e."paidAt",
+        e."amount",
+        e."currency",
+        e."type",
+        e."status",
+        e."deletedAt",
+        e."HostCollectiveId" AS "matchedHostCollectiveId"
+      FROM "Expenses" e
+      WHERE e."HostCollectiveId" IN (:HostCollectiveId)
+      AND e."deletedAt" IS NULL
+      AND e."status" NOT IN (:ignoredExpenseStatuses)
+      UNION ALL
+      -- Arm 2: the expense's collective is hosted by one of the hosts, but the expense was paid
+      -- by another host. The lateral join keeps this driven by the host's collectives so that
+      -- Expenses is reached through its CollectiveId index: without the lateral dependency,
+      -- Postgres flattens the join and scans the whole Expenses table (verified with EXPLAIN).
+      SELECT
+        e."FromCollectiveId",
+        e."PayoutMethodId",
+        e."legacyPayoutMethod",
+        e."paidAt",
+        e."amount",
+        e."currency",
+        e."type",
+        e."status",
+        e."deletedAt",
+        c."HostCollectiveId" AS "matchedHostCollectiveId"
+      FROM "Collectives" c
+      INNER JOIN LATERAL (
+        SELECT
+          e."FromCollectiveId",
+          e."PayoutMethodId",
+          e."legacyPayoutMethod",
+          e."paidAt",
+          e."amount",
+          e."currency",
+          e."type",
+          e."status",
+          e."deletedAt",
+          e."HostCollectiveId"
+        FROM "Expenses" e
+        WHERE e."CollectiveId" = c.id
+        AND e."deletedAt" IS NULL
+        AND e."status" NOT IN (:ignoredExpenseStatuses)
+        OFFSET 0 -- Prevents Postgres from flattening this lateral join into a sequential scan of "Expenses"
+      ) e ON true
+      WHERE c."HostCollectiveId" IN (:HostCollectiveId)
+      AND c."HostCollectiveId" IS DISTINCT FROM e."HostCollectiveId"
+    ) all_expenses
+      ON all_expenses."FromCollectiveId" = account.id
+    INNER JOIN "Collectives" host
+      ON host.id = all_expenses."matchedHostCollectiveId"
+    `
+      : `
+    INNER JOIN "Expenses" all_expenses
+      ON all_expenses."FromCollectiveId" = account.id
+    INNER JOIN "Collectives" c
+      ON all_expenses."CollectiveId" = c.id
+    INNER JOIN "Collectives" host
+      ON host.id = all_expenses."HostCollectiveId" -- Prefer joining on Expense's host, as the collective may have changed host since
+      OR host.id = c."HostCollectiveId"
+    `;
+
+  const results = await sequelize.query<TaxFormResult>(
+    `
+    SELECT
+      account.id as "collectiveId",
+      COALESCE(pm."type"::text, CASE WHEN all_expenses."legacyPayoutMethod" = 'paypal' THEN 'PAYPAL' ELSE 'OTHER' END) AS "payoutMethodType",
+      EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())) AS "year",
+      (account."data"#>>'{isUSEntity}')::boolean AS "isUSEntity",
+      account."countryISO" AS "countryISO",
+      host."data"#>>'{policies,TAX_FORM_THRESHOLDS}' AS "taxFormThresholds",
+      (host."data"#>>'{policies,TAX_FORM_THRESHOLDS,includePayPalExpenses}')::boolean AS "includePayPalExpenses",
+      SUM(all_expenses."amount" * (
+        CASE
+          WHEN all_expenses."currency" = host.currency THEN 1
+          ELSE (
+            SELECT COALESCE("rate", 1)
+            FROM "CurrencyExchangeRates" er
+            WHERE er."from" = all_expenses."currency"
+            AND er."to" = host.currency
+            AND er."createdAt" <= COALESCE(all_expenses."paidAt", NOW())
+            ORDER BY er."createdAt" DESC
+            LIMIT 1
+          )
+        END
+      )) AS "total"
+    FROM "Collectives" account
+    ${expensesFrom}
+    INNER JOIN "RequiredLegalDocuments" d
+      ON d."HostCollectiveId" = host."id"
+      AND d."documentType" = 'US_TAX_FORM'
+    ${ifStr(
+      ignoreReceived,
+      `
+    LEFT JOIN "LegalDocuments" ld
+      ON ld."documentType" = 'US_TAX_FORM'
+      AND ld."requestStatus" = 'RECEIVED'
+      AND (
+        ld."CollectiveId" = account.id -- Either use the account's legal document
+        OR (account."HostCollectiveId" IS NOT NULL AND ld."CollectiveId" = account."HostCollectiveId") -- Or the host's legal document
+      )
+    `,
+    )}
+    LEFT JOIN "PayoutMethods" pm
+      ON all_expenses."PayoutMethodId" = pm.id
+    WHERE all_expenses.type NOT IN (:ignoredExpenseTypes)
+    ${!CollectiveId ? '' : Array.isArray(CollectiveId) ? `AND account.id IN (:CollectiveId)` : `AND account.id = :CollectiveId`}
+    ${!HostCollectiveId ? '' : Array.isArray(HostCollectiveId) ? `AND host.id IN (:HostCollectiveId)` : `AND host.id = :HostCollectiveId`}
+    AND account.id != d."HostCollectiveId"
+    AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId") -- Ignore tax forms when the submitter is hosted by a host that has tax form enabled (OCF, OSC, OC)
+    AND (account."type" != 'VENDOR' OR account."data"#>>'{vendorInfo, taxFormRequired}' = 'true') -- Ignore tax from tax exempt vendors
+    AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
+    AND all_expenses."deletedAt" IS NULL
+    ${ifStr(!allTime || Boolean(year), `AND EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())) = :year`)}
+    ${ifStr(ignoreReceived, `AND ld.id IS NULL`)}
+    GROUP BY account.id, d."documentType", EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())), COALESCE(pm."type"::text, CASE WHEN all_expenses."legacyPayoutMethod" = 'paypal' THEN 'PAYPAL' ELSE 'OTHER' END), account."data", account."countryISO", host."data"
+  `,
+    {
+      raw: true,
+      type: QueryTypes.SELECT,
+      replacements: {
+        CollectiveId,
+        HostCollectiveId,
+        year,
+        ignoredExpenseTypes: TAX_FORM_IGNORED_EXPENSE_TYPES,
+        ignoredExpenseStatuses: TAX_FORM_IGNORED_EXPENSE_STATUSES,
+      },
+    },
+  );
+
+  return getTaxFormsOverTheLimit(results, 'collectiveId');
+};
+
+const serializeCollectivesResult = JSON.stringify;
+
+const unserializeCollectivesResult = (value: string) => {
+  const result = JSON.parse(value);
+  result.collectives = result.collectives.map(collective => Collective.build(collective));
+  return result;
+};
+
+const getCollectivesOrderedByMonthlySpending: typeof getCollectivesOrderedByMonthlySpendingQuery = memoize(
+  getCollectivesOrderedByMonthlySpendingQuery,
+  {
+    key: 'collectives_ordered_by_monthly_spending',
+    maxAge: twoHoursInSeconds,
+    serialize: serializeCollectivesResult,
+    unserialize: unserializeCollectivesResult,
+  },
+);
+
+const queries = {
+  getCollectivesOrderedByMonthlySpending,
+  getCollectivesOrderedByMonthlySpendingQuery,
+  getMembersOfCollectiveWithRole,
+  getMembersWithBalance,
+  getMembersWithTotalDonations,
+  getTaxFormsRequiredForAccounts,
+  getTaxFormsRequiredForExpenses,
+  getTopSponsors,
+  getTotalAnnualBudget,
+  getTotalAnnualBudgetForHost,
+  getTotalNumberOfActiveCollectives,
+  getTotalNumberOfDonors,
+};
+
+export default queries;

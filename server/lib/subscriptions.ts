@@ -5,6 +5,7 @@ import moment from 'moment';
 import INTERVALS from '../constants/intervals';
 import OrderStatus from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
+import { assertOrderAmountMatchesTier } from '../graphql/common/orders';
 import { BadRequest, Unauthorized, UnexpectedError, ValidationFailed } from '../graphql/errors';
 import { Member, sequelize } from '../models';
 import Order from '../models/Order';
@@ -160,16 +161,19 @@ const checkSubscriptionDetails = (order, tier: Tier, amountInCents) => {
     throw new ValidationFailed('Invalid amount.');
   }
 
-  // If using a named tier, amount can never be less than the minimum amount
-  if (tier && tier.amountType === 'FLEXIBLE' && amountInCents < tier.minimumAmount) {
-    throw new ValidationFailed('Amount is less than minimum value allowed for this Tier.');
-  }
-
-  // If using a FIXED tier, amount cannot be different from the tier's amount
-  // TODO: it should be amountInCents !== tier.amount, but we need to do work to make sure that would play well with platform fees/taxes
-  if (tier && tier.amountType === 'FIXED' && amountInCents < tier.amount) {
-    throw new ValidationFailed('Amount is incorrect for this Tier.');
-  }
+  // Make sure the amount matches the tier (fixed amount or minimum). `amountInCents` excludes platform
+  // tips but includes taxes: tier amounts are pre-tax, so we compare the net amount for the collective.
+  const taxPercentage = order.data?.tax?.percentage || 0;
+  const baseAmountInCents = taxPercentage
+    ? roundCentsAmount(amountInCents / (1 + taxPercentage / 100), order.currency)
+    : amountInCents;
+  assertOrderAmountMatchesTier(tier, {
+    baseAmountInCents,
+    totalAmountInCents: amountInCents + (order.platformTipAmount || 0),
+    quantity: order.quantity,
+    currency: order.currency,
+    taxPercentage,
+  });
 };
 
 type OrderSubscriptionUpdate = {

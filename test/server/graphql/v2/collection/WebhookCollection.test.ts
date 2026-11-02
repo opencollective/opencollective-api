@@ -49,6 +49,37 @@ describe('server/graphql/v2/collection/WebhookCollection', () => {
     expect(res.data.account.webhooks.totalCount).to.be.at.least(1);
   });
 
+  it('only returns webhooks, ordered by creation date', async () => {
+    const account = await fakeCollective({ admin });
+    const second = await fakeNotification({
+      CollectiveId: account.id,
+      channel: channels.WEBHOOK,
+      type: activities.ACTIVITY_ALL,
+      webhookUrl: 'https://example.com/second',
+      createdAt: new Date('2026-01-02'),
+    });
+    const first = await fakeNotification({
+      CollectiveId: account.id,
+      channel: channels.WEBHOOK,
+      type: activities.ACTIVITY_ALL,
+      webhookUrl: 'https://example.com/first',
+      createdAt: new Date('2026-01-01'),
+    });
+    // Email notification settings are stored in the same table
+    await fakeNotification({
+      CollectiveId: account.id,
+      UserId: admin.id,
+      channel: channels.EMAIL,
+      type: activities.COLLECTIVE_EXPENSE_CREATED,
+      active: false,
+    });
+
+    const res = await graphqlQueryV2(accountWebhooksQuery, { slug: account.slug }, admin);
+    expect(res.errors).to.not.exist;
+    expect(res.data.account.webhooks.totalCount).to.equal(2);
+    expect(res.data.account.webhooks.nodes.map(n => n.webhookUrl)).to.deep.equal([first.webhookUrl, second.webhookUrl]);
+  });
+
   it('rejects unauthenticated callers', async () => {
     const res = await graphqlQueryV2(accountWebhooksQuery, { slug: collective.slug }, null);
     expect(res.errors).to.exist;

@@ -90,6 +90,7 @@ export const buildQuery = (
   remoteUser: User | null,
   account: Collective,
   host: Collective,
+  { isRoot = false }: { isRoot?: boolean } = {},
 ): {
   query: QueryContainer;
   /** All fields for which the search term was used. Does not include account constraints */
@@ -101,7 +102,6 @@ export const buildQuery = (
   const searchedFields = new Set<string>();
   const fetchedIndexes = new Set<OpenSearchIndexName>();
   const adminOfAccountIds = !remoteUser ? [] : remoteUser.getAdministratedCollectiveIds();
-  const isRoot = remoteUser && remoteUser.isRoot();
 
   const query: QueryContainer = {
     /* eslint-disable camelcase */
@@ -185,6 +185,7 @@ export const openSearchMultiIndexGlobalSearch = async (
     limit = 50,
     offset = 0,
     user,
+    isRoot = false,
   }: {
     account?: Collective;
     host?: Collective;
@@ -192,10 +193,12 @@ export const openSearchMultiIndexGlobalSearch = async (
     limit?: number;
     offset?: number;
     user?: User;
+    /** Grants root visibility. Must only be set when the user is root AND the credential has the `root` scope */
+    isRoot?: boolean;
   } = {},
 ) => {
   const client = getOpenSearchClient({ throwIfUnavailable: true });
-  const { query, searchedFields, indexes } = buildQuery(searchTerm, requestedIndexes, user, account, host);
+  const { query, searchedFields, indexes } = buildQuery(searchTerm, requestedIndexes, user, account, host, { isRoot });
 
   // Due to permissions, we may end up searching on no index at all (e.g. trying to search for comments while unauthenticated)
   if (indexes.size === 0) {
@@ -252,6 +255,7 @@ export const openSearchSingleIndexSearch = async (
     limit = 50,
     offset = 0,
     user,
+    isRoot = false,
   }: {
     account?: Collective;
     host?: Collective;
@@ -259,10 +263,12 @@ export const openSearchSingleIndexSearch = async (
     limit?: number;
     offset?: number;
     user?: User;
+    /** Grants root visibility. Must only be set when the user is root AND the credential has the `root` scope */
+    isRoot?: boolean;
   } = {},
 ) => {
   const client = getOpenSearchClient({ throwIfUnavailable: true });
-  const { query, searchedFields, indexes } = buildQuery(searchTerm, [request], user, account, host);
+  const { query, searchedFields, indexes } = buildQuery(searchTerm, [request], user, account, host, { isRoot });
 
   // Due to permissions, we may end up searching on no index at all (e.g. trying to search for comments while unauthenticated)
   if (indexes.size === 0) {

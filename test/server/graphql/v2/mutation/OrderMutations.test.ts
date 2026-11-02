@@ -1596,7 +1596,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
     });
 
-    // Moved/adapted from `test/server/paymentProviders/opencollective/collective.test.js` + `test/server/graphql/v1/createOrder.test.js`
+    // Moved/adapted from `test/server/paymentProviders/opencollective/collective.test.ts` + `test/server/graphql/v1/createOrder.test.js`
     describe('Collective to Collective Transactions', () => {
       const STRIPE_FEE_STUBBED_VALUE = 300;
       let sandbox,
@@ -2058,6 +2058,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       const tier = await fakeTier({
         CollectiveId: validOrderPrams.toAccount.legacyId,
         currency: validOrderPrams.toAccount.currency,
+        amount: 100e2,
       });
       const orderInput = { ...validOrderPrams, tier: { legacyId: tier.id } };
       const result = await callCreatePendingOrder({ order: orderInput }, hostAdmin);
@@ -2394,7 +2395,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         },
       });
 
-      const newTier = await fakeTier({ CollectiveId: order.CollectiveId, currency: 'USD' });
+      const newTier = await fakeTier({ CollectiveId: order.CollectiveId, currency: 'USD', amount: 150e2 });
       const newFromAccount = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id });
       validEditOrderParams = {
         legacyId: order.id,
@@ -2935,7 +2936,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
       const fakeOrderOptions = { withTransactions: true, withBackerMember: true, withTier: true };
       const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
-      const newTier = await fakeTier({ CollectiveId: order.CollectiveId });
+      const newTier = await fakeTier({
+        CollectiveId: order.CollectiveId,
+        amount: order.totalAmount,
+        currency: order.currency,
+      });
       const newProfile = (await fakeUser({}, { name: 'New profile' })).collective;
       const backerMember = await models.Member.findOne({
         where: {
@@ -3077,7 +3082,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
   });
 
   describe('Other mutations', () => {
-    // This file and `OrderMutations.test.js` were implemented at the same time. We are merging the files,
+    // This file and `OrderMutations.test.ts` were implemented at the same time. We are merging the files,
     // but these tests would need to be reconciliated before we can put them in the same
     // `describe` than `createOrder`
 
@@ -3443,7 +3448,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         );
 
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.match(/Amount is incorrect for this Tier./);
+        expect(result.errors[0].message).to.match(/This tier uses a fixed amount/);
       });
 
       it('cannot update an order with an amount less than the tier minimum', async () => {
@@ -3460,7 +3465,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         );
 
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.match(/Amount is less than minimum value allowed for this Tier./);
+        expect(result.errors[0].message).to.match(/below minimum tier value/);
       });
 
       it('updates the order payment method', async () => {
@@ -3896,7 +3901,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             updateOrderMutation,
             {
               order: { id: idEncode(order.id, 'order') },
-              amount: { value: 8800 / 100 },
+              amount: { value: newTier.amount / 100 },
               tier: { legacyId: newTier.id },
             },
             user,

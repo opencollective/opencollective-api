@@ -53,6 +53,30 @@ describe('Transaction', () => {
     await createRefundTransaction(transaction, 390, null, hostAdmin);
   });
 
+  it('returns the transaction uuid as the permissions id', async () => {
+    const query = `
+      query Transactions($legacyExpenseId: Int!) {
+        transactions(expense: { legacyId: $legacyExpenseId }) {
+          nodes {
+            id
+            uuid
+            permissions {
+              id
+            }
+          }
+        }
+      }
+    `;
+
+    const result = await graphqlQueryV2(query, { legacyExpenseId: expense.id }, hostAdmin);
+    result.errors && console.error(result.errors);
+    expect(result.errors).to.not.exist;
+    result.data.transactions.nodes.forEach(node => {
+      expect(node.permissions.id).to.equal(node.uuid);
+      expect(node.permissions.id).to.equal(node.id);
+    });
+  });
+
   it('should fetch the correct payment processor fee', async () => {
     const query = `
       query Transactions($legacyExpenseId: Int!) {

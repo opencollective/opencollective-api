@@ -28,6 +28,7 @@ import { AccountingCategory, Activity, Collective, Op, sequelize } from '../../.
 import Expense, { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
+import { isRemoteUserRoot } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized } from '../../../errors';
 import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection';
 import { GraphQLActivityType } from '../../enum/ActivityType';
@@ -197,7 +198,7 @@ const getHostContextConditions = (
 const buildExpenseCanCommentRoleSqlLiteral = (req: express.Request): ReturnType<typeof sequelize.literal> | null => {
   if (!req.remoteUser) {
     return sequelize.literal('FALSE'); // This will return an empty result set for all expenses
-  } else if (req.remoteUser.isRoot()) {
+  } else if (isRemoteUserRoot(req)) {
     return null; // No restrictions for root users
   }
 
@@ -232,10 +233,8 @@ const buildExpenseCanCommentRoleSqlLiteral = (req: express.Request): ReturnType<
   const sql = `(
     ${buildIsAdminOfCollectiveSql('collective')}
     OR ${buildHostAdminRoleSql()}
-    OR (
-      ("Expense"."UserId" = :userId AND "fromCollective"."type" != 'VENDOR')
-      OR ${buildIsAdminOfCollectiveSql('fromCollective')}
-    )
+    OR "Expense"."UserId" = :userId
+    OR ${buildIsAdminOfCollectiveSql('fromCollective')}
   )`;
 
   return sequelize.literal(
@@ -501,7 +500,7 @@ export const ExpensesCollectionQueryResolver = async (
   };
 
   // Check arguments
-  if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+  if (args.limit > 1000 && !isRemoteUserRoot(req)) {
     throw new Error('Cannot fetch more than 1,000 expenses at the same time, please adjust the limit');
   }
 
@@ -591,7 +590,7 @@ export const ExpensesCollectionQueryResolver = async (
 
   // Restrict expenses whose payer collective is private unless the viewer may see that account (or submitted the expense).
   // When `accounts` / `account` / `host` is set, visibility was already enforced via assertCanSeeAllAccounts on those collectives.
-  if (!req.remoteUser?.isRoot() && accounts.length === 0 && !host) {
+  if (!isRemoteUserRoot(req) && accounts.length === 0 && !host) {
     ensureInclude('collective', { required: true });
 
     const orConditions: WhereOptions[] = [{ '$collective.isPrivate$': false }];

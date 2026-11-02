@@ -19,13 +19,7 @@ import { checkCaptcha } from '../../../lib/check-captcha';
 import { roundCentsAmount } from '../../../lib/currency';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import { mustUpdateLocation } from '../../../lib/location';
-import {
-  calcFee,
-  executeOrder,
-  isBalanceOnlyCollectiveType,
-  isPlatformTipEligible,
-  processOrder,
-} from '../../../lib/payments';
+import { executeOrder, isBalanceOnlyCollectiveType, isPlatformTipEligible, processOrder } from '../../../lib/payments';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import {
   checkGuestContribution,
@@ -49,6 +43,7 @@ import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency } from '../../../lib/utils';
 import models, { Op, Order } from '../../../models';
 import { checkReceiveFinancialContributions } from '../../common/features';
+import { assertOrderAmountMatchesTier } from '../../common/orders';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
@@ -451,35 +446,23 @@ export async function createOrder(order, req) {
     }
 
     const tipAmount = order.platformTipAmount || 0;
-    const expectedGrossUnitAmount = tier?.amountType === 'FIXED' ? tier.amount || 0 : order.amount;
     const netAmountForCollective = roundCentsAmount(order.totalAmount - order.taxAmount - tipAmount, currency);
     // A new order must never credit the collective with a negative net amount, even if
     // `quantity × unitAmount` happens to be self-consistent with a negative quantity.
     if (netAmountForCollective < 0) {
       throw new ValidationFailed(`Invalid net amount for collective: ${netAmountForCollective}`);
     }
-    const expectedAmountForCollective = roundCentsAmount(order.quantity * expectedGrossUnitAmount, currency); // order.amount is always set when called from GraphQL v2
-    const expectedTaxAmount = calcFee(expectedAmountForCollective, taxPercent, currency);
 
-    // Make sure net amount and tax amount are correct
-    if (netAmountForCollective !== expectedAmountForCollective || order.taxAmount !== expectedTaxAmount) {
-      const prettyTotalAmount = formatCurrency(order.totalAmount, currency, 2);
-      const prettyExpectedAmount = formatCurrency(expectedAmountForCollective, currency, 2);
-      const taxInfoStr = expectedTaxAmount ? ` + ${formatCurrency(expectedTaxAmount, currency, 2)} tax` : '';
-      throw new Error(
-        `This tier uses a fixed amount. Order total must be ${prettyExpectedAmount}${taxInfoStr}. You set: ${prettyTotalAmount}`,
-      );
-    }
-
-    // If using a tier, amount can never be less than the minimum amount
-    if (tier && tier.minimumAmount) {
-      const minAmount = tier.minimumAmount * order.quantity;
-      const minTotalAmount = taxPercent ? roundCentsAmount(minAmount * (1 + taxPercent / 100), currency) : minAmount;
-      if ((order.totalAmount || 0) < minTotalAmount) {
-        const prettyMinTotal = formatCurrency(minTotalAmount, currency);
-        throw new Error(`The amount you set is below minimum tier value, it should be at least ${prettyMinTotal}`);
-      }
-    }
+    // Make sure the net amount and tax amount are correct, and that the amount matches the tier if there's one
+    assertOrderAmountMatchesTier(tier, {
+      baseAmountInCents: netAmountForCollective,
+      unitAmountInCents: order.amount, // order.amount is always set when called from GraphQL v2
+      taxAmountInCents: order.taxAmount,
+      totalAmountInCents: order.totalAmount,
+      quantity: order.quantity,
+      currency,
+      taxPercentage: taxPercent,
+    });
 
     // Tiers with a fixed interval only accept contributions with this interval (free contributions excepted)
     if (

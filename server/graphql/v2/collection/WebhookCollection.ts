@@ -1,6 +1,7 @@
 import express from 'express';
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
+import { channels } from '../../../constants';
 import models from '../../../models';
 import { checkRemoteUserCanUseWebhooks } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
@@ -51,7 +52,7 @@ export const WebhookCollectionResolver = async (args, req: express.Request) => {
     throw new Forbidden();
   }
 
-  const where = { CollectiveId: account.id };
+  const where = { CollectiveId: account.id, channel: channels.WEBHOOK };
 
   const { offset, limit } = args;
 
@@ -59,6 +60,10 @@ export const WebhookCollectionResolver = async (args, req: express.Request) => {
     where,
     limit,
     offset,
+    order: [
+      ['createdAt', 'ASC'],
+      ['id', 'ASC'],
+    ],
   });
 
   return {

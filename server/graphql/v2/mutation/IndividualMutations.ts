@@ -9,7 +9,11 @@ import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 import * as auth from '../../../lib/auth';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { checkRemoteUserCanUseAccount, rejectOAuthAndPersonalTokenAuth } from '../../common/scope-check';
+import {
+  checkRemoteUserCanUseAccount,
+  rejectOAuthAndPersonalTokenAuth,
+  requireSessionToken,
+} from '../../common/scope-check';
 import { confirmUserEmail } from '../../common/user';
 import { RateLimitExceeded, Unauthorized } from '../../errors';
 import { GraphQLIndividual } from '../object/Individual';
@@ -68,9 +72,11 @@ const individualMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      // This mutation is session-only: we don't want OAuth/Personal Tokens to be able to change credentials,
-      // nor to be exchanged against a session token.
+      // Password resets accept their dedicated token; other password changes require a session.
       rejectOAuthAndPersonalTokenAuth(req, 'OAuth and Personal Tokens are not allowed to set passwords.');
+      if (req.jwtPayload?.scope !== 'reset-password') {
+        requireSessionToken(req, 'A session or reset-password token is required to set passwords.');
+      }
 
       // No need to check the scope, since personal/oauth tokens are rejected.
       if (!req.remoteUser) {
@@ -142,13 +148,9 @@ const individualMutations = {
         description: 'The token to confirm the email.',
       },
     },
-    // eslint-disable-next-line graphql-mutations/require-scope-check -- this mutation explicitly rejects OAuth and personal token auth; no scope check can be applied
     resolve: async (_, { token: confirmEmailToken }, req) => {
-      // Forbid this route for OAuth and Personal Tokens. Remember to check the scope if you want to allow it.
-      // Also make sure to prevent exchanging OAuth/Personal tokens for session tokens.
-      if (req.userToken || req.personalToken) {
-        throw new Unauthorized('OAuth and Personal Tokens are not allowed for this route');
-      }
+      // Guests can confirm email; authenticated requests must not exchange scoped credentials for a session.
+      requireSessionToken(req, 'A session token is required to confirm email while signed in.');
 
       // Rate limit (by IP, since we support anonymous requests)
       const rateLimitKey = `individual_confirm_email_ip_${req.ip}`;

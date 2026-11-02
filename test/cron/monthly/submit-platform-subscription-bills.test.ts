@@ -15,8 +15,10 @@ import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
   fakeCollective,
   fakeConnectedAccount,
+  fakeExpense,
   fakeHost,
   fakePayoutMethod,
+  fakeTransaction,
   fakeUser,
   randStr,
 } from '../../test-helpers/fake-data';
@@ -24,13 +26,20 @@ import { resetTestDB, waitForCondition } from '../../utils';
 
 describe('submit-platform-subscription-bills', () => {
   const date = moment.utc('2023-10-09T10:00:00Z');
-  let organizations, shortTrialGraceOrg, tipsOffOrg, sandbox, emailSendMessageSpy;
+  let organizations,
+    shortTrialGraceOrg,
+    tipsOffOrg,
+    sandbox,
+    emailSendMessageSpy,
+    platformUser,
+    calculateUtilizationStub;
 
   before(async () => {
     sandbox = sinon.createSandbox();
     emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
     await resetTestDB();
     const user = await fakeUser({ id: PlatformConstants.PlatformUserId }, { slug: 'ofitech-admin' });
+    platformUser = user;
     const oc = await fakeHost({
       id: PlatformConstants.PlatformCollectiveId,
       slug: randStr('platform-'),
@@ -74,7 +83,7 @@ describe('submit-platform-subscription-bills', () => {
       await org.addUserWithRole(orgAdmin, roles.ADMIN);
     }
 
-    const calculateUtilizationStub = sandbox.stub(PlatformSubscription, 'calculateUtilization');
+    calculateUtilizationStub = sandbox.stub(PlatformSubscription, 'calculateUtilization');
     const utilizations = [
       { activeCollectives: 0, expensesPaid: 5 },
       { activeCollectives: 5, expensesPaid: 2 },
@@ -257,5 +266,60 @@ describe('submit-platform-subscription-bills', () => {
     expect(org2Body).to.contain('Billing Period');
     expect(org2Body).to.contain('8/2023');
     expect(org2Body).to.contain('$80.00');
+  });
+
+  it('skips organizations without transactions in the billing period that never paid a bill, when enabled', async () => {
+    const orgAdmin = await fakeUser();
+    const createOrgWithSubscription = async () => {
+      const org = await fakeCollective({ type: CollectiveType.ORGANIZATION, isActive: true });
+      await org.addUserWithRole(orgAdmin, roles.ADMIN);
+      await PlatformSubscription.createSubscription(
+        org,
+        moment(date).subtract(2, 'month').toDate(),
+        PlatformSubscriptionTiers[2],
+        platformUser,
+      );
+      calculateUtilizationStub.withArgs(org.id).resolves({ activeCollectives: 0, expensesPaid: 0 });
+      return org;
+    };
+
+    // Only has a transaction after the billing period (September 2023)
+    const inactiveOrg = await createOrgWithSubscription();
+    await fakeTransaction({ CollectiveId: inactiveOrg.id, createdAt: moment.utc('2023-10-02').toDate() });
+
+    // One of its hosted collectives has a transaction during the billing period
+    const activeOrg = await createOrgWithSubscription();
+    const hostedCollective = await fakeCollective({ HostCollectiveId: activeOrg.id });
+    await fakeTransaction({
+      CollectiveId: hostedCollective.id,
+      HostCollectiveId: activeOrg.id,
+      createdAt: moment.utc('2023-09-15').toDate(),
+    });
+
+    // No transactions in the billing period, but already paid a platform bill
+    const payingOrg = await createOrgWithSubscription();
+    await fakeExpense({
+      CollectiveId: payingOrg.id,
+      type: expenseTypes.PLATFORM_BILLING,
+      status: 'PAID',
+      createdAt: moment.utc('2023-09-01').toDate(),
+    });
+
+    await run(date, { skipOrganizationsWithoutTransactions: true });
+
+    const inactiveOrgExpenses = await models.Expense.findAll({
+      where: { CollectiveId: inactiveOrg.id, type: expenseTypes.PLATFORM_BILLING },
+    });
+    expect(inactiveOrgExpenses).to.have.length(0);
+
+    const activeOrgExpenses = await models.Expense.findAll({
+      where: { CollectiveId: activeOrg.id, type: expenseTypes.PLATFORM_BILLING },
+    });
+    expect(activeOrgExpenses).to.have.length(1);
+
+    const payingOrgExpenses = await models.Expense.findAll({
+      where: { CollectiveId: payingOrg.id, type: expenseTypes.PLATFORM_BILLING },
+    });
+    expect(payingOrgExpenses).to.have.length(2);
   });
 });

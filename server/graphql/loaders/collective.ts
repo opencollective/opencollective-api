@@ -5,8 +5,10 @@ import { QueryTypes } from 'sequelize';
 
 import { roles } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
+import OrderStatuses from '../../constants/order-status';
 import { MemberRolesForPrivateAccounts } from '../../constants/roles';
 import models, { Collective, Op, sequelize } from '../../models';
+import { isRemoteUserRoot } from '../common/scope-check';
 
 import { sortResultsSimple } from './helpers';
 
@@ -17,6 +19,111 @@ type AdminCommunityActivitySummaryRow = {
   activities: string[];
   relations: string[];
 };
+
+type PrivateInfoMembershipOptions = {
+  hostAdminsOnly?: boolean;
+  /** Pre-computed value of `remoteUser.getAdministratedCollectiveIds()`, to avoid recomputing it. */
+  adminOfCollectiveIds?: number[];
+};
+
+/** Fetch memberships that grant access to private info, excluding unapproved host links. */
+async function getAdministratedMemberRowsForPrivateInfo(
+  req: Pick<express.Request, 'remoteUser'>,
+  targetIds: number[],
+  { hostAdminsOnly = false, adminOfCollectiveIds: providedAdminOfCollectiveIds }: PrivateInfoMembershipOptions = {},
+): Promise<{ MemberCollectiveId: number }[]> {
+  const remoteUser = req.remoteUser;
+  const otherAccountIds = uniq(targetIds.filter(id => id && id !== remoteUser.CollectiveId));
+  if (!otherAccountIds.length) {
+    return [];
+  }
+
+  await remoteUser.populateRoles();
+  const adminOfCollectiveIds = providedAdminOfCollectiveIds ?? remoteUser.getAdministratedCollectiveIds();
+  return models.Member.findAll({
+    attributes: ['MemberCollectiveId'],
+    group: ['MemberCollectiveId'],
+    raw: true,
+    mapToModel: false,
+    where: {
+      MemberCollectiveId: otherAccountIds,
+      [Op.or]: [
+        // These memberships always grant direct access
+        {
+          role: [
+            roles.ADMIN,
+            roles.MEMBER,
+            roles.COMMUNITY_MANAGER,
+            roles.CONTRIBUTOR,
+            roles.BACKER,
+            roles.ATTENDEE,
+            roles.ACCOUNTANT,
+          ],
+        },
+        // Pending applications create HOST memberships before approval.
+        { role: roles.HOST, '$collective.approvedAt$': { [Op.ne]: null } },
+      ],
+    },
+    include: {
+      association: 'collective',
+      required: true,
+      attributes: [],
+      where: hostAdminsOnly
+        ? { HostCollectiveId: adminOfCollectiveIds }
+        : {
+            [Op.or]: [
+              { id: adminOfCollectiveIds },
+              { ParentCollectiveId: adminOfCollectiveIds },
+              { HostCollectiveId: adminOfCollectiveIds },
+            ],
+          },
+    },
+  });
+}
+
+type ProcessingOrderCounterpartyRow = {
+  matchedId: number;
+};
+
+/**
+ * Returns the account ids (from `targetIds`) of users who have an order in `PROCESSING` for a collective
+ * hosted by a collective the remote user administers.
+ *
+ * Matches on `Order.CreatedByUserId` only: `FromCollectiveId` can be an organization, or another account
+ * the user contributed for, while the person we want to identify is the user who started the order.
+ */
+async function getProcessingOrderCounterpartyIds(
+  targetIds: number[],
+  adminOfCollectiveIds: number[],
+): Promise<Set<number>> {
+  const ids = uniq(targetIds.filter(Boolean));
+  if (!ids.length || !adminOfCollectiveIds.length) {
+    return new Set();
+  }
+
+  const rows = (await models.Order.findAll({
+    attributes: [[sequelize.col('createdByUser.CollectiveId'), 'matchedId']],
+    include: [
+      {
+        association: 'collective',
+        attributes: [],
+        required: true,
+        where: { HostCollectiveId: adminOfCollectiveIds },
+      },
+      {
+        association: 'createdByUser',
+        attributes: [],
+        required: true,
+        where: { CollectiveId: ids },
+      },
+    ],
+    where: { status: OrderStatuses.PROCESSING },
+    group: [sequelize.col('createdByUser.CollectiveId')],
+    raw: true,
+  })) as unknown as ProcessingOrderCounterpartyRow[];
+
+  return new Set(rows.map(row => row.matchedId));
+}
 
 export default {
   /**
@@ -122,8 +229,10 @@ export default {
   /**
    * To check if remoteUser has access to user's private info (email, legal name, etc). `remoteUser` must either:
    * - be the user himself
-   * - be an admin of a collective where user is a member (even as incognito, and regardless of the role)
-   * - be an admin of the host of a collective where user is a member (even as incognito, and regardless of the role)
+   * - be an admin of a collective where user is a member (even as incognito)
+   * - be an admin of the host of a collective where user is a member (even as incognito)
+   * - be an admin of the host of a collective where user has an order in `PROCESSING`
+   * Only explicitly permitted membership roles grant access; HOST memberships require host approval.
    */
   canSeePrivateProfileInfo: (req): DataLoader<number, boolean> => {
     return new DataLoader(async (collectiveIds: number[]) => {
@@ -132,47 +241,24 @@ export default {
         return collectiveIds.map(() => false);
       }
 
-      let administratedMembers: { MemberCollectiveId: number }[] = [];
+      await remoteUser.populateRoles();
+      const adminOfCollectiveIds = remoteUser.getAdministratedCollectiveIds();
+      const otherAccountIds = uniq(collectiveIds.filter(id => id && id !== remoteUser.CollectiveId));
 
-      // Aggregates all the profiles linked to users
-      const uniqueCollectiveIds = uniq(collectiveIds.filter(Boolean));
-      const otherAccountsCollectiveIds = uniqueCollectiveIds.filter(
-        collectiveId => collectiveId !== remoteUser.CollectiveId,
-      );
+      const [administratedMembers, processingOrderCounterpartyIds] = await Promise.all([
+        getAdministratedMemberRowsForPrivateInfo(req, otherAccountIds, { adminOfCollectiveIds }),
+        getProcessingOrderCounterpartyIds(otherAccountIds, adminOfCollectiveIds),
+      ]);
 
-      // Fetch all the admin memberships of `remoteUser` to collectives or collective's hosts
-      // that are linked to users`
-      if (otherAccountsCollectiveIds.length) {
-        await remoteUser.populateRoles();
-        const adminOfCollectiveIds = remoteUser.getAdministratedCollectiveIds();
-        administratedMembers = await models.Member.findAll({
-          attributes: ['MemberCollectiveId'],
-          group: ['MemberCollectiveId'],
-          raw: true,
-          mapToModel: false,
-          where: { MemberCollectiveId: otherAccountsCollectiveIds },
-          include: {
-            association: 'collective',
-            required: true,
-            attributes: [],
-            where: {
-              [Op.or]: [
-                { id: adminOfCollectiveIds }, // Either `remoteUser` is an admin of the collective
-                { ParentCollectiveId: adminOfCollectiveIds }, // Or an admin of the parent collective
-                { HostCollectiveId: adminOfCollectiveIds }, // Or `remoteUser` is an admin of the collective's host
-              ],
-            },
-          },
-        });
-      }
-
-      // User must be self or directly administered by remoteUser
+      // User must be self, directly administered by remoteUser, or have an order being processed by
+      // a collective the remoteUser administers.
       const administratedMemberCollectiveIds = new Set(administratedMembers.map(m => m.MemberCollectiveId));
       return collectiveIds.map(collectiveId => {
         return (
           collectiveId === remoteUser.CollectiveId ||
           req.remoteUser.isAdmin(collectiveId) ||
-          administratedMemberCollectiveIds.has(collectiveId)
+          administratedMemberCollectiveIds.has(collectiveId) ||
+          processingOrderCounterpartyIds.has(collectiveId)
         );
       });
     });
@@ -180,7 +266,9 @@ export default {
   /**
    * To check if remoteUser has access to user's private location. `remoteUser` must either:
    * - be the user himself
-   * - be an admin of the host of a collective where user is a member (even as incognito, and regardless of the role)
+   * - be an admin of the host of a collective where user is a member (even as incognito)
+   * - be an admin of the host of a collective where user has an order in `PROCESSING`
+   * Only explicitly permitted membership roles grant access; HOST memberships require host approval.
    */
   canSeePrivateLocation: (req): DataLoader<number, boolean> => {
     return new DataLoader(async (collectiveIds: number[]) => {
@@ -189,41 +277,27 @@ export default {
         return collectiveIds.map(() => false);
       }
 
-      let administratedMembers = [];
+      await remoteUser.populateRoles();
+      const adminOfCollectiveIds = remoteUser.getAdministratedCollectiveIds();
+      const otherAccountIds = uniq(collectiveIds.filter(id => id && id !== remoteUser.CollectiveId));
 
-      // Aggregates all the profiles linked to users
-      const uniqueCollectiveIds = uniq(collectiveIds.filter(Boolean));
-      const otherAccountsCollectiveIds = uniqueCollectiveIds.filter(
-        collectiveId => collectiveId !== remoteUser.CollectiveId,
-      );
+      const [administratedMembers, processingOrderCounterpartyIds] = await Promise.all([
+        getAdministratedMemberRowsForPrivateInfo(req, otherAccountIds, {
+          hostAdminsOnly: true,
+          adminOfCollectiveIds,
+        }),
+        getProcessingOrderCounterpartyIds(otherAccountIds, adminOfCollectiveIds),
+      ]);
 
-      // Fetch all the admin memberships of `remoteUser` to collectives or collective's hosts
-      // that are linked to users`
-      if (otherAccountsCollectiveIds.length) {
-        await remoteUser.populateRoles();
-        const adminOfCollectiveIds = remoteUser.getAdministratedCollectiveIds();
-        administratedMembers = await models.Member.findAll({
-          attributes: ['MemberCollectiveId'],
-          group: ['MemberCollectiveId'],
-          raw: true,
-          mapToModel: false,
-          where: { MemberCollectiveId: otherAccountsCollectiveIds },
-          include: {
-            association: 'collective',
-            required: true,
-            attributes: [],
-            where: { HostCollectiveId: adminOfCollectiveIds }, // `remoteUser` is an admin of the collective's host
-          },
-        });
-      }
-
-      // User must be self or directly administered by remoteUser
+      // User must be self, directly administered by remoteUser, or have an order being processed by
+      // a collective the remoteUser administers.
       const administratedMemberCollectiveIds = new Set(administratedMembers.map(m => m.MemberCollectiveId));
       return collectiveIds.map(collectiveId => {
         return (
           collectiveId === remoteUser.CollectiveId ||
           req.remoteUser.isAdmin(collectiveId) ||
-          administratedMemberCollectiveIds.has(collectiveId)
+          administratedMemberCollectiveIds.has(collectiveId) ||
+          processingOrderCounterpartyIds.has(collectiveId)
         );
       });
     });
@@ -256,7 +330,7 @@ export default {
         return collectiveIds.map(id => !accountMap.get(id)?.isPrivate);
       }
 
-      if (remoteUser.isRoot()) {
+      if (isRemoteUserRoot(req)) {
         return collectiveIds.map(() => true);
       }
 

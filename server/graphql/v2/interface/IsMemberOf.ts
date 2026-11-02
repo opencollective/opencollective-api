@@ -1,0 +1,309 @@
+import type { Request } from 'express';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { cloneDeep, invert, isEmpty, isNil, isUndefined } from 'lodash';
+
+import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
+import { MemberRolesForPrivateAccounts } from '../../../constants/roles';
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
+import { buildSearchConditions } from '../../../lib/sql-search';
+import models, { type Collective, type Member, Op, sequelize } from '../../../models';
+import { checkScope, isRemoteUserRoot } from '../../common/scope-check';
+import { ValidationFailed } from '../../errors';
+import { GraphQLMemberOfCollection } from '../collection/MemberCollection';
+import { AccountTypeToModelMapping, GraphQLAccountType } from '../enum/AccountType';
+import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
+import { GraphQLMemberRole } from '../enum/MemberRole';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
+import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
+
+type MemberWhereOptions = {
+  MemberCollectiveId?: number;
+  CollectiveId?: number | { [Op.ne]: number } | { [Op.in]: number[] };
+  role?: { [Op.in]: string[] };
+  TierId?: number | { [Op.is]: null };
+  [Op.or]?: unknown[];
+};
+
+type CollectiveWhereOptions = {
+  isPrivate?: boolean;
+  approvedAt?: Record<symbol, null>;
+  deactivatedAt?: Record<symbol, null>;
+  type?: { [Op.in]: string[] };
+  isIncognito?: boolean;
+  hasMoneyManagement?: boolean;
+  data?: { [Op.and]: unknown[] };
+  [Op.or]?: Array<Record<string, unknown>>;
+};
+
+export const IsMemberOfFields = {
+  memberOf: {
+    type: new GraphQLNonNull(GraphQLMemberOfCollection),
+    args: {
+      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 150 },
+      offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
+      role: { type: new GraphQLList(GraphQLMemberRole) },
+      accountType: { type: new GraphQLList(GraphQLAccountType) },
+      account: { type: GraphQLAccountReferenceInput },
+      isHostAccount: {
+        type: GraphQLBoolean,
+        description: 'Filter on whether the account is a host or not',
+        deprecationReason: '2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.',
+      },
+      isApproved: {
+        type: GraphQLBoolean,
+        description: 'Filter on (un)approved collectives',
+      },
+      isArchived: {
+        type: GraphQLBoolean,
+        description: 'Filter on archived collectives',
+      },
+      isFrozen: {
+        type: GraphQLBoolean,
+        description: 'Filter on (not) frozen collectives',
+      },
+      includeIncognito: {
+        type: GraphQLBoolean,
+        defaultValue: true,
+        description:
+          'Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
+      },
+      searchTerm: {
+        type: GraphQLString,
+        description:
+          'A term to search membership. Searches in collective tags, name, slug, members description and role.',
+      },
+      hostFeesStructure: {
+        type: GraphQLHostFeeStructure,
+        description: 'Filters on the Host fees structure applied to this account',
+      },
+      orderBy: {
+        type: new GraphQLNonNull(GraphQLOrderByInput),
+        description: 'Order of the results',
+        defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
+      },
+      orderByRoles: {
+        type: GraphQLBoolean,
+        description: 'Order the query by requested role order',
+      },
+      tier: {
+        type: GraphQLTierReferenceInput,
+        description: 'Filter members by tier',
+      },
+    },
+    async resolve(collective: Collective, args, req: Request) {
+      // Check Pagination arguments
+      if (isNil(args.limit) || args.limit < 0) {
+        args.limit = 100;
+      }
+      if (isNil(args.offset) || args.offset < 0) {
+        args.offset = 0;
+      }
+      if (args.limit > 1000 && !isRemoteUserRoot(req)) {
+        throw new Error('Cannot fetch more than 1,000 members at the same time, please adjust the limit');
+      }
+
+      const where: MemberWhereOptions = {
+        MemberCollectiveId: collective.id,
+        CollectiveId: { [Op.ne]: collective.id },
+      };
+      const collectiveConditions: CollectiveWhereOptions = { isPrivate: false };
+      const collectiveDataConditions: Array<Record<string, unknown>> = [];
+
+      if (!isNil(args.isApproved)) {
+        collectiveConditions.approvedAt = { [args.isApproved ? Op.not : Op.is]: null };
+      }
+      if (!isNil(args.isArchived)) {
+        collectiveConditions.deactivatedAt = { [args.isArchived ? Op.not : Op.is]: null };
+      }
+      if (!isNil(args.isFrozen)) {
+        collectiveDataConditions.push(
+          args.isFrozen
+            ? { features: { ALL: false } }
+            : { [Op.or]: [{ features: { ALL: true } }, { features: { ALL: null } }, { features: null }] },
+        );
+      }
+
+      // We don't want to apply the other filters for fetching the existing roles
+      const existingRolesCollectiveConditions = cloneDeep(collectiveConditions);
+
+      if (args.role && args.role.length > 0) {
+        where.role = { [Op.in]: args.role };
+      }
+      if (args.accountType && args.accountType.length > 0) {
+        collectiveConditions.type = {
+          [Op.in]: [...new Set<string>(args.accountType.map(value => AccountTypeToModelMapping[value]))],
+        };
+      }
+      let scopedAccount: Collective | null = null;
+      if (args.account) {
+        scopedAccount = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+        await assertCanSeeAccount(req, scopedAccount);
+        where.CollectiveId = scopedAccount.id;
+      }
+      if (!args.includeIncognito || !req.remoteUser?.isAdmin(collective.id) || !checkScope(req, 'incognito')) {
+        collectiveConditions.isIncognito = false;
+      }
+      if (!isNil(args.isHostAccount)) {
+        collectiveConditions.hasMoneyManagement = args.isHostAccount;
+      }
+
+      if (args.hostFeesStructure) {
+        if (args.hostFeesStructure === HOST_FEE_STRUCTURE.DEFAULT) {
+          collectiveDataConditions.push({ useCustomHostFee: { [Op.not]: true } });
+        } else if (args.hostFeesStructure === HOST_FEE_STRUCTURE.CUSTOM_FEE) {
+          collectiveDataConditions.push({ useCustomHostFee: true });
+        } else if (args.hostFeesStructure === HOST_FEE_STRUCTURE.MONTHLY_RETAINER) {
+          throw new ValidationFailed('The MONTHLY_RETAINER fees structure is not supported yet');
+        }
+      }
+
+      if (!isUndefined(args.tier)) {
+        if (args.tier) {
+          const tier = await fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: true });
+          // The tier belongs to the account the membership is on, not to the account whose memberships are listed:
+          // we can only assert it when the query is scoped to a single account.
+          if (scopedAccount && tier.CollectiveId !== scopedAccount.id) {
+            throw new ValidationFailed('Tier is not associated with this collective');
+          }
+          where.TierId = tier.id;
+        } else {
+          where.TierId = { [Op.is]: null };
+        }
+      }
+
+      const searchTermConditions = buildSearchConditions(args.searchTerm, {
+        idFields: ['id', '$collective.id$'],
+        slugFields: ['$collective.slug$'],
+        textFields: ['$collective.name$', '$collective.description$', 'description', 'role'],
+        stringArrayFields: ['$collective.tags$'],
+        stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
+        castStringArraysToVarchar: true,
+        publicIdFields: [
+          { field: 'publicId', prefix: EntityShortIdPrefix.Member },
+          { field: '$collective.publicId$', prefix: EntityShortIdPrefix.Collective },
+        ],
+      });
+
+      if (searchTermConditions.length) {
+        where[Op.or] = searchTermConditions;
+      }
+
+      if (!isEmpty(collectiveDataConditions)) {
+        collectiveConditions.data = { [Op.and]: collectiveDataConditions };
+      }
+
+      const order = [];
+      const collectiveAttributesInclude = [];
+      if (args.orderByRoles && args.role) {
+        order.push(...args.role.map(r => sequelize.literal(`role='${r}' DESC`)));
+      }
+      if (args.orderBy) {
+        const { field, direction } = args.orderBy;
+        if (field === ORDER_BY_PSEUDO_FIELDS.MEMBER_COUNT) {
+          order.push([sequelize.literal('"collective.memberCount"'), 'DESC']);
+          collectiveAttributesInclude.push([
+            sequelize.literal(`(
+                    SELECT COUNT(*)
+                    FROM "Members" AS "collective->members"
+                    WHERE
+                        "collective->members"."CollectiveId" = collective.id
+                        AND "collective->members".role = 'BACKER'
+                        AND "collective->members"."MemberCollectiveId" IS NOT NULL
+                        AND "collective->members"."deletedAt" IS NULL
+                )`),
+            'memberCount',
+          ]);
+        } else if (field === ORDER_BY_PSEUDO_FIELDS.TOTAL_CONTRIBUTED) {
+          order.push([sequelize.literal('"collective.totalAmountDonated"'), 'DESC']);
+          collectiveAttributesInclude.push([
+            sequelize.literal(`(
+                    SELECT COALESCE(SUM("amount"), 0)
+                    FROM "Transactions" AS "collective->transactions"
+                    WHERE
+                        "collective->transactions"."CollectiveId" = collective.id
+                        AND "collective->transactions"."deletedAt" IS NULL
+                        AND "collective->transactions"."type" = 'CREDIT'
+                        AND (
+                          "collective->transactions"."FromCollectiveId" = ${collective.id}
+                          OR "collective->transactions"."UsingGiftCardFromCollectiveId" = ${collective.id}
+                        )
+                )`),
+            'totalAmountDonated',
+          ]);
+        } else if (field === ORDER_BY_PSEUDO_FIELDS.CREATED_AT) {
+          order.push(['createdAt', direction]);
+        } else {
+          order.push([field, direction]);
+        }
+      }
+
+      // Handle private accounts
+      if (req.remoteUser) {
+        if (isRemoteUserRoot(req)) {
+          // Allow all private accounts to be seen by root admins
+          delete collectiveConditions.isPrivate;
+        } else {
+          const directAccess = req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts);
+          if (directAccess.size) {
+            const idsList = Array.from(directAccess);
+            delete collectiveConditions.isPrivate;
+            collectiveConditions[Op.or] = [
+              { isPrivate: false },
+              { id: idsList }, // User is an admin of accountant of the collective
+              { ParentCollectiveId: idsList }, // User is an admin of accountant of the collective's parent collective (for events/projects)
+              { HostCollectiveId: idsList, approvedAt: { [Op.ne]: null } }, // User is an admin of accountant of the collective's fiscal host
+            ];
+          }
+        }
+      }
+
+      const result = await models.Member.findAndCountAll({
+        where,
+        limit: args.limit,
+        offset: args.offset,
+        order,
+        include: [
+          {
+            model: models.Collective,
+            as: 'collective',
+            where: collectiveConditions,
+            required: true,
+            attributes: {
+              include: collectiveAttributesInclude,
+            },
+          },
+        ],
+      });
+
+      return {
+        nodes: result.rows,
+        totalCount: result.count,
+        limit: args.limit,
+        offset: args.offset,
+        roles: () =>
+          models.Member.findAll({
+            attributes: ['role', 'collective.type'],
+            where: { MemberCollectiveId: collective.id, CollectiveId: { [Op.ne]: collective.id } },
+            include: [
+              {
+                model: models.Collective,
+                as: 'collective',
+                required: true,
+                attributes: ['type'],
+                where: existingRolesCollectiveConditions,
+              },
+            ],
+            group: ['role', 'collective.type'],
+            raw: true,
+          }).then(results =>
+            results.map((m: Member & { type?: string }) => ({
+              role: m.role,
+              type: invert(AccountTypeToModelMapping)[m.type],
+            })),
+          ),
+      };
+    },
+  },
+};

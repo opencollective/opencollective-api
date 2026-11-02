@@ -8,7 +8,6 @@ import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { editPublicMessage } from '../common/members';
 import {
   checkRemoteUserCanUseAccount,
-  checkRemoteUserCanUseHost,
   checkRemoteUserCanUseOrders,
   checkRemoteUserCanUseWebhooks,
 } from '../common/scope-check';
@@ -16,11 +15,9 @@ import { createUser } from '../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../errors';
 
 import {
-  activateCollectiveAsHost,
   archiveCollective,
   createCollective,
   createCollectiveFromGithub,
-  deactivateCollectiveAsHost,
   deleteCollective,
   editCollective,
   unarchiveCollective,
@@ -275,34 +272,6 @@ const mutations = {
     resolve(_, args, req) {
       checkRemoteUserCanUseWebhooks(req);
       return editWebhooks(args, req);
-    },
-  },
-  activateCollectiveAsHost: {
-    type: CollectiveInterfaceType,
-    description: 'Activate a collective as Host.',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-        description: 'ID of the collective (Organization or User)',
-      },
-    },
-    resolve(_, args, req) {
-      checkRemoteUserCanUseHost(req);
-      return activateCollectiveAsHost(_, args, req);
-    },
-  },
-  deactivateCollectiveAsHost: {
-    type: CollectiveInterfaceType,
-    description: 'Deactivate a collective as Host.',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-        description: 'ID of the collective (Organization or User)',
-      },
-    },
-    resolve(_, args, req) {
-      checkRemoteUserCanUseHost(req);
-      return deactivateCollectiveAsHost(_, args, req);
     },
   },
 };

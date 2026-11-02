@@ -652,7 +652,7 @@ export async function refundHostFee(
           if (!hostFeeShareSettlement || hostFeeShareSettlement.status === TransactionSettlementStatus.OWED) {
             // If the Host Fee Share is not INVOICED or SETTLED, we don't need to care about recording it.
             // Otherwise, the Host Fee Share refund will be marked as OWED and deduced from the next invoice.
-            // A missing settlement row (inconsistent data, see scripts/ledger/create-debts-for-platform-tips.js)
+            // A missing settlement row (inconsistent data, see scripts/ledger/create-debts-for-platform-tips.ts)
             // means the debt was never invoiced, so it gets the same treatment as OWED.
             await hostFeeShareSettlement?.update(
               { status: TransactionSettlementStatus.SETTLED },
@@ -836,7 +836,7 @@ export async function createRefundTransaction(
         if (!tipSettlement || tipSettlement.status === TransactionSettlementStatus.OWED) {
           // If the tip is not INVOICED or SETTLED, we don't need to care about recording it.
           // Otherwise, the tip refund will be marked as OWED and deduced from the next invoice.
-          // A missing settlement row (inconsistent data, see scripts/ledger/create-debts-for-platform-tips.js)
+          // A missing settlement row (inconsistent data, see scripts/ledger/create-debts-for-platform-tips.ts)
           // means the debt was never invoiced, so it gets the same treatment as OWED.
           await tipSettlement?.update({ status: TransactionSettlementStatus.SETTLED }, { transaction: sqlTransaction });
           tipRefundSettlementStatus = TransactionSettlementStatus.SETTLED;
@@ -1391,17 +1391,9 @@ const sendManualPendingOrderEmail = async (order: Order): Promise<void> => {
   const { collective, fromCollective } = order;
   const host = await collective.getHostCollective();
 
-  let replyTo: string | string[] = [];
-  if (fromCollective.isIncognito) {
-    // We still want to surface incognito emails to the host as they often need to contact them to reconciliate the bank transfer
-    const user = await User.findByPk(fromCollective.CreatedByUserId);
-    if (user) {
-      replyTo.push(user.email);
-    }
-  } else {
-    const fromCollectiveAdmins = await fromCollective.getAdminUsers();
-    replyTo = fromCollectiveAdmins.map(({ email }) => email).join(', ');
-  }
+  // Include incognito admins so the host can contact them to reconcile the bank transfer.
+  const fromCollectiveAdmins = await fromCollective.getAdminUsers();
+  const replyTo = fromCollectiveAdmins.map(({ email }) => email).join(', ');
 
   const data = {
     order: order.info,

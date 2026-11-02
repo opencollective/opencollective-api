@@ -29,7 +29,8 @@ import {
   checkRemoteUserCanUseApplications,
   checkRemoteUserCanUseKYC,
   checkScope,
-  rejectOAuthAndPersonalTokenAuth,
+  isRemoteUserRoot,
+  requireSessionToken,
 } from '../../common/scope-check';
 import { BadRequest, ContentNotReady, Forbidden, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
@@ -478,6 +479,10 @@ const accountFieldsDefinition = () => ({
         type: GraphQLAccountReferenceInput,
         description: 'Specific account to query the membership of.',
       },
+      tier: {
+        type: GraphQLTierReferenceInput,
+        description: 'Filter members by tier',
+      },
       orderBy: {
         type: new GraphQLNonNull(GraphQLOrderByInput),
         defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
@@ -503,6 +508,13 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLOrderCollection),
     args: {
       ...OrdersCollectionArgs,
+    },
+  },
+  webhooks: {
+    type: new GraphQLNonNull(GraphQLWebhookCollection),
+    description: 'Webhooks registered on this account. Only available to admins. Scope: "webhooks".',
+    args: {
+      ...omit(WebhookCollectionArgs, ['account']),
     },
   },
   expenses: {
@@ -622,7 +634,7 @@ const accountFieldsDefinition = () => ({
       if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'applications')) {
         return null;
       }
-      rejectOAuthAndPersonalTokenAuth(req);
+      requireSessionToken(req);
 
       const { limit, offset } = args;
       const where = { CollectiveId: collective.id, type: 'oAuth' };
@@ -1052,7 +1064,7 @@ const accountFieldsDefinition = () => ({
       },
     },
     async resolve(collective: Collective, args, req) {
-      if (!req.remoteUser?.isAdminOfCollective(collective) && !req.remoteUser?.isRoot()) {
+      if (!req.remoteUser?.isAdminOfCollective(collective) && !isRemoteUserRoot(req)) {
         throw new Unauthorized('You need to be logged in as an admin of this collective to see its activity');
       }
 
