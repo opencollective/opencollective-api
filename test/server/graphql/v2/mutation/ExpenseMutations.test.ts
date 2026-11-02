@@ -708,7 +708,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const user = await fakeUser();
       const collectiveAdmin = await fakeUser();
       const collective = await fakeCollective({ admin: collectiveAdmin.collective });
-      const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, location: { address: null } });
+      const payee = await fakeCollective({
+        type: CollectiveType.ORGANIZATION,
+        admin: user.collective,
+        location: { address: null },
+      });
       const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id } };
 
       const result = await graphqlQueryV2(
@@ -734,7 +738,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const user = await fakeUser();
       const collectiveAdmin = await fakeUser();
       const collective = await fakeCollective({ admin: collectiveAdmin.collective });
-      const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, location: { address: null } });
+      const payee = await fakeCollective({
+        type: CollectiveType.ORGANIZATION,
+        admin: user.collective,
+        location: { address: null },
+      });
       const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id } };
       const recurringExpensesCount = await models.RecurringExpense.count();
       const expensesCount = await models.Expense.count();
@@ -764,7 +772,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const user = await fakeUser();
       const collectiveAdmin = await fakeUser();
       const collective = await fakeCollective({ admin: collectiveAdmin.collective });
-      const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, location: { address: null } });
+      const payee = await fakeCollective({
+        type: CollectiveType.ORGANIZATION,
+        admin: user.collective,
+        location: { address: null },
+      });
       const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id } };
       const recurringExpensesCount = await models.RecurringExpense.count();
       const expensesCount = await models.Expense.count();
