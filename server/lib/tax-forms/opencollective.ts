@@ -233,6 +233,51 @@ export const isW8BenEData = (data: Record<string, unknown>): data is W8BenETaxFo
   data?.formType === TaxFormType.W8_BEN_E;
 
 /**
+ * Extract the taxable country from a tax form's form data.
+ * The field used depends on the form type:
+ *  - W9: `location.country` (the US person/entity's address)
+ *  - W8_BEN: `residenceAddress.country` (the beneficial owner's tax residency)
+ *  - W8_BEN_E: `businessCountryOfIncorporationOrOrganization` (the entity's country of incorporation)
+ */
+export const getTaxableCountryFromFormData = (
+  formData: W9TaxFormValues | W8BenTaxFormValues | W8BenETaxFormValues,
+): string | null => {
+  if (isW9Data(formData)) {
+    return formData.location?.country || null;
+  } else if (isW8BenData(formData)) {
+    return formData.residenceAddress?.country || null;
+  } else if (isW8BenEData(formData)) {
+    return formData.businessCountryOfIncorporationOrOrganization || formData.businessAddress?.country || null;
+  }
+
+  return null;
+};
+
+/**
+ * Extract the US-entity status from a tax form's form data.
+ * The explicit `isUSPersonOrEntity` answer from the tax information form
+ * is authoritative when present (the user can override the value the form
+ * type implies). Otherwise the form type itself is used: the W-9 is the US
+ * tax form (the filer is a US person or entity), while the W-8BEN /
+ * W-8BEN-E are for non-US individuals / entities.
+ */
+export const getIsUSEntityFromFormData = (
+  formData: W9TaxFormValues | W8BenTaxFormValues | W8BenETaxFormValues,
+): boolean | null => {
+  if (typeof formData?.isUSPersonOrEntity === 'boolean') {
+    return formData.isUSPersonOrEntity;
+  }
+
+  if (isW9Data(formData)) {
+    return true;
+  } else if (isW8BenData(formData) || isW8BenEData(formData)) {
+    return false;
+  }
+
+  return null;
+};
+
+/**
  * Gets the standardized data from the OpenCollective legal document data, except the following fields which are meant
  * to be generated from the parent: ACCOUNT, BOX_1_NONEMPLOYEE_COMPENSATION, FILE, DROPBOX_FORM_INSTANCE, PLATFORM_ID
  */

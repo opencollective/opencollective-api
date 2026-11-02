@@ -12,6 +12,7 @@ import { get, pick } from 'lodash';
 import multer from 'multer';
 
 import * as connectedAccounts from './controllers/connectedAccounts';
+import * as ecosystems from './controllers/ecosystems';
 import * as filesController from './controllers/files';
 import * as gitbook from './controllers/gitbook';
 import uploadImage from './controllers/images';
@@ -445,6 +446,11 @@ export default async (app: express.Application) => {
    * Gitbook Search API
    */
   app.get('/docs/search', gitbook.search);
+
+  /**
+   * Ecosyste.ms repository info proxy (public, rate limited)
+   */
+  app.get('/ecosystems/repository', ecosystems.getRepositoryInfo);
 
   /**
    * Status endpoint

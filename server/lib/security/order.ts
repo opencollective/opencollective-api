@@ -43,7 +43,7 @@ export const getUserStats = async (user: User, interval?: string): Promise<Fraud
     ${BASE_STATS_QUERY} 
     WHERE o."CreatedByUserId" = :userId
     AND o."deletedAt" IS NULL
-    ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
+    ${ifStr(Boolean(interval), 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
     { replacements: { userId: user.id, interval }, type: QueryTypes.SELECT, raw: true, plain: true },
   );
@@ -56,7 +56,7 @@ export const getEmailStats = async (email: string, interval?: string): Promise<F
     LEFT JOIN "Users" u ON u."id" = o."CreatedByUserId"
     WHERE u."email" = LOWER(:email)
     AND o."deletedAt" IS NULL
-    ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
+    ${ifStr(Boolean(interval), 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
     { replacements: { email, interval }, type: QueryTypes.SELECT, raw: true, plain: true },
   );
@@ -68,7 +68,7 @@ export const getIpStats = async (ip: string, interval?: string): Promise<FraudSt
     ${BASE_STATS_QUERY} 
     WHERE o."data"#>>'{reqIp}' = :ip
     AND o."deletedAt" IS NULL
-    ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
+    ${ifStr(Boolean(interval), 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
     { replacements: { ip, interval }, type: QueryTypes.SELECT, raw: true, plain: true },
   );
@@ -96,7 +96,7 @@ export const getCreditCardStats = async (
         ? `AND pm."data"#>>'{fingerprint}' = :fingerprint`
         : `AND pm."name" = :name AND pm."data"->>'expYear' = :expYear AND pm."data"->>'expMonth' = :expMonth AND pm."data"->>'country' = :country`
     }
-    ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
+    ${ifStr(Boolean(interval), 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
     {
       replacements: { name, expYear: toString(expYear), expMonth: toString(expMonth), country, interval, fingerprint },

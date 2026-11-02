@@ -1,0 +1,427 @@
+import config from 'config';
+import { orderBy } from 'lodash';
+import { QueryTypes } from 'sequelize';
+
+import type { SupportedCurrency } from '../constants/currencies';
+import PlatformConstants from '../constants/platform';
+import type { Collective } from '../models';
+import { sequelize } from '../models';
+
+import { getTotalMoneyManagedAmount } from './budget';
+import { getFxRate } from './currency';
+import { computeDatesAsISOStrings } from './utils';
+
+type AmountRow = {
+  _amount: number | null;
+  _currency: SupportedCurrency;
+};
+
+type TimeSeriesRow = AmountRow & {
+  date: Date;
+  amount?: number;
+  currency?: SupportedCurrency;
+};
+
+type HostFeeShareRow = TimeSeriesRow & {
+  settlementStatus: string;
+};
+
+type TransactionsTimeSeriesRow = {
+  date: Date;
+  amount: number;
+  currency: SupportedCurrency;
+};
+
+type TransactionsTimeSeriesByKindRow = TransactionsTimeSeriesRow & {
+  kind: string;
+};
+
+type PendingSettlementsOptions = {
+  startDate?: Date | null;
+  endDate?: Date | null;
+  collectiveIds?: number[] | null;
+  status?: string[];
+};
+
+type TimeSeriesOptions = {
+  startDate?: Date | null;
+  endDate?: Date | null;
+  timeUnit?: string;
+};
+
+type TotalMoneyManagedTimeSeriesOptions = TimeSeriesOptions & {
+  collectiveIds?: number[] | null;
+};
+
+type TransactionsTimeSeriesOptions = {
+  type?: string | null;
+  kind?: string | string[] | null;
+  collectiveIds?: number[] | null;
+  dateFrom?: Date | null;
+  dateTo?: Date | null;
+};
+
+/**
+ * Compute the sum of the given transactions in `currency`
+ * @returns number
+ */
+async function computeTotal(results: AmountRow[], currency: SupportedCurrency): Promise<number> {
+  let total = 0;
+
+  // For sanity reasons, we handle conversion in case there is any currency mismatch
+  for (const result of results) {
+    const value = result['_amount'];
+    if (value) {
+      const fxRate = await getFxRate(result['_currency'], currency);
+      total += Math.round(value * fxRate);
+    }
+  }
+
+  return total;
+}
+
+// Used by the monthly host-settlement cron to size the "Platform Tips" expense line item.
+// Counts legacy PLATFORM_TIP_DEBT rows; not aware of the NEW_PLATFORM_TIPS_LEDGER opt-in
+// flow which lives on its own PLATFORM_TIP rows.
+export async function getPendingPlatformTips(
+  host: Collective,
+  {
+    startDate = null,
+    endDate = null,
+    collectiveIds = null,
+    status = ['OWED', 'INVOICED'],
+  }: PendingSettlementsOptions = {},
+): Promise<number> {
+  if (
+    config.env === 'production' &&
+    (host.slug === 'opencollective' || PlatformConstants.AllPlatformCollectiveIds.includes(host.id))
+  ) {
+    return 0;
+  }
+
+  const results = await sequelize.query<AmountRow>(
+    `SELECT SUM(t."amountInHostCurrency") AS "_amount", t."hostCurrency" as "_currency"
+FROM "Transactions" t
+INNER JOIN "TransactionSettlements" ts
+  ON t."TransactionGroup" = ts."TransactionGroup"
+  AND t."kind" = ts."kind"
+${collectiveIds ? ` INNER JOIN "Transactions" as t2 ON t."TransactionGroup" = t2."TransactionGroup"` : ``}
+WHERE t."HostCollectiveId" = :HostCollectiveId
+${collectiveIds ? `AND t2."CollectiveId" IN (:CollectiveIds)` : ``}
+AND t."isDebt" IS TRUE
+AND t."kind" = 'PLATFORM_TIP_DEBT'
+AND t."deletedAt" IS NULL
+AND ts."deletedAt" IS NULL
+AND ts."status" IN (:status)
+${startDate ? `AND t."createdAt" >= :startDate` : ``}
+${endDate ? `AND t."createdAt" <= :endDate` : ``}
+GROUP BY t."hostCurrency"`,
+    {
+      replacements: {
+        HostCollectiveId: host.id,
+        CollectiveIds: collectiveIds,
+        status: status,
+        ...computeDatesAsISOStrings(startDate, endDate),
+      },
+      type: QueryTypes.SELECT,
+    },
+  );
+
+  return computeTotal(results, host.currency);
+}
+
+async function convertCurrencyForTimeSeries<T extends TimeSeriesRow>(
+  results: T[],
+  currency: SupportedCurrency,
+): Promise<T[]> {
+  const fxRates: Record<string, Record<string, number>> = {}; // FX rates are likely to be the same for all results, better cache them
+  for (const result of results) {
+    const value = result['_amount'];
+    result['currency'] = currency;
+
+    if (value) {
+      const resultCurrency = result['_currency'];
+      fxRates[resultCurrency] = fxRates[resultCurrency] || {};
+      if (!fxRates[resultCurrency][currency]) {
+        fxRates[resultCurrency][currency] = await getFxRate(resultCurrency, currency);
+      }
+
+      result['amount'] = Math.round(value * fxRates[resultCurrency][currency]);
+      result['currency'] = currency;
+    } else {
+      result['amount'] = 0;
+    }
+  }
+
+  return results;
+}
+
+export async function getHostFeesTimeSeries(
+  host: Collective,
+  { startDate = null, endDate = null, timeUnit }: TimeSeriesOptions = {},
+) {
+  const newResults = await sequelize.query<TimeSeriesRow>(
+    `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
+FROM "Transactions" as t1
+WHERE t1."CollectiveId" = :CollectiveId
+AND t1."kind" = 'HOST_FEE'
+${startDate ? `AND t1."createdAt" >= :startDate` : ``}
+${endDate ? `AND t1."createdAt" <= :endDate` : ``}
+AND t1."deletedAt" IS NULL
+GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
+ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
+    {
+      replacements: { CollectiveId: host.id, ...computeDatesAsISOStrings(startDate, endDate), timeUnit },
+      type: QueryTypes.SELECT,
+    },
+  );
+
+  let legacyResults: TimeSeriesRow[] = [];
+
+  const newHostFeeIntroductionDate = new Date('2021-07-01T00:00:00.000Z');
+  if (startDate < newHostFeeIntroductionDate) {
+    legacyResults = await sequelize.query<TimeSeriesRow>(
+      `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
+FROM "Transactions" as t1
+WHERE t1."HostCollectiveId" = :HostCollectiveId
+${startDate ? `AND t1."createdAt" >= :startDate` : ``}
+${endDate ? `AND t1."createdAt" <= :endDate` : ``}
+AND NOT (t1."type" = 'DEBIT' AND t1."kind" = 'ADDED_FUNDS')
+AND t1."deletedAt" IS NULL
+GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
+ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
+      {
+        replacements: { HostCollectiveId: host.id, ...computeDatesAsISOStrings(startDate, endDate), timeUnit },
+        type: QueryTypes.SELECT,
+      },
+    );
+  }
+
+  const newTimeSeries = await convertCurrencyForTimeSeries(newResults, host.currency);
+  const legacyTimeSeries = await convertCurrencyForTimeSeries(legacyResults, host.currency);
+
+  const mergedTimeSeries = [...newTimeSeries.map(point => ({ ...point, amount: Math.abs(point.amount) }))];
+
+  // Merge legacy time series with new time series
+  for (const point of legacyTimeSeries) {
+    const existingDataPoint = mergedTimeSeries.find(({ date }) => {
+      return point.date.getTime() === date.getTime();
+    });
+    if (existingDataPoint) {
+      existingDataPoint.amount += Math.abs(point.amount);
+    } else {
+      mergedTimeSeries.push({ ...point, amount: Math.abs(point.amount) });
+    }
+  }
+
+  return orderBy(mergedTimeSeries, 'date');
+}
+
+export async function getTotalMoneyManagedTimeSeries(
+  host: Collective,
+  { startDate = null, endDate = null, collectiveIds = null, timeUnit }: TotalMoneyManagedTimeSeriesOptions = {},
+) {
+  if (!collectiveIds) {
+    const collectives = await host.getHostedCollectives({ attributes: ['id'], raw: true });
+    collectiveIds = collectives.map(result => result.id);
+    collectiveIds.push(host.id);
+  }
+
+  const results = await sequelize.query<TimeSeriesRow>(
+    `SELECT
+       SUM(COALESCE("amountInHostCurrency", 0)) +
+       SUM(COALESCE("platformFeeInHostCurrency", 0)) +
+       SUM(COALESCE("hostFeeInHostCurrency", 0)) +
+       SUM(COALESCE("paymentProcessorFeeInHostCurrency", 0)) +
+       SUM(COALESCE("taxAmount" * "hostCurrencyFxRate", 0)) as "_amount",
+       t1."hostCurrency" as "_currency",
+       DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
+FROM "Transactions" as t1
+WHERE t1."HostCollectiveId" = :HostCollectiveId
+AND t1."CollectiveId" IN (:CollectiveIds)
+${startDate ? `AND t1."createdAt" >= :startDate` : ``}
+${endDate ? `AND t1."createdAt" <= :endDate` : ``}
+AND t1."deletedAt" IS NULL
+GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
+ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
+    {
+      replacements: {
+        ...computeDatesAsISOStrings(startDate, endDate),
+        timeUnit,
+        HostCollectiveId: host.id,
+        CollectiveIds: collectiveIds,
+      },
+      type: QueryTypes.SELECT,
+    },
+  );
+
+  const balanceOptions = { endDate: startDate, collectiveIds, currency: host.currency, loaders: null };
+  const balanceAtStartDate = await getTotalMoneyManagedAmount(host, balanceOptions);
+  const timeSeries = await convertCurrencyForTimeSeries(results, host.currency);
+  let sum: number | undefined;
+  return timeSeries.map(point => {
+    sum = (sum || 0) + point.amount;
+    return { ...point, amount: Math.abs(sum + balanceAtStartDate.value) };
+  });
+}
+
+export async function getHostFeeShareTimeSeries(
+  host: Collective,
+  { startDate = null, endDate = null, timeUnit }: TimeSeriesOptions = {},
+) {
+  const results = await sequelize.query<HostFeeShareRow>(
+    `SELECT
+      SUM(t1."amountInHostCurrency") as "_amount",
+      t1."hostCurrency" as "_currency",
+      DATE_TRUNC(:timeUnit, t1."createdAt") as "date",
+      COALESCE(ts."status", 'SETTLED') as "settlementStatus"
+    FROM "Transactions" as t1
+    LEFT JOIN "TransactionSettlements" ts
+      ON t1."TransactionGroup" = ts."TransactionGroup"
+      AND ts.kind = 'HOST_FEE_SHARE_DEBT'
+      AND ts."deletedAt" IS NULL
+    WHERE t1."CollectiveId" = :CollectiveId
+    AND t1."kind" = 'HOST_FEE_SHARE'
+    ${startDate ? `AND t1."createdAt" >= :startDate` : ``}
+    ${endDate ? `AND t1."createdAt" <= :endDate` : ``}
+    AND t1."deletedAt" IS NULL
+    GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt"), COALESCE(ts."status", 'SETTLED')
+    ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt"), COALESCE(ts."status", 'SETTLED')`,
+    {
+      replacements: { CollectiveId: host.id, ...computeDatesAsISOStrings(startDate, endDate), timeUnit },
+      type: QueryTypes.SELECT,
+    },
+  );
+
+  const preparedTimeSeries = await convertCurrencyForTimeSeries(results, host.currency);
+  return preparedTimeSeries.map(point => ({ ...point, amount: Math.abs(point.amount) }));
+}
+
+export async function getPendingHostFeeShare(
+  host: Collective,
+  {
+    startDate = null,
+    endDate = null,
+    collectiveIds = null,
+    status = ['OWED', 'INVOICED'],
+  }: PendingSettlementsOptions = {},
+): Promise<number> {
+  const results = await sequelize.query<AmountRow>(
+    `SELECT SUM(t."amountInHostCurrency") AS "_amount", t."hostCurrency" as "_currency"
+        FROM "Transactions" t
+        INNER JOIN "TransactionSettlements" ts
+          ON t."TransactionGroup" = ts."TransactionGroup"
+          AND t."kind" = ts."kind"
+        ${
+          collectiveIds
+            ? `INNER JOIN "Transactions" AS t2 ON t."TransactionGroup" = t2."TransactionGroup"
+               WHERE t2.kind IN ('CONTRIBUTION', 'ADDED_FUNDS')
+               AND t2."deletedAt" IS NULL
+               AND t2."CollectiveId" IN (:FromCollectiveIds)
+               AND t."CollectiveId" = :CollectiveId`
+            : `WHERE t."CollectiveId" = :CollectiveId`
+        }
+          AND t."kind" = 'HOST_FEE_SHARE_DEBT'
+          AND t."deletedAt" IS NULL
+          AND ts."deletedAt" IS NULL
+          AND ts."status" IN (:status)
+          ${startDate ? `AND t."createdAt" >= :startDate` : ``}
+          ${endDate ? `AND t."createdAt" <= :endDate` : ``}
+        GROUP BY t."hostCurrency"`,
+    {
+      replacements: {
+        CollectiveId: host.id,
+        FromCollectiveIds: collectiveIds,
+        status: status,
+        ...computeDatesAsISOStrings(startDate, endDate),
+      },
+      type: QueryTypes.SELECT,
+    },
+  );
+
+  return computeTotal(results, host.currency);
+}
+
+/**
+ * Returns transaction amounts over time
+ * Ex: [ { date: '2020-01-01', amount: 2000 }, { date: '2021-01-01', amount: 1000 }, ... ]
+ */
+export const getTransactionsTimeSeries = async (
+  hostCollectiveId: number,
+  timeUnit: string,
+  {
+    type = null,
+    kind = null,
+    collectiveIds = null,
+    dateFrom = null,
+    dateTo = null,
+  }: TransactionsTimeSeriesOptions = {},
+): Promise<TransactionsTimeSeriesRow[]> => {
+  return sequelize.query<TransactionsTimeSeriesRow>(
+    `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum("amountInHostCurrency") as "amount", "hostCurrency" as "currency"
+       FROM "Transactions"
+       WHERE "HostCollectiveId" = :hostCollectiveId
+         AND "deletedAt" IS NULL
+         ${type ? `AND "type" = :type` : ``}
+         ${kind?.length ? `AND "kind" IN (:kind)` : ``}
+         ${collectiveIds?.length ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
+         ${dateFrom ? `AND "createdAt" >= :startDate` : ``}
+         ${dateTo ? `AND "createdAt" <= :endDate` : ``}
+       GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "hostCurrency"
+       ORDER BY DATE_TRUNC(:timeUnit, "createdAt"),
+      `,
+    {
+      type: QueryTypes.SELECT,
+      replacements: {
+        kind: Array.isArray(kind) ? kind : [kind],
+        type,
+        hostCollectiveId,
+        timeUnit,
+        collectiveIds,
+        ...computeDatesAsISOStrings(dateFrom, dateTo),
+      },
+    },
+  );
+};
+
+/**
+ * Returns transaction amounts over time, grouped by kind.
+ * Ex: [ { date: '2020-01-01', amount: 1000, kind: 'CONTRIBUTION' }, { date: '2020-01-01', amount: 1000, kind: 'ADDED_FUNDS' }, ... ]
+ */
+export const getTransactionsTimeSeriesByKind = async (
+  hostCollectiveId: number,
+  timeUnit: string,
+  {
+    type = null,
+    kind = null,
+    collectiveIds = null,
+    dateFrom = null,
+    dateTo = null,
+  }: TransactionsTimeSeriesOptions = {},
+): Promise<TransactionsTimeSeriesByKindRow[]> => {
+  return sequelize.query<TransactionsTimeSeriesByKindRow>(
+    `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum("amountInHostCurrency") as "amount", "hostCurrency" as "currency", "kind"
+       FROM "Transactions"
+       WHERE "HostCollectiveId" = :hostCollectiveId
+         AND "deletedAt" IS NULL
+         ${type ? `AND "type" = :type` : ``}
+         ${kind?.length ? `AND "kind" IN (:kind)` : ``}
+         ${collectiveIds?.length ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
+         ${dateFrom ? `AND "createdAt" >= :startDate` : ``}
+         ${dateTo ? `AND "createdAt" <= :endDate` : ``}
+       GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "kind", "hostCurrency"
+       ORDER BY DATE_TRUNC(:timeUnit, "createdAt"), "kind"
+      `,
+    {
+      type: QueryTypes.SELECT,
+      replacements: {
+        kind: Array.isArray(kind) ? kind : [kind],
+        type,
+        hostCollectiveId,
+        timeUnit,
+        collectiveIds,
+        ...computeDatesAsISOStrings(dateFrom, dateTo),
+      },
+    },
+  );
+};
