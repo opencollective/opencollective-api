@@ -14,7 +14,8 @@ podman-compose -f docker-compose/db.yml up -d
 
 The database scripts use the local Postgres client tools (`psql`, `pg_restore`, ...) when their major
 version matches the server's, and otherwise run them from the `postgres:16` image. To skip installing
-them, set `USE_DOCKER=true` (or `USE_PODMAN=true`). To install them on macOS, see below.
+them, set `USE_DOCKER=true` (or `USE_PODMAN=true`). From the image, they read a password from `PGPASSWORD`, not
+`~/.pgpass`. To install them on macOS, see below.
 
 ### Natively
 

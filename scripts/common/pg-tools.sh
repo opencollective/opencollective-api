@@ -3,7 +3,8 @@
 # pg_dump and pg_restore must match the server's major version: newer ones emit settings an older
 # server rejects (e.g. `SET transaction_timeout` from 18 on 16). When the local tools don't match,
 # are missing, or USE_DOCKER / USE_PODMAN is set, they run from the postgres:<server major> image.
-# Files are passed through stdin/stdout so the container needs no volume.
+# Files are passed through stdin/stdout so the container needs no volume. The container gets PGPASSWORD, not
+# ~/.pgpass.
 
 PG_HOST=${PG_HOST:-"localhost"}
 
@@ -56,8 +57,8 @@ pg_tool() {
       *) set -- "$@" "$arg" ;;
       esac
     done
-    $PG_TOOLS_CONTAINER run --rm -i "$PG_TOOLS_IMAGE" "$@"
+    $PG_TOOLS_CONTAINER run --rm -i -e PGPASSWORD "$PG_TOOLS_IMAGE" "$@"
   else
-    $PG_TOOLS_CONTAINER run --rm -i --network host "$PG_TOOLS_IMAGE" "$@"
+    $PG_TOOLS_CONTAINER run --rm -i -e PGPASSWORD --network host "$PG_TOOLS_IMAGE" "$@"
   fi
 }
