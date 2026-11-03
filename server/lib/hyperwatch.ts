@@ -8,7 +8,7 @@ import type { Server } from 'http';
 import { get, pick } from 'lodash';
 import type { Socket } from 'net';
 
-import { isSensitiveHeader, redactRequestVariables, redactUrl } from './hyperwatch-redaction';
+import { isSensitiveHeader, redactGraphqlRequest, redactUrl } from './hyperwatch-redaction';
 import { md5, parseToBoolean } from './utils';
 
 const computeMask = (req: Request) => {
@@ -103,10 +103,7 @@ const load = (app: Application, server?: Server) => {
         log = log.updateIn(['request', 'url'], url => redactUrl(url));
 
         if (req.body && req.body.query) {
-          log = log.set('graphql', {
-            ...pick(req.body, ['operationName', 'query']),
-            variables: redactRequestVariables(req.body.variables),
-          });
+          log = log.set('graphql', redactGraphqlRequest(req.body));
           if (res.servedFromGraphqlCache) {
             log = log.setIn(['graphql', 'servedFromCache'], true);
           }
