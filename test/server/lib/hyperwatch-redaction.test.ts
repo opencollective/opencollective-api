@@ -2,6 +2,7 @@ import { expect } from 'chai';
 
 import {
   isSensitiveHeader,
+  redactGraphqlRequest,
   redactHeaders,
   redactRequestVariables,
   redactUrl,
@@ -319,6 +320,66 @@ describe('server/lib/hyperwatch-redaction', () => {
       expect(redactRequestVariables(42)).to.equal('[redacted]');
       expect(redactRequestVariables(null)).to.equal(null);
       expect(redactRequestVariables(undefined)).to.equal(undefined);
+    });
+  });
+
+  describe('GraphQL requests', () => {
+    const importTransactions = 'mutation ImportTransactions($rows: [TransactionsImportRowCreateInput!]!) { id }';
+
+    it('drops mutation variables whatever their keys', () => {
+      // Raw bank rows, protected URLs carrying a draft key and private notes: none of these keys is in the denylist
+      const body = {
+        operationName: 'ImportTransactions',
+        query: importTransactions,
+        variables: {
+          rows: [{ rawValue: { beneficiary: 'Jane Doe', memo: 'rent' } }],
+          items: [{ url: 'https://opencollective.com/api/files/1?expenseId=1&draftKey=secret' }],
+          recipientNote: 'Private note',
+        },
+      };
+      expect(redactGraphqlRequest(body)).to.deep.equal({
+        operationName: 'ImportTransactions',
+        query: importTransactions,
+        variables: '[redacted]',
+      });
+      expect(redactGraphqlRequest({ query: 'mutation { logout }', variables: '{"slug":"x"}' }).variables).to.equal(
+        '[redacted]',
+      );
+    });
+
+    it('keeps query variables, with sensitive keys redacted', () => {
+      const query = 'query Account($slug: String, $email: String) { account(slug: $slug) { id } }';
+      expect(redactGraphqlRequest({ query, variables: { slug: 'webpack', email: 'a@b.c' } })).to.deep.equal({
+        query,
+        variables: { slug: 'webpack', email: '[redacted]' },
+      });
+      expect(redactGraphqlRequest({ query: '{ me { id } }', variables: { slug: 'webpack' } }).variables).to.deep.equal({
+        slug: 'webpack',
+      });
+    });
+
+    it('picks the operation by name in a document with several', () => {
+      const query = `query Account { me { id } } ${importTransactions}`;
+      const variables = { slug: 'webpack' };
+      expect(redactGraphqlRequest({ operationName: 'Account', query, variables }).variables).to.deep.equal(variables);
+      expect(redactGraphqlRequest({ operationName: 'ImportTransactions', query, variables }).variables).to.equal(
+        '[redacted]',
+      );
+      expect(redactGraphqlRequest({ query, variables }).variables).to.equal('[redacted]');
+      expect(redactGraphqlRequest({ operationName: 'Unknown', query, variables }).variables).to.equal('[redacted]');
+    });
+
+    it('drops the variables when the operation cannot be determined', () => {
+      const variables = { slug: 'webpack' };
+      expect(redactGraphqlRequest({ query: 'query {', variables }).variables).to.equal('[redacted]');
+      expect(redactGraphqlRequest({ query: { kind: 'Document' }, variables }).variables).to.equal('[redacted]');
+      const longQuery = `query Account { me { id } }${' '.repeat(200000)}`;
+      expect(redactGraphqlRequest({ query: longQuery, variables }).variables).to.equal('[redacted]');
+    });
+
+    it('keeps missing variables and drops other body fields', () => {
+      const body = { query: 'mutation { logout }', variables: null, extensions: { token: 'secret' } };
+      expect(redactGraphqlRequest(body)).to.deep.equal({ query: 'mutation { logout }', variables: null });
     });
   });
 

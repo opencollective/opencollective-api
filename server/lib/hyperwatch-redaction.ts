@@ -7,6 +7,9 @@
  * literals written by API clients are still logged.
  */
 
+import { Kind, type OperationDefinitionNode, OperationTypeNode, parse } from 'graphql';
+import { pick } from 'lodash';
+
 const REDACTED = '[redacted]';
 
 // Headers removed from the logs (names are compared lowercased)
@@ -234,6 +237,48 @@ export const redactRequestVariables = (variables: unknown): unknown => {
   } else {
     return REDACTED;
   }
+};
+
+// Longer query texts are not parsed (it runs synchronously): their variables are dropped
+const MAX_QUERY_LENGTH_TO_PARSE = 100000;
+
+/**
+ * Whether the request runs a query, as opposed to a mutation. Requests whose operation can't be determined (query
+ * text too long or invalid, unknown operation name) count as mutations.
+ */
+const isQueryOperation = (query: unknown, operationName: unknown): boolean => {
+  if (typeof query !== 'string' || query.length > MAX_QUERY_LENGTH_TO_PARSE) {
+    return false;
+  }
+  try {
+    const operations = parse(query, { noLocation: true }).definitions.filter(
+      (definition): definition is OperationDefinitionNode => definition.kind === Kind.OPERATION_DEFINITION,
+    );
+    const operation = operationName
+      ? operations.find(definition => definition.name?.value === operationName)
+      : operations.length === 1 && operations[0];
+    return Boolean(operation) && operation.operation === OperationTypeNode.QUERY;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * The GraphQL part of a request body, as logged: operation name, query text, and variables. Mutation variables are
+ * dropped: they carry what users submit (payout details, tax forms, notes, imported bank rows...), which no denylist
+ * covers. Query variables (slugs, ids, filters) go through `redactRequestVariables`.
+ */
+export const redactGraphqlRequest = (body: {
+  operationName?: unknown;
+  query?: unknown;
+  variables?: unknown;
+}): { operationName?: unknown; query?: unknown; variables?: unknown } => {
+  const { operationName, query, variables } = body;
+  const keepVariables = variables === null || variables === undefined || isQueryOperation(query, operationName);
+  return {
+    ...pick(body, ['operationName', 'query']),
+    variables: keepVariables ? redactRequestVariables(variables) : REDACTED,
+  };
 };
 
 /**
