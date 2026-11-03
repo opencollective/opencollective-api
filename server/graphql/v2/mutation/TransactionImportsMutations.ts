@@ -324,7 +324,7 @@ const transactionImportsMutations = {
 
       // Rate rate limit on the number of rows imported per hour
       const rateLimitRows = new RateLimit(`transactions-imports-rows-${req.remoteUser.id}`, maxRows);
-      if (await rateLimitRows.hasReachedLimit()) {
+      if (!(await rateLimitRows.registerCall(args.data.length))) {
         throw new RateLimitExceeded('You have reached the limit of transactions imports rows per hour');
       }
 
