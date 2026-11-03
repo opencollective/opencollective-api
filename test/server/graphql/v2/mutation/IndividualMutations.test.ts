@@ -10,6 +10,7 @@ import request from 'supertest';
 import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import roles from '../../../../../server/constants/roles';
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import emailLib from '../../../../../server/lib/email';
 import { crypto } from '../../../../../server/lib/encryption';
 import models from '../../../../../server/models';
 import {
@@ -369,6 +370,214 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
           sub: user.id.toString(),
         },
       });
+    });
+  });
+
+  describe('requestEmailChange', () => {
+    let sandbox, sendEmailStub;
+
+    before(() => {
+      sandbox = createSandbox();
+    });
+
+    beforeEach(() => {
+      sendEmailStub = sandbox.stub(emailLib, 'send').resolves();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    const requestEmailChangeMutation = gql`
+      mutation RequestEmailChange($email: EmailAddress!) {
+        requestEmailChange(email: $email) {
+          id
+          slug
+          email
+          emailWaitingForValidation
+        }
+      }
+    `;
+
+    const confirmEmailMutation = gql`
+      mutation ConfirmEmail($token: NonEmptyString!) {
+        confirmEmail(token: $token) {
+          individual {
+            id
+          }
+        }
+      }
+    `;
+
+    it('should throw if not authenticated', async () => {
+      const result = await graphqlQueryV2(requestEmailChangeMutation, { email: randEmail() });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage account.');
+    });
+
+    it('stores the new email as pending, sends the confirmation and lets confirmEmail apply it', async () => {
+      const user = await fakeUser({ confirmedAt: new Date() });
+      const previousEmail = user.email;
+      const newEmail = randEmail();
+
+      const result = await graphqlQueryV2(requestEmailChangeMutation, { email: newEmail.toUpperCase() }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.requestEmailChange.slug).to.equal(user.collective.slug);
+      expect(result.data.requestEmailChange.email).to.equal(previousEmail);
+      expect(result.data.requestEmailChange.emailWaitingForValidation).to.equal(newEmail);
+
+      await user.reload();
+      expect(user.email).to.equal(previousEmail);
+      expect(user.emailWaitingForValidation).to.equal(newEmail);
+      expect(user.emailConfirmationToken).to.exist;
+
+      expect(sendEmailStub.calledOnce).to.be.true;
+      expect(sendEmailStub.firstCall.args[0]).to.equal('user.changeEmail');
+      expect(sendEmailStub.firstCall.args[1]).to.equal(newEmail);
+      expect(sendEmailStub.firstCall.args[2].user.emailConfirmationToken).to.equal(user.emailConfirmationToken);
+
+      const activity = await models.Activity.findOne({ where: { UserId: user.id, type: 'user.changeEmail' } });
+      expect(activity).to.exist;
+
+      const confirmResult = await graphqlQueryV2(confirmEmailMutation, { token: user.emailConfirmationToken });
+      expect(confirmResult.errors).to.not.exist;
+      await user.reload();
+      expect(user.email).to.equal(newEmail);
+      expect(user.emailWaitingForValidation).to.be.null;
+    });
+
+    it('re-sends the confirmation with the same token when the same email is requested again', async () => {
+      const user = await fakeUser({ confirmedAt: new Date() });
+      const newEmail = randEmail();
+
+      await graphqlQueryV2(requestEmailChangeMutation, { email: newEmail }, user);
+      await user.reload();
+      const token = user.emailConfirmationToken;
+
+      const result = await graphqlQueryV2(requestEmailChangeMutation, { email: newEmail }, user);
+      expect(result.errors).to.not.exist;
+      await user.reload();
+      expect(user.emailConfirmationToken).to.equal(token);
+      expect(sendEmailStub.calledTwice).to.be.true;
+    });
+
+    it('cancels the pending change when the current email is sent', async () => {
+      const user = await fakeUser({
+        confirmedAt: new Date(),
+        emailWaitingForValidation: randEmail(),
+        emailConfirmationToken: randStr(),
+      });
+
+      const result = await graphqlQueryV2(requestEmailChangeMutation, { email: user.email }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.requestEmailChange.emailWaitingForValidation).to.be.null;
+      await user.reload();
+      expect(user.emailWaitingForValidation).to.be.null;
+      expect(user.emailConfirmationToken).to.be.null;
+      expect(sendEmailStub.called).to.be.false;
+    });
+
+    it('rejects an email already used by another user, whatever its case', async () => {
+      const user = await fakeUser({ confirmedAt: new Date() });
+      const otherUser = await fakeUser();
+
+      const result = await graphqlQueryV2(requestEmailChangeMutation, { email: otherUser.email.toUpperCase() }, user);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('A user with that email already exists');
+      await user.reload();
+      expect(user.emailWaitingForValidation).to.be.null;
+      expect(sendEmailStub.called).to.be.false;
+    });
+
+    it('rejects an invalid email address', async () => {
+      const user = await fakeUser({ confirmedAt: new Date() });
+      const result = await graphqlQueryV2(requestEmailChangeMutation, { email: 'not-an-email' }, user);
+      expect(result.errors).to.exist;
+      expect(sendEmailStub.called).to.be.false;
+    });
+
+    it('requires a confirmed account', async () => {
+      const user = await fakeUser({ confirmedAt: null });
+      const result = await graphqlQueryV2(requestEmailChangeMutation, { email: randEmail() }, user);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to verify your account before changing your email address');
+    });
+
+    it('should enforce 2FA if enabled on the account', async () => {
+      const secret = generateSecret({ length: 64 });
+      const user = await fakeUser({ confirmedAt: new Date(), twoFactorAuthToken: crypto.encrypt(secret) });
+      const result = await graphqlQueryV2(requestEmailChangeMutation, { email: randEmail() }, user);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Two-factor authentication required');
+      await user.reload();
+      expect(user.emailWaitingForValidation).to.be.null;
+      expect(sendEmailStub.called).to.be.false;
+    });
+
+    it('should throw an error if rate limit is exceeded', async () => {
+      sandbox.stub(config, 'limits').value({ ...config.limits, changeEmailPerHour: { update: -1 } });
+      const user = await fakeUser({ confirmedAt: new Date() });
+      const result = await graphqlQueryV2(requestEmailChangeMutation, { email: randEmail() }, user);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Rate limit exceeded');
+    });
+
+    it('rejects login tokens', async () => {
+      const user = await fakeUser({ confirmedAt: new Date() });
+      const result = await graphqlQueryV2(requestEmailChangeMutation, { email: randEmail() }, user, {
+        scope: 'login',
+      });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      await user.reload();
+      expect(user.emailWaitingForValidation).to.be.null;
+    });
+
+    it('is not allowed with an OAuth token, even with the account scope', async () => {
+      const application = await fakeApplication({ type: 'oAuth' });
+      const user = await fakeUser({ confirmedAt: new Date() });
+      const userToken = await fakeUserToken({
+        type: 'OAUTH',
+        ApplicationId: application.id,
+        UserId: user.id,
+        scope: [OAuthScopes.account, OAuthScopes.email],
+      });
+
+      const result = await graphqlQueryV2(
+        requestEmailChangeMutation,
+        { email: randEmail() },
+        user,
+        null,
+        null,
+        userToken,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'OAuth and Personal Tokens are not allowed to change the email address.',
+      );
+      await user.reload();
+      expect(user.emailWaitingForValidation).to.be.null;
+    });
+
+    it('is not allowed with a personal token, even with the account scope', async () => {
+      const user = await fakeUser({ confirmedAt: new Date() });
+      const personalToken = await fakePersonalToken({ user, scope: [OAuthScopes.account, OAuthScopes.email] });
+
+      const result = await graphqlQueryV2(
+        requestEmailChangeMutation,
+        { email: randEmail() },
+        user,
+        null,
+        null,
+        null,
+        personalToken,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'OAuth and Personal Tokens are not allowed to change the email address.',
+      );
+      await user.reload();
+      expect(user.emailWaitingForValidation).to.be.null;
     });
   });
 

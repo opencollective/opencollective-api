@@ -13,13 +13,12 @@ import {
   checkRemoteUserCanUseOrders,
   checkRemoteUserCanUseWebhooks,
 } from '../common/scope-check';
-import { createUser } from '../common/user';
+import { createUser, requestUserEmailChange } from '../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../errors';
 
 import { createCollective, createCollectiveFromGithub, editCollective } from './mutations/collectives';
 import { editWebhooks } from './mutations/notifications';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
-import { updateUserEmail } from './mutations/users';
 import { CollectiveInterfaceType } from './CollectiveInterface';
 import {
   CaptchaInputType,
@@ -177,7 +176,7 @@ const mutations = {
     resolve: async (_, { email }, req) => {
       checkRemoteUserCanUseAccount(req);
       await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
-      return updateUserEmail(req.remoteUser, email);
+      return requestUserEmailChange(req.remoteUser, email);
     },
   },
   editCoreContributors: {
