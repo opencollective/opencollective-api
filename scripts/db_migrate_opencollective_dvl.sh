@@ -24,6 +24,6 @@ fi
 echo "Migrating $DBNAME"
 PG_DATABASE=$DBNAME npm run db:migrate
 
-pg_tool pg_dump -O -F t -h "$PG_HOST" -U opencollective "$DBNAME" >"$DUMPFILE"
+pg_tool pg_dump -w -O -F t -h "$PG_HOST" -U opencollective "$DBNAME" >"$DUMPFILE"
 
 echo "$DUMPFILE refreshed. Please commit it and push it."
