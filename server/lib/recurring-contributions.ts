@@ -1,7 +1,7 @@
 import config from 'config';
 import { get, omit } from 'lodash';
 import moment from 'moment';
-import { Op, QueryTypes } from 'sequelize';
+import { Op, QueryTypes, Transaction as SequelizeTransaction } from 'sequelize';
 
 import activities from '../constants/activities';
 import intervals from '../constants/intervals';
@@ -310,8 +310,11 @@ export async function processOrderWithSubscription(
       reportErrorToSentry(error, { severity: 'fatal', feature: FEATURE.RECURRING_CONTRIBUTIONS });
     } finally {
       await order.Subscription.save();
-      await keepConcurrentCancellation(order);
-      await order.save();
+      // Lock the order row so that a bulk cancellation cannot commit between the check and the save
+      await sequelize.transaction(async transaction => {
+        await keepConcurrentCancellation(order, transaction);
+        await order.save({ transaction });
+      });
     }
   }
 
@@ -323,12 +326,16 @@ export async function processOrderWithSubscription(
  * in-memory order as-is would then overwrite the `CANCELLED` status and drop `needsAsyncDeactivation`, and the
  * contribution would keep being charged. Keep the cancellation instead.
  */
-async function keepConcurrentCancellation(order) {
+async function keepConcurrentCancellation(order: Order, transaction: SequelizeTransaction): Promise<void> {
   if (order.status === status.CANCELLED) {
     return;
   }
 
-  const currentOrder = await models.Order.findByPk(order.id, { attributes: ['id', 'status', 'data'] });
+  const currentOrder = await models.Order.findByPk(order.id, {
+    attributes: ['id', 'status', 'data'],
+    transaction,
+    lock: true,
+  });
   if (currentOrder?.status === status.CANCELLED) {
     order.status = status.CANCELLED;
     order.data = { ...order.data, ...currentOrder.data };

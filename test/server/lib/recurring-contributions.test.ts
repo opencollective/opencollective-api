@@ -516,12 +516,19 @@ describe('server/lib/recurring-contributions', () => {
           return transaction;
         });
 
+        const findByPkSpy = sandbox.spy(models.Order, 'findByPk');
+
         const entry = await processOrderWithSubscription(order, { dryRun: false });
 
         expect(entry.status).to.equal('success');
         await order.reload();
         expect(order.status).to.equal(status.CANCELLED);
         expect(order.data.needsAsyncDeactivation).to.be.true;
+
+        // The check and the save must be atomic: the order row is read with a lock, inside a transaction
+        const lockedRead = findByPkSpy.getCalls().find(call => call.args[0] === order.id && call.args[1]?.lock);
+        expect(lockedRead, 'order read with a row lock').to.exist;
+        expect(lockedRead.args[1].transaction).to.exist;
       });
 
       it('should update dates after successfully processing yearly', async () => {
