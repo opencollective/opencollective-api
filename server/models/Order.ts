@@ -148,6 +148,8 @@ async function updateOrdersSubscriptionStatus(
 ): Promise<void> {
   const isDeactivation = paymentProviderAction === 'CANCEL';
   const { joins, conditions } = SUBSCRIPTION_STATUS_CHANGE_TARGET_SQL[target.axis];
+  // Raw SQL bulk update: this intentionally bypasses the `Order` model hooks (and `sequelize-temporal`), which are
+  // not meant to be triggered by this status change.
   await sequelize.query(
     `
       UPDATE "Orders"
