@@ -322,6 +322,15 @@ const transactionImportsMutations = {
         throw new ValidationFailed('You can only import transactions in CSV or manually created imports');
       }
 
+      // Convert the rows before the rate limits, so that malformed input is rejected without being counted
+      const rows = args.data.map(row => ({
+        ...row,
+        sourceId: truncate(row.sourceId, { length: 255 }),
+        description: truncate(row.description, { length: 255 }),
+        amount: getValueInCentsFromAmountInput(row.amount),
+        currency: row.amount.currency,
+      }));
+
       // Rate rate limit on the number of rows imported per hour
       const rateLimitRows = new RateLimit(`transactions-imports-rows-${req.remoteUser.id}`, maxRows);
       if (!(await rateLimitRows.registerCall(args.data.length))) {
@@ -354,16 +363,7 @@ const transactionImportsMutations = {
           );
         }
 
-        await importInstance.addRows(
-          args.data.map(row => ({
-            ...row,
-            sourceId: truncate(row.sourceId, { length: 255 }),
-            description: truncate(row.description, { length: 255 }),
-            amount: getValueInCentsFromAmountInput(row.amount),
-            currency: row.amount.currency,
-          })),
-          { transaction },
-        );
+        await importInstance.addRows(rows, { transaction });
 
         return importInstance;
       });
