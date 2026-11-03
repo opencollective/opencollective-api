@@ -489,6 +489,31 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
       expect(sendEmailStub.called).to.be.false;
     });
 
+    it('rejects an email waiting for validation on another account', async () => {
+      const user = await fakeUser({ confirmedAt: new Date() });
+      const pendingEmail = randEmail();
+      await fakeUser({ emailWaitingForValidation: pendingEmail, emailConfirmationToken: randStr() });
+
+      const result = await graphqlQueryV2(requestEmailChangeMutation, { email: pendingEmail }, user);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('A user with that email already exists');
+      await user.reload();
+      expect(user.emailWaitingForValidation).to.be.null;
+      expect(sendEmailStub.called).to.be.false;
+    });
+
+    it('counts rejected attempts toward the rate limit', async () => {
+      sandbox.stub(config, 'limits').value({ ...config.limits, changeEmailPerHour: { update: 0 } });
+      const user = await fakeUser({ confirmedAt: new Date() });
+      const otherUser = await fakeUser();
+
+      const first = await graphqlQueryV2(requestEmailChangeMutation, { email: otherUser.email }, user);
+      expect(first.errors[0].message).to.equal('A user with that email already exists');
+
+      const second = await graphqlQueryV2(requestEmailChangeMutation, { email: randEmail() }, user);
+      expect(second.errors[0].message).to.equal('Rate limit exceeded');
+    });
+
     it('rejects an invalid email address', async () => {
       const user = await fakeUser({ confirmedAt: new Date() });
       const result = await graphqlQueryV2(requestEmailChangeMutation, { email: 'not-an-email' }, user);

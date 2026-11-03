@@ -217,8 +217,17 @@ export const requestUserEmailChange = async (user: User, newEmail: string): Prom
     return user;
   }
 
-  // Ensure this email is not already used by another user
-  const existingEmail = await models.User.findOne({ where: { email: newEmail } });
+  // Count every real attempt, including the ones rejected below, so that the limit also applies
+  // to users trying to guess which addresses are registered
+  cache.set(countCacheKey, existingCount + 1, 60 * 60);
+
+  // Ensure this email is not already used by another user, nor waiting for validation on another account
+  const existingEmail = await models.User.findOne({
+    where: {
+      id: { [Op.ne]: user.id },
+      [Op.or]: [{ email: newEmail }, { emailWaitingForValidation: newEmail }],
+    },
+  });
   if (existingEmail) {
     throw new ValidationFailed('A user with that email already exists');
   }
@@ -258,9 +267,6 @@ export const requestUserEmailChange = async (user: User, newEmail: string): Prom
     FromCollectiveId: user.CollectiveId,
     data: { notify: false },
   });
-
-  // Update the cache
-  cache.set(countCacheKey, existingCount + 1, 60 * 60);
 
   return user;
 };
