@@ -135,6 +135,7 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Mutation.removeHost': 'skipped',
   'Mutation.setChangelogViewDate': 'skipped',
   'Mutation.setNewsletterOptIn': 'skipped',
+  'Mutation.requestEmailChange': 'skipped',
   'Mutation.startResumeOrdersProcess': 'skipped',
   'Mutation.createOrganization': 'skipped',
   'Mutation.editOrganizationMoneyManagementAndHosting': 'skipped',
