@@ -100,12 +100,33 @@ describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
       const transactionsImport = await fakeTransactionsImport({ CollectiveId: user.CollectiveId });
       const result = await graphqlQueryV2(
         IMPORT_TRANSACTIONS_MUTATION,
-        { id: idEncode(transactionsImport.id, 'transactions-import'), data: [rows[0], { ...rows[1], amount: {} }] },
+        {
+          id: idEncode(transactionsImport.id, 'transactions-import'),
+          data: [rows[0], { ...rows[1], amount: { currency: 'USD' } }],
+        },
         user,
       );
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('You must either set a `value` or a `valueInCents`');
+      expect(await sessionCache.get(`transactions-imports-rows-${user.id}`)).to.be.undefined;
+      expect(await sessionCache.get(`transactions-imports-${user.id}`)).to.be.undefined;
+    });
+
+    it('rejects a missing currency without counting the rows or the import', async () => {
+      const user = await fakeUser();
+      const transactionsImport = await fakeTransactionsImport({ CollectiveId: user.CollectiveId });
+      const result = await graphqlQueryV2(
+        IMPORT_TRANSACTIONS_MUTATION,
+        {
+          id: idEncode(transactionsImport.id, 'transactions-import'),
+          data: [rows[0], { ...rows[1], amount: { valueInCents: 2000 } }],
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('A currency is required for the amount of row row-2');
       expect(await sessionCache.get(`transactions-imports-rows-${user.id}`)).to.be.undefined;
       expect(await sessionCache.get(`transactions-imports-${user.id}`)).to.be.undefined;
     });

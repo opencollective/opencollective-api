@@ -323,13 +323,19 @@ const transactionImportsMutations = {
       }
 
       // Convert the rows before the rate limits, so that malformed input is rejected without being counted
-      const rows = args.data.map(row => ({
-        ...row,
-        sourceId: truncate(row.sourceId, { length: 255 }),
-        description: truncate(row.description, { length: 255 }),
-        amount: getValueInCentsFromAmountInput(row.amount),
-        currency: row.amount.currency,
-      }));
+      const rows = args.data.map(row => {
+        if (!row.amount.currency) {
+          throw new ValidationFailed(`A currency is required for the amount of row ${row.sourceId}`);
+        }
+
+        return {
+          ...row,
+          sourceId: truncate(row.sourceId, { length: 255 }),
+          description: truncate(row.description, { length: 255 }),
+          amount: getValueInCentsFromAmountInput(row.amount),
+          currency: row.amount.currency,
+        };
+      });
 
       // Rate rate limit on the number of rows imported per hour
       const rateLimitRows = new RateLimit(`transactions-imports-rows-${req.remoteUser.id}`, maxRows);
