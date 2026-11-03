@@ -182,7 +182,8 @@
   },
   "slack": {
     "webhooks": {
-      "abuse": null
+      "abuse": null,
+      "engineeringAlerts": null
     }
   },
   "captcha": {
