@@ -37,10 +37,27 @@ if [ -n "$PG_TOOLS_CONTAINER" ]; then
   echo "Running Postgres client tools from $PG_TOOLS_IMAGE" >&2
 fi
 
+# On macOS, Docker's host network is the Linux VM's (host networking is opt-in in Docker Desktop): the container
+# reaches the Mac's localhost as host.docker.internal instead.
+PG_TOOLS_LOCALHOST=""
+if [ "$PG_TOOLS_CONTAINER" = "./scripts/dev/run-docker.sh" ] && [ "$(uname -s)" = "Darwin" ]; then
+  PG_TOOLS_LOCALHOST="host.docker.internal"
+fi
+
 pg_tool() {
-  if [ -n "$PG_TOOLS_CONTAINER" ]; then
-    $PG_TOOLS_CONTAINER run --rm -i --network host "$PG_TOOLS_IMAGE" "$@"
-  else
+  if [ -z "$PG_TOOLS_CONTAINER" ]; then
     "$@"
+  elif [ -n "$PG_TOOLS_LOCALHOST" ]; then
+    # POSIX (sourced by sh scripts): rebuild the arguments in place
+    for arg; do
+      shift
+      case "$arg" in
+      localhost | 127.0.0.1) set -- "$@" "$PG_TOOLS_LOCALHOST" ;;
+      *) set -- "$@" "$arg" ;;
+      esac
+    done
+    $PG_TOOLS_CONTAINER run --rm -i "$PG_TOOLS_IMAGE" "$@"
+  else
+    $PG_TOOLS_CONTAINER run --rm -i --network host "$PG_TOOLS_IMAGE" "$@"
   fi
 }
