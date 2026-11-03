@@ -124,6 +124,7 @@
     "userSignUpPerHour": 3,
     "userExchangeLoginTokenPerHourPerIp": 50,
     "userRefreshTokenPerHourPerIp": 50,
+    "wiseBatchPaymentPerHour": 30,
     "collectiveEmailMessagePerHour": 5,
     "maxCoreContributorsPerAccount": 60,
     "transactionsImports": {
