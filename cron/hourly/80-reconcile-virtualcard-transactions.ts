@@ -43,6 +43,7 @@ async function reconcileConnectedAccount(connectedAccount) {
         const stripe = new Stripe(
           host.id === PlatformConstants.PlatformCollectiveId ? config.stripe.secret : connectedAccount.token,
           // Pinned to what stripe-node 17 defaulted to, so upgrading the SDK does not move this path to a newer API version
+          // @ts-expect-error stripe-version 2025-02-24.acacia
           { apiVersion: '2025-02-24.acacia' },
         );
 
