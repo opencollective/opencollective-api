@@ -17,7 +17,7 @@ import emailLib from '../../../../../server/lib/email';
 import { crypto } from '../../../../../server/lib/encryption';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import * as yubikeyOtp from '../../../../../server/lib/two-factor-authentication/yubikey-otp';
-import models from '../../../../../server/models';
+import models, { sequelize } from '../../../../../server/models';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -2511,6 +2511,15 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       await collective.reload();
       expect(collective.data.isUSEntity).to.be.true;
 
+      // The previous version is archived in CollectiveHistories (see server/lib/sequelize-temporal.ts)
+      const getHistory = () =>
+        sequelize.models.CollectiveHistory.findAll({ where: { id: collective.id }, order: [['hid', 'ASC']] });
+      const historyAfterFirstUpdate = await getHistory();
+      expect(historyAfterFirstUpdate).to.have.length(1);
+      expect(historyAfterFirstUpdate[0].get('slug')).to.equal(collective.slug);
+      expect(historyAfterFirstUpdate[0].get('data')?.['isUSEntity']).to.be.undefined;
+      expect(historyAfterFirstUpdate[0].get('archivedAt')).to.be.an.instanceOf(Date);
+
       // Update to false
       const result2 = await graphqlQueryV2(
         editAccountMutation,
@@ -2528,6 +2537,10 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       await collective.reload();
       expect(collective.data.isUSEntity).to.be.false;
+
+      const historyAfterSecondUpdate = await getHistory();
+      expect(historyAfterSecondUpdate).to.have.length(2);
+      expect(historyAfterSecondUpdate[1].get('data')?.['isUSEntity']).to.be.true;
     });
 
     it('must be an admin to update isUSEntity', async () => {
