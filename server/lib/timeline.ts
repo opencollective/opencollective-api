@@ -19,6 +19,11 @@ const getCollectiveIdsForRole = (memberships: Member[], roles: MemberRoles[]): n
 
 const CREATED_AT_HORIZON = { [Op.gt]: Sequelize.literal("NOW() - INTERVAL '6 months'") };
 
+// System expense updates (e.g. tax-form and payout-method fan-out) are shown in expense threads, not in timelines
+const EXCLUDE_SYSTEM_EXPENSE_UPDATES = Sequelize.literal(
+  `NOT ("Activity"."type" = '${ActivityTypes.COLLECTIVE_EXPENSE_UPDATED}' AND COALESCE(("Activity"."data"->>'isSystem')::boolean, false))`,
+);
+
 const makeTimelineQuery = async (
   collective: Collective,
   classes: ActivityClasses[],
@@ -88,6 +93,7 @@ const makeTimelineQuery = async (
     }
     return {
       [Op.or]: conditionals,
+      [Op.and]: [EXCLUDE_SYSTEM_EXPENSE_UPDATES],
     };
   } else if (collective.hasHosting) {
     return {
@@ -198,6 +204,7 @@ const makeTimelineQuery = async (
   return {
     type: { [Op.in]: types },
     [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],
+    [Op.and]: [EXCLUDE_SYSTEM_EXPENSE_UPDATES],
   };
 };
 
