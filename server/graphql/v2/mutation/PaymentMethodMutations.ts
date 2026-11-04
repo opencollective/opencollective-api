@@ -38,9 +38,19 @@ async function assertSetupIntentContext(account: Collective, host: Collective, u
     attributes: ['CollectiveId'],
     where: {
       FromCollectiveId: account.id,
-      status: { [Op.in]: [OrderStatuses.PENDING, OrderStatuses.ACTIVE, OrderStatuses.PAUSED] },
+      [Op.or]: [
+        { status: { [Op.in]: [OrderStatuses.PENDING, OrderStatuses.ACTIVE, OrderStatuses.PAUSED] } },
+        // Recurring contributions with a failed or unconfirmed charge, which the contributor can repair
+        {
+          status: { [Op.in]: [OrderStatuses.ERROR, OrderStatuses.REQUIRE_CLIENT_CONFIRMATION] },
+          '$Subscription.isActive$': true,
+        },
+      ],
     },
-    include: [{ model: models.Collective, as: 'collective', required: true }],
+    include: [
+      { model: models.Collective, as: 'collective', required: true },
+      { model: models.Subscription, attributes: ['id', 'isActive'], required: false },
+    ],
   });
   for (const order of orders) {
     if ((await order.collective.getHostCollectiveId()) === host.id) {

@@ -190,9 +190,12 @@ describe('server/graphql/v2/mutation/PaymentMethodMutations', () => {
       setupIntent: { id: 'seti_context', stripeAccount: connectedAccount.username },
       account: { legacyId: account.id },
     });
-    const addOrder = async (recipient = undefined, status = OrderStatuses.ACTIVE) => {
+    const addOrder = async (recipient = undefined, status = OrderStatuses.ACTIVE, subscription = undefined) => {
       recipient ||= await fakeCollective({ HostCollectiveId: host.id });
-      return fakeOrder({ FromCollectiveId: account.id, CollectiveId: recipient.id, CreatedByUserId: user.id, status });
+      return fakeOrder(
+        { FromCollectiveId: account.id, CollectiveId: recipient.id, CreatedByUserId: user.id, status, subscription },
+        { withSubscription: Boolean(subscription) },
+      );
     };
 
     beforeEach(async () => {
@@ -255,6 +258,27 @@ describe('server/graphql/v2/mutation/PaymentMethodMutations', () => {
         expect(result.data.createSetupIntent.id).to.equal('seti_context');
         expect(createIntent.firstCall.args[1]).to.deep.equal({ stripeAccount: connectedAccount.username });
         expect(createIntent.firstCall.args[0].customer).to.equal(customer.username);
+      });
+    }
+
+    for (const status of [OrderStatuses.ERROR, OrderStatuses.REQUIRE_CLIENT_CONFIRMATION]) {
+      it(`allows repairing a recurring contribution with a ${status} order and an active subscription`, async () => {
+        await addOrder(undefined, status, { isActive: true });
+        const result = await graphqlQueryV2(createSetupIntentMutation, variables(), user);
+        expect(result.errors, JSON.stringify(result.errors)).to.not.exist;
+        expect(createIntent.calledOnce).to.be.true;
+      });
+    }
+
+    for (const [name, subscription] of [
+      ['without a subscription', undefined],
+      ['with an inactive subscription', { isActive: false, deactivatedAt: new Date() }],
+    ] as const) {
+      it(`rejects an ERROR order ${name}`, async () => {
+        await addOrder(undefined, OrderStatuses.ERROR, subscription);
+        const result = await graphqlQueryV2(createSetupIntentMutation, variables(), user);
+        expect(result.errors[0].extensions.code).to.equal('Forbidden');
+        expect(createIntent.called).to.be.false;
       });
     }
 
