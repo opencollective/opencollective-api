@@ -7,6 +7,7 @@ import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
+import ExpenseStatuses from '../../../constants/expense-status';
 import OrderStatuses from '../../../constants/order-status';
 import roles from '../../../constants/roles';
 import { assertSettingsChangeAllowed } from '../../../lib/account-settings';
@@ -533,6 +534,24 @@ export async function archiveCollective(_, args, req) {
     const balance = await collective.getBalance({ includeChildren: true });
     if (balance > 0) {
       throw new Error('Cannot archive collective with balance > 0');
+    }
+  }
+
+  // `changeHost` below refuses to remove the host while the account or one of its children has processing expenses.
+  // Check it before changing anything, so that a refused archive does not leave contributions cancelled (and queued
+  // for cancellation on the payment provider) or children archived.
+  if (collective.HostCollectiveId) {
+    const hostedChildren = await collective.getChildren({
+      attributes: ['id'],
+      where: { HostCollectiveId: { [Op.ne]: null } },
+    });
+    const processingExpensesCount = await models.Expense.count({
+      where: { CollectiveId: [collective.id, ...hostedChildren.map(c => c.id)], status: ExpenseStatuses.PROCESSING },
+    });
+    if (processingExpensesCount > 0) {
+      throw new Error(
+        `Unable to change host: there are still ${processingExpensesCount} expenses in a processing state`,
+      );
     }
   }
 

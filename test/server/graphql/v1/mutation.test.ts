@@ -345,6 +345,34 @@ describe('server/graphql/v1/mutation', () => {
         expect(order.data.needsAsyncDeactivation).to.be.true;
       });
 
+      it('leaves the account and its contributions untouched when refused because of a processing expense', async () => {
+        const admin = await fakeUser();
+        const parent = await fakeCollective({ admin });
+        const project = await fakeProject({ ParentCollectiveId: parent.id });
+        const orders = await Promise.all(
+          [parent, project].map(account =>
+            fakeOrder({ CollectiveId: account.id, status: status.ACTIVE }, { withSubscription: true }),
+          ),
+        );
+        await fakeExpense({ status: 'PROCESSING', CollectiveId: project.id });
+
+        const response = await utils.graphqlQuery(archiveCollectiveMutation, { id: parent.id }, admin);
+        expect(response.errors).to.exist;
+        expect(response.errors[0].message).to.equal(
+          'Unable to change host: there are still 1 expenses in a processing state',
+        );
+
+        for (const order of orders) {
+          await order.reload();
+          expect(order.status).to.equal('ACTIVE');
+          expect(order.data?.needsAsyncDeactivation).to.not.be.true;
+        }
+
+        await project.reload();
+        expect(project.deactivatedAt).to.be.null;
+        expect(project.approvedAt).to.be.a('date');
+      });
+
       it('archives an account should cancel the contributions it makes', async () => {
         // Setup test data
         const admin = await fakeUser();
