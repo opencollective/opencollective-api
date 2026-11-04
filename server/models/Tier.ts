@@ -3,13 +3,13 @@ import slugify from 'limax';
 import { defaults, get, isNil, min, uniq } from 'lodash';
 import pMap from 'p-map';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 
 import { CollectiveType } from '../constants/collectives';
 import { SupportedCurrency } from '../constants/currencies';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, Transaction as SequelizeTransaction } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 import { capitalize, days, formatCurrency } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
 
