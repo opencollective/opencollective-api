@@ -8,7 +8,6 @@ import {
   InferCreationAttributes,
   NonAttribute,
 } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
 import PlatformConstants from '../constants/platform';
@@ -19,6 +18,7 @@ import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import * as SQLQueries from '../lib/queries';
 import { generateSummaryForHTML, optsSanitizeUpdateHtml, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 import { sanitizeTags, validateTags } from '../lib/tags';
 
 import Activity from './Activity';

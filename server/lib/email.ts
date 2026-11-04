@@ -13,9 +13,10 @@ import type Collective from '../models/Collective';
 import type User from '../models/User';
 
 import templates, { EmailTemplates } from './emailTemplates';
+import { timingSafeEqualString } from './encryption';
 import logger from './logger';
 import { reportErrorToSentry } from './sentry';
-import { isEmailInternal, md5, sha512 } from './utils';
+import { isEmailInternal, sha512 } from './utils';
 
 const debug = debugLib('email');
 const isDev = config.env === 'development';
@@ -63,33 +64,46 @@ export const getMailer = () => {
   }
 };
 
+/**
+ * Returns the compiled template function for `template`, or `undefined` if it's not a known template.
+ * Guards against inherited properties like `constructor` or `__proto__` being used as template names.
+ */
+const getTemplateRenderer = (template: string): (typeof templates)[EmailTemplates] | undefined => {
+  if (!Object.hasOwn(templates, template)) {
+    return undefined;
+  }
+
+  const renderer = templates[template];
+  return typeof renderer === 'function' ? renderer : undefined;
+};
+
 const render = (template: EmailTemplates, data: Record<string, unknown>) => {
+  const renderTemplate = getTemplateRenderer(template);
+  if (!renderTemplate) {
+    throw new Error(`Invalid email template: ${template}`);
+  }
+
   const collectiveImage = (data.collective as { image?: string } | undefined)?.image;
   data.imageNotSvg = Boolean(collectiveImage) && !collectiveImage.endsWith('.svg');
   data = merge({}, data);
   delete data.config;
   data.config = { host: config.host };
 
-  const html = juice(templates[template](data));
+  const html = juice(renderTemplate(data));
   const text = htmlToText(html);
   return { text, html };
 };
 
-const generateUnsubscribeToken = (email, collectiveSlug, type, hashingFunction = sha512) => {
+const generateUnsubscribeToken = (email, collectiveSlug, type) => {
   const uid = `${email}.${collectiveSlug || 'any'}.${type}.${config.keys.opencollective.emailUnsubscribeSecret}`;
-  const token = hashingFunction(uid);
-  return token;
+  return sha512(uid);
 };
 
+/**
+ * Legacy MD5 tokens (emails sent before June 2020) are no longer accepted.
+ */
 const isValidUnsubscribeToken = (token, email, collectiveSlug, type) => {
-  // Check token using the latest procedure
-  const computedToken = emailLib.generateUnsubscribeToken(email, collectiveSlug, type, sha512);
-  if (computedToken === token) {
-    return true;
-  }
-
-  // Backward-compatibility: check legacy tokens
-  return emailLib.generateUnsubscribeToken(email, collectiveSlug, type, md5) === token;
+  return timingSafeEqualString(token, emailLib.generateUnsubscribeToken(email, collectiveSlug, type));
 };
 
 /*
@@ -328,11 +342,7 @@ const generateEmailFromTemplate = (
   data.config = pick(config, ['host']);
   data.theme = EmailTheme;
 
-  if (!templates[template]) {
-    throw new Error(`Invalid email template: ${template}`);
-  }
-
-  const renderedTemplate = render(template, data);
+  const renderedTemplate = render(template, data); // Throws if the template is invalid
   return renderedTemplate;
 };
 
