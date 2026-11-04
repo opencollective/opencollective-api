@@ -957,5 +957,66 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       expect(sampleActivity.data.newData.payoutMethod.name).to.equal('Renamed method');
       expect(sampleActivity.data.notify).to.equal(false);
     });
+
+    it('only records the new method details on expenses that use it after a replace', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user.collective });
+      const payoutMethod = await fakePayoutMethod({
+        CollectiveId: collective.id,
+        type: PayoutMethodTypes.PAYPAL,
+        isSaved: true,
+        name: 'Old method',
+        data: { email: 'old-payee@example.com', currency: 'USD' },
+      });
+      const expenseProps = {
+        PayoutMethodId: payoutMethod.id,
+        FromCollectiveId: collective.id,
+        UserId: user.id,
+        lastEditedById: user.id,
+        items: [],
+      };
+      // The paid expense makes the method non-editable, so the edit archives it and creates a new one
+      const paidExpense = await fakeExpense({ ...expenseProps, status: 'PAID' });
+      const pendingExpense = await fakeExpense({ ...expenseProps, status: 'PENDING' });
+
+      const result = await graphqlQueryV2(
+        editPayoutMethodMutation,
+        {
+          payoutMethod: {
+            id: idEncode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+            name: 'New method',
+            data: { email: 'new-payee@example.com', currency: 'USD' },
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      await paidExpense.reload();
+      await pendingExpense.reload();
+      expect(paidExpense.PayoutMethodId).to.equal(payoutMethod.id);
+      const newPayoutMethodId = pendingExpense.PayoutMethodId;
+      expect(newPayoutMethodId).to.not.equal(payoutMethod.id);
+
+      // The pending expense moved to the new method: both snapshots are recorded
+      const pendingActivity = await models.Activity.findOne({
+        where: { type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, ExpenseId: pendingExpense.id },
+      });
+      expect(pendingActivity.data.previousData.payoutMethod.data.email).to.equal('old-payee@example.com');
+      expect(pendingActivity.data.newData.payoutMethod.name).to.equal('New method');
+      expect(pendingActivity.data.newData.payoutMethod.data.email).to.equal('new-payee@example.com');
+
+      // The paid expense stays on the archived method: the new one is only referenced
+      const paidActivity = await models.Activity.findOne({
+        where: { type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, ExpenseId: paidExpense.id },
+      });
+      expect(paidActivity.data.previousData.payoutMethod.data.email).to.equal('old-payee@example.com');
+      expect(paidActivity.data.newData.payoutMethod).to.deep.equal({
+        id: newPayoutMethodId,
+        type: PayoutMethodTypes.PAYPAL,
+      });
+      expect(JSON.stringify(paidActivity.data)).to.not.include('new-payee@example.com');
+      expect(JSON.stringify(paidActivity.data)).to.not.include('New method');
+    });
   });
 });

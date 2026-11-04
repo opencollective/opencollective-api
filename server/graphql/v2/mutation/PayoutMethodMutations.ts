@@ -61,6 +61,9 @@ const createPayoutMethodExpenseActivities = async (
       currency: newSnapshot.currency,
       data: newSnapshot.filteredData,
     };
+    // After an archive/replace, expenses left on the archived method never use the new one,
+    // so their threads only record that it was replaced, without its details.
+    const newReference = { id: newSnapshot.id, type: newSnapshot.type };
 
     // Paginate through all linked expenses (no overall cap), oldest first for stable paging.
     const BATCH_SIZE = 100;
@@ -83,7 +86,7 @@ const createPayoutMethodExpenseActivities = async (
             isSystem: true,
             notify: false,
             previousData: { payoutMethod: oldFiltered },
-            newData: { payoutMethod: newFiltered },
+            newData: { payoutMethod: expense.PayoutMethodId === newSnapshot.id ? newFiltered : newReference },
           });
         } catch (e) {
           reportErrorToSentry(e, { extra: { expenseId: expense.id, payoutMethodId: oldSnapshot.id } });
