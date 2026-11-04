@@ -392,6 +392,17 @@ describe('server/graphql/v2/mutation/PaymentMethodMutations', () => {
         expect(retrievePaymentMethod.called).to.be.false;
       });
 
+      it('returns a card the account already imported', async () => {
+        const existingCard = await models.PaymentMethod.findOne({ where: { CollectiveId: account.id, name: '0' } });
+        await existingCard.update({ data: { stripePaymentMethodId: 'pm_123456789012345678901234' } });
+        const result = await graphqlQueryV2(addStripePaymentMethodFromSetupIntentMutation, addVariables(), user);
+        expect(result.errors, JSON.stringify(result.errors)).to.not.exist;
+        expect(retrievePaymentMethod.called).to.be.false;
+        expect(await models.PaymentMethod.count({ where: { CollectiveId: account.id } })).to.equal(
+          config.limits.maxCreditCardsPerAccount,
+        );
+      });
+
       it('does not apply to non-card payment methods', async () => {
         /* eslint-disable camelcase -- Stripe API response fields */
         const sepaPaymentMethod = {

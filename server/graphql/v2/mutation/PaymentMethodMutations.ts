@@ -366,9 +366,17 @@ const paymentMethodMutations = {
           where: { CollectiveId: account.id, type: PAYMENT_METHOD_TYPE.CREDITCARD },
         });
         if (creditCardCount >= config.limits.maxCreditCardsPerAccount) {
-          throw new RateLimitExceeded(
-            `Accounts cannot have more than ${config.limits.maxCreditCardsPerAccount} credit cards`,
-          );
+          // A retry for a card this account already imported returns it without adding a new one.
+          const stripePaymentMethodId =
+            typeof stripePaymentMethod === 'string' ? stripePaymentMethod : stripePaymentMethod.id;
+          const existingCard = await models.PaymentMethod.findOne({
+            where: { CollectiveId: account.id, data: { stripePaymentMethodId } },
+          });
+          if (!existingCard) {
+            throw new RateLimitExceeded(
+              `Accounts cannot have more than ${config.limits.maxCreditCardsPerAccount} credit cards`,
+            );
+          }
         }
       }
 
