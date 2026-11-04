@@ -20,7 +20,6 @@ import {
   InferAttributes,
   InferCreationAttributes,
 } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 import Stripe from 'stripe';
 
 import { roles } from '../constants';
@@ -36,6 +35,7 @@ import { executeOrder } from '../lib/payments';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes, Transaction as SequelizeTransaction } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { capitalize, sleep } from '../lib/utils';
 
@@ -869,9 +869,10 @@ Order.prototype.getOrCreateMembers = async function () {
     { order: this },
   );
 
-  // Register user as backer of Open Collective
+  // Register user as backer of Open Collective, unless the tip is recorded on the host's own platform-tips account
   let platformTipMember;
-  if (this.platformTipAmount) {
+  const host = this.platformTipAmount && (await this.collective.getHostCollective({ returnEvenIfNotApproved: true }));
+  if (this.platformTipAmount && !host?.hasNewPlatformTipsLedger()) {
     const platform = await Collective.findByPk(PlatformConstants.PlatformCollectiveId);
     platformTipMember = await platform.findOrAddUserWithRole(
       { id: this.CreatedByUserId, CollectiveId: this.FromCollectiveId },

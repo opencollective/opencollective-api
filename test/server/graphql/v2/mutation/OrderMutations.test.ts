@@ -1596,7 +1596,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
     });
 
-    // Moved/adapted from `test/server/paymentProviders/opencollective/collective.test.js` + `test/server/graphql/v1/createOrder.test.js`
+    // Moved/adapted from `test/server/paymentProviders/opencollective/collective.test.ts` + `test/server/graphql/v1/createOrder.test.js`
     describe('Collective to Collective Transactions', () => {
       const STRIPE_FEE_STUBBED_VALUE = 300;
       let sandbox,
@@ -3082,7 +3082,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
   });
 
   describe('Other mutations', () => {
-    // This file and `OrderMutations.test.js` were implemented at the same time. We are merging the files,
+    // This file and `OrderMutations.test.ts` were implemented at the same time. We are merging the files,
     // but these tests would need to be reconciliated before we can put them in the same
     // `describe` than `createOrder`
 

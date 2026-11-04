@@ -12,6 +12,7 @@ import { get, pick } from 'lodash';
 import multer from 'multer';
 
 import * as connectedAccounts from './controllers/connectedAccounts';
+import * as ecosystems from './controllers/ecosystems';
 import * as filesController from './controllers/files';
 import * as gitbook from './controllers/gitbook';
 import uploadImage from './controllers/images';
@@ -33,12 +34,14 @@ import logger from './lib/logger';
 import { withTiming } from './lib/middleware-timing';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
 import { handlePermalink } from './lib/permalink/handler';
+import { ONE_HOUR_IN_SECONDS } from './lib/rate-limit';
 import { createRedisClient, RedisInstanceType } from './lib/redis';
 import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
 import { checkIfSentryConfigured } from './lib/sentry/init';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error-handler';
+import { rateLimitPerUserOrIp } from './middleware/rate-limit';
 import required from './middleware/required-param';
 import sanitizer from './middleware/sanitizer';
 import paypal from './paymentProviders/paypal';
@@ -422,7 +425,14 @@ export default async (app: express.Application) => {
   app.get('/connected-accounts/:service/verify', noCache, connectedAccounts.verify);
 
   /* TransferWise OTT Request Endpoint */
-  app.post('/services/transferwise/pay-batch', noCache, authentication.requireSessionToken, transferwise.payBatch);
+  app.post(
+    '/services/transferwise/pay-batch',
+    noCache,
+    // Before the limiter, so rejected OAuth/personal tokens don't consume the user's budget
+    authentication.requireSessionToken,
+    rateLimitPerUserOrIp('wise-pay-batch', config.limits.wiseBatchPaymentPerHour, ONE_HOUR_IN_SECONDS),
+    transferwise.payBatch,
+  );
 
   /**
    * External services
@@ -445,6 +455,11 @@ export default async (app: express.Application) => {
    * Gitbook Search API
    */
   app.get('/docs/search', gitbook.search);
+
+  /**
+   * Ecosyste.ms repository info proxy (public, rate limited)
+   */
+  app.get('/ecosystems/repository', ecosystems.getRepositoryInfo);
 
   /**
    * Status endpoint

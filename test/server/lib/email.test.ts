@@ -1,0 +1,191 @@
+import { expect } from 'chai';
+import config from 'config';
+import nodemailer, { SMTPTransportOptions } from 'nodemailer';
+import sinon, { stub } from 'sinon';
+
+import emailLib from '../../../server/lib/email';
+import * as utils from '../../utils';
+
+const emailData = utils.data('emailData');
+
+describe('server/lib/email', () => {
+  describe('Sending emails', () => {
+    let nm;
+    let createTransportStub: sinon.SinonStub;
+
+    // create a fake nodemailer transport
+    beforeEach(done => {
+      config.mailgun.user = 'xxxxx';
+      config.mailgun.password = 'password';
+
+      nm = nodemailer.createTransport({
+        name: 'testsend',
+        service: 'Mailgun',
+        logger: false,
+      } satisfies SMTPTransportOptions);
+      createTransportStub = stub(nodemailer, 'createTransport').callsFake(() => {
+        return nm;
+      });
+      done();
+    });
+
+    // stub the transport
+    beforeEach(done => {
+      stub(nm, 'sendMail').callsFake((object, cb) => {
+        cb(null, object);
+      });
+      done();
+    });
+
+    afterEach(done => {
+      nm.sendMail.restore();
+      done();
+    });
+
+    afterEach(() => {
+      config.mailgun.user = '';
+      config.mailgun.password = '';
+      createTransportStub.restore();
+    });
+
+    it('sends the order.processed.fr email template', async () => {
+      const template = 'order.processed';
+      const collective = { name: 'En Marche', slug: 'enmarchebe' };
+      const data = {
+        order: { totalAmount: 5000, currency: 'EUR' },
+        transaction: { uuid: '17811b3e-0ac4-4101-81d4-86e9e0aefd7b' },
+        config: { host: config.host },
+        interval: 'month',
+        firstPayment: false,
+        user: emailData.user,
+        fromCollective: { id: 1, slug: 'xdamman', name: 'Xavier' },
+        collective,
+      };
+      const options = {
+        from: `"${collective.name}" <hello@opencollective.com>`,
+      };
+      await emailLib.send(template, data.user.email, data, options);
+      let amountStr: string | number = 50;
+      amountStr = amountStr.toLocaleString('fr-FR', {
+        style: 'currency',
+        currency: 'EUR',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+      expect(nm.sendMail.lastCall.args[0].from).to.equal(options.from);
+      expect(nm.sendMail.lastCall.args[0].to).to.equal('emailbcc+user1-at-opencollective.com@opencollective.com');
+      expect(nm.sendMail.lastCall.args[0].subject).to.contain(
+        `Merci pour votre contribution de ${amountStr}/mois à En Marche`,
+      );
+      expect(nm.sendMail.lastCall.args[0].html).to.contain('Merci de continuer à nous soutenir');
+      expect(nm.sendMail.lastCall.args[0].headers['X-Mailgun-Tag']).to.equal('internal');
+
+      expect(nm.sendMail.lastCall.args[0].html).to.matchSnapshot();
+      expect(nm.sendMail.lastCall.args[0].text).to.matchSnapshot();
+
+      expect(nm.sendMail.lastCall.args[0].headers).to.containSubset({
+        'X-OpenCollective-Account': 'enmarchebe',
+        'List-ID': 'enmarchebe::order.processed',
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        'List-Unsubscribe':
+          '<http://localhost:3000/email/unsubscribe/user1%40opencollective.com/enmarchebe/order.processed/fbb17fc67d353d6a23b83d40deeac07c08a546361faa19b0c8d72fdc71ead9cf7c323d4dfd1a5b969c3de973fea142be177455cf70291faa7bc53676e782a55d>',
+      });
+    });
+  });
+
+  describe('Unsubscribe', () => {
+    const EMAIL_ADDRESS = 'user@opencollective.com';
+    const COLLECTIVE_SLUG = 'collective_slug';
+    const EMAIL_TYPE = 'test-notification';
+
+    describe('generateUnsubscribeToken', () => {
+      it('generates new tokens as SHA512', () => {
+        const { generateUnsubscribeToken } = emailLib;
+        const token = generateUnsubscribeToken(EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE);
+        expect(token).to.eq(
+          'c8b476c8ac6f5347fc059628947a61fb354125157ca9060de38cd1189b3257710c034e7d4d559787174c678a78de831737c8b6a631ec8a5a0a5edbd68a8a7e67',
+        );
+      });
+    });
+
+    describe('isValidUnsubscribeToken', () => {
+      it('detects invalid tokens', () => {
+        const { isValidUnsubscribeToken } = emailLib;
+        expect(isValidUnsubscribeToken('', EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE)).to.be.false;
+        expect(isValidUnsubscribeToken('test', EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE)).to.be.false;
+      });
+
+      it('works with new tokens', () => {
+        const { generateUnsubscribeToken, isValidUnsubscribeToken } = emailLib;
+        const token = generateUnsubscribeToken(EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE);
+        expect(isValidUnsubscribeToken(token, EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE)).to.be.true;
+      });
+
+      it('rejects tokens for another email, collective or type', () => {
+        const { generateUnsubscribeToken, isValidUnsubscribeToken } = emailLib;
+        const token = generateUnsubscribeToken(EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE);
+        expect(isValidUnsubscribeToken(token, 'other@opencollective.com', COLLECTIVE_SLUG, EMAIL_TYPE)).to.be.false;
+        expect(isValidUnsubscribeToken(token, EMAIL_ADDRESS, 'other_slug', EMAIL_TYPE)).to.be.false;
+        expect(isValidUnsubscribeToken(token, EMAIL_ADDRESS, COLLECTIVE_SLUG, 'other-type')).to.be.false;
+      });
+
+      it('rejects legacy MD5 tokens', () => {
+        const { isValidUnsubscribeToken } = emailLib;
+        // Legacy token for (EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE), as generated before June 2020
+        const legacyToken = '0227ed95b740e41d8359667e3e3baa9c';
+        expect(isValidUnsubscribeToken(legacyToken, EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE)).to.be.false;
+      });
+
+      it('rejects non-string tokens', () => {
+        const { isValidUnsubscribeToken } = emailLib;
+        expect(isValidUnsubscribeToken(undefined, EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE)).to.be.false;
+        expect(isValidUnsubscribeToken(null, EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE)).to.be.false;
+      });
+    });
+  });
+
+  describe('render', () => {
+    it('Automatically generates text version', () => {
+      const result = emailLib.render('user.new.token', { loginLink: 'https://opencollective/USER_LOGIN_LINK' });
+      expect(result.html).to.matchSnapshot();
+      expect(result.text).to.matchSnapshot();
+      expect(result.html).to.match(/class="btn blue"[^>]*style="/);
+    });
+
+    it('rejects unknown templates and inherited object properties', () => {
+      for (const template of ['not.a.template', 'constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+        expect(() => emailLib.render(template as Parameters<typeof emailLib.render>[0], {})).to.throw(
+          `Invalid email template: ${template}`,
+        );
+        expect(() => emailLib.generateEmailFromTemplate(template, 'test@opencollective.com', {})).to.throw(
+          `Invalid email template: ${template}`,
+        );
+      }
+    });
+  });
+
+  describe('generateFromEmailHeader', () => {
+    it('sanitizes invalid characters', () => {
+      expect(emailLib.generateFromEmailHeader('Hello World')).to.equal('"Hello World" <no-reply@opencollective.com>');
+      expect(emailLib.generateFromEmailHeader('Hello World <NOPE>')).to.equal(
+        '"Hello World <NOPE>" <no-reply@opencollective.com>',
+      );
+      expect(emailLib.generateFromEmailHeader('Hello "World" <NOPE>')).to.equal(
+        '"Hello “World“ <NOPE>" <no-reply@opencollective.com>',
+      );
+      expect(
+        emailLib.generateFromEmailHeader(
+          `Hello
+      
+          “World“     <NOPE>`,
+        ),
+      ).to.equal('"Hello “World“ <NOPE>" <no-reply@opencollective.com>');
+    });
+
+    it('can customize the email address', () => {
+      expect(emailLib.generateFromEmailHeader('Hello World', 'test@opencollective.com')).to.equal(
+        '"Hello World" <test@opencollective.com>',
+      );
+    });
+  });
+});

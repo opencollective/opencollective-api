@@ -414,7 +414,13 @@ export const generateLoaders = req => {
           startDate = null,
           endDate = null,
           includeChildren = false,
-        }: { net?: boolean; kind?: string; startDate?: Date; endDate?: Date; includeChildren?: boolean } = {}) {
+        }: {
+          net?: boolean;
+          kind?: string | string[];
+          startDate?: Date;
+          endDate?: Date;
+          includeChildren?: boolean;
+        } = {}) {
           const key = `amountReceived-${net}-${kind}-${startDate}-${endDate}-${includeChildren}`;
           if (!cachedLoaders[key]) {
             cachedLoaders[key] = new DataLoader<number, { CollectiveId: number; value: number; currency: string }>(
@@ -451,7 +457,7 @@ export const generateLoaders = req => {
           timeUnit,
         }: {
           net?: boolean;
-          kind?: string;
+          kind?: string | string[];
           startDate?: Date;
           endDate?: Date;
           includeChildren?: boolean;
@@ -487,7 +493,7 @@ export const generateLoaders = req => {
           includeGiftCards,
         }: {
           net?: boolean;
-          kind?: TransactionTypes;
+          kind?: string | string[];
           startDate?: Date;
           endDate?: Date;
           includeChildren?: boolean;
@@ -530,7 +536,7 @@ export const generateLoaders = req => {
           timeUnit,
         }: {
           net?: boolean;
-          kind?: string;
+          kind?: string | string[];
           startDate?: Date;
           endDate?: Date;
           includeChildren?: boolean;
@@ -903,8 +909,8 @@ export const generateLoaders = req => {
                     INNER JOIN "Collectives" c ON t."CollectiveId" = c.id
                   WHERE t."CollectiveId" IN (:collectiveIds)
                     AND t."deletedAt" IS NULL
-                    ${ifStr(dateFrom, 'AND t."createdAt" > :dateFrom', 'AND t."createdAt" > c."approvedAt"')}
-                    ${ifStr(dateTo, 'AND t."createdAt" <= :dateTo')}
+                    ${ifStr(Boolean(dateFrom), 'AND t."createdAt" > :dateFrom', 'AND t."createdAt" > c."approvedAt"')}
+                    ${ifStr(Boolean(dateTo), 'AND t."createdAt" <= :dateTo')}
                     AND t."HostCollectiveId" = c."HostCollectiveId"
                   GROUP BY
                     t."CollectiveId", t."hostCurrency"

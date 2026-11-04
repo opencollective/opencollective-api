@@ -1,9 +1,9 @@
 import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute, Op } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 
 import Collective from './Collective';
 import Conversation from './Conversation';
