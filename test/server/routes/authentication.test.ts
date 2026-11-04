@@ -155,6 +155,83 @@ describe('REST session authentication and connected-account rate limiting', () =
       expect(response.body.error.message).to.include('A session token is required on this endpoint');
       expect(payBatchSpy).to.not.have.been.called;
     });
+
+    describe('rate limiting', () => {
+      const limit = config.limits.wiseBatchPaymentPerHour;
+      const userKey = (userId: number) => `wise-pay-batch-user-${userId}`;
+      const ipKey = (ip: string) => `wise-pay-batch-ip-${ip}`;
+      let otherUser: User;
+
+      beforeEach(async () => {
+        otherUser = await fakeUser();
+        await sessionCache.delete([userKey(user.id), userKey(otherUser.id), ...testIps.map(ipKey)]);
+      });
+
+      afterEach(async () => {
+        await sessionCache.delete([userKey(user.id), userKey(otherUser.id), ...testIps.map(ipKey)]);
+      });
+
+      it('limits calls per user after the session-token check and before payment provider handling', async () => {
+        expect(limit).to.be.a('number').and.to.be.above(0);
+        await sessionCache.set(userKey(user.id), limit - 1, 3600);
+        const token = await user.generateSessionToken({ createActivity: false });
+
+        // Last allowed call
+        await request(expressApp)
+          .post('/services/transferwise/pay-batch')
+          .set('X-Forwarded-For', testIps[0])
+          .set('Authorization', `Bearer ${token}`)
+          .send({ hostId, expenseIds: [] })
+          .expect(200);
+        expect(payBatchSpy).to.have.been.calledOnce;
+        expect(await sessionCache.get(userKey(user.id))).to.eq(limit);
+
+        // Over the limit, even from another IP
+        const response = await request(expressApp)
+          .post('/services/transferwise/pay-batch')
+          .set('X-Forwarded-For', testIps[1])
+          .set('Authorization', `Bearer ${token}`)
+          .send({ hostId, expenseIds: [] })
+          .expect(429);
+        expect(response.body.error.message).to.eq('Rate limit exceeded');
+
+        // Session-token check runs before the limiter, so rejected tokens are not counted
+        const loginTokenResponse = await request(expressApp)
+          .post('/services/transferwise/pay-batch')
+          .set('Authorization', `Bearer ${user.jwt({ scope: 'login' })}`)
+          .send({ hostId, expenseIds: [] })
+          .expect(401);
+        expect(loginTokenResponse.body.error.message).to.include('A session token is required on this endpoint');
+        expect(payBatchSpy).to.have.been.calledOnce;
+
+        // Other users have their own budget
+        const otherToken = await otherUser.generateSessionToken({ createActivity: false });
+        await request(expressApp)
+          .post('/services/transferwise/pay-batch')
+          .set('X-Forwarded-For', testIps[0])
+          .set('Authorization', `Bearer ${otherToken}`)
+          .send({ hostId, expenseIds: [] })
+          .expect(401); // Not a host admin, but the call is counted
+        expect(await sessionCache.get(userKey(otherUser.id))).to.eq(1);
+      });
+
+      it('limits unauthenticated calls per IP', async () => {
+        await sessionCache.set(ipKey(testIps[0]), limit, 3600);
+        await request(expressApp)
+          .post('/services/transferwise/pay-batch')
+          .set('X-Forwarded-For', testIps[0])
+          .send({ hostId, expenseIds: [] })
+          .expect(429);
+
+        await request(expressApp)
+          .post('/services/transferwise/pay-batch')
+          .set('X-Forwarded-For', testIps[1])
+          .send({ hostId, expenseIds: [] })
+          .expect(401);
+        expect(await sessionCache.get(ipKey(testIps[1]))).to.eq(1);
+        expect(payBatchSpy).to.not.have.been.called;
+      });
+    });
   });
 
   it('shares the real 60-request limit across aliases, before authorization and provider handling, per IP', async () => {

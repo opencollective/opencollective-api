@@ -7,13 +7,13 @@ import {
   NonAttribute,
   QueryTypes,
 } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 
 import { sortResultsSimple } from '../graphql/loaders/helpers';
 import { getKYCProvider } from '../lib/kyc';
 import { KYCProviderName } from '../lib/kyc/providers';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 
 import Collective from './Collective';
 import { ModelWithPublicId } from './ModelWithPublicId';

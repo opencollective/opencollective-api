@@ -9,6 +9,11 @@
       "matchPackageNames": ["npm"],
       "matchUpdateTypes": ["major"],
       "enabled": false
+    },
+    {
+      "description": "asn1-schema and asn1-x509 are released together: a lone x509 bump nests a second asn1-schema copy and breaks WebAuthn (Cannot get schema for ... target)",
+      "matchPackageNames": ["@peculiar/asn1-schema", "@peculiar/asn1-x509"],
+      "groupName": "peculiar asn1"
     }
   ]
 }
