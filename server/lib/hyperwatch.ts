@@ -168,7 +168,8 @@ const load = (app: Application, server?: Server) => {
     ];
     const operationName = log.getIn(['graphql', 'operationName'], 'unknown');
     const variables = log.hasIn(['graphql', 'variables']) ? log.getIn(['graphql', 'variables']) : {};
-    return `${operationName} ${JSON.stringify(pick(variables, pickList))}`;
+    // Mutation variables are redacted whole (a string)
+    return `${operationName} ${typeof variables === 'string' ? variables : JSON.stringify(pick(variables, pickList))}`;
   };
 
   lib.logger.defaultFormatter.replaceFormat('request', formatRequest);
