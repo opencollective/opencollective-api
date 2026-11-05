@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import MemberRoles from '../../../../../server/constants/roles';
+import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import {
   fakeActiveHost,
@@ -11,11 +12,12 @@ import {
   fakeMember,
   fakeOrder,
   fakeOrganization,
+  fakeProject,
   fakeTier,
   fakeTransaction,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { graphqlQueryV2, nockFixerRates, resetTestDB } from '../../../../utils';
 
 describe('server/graphql/v2/interface/Account', () => {
   describe('kycVerificationRequests', () => {
@@ -387,9 +389,24 @@ describe('server/graphql/v2/interface/Account', () => {
       for (const backer of [none, small, big]) {
         await fakeMember({ CollectiveId: collective.id, MemberCollectiveId: backer.id, role: MemberRoles.BACKER });
       }
-      await fakeTransaction({ CollectiveId: collective.id, FromCollectiveId: small.id, amount: 1000 });
-      await fakeTransaction({ CollectiveId: collective.id, FromCollectiveId: big.id, amount: 3000 });
-      await fakeTransaction({ CollectiveId: collective.id, FromCollectiveId: big.id, amount: 2000 });
+      await fakeTransaction({
+        kind: TransactionKind.CONTRIBUTION,
+        CollectiveId: collective.id,
+        FromCollectiveId: small.id,
+        amount: 1000,
+      });
+      await fakeTransaction({
+        kind: TransactionKind.CONTRIBUTION,
+        CollectiveId: collective.id,
+        FromCollectiveId: big.id,
+        amount: 3000,
+      });
+      await fakeTransaction({
+        kind: TransactionKind.CONTRIBUTION,
+        CollectiveId: collective.id,
+        FromCollectiveId: big.id,
+        amount: 2000,
+      });
 
       let result = await graphqlQueryV2(query, { slug: collective.slug, orderByTotalContributed: 'DESC' });
       expect(result.errors).to.not.exist;
@@ -416,10 +433,21 @@ describe('server/graphql/v2/interface/Account', () => {
         backers.push(backer);
       }
       const giftCardUser = await fakeOrganization();
-      await fakeTransaction({ CollectiveId: collective.id, FromCollectiveId: backers[0].id, amount: 1000 });
-      await fakeTransaction({ CollectiveId: collective.id, FromCollectiveId: backers[1].id, amount: 4000 });
+      await fakeTransaction({
+        kind: TransactionKind.CONTRIBUTION,
+        CollectiveId: collective.id,
+        FromCollectiveId: backers[0].id,
+        amount: 1000,
+      });
+      await fakeTransaction({
+        kind: TransactionKind.CONTRIBUTION,
+        CollectiveId: collective.id,
+        FromCollectiveId: backers[1].id,
+        amount: 4000,
+      });
       // backers[2] funded the gift card used for this contribution: it counts toward their total
       await fakeTransaction({
+        kind: TransactionKind.CONTRIBUTION,
         CollectiveId: collective.id,
         FromCollectiveId: giftCardUser.id,
         UsingGiftCardFromCollectiveId: backers[2].id,
@@ -453,6 +481,128 @@ describe('server/graphql/v2/interface/Account', () => {
         backers[0].slug,
         backers[3].slug,
       ]);
+    });
+
+    describe('orderByTotalContributed matches Member.totalDonations', () => {
+      const totalsQuery = gql`
+        query MembersTotals($slug: String!, $role: [MemberRole]) {
+          account(slug: $slug) {
+            members(role: $role, orderByTotalContributed: DESC) {
+              nodes {
+                totalDonations {
+                  valueInCents
+                }
+                account {
+                  slug
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const getRanking = async (slug, role = [MemberRoles.BACKER]) => {
+        const result = await graphqlQueryV2(totalsQuery, { slug, role });
+        expect(result.errors).to.not.exist;
+        return result.data.account.members.nodes.map(n => [n.account.slug, n.totalDonations.valueInCents]);
+      };
+
+      it('leaves out refunded contributions and fee kinds', async () => {
+        const collective = await fakeCollective();
+        const [refunded, feeOnly, regular] = await Promise.all([
+          fakeOrganization(),
+          fakeOrganization(),
+          fakeOrganization(),
+        ]);
+        for (const backer of [refunded, feeOnly, regular]) {
+          await fakeMember({ CollectiveId: collective.id, MemberCollectiveId: backer.id, role: MemberRoles.BACKER });
+        }
+        const refund = await fakeTransaction({
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: collective.id,
+          FromCollectiveId: refunded.id,
+          amount: 100,
+        });
+        await fakeTransaction({
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: collective.id,
+          FromCollectiveId: refunded.id,
+          amount: 5000,
+          RefundTransactionId: refund.id,
+        });
+        await fakeTransaction({
+          CollectiveId: collective.id,
+          FromCollectiveId: feeOnly.id,
+          amount: 5000,
+          kind: TransactionKind.HOST_FEE,
+        });
+        await fakeTransaction({
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: collective.id,
+          FromCollectiveId: regular.id,
+          amount: 1000,
+        });
+
+        expect(await getRanking(collective.slug)).to.deep.equal([
+          [regular.slug, 1000],
+          [refunded.slug, 100],
+          [feeOnly.slug, 0],
+        ]);
+      });
+
+      it('converts each currency to the currency of the account', async () => {
+        nockFixerRates({ USD: { EUR: 0.84 } });
+        const collective = await fakeCollective({ currency: 'EUR' });
+        const [paidInUSD, paidInEUR] = await Promise.all([fakeOrganization(), fakeOrganization()]);
+        for (const backer of [paidInUSD, paidInEUR]) {
+          await fakeMember({ CollectiveId: collective.id, MemberCollectiveId: backer.id, role: MemberRoles.BACKER });
+        }
+        // 1000 USD is 840 EUR: less than 900 EUR, even though the raw amount is higher
+        await fakeTransaction({
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: collective.id,
+          FromCollectiveId: paidInUSD.id,
+          amount: 1000,
+          currency: 'USD',
+        });
+        await fakeTransaction({
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: collective.id,
+          FromCollectiveId: paidInEUR.id,
+          amount: 900,
+          currency: 'EUR',
+        });
+
+        expect(await getRanking(collective.slug)).to.deep.equal([
+          [paidInEUR.slug, 900],
+          [paidInUSD.slug, 840],
+        ]);
+      });
+
+      it('ranks members inherited from the parent by what they contributed to the parent', async () => {
+        const parent = await fakeCollective();
+        const project = await fakeProject({ ParentCollectiveId: parent.id, currency: parent.currency });
+        const [parentAdmin, projectBacker] = await Promise.all([fakeOrganization(), fakeOrganization()]);
+        await fakeMember({ CollectiveId: parent.id, MemberCollectiveId: parentAdmin.id, role: MemberRoles.ADMIN });
+        await fakeMember({ CollectiveId: project.id, MemberCollectiveId: projectBacker.id, role: MemberRoles.BACKER });
+        await fakeTransaction({
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: parent.id,
+          FromCollectiveId: parentAdmin.id,
+          amount: 3000,
+        });
+        await fakeTransaction({
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: project.id,
+          FromCollectiveId: projectBacker.id,
+          amount: 1000,
+        });
+
+        expect(await getRanking(project.slug, [MemberRoles.ADMIN, MemberRoles.BACKER])).to.deep.equal([
+          [parentAdmin.slug, 3000],
+          [projectBacker.slug, 1000],
+        ]);
+      });
     });
 
     it('filters active or inactive members, consistently with Member.isActive', async () => {
