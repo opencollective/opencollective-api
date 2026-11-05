@@ -329,6 +329,21 @@ describe('server/lib/format-address', () => {
       });
     });
 
+    describe('missing optional fields', () => {
+      it('omits the state when there is no zone, instead of printing "null"', async () => {
+        const dublin = { country: 'IE', structured: { address1: '1 Main St', city: 'Dublin', postalCode: 'D02 X285' } };
+        expect(await formatAddress(dublin)).to.equal('1 Main St, Dublin, D02 X285');
+        expect(await formatAddress({ ...dublin, structured: { ...dublin.structured, zone: null } })).to.equal(
+          '1 Main St, Dublin, D02 X285',
+        );
+        const buenosAires = {
+          country: 'AR',
+          structured: { address1: 'Av. Corrientes 1', city: 'Buenos Aires', postalCode: 'C1043' },
+        };
+        expect(await formatAddress(buenosAires)).to.equal('Av. Corrientes 1, C1043 Buenos Aires');
+      });
+    });
+
     describe('fallback formatting when the address is not valid for the country', () => {
       const sanFrancisco = { address1: '123 Main Street', city: 'San Francisco', zone: 'CA' };
 

@@ -113,19 +113,14 @@ export const formatAddress = (
 
   const countryData = getCountryData(address.country);
   const stateData = address.state ? countryData.sub_regions?.find(sr => sr.key === address.state) : null;
-  const {
-    addressLine1 = '',
-    addressLine2 = '',
-    city = '',
-    state = '',
-    zip = '',
-  } = {
-    ...address,
-    state: stateData ? stateData.name : address.state,
-  };
-  const addressLine = [addressLine1, addressLine2].filter(Boolean).join('\n');
+  // `?? ''` rather than destructuring defaults: callers can pass `null` (e.g. `normalizeZoneCode` for a missing zone),
+  // which would otherwise be printed as "null"
+  const addressLine = [address.addressLine1, address.addressLine2].filter(Boolean).join('\n');
+  const city = address.city ?? '';
+  const state = (stateData ? stateData.name : address.state) ?? '';
+  const zip = address.zip ?? '';
 
-  // Same replacement chain as lib-address, including its quirks (string replacements, `null` values not defaulted)
+  // Same replacement chain as lib-address, including its quirks (e.g. separators around empty fields are kept)
   const nationalFormat = countryData.fmt
     .replace(/%N/g, '')
     .replace(/%O/g, '')
