@@ -193,6 +193,30 @@ describe('server/lib/format-address', () => {
         });
         expect(result).to.equal('Connaught Place, New Delhi 110001, Delhi');
       });
+
+      it('formats a New Zealand address without a dependent locality', async () => {
+        const result = await formatAddress({
+          country: 'NZ',
+          structured: { address1: '1 Queen Street', city: 'Auckland', postalCode: '1010' },
+        });
+        expect(result).to.equal('1 Queen Street, Auckland 1010');
+      });
+
+      it('formats a Chinese address with the zone codes used by the frontend', async () => {
+        const result = await formatAddress({
+          country: 'CN',
+          structured: { address1: '1 Chang An Avenue', city: 'Dongcheng', zone: '11', postalCode: '100000' },
+        });
+        expect(result).to.equal('100000, 北京市Dongcheng, 1 Chang An Avenue');
+      });
+
+      it('accepts the short forms of Argentinian postal codes', async () => {
+        const address = { address1: 'Av. Corrientes 1', city: 'Buenos Aires', zone: 'C' };
+        for (const postalCode of ['1043', 'C1043', 'C1043AAZ']) {
+          const result = await formatAddress({ country: 'AR', structured: { ...address, postalCode } });
+          expect(result).to.equal(`Av. Corrientes 1, ${postalCode} Buenos Aires, Ciudad Autónoma de Buenos Aires`);
+        }
+      });
     });
 
     describe('includeCountry option', () => {
