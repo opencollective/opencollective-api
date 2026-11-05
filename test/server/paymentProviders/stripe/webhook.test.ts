@@ -53,6 +53,21 @@ describe('webhook', () => {
     sandbox.restore();
   });
 
+  describe('webhook()', () => {
+    for (const body of [undefined, null, {}, 'not-json']) {
+      it(`rejects requests with an invalid body (${JSON.stringify(body)})`, async () => {
+        let error: Error | undefined;
+        try {
+          await webhook.webhook({ body, headers: {} } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.exist;
+        expect(error.message).to.equal('Source of event not recognized');
+      });
+    }
+  });
+
   describe('chargeDisputeCreated()', () => {
     let order, user;
 
