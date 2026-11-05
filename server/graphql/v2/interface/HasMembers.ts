@@ -1,6 +1,7 @@
 import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
 import { intersection, isNil, isUndefined } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import { CollectiveType } from '../../../constants/collectives';
 import MemberRoles, { MemberRolesForPrivateAccounts } from '../../../constants/roles';
@@ -17,6 +18,87 @@ import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 import MemberInvitationsQuery from '../query/MemberInvitationsQuery';
 import EmailAddress from '../scalar/EmailAddress';
+
+/**
+ * Orders the members by the total amount they contributed to `collective` (same amount as `Member.totalDonations`).
+ *
+ * The totals are computed with a single aggregate over the account's transactions: a subquery per member is far too
+ * slow on accounts with tens of thousands of backers (it times out after 2 minutes on production). The matching
+ * members are fetched as plain rows (ids only), sorted here, and only the requested page is loaded.
+ */
+const getMembersOrderedByTotalContributed = async (
+  collective: Collective,
+  args: {
+    limit: number;
+    offset: number;
+    orderByTotalContributed: 'ASC' | 'DESC';
+    orderBy: { field: string; direction: string };
+  },
+  { where, memberCollectiveInclude, inheritedAttribute },
+) => {
+  const tieBreakField = args.orderBy.field;
+  const candidates = (await models.Member.findAll({
+    where,
+    attributes: ['id', 'MemberCollectiveId', tieBreakField],
+    include: [{ ...memberCollectiveInclude, attributes: [] }],
+    raw: true,
+  })) as unknown as Array<{ id: number; MemberCollectiveId: number } & Record<string, unknown>>;
+
+  const totals = await sequelize.query<{ contributorId: number; total: string }>(
+    `
+    SELECT s."contributorId", SUM(s.amount) AS total
+    FROM (
+      SELECT t."FromCollectiveId" AS "contributorId", t.amount
+      FROM "Transactions" t
+      WHERE t."CollectiveId" = :collectiveId AND t."deletedAt" IS NULL AND t."type" = 'CREDIT'
+      UNION ALL
+      SELECT t."UsingGiftCardFromCollectiveId" AS "contributorId", t.amount
+      FROM "Transactions" t
+      WHERE t."CollectiveId" = :collectiveId AND t."deletedAt" IS NULL AND t."type" = 'CREDIT'
+      AND t."UsingGiftCardFromCollectiveId" IS NOT NULL
+      AND t."UsingGiftCardFromCollectiveId" != t."FromCollectiveId"
+    ) s
+    GROUP BY s."contributorId"
+    `,
+    { replacements: { collectiveId: collective.id }, type: QueryTypes.SELECT },
+  );
+  const totalByContributorId = new Map(totals.map(t => [Number(t.contributorId), Number(t.total)]));
+  const getTotal = (member: { MemberCollectiveId: number }) => totalByContributorId.get(member.MemberCollectiveId) || 0;
+
+  const totalSign = args.orderByTotalContributed === 'ASC' ? 1 : -1;
+  const tieBreakSign = args.orderBy.direction === 'DESC' ? -1 : 1;
+  candidates.sort((a, b) => {
+    const totalDiff = getTotal(a) - getTotal(b);
+    if (totalDiff !== 0) {
+      return totalSign * totalDiff;
+    }
+    const aValue = a[tieBreakField] as Date | number;
+    const bValue = b[tieBreakField] as Date | number;
+    if (aValue < bValue) {
+      return -tieBreakSign;
+    } else if (aValue > bValue) {
+      return tieBreakSign;
+    }
+    return a.id - b.id;
+  });
+
+  const pageIds = candidates.slice(args.offset, args.offset + args.limit).map(m => m.id);
+  const pageMembers = pageIds.length
+    ? await models.Member.findAll({
+        where: { id: pageIds },
+        attributes: { include: [inheritedAttribute] },
+        include: [{ model: models.Collective, as: 'memberCollective' }],
+      })
+    : [];
+  const membersById = new Map(pageMembers.map(m => [m.id, m]));
+
+  return {
+    nodes: pageIds.map(id => membersById.get(id)).filter(Boolean),
+    totalCount: candidates.length,
+    limit: args.limit,
+    offset: args.offset,
+  };
+};
 
 export const HasMembersFields = {
   members: {
@@ -161,40 +243,33 @@ export const HasMembersFields = {
         };
       }
 
-      const order: Array<[string, string] | [ReturnType<typeof sequelize.literal>, string]> = [];
+      const memberCollectiveInclude = {
+        model: models.Collective,
+        as: 'memberCollective',
+        where: collectiveConditions,
+        include: collectiveInclude,
+        required: true,
+      };
+      const inheritedAttribute: [ReturnType<typeof sequelize.literal>, string] = [
+        sequelize.literal(`"Member"."CollectiveId" = ${collective.ParentCollectiveId || 0}`),
+        'inherited',
+      ];
+
       if (args.orderByTotalContributed) {
-        // Same amount as `Member.totalDonations`: contributions (and gift cards) from the member account to this account
-        const totalContributed = sequelize.literal(`(
-          SELECT COALESCE(SUM(t."amount"), 0)
-          FROM "Transactions" t
-          WHERE t."CollectiveId" = "Member"."CollectiveId"
-          AND t."deletedAt" IS NULL
-          AND t."type" = 'CREDIT'
-          AND (t."FromCollectiveId" = "Member"."MemberCollectiveId" OR t."UsingGiftCardFromCollectiveId" = "Member"."MemberCollectiveId")
-        )`);
-        order.push([totalContributed, args.orderByTotalContributed]);
+        return getMembersOrderedByTotalContributed(collective, args, {
+          where,
+          memberCollectiveInclude,
+          inheritedAttribute,
+        });
       }
-      order.push([args.orderBy.field, args.orderBy.direction]);
 
       const result = await models.Member.findAndCountAll({
         where,
         limit: args.limit,
         offset: args.offset,
-        order,
-        attributes: {
-          include: [
-            [sequelize.literal(`"Member"."CollectiveId" = ${collective.ParentCollectiveId || 0}`), 'inherited'],
-          ],
-        },
-        include: [
-          {
-            model: models.Collective,
-            as: 'memberCollective',
-            where: collectiveConditions,
-            include: collectiveInclude,
-            required: true,
-          },
-        ],
+        order: [[args.orderBy.field, args.orderBy.direction]],
+        attributes: { include: [inheritedAttribute] },
+        include: [memberCollectiveInclude],
       });
 
       return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
