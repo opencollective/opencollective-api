@@ -142,6 +142,7 @@ const MAX_VARIABLES_DEPTH = 32;
 // inspected, so a large payload cannot block the event loop. Real variables stay far below them.
 const MAX_VARIABLES_VALUES = 10000;
 const MAX_VARIABLES_JSON_LENGTH = 1000000;
+const MAX_KEY_LENGTH = 256;
 
 const isSensitiveWord = (segment: string): boolean => {
   const word = segment.toLowerCase();
@@ -151,7 +152,7 @@ const isSensitiveWord = (segment: string): boolean => {
 };
 
 const isSensitiveKey = (key: string): boolean => {
-  if (SENSITIVE_KEY_PATTERN.test(key.toLowerCase())) {
+  if (key.length > MAX_KEY_LENGTH || SENSITIVE_KEY_PATTERN.test(key.toLowerCase())) {
     return true;
   }
   // Every run of consecutive segments, so that compound words match inside longer keys (`contactFirstName`)

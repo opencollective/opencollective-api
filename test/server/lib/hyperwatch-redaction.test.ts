@@ -251,11 +251,16 @@ describe('server/lib/hyperwatch-redaction', () => {
       expect(reads).to.be.at.most(10000);
     });
 
-    it('handles long keys in linear time', () => {
-      const key = Array.from({ length: 3000 }, () => 'aB').join('');
-      const start = Date.now();
+    it('inspects keys up to the length limit', () => {
+      const key = 'aB'.repeat(128);
       expect(redactVariables({ [key]: 'x' })).to.deep.equal({ [key]: 'x' });
-      expect(Date.now() - start).to.be.below(1000);
+    });
+
+    it('redacts the value of a key too long to inspect, without splitting it', () => {
+      const key = 'aB'.repeat(2500000);
+      const start = Date.now();
+      expect(redactVariables({ [key]: 'x' })).to.deep.equal({ [key]: '[redacted]' });
+      expect(Date.now() - start).to.be.below(500);
     });
 
     it('redacts what is nested too deep to inspect', () => {
