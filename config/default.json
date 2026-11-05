@@ -106,6 +106,9 @@
     "maxNumberOfAppsPerUser": 15,
     "maxWebhooksPerUserPerCollective": 50,
     "webhookUrlValidationPerUserPerHour": 30,
+    "ecosystems": {
+      "repositoryLookupsPerHourPerIp": 30
+    },
     "search": {
       "global": {
         "perMinutePerUser": 75,
@@ -121,6 +124,7 @@
     "userSignUpPerHour": 3,
     "userExchangeLoginTokenPerHourPerIp": 50,
     "userRefreshTokenPerHourPerIp": 50,
+    "wiseBatchPaymentPerHour": 30,
     "collectiveEmailMessagePerHour": 5,
     "maxCoreContributorsPerAccount": 60,
     "transactionsImports": {
@@ -178,7 +182,8 @@
   },
   "slack": {
     "webhooks": {
-      "abuse": null
+      "abuse": null,
+      "engineeringAlerts": null
     }
   },
   "captcha": {

@@ -9,6 +9,7 @@ declare global {
       isGraphQL?: boolean;
       startAt: Date;
       endAt: Date;
+      finishedAt?: Date;
       cacheKey?: string;
       cacheSlug?: string;
       apiKey?: string;

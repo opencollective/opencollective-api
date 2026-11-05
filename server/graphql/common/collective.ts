@@ -10,7 +10,7 @@ import { canUseFeature } from '../../lib/user-permissions';
 import models, { type Collective } from '../../models';
 import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized } from '../errors';
 
-import { checkRemoteUserCanUseAccount } from './scope-check';
+import { checkRemoteUserCanUseAccount, isRemoteUserRoot } from './scope-check';
 
 /**
  * Resolver function for host field on Collective type.
@@ -73,7 +73,7 @@ async function sendMessage({
   }
 
   // Limit email sent per user
-  if (!user.isAdminOfCollectiveOrHost(collective) && !user.isRoot()) {
+  if (!user.isAdminOfCollectiveOrHost(collective) && !isRemoteUserRoot(req)) {
     const maxEmailMessagePerHour = config.limits.collectiveEmailMessagePerHour;
     const cacheKey = `user_contact_send_message_${user.id}`;
     const rateLimit = new RateLimit(cacheKey, maxEmailMessagePerHour, ONE_HOUR_IN_SECONDS);

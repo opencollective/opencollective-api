@@ -45,7 +45,6 @@ import {
   ProjectionAlias,
   WhereOptions,
 } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
 import validator from 'validator';
 
@@ -101,6 +100,7 @@ import queries from '../lib/queries';
 import { buildSanitizerOptions, optsSanitizeHtmlForSimplified, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, Sequelize, Transaction as SequelizeTransaction } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, SpamAnalysisReport } from '../lib/spam';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { isValidURL, prependHttp } from '../lib/url-utils';
@@ -198,6 +198,10 @@ type Settings = {
   apply?: boolean;
   applyMessage?: string;
   tos?: string;
+  hostApplication?: {
+    /** Whether the eligibility rules block applicants from submitting (defaults to true) */
+    blockOnErrors?: boolean;
+  };
   expenseTypes?: Partial<Record<ExpenseType, boolean>>;
   disabledTierTypes?: string[];
   /** Set when the account was automatically migrated to the new platform subscription pricing. */

@@ -16,7 +16,7 @@ import * as github from '../../../lib/github';
 import { OSCValidator, ValidatedRepositoryInfo } from '../../../lib/osc-validator';
 import { isBlockedForUnpaidPlatformBilling } from '../../../lib/platform-subscriptions';
 import { getPolicy } from '../../../lib/policies';
-import { stripHTML } from '../../../lib/sanitize-html';
+import { sanitizeHostApplicationData, sanitizeHostApplicationMessage, stripHTML } from '../../../lib/sanitize-html';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Op, sequelize } from '../../../models';
@@ -156,8 +156,8 @@ const HostApplicationMutations = {
       // No need to check the balance, this is being handled in changeHost, along with most other checks
       const response = await collective.changeHost(host.id, req.remoteUser, {
         shouldAutomaticallyApprove,
-        message: args.message,
-        applicationData: { ...args.applicationData, validatedRepositoryInfo },
+        message: sanitizeHostApplicationMessage(args.message),
+        applicationData: sanitizeHostApplicationData({ ...args.applicationData, validatedRepositoryInfo }),
       });
 
       if (args.inviteMembers && args.inviteMembers.length) {

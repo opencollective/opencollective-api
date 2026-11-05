@@ -4,7 +4,6 @@ import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults, get, intersection, isEmpty, pick, uniq } from 'lodash';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute, Transaction } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
 import { CollectiveType } from '../constants/collectives';
@@ -18,6 +17,7 @@ import emailLib from '../lib/email';
 import logger from '../lib/logger';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 import twoFactorAuthLib from '../lib/two-factor-authentication';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
 

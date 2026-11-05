@@ -187,6 +187,7 @@ const getRequest = (c: Case, fixtures: Fixtures, timeoutInMs: number): SearchReq
     host: c.scope === 'host' || c.scope === 'hostAndAccount' ? ({ id: fixtures.bigHostId } as Collective) : null,
   },
   remoteUser: getRemoteUser(c.role, fixtures),
+  isRoot: c.role === 'root',
   timeoutInMs,
   useTopHits: false,
 });

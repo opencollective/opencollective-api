@@ -565,6 +565,19 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
       expect(withScope.data.search.results.accounts.collection.totalCount).to.eq(1);
     });
 
+    it('does not grant root permissions to OAuth tokens without the root scope', async () => {
+      const query = (scope: OAuthScopes[]) =>
+        fakeUserToken({ scope, UserId: rootUser.id }).then(token =>
+          oAuthGraphqlQueryV2(accountsSearchQuery, { searchTerm: 'secretlegalword', backend: 'POSTGRES' }, token),
+        );
+
+      const withoutRootScope = await query([OAuthScopes.account]);
+      expect(withoutRootScope.errors).to.not.exist;
+      expect(withoutRootScope.data.search.results.accounts.collection.totalCount).to.eq(0);
+      const withRootScope = await query([OAuthScopes.account, OAuthScopes.root]);
+      expect(withRootScope.data.search.results.accounts.collection.totalCount).to.eq(1);
+    });
+
     it('scopes accounts to the account itself and its children', async () => {
       expect(await getSlugs('capybara', { account: { slug: collective.slug } })).to.have.members([
         collective.slug,
