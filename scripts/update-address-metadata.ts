@@ -1,6 +1,15 @@
 /**
  * Regenerates `server/lib/address/countries.json`, the address metadata used by `server/lib/address`.
- * Only the fields read by `server/lib/address` and the first level of sub-regions are kept.
+ * Only the fields read by `server/lib/address` and the first level of sub-regions are kept, and sub-regions are
+ * flattened to `{ key, name, latin?, zip? }` (`latin` only when it differs from `name`).
+ *
+ * Translated sub-region names (e.g. Spanish provinces in Galician, Indian states in Hindi) are not kept: nothing
+ * formats addresses in a language other than the local one yet. Email translations
+ * (https://github.com/opencollective/opencollective/issues/4182) may need them back: fetch
+ * `${GOOGLE_BASE_URL}/data/<country>/<sub-region>--<lang>` for each extra language listed in the country's `languages`.
+ *
+ * The file is written compact and then formatted with Prettier, which keeps short objects on a single line: each
+ * sub-region is one line, so the monthly refresh (`.github/workflows/update-address-metadata.yml`) produces small diffs.
  *
  * Two sources are supported:
  *
@@ -20,10 +29,13 @@
 import { readdirSync, readFileSync, writeFileSync } from 'fs';
 import path from 'path';
 
+import { format, resolveConfig } from 'prettier';
+
 const GOOGLE_BASE_URL = 'https://chromium-i18n.appspot.com/ssl-address';
 const OUTPUT = path.join(__dirname, '../server/lib/address/countries.json');
 
-type SubRegion = { key: string; name: Record<string, string>; zip?: string };
+/** Sub-region as found in the sources: `name.default` is the local name, `name.latin` its transliteration */
+type SubRegion = { key: string; name: { default: string; latin?: string }; zip?: string };
 
 type Country = {
   key: string;
@@ -40,7 +52,12 @@ const trimCountry = (country: Country) => ({
   require: country.require,
   zip: country.zip,
   // eslint-disable-next-line camelcase
-  sub_regions: country.sub_regions?.map(({ key, name, zip }) => ({ key, name, zip })),
+  sub_regions: country.sub_regions?.map(({ key, name, zip }) => ({
+    key,
+    name: name.default,
+    latin: name.latin && name.latin !== name.default ? name.latin : undefined,
+    zip,
+  })),
 });
 
 // ---- Source: Google ----
@@ -54,7 +71,6 @@ type GoogleRegionData = {
   fmt?: string;
   require?: string;
   zip?: string;
-  languages?: string;
   sub_keys?: string;
 };
 
@@ -74,27 +90,15 @@ const fetchJSON = async <T>(url: string, attempts = 3): Promise<T> => {
   }
 };
 
-const fetchSubRegion = async (id: string, extraLocales: string[]): Promise<SubRegion> => {
+const fetchSubRegion = async (id: string): Promise<SubRegion> => {
   const data = await fetchJSON<GoogleRegionData>(`${GOOGLE_BASE_URL}/${id}`);
-  const localizedNames = await Promise.all(
-    extraLocales.map(async locale => {
-      const localized = await fetchJSON<GoogleRegionData>(`${GOOGLE_BASE_URL}/${id}--${locale}`);
-      return [locale, localized.name] as const;
-    }),
-  );
-
-  return {
-    key: data.isoid ?? data.key,
-    name: { default: data.name ?? data.key, latin: data.lname, ...Object.fromEntries(localizedNames) },
-    zip: data.zip,
-  };
+  return { key: data.isoid ?? data.key, name: { default: data.name ?? data.key, latin: data.lname }, zip: data.zip };
 };
 
 const fetchCountry = async (countryCode: string): Promise<Country> => {
   const data = await fetchJSON<GoogleRegionData>(`${GOOGLE_BASE_URL}/data/${countryCode}`);
-  const extraLocales = data.languages?.split('~').slice(1) ?? [];
   const subRegionKeys = data.sub_keys?.split('~') ?? [];
-  const subRegions = await Promise.all(subRegionKeys.map(key => fetchSubRegion(`${data.id}/${key}`, extraLocales)));
+  const subRegions = await Promise.all(subRegionKeys.map(key => fetchSubRegion(`${data.id}/${key}`)));
   // eslint-disable-next-line camelcase
   return { ...data, sub_regions: subRegions.length ? subRegions : undefined };
 };
@@ -102,7 +106,7 @@ const fetchCountry = async (countryCode: string): Promise<Country> => {
 const loadFromGoogle = async () => {
   const { countries } = await fetchJSON<{ countries: string }>(`${GOOGLE_BASE_URL}/data`);
   const result: Country[] = [];
-  // Sequential on purpose: each country already fans out one request per sub-region and locale
+  // Sequential on purpose: each country already fans out one request per sub-region
   for (const countryCode of countries.split('~')) {
     console.log(`Fetching ${countryCode}...`);
     result.push(await fetchCountry(countryCode));
@@ -129,11 +133,11 @@ const main = async () => {
   const { source, countries } = libAddressDir ? loadFromLibAddress(libAddressDir) : await loadFromGoogle();
   const output = {
     source,
-    generatedAt: new Date().toISOString().slice(0, 10),
     countries: Object.fromEntries(countries.map(country => [country.key, trimCountry(country)])),
   };
 
-  writeFileSync(OUTPUT, `${JSON.stringify(output, null, 2)}\n`);
+  const prettierConfig = await resolveConfig(OUTPUT);
+  writeFileSync(OUTPUT, await format(JSON.stringify(output), { ...prettierConfig, filepath: OUTPUT }));
   console.log(`Wrote ${countries.length} countries to ${OUTPUT}`);
 };
 

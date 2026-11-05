@@ -12,8 +12,10 @@ export type CountryCode = keyof typeof data.countries;
 
 type SubRegionData = {
   key: string;
-  /** `default` is the local name, `latin` its latin transliteration, other keys are language codes */
-  name: { default: string; latin?: string; [lang: string]: string };
+  /** Local name. Translations are not kept, see `scripts/update-address-metadata.ts` */
+  name: string;
+  /** Latin transliteration of `name`, when it differs */
+  latin?: string;
   /** Prefix (regex) that zip codes in this sub-region start with */
   zip?: string;
 };
@@ -99,13 +101,13 @@ const validateAddress = (address: Address): void => {
 
 /**
  * Formats an address following the country's conventions, one line per `\n`. The casing of the input is preserved
- * and the state code is replaced by its name (in `lang` if available).
+ * and the state code is replaced by its local name.
  *
  * @throws if the address is not valid for the country (see `validateAddress`)
  */
 export const formatAddress = (
   address: Address,
-  { appendCountry = false, lang }: { appendCountry?: boolean; lang?: string } = {},
+  { appendCountry = false }: { appendCountry?: boolean } = {},
 ): string => {
   validateAddress(address);
 
@@ -119,7 +121,7 @@ export const formatAddress = (
     zip = '',
   } = {
     ...address,
-    state: stateData ? [lang && stateData.name[lang], stateData.name.default].find(Boolean) : address.state,
+    state: stateData ? stateData.name : address.state,
   };
   const addressLine = [addressLine1, addressLine2].filter(Boolean).join('\n');
 
@@ -152,7 +154,7 @@ export const getCountrySubdivisions = (
   return (
     getCountryData(country).sub_regions?.map(sr => ({
       value: sr.key,
-      label: [useLatin && sr.name.latin, sr.name.default].find(Boolean) as string,
+      label: (useLatin && sr.latin) || sr.name,
     })) ?? []
   );
 };

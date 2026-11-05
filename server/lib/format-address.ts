@@ -7,12 +7,11 @@ import { reportErrorToSentry } from './sentry';
 type Options = {
   includeCountry?: boolean;
   lineDivider?: ', ' | '\n';
-  locale?: string;
 };
 
 export async function formatAddress(
   { country, structured }: Location,
-  { includeCountry = false, lineDivider = ', ', locale = 'en' }: Options = {},
+  { includeCountry = false, lineDivider = ', ' }: Options = {},
 ): Promise<string> {
   if (!structured) {
     return null;
@@ -31,7 +30,7 @@ export async function formatAddress(
         state: normalizedZone,
         zip: postalCode,
       },
-      { appendCountry: includeCountry, lang: locale },
+      { appendCountry: includeCountry },
     );
 
     // The address lib returns a newline-separated string, convert to requested divider

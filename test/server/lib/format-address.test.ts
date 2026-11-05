@@ -329,27 +329,6 @@ describe('server/lib/format-address', () => {
       });
     });
 
-    describe('locale option', () => {
-      const girona = {
-        country: 'ES',
-        structured: { address1: 'Carrer Major 1', city: 'Girona', zone: 'GI', postalCode: '17001' },
-      };
-
-      it('uses the default subdivision name when there is no translation for the locale', async () => {
-        expect(await formatAddress(girona)).to.equal('Carrer Major 1, 17001 Girona Girona');
-        expect(await formatAddress(girona, { locale: 'fr' })).to.equal('Carrer Major 1, 17001 Girona Girona');
-      });
-
-      it('uses the translated subdivision name when available', async () => {
-        expect(await formatAddress(girona, { locale: 'gl' })).to.equal('Carrer Major 1, 17001 Girona Xirona');
-        const delhi = {
-          country: 'IN',
-          structured: { address1: 'Connaught Place', city: 'New Delhi', zone: 'DL', postalCode: '110001' },
-        };
-        expect(await formatAddress(delhi, { locale: 'hi' })).to.equal('Connaught Place, New Delhi 110001, दिल्ली');
-      });
-    });
-
     describe('fallback formatting when the address is not valid for the country', () => {
       const sanFrancisco = { address1: '123 Main Street', city: 'San Francisco', zone: 'CA' };
 
