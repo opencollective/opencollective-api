@@ -407,6 +407,54 @@ describe('server/graphql/v2/interface/Account', () => {
       ]);
     });
 
+    it('paginates members ordered by total contributed, counting gift cards', async () => {
+      const collective = await fakeCollective();
+      const backers = [];
+      for (let i = 0; i < 4; i++) {
+        const backer = await fakeOrganization();
+        await fakeMember({ CollectiveId: collective.id, MemberCollectiveId: backer.id, role: MemberRoles.BACKER });
+        backers.push(backer);
+      }
+      const giftCardUser = await fakeOrganization();
+      await fakeTransaction({ CollectiveId: collective.id, FromCollectiveId: backers[0].id, amount: 1000 });
+      await fakeTransaction({ CollectiveId: collective.id, FromCollectiveId: backers[1].id, amount: 4000 });
+      // backers[2] funded the gift card used for this contribution: it counts toward their total
+      await fakeTransaction({
+        CollectiveId: collective.id,
+        FromCollectiveId: giftCardUser.id,
+        UsingGiftCardFromCollectiveId: backers[2].id,
+        amount: 2500,
+      });
+
+      const pageQuery = gql`
+        query MembersPage($slug: String!, $offset: Int!) {
+          account(slug: $slug) {
+            members(role: [BACKER], orderByTotalContributed: DESC, limit: 2, offset: $offset) {
+              totalCount
+              nodes {
+                account {
+                  slug
+                }
+              }
+            }
+          }
+        }
+      `;
+      const firstPage = await graphqlQueryV2(pageQuery, { slug: collective.slug, offset: 0 });
+      expect(firstPage.errors).to.not.exist;
+      expect(firstPage.data.account.members.totalCount).to.equal(4);
+      expect(firstPage.data.account.members.nodes.map(n => n.account.slug)).to.deep.equal([
+        backers[1].slug,
+        backers[2].slug,
+      ]);
+
+      const secondPage = await graphqlQueryV2(pageQuery, { slug: collective.slug, offset: 2 });
+      expect(secondPage.data.account.members.nodes.map(n => n.account.slug)).to.deep.equal([
+        backers[0].slug,
+        backers[3].slug,
+      ]);
+    });
+
     it('filters active or inactive members, consistently with Member.isActive', async () => {
       const collective = await fakeCollective();
       const monthlyTier = await fakeTier({ CollectiveId: collective.id, interval: 'month' });
