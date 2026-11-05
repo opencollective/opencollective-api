@@ -2033,6 +2033,17 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors).to.not.exist;
         expect(result.data.editExpense.status).to.equal('APPROVED');
         expect(result.data.editExpense.amount).to.equal(expense.amount);
+
+        // The previous version is archived in ExpenseHistories (see server/lib/sequelize-temporal.ts)
+        const history = await sequelize.models.ExpenseHistory.findAll({
+          where: { id: expense.id },
+          order: [['hid', 'ASC']],
+        });
+        expect(history).to.have.length(1);
+        expect(history[0].get('description')).to.equal(expense.description);
+        expect(history[0].get('status')).to.equal('APPROVED');
+        expect(history[0].get('amount')).to.equal(expense.amount);
+        expect(history[0].get('archivedAt')).to.be.an.instanceOf(Date);
       });
 
       it('Tax => should change status and amount', async () => {

@@ -163,7 +163,7 @@ handlebars.registerPartial('plan-details', planDetails);
 handlebars.registerPartial('subscription-details', subscriptionDetails);
 
 export const isValidTemplate = (template: string): template is EmailTemplates => {
-  return Boolean(templates[template]);
+  return Object.hasOwn(templates, template) && typeof templates[template] === 'function';
 };
 
 export const recompileAllTemplates = () => {

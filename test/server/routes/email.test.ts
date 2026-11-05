@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import config from 'config';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
 import request from 'supertest';
@@ -8,15 +7,12 @@ import ActivityTypes from '../../../server/constants/activities';
 import channels from '../../../server/constants/channels';
 import MemberRoles from '../../../server/constants/roles';
 import app from '../../../server/index';
-import { md5 } from '../../../server/lib/utils';
+import emailLib from '../../../server/lib/email';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
 import * as utils from '../../utils';
 
-const generateToken = (email, slug, template) => {
-  const uid = `${email}.${slug}.${template}.${config.keys.opencollective.jwtSecret}`;
-  return md5(uid);
-};
+const generateToken = (email, slug, template) => emailLib.generateUnsubscribeToken(email, slug, template);
 
 const { Collective } = models;
 

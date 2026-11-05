@@ -112,6 +112,8 @@ async function checkPaidTransactionsWithHostCollectiveId() {
     AND t."RefundTransactionId" IS NULL
     AND t."description" NOT LIKE 'Refund of%'
     AND t."createdAt" > '2025-01-01'
+    -- eldritch-cafe: card payments made as an Organization, offset by added funds. Reviewed 2026-11-05.
+    AND NOT (t."CollectiveId" = 757165 AND t.id <= 13261741)
     AND COALESCE(TRIM(BOTH '"'::text FROM (((c."settings" -> 'budget'::text) -> 'version'::text))::text), 'v2'::text) = 'v2'
     `,
     { type: QueryTypes.SELECT, raw: true },

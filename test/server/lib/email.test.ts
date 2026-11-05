@@ -4,7 +4,6 @@ import nodemailer, { SMTPTransportOptions } from 'nodemailer';
 import sinon, { stub } from 'sinon';
 
 import emailLib from '../../../server/lib/email';
-import { md5 } from '../../../server/lib/utils';
 import * as utils from '../../utils';
 
 const emailData = utils.data('emailData');
@@ -107,12 +106,6 @@ describe('server/lib/email', () => {
           'c8b476c8ac6f5347fc059628947a61fb354125157ca9060de38cd1189b3257710c034e7d4d559787174c678a78de831737c8b6a631ec8a5a0a5edbd68a8a7e67',
         );
       });
-
-      it('generates legacy tokens with MD5', () => {
-        const { generateUnsubscribeToken } = emailLib;
-        const token = generateUnsubscribeToken(EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE, md5);
-        expect(token).to.eq('0227ed95b740e41d8359667e3e3baa9c');
-      });
     });
 
     describe('isValidUnsubscribeToken', () => {
@@ -128,10 +121,25 @@ describe('server/lib/email', () => {
         expect(isValidUnsubscribeToken(token, EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE)).to.be.true;
       });
 
-      it('works with legacy tokens', () => {
+      it('rejects tokens for another email, collective or type', () => {
         const { generateUnsubscribeToken, isValidUnsubscribeToken } = emailLib;
-        const token = generateUnsubscribeToken(EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE, md5);
-        expect(isValidUnsubscribeToken(token, EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE)).to.be.true;
+        const token = generateUnsubscribeToken(EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE);
+        expect(isValidUnsubscribeToken(token, 'other@opencollective.com', COLLECTIVE_SLUG, EMAIL_TYPE)).to.be.false;
+        expect(isValidUnsubscribeToken(token, EMAIL_ADDRESS, 'other_slug', EMAIL_TYPE)).to.be.false;
+        expect(isValidUnsubscribeToken(token, EMAIL_ADDRESS, COLLECTIVE_SLUG, 'other-type')).to.be.false;
+      });
+
+      it('rejects legacy MD5 tokens', () => {
+        const { isValidUnsubscribeToken } = emailLib;
+        // Legacy token for (EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE), as generated before June 2020
+        const legacyToken = '0227ed95b740e41d8359667e3e3baa9c';
+        expect(isValidUnsubscribeToken(legacyToken, EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE)).to.be.false;
+      });
+
+      it('rejects non-string tokens', () => {
+        const { isValidUnsubscribeToken } = emailLib;
+        expect(isValidUnsubscribeToken(undefined, EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE)).to.be.false;
+        expect(isValidUnsubscribeToken(null, EMAIL_ADDRESS, COLLECTIVE_SLUG, EMAIL_TYPE)).to.be.false;
       });
     });
   });
@@ -142,6 +150,17 @@ describe('server/lib/email', () => {
       expect(result.html).to.matchSnapshot();
       expect(result.text).to.matchSnapshot();
       expect(result.html).to.match(/class="btn blue"[^>]*style="/);
+    });
+
+    it('rejects unknown templates and inherited object properties', () => {
+      for (const template of ['not.a.template', 'constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+        expect(() => emailLib.render(template as Parameters<typeof emailLib.render>[0], {})).to.throw(
+          `Invalid email template: ${template}`,
+        );
+        expect(() => emailLib.generateEmailFromTemplate(template, 'test@opencollective.com', {})).to.throw(
+          `Invalid email template: ${template}`,
+        );
+      }
     });
   });
 
