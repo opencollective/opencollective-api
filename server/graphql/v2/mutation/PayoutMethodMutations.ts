@@ -2,12 +2,12 @@ import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { isEqual, isUndefined, omit, pick } from 'lodash';
 
-import { activities } from '../../../constants';
 import ExpenseStatuses from '../../../constants/expense-status';
 import {
   handleKycPayoutMethodEdited,
   handleKycPayoutMethodReplaced,
 } from '../../../lib/kyc/expenses/kyc-expenses-check';
+import { trackActivityDispatch } from '../../../lib/notifications/activity-dispatch-tracker';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import sequelize from '../../../lib/sequelize';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
@@ -23,7 +23,8 @@ import GraphQLPayoutMethod from '../object/PayoutMethod';
 /**
  * Fan-out a `COLLECTIVE_EXPENSE_UPDATED` activity to all expenses using the payout method,
  * so payout-method edits are surfaced in expense threads.
- * Best-effort: never throws. See https://github.com/opencollective/opencollective/issues/8702
+ * Best-effort: never throws (errors go to Sentry). Runs after the response, see the call sites.
+ * See https://github.com/opencollective/opencollective/issues/8702
  */
 type PayoutMethodSnapshot = {
   id: number;
@@ -80,18 +81,10 @@ const createPayoutMethodExpenseActivities = async (
       }
       lastId = expenses[expenses.length - 1].id;
 
-      for (const expense of expenses) {
-        try {
-          await expense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, user, {
-            isSystem: true,
-            notify: false,
-            previousData: { payoutMethod: oldFiltered },
-            newData: { payoutMethod: expense.PayoutMethodId === newSnapshot.id ? newFiltered : newReference },
-          });
-        } catch (e) {
-          reportErrorToSentry(e, { extra: { expenseId: expense.id, payoutMethodId: oldSnapshot.id } });
-        }
-      }
+      await models.Expense.createSystemUpdatedActivities(expenses, user, expense => ({
+        previousData: { payoutMethod: oldFiltered },
+        newData: { payoutMethod: expense.PayoutMethodId === newSnapshot.id ? newFiltered : newReference },
+      }));
 
       if (expenses.length < BATCH_SIZE) {
         return;
@@ -288,11 +281,11 @@ const payoutMethodMutations = {
         } catch (e) {
           reportErrorToSentry(e, { req, user: req.remoteUser, extra: { payoutMethodId: updatedPayoutMethod.id } });
         }
-        // Surface the edit in related expense threads (best-effort, no email).
+        // Surface the edit in related expense threads (best-effort, no email, after the response).
         // Skip when nothing actually changed (e.g. saving without edits).
         const newSnapshot = toPayoutMethodSnapshot(updatedPayoutMethod);
         if (!isEqual(oldSnapshot, newSnapshot)) {
-          await createPayoutMethodExpenseActivities(oldSnapshot, newSnapshot, req.remoteUser);
+          trackActivityDispatch(createPayoutMethodExpenseActivities(oldSnapshot, newSnapshot, req.remoteUser));
         }
         return updatedPayoutMethod;
       } else if (payoutMethod.canBeArchived()) {
@@ -328,12 +321,12 @@ const payoutMethodMutations = {
             extra: { oldPayoutMethodId: payoutMethod.id, newPayoutMethodId: newPayoutMethod.id },
           });
         }
-        // Surface the replacement in related expense threads (best-effort, no email).
+        // Surface the replacement in related expense threads (best-effort, no email, after the response).
         // Covers both historical expenses (still on the old id) and pending expenses (now on the new id).
         // Skip when nothing actually changed.
         const newSnapshot = toPayoutMethodSnapshot(newPayoutMethod);
         if (!isEqual(oldSnapshot, newSnapshot)) {
-          await createPayoutMethodExpenseActivities(oldSnapshot, newSnapshot, req.remoteUser);
+          trackActivityDispatch(createPayoutMethodExpenseActivities(oldSnapshot, newSnapshot, req.remoteUser));
         }
         return newPayoutMethod;
       } else {

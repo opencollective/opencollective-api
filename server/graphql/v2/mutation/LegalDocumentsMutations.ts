@@ -10,6 +10,7 @@ import { cast, col, fn, literal } from 'sequelize';
 import ActivityTypes from '../../../constants/activities';
 import FEATURE from '../../../constants/feature';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
+import { trackActivityDispatch } from '../../../lib/notifications/activity-dispatch-tracker';
 import { notify } from '../../../lib/notifications/email';
 import { getUSTaxFormPdf } from '../../../lib/pdf';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
@@ -200,12 +201,14 @@ export const legalDocumentsMutations = {
         reportErrorToSentry(e, { req });
       }
 
-      // Surface the submission in related expense threads (best-effort, no email)
-      await LegalDocument.createExpenseActivitiesForTaxFormChange(account, legalDocument, {
-        previousStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
-        newStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
-        user: req.remoteUser,
-      });
+      // Surface the submission in related expense threads (best-effort, no email, after the response)
+      trackActivityDispatch(
+        LegalDocument.createExpenseActivitiesForTaxFormChange(account, legalDocument, {
+          previousStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
+          newStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+          user: req.remoteUser,
+        }),
+      );
 
       return legalDocument;
     },
@@ -294,12 +297,14 @@ export const legalDocumentsMutations = {
           },
         });
 
-        // Surface the change in related expense threads (best-effort, no email)
-        await LegalDocument.createExpenseActivitiesForTaxFormChange(legalDocument.collective, updatedDocument, {
-          previousStatus,
-          newStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
-          user: req.remoteUser,
-        });
+        // Surface the change in related expense threads (best-effort, no email, after the response)
+        trackActivityDispatch(
+          LegalDocument.createExpenseActivitiesForTaxFormChange(legalDocument.collective, updatedDocument, {
+            previousStatus,
+            newStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+            user: req.remoteUser,
+          }),
+        );
 
         return updatedDocument;
       } else if (args.status === LEGAL_DOCUMENT_REQUEST_STATUS.INVALID) {

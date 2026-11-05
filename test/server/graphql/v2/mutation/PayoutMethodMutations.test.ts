@@ -5,6 +5,10 @@ import { createSandbox } from 'sinon';
 import ActivityTypes from '../../../../../server/constants/activities';
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import * as kycExpensesCheck from '../../../../../server/lib/kyc/expenses/kyc-expenses-check';
+import {
+  disableActivityDispatchTracking,
+  enableActivityDispatchTracking,
+} from '../../../../../server/lib/notifications/activity-dispatch-tracker';
 import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models from '../../../../../server/models';
 import { PayoutMethodTypes, PaypalPayoutMethodData } from '../../../../../server/models/PayoutMethod';
@@ -881,7 +885,15 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       }
     `;
 
-    beforeEach(utils.resetTestDB);
+    beforeEach(async () => {
+      await utils.resetTestDB();
+      // The fan-out runs after the response: tests wait for it with `waitAllDispatch`
+      enableActivityDispatchTracking();
+    });
+
+    afterEach(() => {
+      disableActivityDispatchTracking();
+    });
 
     it('does not create expense activities when nothing changed', async () => {
       const user = await fakeUser();
@@ -907,6 +919,7 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       );
 
       expect(result.errors).to.not.exist;
+      await models.Activity.waitAllDispatch();
       const activities = await models.Activity.findAll({
         where: { type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, ExpenseId: expense.id },
       });
@@ -945,6 +958,7 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       );
 
       expect(result.errors).to.not.exist;
+      await models.Activity.waitAllDispatch();
       const activitiesCount = await models.Activity.count({
         where: { type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, ExpenseId: expenseIds },
       });
@@ -956,6 +970,11 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       expect(sampleActivity.data.previousData.payoutMethod.name).to.equal('Shared method');
       expect(sampleActivity.data.newData.payoutMethod.name).to.equal('Renamed method');
       expect(sampleActivity.data.notify).to.equal(false);
+      expect(sampleActivity.data.isSystem).to.equal(true);
+      expect(sampleActivity.UserId).to.equal(user.id);
+      expect(sampleActivity.data.expense.id).to.equal(expenseIds[0]);
+      expect(sampleActivity.data.expense.status).to.equal('PENDING');
+      expect(sampleActivity.data.collective.id).to.equal(collective.id);
     });
 
     it('only records the new method details on expenses that use it after a replace', async () => {
@@ -992,6 +1011,7 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       );
 
       expect(result.errors).to.not.exist;
+      await models.Activity.waitAllDispatch();
       await paidExpense.reload();
       await pendingExpense.reload();
       expect(paidExpense.PayoutMethodId).to.equal(payoutMethod.id);

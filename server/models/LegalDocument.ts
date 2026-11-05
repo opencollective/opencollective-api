@@ -20,6 +20,7 @@ import {
 } from '../constants/tax-form';
 import { parseS3Url } from '../lib/awsS3';
 import { crypto, secretbox } from '../lib/encryption';
+import { trackActivityDispatch } from '../lib/notifications/activity-dispatch-tracker';
 import { notify } from '../lib/notifications/email';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import SQLQueries from '../lib/queries';
@@ -127,22 +128,16 @@ class LegalDocument extends ModelWithPublicId<
     },
   ): Promise<void> => {
     try {
+      // Accessed through `sequelize.models` to avoid a circular import with the Expense model
       const ExpenseModel = sequelize.models.Expense as unknown as {
-        findAll: (options: unknown) => Promise<
-          Array<{
-            id: number;
-            CollectiveId: number;
-            FromCollectiveId: number;
-            HostCollectiveId?: number | null;
-            paidAt?: Date | string;
-            createdAt?: Date | string;
-            createActivity: (
-              type: (typeof activities)[keyof typeof activities],
-              user: User | { id: number } | null,
-              data?: Record<string, unknown>,
-            ) => Promise<unknown>;
-          }>
-        >;
+        findAll: (
+          options: unknown,
+        ) => Promise<Array<{ id: number; CollectiveId: number; HostCollectiveId?: number | null }>>;
+        createSystemUpdatedActivities: (
+          expenses: Array<{ id: number }>,
+          user: User | { id: number } | null,
+          getData: () => Record<string, unknown>,
+        ) => Promise<void>;
       };
       const CollectiveModel = sequelize.models.Collective as unknown as {
         findAll: (options: unknown) => Promise<Array<{ id: number; HostCollectiveId?: number | null }>>;
@@ -174,6 +169,17 @@ class LegalDocument extends ModelWithPublicId<
             FromCollectiveId: payee.id,
             type: { [Op.notIn]: [...TAX_FORM_IGNORED_EXPENSE_TYPES] },
             status: { [Op.notIn]: [...TAX_FORM_IGNORED_EXPENSE_STATUSES] },
+            // Expenses paid (or, if unpaid, created) in the document year
+            [Op.and]: [
+              sequelize.where(
+                sequelize.fn(
+                  'date_part',
+                  'year',
+                  sequelize.fn('COALESCE', sequelize.col('paidAt'), sequelize.col('createdAt')),
+                ),
+                targetYear,
+              ),
+            ],
           },
           order: [['id', 'ASC']],
           limit: BATCH_SIZE,
@@ -184,53 +190,35 @@ class LegalDocument extends ModelWithPublicId<
         }
         lastId = expenses[expenses.length - 1].id;
 
-        const yearMatchingExpenses = expenses.filter(expense => {
-          const refDate = expense.paidAt || expense.createdAt;
-          if (!refDate) {
-            return true;
-          }
-          return new Date(refDate).getFullYear() === targetYear;
+        // Tax-form applicability is host-specific: only fan out to expenses under a host
+        // that requires US tax forms, preserving the document year for the check.
+        const collectiveIds = uniq(expenses.map(expense => expense.CollectiveId));
+        const collectives = await CollectiveModel.findAll({
+          where: { id: collectiveIds },
+          attributes: ['id', 'HostCollectiveId'],
         });
+        const hostIdByCollectiveId = new Map(collectives.map(c => [c.id, c.HostCollectiveId]));
+        const hostIds = uniq(
+          expenses
+            .map(expense => expense.HostCollectiveId ?? hostIdByCollectiveId.get(expense.CollectiveId))
+            .filter((hostId): hostId is number => Boolean(hostId)),
+        );
 
-        if (yearMatchingExpenses.length) {
-          // Tax-form applicability is host-specific: only fan out to expenses under a host
-          // that requires US tax forms, preserving the document year for the check.
-          const collectiveIds = uniq(yearMatchingExpenses.map(expense => expense.CollectiveId));
-          const collectives = await CollectiveModel.findAll({
-            where: { id: collectiveIds },
-            attributes: ['id', 'HostCollectiveId'],
+        if (hostIds.length) {
+          const requiredDocs = await RequiredLegalDocumentModel.findAll({
+            where: { HostCollectiveId: hostIds, documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM },
+            attributes: ['HostCollectiveId'],
           });
-          const hostIdByCollectiveId = new Map(collectives.map(c => [c.id, c.HostCollectiveId]));
-          const hostIds = uniq(
-            yearMatchingExpenses
-              .map(expense => expense.HostCollectiveId ?? hostIdByCollectiveId.get(expense.CollectiveId))
-              .filter((hostId): hostId is number => Boolean(hostId)),
+          const taxFormHostIds = new Set(requiredDocs.map(doc => doc.HostCollectiveId));
+          const applicableExpenses = expenses.filter(expense =>
+            taxFormHostIds.has(expense.HostCollectiveId ?? hostIdByCollectiveId.get(expense.CollectiveId)),
           );
 
-          if (hostIds.length) {
-            const requiredDocs = await RequiredLegalDocumentModel.findAll({
-              where: { HostCollectiveId: hostIds, documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM },
-              attributes: ['HostCollectiveId'],
-            });
-            const taxFormHostIds = new Set(requiredDocs.map(doc => doc.HostCollectiveId));
-            const applicableExpenses = yearMatchingExpenses.filter(expense =>
-              taxFormHostIds.has(expense.HostCollectiveId ?? hostIdByCollectiveId.get(expense.CollectiveId)),
-            );
-
-            for (const expense of applicableExpenses) {
-              try {
-                await expense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, user, {
-                  isSystem: true,
-                  notify: false,
-                  previousData: { taxFormStatus: previousStatus },
-                  newData: { taxFormStatus: newStatus },
-                  taxForm: taxFormInfo,
-                });
-              } catch (e) {
-                reportErrorToSentry(e, { extra: { expenseId: expense.id, legalDocumentId: legalDocument.id } });
-              }
-            }
-          }
+          await ExpenseModel.createSystemUpdatedActivities(applicableExpenses, user, () => ({
+            previousData: { taxFormStatus: previousStatus },
+            newData: { taxFormStatus: newStatus },
+            taxForm: taxFormInfo,
+          }));
         }
 
         if (expenses.length < BATCH_SIZE) {
@@ -307,12 +295,14 @@ class LegalDocument extends ModelWithPublicId<
     });
 
     if (isNew) {
-      // Surface the request in related expense threads (best-effort, no email)
-      await LegalDocument.createExpenseActivitiesForTaxFormChange(payee, legalDocument, {
-        previousStatus: LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED,
-        newStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
-        user,
-      });
+      // Surface the request in related expense threads (best-effort, no email, after the response)
+      trackActivityDispatch(
+        LegalDocument.createExpenseActivitiesForTaxFormChange(payee, legalDocument, {
+          previousStatus: LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED,
+          newStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
+          user,
+        }),
+      );
     }
 
     return legalDocument;
@@ -382,12 +372,14 @@ class LegalDocument extends ModelWithPublicId<
           { transaction: sqlTransaction },
         );
       })
-      .then(async () => {
-        await LegalDocument.createExpenseActivitiesForTaxFormChange(payee, legalDocument, {
-          previousStatus,
-          newStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
-          user,
-        });
+      .then(() => {
+        trackActivityDispatch(
+          LegalDocument.createExpenseActivitiesForTaxFormChange(payee, legalDocument, {
+            previousStatus,
+            newStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+            user,
+          }),
+        );
       });
   };
 
@@ -588,12 +580,14 @@ class LegalDocument extends ModelWithPublicId<
       );
     });
 
-    // Surface the invalidation in related expense threads (best-effort, no email)
-    await LegalDocument.createExpenseActivitiesForTaxFormChange(payee, this, {
-      previousStatus,
-      newStatus: LEGAL_DOCUMENT_REQUEST_STATUS.INVALID,
-      user,
-    });
+    // Surface the invalidation in related expense threads (best-effort, no email, after the response)
+    trackActivityDispatch(
+      LegalDocument.createExpenseActivitiesForTaxFormChange(payee, this, {
+        previousStatus,
+        newStatus: LEGAL_DOCUMENT_REQUEST_STATUS.INVALID,
+        user,
+      }),
+    );
 
     return this;
   };
