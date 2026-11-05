@@ -230,6 +230,8 @@ export interface PlatformSubscriptionPlan {
   /**
    * Set on a secondary host (e.g. one host per currency): its activity is counted on this host's bill.
    * The plan should have no price of its own, so that the organization pays a single base price.
+   * The whole month's activity counts as soon as the subscription overlaps it, so links must only start,
+   * end or change at a month boundary.
    */
   billedToCollectiveId?: number;
   pricing: {
