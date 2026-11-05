@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import nock from 'nock';
 
 import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
@@ -17,7 +18,7 @@ import {
   fakeTransaction,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, nockFixerRates, resetTestDB } from '../../../../utils';
+import { graphqlQueryV2, nockFixerRates, resetCaches, resetTestDB } from '../../../../utils';
 
 describe('server/graphql/v2/interface/Account', () => {
   describe('kycVerificationRequests', () => {
@@ -379,6 +380,7 @@ describe('server/graphql/v2/interface/Account', () => {
 
     beforeEach(async () => {
       await resetTestDB();
+      await resetCaches();
     });
 
     it('orders members by the total amount they contributed', async () => {
@@ -500,6 +502,11 @@ describe('server/graphql/v2/interface/Account', () => {
           }
         }
       `;
+
+      afterEach(() => {
+        // nockFixerRates persists its interceptor: remove it so it doesn't answer FX requests in later tests
+        nock.cleanAll();
+      });
 
       const getRanking = async (slug, role = [MemberRoles.BACKER]) => {
         const result = await graphqlQueryV2(totalsQuery, { slug, role });

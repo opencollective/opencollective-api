@@ -6,6 +6,7 @@ import { QueryTypes } from 'sequelize';
 import { CollectiveType } from '../../../constants/collectives';
 import type { SupportedCurrency } from '../../../constants/currencies';
 import MemberRoles, { MemberRolesForPrivateAccounts } from '../../../constants/roles';
+import { memoize } from '../../../lib/cache';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import models, { type Collective, Op, sequelize } from '../../../models';
 import { checkScope, isRemoteUserRoot } from '../../common/scope-check';
@@ -26,15 +27,22 @@ const TOTAL_DONATIONS_EXCLUDED_KINDS = ['HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_
 /**
  * Sums, per contributor and currency, what was contributed to `collectiveId` directly or with a gift card the
  * contributor emitted. Same filters as `Member.totalDonations`. Pass `contributorIds` to only aggregate those.
+ *
+ * Cached for a few minutes: on the largest accounts this aggregate takes seconds, and paging through the members (or
+ * repeating the same request) would otherwise compute it again each time.
  */
-const getContributedTotalsByCurrency = (collectiveId: number, contributorIds?: number[]) => {
-  const contributorFilter = (column: string) => (contributorIds ? `AND t."${column}" IN (:contributorIds)` : '');
-  const commonFilters = `
+const getContributedTotalsByCurrency = memoize(
+  (
+    collectiveId: number,
+    contributorIds?: number[],
+  ): Promise<Array<{ contributorId: number; currency: SupportedCurrency; total: string }>> => {
+    const contributorFilter = (column: string) => (contributorIds ? `AND t."${column}" IN (:contributorIds)` : '');
+    const commonFilters = `
     t."CollectiveId" = :collectiveId AND t."deletedAt" IS NULL AND t."type" = 'CREDIT'
     AND t."RefundTransactionId" IS NULL AND t."kind" NOT IN (:excludedKinds)
   `;
-  return sequelize.query<{ contributorId: number; currency: SupportedCurrency; total: string }>(
-    `
+    return sequelize.query<{ contributorId: number; currency: SupportedCurrency; total: string }>(
+      `
     SELECT s."contributorId", s.currency, SUM(s.amount) AS total
     FROM (
       SELECT t."FromCollectiveId" AS "contributorId", t.currency, t.amount
@@ -49,12 +57,14 @@ const getContributedTotalsByCurrency = (collectiveId: number, contributorIds?: n
     ) s
     GROUP BY s."contributorId", s.currency
     `,
-    {
-      replacements: { collectiveId, contributorIds, excludedKinds: TOTAL_DONATIONS_EXCLUDED_KINDS },
-      type: QueryTypes.SELECT,
-    },
-  );
-};
+      {
+        replacements: { collectiveId, contributorIds, excludedKinds: TOTAL_DONATIONS_EXCLUDED_KINDS },
+        type: QueryTypes.SELECT,
+      },
+    );
+  },
+  { key: 'membersContributedTotalsByCurrency', maxAge: 10 * 60 },
+);
 
 /**
  * Orders the members by the total amount they contributed (same amount as `Member.totalDonations`: refunds and fee
