@@ -36,7 +36,7 @@ const getRateLimiter = (req: express.Request) => {
   if (req.remoteUser) {
     return new RateLimit(`search:user:${req.remoteUser.id}`, config.limits.search.global.perMinutePerUser, 60);
   } else {
-    return new RateLimit(`search:ip:${req.ip}`, config.limits.search.global.perMinutePerIP, 60);
+    return new RateLimit(`search:ip:${req.ip}`, config.limits.search.global.perMinutePerIp, 60);
   }
 };
 

@@ -322,16 +322,32 @@ const transactionImportsMutations = {
         throw new ValidationFailed('You can only import transactions in CSV or manually created imports');
       }
 
+      // Convert the rows before the rate limits, so that malformed input is rejected without being counted
+      const rows = args.data.map(row => {
+        if (!row.amount.currency) {
+          throw new ValidationFailed(`A currency is required for the amount of row ${row.sourceId}`);
+        }
+
+        return {
+          ...row,
+          sourceId: truncate(row.sourceId, { length: 255 }),
+          description: truncate(row.description, { length: 255 }),
+          amount: getValueInCentsFromAmountInput(row.amount),
+          currency: row.amount.currency,
+        };
+      });
+
       // Rate rate limit on the number of rows imported per hour
       const rateLimitRows = new RateLimit(`transactions-imports-rows-${req.remoteUser.id}`, maxRows);
-      if (await rateLimitRows.hasReachedLimit()) {
+      if (!(await rateLimitRows.registerCall(args.data.length))) {
         throw new RateLimitExceeded('You have reached the limit of transactions imports rows per hour');
       }
 
       // Rate limit on the number of imports per hour
       const maxImportsPerHour = config.limits.transactionsImports.perHourPerUser;
       const rateLimit = new RateLimit(`transactions-imports-${req.remoteUser.id}`, maxImportsPerHour);
-      if (await rateLimit.hasReachedLimit()) {
+      if (!(await rateLimit.registerCall())) {
+        await rateLimitRows.unregisterCall(args.data.length); // These rows were not imported
         throw new RateLimitExceeded('You have reached the limit of transactions imports per hour');
       }
 
@@ -340,9 +356,6 @@ const transactionImportsMutations = {
       if (args.file) {
         file = await UploadedFile.uploadGraphQl(await args.file, 'TRANSACTIONS_IMPORT', req.remoteUser);
       }
-
-      // Register rate limit call as soon as the file is uploaded
-      rateLimit.registerCall();
 
       return sequelize.transaction(async transaction => {
         if (file || args.csvConfig) {
@@ -356,16 +369,7 @@ const transactionImportsMutations = {
           );
         }
 
-        await importInstance.addRows(
-          args.data.map(row => ({
-            ...row,
-            sourceId: truncate(row.sourceId, { length: 255 }),
-            description: truncate(row.description, { length: 255 }),
-            amount: getValueInCentsFromAmountInput(row.amount),
-            currency: row.amount.currency,
-          })),
-          { transaction },
-        );
+        await importInstance.addRows(rows, { transaction });
 
         return importInstance;
       });

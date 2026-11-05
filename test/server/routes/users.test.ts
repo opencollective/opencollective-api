@@ -11,6 +11,7 @@ import app from '../../../server/index';
 import * as auth from '../../../server/lib/auth';
 import emailLib, { getTemplateAttributes } from '../../../server/lib/email';
 import { crypto } from '../../../server/lib/encryption';
+import RateLimit from '../../../server/lib/rate-limit';
 import models from '../../../server/models';
 import { fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
@@ -271,6 +272,46 @@ describe('server/routes/users', () => {
 
       // And then the token should have a long expiration
       expect(moment(parsedToken.exp).diff(parsedToken.iat)).to.equal(auth.TOKEN_EXPIRATION_SESSION);
+    });
+
+    describe('rate limiting', () => {
+      let rateLimit: RateLimit;
+
+      // User ids are reused across tests, and the counter outlives them in Redis
+      afterEach(() => rateLimit?.reset());
+
+      const setup = async () => {
+        const secret = generateSecret({ length: 64 });
+        const user = await fakeUser({ twoFactorAuthToken: crypto.encrypt(secret) });
+        rateLimit = new RateLimit(`user_2FA_endpoint_${user.id}`, 10);
+        await rateLimit.reset();
+        const token = user.jwt({ scope: 'twofactorauth' });
+        const sendCode = twoFactorAuthenticatorCode =>
+          request(expressApp)
+            .post(twoFactorAuthUrl)
+            .send({ twoFactorAuthenticatorCode })
+            .set('Authorization', `Bearer ${token}`);
+        return { secret, sendCode };
+      };
+
+      it('only validates 10 codes from 50 concurrent requests', async () => {
+        const { sendCode } = await setup();
+        const responses = await Promise.all(Array.from({ length: 50 }, () => sendCode('123456')));
+        expect(responses.filter(response => response.statusCode === 401)).to.have.length(10);
+        expect(responses.filter(response => response.statusCode === 429)).to.have.length(40);
+      });
+
+      it('does not count successful attempts', async () => {
+        const { secret, sendCode } = await setup();
+        for (let i = 0; i < 9; i++) {
+          expect((await sendCode('123456')).statusCode).to.equal(401);
+        }
+
+        expect((await sendCode(generateSync({ secret }))).statusCode).to.equal(200);
+        expect(await rateLimit.getCallsCount()).to.equal(9);
+        expect((await sendCode('123456')).statusCode).to.equal(401);
+        expect((await sendCode('123456')).statusCode).to.equal(429);
+      });
     });
   });
 

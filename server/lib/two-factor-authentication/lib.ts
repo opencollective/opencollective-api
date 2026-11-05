@@ -245,19 +245,17 @@ async function validateRequest(
       // The Redis lock also coordinates validation across API workers. Check and update the
       // budget under the same lock so concurrent failures cannot overwrite each other's counts.
       lockUntilResolved(rateLimitKey, async () => {
+        // Register the attempt before validating, so that the limit fails closed if the store is unavailable.
+        // Refused attempts are counted too, like with any `RateLimit`.
         const rateLimit = new RateLimit(rateLimitKey, 10, ONE_HOUR_IN_SECONDS);
-        if (await rateLimit.hasReachedLimit()) {
+        if (!(await rateLimit.registerCall())) {
           throw new RateLimitExceeded('Too many attempts. Please try again in an hour');
         }
 
-        try {
-          await validateToken(remoteUser, token, req);
-        } catch (error) {
-          await rateLimit.registerCall();
-          throw error;
-        }
+        await validateToken(remoteUser, token, req);
 
         // Successful validations neither consume nor reset the failed-attempt budget.
+        await rateLimit.unregisterCall();
         await storeTwoFactorSession(req, options);
         return true;
       }),

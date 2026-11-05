@@ -1,4 +1,3 @@
-/* eslint-disable custom-errors/no-unthrown-errors */
 import bcrypt from 'bcrypt';
 import config from 'config';
 import type express from 'express';
@@ -882,14 +881,10 @@ export const twoFactorAuthAndUpdateToken = async (
 
   const userId = Number(req.jwtPayload.sub);
 
-  // Both 2FA and recovery codes rate limited to 10 tries per hour
+  // Both 2FA and recovery codes rate limited to 10 failed tries per hour. The attempt is registered before validating
+  // so that concurrent requests can't all pass the check, and given back on success.
   const rateLimit = new RateLimit(`user_2FA_endpoint_${userId}`, 10, ONE_HOUR_IN_SECONDS);
-  const fail = async exception => {
-    await rateLimit.registerCall();
-    next(exception);
-  };
-
-  if (await rateLimit.hasReachedLimit()) {
+  if (!(await rateLimit.registerCall())) {
     next(new TooManyRequests('Too many attempts. Please try again in an hour'));
     return;
   }
@@ -906,7 +901,7 @@ export const twoFactorAuthAndUpdateToken = async (
     twoFactorAuthenticationType ?? (twoFactorAuthenticatorCode ? TwoFactorMethod.TOTP : TwoFactorMethod.RECOVERY_CODE);
 
   if (!code) {
-    fail(new BadRequest('This endpoint requires you to provide a 2FA code or a recovery code'));
+    next(new BadRequest('This endpoint requires you to provide a 2FA code or a recovery code'));
     return;
   }
 
@@ -920,9 +915,12 @@ export const twoFactorAuthAndUpdateToken = async (
       req,
     );
   } catch {
-    fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
+    next(new Unauthorized('Two-factor authentication code failed. Please try again'));
     return;
   }
+
+  // Successful validations don't consume the budget
+  await rateLimit.unregisterCall();
 
   // Context: this is token generation after signin and valid 2FA authentication
 

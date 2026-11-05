@@ -235,7 +235,7 @@ describe('REST session authentication and connected-account rate limiting', () =
   });
 
   it('shares the real 60-request limit across aliases, before authorization and provider handling, per IP', async () => {
-    const cacheSpy = sandbox.spy(sessionCache, 'set');
+    const cacheSpy = sandbox.spy(sessionCache, 'increment');
     const providerSpy = sandbox.spy(stripe.oauth, 'redirectUrl');
 
     // Unsupported services still consume the limit before the provider allowlist runs.
@@ -244,7 +244,7 @@ describe('REST session authentication and connected-account rate limiting', () =
       await request(expressApp).get(path).set('X-Forwarded-For', testIps[0]).expect(404);
     }
     expect(await sessionCache.get(limiterKey(testIps[0]))).to.eq(60);
-    expect(cacheSpy).to.have.been.calledWith(limiterKey(testIps[0]), 60, 10);
+    expect(cacheSpy).to.have.been.calledWith(limiterKey(testIps[0]), 1, 10);
 
     for (const alias of initiationAliases) {
       await request(expressApp)
@@ -268,6 +268,7 @@ describe('REST session authentication and connected-account rate limiting', () =
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
     expect(await sessionCache.get(limiterKey(testIps[1]))).to.eq(1);
-    expect(await sessionCache.get(limiterKey(testIps[0]))).to.eq(60);
+    // Rejected calls are counted too (atomic increment), but none of them got through
+    expect(await sessionCache.get(limiterKey(testIps[0]))).to.eq(60 + initiationAliases.length + 1);
   });
 });
