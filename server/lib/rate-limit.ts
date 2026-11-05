@@ -4,7 +4,7 @@ import config from 'config';
 
 import { sessionCache } from './cache';
 import logger from './logger';
-import { reportMessageToSentry } from './sentry';
+import { reportErrorToSentry, reportMessageToSentry } from './sentry';
 import { parseToBoolean } from './utils';
 
 export const ONE_HOUR_IN_SECONDS = 60 * 60;
@@ -64,19 +64,27 @@ export default class RateLimit {
    * Atomically register `nbCalls` in the cache. Returns false if the limit had already been reached.
    * Rejected calls are counted too. The counter was already at the limit, so this only matters if calls are later
    * given back with `unregisterCall`.
+   * Fails closed: if the store is unavailable or errors, the call is refused (and reported to Sentry).
    */
   public async registerCall(nbCalls = 1): Promise<boolean> {
     if (this.isDisabled()) {
       return true;
     }
 
-    const count = await sessionCache.increment(this.cacheKey, nbCalls, this.expiryTimeInSeconds);
+    let count: number | undefined;
+    try {
+      count = await sessionCache.increment(this.cacheKey, nbCalls, this.expiryTimeInSeconds);
+    } catch (err) {
+      reportErrorToSentry(err, { severity: 'error', extra: { cacheKey: this.cacheKey } });
+      return false;
+    }
+
     if (count === undefined) {
-      reportMessageToSentry('Rate limit store is not available, allowing call', {
+      reportMessageToSentry('Rate limit store is not available, refusing call', {
         severity: 'error',
         extra: { cacheKey: this.cacheKey },
       });
-      return true;
+      return false;
     }
 
     return count - nbCalls < this.limit;
@@ -88,7 +96,12 @@ export default class RateLimit {
       return;
     }
 
-    await sessionCache.increment(this.cacheKey, -nbCalls, this.expiryTimeInSeconds);
+    try {
+      await sessionCache.increment(this.cacheKey, -nbCalls, this.expiryTimeInSeconds);
+    } catch (err) {
+      // Giving calls back is best effort: a store error must not fail an action that already succeeded
+      reportErrorToSentry(err, { severity: 'error', extra: { cacheKey: this.cacheKey } });
+    }
   }
 
   // Same as registerCall but throws an error if the limit has been reached
