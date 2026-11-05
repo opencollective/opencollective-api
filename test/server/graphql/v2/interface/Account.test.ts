@@ -9,8 +9,10 @@ import {
   fakeIncognitoProfile,
   fakeKYCVerification,
   fakeMember,
+  fakeOrder,
   fakeOrganization,
   fakeTier,
+  fakeTransaction,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
@@ -356,6 +358,112 @@ describe('server/graphql/v2/interface/Account', () => {
     });
   });
 
+  describe('members', () => {
+    const query = gql`
+      query MembersTest($slug: String!, $orderByTotalContributed: OrderDirection, $isActive: Boolean) {
+        account(slug: $slug) {
+          members(role: [BACKER], orderByTotalContributed: $orderByTotalContributed, isActive: $isActive) {
+            totalCount
+            nodes {
+              isActive
+              account {
+                slug
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    beforeEach(async () => {
+      await resetTestDB();
+    });
+
+    it('orders members by the total amount they contributed', async () => {
+      const collective = await fakeCollective();
+      const small = await fakeOrganization();
+      const big = await fakeOrganization();
+      const none = await fakeOrganization();
+      for (const backer of [none, small, big]) {
+        await fakeMember({ CollectiveId: collective.id, MemberCollectiveId: backer.id, role: MemberRoles.BACKER });
+      }
+      await fakeTransaction({ CollectiveId: collective.id, FromCollectiveId: small.id, amount: 1000 });
+      await fakeTransaction({ CollectiveId: collective.id, FromCollectiveId: big.id, amount: 3000 });
+      await fakeTransaction({ CollectiveId: collective.id, FromCollectiveId: big.id, amount: 2000 });
+
+      let result = await graphqlQueryV2(query, { slug: collective.slug, orderByTotalContributed: 'DESC' });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.members.nodes.map(n => n.account.slug)).to.deep.equal([
+        big.slug,
+        small.slug,
+        none.slug,
+      ]);
+
+      result = await graphqlQueryV2(query, { slug: collective.slug, orderByTotalContributed: 'ASC' });
+      expect(result.data.account.members.nodes.map(n => n.account.slug)).to.deep.equal([
+        none.slug,
+        small.slug,
+        big.slug,
+      ]);
+    });
+
+    it('filters active or inactive members, consistently with Member.isActive', async () => {
+      const collective = await fakeCollective();
+      const monthlyTier = await fakeTier({ CollectiveId: collective.id, interval: 'month' });
+      const oneTimeTier = await fakeTier({ CollectiveId: collective.id, interval: null });
+
+      const addBacker = async ({ tier = null, lastContributionDaysAgo = null } = {}) => {
+        const backer = await fakeOrganization();
+        await fakeMember({
+          CollectiveId: collective.id,
+          MemberCollectiveId: backer.id,
+          role: MemberRoles.BACKER,
+          TierId: tier?.id,
+        });
+        if (tier && lastContributionDaysAgo !== null) {
+          const order = await fakeOrder({ CollectiveId: collective.id, FromCollectiveId: backer.id, TierId: tier.id });
+          const createdAt = new Date(Date.now() - lastContributionDaysAgo * 24 * 60 * 60 * 1000);
+          await fakeTransaction({
+            CollectiveId: collective.id,
+            FromCollectiveId: backer.id,
+            OrderId: order.id,
+            amount: 1000,
+            createdAt,
+          });
+        }
+        return backer;
+      };
+
+      const withoutTier = await addBacker();
+      const oneTime = await addBacker({ tier: oneTimeTier });
+      const recentMonthly = await addBacker({ tier: monthlyTier, lastContributionDaysAgo: 10 });
+      const lapsedMonthly = await addBacker({ tier: monthlyTier, lastContributionDaysAgo: 90 });
+      const neverChargedMonthly = await addBacker({ tier: monthlyTier });
+
+      const active = await graphqlQueryV2(query, { slug: collective.slug, isActive: true });
+      expect(active.errors).to.not.exist;
+      expect(active.data.account.members.totalCount).to.equal(3);
+      expect(active.data.account.members.nodes.map(n => n.account.slug)).to.have.members([
+        withoutTier.slug,
+        oneTime.slug,
+        recentMonthly.slug,
+      ]);
+      expect(active.data.account.members.nodes.every(n => n.isActive)).to.be.true;
+
+      const inactive = await graphqlQueryV2(query, { slug: collective.slug, isActive: false });
+      expect(inactive.errors).to.not.exist;
+      expect(inactive.data.account.members.totalCount).to.equal(2);
+      expect(inactive.data.account.members.nodes.map(n => n.account.slug)).to.have.members([
+        lapsedMonthly.slug,
+        neverChargedMonthly.slug,
+      ]);
+      expect(inactive.data.account.members.nodes.every(n => !n.isActive)).to.be.true;
+
+      const all = await graphqlQueryV2(query, { slug: collective.slug });
+      expect(all.data.account.members.totalCount).to.equal(5);
+    });
+  });
+
   describe('memberOf', () => {
     const query = gql`
       query MemberOfTest($slug: String!, $tier: TierReferenceInput, $account: AccountReferenceInput) {
@@ -377,6 +485,80 @@ describe('server/graphql/v2/interface/Account', () => {
 
     beforeEach(async () => {
       await resetTestDB();
+    });
+
+    it('orders memberships by balance of the account', async () => {
+      const user = await fakeUser();
+      const poor = await fakeCollective();
+      const rich = await fakeCollective();
+      for (const collective of [poor, rich]) {
+        await fakeMember({
+          CollectiveId: collective.id,
+          MemberCollectiveId: user.CollectiveId,
+          role: MemberRoles.BACKER,
+        });
+      }
+      await fakeTransaction({ CollectiveId: poor.id, amount: 1000 });
+      await fakeTransaction({ CollectiveId: rich.id, amount: 5000 });
+
+      const balanceQuery = gql`
+        query MemberOfBalance($slug: String!, $direction: OrderDirection!) {
+          account(slug: $slug) {
+            memberOf(orderBy: { field: BALANCE, direction: $direction }) {
+              nodes {
+                account {
+                  slug
+                }
+              }
+            }
+          }
+        }
+      `;
+      let result = await graphqlQueryV2(balanceQuery, { slug: user.collective.slug, direction: 'DESC' }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.memberOf.nodes.map(n => n.account.slug)).to.deep.equal([rich.slug, poor.slug]);
+
+      result = await graphqlQueryV2(balanceQuery, { slug: user.collective.slug, direction: 'ASC' }, user);
+      expect(result.data.account.memberOf.nodes.map(n => n.account.slug)).to.deep.equal([poor.slug, rich.slug]);
+    });
+
+    it('filters active or inactive memberships', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+      const otherCollective = await fakeCollective();
+      const monthlyTier = await fakeTier({ CollectiveId: collective.id, interval: 'month' });
+      await fakeMember({
+        CollectiveId: collective.id,
+        MemberCollectiveId: user.CollectiveId,
+        role: MemberRoles.BACKER,
+        TierId: monthlyTier.id,
+      });
+      await fakeMember({
+        CollectiveId: otherCollective.id,
+        MemberCollectiveId: user.CollectiveId,
+        role: MemberRoles.BACKER,
+      });
+
+      const activeQuery = gql`
+        query MemberOfActive($slug: String!, $isActive: Boolean) {
+          account(slug: $slug) {
+            memberOf(isActive: $isActive) {
+              totalCount
+              nodes {
+                account {
+                  slug
+                }
+              }
+            }
+          }
+        }
+      `;
+      const active = await graphqlQueryV2(activeQuery, { slug: user.collective.slug, isActive: true }, user);
+      expect(active.errors).to.not.exist;
+      expect(active.data.account.memberOf.nodes.map(n => n.account.slug)).to.deep.equal([otherCollective.slug]);
+
+      const inactive = await graphqlQueryV2(activeQuery, { slug: user.collective.slug, isActive: false }, user);
+      expect(inactive.data.account.memberOf.nodes.map(n => n.account.slug)).to.deep.equal([collective.slug]);
     });
 
     it('returns only the memberships recorded with the given tier', async () => {
