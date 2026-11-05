@@ -1563,4 +1563,28 @@ describe('webhook', () => {
       expect(count).to.equal(1);
     });
   });
+
+  describe('webhook()', () => {
+    const expectUnrecognized = async body => {
+      let error;
+      try {
+        await webhook.webhook({ body, rawBody: JSON.stringify(body ?? null), headers: {} } as unknown as Parameters<typeof webhook.webhook>[0]);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.exist;
+      expect(error.message).to.equal('Source of event not recognized');
+    };
+
+    it('rejects payloads without an event type', async () => {
+      await expectUnrecognized({});
+      await expectUnrecognized({ livemode: true });
+      await expectUnrecognized({ type: 123, livemode: true });
+    });
+
+    it('rejects missing payloads', async () => {
+      await expectUnrecognized(undefined);
+      await expectUnrecognized(null);
+    });
+  });
 });
