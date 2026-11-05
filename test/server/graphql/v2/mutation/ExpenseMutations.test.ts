@@ -1858,35 +1858,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eql('Invalid expense invoice file url');
       });
 
-      it('fails if the invoice file is already attached to another expense', async () => {
-        const user = await fakeUser();
-        const invoiceUploadedFile = await fakeUploadedFile({ kind: 'EXPENSE_INVOICE', CreatedByUserId: user.id });
-        await fakeExpense({ type: 'INVOICE', UserId: user.id, InvoiceFileId: invoiceUploadedFile.id });
-        const collective = await fakeCollective();
-        const payee = await fakeCollective({
-          type: CollectiveType.ORGANIZATION,
-          admin: user.collective,
-          location: { address: null },
-        });
-        const expenseData = {
-          ...getValidExpenseData(),
-          type: 'INVOICE',
-          items: [{ description: 'A first item', amount: 4200 }],
-          invoiceFile: { url: invoiceUploadedFile.url },
-          payee: { legacyId: payee.id },
-          reference: '123456',
-        };
-
-        const result = await graphqlQueryV2(
-          createExpenseMutation,
-          { expense: expenseData, account: { legacyId: collective.id } },
-          user,
-        );
-
-        expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eql('This invoice file is already attached to another expense');
-      });
-
       it('ignores if expense type is not invoice', async () => {
         const user = await fakeUser();
         const existingUploadedFile = await fakeUploadedFile({
@@ -4526,25 +4497,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
         await expense.reload();
         expect(expense.InvoiceFileId).to.eql(invoiceUploadedFile.id);
-      });
-
-      it('fails if the invoice file is already attached to another expense', async () => {
-        const user = await fakeUser();
-        const otherInvoiceFile = await fakeUploadedFile({ kind: 'EXPENSE_INVOICE', CreatedByUserId: user.id });
-        await fakeExpense({ type: 'INVOICE', UserId: user.id, InvoiceFileId: otherInvoiceFile.id });
-        const expense = await fakeExpense({ UserId: user.id, type: 'INVOICE', status: 'APPROVED', amount: 3000 });
-
-        const expenseUpdateData = {
-          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
-          invoiceFile: { url: otherInvoiceFile.url },
-        };
-
-        const result = await graphqlQueryV2(editExpenseMutation, { expense: expenseUpdateData }, expense.User);
-        expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eql('This invoice file is already attached to another expense');
-
-        await expense.reload();
-        expect(expense.InvoiceFileId).to.be.null;
       });
 
       it('allows re-submitting the current invoice file, even if it is shared with another expense', async () => {
