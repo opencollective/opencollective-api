@@ -247,7 +247,8 @@ export const IsMemberOfFields = {
         } else if (field === ORDER_BY_PSEUDO_FIELDS.BALANCE) {
           // Balance of the account the membership is on, in its own currency (same formula as the GraphQL v1
           // member lists ordered by balance)
-          order.push([sequelize.literal('"collective.balance"'), direction]);
+          // Many accounts share the same balance (often 0): break ties on the membership id for a stable pagination
+          order.push([sequelize.literal('"collective.balance"'), direction], ['id', direction]);
           collectiveAttributesInclude.push([
             sequelize.literal(`(
                     SELECT COALESCE(SUM("netAmountInCollectiveCurrency"), 0)
