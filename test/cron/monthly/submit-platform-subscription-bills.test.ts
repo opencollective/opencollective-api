@@ -115,7 +115,7 @@ describe('submit-platform-subscription-bills', () => {
       moment(date).subtract(2, 'month').toDate(),
       {
         ...PlatformSubscriptionTiers[1],
-        pricing: { ...PlatformSubscriptionTiers[1].pricing, platformTips: false },
+        pricing: { ...PlatformSubscriptionTiers[1].pricing, platformTips: false, crowdfundingFeePercent: 5 },
       },
       user,
     );
@@ -168,7 +168,7 @@ describe('submit-platform-subscription-bills', () => {
     expect(itemsTable).to.matchTableSnapshot();
   });
 
-  it('bills the crowdfunding fee for plans without platform tips', async () => {
+  it('bills the crowdfunding fee for plans that set a fee percent', async () => {
     const expense = await models.Expense.findOne({
       where: { CollectiveId: tipsOffOrg.id, type: expenseTypes.PLATFORM_BILLING },
     });
