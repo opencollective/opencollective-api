@@ -1568,7 +1568,8 @@ describe('webhook', () => {
     const expectUnrecognized = async body => {
       let error;
       try {
-        await webhook.webhook({ body, rawBody: JSON.stringify(body ?? null), headers: {} } as unknown as Parameters<typeof webhook.webhook>[0]);
+        const request = { body, rawBody: JSON.stringify(body ?? null), headers: {} };
+        await webhook.webhook(request as unknown as Parameters<typeof webhook.webhook>[0]);
       } catch (e) {
         error = e;
       }
