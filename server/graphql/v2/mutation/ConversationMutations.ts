@@ -8,6 +8,9 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import GraphQLConversation from '../object/Conversation';
 
+// No private-account visibility check here: conversations are only available on public accounts
+// (FEATURE.CONVERSATIONS is `onlyPublicAccounts` in server/lib/allowed-features.ts). If that ever
+// changes, `assertCanSeeAccount(req, conversation.collective)` must be added before following.
 const conversationMutations = {
   createConversation: {
     type: GraphQLConversation,

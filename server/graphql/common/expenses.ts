@@ -1712,6 +1712,9 @@ export const markExpenseAsSpam = async (req: express.Request, expense: Expense):
   });
 
   // Limit the user so they can't submit expenses in the future
+  // This is intentional moderation behavior: USE_EXPENSES is limited platform-wide for the submitter
+  // until Open Collective staff review and undo it. The frontend confirmation modal warns the admin
+  // about this effect and a Slack abuse notification is emitted; it is not an accidental side effect.
   const submittedByUser = await updatedExpense.getSubmitterUser();
   await submittedByUser.limitFeature(FEATURE.USE_EXPENSES, `Expense #${expense.id} marked as SPAM`);
 
