@@ -114,6 +114,12 @@ const buildCache = (instanceType = RedisInstanceType.DEFAULT) => ({
     const provider = await getDefaultProvider(instanceType);
     return provider.increment(key, amount, expirationInSeconds);
   },
+  /** Decrements an existing counter, never below zero. Does nothing if the key expired. No try/catch, like `increment`. */
+  decrement: async (key: string, amount: number): Promise<number | undefined> => {
+    debugCache(`decrement ${key} by ${amount}`);
+    const provider = await getDefaultProvider(instanceType);
+    return provider.decrement(key, amount);
+  },
   consume: async (key: string, options?) => {
     try {
       debugCache(`consume ${key}`);

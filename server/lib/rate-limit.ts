@@ -90,14 +90,17 @@ export default class RateLimit {
     return count - nbCalls < this.limit;
   }
 
-  /** Give back calls registered with `registerCall`, e.g. to only count failed attempts */
+  /**
+   * Give back calls registered with `registerCall`, e.g. to only count failed attempts. Does nothing if the window has
+   * expired since, and never takes the counter below zero.
+   */
   public async unregisterCall(nbCalls = 1): Promise<void> {
     if (this.isDisabled()) {
       return;
     }
 
     try {
-      await sessionCache.increment(this.cacheKey, -nbCalls, this.expiryTimeInSeconds);
+      await sessionCache.decrement(this.cacheKey, nbCalls);
     } catch (err) {
       // Giving calls back is best effort: a store error must not fail an action that already succeeded
       reportErrorToSentry(err, { severity: 'error', extra: { cacheKey: this.cacheKey } });

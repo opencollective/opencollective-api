@@ -184,5 +184,60 @@ describe('server/lib/cache/cacheProvider', () => {
         });
       }
     });
+
+    describe(`${provider} provider decrement`, () => {
+      let cache;
+      before(async () => {
+        cache = await getProvider(provider);
+      });
+
+      beforeEach(async () => {
+        await cache.delete(['decrement_total', 'decrement_missing', 'decrement_floor', 'decrement_ttl']);
+      });
+
+      it('decrements an existing counter', async () => {
+        await cache.increment('decrement_total', 3, 60);
+        assert.strictEqual(await cache.decrement('decrement_total', 2), 1);
+        assert.strictEqual(await cache.get('decrement_total'), 1);
+      });
+
+      it('does not create a missing key', async () => {
+        assert.strictEqual(await cache.decrement('decrement_missing', 1), 0);
+        assert.notExists(await cache.get('decrement_missing'));
+      });
+
+      it('never goes below zero', async () => {
+        await cache.increment('decrement_floor', 1, 60);
+        assert.strictEqual(await cache.decrement('decrement_floor', 3), 0);
+        assert.strictEqual(await cache.get('decrement_floor'), 0);
+        assert.strictEqual(await cache.increment('decrement_floor', 1, 60), 1);
+      });
+
+      if (provider === PROVIDER_TYPES.MEMORY) {
+        it('keeps the expiry and does not recreate an expired key', async () => {
+          let now = 1000; // lru-cache ignores the TTL of entries created at time 0
+          const memoryCache = makeMemoryProvider({ max: 10, ttlResolution: 0, perf: { now: () => now } });
+          await memoryCache.increment('decrement_ttl', 2, 60);
+          now += 59 * 1000;
+          assert.strictEqual(await memoryCache.decrement('decrement_ttl', 1), 1);
+          now += 2 * 1000;
+          assert.strictEqual(await memoryCache.decrement('decrement_ttl', 1), 0);
+          assert.notExists(await memoryCache.get('decrement_ttl'));
+        });
+      } else {
+        it('keeps the expiry and does not recreate an expired key', async () => {
+          const redis = await createRedisClient();
+          await cache.increment('decrement_ttl', 2, 60);
+          await redis.expire('decrement_ttl', 5);
+          await cache.decrement('decrement_ttl', 3);
+          assert.isAtMost(await redis.ttl('decrement_ttl'), 5);
+          assert.isAbove(await redis.ttl('decrement_ttl'), 0);
+
+          await redis.del('decrement_ttl');
+          assert.strictEqual(await cache.decrement('decrement_ttl', 1), 0);
+          assert.strictEqual(await redis.exists('decrement_ttl'), 0);
+        });
+      }
+    });
   });
 });

@@ -38,6 +38,15 @@ const makeMemoryProvider = opts => {
       cache.set(key, count, { ttl: expirationInSeconds * 1000, noUpdateTTL: true });
       return count;
     },
+    /** Atomic. Only decrements an existing key (an expired window is never recreated), never below zero, keeping its TTL. */
+    decrement: async (key: string, amount: number): Promise<number | undefined> => {
+      if (!cache.has(key)) {
+        return 0;
+      }
+      const count = Math.max(0, (Number(cache.get(key)) || 0) - amount);
+      cache.set(key, count, { noUpdateTTL: true });
+      return count;
+    },
     /** Atomically return the value if present and remove the key (no await between checks - safe vs concurrent callers). */
     consume: async (key: string, options?: unknown) => {
       void options;
