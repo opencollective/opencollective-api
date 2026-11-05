@@ -270,13 +270,13 @@ describe('submit-platform-subscription-bills', () => {
 
   it('skips organizations without transactions in the billing period that never paid a bill, when enabled', async () => {
     const orgAdmin = await fakeUser();
-    const createOrgWithSubscription = async () => {
+    const createOrgWithSubscription = async (plan = PlatformSubscriptionTiers[2]) => {
       const org = await fakeCollective({ type: CollectiveType.ORGANIZATION, isActive: true });
       await org.addUserWithRole(orgAdmin, roles.ADMIN);
       await PlatformSubscription.createSubscription(
         org,
         moment(date).subtract(2, 'month').toDate(),
-        PlatformSubscriptionTiers[2],
+        plan,
         platformUser,
       );
       calculateUtilizationStub.withArgs(org.id).resolves({ activeCollectives: 0, expensesPaid: 0 });
@@ -305,6 +305,19 @@ describe('submit-platform-subscription-bills', () => {
       createdAt: moment.utc('2023-09-01').toDate(),
     });
 
+    // Only its linked secondary host has a transaction during the billing period
+    const parentOrg = await createOrgWithSubscription();
+    const linkedHost = await createOrgWithSubscription({
+      ...PlatformSubscriptionTiers[2],
+      billedToCollectiveId: parentOrg.id,
+      pricing: { ...PlatformSubscriptionTiers[2].pricing, pricePerMonth: 0 },
+    });
+    await fakeTransaction({
+      CollectiveId: linkedHost.id,
+      HostCollectiveId: linkedHost.id,
+      createdAt: moment.utc('2023-09-15').toDate(),
+    });
+
     await run(date, { skipOrganizationsWithoutTransactions: true });
 
     const inactiveOrgExpenses = await models.Expense.findAll({
@@ -321,5 +334,15 @@ describe('submit-platform-subscription-bills', () => {
       where: { CollectiveId: payingOrg.id, type: expenseTypes.PLATFORM_BILLING },
     });
     expect(payingOrgExpenses).to.have.length(2);
+
+    const parentOrgExpenses = await models.Expense.findAll({
+      where: { CollectiveId: parentOrg.id, type: expenseTypes.PLATFORM_BILLING },
+    });
+    expect(parentOrgExpenses).to.have.length(1);
+
+    const linkedHostExpenses = await models.Expense.findAll({
+      where: { CollectiveId: linkedHost.id, type: expenseTypes.PLATFORM_BILLING },
+    });
+    expect(linkedHostExpenses).to.have.length(0);
   });
 });

@@ -56,10 +56,11 @@ function shouldSkipBillForShortEndedTrial(bill: Billing, asOf: moment.Moment): b
 /** Whether the organization, or any account it hosts, has at least one transaction in the billing period */
 async function hasTransactionsInBillingPeriod(organization: Collective, billingPeriod: BillingPeriod) {
   const billingRange = PlatformSubscription.getBillingPeriodRange(billingPeriod);
+  const hostIds = await PlatformSubscription.getBilledHostIds(organization.id, billingPeriod);
   const transaction = await models.Transaction.findOne({
     attributes: ['id'],
     where: {
-      [Op.or]: [{ CollectiveId: organization.id }, { HostCollectiveId: organization.id }],
+      [Op.or]: [{ CollectiveId: hostIds }, { HostCollectiveId: hostIds }],
       createdAt: {
         [Op.gte]: PlatformSubscription.periodStartDate(billingRange),
         [Op.lte]: PlatformSubscription.periodEndDate(billingRange),
