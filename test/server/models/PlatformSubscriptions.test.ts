@@ -1020,6 +1020,80 @@ describe('server/models/PlatformSubscriptions', () => {
     });
   });
 
+  describe('hosts billed together', () => {
+    const billingPeriod: BillingPeriod = { year: 2026, month: BillingMonth.OCTOBER };
+    const start = new Date(Date.UTC(2026, 9, 1));
+    const proPlan = {
+      title: 'Pro 20',
+      pricing: {
+        pricePerMonth: 32000,
+        includedCollectives: 1,
+        pricePerAdditionalCollective: 2000,
+        includedExpensesPerMonth: 200,
+        pricePerAdditionalExpense: 200,
+        platformTips: true,
+      },
+    };
+
+    const setupHosts = async () => {
+      const parent = await fakeActiveHost();
+      const secondary = await fakeActiveHost();
+      await PlatformSubscription.createSubscription(parent, start, proPlan, null);
+      await PlatformSubscription.createSubscription(
+        secondary,
+        start,
+        {
+          title: 'Secondary host',
+          billedToCollectiveId: parent.id,
+          pricing: {
+            pricePerMonth: 0,
+            includedCollectives: 0,
+            pricePerAdditionalCollective: 0,
+            includedExpensesPerMonth: 0,
+            pricePerAdditionalExpense: 0,
+            platformTips: true,
+          },
+        },
+        null,
+      );
+
+      const transactionDate = new Date(Date.UTC(2026, 9, 15));
+      for (const host of [parent, secondary]) {
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        await fakeTransaction({ CollectiveId: collective.id, HostCollectiveId: host.id, createdAt: transactionDate });
+      }
+
+      return { parent, secondary };
+    };
+
+    it('counts the activity of the secondary host on the parent, with a single base price', async () => {
+      const { parent } = await setupHosts();
+      const bill = await PlatformSubscription.calculateBilling(parent.id, billingPeriod);
+      expect(bill.utilization.activeCollectives).to.eq(2);
+      expect(bill.base.total).to.eq(32000);
+      expect(bill.additional.utilization.activeCollectives).to.eq(1);
+      expect(bill.totalAmount).to.eq(34000);
+    });
+
+    it('does not bill the secondary host', async () => {
+      const { secondary } = await setupHosts();
+      const bill = await PlatformSubscription.calculateBilling(secondary.id, billingPeriod);
+      expect(bill.utilization.activeCollectives).to.eq(1);
+      expect(bill.totalAmount).to.eq(0);
+    });
+
+    it('ignores hosts that do not point to this one', async () => {
+      const { parent, secondary } = await setupHosts();
+      await expect(PlatformSubscription.getBilledHostIds(parent.id, billingPeriod)).to.eventually.have.members([
+        parent.id,
+        secondary.id,
+      ]);
+      await expect(PlatformSubscription.getBilledHostIds(secondary.id, billingPeriod)).to.eventually.eql([
+        secondary.id,
+      ]);
+    });
+  });
+
   describe('consolidateSubscriptionsForBillingPeriod', () => {
     const billingPeriod: BillingPeriod = { year: 2016, month: BillingMonth.JANUARY };
     const discoverPlan = PlatformSubscriptionTiers.find(t => t.id === 'discover-1') as PlatformSubscriptionPlan;
@@ -1430,7 +1504,7 @@ describe('server/models/PlatformSubscriptions', () => {
       const basicPlan = PlatformSubscriptionTiers.find(plan => plan.id === 'basic-5');
       const tipsOffPlan = {
         ...basicPlan,
-        pricing: { ...basicPlan.pricing, platformTips: false },
+        pricing: { ...basicPlan.pricing, platformTips: false, crowdfundingFeePercent: 5 },
       };
 
       async function fakeCrowdfundedHost(plan, subscriptionStart = new Date(Date.UTC(2016, 0, 1))) {
@@ -1505,6 +1579,19 @@ describe('server/models/PlatformSubscriptions', () => {
         expect(billing.totalAmount).to.equal(billing.base.total + billing.additional.total + 650);
       });
 
+      it('does not charge the fee when the plan has platform tips disabled but no fee percent', async () => {
+        const { host, contribution } = await fakeCrowdfundedHost({
+          ...basicPlan,
+          pricing: { ...basicPlan.pricing, platformTips: false },
+        });
+
+        await fakeTransaction({ ...contribution, amount: 10000, createdAt: new Date(Date.UTC(2016, 0, 10)) });
+
+        const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+        expect(billing.crowdfunding).to.deep.equal({ totalAmount: 0, feePercent: 0, fee: 0 });
+        expect(billing.totalAmount).to.equal(billing.base.total + billing.additional.total);
+      });
+
       it('does not charge the fee when the plan has platform tips enabled', async () => {
         const { host, contribution } = await fakeCrowdfundedHost(basicPlan);
 
@@ -1513,6 +1600,30 @@ describe('server/models/PlatformSubscriptions', () => {
         const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
         expect(billing.crowdfunding).to.deep.equal({ totalAmount: 0, feePercent: 0, fee: 0 });
         expect(billing.totalAmount).to.equal(billing.base.total + billing.additional.total);
+      });
+
+      it('charges the fee with platform tips enabled when the plan sets a fee percent, on contributions without tips only', async () => {
+        const { host, collective, contribution } = await fakeCrowdfundedHost({
+          ...basicPlan,
+          pricing: { ...basicPlan.pricing, platformTips: true, crowdfundingFeePercent: 1.5 },
+        });
+
+        await fakeTransaction({ ...contribution, amount: 10000, createdAt: new Date(Date.UTC(2016, 0, 10)) });
+        const orderWithTip = await fakeOrder({
+          CollectiveId: collective.id,
+          platformTipEligible: true,
+          platformTipAmount: 500,
+        });
+        await fakeTransaction({
+          ...contribution,
+          OrderId: orderWithTip.id,
+          amount: 20000,
+          createdAt: new Date(Date.UTC(2016, 0, 10)),
+        });
+
+        const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+        expect(billing.crowdfunding).to.deep.equal({ totalAmount: 10000, feePercent: 1.5, fee: 150 });
+        expect(await collective.hasPlatformTips()).to.equal(true);
       });
 
       it('only charges contributions that were not subject to platform tips', async () => {
