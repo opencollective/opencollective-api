@@ -4,6 +4,7 @@ import config from 'config';
 
 import { sessionCache } from './cache';
 import logger from './logger';
+import { reportMessageToSentry } from './sentry';
 import { parseToBoolean } from './utils';
 
 export const ONE_HOUR_IN_SECONDS = 60 * 60;
@@ -71,7 +72,10 @@ export default class RateLimit {
 
     const count = await sessionCache.increment(this.cacheKey, nbCalls, this.expiryTimeInSeconds);
     if (count === undefined) {
-      logger.warn(`Rate limit store is not available, allowing ${this.cacheKey}`);
+      reportMessageToSentry('Rate limit store is not available, allowing call', {
+        severity: 'error',
+        extra: { cacheKey: this.cacheKey },
+      });
       return true;
     }
 
