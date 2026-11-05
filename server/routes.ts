@@ -34,15 +34,16 @@ import logger from './lib/logger';
 import { withTiming } from './lib/middleware-timing';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
 import { handlePermalink } from './lib/permalink/handler';
+import { ONE_HOUR_IN_SECONDS } from './lib/rate-limit';
 import { createRedisClient, RedisInstanceType } from './lib/redis';
 import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
 import { checkIfSentryConfigured } from './lib/sentry/init';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error-handler';
+import { rateLimitPerUserOrIp } from './middleware/rate-limit';
 import required from './middleware/required-param';
 import sanitizer from './middleware/sanitizer';
-import paypal from './paymentProviders/paypal';
 
 const upload = multer();
 
@@ -371,11 +372,6 @@ export default async (app: express.Application) => {
     return authentication.authenticateServiceCallback(req, res, next);
   }); // oauth callback
 
-  /** Returns the PayPal Connect client ID when configured on this platform (used to initialize the SDK button) */
-  app.get('/connected-accounts/paypal/connect-config', noCache, paypal.oauth.connectConfig);
-  /** PayPal Connect JSON endpoint (used by the PayPal SDK button in the expense form) */
-  app.post('/connected-accounts/paypal/connect', noCache, paypal.oauth.connect);
-
   /**
    * Contact Form
    */
@@ -423,7 +419,14 @@ export default async (app: express.Application) => {
   app.get('/connected-accounts/:service/verify', noCache, connectedAccounts.verify);
 
   /* TransferWise OTT Request Endpoint */
-  app.post('/services/transferwise/pay-batch', noCache, authentication.requireSessionToken, transferwise.payBatch);
+  app.post(
+    '/services/transferwise/pay-batch',
+    noCache,
+    // Before the limiter, so rejected OAuth/personal tokens don't consume the user's budget
+    authentication.requireSessionToken,
+    rateLimitPerUserOrIp('wise-pay-batch', config.limits.wiseBatchPaymentPerHour, ONE_HOUR_IN_SECONDS),
+    transferwise.payBatch,
+  );
 
   /**
    * External services

@@ -1,10 +1,12 @@
 import axios from 'axios';
 import { expect } from 'chai';
+import config from 'config';
 import _ from 'lodash';
 import { createSandbox, stub } from 'sinon';
 
 import activitiesLib from '../../../server/lib/activities';
-import slackLib from '../../../server/lib/slack';
+import logger from '../../../server/lib/logger';
+import slackLib, { OPEN_COLLECTIVE_SLACK_CHANNEL } from '../../../server/lib/slack';
 
 describe('server/lib/slack', () => {
   describe('calling postMessage', () => {
@@ -101,6 +103,50 @@ describe('server/lib/slack', () => {
       expect(slackLib.isSlackWebhookUrl('https://evil.com/hooks.slack.com/services/xxx')).to.be.false;
       expect(slackLib.isSlackWebhookUrl('https://discord.com/not-webhooks/123')).to.be.false;
       expect(slackLib.isSlackWebhookUrl('https://discord.com/api/webhooks/')).to.be.false;
+    });
+  });
+
+  describe('postMessageToOpenCollectiveSlack', () => {
+    let sandbox, originalTestSlack;
+
+    beforeEach(() => {
+      sandbox = createSandbox();
+      originalTestSlack = process.env.TEST_SLACK;
+      process.env.TEST_SLACK = '1';
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+      if (originalTestSlack === undefined) {
+        delete process.env.TEST_SLACK;
+      } else {
+        process.env.TEST_SLACK = originalTestSlack;
+      }
+    });
+
+    it('silently skips channels whose webhook is not configured', async () => {
+      // Load the config without the SLACK_WEBHOOK_ENGINEERING_ALERTS override so the test checks the default value
+      const envOverride = process.env.SLACK_WEBHOOK_ENGINEERING_ALERTS;
+      delete process.env.SLACK_WEBHOOK_ENGINEERING_ALERTS;
+      let defaultConfig;
+      try {
+        // `loadFileConfigs` is an instance method of `config.util` at runtime, but its type is only declared as static
+        defaultConfig = (config.util as unknown as { loadFileConfigs: () => typeof config }).loadFileConfigs();
+      } finally {
+        if (envOverride !== undefined) {
+          process.env.SLACK_WEBHOOK_ENGINEERING_ALERTS = envOverride;
+        }
+      }
+
+      expect(defaultConfig.slack.webhooks.engineeringAlerts).to.be.null;
+      sandbox.stub(config.slack, 'webhooks').value(defaultConfig.slack.webhooks);
+      const axiosPost = sandbox.stub(axios, 'post').resolves({ status: 200 });
+      const loggerWarn = sandbox.stub(logger, 'warn');
+
+      await slackLib.postMessageToOpenCollectiveSlack('hello', OPEN_COLLECTIVE_SLACK_CHANNEL.ENGINEERING_ALERTS);
+
+      expect(axiosPost.called).to.be.false;
+      expect(loggerWarn.called).to.be.false;
     });
   });
 

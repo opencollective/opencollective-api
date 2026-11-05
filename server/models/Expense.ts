@@ -12,7 +12,6 @@ import {
   NonAttribute,
   Transaction as SequelizeTransaction,
 } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 import Stripe from 'stripe';
 import validator from 'validator';
 
@@ -30,6 +29,7 @@ import SQLQueries from '../lib/queries';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import CustomDataTypes from '../models/DataTypes';
 import { Location } from '../types/Location';
