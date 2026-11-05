@@ -26,13 +26,8 @@ import GraphQLPayoutMethod from '../object/PayoutMethod';
  * Best-effort: never throws (errors go to Sentry). Runs after the response, see the call sites.
  * See https://github.com/opencollective/opencollective/issues/8702
  */
-type PayoutMethodSnapshot = {
-  id: number;
-  type: PayoutMethodTypes | string;
-  name?: string;
-  isSaved?: boolean;
-  currency?: string | null;
-  filteredData: Record<string, unknown>;
+type PayoutMethodSnapshot = Pick<PayoutMethodModel, 'id' | 'type' | 'name' | 'isSaved' | 'currency'> & {
+  data: Record<string, unknown>;
 };
 
 const createPayoutMethodExpenseActivities = async (
@@ -46,25 +41,9 @@ const createPayoutMethodExpenseActivities = async (
       return;
     }
 
-    const oldFiltered = {
-      id: oldSnapshot.id,
-      type: oldSnapshot.type,
-      name: oldSnapshot.name,
-      isSaved: oldSnapshot.isSaved,
-      currency: oldSnapshot.currency,
-      data: oldSnapshot.filteredData,
-    };
-    const newFiltered = {
-      id: newSnapshot.id,
-      type: newSnapshot.type,
-      name: newSnapshot.name,
-      isSaved: newSnapshot.isSaved,
-      currency: newSnapshot.currency,
-      data: newSnapshot.filteredData,
-    };
     // After an archive/replace, expenses left on the archived method never use the new one,
     // so their threads only record that it was replaced, without its details.
-    const newReference = { id: newSnapshot.id, type: newSnapshot.type };
+    const newReference = pick(newSnapshot, ['id', 'type']);
 
     // Paginate through all linked expenses (no overall cap), oldest first for stable paging.
     const BATCH_SIZE = 100;
@@ -82,8 +61,8 @@ const createPayoutMethodExpenseActivities = async (
       lastId = expenses[expenses.length - 1].id;
 
       await models.Expense.createSystemUpdatedActivities(expenses, user, expense => ({
-        previousData: { payoutMethod: oldFiltered },
-        newData: { payoutMethod: expense.PayoutMethodId === newSnapshot.id ? newFiltered : newReference },
+        previousData: { payoutMethod: oldSnapshot },
+        newData: { payoutMethod: expense.PayoutMethodId === newSnapshot.id ? newSnapshot : newReference },
       }));
 
       if (expenses.length < BATCH_SIZE) {
@@ -95,13 +74,10 @@ const createPayoutMethodExpenseActivities = async (
   }
 };
 
+/** The payout method as recorded in expense thread activities (filtered data only) */
 const toPayoutMethodSnapshot = (payoutMethod: PayoutMethodModel): PayoutMethodSnapshot => ({
-  id: payoutMethod.id,
-  type: payoutMethod.type,
-  name: payoutMethod.name,
-  isSaved: payoutMethod.isSaved,
-  currency: payoutMethod.currency,
-  filteredData: payoutMethod.getFilteredData() as Record<string, unknown>,
+  ...pick(payoutMethod, ['id', 'type', 'name', 'isSaved', 'currency']),
+  data: payoutMethod.getFilteredData() as Record<string, unknown>,
 });
 
 const payoutMethodMutations = {
