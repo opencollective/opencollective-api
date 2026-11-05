@@ -8,9 +8,11 @@ import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import models, { type Collective, Op, sequelize } from '../../../models';
 import { checkScope, isRemoteUserRoot } from '../../common/scope-check';
 import { BadRequest } from '../../errors';
+import { getMemberIsActiveSQLCondition } from '../../loaders/members';
 import { GraphQLMemberCollection } from '../collection/MemberCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../enum/AccountType';
 import { GraphQLMemberRole } from '../enum/MemberRole';
+import { GraphQLOrderDirectionType } from '../enum/OrderDirectionType';
 import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 import MemberInvitationsQuery from '../query/MemberInvitationsQuery';
@@ -33,6 +35,16 @@ export const HasMembersFields = {
         type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
         defaultValue: { field: 'createdAt', direction: 'ASC' },
         description: 'Order of the results',
+      },
+      orderByTotalContributed: {
+        type: GraphQLOrderDirectionType,
+        description:
+          'Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.',
+      },
+      isActive: {
+        type: GraphQLBoolean,
+        description:
+          'Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.',
       },
       includeInherited: {
         type: GraphQLBoolean,
@@ -67,6 +79,7 @@ export const HasMembersFields = {
         role?: { [Op.in]: string[] };
         TierId?: number | { [Op.is]: null };
         [Op.or]?: [typeof where, { CollectiveId?: number; role?: { [Op.in]: string[] }; TierId?: number }];
+        [Op.and]?: ReturnType<typeof sequelize.literal>[];
       } = { CollectiveId: collective.id };
       const collectiveInclude = [];
 
@@ -140,11 +153,34 @@ export const HasMembersFields = {
         }
       }
 
+      if (!isNil(args.isActive)) {
+        const isActiveCondition = getMemberIsActiveSQLCondition('Member');
+        where = {
+          ...where,
+          [Op.and]: [sequelize.literal(args.isActive ? isActiveCondition : `NOT ${isActiveCondition}`)],
+        };
+      }
+
+      const order: Array<[string, string] | [ReturnType<typeof sequelize.literal>, string]> = [];
+      if (args.orderByTotalContributed) {
+        // Same amount as `Member.totalDonations`: contributions (and gift cards) from the member account to this account
+        const totalContributed = sequelize.literal(`(
+          SELECT COALESCE(SUM(t."amount"), 0)
+          FROM "Transactions" t
+          WHERE t."CollectiveId" = "Member"."CollectiveId"
+          AND t."deletedAt" IS NULL
+          AND t."type" = 'CREDIT'
+          AND (t."FromCollectiveId" = "Member"."MemberCollectiveId" OR t."UsingGiftCardFromCollectiveId" = "Member"."MemberCollectiveId")
+        )`);
+        order.push([totalContributed, args.orderByTotalContributed]);
+      }
+      order.push([args.orderBy.field, args.orderBy.direction]);
+
       const result = await models.Member.findAndCountAll({
         where,
         limit: args.limit,
         offset: args.offset,
-        order: [[args.orderBy.field, args.orderBy.direction]],
+        order,
         attributes: {
           include: [
             [sequelize.literal(`"Member"."CollectiveId" = ${collective.ParentCollectiveId || 0}`), 'inherited'],
