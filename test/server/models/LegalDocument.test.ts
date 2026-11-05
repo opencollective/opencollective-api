@@ -9,7 +9,7 @@ import {
   disableActivityDispatchTracking,
   enableActivityDispatchTracking,
 } from '../../../server/lib/notifications/activity-dispatch-tracker';
-import models from '../../../server/models';
+import models, { sequelize } from '../../../server/models';
 import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_TYPE } from '../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
@@ -411,11 +411,16 @@ describe('server/models/LegalDocument', () => {
       expect(otherHostActivities).to.have.length(0);
     });
 
-    it('only fans out to expenses of the document year, with the usual activity data', async () => {
+    it('only fans out to expenses counted in the document year, with the usual activity data', async () => {
       const payeeUser = await fakeUser();
       const currentYearExpense = await createHostedExpense(payeeUser.collective, hostWithTaxForms);
       const lastYearExpense = await createHostedExpense(payeeUser.collective, hostWithTaxForms);
       await lastYearExpense.update({ status: 'PAID', paidAt: moment().subtract(1, 'year').toDate() });
+      // Unpaid expenses count toward the current year, like in the tax-form requirement check
+      const unpaidOldExpense = await createHostedExpense(payeeUser.collective, hostWithTaxForms);
+      await sequelize.query(`UPDATE "Expenses" SET "createdAt" = NOW() - INTERVAL '1 year' WHERE id = :id`, {
+        replacements: { id: unpaidOldExpense.id },
+      });
       const legalDocument = await fakeLegalDocument({
         CollectiveId: payeeUser.CollectiveId,
         year: new Date().getFullYear(),
@@ -431,6 +436,11 @@ describe('server/models/LegalDocument', () => {
         where: { type: 'collective.expense.updated', ExpenseId: lastYearExpense.id },
       });
       expect(lastYearActivities).to.equal(0);
+
+      const unpaidOldExpenseActivities = await models.Activity.count({
+        where: { type: 'collective.expense.updated', ExpenseId: unpaidOldExpense.id },
+      });
+      expect(unpaidOldExpenseActivities).to.equal(1);
 
       const activity = await models.Activity.findOne({
         where: { type: 'collective.expense.updated', ExpenseId: currentYearExpense.id },

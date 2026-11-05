@@ -169,13 +169,14 @@ class LegalDocument extends ModelWithPublicId<
             FromCollectiveId: payee.id,
             type: { [Op.notIn]: [...TAX_FORM_IGNORED_EXPENSE_TYPES] },
             status: { [Op.notIn]: [...TAX_FORM_IGNORED_EXPENSE_STATUSES] },
-            // Expenses paid (or, if unpaid, created) in the document year
+            // Same year rule as the tax-form requirement (`getTaxFormsRequiredForExpenses`):
+            // paid expenses count for the year they were paid, unpaid ones for the current year
             [Op.and]: [
               sequelize.where(
                 sequelize.fn(
                   'date_part',
                   'year',
-                  sequelize.fn('COALESCE', sequelize.col('paidAt'), sequelize.col('createdAt')),
+                  sequelize.fn('COALESCE', sequelize.col('paidAt'), sequelize.fn('NOW')),
                 ),
                 targetYear,
               ),
