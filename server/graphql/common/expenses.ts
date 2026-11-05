@@ -4604,9 +4604,15 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
   const expenseIds: number[] = uniq(expenses.map(expense => expense.id));
   const recurringExpenseIds: number[] = uniq(expenses.map(expense => expense.RecurringExpenseId).filter(Boolean));
 
-  // Check if moving to a different host - if so, we need to clear accounting categories
-  const isMovingToDifferentHost = expenses.some(
-    e => e.collective.HostCollectiveId !== destinationAccount.HostCollectiveId,
+  // Accounting categories belong to a host: they don't follow an expense to another host, or to an account without one
+  const expenseIdsChangingHost: number[] = uniq(
+    expenses
+      .filter(
+        expense =>
+          !destinationAccount.HostCollectiveId ||
+          expense.collective.HostCollectiveId !== destinationAccount.HostCollectiveId,
+      )
+      .map(expense => expense.id),
   );
 
   const result = await sequelize.transaction(async dbTransaction => {
@@ -4619,12 +4625,20 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
       throw new ValidationFailed('Cannot move expenses with associated transactions');
     }
 
-    // Moving expenses - clear AccountingCategoryId if moving to different host (category belongs to old host)
+    if (expenseIdsChangingHost.length) {
+      await models.Expense.update(
+        { AccountingCategoryId: null },
+        {
+          transaction: dbTransaction,
+          where: { id: expenseIdsChangingHost },
+          hooks: false,
+        },
+      );
+    }
+
+    // Moving associated models
     const [, updatedExpenses] = await models.Expense.update(
-      {
-        CollectiveId: destinationAccount.id,
-        ...(isMovingToDifferentHost && { AccountingCategoryId: null }),
-      },
+      { CollectiveId: destinationAccount.id },
       {
         transaction: dbTransaction,
         returning: true,
@@ -4678,6 +4692,9 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
             expense: expense.info,
             movedFromCollective: originalExpense.collective.info,
             collective: destinationAccount.info,
+            ...(originalExpense.AccountingCategoryId !== expense.AccountingCategoryId && {
+              previousAccountingCategoryId: originalExpense.AccountingCategoryId,
+            }),
           },
         };
       }),
