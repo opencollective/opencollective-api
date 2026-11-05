@@ -85,7 +85,7 @@
     "ics": "3.12.1",
     "ipaddr.js": "^2.0.0",
     "jsonwebtoken": "9.0.3",
-    "juice": "12.2.0",
+    "juice": "12.2.1",
     "kysely": "0.29.8",
     "kysely-sequelize": "^0.2.0",
     "lib-address": "0.7.0",
