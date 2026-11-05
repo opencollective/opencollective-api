@@ -762,8 +762,9 @@ class Expense extends ModelWithPublicId<
   };
 
   /**
-   * Soft-deletes an invoice file, unless another live expense still references it. Invoice files
-   * were historically allowed to be shared between expenses, so we can't assume exclusive ownership.
+   * Soft-deletes an invoice file, unless another live expense still references it: either through
+   * `InvoiceFileId`, or as a draft that stores it in `data.invoiceFile.url` until it's submitted.
+   * Invoice files can be shared between expenses (e.g. when duplicating one), so we can't assume exclusive ownership.
    */
   static destroyInvoiceFileIfUnreferenced = async function (
     uploadedFileId: number,
@@ -778,7 +779,11 @@ class Expense extends ModelWithPublicId<
 
       const otherReferences = await Expense.count({
         where: {
-          InvoiceFileId: uploadedFileId,
+          [Op.or]: [
+            { InvoiceFileId: uploadedFileId },
+            // Drafts store the raw file URL, see `draftExpenseAndInviteUser` and `editExpenseDraft`
+            { status: ExpenseStatus.DRAFT, data: { invoiceFile: { url: uploadedFile.getDataValue('url') } } },
+          ],
           ...(excludeExpenseId ? { id: { [Op.ne]: excludeExpenseId } } : {}),
         },
         transaction: t,

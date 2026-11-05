@@ -4575,6 +4575,35 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         });
       }
 
+      it('does not delete the previous invoice file when a draft still references it by URL', async () => {
+        const user = await fakeUser();
+        const sharedInvoiceFile = await fakeUploadedFile({ kind: 'EXPENSE_INVOICE', CreatedByUserId: user.id });
+        const draftExpense = await fakeExpense({
+          type: 'INVOICE',
+          status: 'DRAFT',
+          data: { invoiceFile: { url: sharedInvoiceFile.getDataValue('url') } },
+        });
+        const expense = await fakeExpense({
+          UserId: user.id,
+          type: 'INVOICE',
+          status: 'APPROVED',
+          amount: 3000,
+          InvoiceFileId: sharedInvoiceFile.id,
+        });
+
+        const expenseUpdateData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), invoiceFile: null };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: expenseUpdateData }, expense.User);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        await expense.reload();
+        expect(expense.InvoiceFileId).to.be.null;
+        expect((await sharedInvoiceFile.reload({ paranoid: false })).deletedAt).to.not.exist;
+        expect((await draftExpense.reload()).data.invoiceFile).to.deep.eq({
+          url: sharedInvoiceFile.getDataValue('url'),
+        });
+      });
+
       it('deletes the previous invoice file when no other expense references it', async () => {
         const user = await fakeUser();
         const invoiceUploadedFile = await fakeUploadedFile({ kind: 'EXPENSE_INVOICE', CreatedByUserId: user.id });
