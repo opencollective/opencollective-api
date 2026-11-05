@@ -1413,7 +1413,7 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
   let event = <Stripe.Event>request.body;
 
   // Requests without a parsable JSON body (e.g. wrong content-type or empty body) leave `request.body` undefined
-  if (!event || typeof event !== 'object' || typeof event.type !== 'string') {
+  if (!event || typeof event !== 'object') {
     throw new Error('Source of event not recognized');
   }
 
@@ -1422,6 +1422,10 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
   // NOTE: not using config.env because of ugly tests
   if (process.env.OC_ENV === 'production' && !event.livemode) {
     return Promise.resolve();
+  }
+
+  if (typeof event.type !== 'string') {
+    throw new Error('Source of event not recognized');
   }
 
   if (event.type.startsWith('issuing')) {
