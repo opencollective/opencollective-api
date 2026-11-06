@@ -61,6 +61,7 @@ import contributorsLoaders from './contributors';
 import conversationLoaders from './conversation';
 import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
+import { generateFiscalHostNoteByHostAndAccountLoader } from './fiscal-host-note';
 import { buildLoaderForAssociation, sortResults, sortResultsArray, sortResultsSimple } from './helpers';
 import locationLoaders from './location';
 import {
@@ -185,6 +186,10 @@ export const generateLoaders = req => {
       totalAccountHostAgreements: generateTotalAccountHostAgreementsLoader(),
       byPublicId: generateEntityByPublicIdLoader(Agreement),
       idByPublicId: generateEntityIdByPublicIdLoader(Agreement),
+    },
+    FiscalHostNote: {
+      ...context.loaders.FiscalHostNote,
+      byHostAndAccount: generateFiscalHostNoteByHostAndAccountLoader(),
     },
     PaymentIntent: {
       ...context.loaders.PaymentIntent,
