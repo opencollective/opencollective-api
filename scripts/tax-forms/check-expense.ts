@@ -8,6 +8,7 @@ import { Command } from 'commander';
 import { difference } from 'lodash';
 
 import logger from '../../server/lib/logger';
+import { enableActivityDispatchTracking } from '../../server/lib/notifications/activity-dispatch-tracker';
 import SQLQueries from '../../server/lib/queries';
 import models, { Expense, Op } from '../../server/models';
 import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_TYPE } from '../../server/models/LegalDocument';
@@ -35,6 +36,7 @@ const expenseURL = (expense: Expense) => {
 };
 
 const main = async () => {
+  enableActivityDispatchTracking();
   const { expenseIds, mustUpdate, hostSlug, year } = parseCommandLine();
 
   const whereHost = hostSlug ? { slug: hostSlug } : {};
@@ -106,6 +108,8 @@ const main = async () => {
     }
   }
 
+  // Tax-form changes fan out to expense threads after the call returns: wait for them before exiting
+  await models.Activity.waitAllDispatch();
   console.log('Done ✓');
 };
 
