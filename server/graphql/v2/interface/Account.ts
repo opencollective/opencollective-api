@@ -1241,7 +1241,7 @@ const accountFieldsDefinition = () => ({
     },
     async resolve(account: Collective, args, req: express.Request) {
       const host = await fetchAccountWithReference(args.host, { loaders: req.loaders, throwIfMissing: true });
-      if (!req.remoteUser?.isAdminOfCollective(host)) {
+      if (!checkScope(req, 'host') || !req.remoteUser?.isAdminOfCollective(host)) {
         return null;
       }
 
@@ -1264,8 +1264,9 @@ const accountFieldsDefinition = () => ({
         }
       }
 
-      return models.FiscalHostNote.findOne({
-        where: { HostCollectiveId: host.id, CollectiveId: noteAccount.id },
+      return req.loaders.FiscalHostNote.byHostAndAccount.load({
+        hostId: host.id,
+        accountId: noteAccount.id,
       });
     },
   },

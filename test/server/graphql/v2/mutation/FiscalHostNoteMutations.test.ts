@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 
 import ActivityTypes from '../../../../../server/constants/activities';
 import { CollectiveType } from '../../../../../server/constants/collectives';
+import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import { sanitizeActivityData } from '../../../../../server/graphql/common/activities';
 import models, { sequelize } from '../../../../../server/models';
 import {
@@ -12,6 +13,7 @@ import {
   fakeIncognitoProfile,
   fakeOrder,
   fakeOrganization,
+  fakePersonalToken,
   fakeUser,
   fakeVendor,
 } from '../../../../test-helpers/fake-data';
@@ -539,6 +541,21 @@ describe('server/graphql/v2/mutation/FiscalHostNoteMutations', () => {
       );
       expect(result.errors).to.not.exist;
       expect(result.data.order.fromAccount.fiscalHostNote.note).to.equal('Watch this contributor');
+    });
+
+    it('requires the host scope to read notes', async () => {
+      await setNote({ account: { legacyId: individual.CollectiveId }, type: 'WARNING', note: 'Watch out' });
+      const variables = { accountSlug: individual.collective.slug, host: { legacyId: host.id } };
+
+      const accountOnlyToken = await fakePersonalToken({ user: hostAdmin, scope: [OAuthScopes.account] });
+      const denied = await graphqlQueryV2(READ_NOTE_QUERY, variables, hostAdmin, null, null, null, accountOnlyToken);
+      expect(denied.errors).to.not.exist;
+      expect(denied.data.account.fiscalHostNote).to.be.null;
+
+      const hostToken = await fakePersonalToken({ user: hostAdmin, scope: [OAuthScopes.account, OAuthScopes.host] });
+      const allowed = await graphqlQueryV2(READ_NOTE_QUERY, variables, hostAdmin, null, null, null, hostToken);
+      expect(allowed.errors).to.not.exist;
+      expect(allowed.data.account.fiscalHostNote.note).to.equal('Watch out');
     });
 
     it('returns null to users that are not admins of the host', async () => {
