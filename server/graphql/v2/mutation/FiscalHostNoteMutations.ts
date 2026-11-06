@@ -3,9 +3,11 @@ import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
+import { canSeeIncognitoProfile } from '../../../lib/incognito';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../../lib/sanitize-html';
 import { Activity, Collective, FiscalHostNote, sequelize } from '../../../models';
-import { checkRemoteUserCanUseHost } from '../../common/scope-check';
+import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { checkRemoteUserCanUseHost, checkScope } from '../../common/scope-check';
 import { BadRequest, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { GraphQLRemoveFiscalHostNoteInput, GraphQLSetFiscalHostNoteInput } from '../input/FiscalHostNoteInput';
@@ -50,6 +52,15 @@ const assertValidFiscalHostNoteTarget = async (
 const resolveNoteTargetAccount = async (account: Collective, req: express.Request): Promise<Collective> => {
   if (!account.isIncognito) {
     return account;
+  }
+
+  if (
+    !checkScope(req, 'account') ||
+    !checkScope(req, 'incognito') ||
+    (!canSeeIncognitoProfile(req, account) &&
+      !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id))
+  ) {
+    throw new Unauthorized('You are not allowed to manage fiscal host notes for this incognito profile');
   }
 
   const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(account.id);

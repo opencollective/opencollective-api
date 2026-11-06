@@ -317,7 +317,7 @@ describe('server/graphql/v2/mutation/FiscalHostNoteMutations', () => {
       expect(result.data.setFiscalHostNote.note).to.equal('Great contributor');
     });
 
-    it('resolves incognito targets to the main profile', async () => {
+    it('rejects incognito targets without incognito authorization', async () => {
       const user = await fakeUser();
       const incognitoProfile = await fakeIncognitoProfile(user);
 
@@ -326,19 +326,13 @@ describe('server/graphql/v2/mutation/FiscalHostNoteMutations', () => {
         type: 'WARNING',
         note: 'Watch this contributor',
       });
-      expect(result.errors).to.not.exist;
-
-      const stored = await models.FiscalHostNote.findOne({
-        where: { HostCollectiveId: host.id, CollectiveId: user.CollectiveId },
-      });
-      expect(stored).to.exist;
-      expect(stored.note).to.equal('Watch this contributor');
-
-      const activity = await models.Activity.findOne({
-        where: { type: ActivityTypes.FISCAL_HOST_NOTE_SET },
-        order: [['id', 'DESC']],
-      });
-      expect(activity.FromCollectiveId).to.equal(user.CollectiveId);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'You are not allowed to manage fiscal host notes for this incognito profile',
+      );
+      expect(
+        await models.FiscalHostNote.count({ where: { HostCollectiveId: host.id, CollectiveId: user.CollectiveId } }),
+      ).to.equal(0);
     });
 
     it('stores the note in the FiscalHostNotes table', async () => {
@@ -442,19 +436,21 @@ describe('server/graphql/v2/mutation/FiscalHostNoteMutations', () => {
       expect(remaining[0].note).to.equal('Other host note');
     });
 
-    it('removes the main-profile note when given an incognito profile', async () => {
+    it('rejects incognito targets without incognito authorization on removal', async () => {
       const user = await fakeUser();
       const incognitoProfile = await fakeIncognitoProfile(user);
       await setNote({ account: { legacyId: user.CollectiveId }, type: 'WARNING', note: 'Watch out' });
 
       const result = await removeNote({ account: { legacyId: incognitoProfile.id } });
-      expect(result.errors).to.not.exist;
-      expect(result.data.removeFiscalHostNote).to.equal(true);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'You are not allowed to manage fiscal host notes for this incognito profile',
+      );
       expect(
         await models.FiscalHostNote.count({
           where: { HostCollectiveId: host.id, CollectiveId: user.CollectiveId },
         }),
-      ).to.equal(0);
+      ).to.equal(1);
     });
 
     it('creates a silent removal activity with the last snapshot', async () => {

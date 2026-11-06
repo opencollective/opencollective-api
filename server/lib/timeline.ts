@@ -90,6 +90,13 @@ const makeTimelineQuery = async (
       [Op.or]: conditionals,
     };
   } else if (collective.hasHosting) {
+    const fiscalHostNoteCondition = {
+      type: {
+        [Op.in]: [ActivityTypes.FISCAL_HOST_NOTE_SET, ActivityTypes.FISCAL_HOST_NOTE_REMOVED],
+      },
+      HostCollectiveId: collective.id,
+    };
+
     return {
       [Op.or]: [
         {
@@ -112,12 +119,7 @@ const makeTimelineQuery = async (
             { HostCollectiveId: collective.id },
           ],
         },
-        {
-          type: {
-            [Op.in]: [ActivityTypes.FISCAL_HOST_NOTE_SET, ActivityTypes.FISCAL_HOST_NOTE_REMOVED],
-          },
-          HostCollectiveId: collective.id,
-        },
+        ...(classes.includes(ActivityClasses.COLLECTIVE) ? [fiscalHostNoteCondition] : []),
       ],
     };
   }

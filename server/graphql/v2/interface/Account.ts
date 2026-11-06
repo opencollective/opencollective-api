@@ -1240,7 +1240,7 @@ const accountFieldsDefinition = () => ({
       },
     },
     async resolve(account: Collective, args, req: express.Request) {
-      const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
+      const host = await fetchAccountWithReference(args.host, { loaders: req.loaders, throwIfMissing: true });
       if (!req.remoteUser?.isAdminOfCollective(host)) {
         return null;
       }
