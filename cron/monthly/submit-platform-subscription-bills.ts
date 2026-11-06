@@ -71,14 +71,18 @@ async function hasTransactionsInBillingPeriod(organization: Collective, billingP
   return Boolean(transaction);
 }
 
-/** Whether the organization has already paid a platform bill, which makes it a customer we never skip */
-async function hasPaidPlatformBill(organization: Collective) {
-  const paidBill = await models.Expense.findOne({
+/** Whether the organization has a platform bill that was not canceled, which makes it a customer we never skip */
+async function hasPlatformBill(organization: Collective) {
+  const bill = await models.Expense.findOne({
     attributes: ['id'],
-    where: { CollectiveId: organization.id, type: expenseTypes.PLATFORM_BILLING, status: expenseStatus.PAID },
+    where: {
+      CollectiveId: organization.id,
+      type: expenseTypes.PLATFORM_BILLING,
+      status: { [Op.ne]: expenseStatus.CANCELED },
+    },
   });
 
-  return Boolean(paidBill);
+  return Boolean(bill);
 }
 
 export async function run(
@@ -150,10 +154,10 @@ export async function run(
       if (
         skipOrganizationsWithoutTransactions &&
         !(await hasTransactionsInBillingPeriod(organization, bill.billingPeriod)) &&
-        !(await hasPaidPlatformBill(organization))
+        !(await hasPlatformBill(organization))
       ) {
         logger.info(
-          `${logPrefix} Skipping bill for organization ${organization.name} #${organization.id} because it has no transactions in the billing period and never paid a platform bill (SKIP_ORGANIZATIONS_WITHOUT_TRANSACTIONS)`,
+          `${logPrefix} Skipping bill for organization ${organization.name} #${organization.id} because it has no transactions in the billing period and was never billed (SKIP_ORGANIZATIONS_WITHOUT_TRANSACTIONS)`,
         );
         continue;
       }
