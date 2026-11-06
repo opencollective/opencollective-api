@@ -14,7 +14,7 @@ import logger from '../../server/lib/logger';
 import { notify } from '../../server/lib/notifications/email';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
-import models, { Collective, Op, PlatformSubscription, sequelize } from '../../server/models';
+import models, { Collective, Op, PlatformSubscription } from '../../server/models';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { Billing, BillingPeriod } from '../../server/models/PlatformSubscription';
 import { runCronJob } from '../utils';
@@ -101,23 +101,13 @@ export async function run(
     pm => pm.data?.['currency'] === 'USD',
   );
 
-  const distinctActiveSubscriptionsByCollectiveId = await PlatformSubscription.findAll({
-    where: {
-      period: {
-        [Op.overlap]: PlatformSubscription.getBillingPeriodRange({ year, month }),
-      },
-    },
-    attributes: [[sequelize.fn('DISTINCT', sequelize.col('CollectiveId')), 'CollectiveId']],
-    order: [['CollectiveId', 'ASC']],
-    raw: true,
-  });
-  logger.info(`Found ${distinctActiveSubscriptionsByCollectiveId.length} active subscribers...`);
+  const billableCollectiveIds = await PlatformSubscription.getBillableCollectiveIds({ year, month });
+  logger.info(`Found ${billableCollectiveIds.length} billable subscribers...`);
 
   const currency = 'USD' as SupportedCurrency;
-  for (let i = 0; i < distinctActiveSubscriptionsByCollectiveId.length; i++) {
-    const logPrefix = `[${i + 1}/${distinctActiveSubscriptionsByCollectiveId.length}]`;
-    const subscription = distinctActiveSubscriptionsByCollectiveId[i];
-    const orgId = subscription.CollectiveId;
+  for (let i = 0; i < billableCollectiveIds.length; i++) {
+    const logPrefix = `[${i + 1}/${billableCollectiveIds.length}]`;
+    const orgId = billableCollectiveIds[i];
     try {
       const organization: Collective = await models.Collective.findByPk(orgId);
       if (SKIP_BILLING_FOR_ORGANIZATIONS.includes(organization.slug)) {
@@ -276,7 +266,6 @@ export async function run(
       reportErrorToSentry(e, {
         extra: {
           organizationId: orgId,
-          subscription,
         },
       });
     }

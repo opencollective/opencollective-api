@@ -1495,6 +1495,55 @@ describe('server/models/PlatformSubscriptions', () => {
       });
     });
 
+    describe('getBillableCollectiveIds', () => {
+      const billingPeriod = { year: 2016, month: BillingMonth.JANUARY };
+      const start = new Date(Date.UTC(2016, 0, 1));
+      const inPeriod = new Date(Date.UTC(2016, 0, 15));
+      const freePlan = PlatformSubscriptionTiers.find(plan => plan.id === 'discover-1');
+      const paidPlan = PlatformSubscriptionTiers.find(plan => plan.id === 'basic-5');
+
+      async function fakeHostWithPlan(plan) {
+        const admin = await fakeUser();
+        const host = await fakeActiveHost({ admin });
+        await PlatformSubscription.createSubscription(host, start, plan, admin);
+        return host;
+      }
+
+      it('only selects collectives that may have a non-zero bill', async () => {
+        const inactiveFree = await fakeHostWithPlan(freePlan);
+        await fakeTransaction({ HostCollectiveId: inactiveFree.id, createdAt: new Date(Date.UTC(2016, 1, 15)) });
+
+        const inactivePaid = await fakeHostWithPlan(paidPlan);
+
+        const freeWithTransaction = await fakeHostWithPlan(freePlan);
+        await fakeTransaction({ HostCollectiveId: freeWithTransaction.id, createdAt: inPeriod });
+
+        const freeWithPaidExpense = await fakeHostWithPlan(freePlan);
+        await fakeActivity({
+          type: activities.COLLECTIVE_EXPENSE_PAID,
+          HostCollectiveId: freeWithPaidExpense.id,
+          createdAt: inPeriod,
+        });
+
+        const freeParent = await fakeHostWithPlan(freePlan);
+        const linkedHost = await fakeHostWithPlan({
+          ...freePlan,
+          billedToCollectiveId: freeParent.id,
+        });
+        await fakeTransaction({ HostCollectiveId: linkedHost.id, createdAt: inPeriod });
+
+        const ids = await PlatformSubscription.getBillableCollectiveIds(billingPeriod);
+        expect(ids).to.not.include(inactiveFree.id);
+        expect(ids).to.include.members([
+          inactivePaid.id,
+          freeWithTransaction.id,
+          freeWithPaidExpense.id,
+          freeParent.id,
+          linkedHost.id,
+        ]);
+      });
+    });
+
     describe('crowdfunding fee', () => {
       const billingPeriod = {
         year: 2016,

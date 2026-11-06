@@ -281,6 +281,52 @@ class PlatformSubscription extends Model<
     return [collectiveId, ...rows.map(row => row.CollectiveId)];
   }
 
+  /**
+   * The collectives that may have a non-zero bill for the billing period, to avoid calculating the bill
+   * of every free subscription without activity. A bill is non-zero only with a base price, or with a
+   * transaction or a paid expense on one of the billed hosts: activity on a host linked with
+   * `plan.billedToCollectiveId` also selects the collective it is billed to.
+   */
+  static async getBillableCollectiveIds(billingPeriod: BillingPeriod): Promise<number[]> {
+    const billingRange = PlatformSubscription.getBillingPeriodRange(billingPeriod);
+    const rows: { id: number }[] = await sequelize.query(
+      `
+      SELECT DISTINCT v.id
+      FROM "PlatformSubscriptions" s
+      CROSS JOIN LATERAL (VALUES (s."CollectiveId"), ((s."plan"->>'billedToCollectiveId')::integer)) AS v(id)
+      WHERE s."period" && ${PlatformSubscription.rangeLiteral(billingRange)}
+      AND s."deletedAt" IS NULL
+      AND v.id IS NOT NULL
+      AND (
+        COALESCE((s."plan"->'pricing'->>'pricePerMonth')::integer, 0) > 0
+        OR EXISTS (
+          SELECT 1 FROM "Transactions" t
+          WHERE t."HostCollectiveId" = s."CollectiveId"
+          AND t."createdAt" BETWEEN :startDate AND :endDate
+          AND t."deletedAt" IS NULL
+        )
+        OR EXISTS (
+          SELECT 1 FROM "Activities" a
+          WHERE a."HostCollectiveId" = s."CollectiveId"
+          AND a."type" = 'collective.expense.paid'
+          AND a."createdAt" BETWEEN :startDate AND :endDate
+        )
+      )
+      ORDER BY v.id
+    `,
+      {
+        type: QueryTypes.SELECT,
+        raw: true,
+        replacements: {
+          startDate: PlatformSubscription.periodStartDate(billingRange),
+          endDate: PlatformSubscription.periodEndDate(billingRange),
+        },
+      },
+    );
+
+    return rows.map(row => row.id);
+  }
+
   static async calculateUtilization(collectiveId: number, billingPeriod: BillingPeriod): Promise<PeriodUtilization> {
     const billingRange = PlatformSubscription.getBillingPeriodRange(billingPeriod);
     const billingRangeArg = PlatformSubscription.rangeLiteral(billingRange);

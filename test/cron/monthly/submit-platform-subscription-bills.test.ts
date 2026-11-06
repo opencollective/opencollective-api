@@ -120,6 +120,9 @@ describe('submit-platform-subscription-bills', () => {
       user,
     );
     calculateUtilizationStub.withArgs(tipsOffOrg.id).resolves({ activeCollectives: 0, expensesPaid: 0 });
+
+    // The organization on a free plan is only billed if it has activity in the billing period (September 2023)
+    await fakeTransaction({ HostCollectiveId: organizations[0].id, createdAt: moment.utc('2023-09-15').toDate() });
     sandbox.stub(PlatformSubscription, 'sumCrowdfundingContributions').resolves(100000);
   });
 
