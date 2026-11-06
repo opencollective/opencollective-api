@@ -131,6 +131,43 @@ describe('server/lib/timeline', () => {
     expect(noteBranch[Op.or]).to.be.undefined;
   });
 
+  it('omits fiscal host note activities when the COLLECTIVE class is not requested', async () => {
+    const collective = Collective.build({
+      slug: 'timeline-host-expenses',
+      type: CollectiveType.COLLECTIVE,
+      hasHosting: true,
+    });
+
+    let finishRebuilding: () => void;
+    const rebuilt = new Promise<void>(resolve => (finishRebuilding = resolve));
+    const redis = {
+      exists: sandbox.stub().resolves(0),
+      get: sandbox.stub().resolves(null),
+      set: sandbox.stub().resolves('OK'),
+      del: sandbox.stub().resolves(0),
+      zAdd: sandbox.stub().resolves(1),
+      zRange: sandbox.stub(),
+      expire: sandbox.stub().callsFake(async () => {
+        finishRebuilding();
+        return 1;
+      }),
+    };
+    sandbox.stub(redisLib, 'createRedisClient').resolves(redis);
+    const findAll = sandbox.stub(Activity, 'findAll').resolves([]);
+
+    await getCollectiveFeed({
+      collective,
+      dateTo: null,
+      limit: 20,
+      classes: [ActivityClasses.EXPENSES],
+    });
+    await rebuilt;
+
+    const where = findAll.firstCall.args[0].where;
+    const branches = where[Op.or];
+    expect(branches.find(branch => branch.type?.[Op.in]?.includes(ActivityTypes.FISCAL_HOST_NOTE_SET))).to.be.undefined;
+  });
+
   it('does not leak notes about the host from another host into its feed', async () => {
     const host = await fakeActiveHost();
     const otherHost = await fakeActiveHost();
