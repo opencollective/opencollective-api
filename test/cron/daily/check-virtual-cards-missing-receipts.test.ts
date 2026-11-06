@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import config from 'config';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
@@ -33,7 +34,7 @@ describe('cron/daily/check-virtual-cards-missing-receipts', () => {
       last4: '4242',
       privateData: PRIVATE_CARD_DATA,
     });
-    await fakeExpense({
+    const expense = await fakeExpense({
       type: 'CHARGE',
       status: 'PAID',
       CollectiveId: collective.id,
@@ -43,7 +44,7 @@ describe('cron/daily/check-virtual-cards-missing-receipts', () => {
       items: [{ amount: 10000, url: null }],
     });
 
-    return { host, collective, virtualCard };
+    return { host, collective, virtualCard, expense };
   };
 
   const expectPublicVirtualCardSnapshot = (snapshot, virtualCard) => {
@@ -58,7 +59,7 @@ describe('cron/daily/check-virtual-cards-missing-receipts', () => {
   };
 
   it('notifies missing receipts without storing private card data', async () => {
-    const { virtualCard } = await setupHostedCard({
+    const { collective, virtualCard, expense } = await setupHostedCard({
       createdAt: moment().subtract(15, 'days').toDate(),
       settings: { reminder: true },
     });
@@ -73,6 +74,7 @@ describe('cron/daily/check-virtual-cards-missing-receipts', () => {
     });
     expect(activity).to.exist;
     expectPublicVirtualCardSnapshot(activity.data.virtualCard, virtualCard);
+    expect(activity.data.expenses[0].url).to.eq(`${config.host.website}/${collective.slug}/expenses/${expense.id}`);
   });
 
   it('pauses cards with overdue receipts and stores a public virtual card snapshot', async () => {

@@ -2075,7 +2075,6 @@ type ExpenseData = {
   balanceAccountingCategory?: AccountingCategory;
   transactionsImportRow?: TransactionsImportRow;
   reference?: string;
-  isNewExpenseFlow?: boolean;
 };
 
 /**
@@ -2498,11 +2497,7 @@ export const checkCanCreateExpenseForCollective = (collective: Collective, req: 
   }
 };
 
-export async function createExpense(
-  req: express.Request,
-  expenseData: ExpenseData,
-  opts?: { isNewExpenseFlow?: boolean },
-): Promise<Expense> {
+export async function createExpense(req: express.Request, expenseData: ExpenseData): Promise<Expense> {
   const { remoteUser } = req;
 
   // Check permissions
@@ -2691,10 +2686,6 @@ export async function createExpense(
     };
   }
 
-  if (opts?.isNewExpenseFlow) {
-    data['isNewExpenseFlow'] = true;
-  }
-
   const expense = await sequelize.transaction(async t => {
     let invoiceFileId: number;
     if (expenseData.type === ExpenseType.INVOICE && expenseData.invoiceFile) {
@@ -2843,12 +2834,10 @@ export async function submitExpenseDraft(
     args,
     requestedPayee,
     originalPayee,
-    isNewExpenseFlow,
   }: {
     args?: ExpenseDraftArgs;
     originalPayee?: Collective;
     requestedPayee?: Collective;
-    isNewExpenseFlow?: boolean;
   } = {},
 ) {
   // It is a submit on behalf being completed
@@ -2908,7 +2897,6 @@ export async function submitExpenseDraft(
     overrideRemoteUser: undefined,
     skipPermissionCheck: true,
     skipActivity: true,
-    isNewExpenseFlow: isNewExpenseFlow === true ? true : undefined,
   };
   if (requestedPayee) {
     // Also allow admins of the payee's fiscal host (e.g. a host admin completing a cross-host
@@ -3073,12 +3061,7 @@ export async function sendDraftExpenseInvite(
   }
 }
 
-export async function editExpenseDraft(
-  req: express.Request,
-  expenseData: ExpenseData,
-  args: ExpenseDraftArgs,
-  opts?: { isNewExpenseFlow?: boolean },
-) {
+export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData, args: ExpenseDraftArgs) {
   const existingExpense = await models.Expense.findByPk(expenseData.id, {
     include: [
       { model: models.ExpenseItem, as: 'items' },
@@ -3174,10 +3157,6 @@ export async function editExpenseDraft(
     newExpenseValues.data['payee'] = payee;
     newExpenseValues.data['draftKey'] =
       process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
-  }
-
-  if (opts?.isNewExpenseFlow) {
-    newExpenseValues['isNewExpenseFlow'] = true;
   }
 
   await existingExpense.update({ ...newExpenseValues, data: { ...existingExpense.data, ...newExpenseValues.data } });
@@ -3409,7 +3388,6 @@ export async function editExpense(
     overrideRemoteUser?: User;
     skipPermissionCheck?: boolean;
     draftKey?: string;
-    isNewExpenseFlow?: boolean;
   } = {},
 ): Promise<Expense> {
   const remoteUser = options?.overrideRemoteUser || req.remoteUser;

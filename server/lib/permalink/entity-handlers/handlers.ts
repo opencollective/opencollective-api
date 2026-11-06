@@ -459,16 +459,12 @@ export const handleExportRequest: Handler = async (req, res) => {
 /** Make sure that whatever draft key included in the permalink is preserved in the redirect. */
 export const preserveExpensePagePermalinkParameters = (url: string, query): string => {
   const draftKey = query.key;
-  const edit = query.edit;
 
   const [base, existingQuery] = url.split('?');
   const params = new URLSearchParams(existingQuery);
 
   if (draftKey && typeof draftKey === 'string') {
     params.set('key', draftKey);
-  }
-  if (edit && typeof edit === 'string') {
-    params.set('edit', edit);
   }
 
   const queryString = params.toString();
