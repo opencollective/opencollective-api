@@ -44,7 +44,14 @@ const getHostFromOrder = async order => {
 };
 
 type StatusChangeReason = {
-  code: 'PAUSED' | 'DELETED_TIER' | 'ARCHIVED_ACCOUNT' | 'UNHOSTED_COLLECTIVE' | 'CHANGED_HOST' | 'CANCELLED_ORDER';
+  code:
+    | 'PAUSED'
+    | 'DELETED_TIER'
+    | 'ARCHIVED_ACCOUNT'
+    | 'ARCHIVED_CONTRIBUTOR'
+    | 'UNHOSTED_COLLECTIVE'
+    | 'CHANGED_HOST'
+    | 'CANCELLED_ORDER';
   message: string;
 };
 
@@ -55,6 +62,8 @@ const getStatusChangeReason = (collective: Collective, order: Order, orderHost: 
     return { code: 'DELETED_TIER', message: `Order tier deleted` };
   } else if (collective.deactivatedAt) {
     return { code: 'ARCHIVED_ACCOUNT', message: `@${collective.slug} archived their account` };
+  } else if (order.fromCollective?.deactivatedAt) {
+    return { code: 'ARCHIVED_CONTRIBUTOR', message: `@${order.fromCollective.slug} archived their account` };
   } else if (!collective.HostCollectiveId) {
     return { code: 'UNHOSTED_COLLECTIVE', message: `@${collective.slug} was un-hosted` };
   } else if (collective.HostCollectiveId !== orderHost.id) {
@@ -155,7 +164,13 @@ export async function run() {
             logger.debug('Creating the activity and sending email');
             const activityType =
               reason.code === 'PAUSED' ? activities.SUBSCRIPTION_PAUSED : activities.SUBSCRIPTION_CANCELED;
-            await createActivity(order, reason, activityType, { isOCFShutdown: order.data.isOCFShutdown });
+            await createActivity(order, reason, activityType, {
+              isOCFShutdown: order.data.isOCFShutdown,
+              // `createStatusChangeActivity: false` means "keep it invisible" (bulk cancellations applied
+              // retroactively, freezes): the activity is still recorded for the timeline, but `data.notify: false`
+              // suppresses every dispatch - see `Activity.create`'s `data.notify !== false` guard.
+              ...(order.data.createStatusChangeActivity === false && { notify: false }),
+            });
           }
         } else if (order.data.needsAsyncReactivation) {
           logger.debug(

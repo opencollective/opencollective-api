@@ -319,11 +319,86 @@ describe('server/graphql/v1/mutation', () => {
         expect(project.HostCollectiveId).to.be.null;
         expect(project.deactivatedAt).to.be.a('date');
         expect(order.status).to.equal('CANCELLED');
+        // The subscription is deactivated asynchronously by `cron/10mn/00-handle-batch-subscriptions-update`,
+        // which also calls the payment provider for externally managed subscriptions (see #8915)
+        expect(order.data.needsAsyncDeactivation).to.be.true;
+        await order.Subscription.reload();
+        expect(order.Subscription.isActive).to.be.true;
 
         // Check API calls
         expect(purgeCacheSpy.callCount).to.equal(2);
         expect(purgeCacheSpy.firstCall.args[0]).to.equal(project.slug);
         expect(purgeCacheSpy.secondCall.args[0]).to.equal((await project.getParentCollective()).slug);
+      });
+
+      it('archives a collective should cancel the contributions to its children', async () => {
+        const admin = await fakeUser();
+        const parent = await fakeCollective({ admin });
+        const project = await fakeProject({ ParentCollectiveId: parent.id });
+        const order = await fakeOrder({ CollectiveId: project.id, status: status.ACTIVE }, { withSubscription: true });
+
+        const response = await utils.graphqlQuery(archiveCollectiveMutation, { id: parent.id }, admin);
+        expect(response.errors).to.not.exist;
+
+        await order.reload();
+        expect(order.status).to.equal('CANCELLED');
+        expect(order.data.needsAsyncDeactivation).to.be.true;
+      });
+
+      it('leaves the account and its contributions untouched when refused because of a processing expense', async () => {
+        const admin = await fakeUser();
+        const parent = await fakeCollective({ admin });
+        const project = await fakeProject({ ParentCollectiveId: parent.id });
+        const orders = await Promise.all(
+          [parent, project].map(account =>
+            fakeOrder({ CollectiveId: account.id, status: status.ACTIVE }, { withSubscription: true }),
+          ),
+        );
+        await fakeExpense({ status: 'PROCESSING', CollectiveId: project.id });
+
+        const response = await utils.graphqlQuery(archiveCollectiveMutation, { id: parent.id }, admin);
+        expect(response.errors).to.exist;
+        expect(response.errors[0].message).to.equal(
+          'Unable to change host: there are still 1 expenses in a processing state',
+        );
+
+        for (const order of orders) {
+          await order.reload();
+          expect(order.status).to.equal('ACTIVE');
+          expect(order.data?.needsAsyncDeactivation).to.not.be.true;
+        }
+
+        await project.reload();
+        expect(project.deactivatedAt).to.be.null;
+        expect(project.approvedAt).to.be.a('date');
+      });
+
+      it('archives an account should cancel the contributions it makes', async () => {
+        // Setup test data
+        const admin = await fakeUser();
+        const archivedAccount = await fakeCollective({ admin });
+        const recipient = await fakeCollective();
+        const order = await fakeOrder(
+          {
+            status: status.ACTIVE,
+            CollectiveId: recipient.id,
+            FromCollectiveId: archivedAccount.id,
+            subscription: { isManagedExternally: true },
+          },
+          { withSubscription: true },
+        );
+
+        // Call mutation
+        const response = await utils.graphqlQuery(archiveCollectiveMutation, { id: archivedAccount.id }, admin);
+        expect(response.errors).to.not.exist;
+        expect(response.data.archiveCollective.isArchived).to.be.true;
+
+        // Check DB entries: the order is cancelled and flagged for asynchronous deactivation (see #8915)
+        await order.reload();
+        expect(order.status).to.equal('CANCELLED');
+        expect(order.data.needsAsyncDeactivation).to.be.true;
+        await order.Subscription.reload();
+        expect(order.Subscription.isActive).to.be.true;
       });
 
       it('creates a COLLECTIVE_ARCHIVED activity without sending notifications', async () => {
