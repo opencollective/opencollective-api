@@ -57,7 +57,6 @@ const createFixture = async () => {
       draftKey: 'test-invitation-key',
       payee: { email: invitee.email.toUpperCase() },
       items: [{ description: 'Test service', amount: 2500, currency: 'USD' }],
-      isNewExpenseFlow: true,
     },
   });
   const input = {
