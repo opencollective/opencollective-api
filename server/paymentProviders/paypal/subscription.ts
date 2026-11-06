@@ -246,6 +246,10 @@ export async function getOrCreatePlan(
   currency: SupportedCurrency,
   tier: Tier = null,
 ): Promise<PaypalPlan> {
+  if (!host) {
+    throw new Error('A fiscal host is required to create a PayPal plan');
+  }
+
   const product = await models.PaypalProduct.findOne({
     where: { CollectiveId: collective.id, HostCollectiveId: host.id, TierId: tier?.id || null },
     include: [

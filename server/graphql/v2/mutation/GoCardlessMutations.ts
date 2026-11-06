@@ -52,7 +52,7 @@ const goCardlessMutations = {
       await twoFactorAuthLib.enforceForAccount(req, host, { alwaysAskForToken: true });
 
       const rateLimiter = new RateLimit(`generateGoCardlessLink:${req.remoteUser.id}`, 20, 60 * 60);
-      if (await rateLimiter.hasReachedLimit()) {
+      if (!(await rateLimiter.registerCall())) {
         throw new RateLimitExceeded(
           'A link was already generated for this account recently. Please wait a few minutes before trying again.',
         );
@@ -66,8 +66,6 @@ const goCardlessMutations = {
         userLanguage: input.userLanguage,
         accountSelection: input.accountSelection,
       });
-
-      await rateLimiter.registerCall();
 
       return {
         id: link.id,

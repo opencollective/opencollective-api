@@ -108,6 +108,18 @@ const buildCache = (instanceType = RedisInstanceType.DEFAULT) => ({
       logger.warn(`Error while writing to cache: ${err.message}`);
     }
   },
+  /** Atomically increments a counter. No try/catch: rate limits must not silently fail open on store errors. */
+  increment: async (key: string, amount: number, expirationInSeconds: number): Promise<number | undefined> => {
+    debugCache(`increment ${key} by ${amount} ttl:${expirationInSeconds}s`);
+    const provider = await getDefaultProvider(instanceType);
+    return provider.increment(key, amount, expirationInSeconds);
+  },
+  /** Decrements an existing counter, never below zero. Does nothing if the key expired. No try/catch, like `increment`. */
+  decrement: async (key: string, amount: number): Promise<number | undefined> => {
+    debugCache(`decrement ${key} by ${amount}`);
+    const provider = await getDefaultProvider(instanceType);
+    return provider.decrement(key, amount);
+  },
   consume: async (key: string, options?) => {
     try {
       debugCache(`consume ${key}`);

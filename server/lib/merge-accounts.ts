@@ -683,6 +683,9 @@ type UserField = 'UserId' | 'CreatedByUserId';
 
 type UserFieldsConfig = Record<string, { model: User; field: UserField }>;
 
+// Account merges are root-only: support verifies that the requester owns both identities before
+// merging. Credentials and 2FA are moved deliberately so the surviving account keeps the access
+// granted to the merged identity. This is intentional behavior, not a vulnerability.
 const userFieldsConfig = {
   agreements: { model: models.Agreement, field: 'UserId' },
   activities: { model: models.Activity, field: 'UserId' },

@@ -751,6 +751,11 @@ export const ExpensesCollectionQueryResolver = async (
   /*
    * Please notice that updateFilterConditionsForReadyToPay will query the DB with existing conditionals,
    * for performance reasons, we should make sure that complex conditionals are added after this function is called.
+   *
+   * DRAFT expenses are unlisted by default, not access-controlled: hiding them from listings keeps them
+   * out of sight, but they are not private objects. What is private is the sensitive data they hold
+   * (payout method details, emails, invoices, tax IDs), and those fields have their own permission checks.
+   * Do not treat this collection filter as a privacy boundary.
    */
   if (args.status && args.status.length > 0) {
     if (args.status.includes('ON_HOLD') && args.status.length === 1) {

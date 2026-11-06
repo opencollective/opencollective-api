@@ -274,6 +274,15 @@ describe('server/paymentProviders/paypal/subscription', () => {
       expect(planCall).to.exist;
       expect(planCall.args[1].payment_preferences.auto_bill_outstanding).to.eq(false);
     });
+
+    it('throws an explicit error if the host is missing', async () => {
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest');
+      await expect(getOrCreatePlan(null, collective, INTERVALS.MONTH, 500, 'USD', null)).to.be.rejectedWith(
+        'A fiscal host is required to create a PayPal plan',
+      );
+      expect(paypalRequestStub.called).to.be.false;
+    });
   });
 
   describe('cancelPaypalSubscription', () => {

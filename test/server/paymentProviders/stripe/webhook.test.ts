@@ -53,6 +53,21 @@ describe('webhook', () => {
     sandbox.restore();
   });
 
+  describe('webhook()', () => {
+    for (const body of [undefined, null, {}, 'not-json', { livemode: true }, { type: 123, livemode: true }]) {
+      it(`rejects requests with an invalid body (${JSON.stringify(body)})`, async () => {
+        let error: Error | undefined;
+        try {
+          await webhook.webhook({ body, headers: {} } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.exist;
+        expect(error.message).to.equal('Source of event not recognized');
+      });
+    }
+  });
+
   describe('chargeDisputeCreated()', () => {
     let order, user;
 
@@ -1561,31 +1576,6 @@ describe('webhook', () => {
       assert.notCalled(retrieveStub);
       const count = await models.PaymentMethod.count({ where: { data: { stripePaymentMethodId } } });
       expect(count).to.equal(1);
-    });
-  });
-
-  describe('webhook()', () => {
-    const expectUnrecognized = async body => {
-      let error;
-      try {
-        const request = { body, rawBody: JSON.stringify(body ?? null), headers: {} };
-        await webhook.webhook(request as unknown as Parameters<typeof webhook.webhook>[0]);
-      } catch (e) {
-        error = e;
-      }
-      expect(error).to.exist;
-      expect(error.message).to.equal('Source of event not recognized');
-    };
-
-    it('rejects payloads without an event type', async () => {
-      await expectUnrecognized({});
-      await expectUnrecognized({ livemode: true });
-      await expectUnrecognized({ type: 123, livemode: true });
-    });
-
-    it('rejects missing payloads', async () => {
-      await expectUnrecognized(undefined);
-      await expectUnrecognized(null);
     });
   });
 });

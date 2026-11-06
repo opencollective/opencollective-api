@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import config from 'config';
 import gql from 'fake-tag';
 import { AccountSubtype, AccountType, PlaidApi } from 'plaid';
 import sinon from 'sinon';
@@ -7,6 +8,7 @@ import { Service } from '../../../../../server/constants/connected-account';
 import OrderStatuses from '../../../../../server/constants/order-status';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
+import { sessionCache } from '../../../../../server/lib/cache';
 import * as GoCardlessConnect from '../../../../../server/lib/gocardless/connect';
 import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import * as PlaidClient from '../../../../../server/lib/plaid/client';
@@ -25,7 +27,7 @@ import {
   fakeUploadedFile,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import { graphqlQueryV2, resetCaches } from '../../../../utils';
 
 describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
   let platform;
@@ -50,6 +52,99 @@ describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
 
   afterEach(() => {
     sandbox.restore();
+  });
+
+  describe('importTransactions', () => {
+    const IMPORT_TRANSACTIONS_MUTATION = gql`
+      mutation ImportTransactions($id: NonEmptyString!, $data: [TransactionsImportRowCreateInput!]!) {
+        importTransactions(id: $id, data: $data) {
+          id
+        }
+      }
+    `;
+
+    const rows = [
+      {
+        sourceId: 'row-1',
+        description: 'Row 1',
+        date: '2024-01-01T00:00:00Z',
+        amount: { valueInCents: 1000, currency: 'USD' },
+      },
+      {
+        sourceId: 'row-2',
+        description: 'Row 2',
+        date: '2024-01-02T00:00:00Z',
+        amount: { valueInCents: 2000, currency: 'USD' },
+      },
+    ];
+
+    afterEach(async () => {
+      await resetCaches();
+    });
+
+    it('counts the imported rows against the hourly rows limit', async () => {
+      const user = await fakeUser();
+      const transactionsImport = await fakeTransactionsImport({ CollectiveId: user.CollectiveId });
+      const result = await graphqlQueryV2(
+        IMPORT_TRANSACTIONS_MUTATION,
+        { id: idEncode(transactionsImport.id, 'transactions-import'), data: rows },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(await sessionCache.get(`transactions-imports-rows-${user.id}`)).to.eq(2);
+    });
+
+    it('rejects a malformed amount without counting the rows or the import', async () => {
+      const user = await fakeUser();
+      const transactionsImport = await fakeTransactionsImport({ CollectiveId: user.CollectiveId });
+      const result = await graphqlQueryV2(
+        IMPORT_TRANSACTIONS_MUTATION,
+        {
+          id: idEncode(transactionsImport.id, 'transactions-import'),
+          data: [rows[0], { ...rows[1], amount: { currency: 'USD' } }],
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('You must either set a `value` or a `valueInCents`');
+      expect(await sessionCache.get(`transactions-imports-rows-${user.id}`)).to.be.undefined;
+      expect(await sessionCache.get(`transactions-imports-${user.id}`)).to.be.undefined;
+    });
+
+    it('rejects a missing currency without counting the rows or the import', async () => {
+      const user = await fakeUser();
+      const transactionsImport = await fakeTransactionsImport({ CollectiveId: user.CollectiveId });
+      const result = await graphqlQueryV2(
+        IMPORT_TRANSACTIONS_MUTATION,
+        {
+          id: idEncode(transactionsImport.id, 'transactions-import'),
+          data: [rows[0], { ...rows[1], amount: { valueInCents: 2000 } }],
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('A currency is required for the amount of row row-2');
+      expect(await sessionCache.get(`transactions-imports-rows-${user.id}`)).to.be.undefined;
+      expect(await sessionCache.get(`transactions-imports-${user.id}`)).to.be.undefined;
+    });
+
+    it('gives the rows back when the imports per hour limit is reached', async () => {
+      const user = await fakeUser();
+      const transactionsImport = await fakeTransactionsImport({ CollectiveId: user.CollectiveId });
+      await sessionCache.set(`transactions-imports-${user.id}`, config.limits.transactionsImports.perHourPerUser, 3600);
+      const result = await graphqlQueryV2(
+        IMPORT_TRANSACTIONS_MUTATION,
+        { id: idEncode(transactionsImport.id, 'transactions-import'), data: rows },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('You have reached the limit of transactions imports per hour');
+      expect(await sessionCache.get(`transactions-imports-rows-${user.id}`)).to.eq(0);
+    });
   });
 
   describe('deleteTransactionsImport', () => {
