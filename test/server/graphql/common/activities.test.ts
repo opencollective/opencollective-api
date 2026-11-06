@@ -43,5 +43,23 @@ describe('server/graphql/common/activities', () => {
       });
       expect(sanitized).to.not.have.nested.property('newData.payoutMethod');
     });
+
+    it('exposes isSystem to users who cannot see the private details', async () => {
+      const expense = await fakeExpense({ status: 'PENDING' });
+      const req = makeRequest(null) as unknown as Express.Request;
+      const activity = {
+        type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
+        ExpenseId: expense.id,
+        data: {
+          isSystem: true,
+          previousData: { taxFormStatus: 'REQUESTED' },
+          newData: { taxFormStatus: 'RECEIVED' },
+          taxForm: { id: 1, year: 2026 },
+        },
+      };
+
+      const sanitized = await sanitizeActivityData(req, activity);
+      expect(sanitized).to.deep.equal({ isSystem: true });
+    });
   });
 });
