@@ -330,6 +330,16 @@ interface Account {
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
 
     """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
+
+    """
     Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)
     """
     accountType: [AccountType]
@@ -395,6 +405,11 @@ interface Account {
     Order the query by requested role order
     """
     orderByRoles: Boolean
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection
 
   """
@@ -3194,6 +3209,16 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -3288,6 +3313,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -10786,6 +10816,16 @@ type Bot implements Account {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -10880,6 +10920,11 @@ type Bot implements Account {
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -11855,6 +11900,16 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -11949,6 +12004,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -13514,6 +13574,16 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -13608,6 +13678,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -14882,6 +14957,16 @@ type Individual implements Account {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -14976,6 +15061,11 @@ type Individual implements Account {
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -16276,6 +16366,16 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -16370,6 +16470,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -17747,6 +17852,16 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -17841,6 +17956,11 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -18925,6 +19045,16 @@ type Vendor implements Account & AccountWithContributions {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -19019,6 +19149,11 @@ type Vendor implements Account & AccountWithContributions {
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -23299,6 +23434,16 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -23393,6 +23538,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -24525,6 +24675,16 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -24619,6 +24779,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
