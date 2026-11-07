@@ -7,13 +7,24 @@ import { CollectiveType } from '../constants/collectives';
 import type { SupportedCurrency } from '../constants/currencies';
 import expenseStatus from '../constants/expense-status';
 import expenseType from '../constants/expense-type';
+import type { FileKind } from '../constants/file-kind';
 import POLICIES, { type UseVendorPolicyValue } from '../constants/policies';
 import roles from '../constants/roles';
 import { createAccountAdminMembers } from '../lib/account-admins';
 import { TOKEN_EXPIRATION_SESSION } from '../lib/auth';
 import { checkS3Configured, uploadToS3 } from '../lib/awsS3';
-import { Collective, Expense, ExpenseItem, Member, PayoutMethod, UploadedFile, User } from '../models';
+import {
+  Collective,
+  Expense,
+  ExpenseAttachedFile,
+  ExpenseItem,
+  Member,
+  PayoutMethod,
+  UploadedFile,
+  User,
+} from '../models';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
+import type { SUPPORTED_FILE_TYPES } from '../models/UploadedFile';
 
 /**
  * Small prerequisite builders shared by the named recipes. Every write joins the
@@ -335,39 +346,110 @@ export async function createPayoutMethod(
 type ItemInput = { description: string; amount: number };
 
 /**
- * The receipt of one reimbursement item: a real image in the uploads bucket and the `UploadedFiles` row
- * that makes the product accept and serve it. Storage is outside the request transaction, so the object
- * key derives from the request identity: a repeated request overwrites its own object, and a rolled-back
- * one leaves a file nothing refers to under a `pw-` prefix that names it.
+ * A real file in the uploads bucket and the `UploadedFiles` row that makes the product accept and serve it.
+ * Storage is outside the request transaction, so the object key derives from the request identity: a
+ * repeated request overwrites its own object, and a rolled-back one leaves a file nothing refers to under
+ * a `pw-` prefix that names it.
  */
-async function createStoredReceipt(ctx: FixtureContext, name: string, creator: User): Promise<UploadedFile> {
+async function createStoredFile(
+  ctx: FixtureContext,
+  {
+    kind,
+    folder,
+    fileName,
+    contentType,
+    body,
+  }: {
+    kind: FileKind;
+    folder: string;
+    fileName: string;
+    contentType: (typeof SUPPORTED_FILE_TYPES)[number];
+    body: Buffer;
+  },
+  creator: User,
+): Promise<UploadedFile> {
   ctx.checkConnection();
   if (!checkS3Configured()) {
-    throw new Error('Receipts need the file storage the browser stack is launched with.');
+    throw new Error('Stored files need the file storage the browser stack is launched with.');
   }
-  const fileName = `${name}.png`;
-  const image = await sharp({ create: { width: 15, height: 15, channels: 3, background: '#297eff' } })
-    .png()
-    .toBuffer();
   const { url } = await uploadToS3({
     Bucket: config.aws.s3.bucket,
-    Key: `expense-item/${ctx.slug('fixture')}/${fileName}`,
-    Body: image,
+    Key: `${folder}/${ctx.slug('fixture')}/${fileName}`,
+    Body: body,
     ACL: 'public-read',
-    ContentLength: image.length,
-    ContentType: 'image/png',
-    Metadata: { CreatedByUserId: `${creator.id}`, FileKind: 'EXPENSE_ITEM' },
+    ContentLength: body.length,
+    ContentType: contentType,
+    Metadata: { CreatedByUserId: `${creator.id}`, FileKind: kind },
   });
   return UploadedFile.create(
     {
-      kind: 'EXPENSE_ITEM',
+      kind,
       fileName,
-      fileSize: image.length,
-      fileType: 'image/png',
+      fileSize: body.length,
+      fileType: contentType,
       url,
       data: { recordedFrom: 'e2e-fixture' },
       CreatedByUserId: creator.id,
     },
+    { transaction: ctx.transaction },
+  );
+}
+
+/** The receipt of one reimbursement item: a small real image. */
+async function createStoredReceipt(ctx: FixtureContext, name: string, creator: User): Promise<UploadedFile> {
+  const image = await sharp({ create: { width: 15, height: 15, channels: 3, background: '#297eff' } })
+    .png()
+    .toBuffer();
+  return createStoredFile(
+    ctx,
+    { kind: 'EXPENSE_ITEM', folder: 'expense-item', fileName: `${name}.png`, contentType: 'image/png', body: image },
+    creator,
+  );
+}
+
+/** A one-page PDF 1.4 document showing `text` in Helvetica, with a valid cross-reference table. */
+function onePagePdf(text: string): Buffer {
+  const escaped = text.replace(/[\\()]/g, char => `\\${char}`);
+  const content = `BT /F1 24 Tf 72 720 Td (${escaped}) Tj ET`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${Buffer.byteLength(content, 'latin1')} >>\nstream\n${content}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = objects.map((object, index) => {
+    const offset = Buffer.byteLength(pdf, 'latin1');
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+    return offset;
+  });
+  const xref = Buffer.byteLength(pdf, 'latin1');
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  pdf += offsets.map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(pdf, 'latin1');
+}
+
+/** Attaches a stored PDF showing `text` to `expense`, as after its submitter uploaded it with the form. */
+export async function attachStoredPdf(
+  ctx: FixtureContext,
+  { expense, submitter, name, text }: { expense: Expense; submitter: User; name: string; text: string },
+): Promise<void> {
+  const file = await createStoredFile(
+    ctx,
+    {
+      kind: 'EXPENSE_ATTACHED_FILE',
+      folder: 'expense-attached-file',
+      fileName: name,
+      contentType: 'application/pdf',
+      body: onePagePdf(text),
+    },
+    submitter,
+  );
+  // The attachment holds the storage address, as after a real upload.
+  await ExpenseAttachedFile.create(
+    { ExpenseId: expense.id, CreatedByUserId: submitter.id, url: file.getDataValue('url') },
     { transaction: ctx.transaction },
   );
 }

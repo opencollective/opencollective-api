@@ -4,10 +4,12 @@ import path from 'path';
 import {
   CopyObjectCommand,
   CopyObjectRequest,
+  CORSRule,
   CreateBucketCommand,
   DeleteBucketCommand,
   DeleteObjectCommand,
   DeleteObjectOutput,
+  GetBucketCorsCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
@@ -15,6 +17,7 @@ import {
   ListObjectsV2Command,
   ListObjectsV2Output,
   ObjectCannedACL,
+  PutBucketCorsCommand,
   PutBucketPolicyCommand,
   PutObjectCommand,
   PutObjectCommandOutput,
@@ -349,6 +352,48 @@ export const createBucket = async (bucket: string): Promise<void> => {
   }
 };
 
+/** The CORS rules of a bucket; none when it has no CORS configuration. */
+const getBucketCorsRules = async (bucket: string): Promise<CORSRule[]> => {
+  try {
+    const { CORSRules } = await s3.send(new GetBucketCorsCommand({ Bucket: bucket }));
+    return CORSRules || [];
+  } catch (e) {
+    if (e?.name === 'NoSuchCORSConfiguration' || e?.Code === 'NoSuchCORSConfiguration') {
+      return [];
+    }
+    throw e;
+  }
+};
+
+/** True when a rule already lets `origin` read objects (GET and HEAD). */
+const corsRuleAllowsRead = (rule: CORSRule, origin: string): boolean =>
+  (rule.AllowedOrigins || []).some(allowed => allowed === '*' || allowed === origin) &&
+  ['GET', 'HEAD'].every(method => (rule.AllowedMethods || []).includes(method));
+
+/**
+ * Like the production uploads bucket, let the website read stored files from the browser (the PDF
+ * viewer fetches attachments). Adds the rule only when no existing rule already allows it, and keeps
+ * every other rule a developer may have set on the bucket.
+ */
+const ensureBucketReadableFromWebsite = async (bucket: string): Promise<void> => {
+  const origin = config.host.website;
+  const rules = await getBucketCorsRules(bucket);
+  if (rules.some(rule => corsRuleAllowsRead(rule, origin))) {
+    return;
+  }
+
+  logger.info(`Letting ${origin} read files from bucket ${bucket} (CORS)...`);
+  const websiteRule = {
+    AllowedOrigins: [origin],
+    AllowedMethods: ['GET', 'HEAD'],
+    AllowedHeaders: ['*'],
+    MaxAgeSeconds: 3600,
+  };
+  await s3.send(
+    new PutBucketCorsCommand({ Bucket: bucket, CORSConfiguration: { CORSRules: [...rules, websiteRule] } }),
+  );
+};
+
 /**
  * This function initializes the S3 buckets for non-production environments.
  */
@@ -356,8 +401,8 @@ export const dangerouslyInitNonProductionBuckets = async ({
   dropExisting = false,
 }: { dropExisting?: boolean } = {}) => {
   const buckets = [
-    { name: config.aws.s3.bucket, policy: s3BucketNonProductionPolicy },
-    { name: config.taxForms.aws.s3.bucket, policy: s3TaxFormsBucketNonProductionPolicy },
+    { name: config.aws.s3.bucket, policy: s3BucketNonProductionPolicy, readableFromWebsite: true },
+    { name: config.taxForms.aws.s3.bucket, policy: s3TaxFormsBucketNonProductionPolicy, readableFromWebsite: false },
   ];
 
   for (const bucket of buckets) {
@@ -365,20 +410,20 @@ export const dangerouslyInitNonProductionBuckets = async ({
     if (dropExisting && bucketExists) {
       logger.info(`Bucket ${bucket.name} already exists, dropping...`);
       await s3.send(new DeleteBucketCommand({ Bucket: bucket.name }));
-    } else if (bucketExists) {
-      logger.info(`Bucket ${bucket.name} already exists`);
-      continue;
     }
 
-    logger.info(`Creating bucket ${bucket.name}...`);
-    await createBucket(bucket.name);
+    if (bucketExists && !dropExisting) {
+      logger.info(`Bucket ${bucket.name} already exists`);
+    } else {
+      logger.info(`Creating bucket ${bucket.name}...`);
+      await createBucket(bucket.name);
+      await s3.send(new PutBucketPolicyCommand({ Bucket: bucket.name, Policy: bucket.policy }));
+    }
 
-    await s3.send(
-      new PutBucketPolicyCommand({
-        Bucket: bucket.name,
-        Policy: bucket.policy,
-      }),
-    );
+    // Existing buckets too, so the rule reaches buckets created before it existed.
+    if (bucket.readableFromWebsite) {
+      await ensureBucketReadableFromWebsite(bucket.name);
+    }
   }
 };
 
