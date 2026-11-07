@@ -4,10 +4,12 @@ import path from 'path';
 import {
   CopyObjectCommand,
   CopyObjectRequest,
+  CORSRule,
   CreateBucketCommand,
   DeleteBucketCommand,
   DeleteObjectCommand,
   DeleteObjectOutput,
+  GetBucketCorsCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
@@ -350,6 +352,48 @@ export const createBucket = async (bucket: string): Promise<void> => {
   }
 };
 
+/** The CORS rules of a bucket; none when it has no CORS configuration. */
+const getBucketCorsRules = async (bucket: string): Promise<CORSRule[]> => {
+  try {
+    const { CORSRules } = await s3.send(new GetBucketCorsCommand({ Bucket: bucket }));
+    return CORSRules || [];
+  } catch (e) {
+    if (e?.name === 'NoSuchCORSConfiguration' || e?.Code === 'NoSuchCORSConfiguration') {
+      return [];
+    }
+    throw e;
+  }
+};
+
+/** True when a rule already lets `origin` read objects (GET and HEAD). */
+const corsRuleAllowsRead = (rule: CORSRule, origin: string): boolean =>
+  (rule.AllowedOrigins || []).some(allowed => allowed === '*' || allowed === origin) &&
+  ['GET', 'HEAD'].every(method => (rule.AllowedMethods || []).includes(method));
+
+/**
+ * Like the production uploads bucket, let the website read stored files from the browser (the PDF
+ * viewer fetches attachments). Adds the rule only when no existing rule already allows it, and keeps
+ * every other rule a developer may have set on the bucket.
+ */
+const ensureBucketReadableFromWebsite = async (bucket: string): Promise<void> => {
+  const origin = config.host.website;
+  const rules = await getBucketCorsRules(bucket);
+  if (rules.some(rule => corsRuleAllowsRead(rule, origin))) {
+    return;
+  }
+
+  logger.info(`Letting ${origin} read files from bucket ${bucket} (CORS)...`);
+  const websiteRule = {
+    AllowedOrigins: [origin],
+    AllowedMethods: ['GET', 'HEAD'],
+    AllowedHeaders: ['*'],
+    MaxAgeSeconds: 3600,
+  };
+  await s3.send(
+    new PutBucketCorsCommand({ Bucket: bucket, CORSConfiguration: { CORSRules: [...rules, websiteRule] } }),
+  );
+};
+
 /**
  * This function initializes the S3 buckets for non-production environments.
  */
@@ -376,24 +420,9 @@ export const dangerouslyInitNonProductionBuckets = async ({
       await s3.send(new PutBucketPolicyCommand({ Bucket: bucket.name, Policy: bucket.policy }));
     }
 
-    // Like the production uploads bucket, let the website read stored files from the browser (the PDF
-    // viewer fetches attachments). Applied to existing buckets too; the rule replaces any previous one.
+    // Existing buckets too, so the rule reaches buckets created before it existed.
     if (bucket.readableFromWebsite) {
-      await s3.send(
-        new PutBucketCorsCommand({
-          Bucket: bucket.name,
-          CORSConfiguration: {
-            CORSRules: [
-              {
-                AllowedOrigins: [config.host.website],
-                AllowedMethods: ['GET', 'HEAD'],
-                AllowedHeaders: ['*'],
-                MaxAgeSeconds: 3600,
-              },
-            ],
-          },
-        }),
-      );
+      await ensureBucketReadableFromWebsite(bucket.name);
     }
   }
 };
