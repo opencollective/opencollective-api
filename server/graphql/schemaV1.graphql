@@ -4135,7 +4135,6 @@ type Query {
     includeExpenseTransactions: Boolean = true
     includeHostedCollectivesTransactions: Boolean
   ): [Transaction] @deprecated(reason: "2025-07-10: Please use GraphQL V2")
-  Transaction(id: Int, uuid: String): Transaction @deprecated(reason: "2025-07-10: Please use GraphQL V2")
   allMembers(
     CollectiveId: Int
     collectiveSlug: String

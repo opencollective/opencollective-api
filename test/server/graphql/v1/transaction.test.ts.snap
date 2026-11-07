@@ -273,40 +273,6 @@ Object {
 }
 `;
 
-exports[`server/graphql/v1/transaction return transactions returns one transaction by id 1`] = `
-Object {
-  "data": Object {
-    "Transaction": Object {
-      "createdByUser": null,
-      "host": Object {
-        "id": 2,
-        "slug": "wwcode",
-      },
-      "id": 2,
-      "paymentMethod": null,
-      "subscription": null,
-      "type": "CREDIT",
-    },
-  },
-}
-`;
-
-exports[`server/graphql/v1/transaction return transactions returns one transaction by uuid 1`] = `
-Object {
-  "data": Object {
-    "Transaction": Object {
-      "createdByUser": null,
-      "host": Object {
-        "id": 2,
-        "slug": "wwcode",
-      },
-      "id": 1,
-      "type": "DEBIT",
-    },
-  },
-}
-`;
-
 exports[`server/graphql/v1/transaction return transactions with dateFrom 1`] = `
 Object {
   "data": Object {
