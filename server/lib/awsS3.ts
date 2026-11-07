@@ -15,6 +15,7 @@ import {
   ListObjectsV2Command,
   ListObjectsV2Output,
   ObjectCannedACL,
+  PutBucketCorsCommand,
   PutBucketPolicyCommand,
   PutObjectCommand,
   PutObjectCommandOutput,
@@ -356,8 +357,8 @@ export const dangerouslyInitNonProductionBuckets = async ({
   dropExisting = false,
 }: { dropExisting?: boolean } = {}) => {
   const buckets = [
-    { name: config.aws.s3.bucket, policy: s3BucketNonProductionPolicy },
-    { name: config.taxForms.aws.s3.bucket, policy: s3TaxFormsBucketNonProductionPolicy },
+    { name: config.aws.s3.bucket, policy: s3BucketNonProductionPolicy, readableFromWebsite: true },
+    { name: config.taxForms.aws.s3.bucket, policy: s3TaxFormsBucketNonProductionPolicy, readableFromWebsite: false },
   ];
 
   for (const bucket of buckets) {
@@ -365,20 +366,35 @@ export const dangerouslyInitNonProductionBuckets = async ({
     if (dropExisting && bucketExists) {
       logger.info(`Bucket ${bucket.name} already exists, dropping...`);
       await s3.send(new DeleteBucketCommand({ Bucket: bucket.name }));
-    } else if (bucketExists) {
-      logger.info(`Bucket ${bucket.name} already exists`);
-      continue;
     }
 
-    logger.info(`Creating bucket ${bucket.name}...`);
-    await createBucket(bucket.name);
+    if (bucketExists && !dropExisting) {
+      logger.info(`Bucket ${bucket.name} already exists`);
+    } else {
+      logger.info(`Creating bucket ${bucket.name}...`);
+      await createBucket(bucket.name);
+      await s3.send(new PutBucketPolicyCommand({ Bucket: bucket.name, Policy: bucket.policy }));
+    }
 
-    await s3.send(
-      new PutBucketPolicyCommand({
-        Bucket: bucket.name,
-        Policy: bucket.policy,
-      }),
-    );
+    // Like the production uploads bucket, let the website read stored files from the browser (the PDF
+    // viewer fetches attachments). Applied to existing buckets too; the rule replaces any previous one.
+    if (bucket.readableFromWebsite) {
+      await s3.send(
+        new PutBucketCorsCommand({
+          Bucket: bucket.name,
+          CORSConfiguration: {
+            CORSRules: [
+              {
+                AllowedOrigins: [config.host.website],
+                AllowedMethods: ['GET', 'HEAD'],
+                AllowedHeaders: ['*'],
+                MaxAgeSeconds: 3600,
+              },
+            ],
+          },
+        }),
+      );
+    }
   }
 };
 
