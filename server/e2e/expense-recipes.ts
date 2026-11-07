@@ -5,6 +5,7 @@ import expenseType from '../constants/expense-type';
 import {
   accountHandle,
   actorHandle,
+  attachStoredPdf,
   createActor,
   createHost,
   createHostedCollective,
@@ -123,7 +124,7 @@ export const expenseRecipes: Record<string, Recipe> = {
    * A Collective admin facing their own Collective on an attempt-owned host:
    * the party who approves, rejects and deletes expenses and writes the
    * expense policy. Options add a pending invoice the admin submitted to the
-   * Collective and a Project under it. Policies start empty; every transition,
+   * Collective (optionally with a stored PDF attached) and a Project under it. Policies start empty; every transition,
    * deletion and policy edit is the journey's own behavior.
    */
   'expense-management': defineRecipe({
@@ -131,7 +132,18 @@ export const expenseRecipes: Record<string, Recipe> = {
       .object({
         /** One pending invoice by `admin` (also its payee) on `collective`, with a saved payout method. */
         expense: z
-          .object({ description: z.string().trim().min(1).max(255), items: z.array(item).min(1).max(5) })
+          .object({
+            description: z.string().trim().min(1).max(255),
+            items: z.array(item).min(1).max(5),
+            /** A real PDF in file storage, attached to the expense, showing `text`. */
+            attachedPdf: z
+              .object({
+                name: z.string().regex(/^[\w-]{1,60}\.pdf$/),
+                text: z.string().trim().min(1).max(100),
+              })
+              .strict()
+              .optional(),
+          })
           .strict()
           .optional(),
         /** A Project under `collective`. */
@@ -149,8 +161,12 @@ export const expenseRecipes: Record<string, Recipe> = {
         (await createExpenseWithSavedPayout(ctx, {
           account: collective,
           submitter: admin,
-          ...inputs.expense,
+          description: inputs.expense.description,
+          items: inputs.expense.items,
         }));
+      if (expense && inputs.expense.attachedPdf) {
+        await attachStoredPdf(ctx, { expense, submitter: admin, ...inputs.expense.attachedPdf });
+      }
       return {
         actors: { hostAdmin: actorHandle(hostAdmin), admin: actorHandle(admin) },
         accounts: {
