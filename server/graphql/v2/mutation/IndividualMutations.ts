@@ -15,7 +15,7 @@ import {
   requireSessionToken,
 } from '../../common/scope-check';
 import { confirmUserEmail } from '../../common/user';
-import { RateLimitExceeded, Unauthorized } from '../../errors';
+import { RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLIndividual } from '../object/Individual';
 import { GraphQLSetPasswordResponse } from '../object/SetPasswordResponse';
 
@@ -105,6 +105,14 @@ const individualMutations = {
         const validPassword = await bcrypt.compare(args.currentPassword, req.remoteUser.passwordHash);
         if (!validPassword) {
           throw new Unauthorized('Invalid current password while attempting to change password.');
+        }
+      }
+
+      // Prevent setting new password to be the same as current password
+      if (req.remoteUser.passwordHash) {
+        const isSamePassword = await bcrypt.compare(args.password, req.remoteUser.passwordHash);
+        if (isSamePassword) {
+          throw new ValidationFailed('New password must be different from current password.');
         }
       }
 
