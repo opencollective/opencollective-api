@@ -2697,6 +2697,8 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(project.deactivatedAt).to.be.a('date');
       expect(order.status).to.equal(OrderStatuses.CANCELLED);
       expect(pendingExpense.status).to.equal('CANCELED');
+      expect(pendingExpense.data.cancelledWhileArchivedFromCollective).to.be.true;
+      expect(pendingExpense.data.previousStatus).to.equal('PENDING');
       expect(paidExpense.status).to.equal('PAID');
 
       const activity = await models.Activity.findOne({
@@ -2704,6 +2706,40 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       });
       expect(activity).to.exist;
       expect(activity.HostCollectiveId).to.equal(host.id);
+      expect(activity.data.notify).to.be.false;
+    });
+
+    it('clears approvedAt even when HostCollectiveId is already null', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost();
+      const account = await fakeCollective({
+        admin,
+        HostCollectiveId: host.id,
+        isActive: true,
+        approvedAt: new Date('2024-01-01'),
+      });
+      const project = await fakeProject({
+        ParentCollectiveId: account.id,
+        HostCollectiveId: host.id,
+        isActive: true,
+        approvedAt: new Date('2024-01-01'),
+      });
+
+      // Host already removed without clearing approvedAt
+      await account.update({ HostCollectiveId: null }, { hooks: false });
+      await project.update({ HostCollectiveId: null }, { hooks: false });
+
+      const result = await graphqlQueryV2(archiveAccountMutation, { account: { legacyId: account.id } }, admin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.archiveAccount.isArchived).to.be.true;
+
+      await Promise.all([account, project].map(e => e.reload()));
+      for (const archived of [account, project]) {
+        expect(archived.isActive).to.be.false;
+        expect(archived.deactivatedAt).to.be.a('date');
+        expect(archived.approvedAt).to.be.null;
+        expect(archived.HostCollectiveId).to.be.null;
+      }
     });
 
     it('cannot archive a host', async () => {

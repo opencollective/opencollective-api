@@ -10,7 +10,6 @@ import { CollectiveType } from '../../../constants/collectives';
 import roles from '../../../constants/roles';
 import { assertSettingsChangeAllowed } from '../../../lib/account-settings';
 import { purgeCacheForCollective } from '../../../lib/cache';
-import * as collectivelib from '../../../lib/collectivelib';
 import { defaultHostCollective } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
 import { canSeePrivateAccount } from '../../../lib/private-accounts';
@@ -639,35 +638,4 @@ export async function unarchiveCollective(_, args, req) {
   }
 
   return collective.update({ deactivatedAt: null });
-}
-
-export async function deleteCollective(_, args, req) {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to delete a collective');
-  }
-
-  const collective = await req.loaders.Collective.byId.load(args.id);
-  if (!collective) {
-    throw new NotFound(`Collective with id ${args.id} not found`);
-  }
-
-  if (!req.remoteUser.isAdminOfCollective(collective) && !isRemoteUserRoot(req)) {
-    throw new Unauthorized(`You don't have permission to delete this collective.`);
-  }
-
-  if (await collective.isHost()) {
-    throw new Error(
-      `You can't delete your collective while being a host. Please, deactivate your collective as Host and try again.`,
-    );
-  }
-
-  if (!(await collectivelib.isCollectiveDeletable(collective))) {
-    throw new Error(
-      `You can't delete a collective with children, transactions, orders or paid expenses. Please archive it instead.`,
-    );
-  }
-
-  await twoFactorAuthLib.enforceForAccount(req, collective, { alwaysAskForToken: true });
-
-  return collectivelib.deleteCollective(collective, req.remoteUser);
 }
