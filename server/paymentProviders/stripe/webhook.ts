@@ -1424,6 +1424,7 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
     return Promise.resolve();
   }
 
+  // Reject payloads that don't look like a Stripe event (e.g. probes, non-Stripe callers)
   if (typeof event.type !== 'string') {
     throw new Error('Source of event not recognized');
   }
