@@ -216,6 +216,51 @@ const ownerFile = process.env.PLAYWRIGHT_FIXTURE_OWNER_FILE;
     });
   });
 
+  it('arranges a pending invoice with a PDF attached file held in file storage', async () => {
+    const management = (requestId: string, inputs: unknown) => ({
+      attempt,
+      requestId,
+      recipe: 'expense-management',
+      inputs,
+    });
+    const expense = {
+      description: 'Expense with a PDF attachment',
+      items: [{ description: 'Some stuff', amount: 1000 }],
+    };
+    const invalid = { ...expense, attachedPdf: { name: '../preview.pdf', text: 'x' } };
+    assert.equal((await post(management('unsafe-name', { expense: invalid }))).status, 400);
+    const pdf = { name: 'preview.pdf', text: 'Open Collective PDF preview' };
+    const response = await post(management('attached-pdf', { expense: { ...expense, attachedPdf: pdf } }));
+    assert.equal(response.status, 200);
+    const graph = await response.json();
+    const [stored] = await sequelize.query<Record<string, unknown>>(
+      `SELECT f."publicId" AS file, f.kind AS kind, f."fileName" AS "fileName", f."fileType" AS "fileType",
+        f."CreatedByUserId" = e."UserId" AS "uploadedBySubmitter"
+      FROM "Expenses" e
+      JOIN "ExpenseAttachedFiles" a ON a."ExpenseId" = e.id
+      JOIN "UploadedFiles" f ON f.url = a.url
+      WHERE e.id = :expense`,
+      { type: QueryTypes.SELECT, replacements: { expense: graph.expenses.pending.legacyId } },
+    );
+    const { file, ...attachment } = stored;
+    assert.deepEqual(attachment, {
+      kind: 'EXPENSE_ATTACHED_FILE',
+      fileName: 'preview.pdf',
+      fileType: 'application/pdf',
+      uploadedBySubmitter: true,
+    });
+    // The submitter gets a real PDF naming the requested text from the product's file route.
+    const link = await fetch(`${process.env.API_URL}/files/${file}?json&expenseId=${graph.expenses.pending.id}`, {
+      headers: { Authorization: `Bearer ${graph.actors.admin.token}` },
+    });
+    assert.equal(link.status, 200);
+    const served = await fetch((await link.json()).url);
+    assert.equal(served.headers.get('content-type'), 'application/pdf');
+    const body = Buffer.from(await served.arrayBuffer()).toString('latin1');
+    assert.match(body, /^%PDF-1\.4/);
+    assert.match(body, /\(Open Collective PDF preview\) Tj/);
+  });
+
   it('arranges vendors scoped and restricted as named, on hosts whose policy only the request sets', async () => {
     const vendorHost = (requestId: string, inputs: unknown) => ({
       attempt,
