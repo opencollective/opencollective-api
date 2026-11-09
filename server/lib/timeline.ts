@@ -19,6 +19,11 @@ const getCollectiveIdsForRole = (memberships: Member[], roles: MemberRoles[]): n
 
 const CREATED_AT_HORIZON = { [Op.gt]: Sequelize.literal("NOW() - INTERVAL '6 months'") };
 
+// System expense updates (e.g. tax-form and payout-method fan-out) are shown in expense threads, not in timelines
+const EXCLUDE_SYSTEM_EXPENSE_UPDATES = Sequelize.literal(
+  `NOT ("Activity"."type" = '${ActivityTypes.COLLECTIVE_EXPENSE_UPDATED}' AND COALESCE(("Activity"."data"->>'isSystem')::boolean, false))`,
+);
+
 const makeTimelineQuery = async (
   collective: Collective,
   classes: ActivityClasses[],
@@ -88,26 +93,39 @@ const makeTimelineQuery = async (
     }
     return {
       [Op.or]: conditionals,
+      [Op.and]: [EXCLUDE_SYSTEM_EXPENSE_UPDATES],
     };
   } else if (collective.hasHosting) {
-    return {
+    const fiscalHostNoteCondition = {
       type: {
-        [Op.in]: [
-          ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
-          ActivityTypes.COLLECTIVE_APPROVED,
-          ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
-          ActivityTypes.COLLECTIVE_CORE_MEMBER_REMOVED,
-          ActivityTypes.COLLECTIVE_FROZEN,
-          ActivityTypes.COLLECTIVE_UNFROZEN,
-          ActivityTypes.COLLECTIVE_ARCHIVED,
-          ActivityTypes.COLLECTIVE_UNHOSTED,
-          ActivityTypes.COLLECTIVE_APPLY,
-        ],
+        [Op.in]: [ActivityTypes.FISCAL_HOST_NOTE_SET, ActivityTypes.FISCAL_HOST_NOTE_REMOVED],
       },
+      HostCollectiveId: collective.id,
+    };
+
+    return {
       [Op.or]: [
-        { CollectiveId: collective.id },
-        { FromCollectiveId: collective.id },
-        { HostCollectiveId: collective.id },
+        {
+          type: {
+            [Op.in]: [
+              ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
+              ActivityTypes.COLLECTIVE_APPROVED,
+              ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
+              ActivityTypes.COLLECTIVE_CORE_MEMBER_REMOVED,
+              ActivityTypes.COLLECTIVE_FROZEN,
+              ActivityTypes.COLLECTIVE_UNFROZEN,
+              ActivityTypes.COLLECTIVE_ARCHIVED,
+              ActivityTypes.COLLECTIVE_UNHOSTED,
+              ActivityTypes.COLLECTIVE_APPLY,
+            ],
+          },
+          [Op.or]: [
+            { CollectiveId: collective.id },
+            { FromCollectiveId: collective.id },
+            { HostCollectiveId: collective.id },
+          ],
+        },
+        ...(classes.includes(ActivityClasses.COLLECTIVE) ? [fiscalHostNoteCondition] : []),
       ],
     };
   }
@@ -198,6 +216,7 @@ const makeTimelineQuery = async (
   return {
     type: { [Op.in]: types },
     [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],
+    [Op.and]: [EXCLUDE_SYSTEM_EXPENSE_UPDATES],
   };
 };
 
@@ -215,7 +234,7 @@ debug('Cache TTL: %d (%d days)', TTL, config.timeline.daysCached);
  */
 const getCacheKey = (collectiveSlug: string, classes: ActivityClasses[]): string => {
   const sortedClasses = [...classes].sort().join('-');
-  return `timeline-v2-${collectiveSlug}-${sortedClasses || 'none'}`;
+  return `timeline-v3-${collectiveSlug}-${sortedClasses || 'none'}`;
 };
 
 /**

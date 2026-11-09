@@ -156,50 +156,44 @@ const expenseMutations = {
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
       // here and cleaned.
-      const expense = await createExpense(
-        req,
-        {
-          ...pick(args.expense, [
-            'description',
-            'longDescription',
-            'tags',
-            'type',
-            'privateMessage',
-            'attachedFiles',
-            'invoiceFile',
-            'invoiceInfo',
-            'payeeLocation',
-            'currency',
-            'items',
-            'tax',
-            'customData',
-            'reference',
-          ]),
-          payoutMethod,
-          collective,
-          fromCollective,
-          accountingCategory:
-            args.expense.accountingCategory &&
-            (await fetchAccountingCategoryWithReference(args.expense.accountingCategory, {
-              throwIfMissing: true,
-              loaders: req.loaders,
-            })),
-          transactionsImportRow:
-            args.transactionsImportRow &&
-            (await fetchTransactionsImportRowWithReference(args.transactionsImportRow, {
-              throwIfMissing: true,
-            })),
-          balanceAccountingCategory:
-            args.balanceAccountingCategory &&
-            (await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
-              throwIfMissing: true,
-              loaders: req.loaders,
-            })),
-        },
-        {
-          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
-        },
-      );
+      const expense = await createExpense(req, {
+        ...pick(args.expense, [
+          'description',
+          'longDescription',
+          'tags',
+          'type',
+          'privateMessage',
+          'attachedFiles',
+          'invoiceFile',
+          'invoiceInfo',
+          'payeeLocation',
+          'currency',
+          'items',
+          'tax',
+          'customData',
+          'reference',
+        ]),
+        payoutMethod,
+        collective,
+        fromCollective,
+        accountingCategory:
+          args.expense.accountingCategory &&
+          (await fetchAccountingCategoryWithReference(args.expense.accountingCategory, {
+            throwIfMissing: true,
+            loaders: req.loaders,
+          })),
+        transactionsImportRow:
+          args.transactionsImportRow &&
+          (await fetchTransactionsImportRowWithReference(args.transactionsImportRow, {
+            throwIfMissing: true,
+          })),
+        balanceAccountingCategory:
+          args.balanceAccountingCategory &&
+          (await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
+            throwIfMissing: true,
+            loaders: req.loaders,
+          })),
+      });
 
       if (args.recurring) {
         await models.RecurringExpense.createFromExpense(expense, args.recurring.interval, args.recurring.endsAt);
@@ -336,25 +330,16 @@ const expenseMutations = {
         (existingExpense.status === expenseStatus.DRAFT && !userIsOriginalPayee && userIsAuthor && !isRecurring) ||
         (existingExpense.status === expenseStatus.DRAFT && userIsAuthor && isRecurring && args.isDraftEdit)
       ) {
-        return editExpenseDraft(req, expenseData, args, {
-          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
-        });
+        return editExpenseDraft(req, expenseData, args);
       }
       // Draft can be submitted with a draft key, by the invited account/email, or by the author of a recurring draft.
       else if (
         existingExpense.status === expenseStatus.DRAFT &&
         (args.draftKey || userIsOriginalPayee || (userIsAuthor && isRecurring))
       ) {
-        return submitExpenseDraft(req, expenseData, {
-          args,
-          requestedPayee,
-          originalPayee,
-          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
-        });
+        return submitExpenseDraft(req, expenseData, { args, requestedPayee, originalPayee });
       } else {
-        return editExpense(req, expenseData, {
-          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
-        });
+        return editExpense(req, expenseData);
       }
     },
   },
@@ -815,7 +800,6 @@ const expenseMutations = {
           reference: expenseData.reference,
           notify: !args.skipInvite,
           lockedFields: args.lockedFields,
-          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true' ? true : undefined,
         },
       });
 

@@ -13,12 +13,18 @@ import {
 
 import { activities } from '../constants';
 import { CollectiveType } from '../constants/collectives';
-import { US_TAX_FORM_VALIDITY_IN_YEARS } from '../constants/tax-form';
+import {
+  TAX_FORM_IGNORED_EXPENSE_STATUSES,
+  TAX_FORM_IGNORED_EXPENSE_TYPES,
+  US_TAX_FORM_VALIDITY_IN_YEARS,
+} from '../constants/tax-form';
 import { parseS3Url } from '../lib/awsS3';
 import { crypto, secretbox } from '../lib/encryption';
+import { trackActivityDispatch } from '../lib/notifications/activity-dispatch-tracker';
 import { notify } from '../lib/notifications/email';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import SQLQueries from '../lib/queries';
+import { reportErrorToSentry } from '../lib/sentry';
 import sequelize from '../lib/sequelize';
 import { getTaxFormsS3Bucket } from '../lib/tax-forms';
 import { isValidURL, prependHttp } from '../lib/url-utils';
@@ -104,6 +110,130 @@ class LegalDocument extends ModelWithPublicId<
   };
 
   /**
+   * Fan-out a `COLLECTIVE_EXPENSE_UPDATED` activity to all expenses of the payee that
+   * match the tax-form criteria, so tax-form changes are surfaced in expense threads.
+   * Best-effort: never throws, reports to Sentry. See https://github.com/opencollective/opencollective/issues/8702
+   */
+  static createExpenseActivitiesForTaxFormChange = async (
+    payee: Collective | { id: number },
+    legalDocument: LegalDocument,
+    {
+      previousStatus,
+      newStatus,
+      user,
+    }: {
+      previousStatus: LEGAL_DOCUMENT_REQUEST_STATUS | string | null;
+      newStatus: LEGAL_DOCUMENT_REQUEST_STATUS | string;
+      user: User | { id: number } | null;
+    },
+  ): Promise<void> => {
+    try {
+      // Accessed through `sequelize.models` to avoid a circular import with the Expense model
+      const ExpenseModel = sequelize.models.Expense as unknown as {
+        findAll: (
+          options: unknown,
+        ) => Promise<Array<{ id: number; CollectiveId: number; HostCollectiveId?: number | null }>>;
+        createSystemUpdatedActivities: (
+          expenses: Array<{ id: number }>,
+          user: User | { id: number } | null,
+          getData: () => Record<string, unknown>,
+        ) => Promise<void>;
+      };
+      const CollectiveModel = sequelize.models.Collective as unknown as {
+        findAll: (options: unknown) => Promise<Array<{ id: number; HostCollectiveId?: number | null }>>;
+      };
+      const RequiredLegalDocumentModel = sequelize.models.RequiredLegalDocument as unknown as {
+        findAll: (options: unknown) => Promise<Array<{ HostCollectiveId: number }>>;
+      };
+      if (!ExpenseModel || !payee?.id || !legalDocument) {
+        return;
+      }
+
+      const targetYear = legalDocument.year || new Date().getFullYear();
+      const taxFormInfo = {
+        id: legalDocument.id,
+        publicId: (legalDocument as unknown as { publicId?: string }).publicId,
+        year: legalDocument.year,
+        documentType: legalDocument.documentType,
+        requestStatus: newStatus,
+        service: legalDocument.service,
+      };
+
+      // Paginate through all matching expenses (no overall cap), oldest first for stable paging.
+      const BATCH_SIZE = 100;
+      let lastId = 0;
+      for (;;) {
+        const expenses = await ExpenseModel.findAll({
+          where: {
+            id: { [Op.gt]: lastId },
+            FromCollectiveId: payee.id,
+            type: { [Op.notIn]: [...TAX_FORM_IGNORED_EXPENSE_TYPES] },
+            status: { [Op.notIn]: [...TAX_FORM_IGNORED_EXPENSE_STATUSES] },
+            // Same year rule as the tax-form requirement (`getTaxFormsRequiredForExpenses`):
+            // paid expenses count for the year they were paid, unpaid ones for the current year
+            [Op.and]: [
+              sequelize.where(
+                sequelize.fn(
+                  'date_part',
+                  'year',
+                  sequelize.fn('COALESCE', sequelize.col('paidAt'), sequelize.fn('NOW')),
+                ),
+                targetYear,
+              ),
+            ],
+          },
+          order: [['id', 'ASC']],
+          limit: BATCH_SIZE,
+        });
+
+        if (!expenses.length) {
+          return;
+        }
+        lastId = expenses[expenses.length - 1].id;
+
+        // Tax-form applicability is host-specific: only fan out to expenses under a host
+        // that requires US tax forms, preserving the document year for the check.
+        const collectiveIds = uniq(expenses.map(expense => expense.CollectiveId));
+        const collectives = await CollectiveModel.findAll({
+          where: { id: collectiveIds },
+          attributes: ['id', 'HostCollectiveId'],
+        });
+        const hostIdByCollectiveId = new Map(collectives.map(c => [c.id, c.HostCollectiveId]));
+        const hostIds = uniq(
+          expenses
+            .map(expense => expense.HostCollectiveId ?? hostIdByCollectiveId.get(expense.CollectiveId))
+            .filter((hostId): hostId is number => Boolean(hostId)),
+        );
+
+        if (hostIds.length) {
+          const requiredDocs = await RequiredLegalDocumentModel.findAll({
+            where: { HostCollectiveId: hostIds, documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM },
+            attributes: ['HostCollectiveId'],
+          });
+          const taxFormHostIds = new Set(requiredDocs.map(doc => doc.HostCollectiveId));
+          const applicableExpenses = expenses.filter(expense =>
+            taxFormHostIds.has(expense.HostCollectiveId ?? hostIdByCollectiveId.get(expense.CollectiveId)),
+          );
+
+          await ExpenseModel.createSystemUpdatedActivities(applicableExpenses, user, () => ({
+            previousData: { taxFormStatus: previousStatus },
+            newData: { taxFormStatus: newStatus },
+            taxForm: taxFormInfo,
+          }));
+        }
+
+        if (expenses.length < BATCH_SIZE) {
+          return;
+        }
+      }
+    } catch (e) {
+      reportErrorToSentry(e, {
+        extra: { payeeId: (payee as { id: number })?.id, legalDocumentId: legalDocument?.id },
+      });
+    }
+  };
+
+  /**
    * Send a tax form request to the collective using the new internal system.
    */
   static createTaxFormRequestToCollectiveIfNone = async (
@@ -119,8 +249,10 @@ class LegalDocument extends ModelWithPublicId<
       HostCollectiveId?: number;
     } = {},
   ): Promise<LegalDocument> => {
-    return sequelize.transaction(async transaction => {
-      const [legalDocument, isNew] = await LegalDocument.findOrCreate({
+    let legalDocument: LegalDocument;
+    let isNew = false;
+    await sequelize.transaction(async transaction => {
+      const [foundDocument, created] = await LegalDocument.findOrCreate({
         transaction,
         where: {
           documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
@@ -135,6 +267,8 @@ class LegalDocument extends ModelWithPublicId<
           service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
         },
       });
+      legalDocument = foundDocument;
+      isNew = created;
 
       if (isNew) {
         // This will not trigger any email directly, we'll only send it in `cron/hourly/40-send-tax-form-requests.js`
@@ -159,9 +293,20 @@ class LegalDocument extends ModelWithPublicId<
           },
         );
       }
-
-      return legalDocument;
     });
+
+    if (isNew) {
+      // Surface the request in related expense threads (best-effort, no email, after the response)
+      trackActivityDispatch(
+        LegalDocument.createExpenseActivitiesForTaxFormChange(payee, legalDocument, {
+          previousStatus: LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED,
+          newStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
+          user,
+        }),
+      );
+    }
+
+    return legalDocument;
   };
 
   /**
@@ -179,44 +324,64 @@ class LegalDocument extends ModelWithPublicId<
       year?: number;
     } = {},
   ) => {
-    return sequelize.transaction(async sqlTransaction => {
-      let legalDocument = await LegalDocument.findOne({
-        where: { CollectiveId: payee.id, requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED },
-        lock: true,
-        transaction: sqlTransaction,
-      });
+    let legalDocument: LegalDocument;
+    let previousStatus: LEGAL_DOCUMENT_REQUEST_STATUS | string | null;
+    return sequelize
+      .transaction(async sqlTransaction => {
+        const existingDocument = await LegalDocument.findOne({
+          where: { CollectiveId: payee.id, requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED },
+          lock: true,
+          transaction: sqlTransaction,
+        });
 
-      const attributes = {
-        service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
-        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
-        documentLink,
-        year: year || new Date().getFullYear(),
-      };
+        previousStatus = existingDocument
+          ? existingDocument.requestStatus
+          : LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED;
 
-      if (legalDocument) {
-        await legalDocument.update(attributes, { transaction: sqlTransaction });
-      } else {
-        legalDocument = await LegalDocument.create(
-          { ...attributes, CollectiveId: payee.id },
+        const attributes = {
+          service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+          requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+          documentLink,
+          year: year || new Date().getFullYear(),
+        };
+
+        if (existingDocument) {
+          await existingDocument.update(attributes, { transaction: sqlTransaction });
+          legalDocument = existingDocument;
+        } else {
+          legalDocument = await LegalDocument.create(
+            { ...attributes, CollectiveId: payee.id },
+            { transaction: sqlTransaction },
+          );
+        }
+
+        // This won't trigger any email
+        await Activity.create(
+          {
+            type: activities.TAXFORM_RECEIVED,
+            UserId: user.id,
+            CollectiveId: payee.id,
+            FromCollectiveId: user.CollectiveId,
+            UserTokenId: UserTokenId,
+            data: {
+              service: legalDocument.service,
+              document: legalDocument.info,
+              account: payee.info,
+              isManual: true,
+            },
+          },
           { transaction: sqlTransaction },
         );
-      }
-
-      // This won't trigger any email
-      await Activity.create({
-        type: activities.TAXFORM_RECEIVED,
-        UserId: user.id,
-        CollectiveId: payee.id,
-        FromCollectiveId: user.CollectiveId,
-        UserTokenId: UserTokenId,
-        data: {
-          service: legalDocument.service,
-          document: legalDocument.info,
-          account: payee.info,
-          isManual: true,
-        },
+      })
+      .then(() => {
+        trackActivityDispatch(
+          LegalDocument.createExpenseActivitiesForTaxFormChange(payee, legalDocument, {
+            previousStatus,
+            newStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+            user,
+          }),
+        );
       });
-    });
   };
 
   static sendRemindersForTaxForms = async () => {
@@ -361,8 +526,10 @@ class LegalDocument extends ModelWithPublicId<
   ): Promise<LegalDocument> => {
     // Preload associations
     this.collective = this.collective || (await this.getCollective());
+    const payee = this.collective;
+    const previousStatus = this.requestStatus;
 
-    return sequelize.transaction(async transaction => {
+    await sequelize.transaction(async transaction => {
       // Mark current tax form as invalid
       await this.update({ requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.INVALID }, { transaction });
 
@@ -412,9 +579,18 @@ class LegalDocument extends ModelWithPublicId<
         },
         { transaction },
       );
-
-      return this;
     });
+
+    // Surface the invalidation in related expense threads (best-effort, no email, after the response)
+    trackActivityDispatch(
+      LegalDocument.createExpenseActivitiesForTaxFormChange(payee, this, {
+        previousStatus,
+        newStatus: LEGAL_DOCUMENT_REQUEST_STATUS.INVALID,
+        user,
+      }),
+    );
+
+    return this;
   };
 
   get info(): NonAttribute<Partial<LegalDocument>> {

@@ -1,8 +1,8 @@
 import { InferAttributes, InferCreationAttributes, Model, Transaction } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 
 import { SupportedCurrency } from '../constants/currencies';
 import sequelize, { DataTypes } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 import { cancelPaypalSubscription } from '../paymentProviders/paypal/subscription';
 
 import Collective from './Collective';

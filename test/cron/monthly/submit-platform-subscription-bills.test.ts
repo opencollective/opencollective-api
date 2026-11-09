@@ -115,11 +115,14 @@ describe('submit-platform-subscription-bills', () => {
       moment(date).subtract(2, 'month').toDate(),
       {
         ...PlatformSubscriptionTiers[1],
-        pricing: { ...PlatformSubscriptionTiers[1].pricing, platformTips: false },
+        pricing: { ...PlatformSubscriptionTiers[1].pricing, platformTips: false, crowdfundingFeePercent: 5 },
       },
       user,
     );
     calculateUtilizationStub.withArgs(tipsOffOrg.id).resolves({ activeCollectives: 0, expensesPaid: 0 });
+
+    // The organization on a free plan is only billed if it has activity in the billing period (September 2023)
+    await fakeTransaction({ HostCollectiveId: organizations[0].id, createdAt: moment.utc('2023-09-15').toDate() });
     sandbox.stub(PlatformSubscription, 'sumCrowdfundingContributions').resolves(100000);
   });
 
@@ -168,7 +171,7 @@ describe('submit-platform-subscription-bills', () => {
     expect(itemsTable).to.matchTableSnapshot();
   });
 
-  it('bills the crowdfunding fee for plans without platform tips', async () => {
+  it('bills the crowdfunding fee for plans that set a fee percent', async () => {
     const expense = await models.Expense.findOne({
       where: { CollectiveId: tipsOffOrg.id, type: expenseTypes.PLATFORM_BILLING },
     });
@@ -268,15 +271,15 @@ describe('submit-platform-subscription-bills', () => {
     expect(org2Body).to.contain('$80.00');
   });
 
-  it('skips organizations without transactions in the billing period that never paid a bill, when enabled', async () => {
+  it('skips organizations without transactions in the billing period that were never billed, when enabled', async () => {
     const orgAdmin = await fakeUser();
-    const createOrgWithSubscription = async () => {
+    const createOrgWithSubscription = async (plan = PlatformSubscriptionTiers[2]) => {
       const org = await fakeCollective({ type: CollectiveType.ORGANIZATION, isActive: true });
       await org.addUserWithRole(orgAdmin, roles.ADMIN);
       await PlatformSubscription.createSubscription(
         org,
         moment(date).subtract(2, 'month').toDate(),
-        PlatformSubscriptionTiers[2],
+        plan,
         platformUser,
       );
       calculateUtilizationStub.withArgs(org.id).resolves({ activeCollectives: 0, expensesPaid: 0 });
@@ -305,6 +308,47 @@ describe('submit-platform-subscription-bills', () => {
       createdAt: moment.utc('2023-09-01').toDate(),
     });
 
+    // No transactions in the billing period, and its previous bill was never paid
+    const unpaidOrg = await createOrgWithSubscription();
+    await fakeExpense({
+      CollectiveId: unpaidOrg.id,
+      type: expenseTypes.PLATFORM_BILLING,
+      status: 'APPROVED',
+      createdAt: moment.utc('2023-09-01').toDate(),
+    });
+
+    // No transactions in the billing period, and its previous bill was canceled
+    const canceledOrg = await createOrgWithSubscription();
+    await fakeExpense({
+      CollectiveId: canceledOrg.id,
+      type: expenseTypes.PLATFORM_BILLING,
+      status: 'CANCELED',
+      createdAt: moment.utc('2023-09-01').toDate(),
+    });
+
+    // No transactions in the billing period, and its previous bill was deleted
+    const deletedOrg = await createOrgWithSubscription();
+    const deletedBill = await fakeExpense({
+      CollectiveId: deletedOrg.id,
+      type: expenseTypes.PLATFORM_BILLING,
+      status: 'APPROVED',
+      createdAt: moment.utc('2023-09-01').toDate(),
+    });
+    await deletedBill.destroy();
+
+    // Only its linked secondary host has a transaction during the billing period
+    const parentOrg = await createOrgWithSubscription();
+    const linkedHost = await createOrgWithSubscription({
+      ...PlatformSubscriptionTiers[2],
+      billedToCollectiveId: parentOrg.id,
+      pricing: { ...PlatformSubscriptionTiers[2].pricing, pricePerMonth: 0 },
+    });
+    await fakeTransaction({
+      CollectiveId: linkedHost.id,
+      HostCollectiveId: linkedHost.id,
+      createdAt: moment.utc('2023-09-15').toDate(),
+    });
+
     await run(date, { skipOrganizationsWithoutTransactions: true });
 
     const inactiveOrgExpenses = await models.Expense.findAll({
@@ -321,5 +365,31 @@ describe('submit-platform-subscription-bills', () => {
       where: { CollectiveId: payingOrg.id, type: expenseTypes.PLATFORM_BILLING },
     });
     expect(payingOrgExpenses).to.have.length(2);
+
+    const unpaidOrgExpenses = await models.Expense.findAll({
+      where: { CollectiveId: unpaidOrg.id, type: expenseTypes.PLATFORM_BILLING },
+    });
+    expect(unpaidOrgExpenses).to.have.length(2);
+
+    const canceledOrgExpenses = await models.Expense.findAll({
+      where: { CollectiveId: canceledOrg.id, type: expenseTypes.PLATFORM_BILLING },
+    });
+    expect(canceledOrgExpenses).to.have.length(1);
+    expect(canceledOrgExpenses[0].status).to.equal('CANCELED');
+
+    const deletedOrgExpenses = await models.Expense.findAll({
+      where: { CollectiveId: deletedOrg.id, type: expenseTypes.PLATFORM_BILLING },
+    });
+    expect(deletedOrgExpenses).to.have.length(0);
+
+    const parentOrgExpenses = await models.Expense.findAll({
+      where: { CollectiveId: parentOrg.id, type: expenseTypes.PLATFORM_BILLING },
+    });
+    expect(parentOrgExpenses).to.have.length(1);
+
+    const linkedHostExpenses = await models.Expense.findAll({
+      where: { CollectiveId: linkedHost.id, type: expenseTypes.PLATFORM_BILLING },
+    });
+    expect(linkedHostExpenses).to.have.length(0);
   });
 });

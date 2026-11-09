@@ -5,10 +5,21 @@ import sinon from 'sinon';
 import { SupportedCurrency } from '../../../server/constants/currencies';
 import { US_TAX_FORM_THRESHOLD_POST_2026, US_TAX_FORM_THRESHOLD_PRE_2026 } from '../../../server/constants/tax-form';
 import emailLib from '../../../server/lib/email';
-import models from '../../../server/models';
+import {
+  disableActivityDispatchTracking,
+  enableActivityDispatchTracking,
+} from '../../../server/lib/notifications/activity-dispatch-tracker';
+import models, { sequelize } from '../../../server/models';
 import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_TYPE } from '../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
-import { fakeActiveHost, fakeExpense, fakePayoutMethod, fakeUser } from '../../test-helpers/fake-data';
+import {
+  fakeActiveHost,
+  fakeCollective,
+  fakeExpense,
+  fakeLegalDocument,
+  fakePayoutMethod,
+  fakeUser,
+} from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const { LegalDocument, User, Collective } = models;
@@ -261,8 +272,13 @@ describe('server/models/LegalDocument', () => {
     let hostWithTaxForms;
 
     beforeEach(async () => {
+      enableActivityDispatchTracking();
       hostWithTaxForms = await fakeActiveHost();
       await hostWithTaxForms.createRequiredLegalDocument({ type: LEGAL_DOCUMENT_TYPE.US_TAX_FORM });
+    });
+
+    afterEach(() => {
+      disableActivityDispatchTracking();
     });
 
     it('sends a reminder after 48h if not completed yet', async () => {
@@ -350,6 +366,98 @@ describe('server/models/LegalDocument', () => {
       await legalDocument.reload();
       expect(emailSendMessageSpy.callCount).to.equal(0);
       expect(legalDocument.data.reminderSentAt).to.equal(reminderSentAt.toISOString());
+    });
+  });
+
+  describe('createExpenseActivitiesForTaxFormChange', () => {
+    let hostWithTaxForms;
+
+    beforeEach(async () => {
+      enableActivityDispatchTracking();
+      hostWithTaxForms = await fakeActiveHost();
+      await hostWithTaxForms.createRequiredLegalDocument({ type: LEGAL_DOCUMENT_TYPE.US_TAX_FORM });
+    });
+
+    afterEach(() => {
+      disableActivityDispatchTracking();
+    });
+
+    const createHostedExpense = async (payee, host) => {
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id });
+      return createExpenseSubjectToTaxForm(payee, hostedCollective);
+    };
+
+    it('fans out only to expenses under hosts that require tax forms', async () => {
+      const hostWithoutTaxForms = await fakeActiveHost();
+      const payeeUser = await fakeUser();
+      const expenseUnderTaxHost = await createHostedExpense(payeeUser.collective, hostWithTaxForms);
+      const expenseUnderOtherHost = await createHostedExpense(payeeUser.collective, hostWithoutTaxForms);
+
+      await LegalDocument.createTaxFormRequestToCollectiveIfNone(payeeUser.collective, payeeUser, {
+        HostCollectiveId: hostWithTaxForms.id,
+        ExpenseId: expenseUnderTaxHost.id,
+      });
+      await models.Activity.waitAllDispatch();
+
+      const taxHostActivities = await models.Activity.findAll({
+        where: { type: 'collective.expense.updated', ExpenseId: expenseUnderTaxHost.id },
+      });
+      expect(taxHostActivities.length).to.be.greaterThan(0);
+      expect(taxHostActivities[0].data.newData.taxFormStatus).to.equal('REQUESTED');
+
+      const otherHostActivities = await models.Activity.findAll({
+        where: { type: 'collective.expense.updated', ExpenseId: expenseUnderOtherHost.id },
+      });
+      expect(otherHostActivities).to.have.length(0);
+    });
+
+    it('only fans out to expenses counted in the document year, with the usual activity data', async () => {
+      const payeeUser = await fakeUser();
+      const currentYearExpense = await createHostedExpense(payeeUser.collective, hostWithTaxForms);
+      const lastYearExpense = await createHostedExpense(payeeUser.collective, hostWithTaxForms);
+      await lastYearExpense.update({ status: 'PAID', paidAt: moment().subtract(1, 'year').toDate() });
+      // Unpaid expenses count toward the current year, like in the tax-form requirement check
+      const unpaidOldExpense = await createHostedExpense(payeeUser.collective, hostWithTaxForms);
+      await sequelize.query(`UPDATE "Expenses" SET "createdAt" = NOW() - INTERVAL '1 year' WHERE id = :id`, {
+        replacements: { id: unpaidOldExpense.id },
+      });
+      const legalDocument = await fakeLegalDocument({
+        CollectiveId: payeeUser.CollectiveId,
+        year: new Date().getFullYear(),
+      });
+
+      await LegalDocument.createExpenseActivitiesForTaxFormChange(payeeUser.collective, legalDocument, {
+        previousStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
+        newStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+        user: payeeUser,
+      });
+
+      const lastYearActivities = await models.Activity.count({
+        where: { type: 'collective.expense.updated', ExpenseId: lastYearExpense.id },
+      });
+      expect(lastYearActivities).to.equal(0);
+
+      const unpaidOldExpenseActivities = await models.Activity.count({
+        where: { type: 'collective.expense.updated', ExpenseId: unpaidOldExpense.id },
+      });
+      expect(unpaidOldExpenseActivities).to.equal(1);
+
+      const activity = await models.Activity.findOne({
+        where: { type: 'collective.expense.updated', ExpenseId: currentYearExpense.id },
+      });
+      expect(activity.UserId).to.equal(payeeUser.id);
+      expect(activity.CollectiveId).to.equal(currentYearExpense.CollectiveId);
+      expect(activity.FromCollectiveId).to.equal(payeeUser.CollectiveId);
+      expect(activity.HostCollectiveId).to.equal(hostWithTaxForms.id);
+      expect(activity.data).to.deep.include({ isSystem: true, notify: false });
+      expect(activity.data.previousData).to.deep.equal({ taxFormStatus: 'REQUESTED' });
+      expect(activity.data.newData).to.deep.equal({ taxFormStatus: 'RECEIVED' });
+      expect(activity.data.taxForm.id).to.equal(legalDocument.id);
+      expect(activity.data.expense.id).to.equal(currentYearExpense.id);
+      expect(activity.data.expense.status).to.equal(currentYearExpense.status);
+      expect(activity.data.collective.id).to.equal(currentYearExpense.CollectiveId);
+      expect(activity.data.host.id).to.equal(hostWithTaxForms.id);
+      expect(activity.data.fromCollective.id).to.equal(payeeUser.CollectiveId);
     });
   });
 });

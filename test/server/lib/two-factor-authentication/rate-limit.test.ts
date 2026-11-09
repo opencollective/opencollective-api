@@ -10,6 +10,7 @@ import { crypto } from '../../../../server/lib/encryption';
 import { lockUntilResolved } from '../../../../server/lib/mutex';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../../server/lib/rate-limit';
 import { createRedisClient, RedisInstanceType } from '../../../../server/lib/redis';
+import * as SentryLib from '../../../../server/lib/sentry';
 import twoFactorAuthLib, { TwoFactorMethod } from '../../../../server/lib/two-factor-authentication';
 import { TwoFactorAuthenticationHeader } from '../../../../server/lib/two-factor-authentication/lib';
 import recoveryCodeProvider from '../../../../server/lib/two-factor-authentication/recovery-code';
@@ -68,7 +69,7 @@ describe('lib/two-factor-authentication/validateRequest rate limiting', () => {
       .and.eventually.deep.include({ extensions: { code: 'RateLimitExceeded' } });
     expect(validateTokenSpy).not.to.have.been.called;
     expect(await sessionCache.get(`2fa:${req.remoteUser.id}:rate-limit-test`)).not.to.exist;
-    expect(await rateLimit.getCallsCount()).to.equal(10);
+    expect(await rateLimit.getCallsCount()).to.equal(11); // Refused attempts are counted too
   });
 
   it('allows successes within budget without consuming or resetting failures and stores a session', async () => {
@@ -90,7 +91,7 @@ describe('lib/two-factor-authentication/validateRequest rate limiting', () => {
     // The valid session still works even after the token-validation budget is exhausted.
     delete req.headers[TwoFactorAuthenticationHeader];
     await expect(twoFactorAuthLib.validateRequest(req)).to.eventually.equal(true);
-    expect(await rateLimit.getCallsCount()).to.equal(10);
+    expect(await rateLimit.getCallsCount()).to.equal(11); // 10 failures and 1 refused attempt
   });
 
   it('shares failures across methods, operations, and sessions', async () => {
@@ -133,7 +134,7 @@ describe('lib/two-factor-authentication/validateRequest rate limiting', () => {
     second.req.headers[TwoFactorAuthenticationHeader] =
       `${TwoFactorMethod.TOTP} ${generateSync({ secret: second.secret })}`;
     await expect(twoFactorAuthLib.validateRequest(second.req)).to.eventually.equal(true);
-    expect(await first.rateLimit.getCallsCount()).to.equal(10);
+    expect(await first.rateLimit.getCallsCount()).to.equal(11); // 10 failures and 1 refused attempt
     expect(await second.rateLimit.getCallsCount()).to.equal(1);
   });
 
@@ -152,7 +153,7 @@ describe('lib/two-factor-authentication/validateRequest rate limiting', () => {
     expect(failures.filter(error => error.extensions?.code === 'INVALID_2FA_CODE')).to.have.length(10);
     expect(failures.filter(error => error instanceof RateLimitExceeded)).to.have.length(40);
     expect(validateTokenStub.callCount).to.equal(10);
-    expect(await rateLimit.getCallsCount()).to.equal(10);
+    expect(await rateLimit.getCallsCount()).to.equal(50); // Refused attempts are counted too
   });
 
   it('does not hold up another user while a validation is in progress', async () => {
@@ -214,7 +215,23 @@ describe('lib/two-factor-authentication/validateRequest rate limiting', () => {
     }
     expect(await result).to.be.instanceOf(RateLimitExceeded);
     expect(validateTokenSpy).not.to.have.been.called;
-    expect(await rateLimit.getCallsCount()).to.equal(10);
+    expect(await rateLimit.getCallsCount()).to.equal(11); // Refused attempts are counted too
+  });
+
+  it('refuses token validation when the rate limit store fails', async () => {
+    const { req, secret } = await makeRequest();
+    req.headers[TwoFactorAuthenticationHeader] = `${TwoFactorMethod.TOTP} ${generateSync({ secret })}`;
+    sandbox.stub(sessionCache, 'increment').rejects(new Error('EVAL failed'));
+    const reportErrorStub = sandbox.stub(SentryLib, 'reportErrorToSentry');
+    const validateTokenSpy = sandbox.spy(totpProvider, 'validateToken');
+
+    await expect(twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true })).to.be.rejectedWith(
+      RateLimitExceeded,
+      'Too many attempts. Please try again in an hour',
+    );
+    expect(validateTokenSpy).not.to.have.been.called;
+    expect(reportErrorStub).to.have.been.calledOnce;
+    expect(await sessionCache.get(`2fa:${req.remoteUser.id}:rate-limit-test`)).not.to.exist;
   });
 
   it('does not count requests for a 2FA challenge as failed validations', async () => {

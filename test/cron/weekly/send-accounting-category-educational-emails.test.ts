@@ -382,6 +382,19 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
         ],
       });
     });
+
+    it('ignores system activities when looking for the last category pick', async () => {
+      // e.g. payout method or tax form fan-out: attributed to the user, but not a category pick
+      await expensesWithWrongPicks[0].createActivity(ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, submitter, {
+        isSystem: true,
+        notify: false,
+      });
+
+      const misclassified = await getRecentMisclassifiedExpenses();
+      const grouped = await groupMisclassifiedExpensesByAccount(misclassified);
+      const submitterMistakes = Array.from(grouped.entries()).find(([user]) => user.id === submitter.id)?.[1];
+      expect(submitterMistakes?.map(mistake => mistake.expense.id)).to.include(expensesWithWrongPicks[0].id);
+    });
   });
 
   describe('run', () => {

@@ -162,7 +162,17 @@ export const HostedAccountSummary = new GraphQLObjectType({
 const roundAveragePeriod = value => (value < 1 ? 1 : round(value, 1));
 
 export const resolveHostedAccountSummary = async (account, args, req) => {
+  // Unhosted accounts (e.g. returned by `hostedAccounts(isUnhosted: true)`) don't have a current host,
+  // and the summary is computed in the context of the current fiscal host.
+  if (!account.HostCollectiveId) {
+    return null;
+  }
+
   const host = await req.loaders.Collective.byId.load(account.HostCollectiveId);
+  if (!host) {
+    return null;
+  }
+
   const summary = await req.loaders.Collective.stats.hostedAccountSummary.buildLoader(args).load(account.id);
 
   // Periods are based on the time the collective is hosted (approved) or the number of months since dateFrom, whichever is less

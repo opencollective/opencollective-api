@@ -8,6 +8,7 @@ import { US_TAX_FORM_THRESHOLD_POST_2026, US_TAX_FORM_THRESHOLD_PRE_2026 } from 
 import LegalDocumentsController from '../../../server/controllers/legal-documents';
 import { idEncode } from '../../../server/graphql/v2/identifiers';
 import * as LibS3 from '../../../server/lib/awsS3';
+import RateLimit from '../../../server/lib/rate-limit';
 import { getTaxFormsS3Bucket } from '../../../server/lib/tax-forms';
 import { TwoFactorAuthenticationHeader } from '../../../server/lib/two-factor-authentication/lib';
 import TOTPLib from '../../../server/lib/two-factor-authentication/totp';
@@ -250,6 +251,43 @@ describe('server/controllers/legal-documents', () => {
         expect(res.set.firstCall.args[0]).to.equal('Content-Type');
         expect(res.set.firstCall.args[1]).to.equal('application/pdf');
         expect(res.send.firstCall.args[0].toString()).to.equal('content');
+      });
+
+      describe('rate limiting', () => {
+        let rateLimit: RateLimit;
+
+        beforeEach(async () => {
+          sandbox.stub(config.limits.taxForms, 'downloadPerHour').value(2);
+          sandbox.stub(LibS3, 'getFileFromS3').resolves(LegalDocument.encrypt(Buffer.from('content')));
+          rateLimit = new RateLimit(`legal-document-download-${hostAdmin.id}`, 2);
+          await rateLimit.reset();
+        });
+
+        afterEach(() => rateLimit.reset());
+
+        const download = async (twoFactorCode?: string) => {
+          const req = makeRequest(hostAdmin) as unknown as Request;
+          if (twoFactorCode) {
+            req.headers[TwoFactorAuthenticationHeader] = `totp ${twoFactorCode}`;
+          }
+          req.params = { id: idEncode(legalDocument.id, 'legal-document') };
+          const res = getResStub();
+          await LegalDocumentsController.download(req, res as Response);
+          return res;
+        };
+
+        it('limits concurrent downloads', async () => {
+          sandbox.stub(TOTPLib, 'validateToken').resolves(true);
+          const responses = await Promise.all(Array.from({ length: 5 }, () => download('123456')));
+          expect(responses.filter(res => res.set.calledWith('Content-Type', 'application/pdf'))).to.have.length(2);
+          expect(responses.filter(res => res.status.calledWith(429))).to.have.length(3);
+        });
+
+        it('does not count requests that fail the 2FA check', async () => {
+          const res = await download();
+          expect(res.status.firstCall.args[0]).to.equal(401);
+          expect(await rateLimit.getCallsCount()).to.equal(0);
+        });
       });
     });
   });

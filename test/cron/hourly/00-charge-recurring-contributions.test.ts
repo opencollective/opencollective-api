@@ -26,7 +26,7 @@ import {
   fakeTier,
   fakeUser,
 } from '../../test-helpers/fake-data';
-import { graphqlQuery, graphqlQueryV2, resetTestDB } from '../../utils';
+import { graphqlQueryV2, resetTestDB } from '../../utils';
 
 const DELETE_TIER_MUTATION = gql`
   mutation DeleteTier($tier: TierReferenceInput!, $stopRecurringContributions: Boolean) {
@@ -36,11 +36,9 @@ const DELETE_TIER_MUTATION = gql`
   }
 `;
 
-// Not wrapped in `gql` on purpose: the ESLint GraphQL processor would validate it against the V2 schema, but
-// `archiveCollective` only exists in V1.
-const ARCHIVE_COLLECTIVE_MUTATION = `
-  mutation ArchiveCollective($id: Int!) {
-    archiveCollective(id: $id) {
+const ARCHIVE_ACCOUNT_MUTATION = gql`
+  mutation ArchiveAccount($account: AccountReferenceInput!) {
+    archiveAccount(account: $account) {
       id
       isArchived
     }
@@ -133,7 +131,7 @@ describe('cron/hourly/00-charge-recurring-contributions (regression #8915, #7701
 
     expect((await ordersWithPendingCharges()).rows.map(o => o.id)).to.include(order.id);
 
-    const result = await graphqlQuery(ARCHIVE_COLLECTIVE_MUTATION, { id: archivedAccount.id }, admin);
+    const result = await graphqlQueryV2(ARCHIVE_ACCOUNT_MUTATION, { account: { legacyId: archivedAccount.id } }, admin);
     expect(result.errors).to.not.exist;
 
     await order.reload();

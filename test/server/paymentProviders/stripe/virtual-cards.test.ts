@@ -86,6 +86,6 @@ describe('server/paymentProviders/stripe/virtual-cards', () => {
     expect(emailTo).to.equal(collectiveAdmin.email);
     expect(subject).to.equal('Virtual Card Purchase');
     expect(body).to.contain('A card attached to Open Collective was charged $1.00.');
-    expect(body).to.contain(`<a href="${config.host.website}/permalink/${expense.publicId}?edit=1"`);
+    expect(body).to.contain(`<a href="${config.host.website}/permalink/${expense.publicId}"`);
   });
 });

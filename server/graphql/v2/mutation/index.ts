@@ -14,6 +14,7 @@ import createProjectMutation from './CreateProjectMutation';
 import emojiReactionMutations from './EmojiReactionMutations';
 import expenseMutations from './ExpenseMutations';
 import exportRequestMutations from './ExportRequestMutations';
+import fiscalHostNoteMutations from './FiscalHostNoteMutations';
 import goCardlessMutations from './GoCardlessMutations';
 import guestMutations from './GuestMutations';
 import hostApplicationMutations from './HostApplicationMutations';
@@ -91,6 +92,7 @@ const mutation = {
   ...socialLinkMutations,
   ...tagMutations,
   ...agreementMutations,
+  ...fiscalHostNoteMutations,
   ...vendorMutations,
   ...platformSubscriptionMutations,
   ...kycMutations,

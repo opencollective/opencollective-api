@@ -1,14 +1,18 @@
 import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
-import { ActivityClasses } from '../../../server/constants/activities';
+import ActivityTypes, { ActivityClasses } from '../../../server/constants/activities';
 import { CollectiveType } from '../../../server/constants/collectives';
 import * as redisLib from '../../../server/lib/redis';
 import { getCollectiveFeed } from '../../../server/lib/timeline';
-import { Activity, Collective, User } from '../../../server/models';
+import { Activity, Collective, Op, User } from '../../../server/models';
+import { fakeActiveHost, fakeCollective, fakeExpense, fakeUser } from '../../test-helpers/fake-data';
+import { resetTestDB } from '../../utils';
 
 describe('server/lib/timeline', () => {
   const sandbox = createSandbox();
+
+  before(resetTestDB);
 
   afterEach(() => sandbox.restore());
 
@@ -49,5 +53,156 @@ describe('server/lib/timeline', () => {
     expect(redis.zRange).to.not.have.been.called;
     expect(redis.zAdd).to.have.been.calledOnce;
     expect(redis.expire).to.have.been.calledOnce;
+  });
+
+  describe('system expense updates', () => {
+    before(resetTestDB);
+
+    it('skips system fan-out activities and keeps normal expense updates', async () => {
+      sandbox.stub(redisLib, 'createRedisClient').resolves(null); // Query the database directly
+      const submitter = await fakeUser();
+      const collective = await fakeCollective();
+      const expense = await fakeExpense({
+        UserId: submitter.id,
+        FromCollectiveId: submitter.CollectiveId,
+        CollectiveId: collective.id,
+      });
+      const normalUpdate = await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, submitter);
+      const systemUpdate = await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, submitter, {
+        isSystem: true,
+        notify: false,
+      });
+
+      for (const account of [submitter.collective, collective]) {
+        const feed = await getCollectiveFeed({
+          collective: account,
+          dateTo: null,
+          limit: 20,
+          classes: [ActivityClasses.EXPENSES],
+        });
+        const ids = feed.map(activity => activity.id);
+        expect(ids, account.type).to.include(normalUpdate.id);
+        expect(ids, account.type).to.not.include(systemUpdate.id);
+      }
+    });
+  });
+
+  it('includes fiscal host note activities in fiscal host feeds', async () => {
+    const collective = Collective.build({
+      slug: 'timeline-host',
+      type: CollectiveType.COLLECTIVE,
+      hasHosting: true,
+    });
+
+    let finishRebuilding: () => void;
+    const rebuilt = new Promise<void>(resolve => (finishRebuilding = resolve));
+    const redis = {
+      exists: sandbox.stub().resolves(0),
+      get: sandbox.stub().resolves(null),
+      set: sandbox.stub().resolves('OK'),
+      del: sandbox.stub().resolves(0),
+      zAdd: sandbox.stub().resolves(1),
+      zRange: sandbox.stub(),
+      expire: sandbox.stub().callsFake(async () => {
+        finishRebuilding();
+        return 1;
+      }),
+    };
+    sandbox.stub(redisLib, 'createRedisClient').resolves(redis);
+    const findAll = sandbox.stub(Activity, 'findAll').resolves([]);
+
+    const result = await getCollectiveFeed({
+      collective,
+      dateTo: null,
+      limit: 20,
+      classes: [ActivityClasses.COLLECTIVE],
+    });
+    await rebuilt;
+
+    expect(result).to.be.null;
+    const where = findAll.firstCall.args[0].where;
+    const branches = where[Op.or];
+    const noteBranch = branches.find(branch => branch.type?.[Op.in]?.includes(ActivityTypes.FISCAL_HOST_NOTE_SET));
+    expect(noteBranch).to.exist;
+    expect(noteBranch.type[Op.in]).to.eql([ActivityTypes.FISCAL_HOST_NOTE_SET, ActivityTypes.FISCAL_HOST_NOTE_REMOVED]);
+    expect(noteBranch.HostCollectiveId).to.equal(collective.id);
+    expect(noteBranch.CollectiveId).to.be.undefined;
+    expect(noteBranch.FromCollectiveId).to.be.undefined;
+    expect(noteBranch[Op.or]).to.be.undefined;
+  });
+
+  it('omits fiscal host note activities when the COLLECTIVE class is not requested', async () => {
+    const collective = Collective.build({
+      slug: 'timeline-host-expenses',
+      type: CollectiveType.COLLECTIVE,
+      hasHosting: true,
+    });
+
+    let finishRebuilding: () => void;
+    const rebuilt = new Promise<void>(resolve => (finishRebuilding = resolve));
+    const redis = {
+      exists: sandbox.stub().resolves(0),
+      get: sandbox.stub().resolves(null),
+      set: sandbox.stub().resolves('OK'),
+      del: sandbox.stub().resolves(0),
+      zAdd: sandbox.stub().resolves(1),
+      zRange: sandbox.stub(),
+      expire: sandbox.stub().callsFake(async () => {
+        finishRebuilding();
+        return 1;
+      }),
+    };
+    sandbox.stub(redisLib, 'createRedisClient').resolves(redis);
+    const findAll = sandbox.stub(Activity, 'findAll').resolves([]);
+
+    await getCollectiveFeed({
+      collective,
+      dateTo: null,
+      limit: 20,
+      classes: [ActivityClasses.EXPENSES],
+    });
+    await rebuilt;
+
+    const where = findAll.firstCall.args[0].where;
+    const branches = where[Op.or];
+    expect(branches.find(branch => branch.type?.[Op.in]?.includes(ActivityTypes.FISCAL_HOST_NOTE_SET))).to.be.undefined;
+  });
+
+  it('does not leak notes about the host from another host into its feed', async () => {
+    const host = await fakeActiveHost();
+    const otherHost = await fakeActiveHost();
+    const admin = await fakeUser();
+    const flaggedAccount = await fakeCollective({ HostCollectiveId: host.id });
+
+    await Activity.create({
+      type: ActivityTypes.FISCAL_HOST_NOTE_SET,
+      CollectiveId: host.id,
+      HostCollectiveId: host.id,
+      FromCollectiveId: flaggedAccount.id,
+      UserId: admin.id,
+      data: { notify: false },
+    });
+    // Another host flagged this host: that note must not show up in this host's own feed.
+    await Activity.create({
+      type: ActivityTypes.FISCAL_HOST_NOTE_SET,
+      CollectiveId: otherHost.id,
+      HostCollectiveId: otherHost.id,
+      FromCollectiveId: host.id,
+      UserId: admin.id,
+      data: { notify: false },
+    });
+
+    sandbox.stub(redisLib, 'createRedisClient').resolves(null);
+
+    const feed = await getCollectiveFeed({
+      collective: host,
+      dateTo: null,
+      limit: 20,
+      classes: [ActivityClasses.COLLECTIVE],
+    });
+
+    expect(feed).to.have.length(1);
+    expect(feed[0].CollectiveId).to.equal(host.id);
+    expect(feed[0].FromCollectiveId).to.equal(flaggedAccount.id);
   });
 });

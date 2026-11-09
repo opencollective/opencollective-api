@@ -1412,11 +1412,21 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
 
   let event = <Stripe.Event>request.body;
 
+  // Requests without a parsable JSON body (e.g. wrong content-type or empty body) leave `request.body` undefined
+  if (!event || typeof event !== 'object') {
+    throw new Error('Source of event not recognized');
+  }
+
   // Stripe sends test events to production as well
   // don't do anything if the event is not livemode
   // NOTE: not using config.env because of ugly tests
   if (process.env.OC_ENV === 'production' && !event.livemode) {
     return Promise.resolve();
+  }
+
+  // Reject payloads that don't look like a Stripe event (e.g. probes, non-Stripe callers)
+  if (typeof event.type !== 'string') {
+    throw new Error('Source of event not recognized');
   }
 
   if (event.type.startsWith('issuing')) {

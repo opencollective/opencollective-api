@@ -7,10 +7,11 @@ import {
   handleKycPayoutMethodEdited,
   handleKycPayoutMethodReplaced,
 } from '../../../lib/kyc/expenses/kyc-expenses-check';
+import { trackActivityDispatch } from '../../../lib/notifications/activity-dispatch-tracker';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import sequelize from '../../../lib/sequelize';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { PayoutMethod } from '../../../models';
+import models, { Op, PayoutMethod } from '../../../models';
 import PayoutMethodModel, { PayoutMethodTypes, PaypalPayoutMethodData } from '../../../models/PayoutMethod';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
@@ -18,6 +19,66 @@ import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../inpu
 import { GraphQLPayoutMethodInput } from '../input/PayoutMethodInput';
 import { fetchPayoutMethodWithReference } from '../input/PayoutMethodReferenceInput';
 import GraphQLPayoutMethod from '../object/PayoutMethod';
+
+/**
+ * Fan-out a `COLLECTIVE_EXPENSE_UPDATED` activity to all expenses using the payout method,
+ * so payout-method edits are surfaced in expense threads.
+ * Best-effort: never throws (errors go to Sentry). Runs after the response, see the call sites.
+ * See https://github.com/opencollective/opencollective/issues/8702
+ */
+type PayoutMethodSnapshot = Pick<PayoutMethodModel, 'id' | 'type' | 'name' | 'isSaved' | 'currency'> & {
+  data: Record<string, unknown>;
+};
+
+const createPayoutMethodExpenseActivities = async (
+  oldSnapshot: PayoutMethodSnapshot,
+  newSnapshot: PayoutMethodSnapshot,
+  user: { id: number },
+): Promise<void> => {
+  try {
+    const payoutMethodIds = [...new Set([oldSnapshot.id, newSnapshot.id].filter(Boolean))];
+    if (!payoutMethodIds.length) {
+      return;
+    }
+
+    // After an archive/replace, expenses left on the archived method never use the new one,
+    // so their threads only record that it was replaced, without its details.
+    const newReference = pick(newSnapshot, ['id', 'type']);
+
+    // Paginate through all linked expenses (no overall cap), oldest first for stable paging.
+    const BATCH_SIZE = 100;
+    let lastId = 0;
+    for (;;) {
+      const expenses = await models.Expense.findAll({
+        where: { id: { [Op.gt]: lastId }, PayoutMethodId: payoutMethodIds },
+        order: [['id', 'ASC']],
+        limit: BATCH_SIZE,
+      });
+
+      if (!expenses.length) {
+        return;
+      }
+      lastId = expenses[expenses.length - 1].id;
+
+      await models.Expense.createSystemUpdatedActivities(expenses, user, expense => ({
+        previousData: { payoutMethod: oldSnapshot },
+        newData: { payoutMethod: expense.PayoutMethodId === newSnapshot.id ? newSnapshot : newReference },
+      }));
+
+      if (expenses.length < BATCH_SIZE) {
+        return;
+      }
+    }
+  } catch (e) {
+    reportErrorToSentry(e, { extra: { payoutMethodId: oldSnapshot.id } });
+  }
+};
+
+/** The payout method as recorded in expense thread activities (filtered data only) */
+const toPayoutMethodSnapshot = (payoutMethod: PayoutMethodModel): PayoutMethodSnapshot => ({
+  ...pick(payoutMethod, ['id', 'type', 'name', 'isSaved', 'currency']),
+  data: payoutMethod.getFilteredData() as Record<string, unknown>,
+});
 
 const payoutMethodMutations = {
   createPayoutMethod: {
@@ -178,6 +239,7 @@ const payoutMethodMutations = {
 
       if (await payoutMethod.canBeEdited()) {
         const oldPayoutMethodDataValues = payoutMethod.dataValues;
+        const oldSnapshot = toPayoutMethodSnapshot(payoutMethod);
         const updatedPayoutMethod = await payoutMethod.update({
           ...pick(args.payoutMethod, ['name', 'isSaved']),
           currency: args.payoutMethod.currency || args.payoutMethod.data?.currency,
@@ -195,8 +257,16 @@ const payoutMethodMutations = {
         } catch (e) {
           reportErrorToSentry(e, { req, user: req.remoteUser, extra: { payoutMethodId: updatedPayoutMethod.id } });
         }
+        // Surface the edit in related expense threads (best-effort, no email, after the response).
+        // Skip when nothing actually changed (e.g. saving without edits).
+        const newSnapshot = toPayoutMethodSnapshot(updatedPayoutMethod);
+        if (!isEqual(oldSnapshot, newSnapshot)) {
+          trackActivityDispatch(createPayoutMethodExpenseActivities(oldSnapshot, newSnapshot, req.remoteUser));
+        }
         return updatedPayoutMethod;
       } else if (payoutMethod.canBeArchived()) {
+        // Capture the pre-archive state for the expense thread fan-out
+        const oldSnapshot = toPayoutMethodSnapshot(payoutMethod);
         // Archive the current payout method and create a new one
         await payoutMethod.update({ isSaved: false });
         const newPayoutMethod = await models.PayoutMethod.create({
@@ -226,6 +296,13 @@ const payoutMethodMutations = {
             user: req.remoteUser,
             extra: { oldPayoutMethodId: payoutMethod.id, newPayoutMethodId: newPayoutMethod.id },
           });
+        }
+        // Surface the replacement in related expense threads (best-effort, no email, after the response).
+        // Covers both historical expenses (still on the old id) and pending expenses (now on the new id).
+        // Skip when nothing actually changed.
+        const newSnapshot = toPayoutMethodSnapshot(newPayoutMethod);
+        if (!isEqual(oldSnapshot, newSnapshot)) {
+          trackActivityDispatch(createPayoutMethodExpenseActivities(oldSnapshot, newSnapshot, req.remoteUser));
         }
         return newPayoutMethod;
       } else {

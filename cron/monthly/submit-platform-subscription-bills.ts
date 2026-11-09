@@ -14,7 +14,7 @@ import logger from '../../server/lib/logger';
 import { notify } from '../../server/lib/notifications/email';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
-import models, { Collective, Op, PlatformSubscription, sequelize } from '../../server/models';
+import models, { Collective, Op, PlatformSubscription } from '../../server/models';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { Billing, BillingPeriod } from '../../server/models/PlatformSubscription';
 import { runCronJob } from '../utils';
@@ -56,10 +56,11 @@ function shouldSkipBillForShortEndedTrial(bill: Billing, asOf: moment.Moment): b
 /** Whether the organization, or any account it hosts, has at least one transaction in the billing period */
 async function hasTransactionsInBillingPeriod(organization: Collective, billingPeriod: BillingPeriod) {
   const billingRange = PlatformSubscription.getBillingPeriodRange(billingPeriod);
+  const hostIds = await PlatformSubscription.getBilledHostIds(organization.id, billingPeriod);
   const transaction = await models.Transaction.findOne({
     attributes: ['id'],
     where: {
-      [Op.or]: [{ CollectiveId: organization.id }, { HostCollectiveId: organization.id }],
+      [Op.or]: [{ CollectiveId: hostIds }, { HostCollectiveId: hostIds }],
       createdAt: {
         [Op.gte]: PlatformSubscription.periodStartDate(billingRange),
         [Op.lte]: PlatformSubscription.periodEndDate(billingRange),
@@ -70,14 +71,18 @@ async function hasTransactionsInBillingPeriod(organization: Collective, billingP
   return Boolean(transaction);
 }
 
-/** Whether the organization has already paid a platform bill, which makes it a customer we never skip */
-async function hasPaidPlatformBill(organization: Collective) {
-  const paidBill = await models.Expense.findOne({
+/** Whether the organization has a platform bill that was not canceled, which makes it a customer we never skip */
+async function hasPlatformBill(organization: Collective) {
+  const bill = await models.Expense.findOne({
     attributes: ['id'],
-    where: { CollectiveId: organization.id, type: expenseTypes.PLATFORM_BILLING, status: expenseStatus.PAID },
+    where: {
+      CollectiveId: organization.id,
+      type: expenseTypes.PLATFORM_BILLING,
+      status: { [Op.ne]: expenseStatus.CANCELED },
+    },
   });
 
-  return Boolean(paidBill);
+  return Boolean(bill);
 }
 
 export async function run(
@@ -100,23 +105,13 @@ export async function run(
     pm => pm.data?.['currency'] === 'USD',
   );
 
-  const distinctActiveSubscriptionsByCollectiveId = await PlatformSubscription.findAll({
-    where: {
-      period: {
-        [Op.overlap]: PlatformSubscription.getBillingPeriodRange({ year, month }),
-      },
-    },
-    attributes: [[sequelize.fn('DISTINCT', sequelize.col('CollectiveId')), 'CollectiveId']],
-    order: [['CollectiveId', 'ASC']],
-    raw: true,
-  });
-  logger.info(`Found ${distinctActiveSubscriptionsByCollectiveId.length} active subscribers...`);
+  const billableCollectiveIds = await PlatformSubscription.getBillableCollectiveIds({ year, month });
+  logger.info(`Found ${billableCollectiveIds.length} billable subscribers...`);
 
   const currency = 'USD' as SupportedCurrency;
-  for (let i = 0; i < distinctActiveSubscriptionsByCollectiveId.length; i++) {
-    const logPrefix = `[${i + 1}/${distinctActiveSubscriptionsByCollectiveId.length}]`;
-    const subscription = distinctActiveSubscriptionsByCollectiveId[i];
-    const orgId = subscription.CollectiveId;
+  for (let i = 0; i < billableCollectiveIds.length; i++) {
+    const logPrefix = `[${i + 1}/${billableCollectiveIds.length}]`;
+    const orgId = billableCollectiveIds[i];
     try {
       const organization: Collective = await models.Collective.findByPk(orgId);
       if (SKIP_BILLING_FOR_ORGANIZATIONS.includes(organization.slug)) {
@@ -159,10 +154,10 @@ export async function run(
       if (
         skipOrganizationsWithoutTransactions &&
         !(await hasTransactionsInBillingPeriod(organization, bill.billingPeriod)) &&
-        !(await hasPaidPlatformBill(organization))
+        !(await hasPlatformBill(organization))
       ) {
         logger.info(
-          `${logPrefix} Skipping bill for organization ${organization.name} #${organization.id} because it has no transactions in the billing period and never paid a platform bill (SKIP_ORGANIZATIONS_WITHOUT_TRANSACTIONS)`,
+          `${logPrefix} Skipping bill for organization ${organization.name} #${organization.id} because it has no transactions in the billing period and was never billed (SKIP_ORGANIZATIONS_WITHOUT_TRANSACTIONS)`,
         );
         continue;
       }
@@ -275,7 +270,6 @@ export async function run(
       reportErrorToSentry(e, {
         extra: {
           organizationId: orgId,
-          subscription,
         },
       });
     }

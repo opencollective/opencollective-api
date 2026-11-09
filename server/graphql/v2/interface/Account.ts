@@ -90,6 +90,7 @@ import { GraphQLActivity } from '../object/Activity';
 import { GraphQLActivitySubscription } from '../object/ActivitySubscription';
 import { GraphQLCommunityStats } from '../object/CommunityStats';
 import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
+import { GraphQLFiscalHostNote } from '../object/FiscalHostNote';
 import { GraphQLLegalDocument } from '../object/LegalDocument';
 import { GraphQLLocation } from '../object/Location';
 import { GraphQLMemberInvitation } from '../object/MemberInvitation';
@@ -1227,6 +1228,46 @@ const accountFieldsDefinition = () => ({
         dateTo: args.dateTo,
         nodes,
       };
+    },
+  },
+  fiscalHostNote: {
+    type: GraphQLFiscalHostNote,
+    description: 'A host-private note about this account, only visible to admins of the given fiscal host',
+    args: {
+      host: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'The fiscal host the note belongs to',
+      },
+    },
+    async resolve(account: Collective, args, req: express.Request) {
+      const host = await fetchAccountWithReference(args.host, { loaders: req.loaders, throwIfMissing: true });
+      if (!checkScope(req, 'host') || !req.remoteUser?.isAdminOfCollective(host)) {
+        return null;
+      }
+
+      // Incognito contributions belong to a separate profile; surface the note from the main profile
+      // when the caller is authorized to see that profile in this context.
+      let noteAccount = account;
+      if (account.isIncognito) {
+        if (!checkScope(req, 'account') || !checkScope(req, 'incognito')) {
+          return null;
+        } else if (
+          !canSeeIncognitoProfile(req, account) &&
+          !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
+        ) {
+          return null;
+        }
+
+        noteAccount = await req.loaders.Collective.mainProfileFromIncognito.load(account.id);
+        if (!noteAccount) {
+          return null;
+        }
+      }
+
+      return req.loaders.FiscalHostNote.byHostAndAccount.load({
+        hostId: host.id,
+        accountId: noteAccount.id,
+      });
     },
   },
   communityStats: {

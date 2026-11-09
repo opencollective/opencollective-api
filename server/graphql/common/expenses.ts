@@ -350,7 +350,7 @@ const isAdminOfCollectiveAndExpenseIsAVirtualCardButNotManuallyCreated = async (
 export type ExpensePermissionEvaluator = (
   req: express.Request,
   expense: Expense,
-  options?: { throw?: boolean },
+  options?: { throw?: boolean; payoutMethodId?: number },
 ) => Promise<boolean>;
 
 /**
@@ -447,10 +447,19 @@ export async function assertExpenseAccessibleForPrivateCollective(
 }
 
 /** Checks if the user can see expense's payout method private details (account number, PayPal email, ...etc) */
-export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator = async (req, expense) => {
+export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator = async (
+  req,
+  expense,
+  options: { throw?: boolean; payoutMethodId?: number } = {},
+) => {
   if (!validateExpenseScope(req)) {
     return false;
-  } else if (getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, expense.PayoutMethodId)) {
+  }
+
+  // Authorize against the given payout method, so historical snapshots embedded in
+  // activities are each evaluated by their own method identity (see #8702).
+  const payoutMethodId = options.payoutMethodId ?? expense.PayoutMethodId;
+  if (payoutMethodId && getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethodId)) {
     return true;
   }
 
@@ -465,8 +474,8 @@ export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator
   ];
 
   // Submitter can see own information until the expense is paid
-  if (expense.status === expenseStatus.PAID && expense.PayoutMethodId) {
-    const payoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
+  if (expense.status === expenseStatus.PAID && payoutMethodId) {
+    const payoutMethod = await req.loaders.PayoutMethod.byId.load(payoutMethodId);
     if (payoutMethod && !payoutMethod.isSaved) {
       allowedRoles = allowedRoles.filter(role => role !== isOwner && role !== isOwnerAccountant);
     }
@@ -1712,6 +1721,9 @@ export const markExpenseAsSpam = async (req: express.Request, expense: Expense):
   });
 
   // Limit the user so they can't submit expenses in the future
+  // This is intentional moderation behavior: USE_EXPENSES is limited platform-wide for the submitter
+  // until Open Collective staff review and undo it. The frontend confirmation modal warns the admin
+  // about this effect and a Slack abuse notification is emitted; it is not an accidental side effect.
   const submittedByUser = await updatedExpense.getSubmitterUser();
   await submittedByUser.limitFeature(FEATURE.USE_EXPENSES, `Expense #${expense.id} marked as SPAM`);
 
@@ -2072,7 +2084,6 @@ type ExpenseData = {
   balanceAccountingCategory?: AccountingCategory;
   transactionsImportRow?: TransactionsImportRow;
   reference?: string;
-  isNewExpenseFlow?: boolean;
 };
 
 /**
@@ -2495,11 +2506,7 @@ export const checkCanCreateExpenseForCollective = (collective: Collective, req: 
   }
 };
 
-export async function createExpense(
-  req: express.Request,
-  expenseData: ExpenseData,
-  opts?: { isNewExpenseFlow?: boolean },
-): Promise<Expense> {
+export async function createExpense(req: express.Request, expenseData: ExpenseData): Promise<Expense> {
   const { remoteUser } = req;
 
   // Check permissions
@@ -2688,10 +2695,6 @@ export async function createExpense(
     };
   }
 
-  if (opts?.isNewExpenseFlow) {
-    data['isNewExpenseFlow'] = true;
-  }
-
   const expense = await sequelize.transaction(async t => {
     let invoiceFileId: number;
     if (expenseData.type === ExpenseType.INVOICE && expenseData.invoiceFile) {
@@ -2840,12 +2843,10 @@ export async function submitExpenseDraft(
     args,
     requestedPayee,
     originalPayee,
-    isNewExpenseFlow,
   }: {
     args?: ExpenseDraftArgs;
     originalPayee?: Collective;
     requestedPayee?: Collective;
-    isNewExpenseFlow?: boolean;
   } = {},
 ) {
   // It is a submit on behalf being completed
@@ -2905,7 +2906,6 @@ export async function submitExpenseDraft(
     overrideRemoteUser: undefined,
     skipPermissionCheck: true,
     skipActivity: true,
-    isNewExpenseFlow: isNewExpenseFlow === true ? true : undefined,
   };
   if (requestedPayee) {
     // Also allow admins of the payee's fiscal host (e.g. a host admin completing a cross-host
@@ -3070,12 +3070,7 @@ export async function sendDraftExpenseInvite(
   }
 }
 
-export async function editExpenseDraft(
-  req: express.Request,
-  expenseData: ExpenseData,
-  args: ExpenseDraftArgs,
-  opts?: { isNewExpenseFlow?: boolean },
-) {
+export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData, args: ExpenseDraftArgs) {
   const existingExpense = await models.Expense.findByPk(expenseData.id, {
     include: [
       { model: models.ExpenseItem, as: 'items' },
@@ -3171,10 +3166,6 @@ export async function editExpenseDraft(
     newExpenseValues.data['payee'] = payee;
     newExpenseValues.data['draftKey'] =
       process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
-  }
-
-  if (opts?.isNewExpenseFlow) {
-    newExpenseValues['isNewExpenseFlow'] = true;
   }
 
   await existingExpense.update({ ...newExpenseValues, data: { ...existingExpense.data, ...newExpenseValues.data } });
@@ -3406,7 +3397,6 @@ export async function editExpense(
     overrideRemoteUser?: User;
     skipPermissionCheck?: boolean;
     draftKey?: string;
-    isNewExpenseFlow?: boolean;
   } = {},
 ): Promise<Expense> {
   const remoteUser = options?.overrideRemoteUser || req.remoteUser;

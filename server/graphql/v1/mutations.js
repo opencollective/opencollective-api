@@ -14,14 +14,7 @@ import {
 import { createUser } from '../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../errors';
 
-import {
-  archiveCollective,
-  createCollective,
-  createCollectiveFromGithub,
-  deleteCollective,
-  editCollective,
-  unarchiveCollective,
-} from './mutations/collectives';
+import { createCollective, createCollectiveFromGithub, editCollective } from './mutations/collectives';
 import { editWebhooks } from './mutations/notifications';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
 import { updateUserEmail } from './mutations/users';
@@ -70,48 +63,6 @@ const mutations = {
         signedOutMessage: 'You need to be logged in to edit a collective',
       });
       return editCollective(_, args, req);
-    },
-  },
-  deleteCollective: {
-    type: CollectiveInterfaceType,
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      checkRemoteUserCanUseAccount(req);
-      return deleteCollective(_, args, req);
-    },
-  },
-  deleteUserCollective: {
-    type: CollectiveInterfaceType,
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      checkRemoteUserCanUseAccount(req);
-      return deleteCollective(_, args, req);
-    },
-  },
-  archiveCollective: {
-    type: CollectiveInterfaceType,
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      checkRemoteUserCanUseAccount(req, {
-        signedOutMessage: 'You need to be logged in to archive a collective',
-      });
-      return archiveCollective(_, args, req);
-    },
-  },
-  unarchiveCollective: {
-    type: CollectiveInterfaceType,
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      checkRemoteUserCanUseAccount(req);
-      return unarchiveCollective(_, args, req);
     },
   },
   createUser: {

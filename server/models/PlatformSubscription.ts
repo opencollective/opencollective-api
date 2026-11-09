@@ -14,7 +14,6 @@ import {
   Range,
   Transaction as SequelizeTransaction,
 } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 
 import ActivityTypes from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
@@ -22,17 +21,13 @@ import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import ExpenseType from '../constants/expense-type';
 import FEATURE from '../constants/feature';
 import { PAYMENT_METHOD_SERVICE } from '../constants/paymentMethods';
-import {
-  CROWDFUNDING_FEE_PERCENT,
-  PlatformSubscriptionPlan,
-  PlatformSubscriptionTiers,
-  PlatformSubscriptionTierTypes,
-} from '../constants/plans';
+import { PlatformSubscriptionPlan, PlatformSubscriptionTiers, PlatformSubscriptionTierTypes } from '../constants/plans';
 import { sortResultsSimple } from '../graphql/loaders/helpers';
 import { convertToCurrency, roundCentsAmount } from '../lib/currency';
 import { chargeExpense, getPreferredPlatformPayout } from '../lib/platform-subscriptions';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 
 import Activity from './Activity';
 import Collective from './Collective';
@@ -263,9 +258,79 @@ class PlatformSubscription extends Model<
     };
   }
 
+  /**
+   * The hosts billed together on `collectiveId`'s bill: itself, plus the hosts whose subscription in
+   * this billing period points to it with `plan.billedToCollectiveId` (e.g. an organization running
+   * one host per currency).
+   */
+  static async getBilledHostIds(collectiveId: number, billingPeriod: BillingPeriod): Promise<number[]> {
+    const billingRangeArg = PlatformSubscription.rangeLiteral(
+      PlatformSubscription.getBillingPeriodRange(billingPeriod),
+    );
+    const rows: { CollectiveId: number }[] = await sequelize.query(
+      `
+      SELECT DISTINCT "CollectiveId"
+      FROM "PlatformSubscriptions"
+      WHERE ("plan"->>'billedToCollectiveId')::integer = :collectiveId
+      AND "period" && ${billingRangeArg}
+      AND "deletedAt" IS NULL
+    `,
+      { type: QueryTypes.SELECT, raw: true, replacements: { collectiveId } },
+    );
+
+    return [collectiveId, ...rows.map(row => row.CollectiveId)];
+  }
+
+  /**
+   * The collectives that may have a non-zero bill for the billing period, to avoid calculating the bill
+   * of every free subscription without activity. A bill is non-zero only with a base price, or with a
+   * transaction or a paid expense on one of the billed hosts: activity on a host linked with
+   * `plan.billedToCollectiveId` selects the collective it is billed to, never the linked host itself,
+   * whose activity is already on that bill.
+   */
+  static async getBillableCollectiveIds(billingPeriod: BillingPeriod): Promise<number[]> {
+    const billingRange = PlatformSubscription.getBillingPeriodRange(billingPeriod);
+    const rows: { id: number }[] = await sequelize.query(
+      `
+      SELECT DISTINCT v.id
+      FROM "PlatformSubscriptions" s
+      CROSS JOIN LATERAL (VALUES (COALESCE((s."plan"->>'billedToCollectiveId')::integer, s."CollectiveId"))) AS v(id)
+      WHERE s."period" && ${PlatformSubscription.rangeLiteral(billingRange)}
+      AND s."deletedAt" IS NULL
+      AND (
+        COALESCE((s."plan"->'pricing'->>'pricePerMonth')::integer, 0) > 0
+        OR EXISTS (
+          SELECT 1 FROM "Transactions" t
+          WHERE t."HostCollectiveId" = s."CollectiveId"
+          AND t."createdAt" BETWEEN :startDate AND :endDate
+          AND t."deletedAt" IS NULL
+        )
+        OR EXISTS (
+          SELECT 1 FROM "Activities" a
+          WHERE a."HostCollectiveId" = s."CollectiveId"
+          AND a."type" = 'collective.expense.paid'
+          AND a."createdAt" BETWEEN :startDate AND :endDate
+        )
+      )
+      ORDER BY v.id
+    `,
+      {
+        type: QueryTypes.SELECT,
+        raw: true,
+        replacements: {
+          startDate: PlatformSubscription.periodStartDate(billingRange),
+          endDate: PlatformSubscription.periodEndDate(billingRange),
+        },
+      },
+    );
+
+    return rows.map(row => row.id);
+  }
+
   static async calculateUtilization(collectiveId: number, billingPeriod: BillingPeriod): Promise<PeriodUtilization> {
     const billingRange = PlatformSubscription.getBillingPeriodRange(billingPeriod);
     const billingRangeArg = PlatformSubscription.rangeLiteral(billingRange);
+    const hostIds = await PlatformSubscription.getBilledHostIds(collectiveId, billingPeriod);
 
     const { activeCollectives }: { activeCollectives: number } = await sequelize.query(
       `
@@ -273,8 +338,8 @@ class PlatformSubscription extends Model<
       FROM "Transactions" t
       JOIN "Collectives" c on c.id = t."CollectiveId"
       WHERE
-      t."HostCollectiveId" = :HostCollectiveId
-      AND COALESCE(c."ParentCollectiveId", c.id) != :HostCollectiveId
+      t."HostCollectiveId" IN (:hostIds)
+      AND COALESCE(c."ParentCollectiveId", c.id) NOT IN (:hostIds)
       AND t."createdAt" <@ ${billingRangeArg}
       AND t."deletedAt" IS NULL
     `,
@@ -283,7 +348,7 @@ class PlatformSubscription extends Model<
         raw: true,
         plain: true,
         replacements: {
-          HostCollectiveId: collectiveId,
+          hostIds,
         },
       },
     );
@@ -296,13 +361,13 @@ class PlatformSubscription extends Model<
         LEFT JOIN LATERAL (
           SELECT count(1) > 0 "previouslyPaid"
           FROM "Activities" "hist"
-          WHERE hist."HostCollectiveId" = :HostCollectiveId
+          WHERE hist."HostCollectiveId" IN (:hostIds)
           AND hist."ExpenseId" = a."ExpenseId"
           AND hist."type" = 'collective.expense.paid'
           AND tstzrange(NULL, hist."createdAt", '[]') << ${billingRangeArg}
           LIMIT 1
         ) as "hist" ON TRUE
-        WHERE a."HostCollectiveId" = :HostCollectiveId
+        WHERE a."HostCollectiveId" IN (:hostIds)
         AND a."type" = 'collective.expense.paid'
         AND a."createdAt" <@ ${billingRangeArg}
         AND e."type" NOT IN (:excludedExpenseTypes)
@@ -313,7 +378,7 @@ class PlatformSubscription extends Model<
         raw: true,
         plain: true,
         replacements: {
-          HostCollectiveId: collectiveId,
+          hostIds,
           excludedExpenseTypes: [ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING],
         },
       },
@@ -384,39 +449,37 @@ class PlatformSubscription extends Model<
 
     const additionalTotal = Object.entries(additionalUtilizationAmounts).reduce((acc, [, amount]) => acc + amount, 0);
 
-    // Crowdfunding fee: plans with platform tips disabled charge a percentage fee on crowdfunding
-    // contributions. Only contributions that were not subject to platform tips are counted (see
+    // Crowdfunding fee: opt-in, only charged to plans that explicitly set `crowdfundingFeePercent`,
+    // whatever their platform tips setting. It applies to crowdfunding contributions. Only
+    // contributions that were not subject to platform tips are counted (see
     // `sumCrowdfundingContributions`), so hybrid periods (mid-month plan switch, older recurring
     // contributions still carrying a tip) are not double charged. The sum is also bounded to the
-    // days each tips-off subscription was active: contributions received before the subscription
+    // days each subscription charging the fee was active: contributions received before the subscription
     // started may already be charged as legacy Platform Share (see `cron/monthly/host-settlement`).
     // Refunds only count against the contribution they reverse, when recorded before the end of the
     // billing period: later refunds never change a bill.
     const crowdfunding: Billing['crowdfunding'] = { totalAmount: 0, feePercent: 0, fee: 0 };
-    const tipsOffSubscriptions = subscriptions.filter(sub => sub.plan.pricing?.platformTips === false);
-    if (tipsOffSubscriptions.length > 0) {
+    const feeSubscriptions = subscriptions.filter(sub => sub.plan.pricing?.crowdfundingFeePercent > 0);
+    if (feeSubscriptions.length > 0) {
       // A single FX date for the whole bill: the end of the billing period (capped to today for the
       // current period), so that recomputing a past bill gives the same amounts
       const billingPeriodEnd = PlatformSubscription.periodEndDate(
         PlatformSubscription.getBillingPeriodRange(billingPeriod),
       );
+      const hostIds = await PlatformSubscription.getBilledHostIds(collectiveId, billingPeriod);
       const fxDate = moment.min(moment.utc(billingPeriodEnd), moment.utc()).toDate();
       // Each subscription window is charged at its own plan's rate
       const feePercents: number[] = [];
       let amount = 0;
       let fee = 0;
-      for (const sub of tipsOffSubscriptions) {
-        const feePercent = sub.plan.pricing.crowdfundingFeePercent ?? CROWDFUNDING_FEE_PERCENT;
-        if (!feePercent) {
-          continue;
-        }
-
+      for (const sub of feeSubscriptions) {
+        const feePercent = sub.plan.pricing.crowdfundingFeePercent;
         const [subBillingStart, subBillingEnd] = sub.overlapWith(billingPeriod);
         const subAmount = await PlatformSubscription.sumCrowdfundingContributions(
           collectiveId,
           subBillingStart,
           subBillingEnd,
-          { refundedBefore: billingPeriodEnd, fxDate },
+          { refundedBefore: billingPeriodEnd, fxDate, hostIds },
         );
         feePercents.push(feePercent);
         amount += subAmount;
@@ -494,7 +557,7 @@ class PlatformSubscription extends Model<
     collectiveId: number,
     startDate: Date,
     endDate: Date,
-    { refundedBefore, fxDate }: { refundedBefore: Date; fxDate: Date },
+    { refundedBefore, fxDate, hostIds = [collectiveId] }: { refundedBefore: Date; fxDate: Date; hostIds?: number[] },
   ): Promise<number> {
     const rows: { currency: SupportedCurrency; amount: string }[] = await sequelize.query(
       `
@@ -506,7 +569,7 @@ class PlatformSubscription extends Model<
       LEFT JOIN "PaymentMethods" pm ON pm.id = t."PaymentMethodId"
       LEFT JOIN "Transactions" r
         ON r.id = t."RefundTransactionId" AND r."deletedAt" IS NULL AND r."createdAt" <= :refundedBefore
-      WHERE t."HostCollectiveId" = :HostCollectiveId
+      WHERE t."HostCollectiveId" IN (:hostIds)
       AND t."kind" = 'CONTRIBUTION'
       AND t."type" = 'CREDIT'
       AND t."isRefund" IS NOT TRUE
@@ -523,7 +586,7 @@ class PlatformSubscription extends Model<
         type: QueryTypes.SELECT,
         raw: true,
         replacements: {
-          HostCollectiveId: collectiveId,
+          hostIds,
           startDate,
           endDate,
           refundedBefore,
