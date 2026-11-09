@@ -8,7 +8,7 @@ import { MemberRolesForPrivateAccounts } from '../../constants/roles';
 import { fetchCollectiveId } from '../../lib/cache';
 import logger from '../../lib/logger';
 import { getConsolidatedInvoicesData } from '../../lib/pdf';
-import { assertCanSeeAccount, assertCanSeeAllAccounts } from '../../lib/private-accounts';
+import { assertCanSeeAccount } from '../../lib/private-accounts';
 import rawQueries from '../../lib/queries';
 import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/sql-search';
 import models, { Op, sequelize } from '../../models';
@@ -164,36 +164,6 @@ const queries = {
         kinds: args.kinds,
         excludePrivateAccounts: true,
       });
-    },
-  },
-
-  /*
-   * Given a Transaction id, returns a transaction details
-   * Still used by the REST API v1 endpoints.
-   */
-  Transaction: {
-    type: TransactionInterfaceType,
-    deprecationReason: '2025-07-10: Please use GraphQL V2',
-    args: {
-      id: {
-        type: GraphQLInt,
-      },
-      uuid: {
-        type: GraphQLString,
-      },
-    },
-    async resolve(_, args, req) {
-      const transaction = await models.Transaction.findOne({ where: { ...args } });
-      if (!transaction) {
-        return null;
-      }
-
-      const collectiveIds = [transaction.FromCollectiveId, transaction.CollectiveId, transaction.HostCollectiveId];
-      const uniqIds = uniq(collectiveIds.filter(Boolean));
-      const collectives = await req.loaders.Collective.byId.loadMany(uniqIds);
-      await assertCanSeeAllAccounts(req, collectives.filter(Boolean));
-
-      return transaction;
     },
   },
 
