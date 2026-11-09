@@ -98,6 +98,7 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
   AccountingCategory: () => {},
   EmojiReaction: () => {},
   ExportRequest: () => {},
+  FiscalHostNote: () => null, // Host-private notes should never be exported
   Conversation: () => {},
   ConversationFollower: () => {},
   CurrencyExchangeRate: () => {},

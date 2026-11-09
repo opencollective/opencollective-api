@@ -47,7 +47,12 @@ const sanitizeErrorData = (error): { name?: string; message?: string; details?: 
 
 export const sanitizeActivityData = async (req: Express.Request, activity): Promise<Partial<Activity['data']>> => {
   const toPick = [];
-  if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_PAID) {
+  if ([ActivityTypes.FISCAL_HOST_NOTE_SET, ActivityTypes.FISCAL_HOST_NOTE_REMOVED].includes(activity.type)) {
+    if (activity.HostCollectiveId && req.remoteUser?.isAdmin(activity.HostCollectiveId)) {
+      toPick.push('note');
+      toPick.push('noteType');
+    }
+  } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_PAID) {
     toPick.push('isManualPayout');
   } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_UPDATED) {
     toPick.push('previousData.status', 'expense.status', 'isSystem');

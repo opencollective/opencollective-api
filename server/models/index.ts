@@ -18,6 +18,7 @@ import Expense from './Expense';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import ExportRequest from './ExportRequest';
+import FiscalHostNote from './FiscalHostNote';
 import HostApplication from './HostApplication';
 import { KYCVerification } from './KYCVerification';
 import LegalDocument from './LegalDocument';
@@ -73,6 +74,7 @@ const models = {
   ExpenseAttachedFile,
   ExpenseItem,
   ExportRequest,
+  FiscalHostNote,
   HostApplication,
   LegalDocument,
   Location,
@@ -137,6 +139,14 @@ Application.hasMany(UserToken, { foreignKey: 'ApplicationId', as: 'userTokens' }
 Agreement.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'Collective' });
 Agreement.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'Host' });
 Agreement.belongsTo(User, { foreignKey: 'UserId', as: 'User' });
+
+// FiscalHostNote
+FiscalHostNote.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
+FiscalHostNote.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'account' });
+FiscalHostNote.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
+FiscalHostNote.belongsTo(User, { foreignKey: 'UpdatedByUserId', as: 'updatedByUser' });
+Collective.hasMany(FiscalHostNote, { foreignKey: 'HostCollectiveId', as: 'givenFiscalHostNotes' });
+Collective.hasMany(FiscalHostNote, { foreignKey: 'CollectiveId', as: 'receivedFiscalHostNotes' });
 
 // Collective
 Collective.belongsTo(Collective, { as: 'HostCollective' });
@@ -433,6 +443,7 @@ export {
   EmojiReaction,
   ExportRequest as ExportRequests,
   Expense,
+  FiscalHostNote,
   ExpenseAttachedFile,
   ExpenseItem,
   HostApplication,

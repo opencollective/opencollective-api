@@ -251,6 +251,10 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'KYCVerification.account': 'admin-only',
   'KYCVerification.createdByUser': 'admin-only',
 
+  // ---- FiscalHostNote ----
+  // Only reachable through the host-admin gated `Account.fiscalHostNote` field and mutations
+  'FiscalHostNote.updatedBy': 'admin-only',
+
   // ---- Webhook ----
   'Webhook.account': 'admin-only',
 
