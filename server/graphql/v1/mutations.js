@@ -5,6 +5,8 @@ import { checkCaptcha, isCaptchaSetup } from '../../lib/check-captcha';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit';
 import { reportMessageToSentry } from '../../lib/sentry';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
+import { parseToBoolean } from '../../lib/utils';
+import models from '../../models';
 import { editPublicMessage } from '../common/members';
 import {
   checkRemoteUserCanUseAccount,
@@ -127,10 +129,33 @@ const mutations = {
         });
       }
 
+      // An explicitly provided `null` overrides the GraphQL default, so normalize it to the documented default.
+      const throwIfExists = args.throwIfExists ?? true;
+
+      // Cypress E2E helpers lazily create fixture users through this mutation with
+      // `throwIfExists: false`. Keep that convenience in E2E/development stacks only:
+      // in staging/production it would let an anonymous caller act on an existing account.
+      // Unit tests do not set `E2E_TEST`, so they still exercise the production behavior.
+      const allowLegacyUserAdoption =
+        !['staging', 'production'].includes(config.env) &&
+        (parseToBoolean(process.env.E2E_TEST) || config.env === 'development');
+
+      // `throwIfExists: false` (get-or-create) is only allowed for the authenticated owner of the email.
+      // Otherwise, an anonymous caller could act on behalf of an existing account.
+      if (throwIfExists === false && !allowLegacyUserAdoption && args.user.email) {
+        const existingUser = await models.User.findOne({ where: { email: args.user.email.toLowerCase().trim() } });
+        if (existingUser && existingUser.id !== remoteUser?.id) {
+          throw new ValidationFailed(
+            'It looks like that email already exists, please sign in instead',
+            'EMAIL_ALREADY_EXISTS',
+          );
+        }
+      }
+
       return createUser(args.user, {
         organizationData: args.organization,
         sendSignInLink: args.sendSignInLink,
-        throwIfExists: args.throwIfExists,
+        throwIfExists,
         redirect: args.redirect,
         websiteUrl: args.websiteUrl,
         creationRequest: {

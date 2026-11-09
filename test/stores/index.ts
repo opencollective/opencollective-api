@@ -142,11 +142,6 @@ export async function newHost(
 
 /** Create an organization
  *
- * This is mostly a proxy to an already existing method within the
- * `Collective` model.
- *
- * @see models.Collective.createOrganization
- *
  * @param {Object} orgData fields to be passed to the new
  *  organization. E.g.: name, slug, etc. These are forwarded to the
  *  model's `.create` method.
@@ -156,7 +151,14 @@ export async function newHost(
  *  collective instance.
  */
 export async function newOrganization(orgData, adminUser) {
-  return models.Collective.createOrganization(orgData, adminUser, undefined);
+  const organization = await models.Collective.create({
+    ...orgData,
+    type: CollectiveType.ORGANIZATION,
+    isActive: true,
+    CreatedByUserId: adminUser.id,
+  });
+  await organization.addUserWithRole(adminUser, MemberRoles.ADMIN);
+  return organization;
 }
 
 /** Create new a host, a collective and add collective to the host

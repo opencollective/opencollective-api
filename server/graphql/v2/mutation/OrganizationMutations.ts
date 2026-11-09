@@ -8,19 +8,18 @@ import { pick } from 'lodash';
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import roles from '../../../constants/roles';
-import { checkCaptcha, isCaptchaSetup } from '../../../lib/check-captcha';
+import { checkCaptcha } from '../../../lib/check-captcha';
 import { canUseSlug } from '../../../lib/collectivelib';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { reportMessageToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { Collective, type User } from '../../../models';
+import models, { Collective } from '../../../models';
 import { sequelize } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { SocialLinkType } from '../../../models/SocialLink';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { createUser, sendLoginEmail } from '../../common/user';
-import { RateLimitExceeded, ValidationFailed } from '../../errors';
+import { RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { CaptchaInputType } from '../../v1/inputTypes';
 import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -75,6 +74,12 @@ export default {
       },
     },
     resolve: async (_, args, req: express.Request) => {
+      checkRemoteUserCanUseAccount(req);
+      const user = req.remoteUser;
+      if (!user) {
+        throw new Unauthorized('You need to be logged in to create an organization');
+      }
+
       if (args.inviteMembers) {
         assert(args.inviteMembers.length <= 5, new ValidationFailed('You can only invite up to 5 members'));
       }
@@ -84,33 +89,14 @@ export default {
         slug: args.organization.slug.toLowerCase(),
         ...pick(args.organization, ['name', 'legalName', 'description', 'countryISO']),
         isActive: false,
-        CreatedByUserId: req.remoteUser?.id,
+        CreatedByUserId: user.id,
         settings: { ...DEFAULT_ORGANIZATION_SETTINGS, ...args.organization.settings },
       };
 
-      if (!canUseSlug(organizationData.slug, req.remoteUser)) {
+      if (!canUseSlug(organizationData.slug, user)) {
         throw new ValidationFailed(`The slug '${organizationData.slug}' is not allowed.`, 'SLUG_NOT_ALLOWED');
       }
 
-      if (req.remoteUser) {
-        checkRemoteUserCanUseAccount(req);
-      } else {
-        assert(args.individual, 'You must provide an individual to create an organization without a logged-in user');
-        // If user already exists but never logged in, presume they want to create the same organization
-        const existingUser =
-          args.individual.email && (await models.User.findOne({ where: { email: args.individual.email } }));
-        if (existingUser && existingUser.lastLoginAt === null) {
-          const organization = await models.Collective.findOne({
-            where: { slug: organizationData.slug, CreatedByUserId: existingUser.id },
-          });
-          if (organization) {
-            await sendLoginEmail(existingUser, {
-              redirect: `/dashboard/${organization.slug}`,
-            });
-            return organization;
-          }
-        }
-      }
       const collectiveWithSlug = await models.Collective.findOne({ where: { slug: organizationData.slug } });
       if (collectiveWithSlug) {
         throw new ValidationFailed(
@@ -119,7 +105,7 @@ export default {
         );
       }
 
-      const rateLimitKey = req.remoteUser ? `user_create_${req.remoteUser.id}` : `user_create_ip_${req.ip}`;
+      const rateLimitKey = `user_create_${user.id}`;
       const rateLimit = new RateLimit(rateLimitKey, config.limits.userSignUpPerHour, ONE_HOUR_IN_SECONDS, true);
       if (!(await rateLimit.registerCall())) {
         throw new RateLimitExceeded();
@@ -127,8 +113,6 @@ export default {
 
       if (args.captcha) {
         await checkCaptcha(args.captcha, req.ip as string);
-      } else if (!req.remoteUser && isCaptchaSetup()) {
-        throw new ValidationFailed('Captcha is required');
       } else if (!['test', 'e2e', 'ci'].includes(config.env)) {
         reportMessageToSentry('createOrganization request without captcha', {
           severity: 'warning',
@@ -141,25 +125,12 @@ export default {
       await organization.validate();
 
       // Attach images
-      const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.organization);
+      const { avatar, banner } = await handleCollectiveImageUploadFromArgs(user, args.organization);
       organization.image = avatar?.url ?? organization.image;
       organization.backgroundImage = banner?.url ?? organization.backgroundImage;
 
       // Save all to database
       await sequelize.transaction(async transaction => {
-        let user: User = req.remoteUser;
-        if (!user && args.individual) {
-          ({ user } = await createUser(args.individual, {
-            sendSignInLink: true,
-            redirect: `/dashboard/${organization.slug}`,
-            creationRequest: {
-              ip: req.ip,
-              userAgent: req.header('user-agent'),
-            },
-            transaction,
-          }));
-          organization.set({ CreatedByUserId: user.id });
-        }
         await organization.save({ transaction });
 
         if (args.organization.website) {

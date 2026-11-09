@@ -400,24 +400,6 @@ class Collective extends ModelWithPublicId<
   declare public parent?: NonAttribute<Collective>;
   declare public children?: NonAttribute<Collective[]>;
 
-  static async createOrganization(collectiveData, adminUser, creator) {
-    const CreatedByUserId = creator?.id || adminUser.id;
-    const collective = await Collective.create({
-      CreatedByUserId,
-      ...collectiveData,
-      type: CollectiveType.ORGANIZATION,
-      isActive: true,
-    });
-    await Member.create({
-      CreatedByUserId,
-      CollectiveId: collective.id,
-      MemberCollectiveId: adminUser.CollectiveId,
-      role: roles.ADMIN,
-    });
-    await collective.generateCollectiveCreatedActivity(creator || adminUser, null, { collective: collective.info });
-    return collective;
-  }
-
   static createMany = (collectives, defaultValues, sequelizeParams) => {
     return pMap(collectives, u => Collective.create(defaults({}, u, defaultValues), sequelizeParams), {
       concurrency: 1,

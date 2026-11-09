@@ -3,9 +3,11 @@ import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
 
-import { Collective, ConnectedAccount, Order, PaymentMethod, User } from '../../../../server/models';
+import { createUser } from '../../../../server/graphql/common/user';
+import { Collective, ConnectedAccount, Member, Order, PaymentMethod, User } from '../../../../server/models';
 import creditcard from '../../../../server/paymentProviders/stripe/creditcard';
 import { randEmail } from '../../../stores';
+import { randStr } from '../../../test-helpers/fake-data';
 import { data, graphqlQuery, graphqlQueryV2, resetTestDB } from '../../../utils';
 
 const gqlV1 = gql;
@@ -46,6 +48,21 @@ const CREATE_ORDER_MUTATION = gql`
             email
           }
         }
+      }
+    }
+  }
+`;
+
+const CREATE_USER_MUTATION = gql`
+  mutation CreateUser($user: UserInputType!, $organization: CollectiveInputType, $throwIfExists: Boolean) {
+    createUser(user: $user, organization: $organization, throwIfExists: $throwIfExists) {
+      user {
+        id
+        email
+      }
+      organization {
+        id
+        slug
       }
     }
   }
@@ -134,6 +151,194 @@ describe('server/graphql/v1/user', () => {
         result.errors && console.error(result.errors);
         const data = result.data.LoggedInUser;
         expect(data).to.be.null;
+      });
+    });
+
+    describe('createUser', () => {
+      it('creates a brand-new user and their organization for guests', async () => {
+        const email = randEmail();
+        const orgSlug = randStr('new-org-');
+
+        const result = await graphqlQuery(CREATE_USER_MUTATION, {
+          user: { name: 'New User', email },
+          organization: { name: 'New Organization', slug: orgSlug },
+        });
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createUser.organization.slug).to.equal(orgSlug);
+
+        const organization = await Collective.findOne({ where: { slug: orgSlug } });
+        const createdUser = await User.findOne({ where: { email } });
+        expect(createdUser).to.exist;
+        expect(result.data.createUser.user.id).to.equal(createdUser.id);
+        expect(organization.CreatedByUserId).to.equal(createdUser.id);
+        const [admin] = await organization.getMembers({ where: { role: 'ADMIN' } });
+        expect(admin).to.exist;
+        expect(admin.MemberCollectiveId).to.equal(createdUser.CollectiveId);
+      });
+
+      it('does not adopt an existing user when throwIfExists is false and the caller is not that user', async () => {
+        const result = await graphqlQuery(CREATE_USER_MUTATION, {
+          user: { email: user1.email },
+          throwIfExists: false,
+        });
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('EMAIL_ALREADY_EXISTS');
+        expect(result.data.createUser).to.be.null;
+      });
+
+      it('allows adopting an existing user in E2E environments (Cypress helper)', async () => {
+        const previousE2ETest = process.env.E2E_TEST;
+        process.env.E2E_TEST = '1';
+
+        try {
+          const result = await graphqlQuery(CREATE_USER_MUTATION, {
+            user: { email: user1.email },
+            throwIfExists: false,
+          });
+
+          expect(result.errors).to.not.exist;
+          expect(result.data.createUser.user.id).to.equal(user1.id);
+        } finally {
+          if (previousE2ETest === undefined) {
+            delete process.env.E2E_TEST;
+          } else {
+            process.env.E2E_TEST = previousE2ETest;
+          }
+        }
+      });
+
+      it('still refuses organizationData for a pre-existing user in E2E environments', async () => {
+        const orgSlug = randStr('e2e-org-');
+        const previousE2ETest = process.env.E2E_TEST;
+        process.env.E2E_TEST = '1';
+
+        try {
+          const result = await graphqlQuery(CREATE_USER_MUTATION, {
+            user: { email: user1.email },
+            organization: { name: 'E2E Organization', slug: orgSlug },
+            throwIfExists: false,
+          });
+
+          expect(result.errors).to.exist;
+          expect(result.errors[0].extensions.code).to.equal('EMAIL_ALREADY_EXISTS');
+          expect(await Collective.findOne({ where: { slug: orgSlug } })).to.not.exist;
+        } finally {
+          if (previousE2ETest === undefined) {
+            delete process.env.E2E_TEST;
+          } else {
+            process.env.E2E_TEST = previousE2ETest;
+          }
+        }
+      });
+
+      it('does not adopt an existing user when throwIfExists is explicitly null', async () => {
+        const result = await graphqlQuery(CREATE_USER_MUTATION, {
+          user: { email: user1.email },
+          throwIfExists: null,
+        });
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('EMAIL_ALREADY_EXISTS');
+        expect(result.data.createUser).to.be.null;
+      });
+
+      it('does not create an organization bound to an existing user for guests', async () => {
+        const orgSlug = randStr('victim-org-');
+        const memberCount = await Member.count();
+
+        const result = await graphqlQuery(CREATE_USER_MUTATION, {
+          user: { email: user1.email },
+          organization: { name: 'Victim Organization', slug: orgSlug },
+          throwIfExists: false,
+        });
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('EMAIL_ALREADY_EXISTS');
+        expect(await Collective.findOne({ where: { slug: orgSlug } })).to.not.exist;
+        expect(await Member.count()).to.equal(memberCount);
+      });
+
+      it('does not create an organization for an existing user, even when authenticated as that user', async () => {
+        const orgSlug = randStr('self-org-');
+
+        const result = await graphqlQuery(
+          CREATE_USER_MUTATION,
+          {
+            user: { email: user1.email },
+            organization: { name: 'Self Organization', slug: orgSlug },
+            throwIfExists: false,
+          },
+          user1,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('EMAIL_ALREADY_EXISTS');
+        expect(await Collective.findOne({ where: { slug: orgSlug } })).to.not.exist;
+      });
+
+      it('throws for an existing user when throwIfExists is omitted in the helper', async () => {
+        try {
+          await createUser(
+            { name: 'Phil Mod', email: user1.email, newsletterOptIn: false, location: {} },
+            { sendSignInLink: false },
+          );
+          expect.fail('Expected createUser to throw');
+        } catch (error) {
+          expect(error.extensions.code).to.equal('EMAIL_ALREADY_EXISTS');
+        }
+      });
+
+      it('refuses organizationData for a pre-existing user in the helper', async () => {
+        const orgSlug = randStr('helper-org-');
+
+        try {
+          await createUser(
+            { name: 'Phil Mod', email: user1.email, newsletterOptIn: false, location: {} },
+            {
+              organizationData: { name: 'Helper Organization', slug: orgSlug },
+              throwIfExists: false,
+            },
+          );
+          expect.fail('Expected createUser to throw');
+        } catch (error) {
+          expect(error.extensions.code).to.equal('EMAIL_ALREADY_EXISTS');
+        }
+
+        expect(await Collective.findOne({ where: { slug: orgSlug } })).to.not.exist;
+      });
+
+      it('avoids slug conflict when autogenerated user slug matches organization slug', async () => {
+        const orgSlug = randStr('economic-growth-');
+        const email = randEmail();
+
+        const { user, organization } = await createUser(
+          {
+            name: orgSlug.replace(/-/g, ' '),
+            email,
+            newsletterOptIn: false,
+            location: {},
+          },
+          {
+            organizationData: {
+              name: 'Economic Growth NZ Inc.',
+              slug: orgSlug,
+            },
+          },
+        );
+
+        expect(organization).to.exist;
+        expect(organization.slug).to.equal(orgSlug);
+
+        await user.collective.reload();
+        expect(user.collective.slug).to.not.equal(orgSlug);
+        expect(user.collective.slug).to.match(new RegExp(`^${orgSlug}-[a-zA-Z0-9]{8}$`));
+
+        const [admin] = await organization.getMembers({ where: { role: 'ADMIN' } });
+        expect(admin).to.exist;
+        expect(admin.MemberCollectiveId).to.equal(user.CollectiveId);
       });
     });
 

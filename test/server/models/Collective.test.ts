@@ -985,7 +985,14 @@ describe('server/models/Collective', () => {
 
   it('creates an organization with an admin user', async () => {
     sendEmailSpy.resetHistory();
-    await models.Collective.createOrganization({ name: 'Coinbase' }, user1, undefined);
+    const organization = await models.Collective.create({
+      name: 'Coinbase',
+      type: CollectiveType.ORGANIZATION,
+      isActive: true,
+      CreatedByUserId: user1.id,
+    });
+    await organization.addUserWithRole(user1, 'ADMIN');
+    await organization.generateCollectiveCreatedActivity(user1, null, { collective: organization.info });
     await utils.waitForCondition(() => sendEmailSpy.callCount === 1, {
       tag: 'Your Organization on Open Collective',
     } as Parameters<typeof utils.waitForCondition>[1]);
