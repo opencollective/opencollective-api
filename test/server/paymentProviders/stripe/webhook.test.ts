@@ -54,7 +54,7 @@ describe('webhook', () => {
   });
 
   describe('webhook()', () => {
-    for (const body of [undefined, null, {}, 'not-json']) {
+    for (const body of [undefined, null, {}, 'not-json', { livemode: true }, { type: 123, livemode: true }]) {
       it(`rejects requests with an invalid body (${JSON.stringify(body)})`, async () => {
         let error: Error | undefined;
         try {
