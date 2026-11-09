@@ -1534,12 +1534,12 @@ describe('server/models/PlatformSubscriptions', () => {
 
         const ids = await PlatformSubscription.getBillableCollectiveIds(billingPeriod);
         expect(ids).to.not.include(inactiveFree.id);
+        expect(ids).to.not.include(linkedHost.id); // its activity is on freeParent's bill
         expect(ids).to.include.members([
           inactivePaid.id,
           freeWithTransaction.id,
           freeWithPaidExpense.id,
           freeParent.id,
-          linkedHost.id,
         ]);
       });
     });

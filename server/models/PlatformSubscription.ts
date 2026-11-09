@@ -285,7 +285,8 @@ class PlatformSubscription extends Model<
    * The collectives that may have a non-zero bill for the billing period, to avoid calculating the bill
    * of every free subscription without activity. A bill is non-zero only with a base price, or with a
    * transaction or a paid expense on one of the billed hosts: activity on a host linked with
-   * `plan.billedToCollectiveId` also selects the collective it is billed to.
+   * `plan.billedToCollectiveId` selects the collective it is billed to, never the linked host itself,
+   * whose activity is already on that bill.
    */
   static async getBillableCollectiveIds(billingPeriod: BillingPeriod): Promise<number[]> {
     const billingRange = PlatformSubscription.getBillingPeriodRange(billingPeriod);
@@ -293,10 +294,9 @@ class PlatformSubscription extends Model<
       `
       SELECT DISTINCT v.id
       FROM "PlatformSubscriptions" s
-      CROSS JOIN LATERAL (VALUES (s."CollectiveId"), ((s."plan"->>'billedToCollectiveId')::integer)) AS v(id)
+      CROSS JOIN LATERAL (VALUES (COALESCE((s."plan"->>'billedToCollectiveId')::integer, s."CollectiveId"))) AS v(id)
       WHERE s."period" && ${PlatformSubscription.rangeLiteral(billingRange)}
       AND s."deletedAt" IS NULL
-      AND v.id IS NOT NULL
       AND (
         COALESCE((s."plan"->'pricing'->>'pricePerMonth')::integer, 0) > 0
         OR EXISTS (
