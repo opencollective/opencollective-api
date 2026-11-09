@@ -97,7 +97,7 @@
     "multer": "2.5.0",
     "nodemailer": "10.3.1",
     "nordigen-node": "1.4.1",
-    "otplib": "13.5.0",
+    "otplib": "13.6.0",
     "p-map": "7.1.1",
     "p-queue": "10.0.0",
     "passport": "0.7.0",
