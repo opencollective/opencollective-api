@@ -132,7 +132,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/lodash": "^4.17.25",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.0.0",
     "@types/validator": "^13.11.8",
     "@typescript-eslint/parser": "^8.68.0",
     "babel-plugin-istanbul": "^8.0.0",
@@ -248,7 +248,7 @@
     "uploads": "./scripts/dev/run-docker.sh compose -f docker-compose/uploads.yml up"
   },
   "engines": {
-    "node": "24.x",
+    "node": "26.x",
     "npm": "11.x"
   },
   "lint-staged": {
