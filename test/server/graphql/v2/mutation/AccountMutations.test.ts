@@ -2709,6 +2709,77 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(activity.data.notify).to.be.false;
     });
 
+    it('cancels the contributions to its children and flags them for deactivation', async () => {
+      const admin = await fakeUser();
+      const parent = await fakeCollective({ admin });
+      const project = await fakeProject({ ParentCollectiveId: parent.id });
+      const order = await fakeOrder(
+        { CollectiveId: project.id, status: OrderStatuses.ACTIVE },
+        { withSubscription: true },
+      );
+
+      const result = await graphqlQueryV2(archiveAccountMutation, { account: { legacyId: parent.id } }, admin);
+      expect(result.errors).to.not.exist;
+
+      await order.reload();
+      expect(order.status).to.equal(OrderStatuses.CANCELLED);
+      expect(order.data.needsAsyncDeactivation).to.be.true;
+    });
+
+    it('leaves the account and its contributions untouched when refused because of a processing expense', async () => {
+      const admin = await fakeUser();
+      const parent = await fakeCollective({ admin });
+      const project = await fakeProject({ ParentCollectiveId: parent.id });
+      const orders = await Promise.all(
+        [parent, project].map(account =>
+          fakeOrder({ CollectiveId: account.id, status: OrderStatuses.ACTIVE }, { withSubscription: true }),
+        ),
+      );
+      await fakeExpense({ status: 'PROCESSING', CollectiveId: project.id });
+
+      const result = await graphqlQueryV2(archiveAccountMutation, { account: { legacyId: parent.id } }, admin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'Unable to change host: there are still 1 expenses in a processing state',
+      );
+
+      for (const order of orders) {
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.ACTIVE);
+        expect(order.data?.needsAsyncDeactivation).to.not.be.true;
+      }
+
+      await project.reload();
+      expect(project.deactivatedAt).to.be.null;
+      expect(project.approvedAt).to.be.a('date');
+    });
+
+    it('cancels the contributions the account makes and flags them for deactivation', async () => {
+      const admin = await fakeUser();
+      const archivedAccount = await fakeCollective({ admin });
+      const recipient = await fakeCollective();
+      const order = await fakeOrder(
+        {
+          status: OrderStatuses.ACTIVE,
+          CollectiveId: recipient.id,
+          FromCollectiveId: archivedAccount.id,
+          subscription: { isManagedExternally: true },
+        },
+        { withSubscription: true },
+      );
+
+      const result = await graphqlQueryV2(archiveAccountMutation, { account: { legacyId: archivedAccount.id } }, admin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.archiveAccount.isArchived).to.be.true;
+
+      // The order is cancelled and flagged for asynchronous deactivation (see #8915)
+      await order.reload();
+      expect(order.status).to.equal(OrderStatuses.CANCELLED);
+      expect(order.data.needsAsyncDeactivation).to.be.true;
+      await order.Subscription.reload();
+      expect(order.Subscription.isActive).to.be.true;
+    });
+
     it('clears approvedAt even when HostCollectiveId is already null', async () => {
       const admin = await fakeUser();
       const host = await fakeActiveHost();

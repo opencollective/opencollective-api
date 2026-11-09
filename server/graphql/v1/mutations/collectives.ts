@@ -7,6 +7,8 @@ import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
+import ExpenseStatuses from '../../../constants/expense-status';
+import OrderStatuses from '../../../constants/order-status';
 import roles from '../../../constants/roles';
 import { assertSettingsChangeAllowed } from '../../../lib/account-settings';
 import { purgeCacheForCollective } from '../../../lib/cache';
@@ -534,6 +536,24 @@ export async function archiveCollective(_, args, req) {
     }
   }
 
+  // `changeHost` below refuses to remove the host while the account or one of its children has processing expenses.
+  // Check it before changing anything, so that a refused archive does not leave contributions cancelled (and queued
+  // for cancellation on the payment provider) or children archived.
+  if (collective.HostCollectiveId) {
+    const hostedChildren = await collective.getChildren({
+      attributes: ['id'],
+      where: { HostCollectiveId: { [Op.ne]: null } },
+    });
+    const processingExpensesCount = await models.Expense.count({
+      where: { CollectiveId: [collective.id, ...hostedChildren.map(c => c.id)], status: ExpenseStatuses.PROCESSING },
+    });
+    if (processingExpensesCount > 0) {
+      throw new Error(
+        `Unable to change host: there are still ${processingExpensesCount} expenses in a processing state`,
+      );
+    }
+  }
+
   const isChildren = collective.type === CollectiveType.EVENT || collective.type === CollectiveType.PROJECT;
   const slugsToClearCacheFor = [collective.slug];
   const hostCollectiveId = collective.HostCollectiveId;
@@ -541,6 +561,13 @@ export async function archiveCollective(_, args, req) {
   const deactivatedAt = new Date();
   let children: { id: number; slug: string }[] = [];
   if (!isChildren) {
+    // Stop the contributions received by the children now: their `approvedAt` is reset below, after which neither
+    // their `changeHost` nor `Order.stopActiveSubscriptions` would touch them anymore.
+    await models.Order.stopActiveSubscriptions(collective.id, OrderStatuses.CANCELLED, {
+      includeChildren: true,
+      messageForContributors: 'We are archiving this Collective.',
+    });
+
     // Mark all children as archived, with a special `data.archivedFromParent` flag for later un-archive
     children = await sequelize.query<{ id: number; slug: string }>(
       `UPDATE "Collectives"
@@ -592,9 +619,14 @@ export async function archiveCollective(_, args, req) {
     },
   });
 
-  // Cancel all subscriptions which the collective is contributing
+  // Cancel all recurring contributions the account (and its children) is making. The subscriptions are
+  // deactivated asynchronously by `cron/10mn/00-handle-batch-subscriptions-update.ts`, which also calls the
+  // payment provider for externally managed subscriptions (e.g. PayPal).
   const allAccountIds = [collective.id, ...children.map(c => c.id)];
-  await models.Order.cancelActiveOrdersByCollective(allAccountIds);
+  await models.Order.stopActiveSubscriptionsFromAccounts(allAccountIds, OrderStatuses.CANCELLED, {
+    messageSource: 'PLATFORM',
+    messageForContributors: 'This account was archived, so its recurring contributions have been cancelled.',
+  });
 
   // Cancel all unprocessed expenses
   await cancelUnprocessedExpenses(allAccountIds, req.remoteUser);
