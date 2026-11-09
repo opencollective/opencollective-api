@@ -58,8 +58,9 @@ export const createUser = (
   assert(email, 'Email is required');
   const runInTransaction = async transaction => {
     let user = await models.User.findOne({ where: { email }, transaction });
+    const isExistingUser = Boolean(user);
 
-    if (throwIfExists && user) {
+    if (throwIfExists !== false && user) {
       throw new ValidationFailed(
         'It looks like that email already exists, please sign in instead',
         'EMAIL_ALREADY_EXISTS',
@@ -73,6 +74,14 @@ export const createUser = (
     let organization;
     // Create organization
     if (organizationData) {
+      // Never bind an organization (and its ADMIN role) to an account that was not created here.
+      if (isExistingUser) {
+        throw new ValidationFailed(
+          'It looks like that email already exists, please sign in instead',
+          'EMAIL_ALREADY_EXISTS',
+        );
+      }
+
       const organizationParams = {
         type: CollectiveType.ORGANIZATION,
         CreatedByUserId: user.id,
@@ -126,7 +135,7 @@ export const createUser = (
   return transaction ? runInTransaction(transaction) : sequelize.transaction(runInTransaction);
 };
 
-export const sendLoginEmail = async (user: User, { redirect, websiteUrl, transaction }: CreateUserOptions) => {
+const sendLoginEmail = async (user: User, { redirect, websiteUrl, transaction }: CreateUserOptions) => {
   const loginLink = user.generateLoginLink(redirect, websiteUrl);
   if (config.env === 'development') {
     logger.info(`Login Link: ${loginLink}`);
