@@ -1,11 +1,13 @@
 import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
-import { ActivityClasses } from '../../../server/constants/activities';
+import ActivityTypes, { ActivityClasses } from '../../../server/constants/activities';
 import { CollectiveType } from '../../../server/constants/collectives';
 import * as redisLib from '../../../server/lib/redis';
 import { getCollectiveFeed } from '../../../server/lib/timeline';
 import { Activity, Collective, User } from '../../../server/models';
+import { fakeCollective, fakeExpense, fakeUser } from '../../test-helpers/fake-data';
+import { resetTestDB } from '../../utils';
 
 describe('server/lib/timeline', () => {
   const sandbox = createSandbox();
@@ -49,5 +51,37 @@ describe('server/lib/timeline', () => {
     expect(redis.zRange).to.not.have.been.called;
     expect(redis.zAdd).to.have.been.calledOnce;
     expect(redis.expire).to.have.been.calledOnce;
+  });
+
+  describe('system expense updates', () => {
+    before(resetTestDB);
+
+    it('skips system fan-out activities and keeps normal expense updates', async () => {
+      sandbox.stub(redisLib, 'createRedisClient').resolves(null); // Query the database directly
+      const submitter = await fakeUser();
+      const collective = await fakeCollective();
+      const expense = await fakeExpense({
+        UserId: submitter.id,
+        FromCollectiveId: submitter.CollectiveId,
+        CollectiveId: collective.id,
+      });
+      const normalUpdate = await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, submitter);
+      const systemUpdate = await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_UPDATED, submitter, {
+        isSystem: true,
+        notify: false,
+      });
+
+      for (const account of [submitter.collective, collective]) {
+        const feed = await getCollectiveFeed({
+          collective: account,
+          dateTo: null,
+          limit: 20,
+          classes: [ActivityClasses.EXPENSES],
+        });
+        const ids = feed.map(activity => activity.id);
+        expect(ids, account.type).to.include(normalUpdate.id);
+        expect(ids, account.type).to.not.include(systemUpdate.id);
+      }
+    });
   });
 });
