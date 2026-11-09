@@ -217,9 +217,6 @@ const legacyPlans: Record<string, HostPlan> = {
   },
 } as const;
 
-/** Fee percentage applied to crowdfunding contributions when a plan has platform tips disabled */
-export const CROWDFUNDING_FEE_PERCENT = 5;
-
 export enum PlatformSubscriptionTierTypes {
   FREE = 'Discover',
   BASIC = 'Basic',
@@ -230,6 +227,13 @@ export interface PlatformSubscriptionPlan {
   title: string;
   type: PlatformSubscriptionTierTypes;
   basePlanId: string;
+  /**
+   * Set on a secondary host (e.g. one host per currency): its activity is counted on this host's bill.
+   * The plan should have no price of its own, so that the organization pays a single base price.
+   * The whole month's activity counts as soon as the subscription overlaps it, so links must only start,
+   * end or change at a month boundary.
+   */
+  billedToCollectiveId?: number;
   pricing: {
     /** The monthly price in the smallest currency unit (e.g., cents) */
     pricePerMonth: number;
@@ -249,7 +253,7 @@ export interface PlatformSubscriptionPlan {
     /** Whether this plan has platform tips enabled */
     platformTips: boolean;
 
-    /** If tips are not enabled, the fixed platform fee percentage on contributions (defaults to CROWDFUNDING_FEE_PERCENT) */
+    /** Opt-in: the fee percentage on contributions not subject to tips. No fee is charged unless this is set. */
     crowdfundingFeePercent?: number;
   };
   features: Partial<Record<CommercialFeaturesType, boolean>>;
