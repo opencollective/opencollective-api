@@ -1,8 +1,10 @@
 import { expect } from 'chai';
+import sinon from 'sinon';
 import { v4 as uuid } from 'uuid';
 
 import { CollectiveType } from '../../../../server/constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
+import * as LibCurrency from '../../../../server/lib/currency';
 import { executeOrder } from '../../../../server/lib/payments';
 import type { Transaction } from '../../../../server/models';
 import models from '../../../../server/models';
@@ -137,6 +139,76 @@ describe('server/paymentProviders/opencollective/prepaid', () => {
     await prepaid.refundTransaction(transaction, user);
     const balanceAfterRefund = await prepaid.getBalance(prepaidPm);
     expect(balanceAfterRefund.amount).to.be.equal(initialBalance.amount);
+  });
+});
+
+describe('server/paymentProviders/opencollective/prepaid (cross-currency)', () => {
+  let sandbox, user, hostCollective, targetCollective, prepaidPm;
+
+  before(async () => {
+    sandbox = sinon.createSandbox();
+    sandbox.stub(LibCurrency, 'getFxRate').callsFake((fromCurrency, toCurrency) => {
+      if (fromCurrency === toCurrency) {
+        return Promise.resolve(1);
+      } else if (fromCurrency === 'USD' && toCurrency === 'JPY') {
+        return Promise.resolve(150);
+      } else if (fromCurrency === 'JPY' && toCurrency === 'USD') {
+        return Promise.resolve(1 / 150);
+      }
+      throw new Error(`Unexpected getFxRate call: ${fromCurrency} -> ${toCurrency}`);
+    });
+
+    const hostAdmin = await models.User.createUserWithCollective({ name: 'Host admin', email: randEmail() });
+    hostCollective = await models.Collective.create({
+      type: CollectiveType.ORGANIZATION,
+      name: 'USD Host',
+      currency: 'USD',
+      isActive: true,
+      CreatedByUserId: hostAdmin.id,
+    });
+    user = await models.User.createUserWithCollective({ name: 'Prepaid user', email: randEmail() });
+    targetCollective = await models.Collective.create({ name: 'USD Collective', currency: 'USD', isActive: true });
+    await targetCollective.addHost(hostCollective, user, { shouldAutomaticallyApprove: true });
+
+    // ¥10,000 card
+    prepaidPm = await models.PaymentMethod.create({
+      name: 'JPY prepaid',
+      initialBalance: 1000000,
+      currency: 'JPY',
+      CollectiveId: user.collective.id,
+      uuid: uuid(),
+      data: { HostCollectiveId: hostCollective.id },
+      service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+      type: PAYMENT_METHOD_TYPE.PREPAID,
+    });
+  });
+
+  after(() => {
+    sandbox.restore();
+  });
+
+  const makeUsdOrder = (totalAmount: number) => ({
+    createdByUser: user,
+    fromCollective: user.collective,
+    FromCollectiveId: user.collective.id,
+    collective: targetCollective,
+    CollectiveId: targetCollective.id,
+    paymentMethod: prepaidPm,
+    totalAmount,
+    currency: 'USD',
+  });
+
+  it('converts the order amount to the card currency before checking the balance', async () => {
+    // $50 ~= ¥7,500, fits in the ¥10,000 balance
+    await processOrder(prepaid, makeUsdOrder(5000));
+    const balance = await prepaid.getBalance(prepaidPm);
+    expect(balance).to.deep.equal({ amount: 250000, currency: 'JPY' }); // ¥2,500 left
+
+    // Another $50 ~= ¥7,500 must be rejected, even though 5000 < 250000
+    await expect(processOrder(prepaid, makeUsdOrder(5000))).to.be.rejectedWith(
+      "This payment method doesn't have enough funds to complete this order",
+    );
+    expect(await prepaid.getBalance(prepaidPm)).to.deep.equal({ amount: 250000, currency: 'JPY' });
   });
 });
 

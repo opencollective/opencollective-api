@@ -93,8 +93,11 @@ async function processOrder(order: Order): Promise<Transaction> {
   }
 
   // Checking if balance is ok or will still be after completing the order
+  // The balance is in the payment method currency, which can differ from the order currency
   const balance = await getBalance(order.paymentMethod);
-  if (balance.amount - order.totalAmount < 0) {
+  const fxRate = await getFxRate(order.currency, balance.currency);
+  const totalAmountInPaymentMethodCurrency = order.totalAmount * fxRate;
+  if (balance.amount < totalAmountInPaymentMethodCurrency) {
     throw new Error("This payment method doesn't have enough funds to complete this order");
   }
 
