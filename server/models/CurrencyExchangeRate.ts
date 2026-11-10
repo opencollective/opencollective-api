@@ -10,7 +10,9 @@ export enum FX_RATE_SOURCE {
 }
 
 /**
- * Sequelize model to represent an CurrencyExchangeRate, linked to the `CurrencyExchangeRates` table.
+ * Sequelize model to represent an CurrencyExchangeRate, linked to the `CurrencyExchangeRates` view.
+ * Only the rates from USD are stored (`UsdExchangeRates`): the view computes the other pairs, and
+ * its triggers store inserted USD -> X and X -> USD rates (see migration 20261110150000).
  */
 class CurrencyExchangeRate extends Model<
   InferAttributes<CurrencyExchangeRate>,
@@ -31,14 +33,22 @@ class CurrencyExchangeRate extends Model<
     toCurrencies: string[],
     date: string | Date = 'latest',
   ): Promise<CurrencyExchangeRate[]> {
+    // One "latest rate" lookup per currency: the rates are computed by a view, a DISTINCT ON over
+    // the whole history of every pair would compute them all
     return sequelize.query(
       `
-      SELECT DISTINCT ON ("to") *
-      FROM "CurrencyExchangeRates"
-      WHERE "createdAt" <= :date
-      AND "from" = :fromCurrency
-      AND "to" IN (:toCurrencies)
-      ORDER BY "to", "createdAt" DESC
+      SELECT r.*
+      FROM UNNEST(ARRAY[:toCurrencies]::varchar[]) AS c(currency)
+      CROSS JOIN LATERAL (
+        SELECT *
+        FROM "CurrencyExchangeRates"
+        WHERE "createdAt" <= :date
+        AND "from" = :fromCurrency
+        AND "to" = c.currency
+        ORDER BY "createdAt" DESC
+        LIMIT 1
+      ) r
+      ORDER BY r."to"
     `,
       {
         type: QueryTypes.SELECT,
