@@ -408,25 +408,42 @@ describe('server/lib/order-tier-change', () => {
 
     it('accepts tiers without a price', () => {
       expect(doesAmountSatisfyTier(null, order, null)).to.be.true;
-      expect(doesAmountSatisfyTier({ amountType: 'FLEXIBLE', amount: null, minimumAmount: null }, order, null)).to.be
-        .true;
+      expect(
+        doesAmountSatisfyTier(
+          { amountType: 'FLEXIBLE', amount: null, minimumAmount: null, currency: 'USD' },
+          order,
+          null,
+        ),
+      ).to.be.true;
     });
 
     it('requires a payment of at least the fixed price or minimum', () => {
-      const fixed = { amountType: 'FIXED' as const, amount: 1000, minimumAmount: null };
+      const fixed = { amountType: 'FIXED' as const, amount: 1000, minimumAmount: null, currency: 'USD' as const };
       expect(doesAmountSatisfyTier(fixed, order, null)).to.be.false;
       expect(doesAmountSatisfyTier(fixed, order, 999)).to.be.false;
       expect(doesAmountSatisfyTier(fixed, order, 1000)).to.be.true;
       expect(doesAmountSatisfyTier(fixed, order, 5000)).to.be.true;
       expect(doesAmountSatisfyTier(fixed, { ...order, quantity: 2 } as Order, 1000)).to.be.false;
 
-      const flexible = { amountType: 'FLEXIBLE' as const, amount: 5000, minimumAmount: 1000 };
+      const flexible = { amountType: 'FLEXIBLE' as const, amount: 5000, minimumAmount: 1000, currency: 'USD' as const };
       expect(doesAmountSatisfyTier(flexible, order, 999)).to.be.false;
       expect(doesAmountSatisfyTier(flexible, order, 1000)).to.be.true;
     });
 
+    it('rejects priced tiers in another currency', () => {
+      const eurTier = { amountType: 'FIXED' as const, amount: 1000, minimumAmount: null, currency: 'EUR' as const };
+      expect(doesAmountSatisfyTier(eurTier, order, 5000)).to.be.false;
+      const freeEurTier = {
+        amountType: 'FLEXIBLE' as const,
+        amount: null,
+        minimumAmount: null,
+        currency: 'EUR' as const,
+      };
+      expect(doesAmountSatisfyTier(freeEurTier, order, null)).to.be.true;
+    });
+
     it('compares the pre-tax amount', () => {
-      const fixed = { amountType: 'FIXED' as const, amount: 1000, minimumAmount: null };
+      const fixed = { amountType: 'FIXED' as const, amount: 1000, minimumAmount: null, currency: 'USD' as const };
       const taxedOrder = { ...order, data: { tax: { id: 'VAT', percentage: 20 } } } as Order;
       expect(doesAmountSatisfyTier(fixed, taxedOrder, 1100)).to.be.false;
       expect(doesAmountSatisfyTier(fixed, taxedOrder, 1200)).to.be.true;

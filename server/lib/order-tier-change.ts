@@ -32,13 +32,15 @@ import { reportErrorToSentry, reportMessageToSentry } from './sentry';
  * `tier`. Unlike `assertOrderAmountMatchesTier`, paying more than a fixed tier's price satisfies it.
  */
 export const doesAmountSatisfyTier = (
-  tier: Pick<Tier, 'amountType' | 'amount' | 'minimumAmount'> | null,
+  tier: Pick<Tier, 'amountType' | 'amount' | 'minimumAmount' | 'currency'> | null,
   order: Pick<Order, 'currency' | 'quantity' | 'data'>,
   amountInCents: number | null,
 ): boolean => {
   const requiredUnitAmount = !tier ? 0 : tier.amountType === 'FIXED' ? tier.amount : tier.minimumAmount;
   if (!requiredUnitAmount) {
     return true; // Tier has no price, nothing to pay for
+  } else if (tier.currency && tier.currency !== order.currency) {
+    return false; // Amounts in different currencies can't be compared
   } else if (amountInCents === null || amountInCents === undefined) {
     return false;
   }
