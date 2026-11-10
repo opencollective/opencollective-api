@@ -42,7 +42,11 @@ module.exports = {
       await query(`
         WITH usd_rates AS (
           SELECT DISTINCT ON ("to", ("createdAt" AT TIME ZONE 'UTC')::date)
-            "to" AS "currency", "rate", "createdAt", COALESCE("updatedAt", "createdAt") AS "updatedAt"
+            "to" AS "currency",
+            -- USD -> USD is 1 by definition (it already is in production; this keeps other databases consistent)
+            CASE WHEN "to" = 'USD' THEN 1 ELSE "rate" END AS "rate",
+            "createdAt",
+            COALESCE("updatedAt", "createdAt") AS "updatedAt"
           FROM "CurrencyExchangeRates"
           WHERE "from" = 'USD'
           AND "deletedAt" IS NULL
