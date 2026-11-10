@@ -3700,12 +3700,12 @@ export async function editExpense(
       );
 
       await createAttachedFiles(expense, newAttachedFiles, remoteUser, transaction);
-      await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy()));
+      await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy({ transaction })));
       await Promise.all(
         updatedAttachedFiles.map((file: Record<string, unknown>) =>
           models.ExpenseAttachedFile.update(
             { url: file.url as string },
-            { where: { id: file.id, ExpenseId: expense.id } },
+            { where: { id: file.id, ExpenseId: expense.id }, transaction },
           ),
         ),
       );

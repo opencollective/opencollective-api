@@ -4168,6 +4168,17 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors[0].message).to.eq('Expense custom data cannot exceed 10kB. Current size: 10.008kB');
     });
 
+    it('does not remove attached files if the edit fails', async () => {
+      const expense = await fakeExpense({ status: 'PENDING', type: 'RECEIPT' });
+      const attachedFile = await fakeExpenseAttachedFile({ ExpenseId: expense.id, CreatedByUserId: expense.User.id });
+      const customData = { a: '🌞'.repeat(2500) }; // Each emoji is 4 bytes, 10kB is 2500 emojis
+      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), attachedFiles: [], customData };
+      const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Expense custom data cannot exceed 10kB. Current size: 10.008kB');
+      expect(await models.ExpenseAttachedFile.findByPk(attachedFile.id)).to.exist;
+    });
+
     describe('tax form', () => {
       it('is requested if the expense gets updated with an amount over the threshold', async () => {
         const host = await fakeActiveHost();
