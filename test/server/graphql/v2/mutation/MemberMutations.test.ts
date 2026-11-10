@@ -213,6 +213,37 @@ describe('memberMutations', () => {
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal('Only admins can remove a member.');
     });
+    it('must not remove the last admin when they hold several admin rows', async () => {
+      // A sole admin who is also an accountant ends up with two ADMIN rows after `editMember(role: ADMIN)`
+      const adminUser = await fakeUser();
+      const account = await fakeCollective({ admin: adminUser, HostCollectiveId: null, approvedAt: null });
+      await account.addUserWithRole(adminUser, roles.ACCOUNTANT);
+      const memberAccount = { id: idEncode(adminUser.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) };
+      const accountRef = { id: idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT) };
+
+      const editResult = await utils.graphqlQueryV2(
+        gql`
+          mutation EditMember($memberAccount: AccountReferenceInput!, $account: AccountReferenceInput!) {
+            editMember(memberAccount: $memberAccount, account: $account, role: ADMIN) {
+              id
+            }
+          }
+        `,
+        { memberAccount, account: accountRef },
+        adminUser,
+      );
+      expect(editResult.errors).to.not.exist;
+      expect(await models.Member.count({ where: { CollectiveId: account.id, role: roles.ADMIN } })).to.equal(2);
+
+      const result = await utils.graphqlQueryV2(
+        removeMemberMutation,
+        { memberAccount, account: accountRef, role: roles.ADMIN },
+        adminUser,
+      );
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('There must be at least one admin for the account.');
+      expect(await models.Member.count({ where: { CollectiveId: account.id, role: roles.ADMIN } })).to.equal(2);
+    });
     it('can only remove members with role accountant, admin, community manager or member', async () => {
       const randomAdminUser = await fakeUser();
       const randomMemberUser = await fakeUser();

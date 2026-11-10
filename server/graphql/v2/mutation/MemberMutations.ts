@@ -1,6 +1,6 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { compact, pick } from 'lodash';
+import { compact, pick, uniq } from 'lodash';
 import { Op } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
@@ -28,7 +28,9 @@ const isLastAdmin = async (account, memberAccount) => {
     },
   });
 
-  return admins.length === 1 && admins[0].MemberCollectiveId === memberAccount.id;
+  // A member can hold several ADMIN rows (e.g. after `editMember` updates all their core roles), so count distinct accounts
+  const adminAccountIds = uniq(admins.map(admin => admin.MemberCollectiveId));
+  return adminAccountIds.length === 1 && adminAccountIds[0] === memberAccount.id;
 };
 
 const memberMutations = {
