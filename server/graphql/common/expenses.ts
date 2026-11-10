@@ -959,7 +959,8 @@ export const canDeleteExpense: ExpensePermissionEvaluator = async (
     return false;
   } else if (
     ['DRAFT', 'PENDING', 'INVITE_DECLINED'].includes(expense.status) &&
-    (await remoteUserMeetsOneCondition(req, expense, [isOwner], options))
+    // Don't forward `options`: non-owners must fall through to the admin checks below instead of throwing here
+    (await remoteUserMeetsOneCondition(req, expense, [isOwner]))
   ) {
     return true;
   } else if (!['REJECTED', 'SPAM', 'DRAFT', 'CANCELED'].includes(expense.status)) {
