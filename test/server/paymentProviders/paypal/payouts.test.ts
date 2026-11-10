@@ -547,6 +547,62 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       expect(fee).to.equal(2000); // 2% of 100000 = 2000 (no cap for INR)
     });
 
+    it('uses the cap of the expense currency, not the host currency', async () => {
+      const host = await fakeHost({ currency: 'USD', countryISO: 'US' });
+      const payeeUser = await fakeUser({}, { countryISO: 'US' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: payeeUser.CollectiveId,
+        UserId: payeeUser.id,
+        amount: 1000_00,
+        currency: 'EUR',
+      });
+
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
+
+      expect(fee).to.equal(12_00); // EUR domestic cap = €12 (USD cap would be 14_00)
+    });
+
+    it('does not cap the fee with a cap expressed in another currency', async () => {
+      const host = await fakeHost({ currency: 'HUF', countryISO: 'HU' });
+      const payeeUser = await fakeUser({}, { countryISO: 'FR' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'EUR' });
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: payeeUser.CollectiveId,
+        UserId: payeeUser.id,
+        amount: 10_000_00,
+        currency: 'EUR',
+      });
+
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
+
+      expect(fee).to.equal(70_00); // EUR international cap = €70 (HUF cap would allow €200)
+    });
+
+    it('applies JPY caps in cents for zero-decimal currencies', async () => {
+      const host = await fakeHost({ currency: 'JPY', countryISO: 'JP' });
+      const payeeUser = await fakeUser({}, { countryISO: 'JP' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'JPY' });
+      const createJpyExpense = (amount: number) =>
+        fakeExpense({
+          CollectiveId: collective.id,
+          FromCollectiveId: payeeUser.CollectiveId,
+          UserId: payeeUser.id,
+          amount,
+          currency: 'JPY',
+        });
+
+      // ¥10,000 => 2% = ¥200, below the ¥1,200 domestic cap
+      const smallExpense = await createJpyExpense(10_000_00);
+      expect(await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, smallExpense)).to.equal(200_00);
+
+      // ¥1,000,000 => 2% = ¥20,000, capped at ¥1,200
+      const largeExpense = await createJpyExpense(1_000_000_00);
+      expect(await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, largeExpense)).to.equal(1200_00);
+    });
+
     it('fetches fromCollective when not pre-loaded', async () => {
       const host = await fakeHost({ currency: 'EUR', countryISO: 'DE' });
       const payeeUser = await fakeUser({}, { countryISO: 'DE' });

@@ -281,6 +281,7 @@ export const checkBatchStatus = async (batch: Expense[]): Promise<Expense[]> => 
 };
 
 // See https://www.paypal.com/lu/business/paypal-business-fees#statement-10
+// Amounts are in cents (x100), including for zero-decimal currencies like JPY (¥1,200 => 1200_00).
 const PAYPAL_PAYOUT_CAPS_BY_CURRENCY: Partial<
   Record<SupportedCurrency, { domesticMax: number; internationalMax: number }>
 > = {
@@ -293,7 +294,7 @@ const PAYPAL_PAYOUT_CAPS_BY_CURRENCY: Partial<
   HKD: { domesticMax: 110_00, internationalMax: 660_00 },
   HUF: { domesticMax: 3080_00, internationalMax: 18_500_00 },
   ILS: { domesticMax: 50_00, internationalMax: 320_00 },
-  JPY: { domesticMax: 1200, internationalMax: 8000 },
+  JPY: { domesticMax: 1200_00, internationalMax: 8000_00 },
   MYR: { domesticMax: 50_00, internationalMax: 300_00 },
   MXN: { domesticMax: 170_00, internationalMax: 1080_00 },
   TWD: { domesticMax: 440_00, internationalMax: 2700_00 },
@@ -335,11 +336,11 @@ const PAYPAL_PAYOUT_CAPS_BY_CURRENCY: Partial<
 export const estimatePaypalPayoutFeeInExpenseCurrency = async (host: Collective, expense: Expense): Promise<number> => {
   const hostCountry = host.countryISO;
   const payee = expense.fromCollective || (await expense.getFromCollective());
-  const hostCurrency = host.currency;
   const payeeCountry = payee.countryISO;
   const isDomestic = hostCountry === payeeCountry;
   const baseFee = roundCentsAmount(expense.amount * 0.02, expense.currency);
-  const caps = PAYPAL_PAYOUT_CAPS_BY_CURRENCY[hostCurrency];
+  // Payouts are sent (and fees charged) in the expense currency, so the cap must be in that currency too
+  const caps = PAYPAL_PAYOUT_CAPS_BY_CURRENCY[expense.currency];
 
   // No known cap for this currency => best-effort: return 2% uncapped (can overestimate for large payouts).
   if (!caps) {
