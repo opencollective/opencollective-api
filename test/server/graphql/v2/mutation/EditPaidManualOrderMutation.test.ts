@@ -10,7 +10,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../serv
 import PlatformConstants from '../../../../../server/constants/platform';
 import emailLib from '../../../../../server/lib/email';
 import { getTaxVendor } from '../../../../../server/lib/transactions';
-import models from '../../../../../server/models';
+import models, { sequelize } from '../../../../../server/models';
 import { TransactionSettlementStatus } from '../../../../../server/models/TransactionSettlement';
 import {
   fakeCollective,
@@ -387,7 +387,7 @@ describe('server/graphql/v2/mutation/OrderMutations > editPaidManualOrder', () =
         order,
         {
           amount: { valueInCents: 10000, currency: 'USD' },
-          tax: { type: 'GST', rate: 0.15, amount: { valueInCents: 1500, currency: 'USD' } },
+          tax: { type: 'GST', rate: 0.15, idNumber: '123456', amount: { valueInCents: 1500, currency: 'USD' } },
         },
         'IN_PLACE',
       );
@@ -417,6 +417,18 @@ describe('server/graphql/v2/mutation/OrderMutations > editPaidManualOrder', () =
         { dataValues: { CollectiveId: collective.id, type: 'DEBIT', kind: 'TAX', amount: -3000 } },
       ]);
 
+      // Sending the tax again without its ID number keeps the recorded one
+      result = await callEdit(
+        order,
+        {
+          amount: { valueInCents: 20000, currency: 'USD' },
+          tax: { type: 'GST', rate: 0.15, amount: { valueInCents: 3000, currency: 'USD' } },
+        },
+        'IN_PLACE',
+      );
+      expect(result.errors).to.not.exist;
+      expect((await models.Order.findByPk(order.id)).data.tax.idNumber).to.equal('123456');
+
       // Taxes can be removed
       result = await callEdit(order, { amount: { valueInCents: 10000, currency: 'USD' }, tax: null }, 'IN_PLACE');
       expect(result.errors).to.not.exist;
@@ -436,6 +448,11 @@ describe('server/graphql/v2/mutation/OrderMutations > editPaidManualOrder', () =
         { totalAmount: 11000, platformTipAmount: 1000, platformTipEligible: true },
         { platformTip: { valueInCents: 1000, currency: 'USD' } },
       );
+      // Record the contribution in the past, to make sure the new entries keep its date
+      const recordedAt = new Date('2026-01-15T10:00:00Z');
+      await sequelize.query(`UPDATE "Transactions" SET "createdAt" = :recordedAt WHERE "OrderId" = :orderId`, {
+        replacements: { recordedAt, orderId: order.id },
+      });
       const originalTransactions = await getAllOrderTransactions(order);
       const originalTip = originalTransactions.find(t => t.kind === 'PLATFORM_TIP' && t.type === 'CREDIT');
       expect(originalTip.amount).to.equal(1000);
@@ -457,6 +474,7 @@ describe('server/graphql/v2/mutation/OrderMutations > editPaidManualOrder', () =
       expect(transactions.filter(t => t.isRefund)).to.have.length(0);
       expect(transactions.find(t => t.kind === 'PLATFORM_TIP' && t.type === 'CREDIT').amount).to.equal(500);
       expect(transactions.find(t => t.kind === 'CONTRIBUTION' && t.type === 'CREDIT').amount).to.equal(20000);
+      transactions.forEach(t => expect(t.createdAt.toISOString(), t.kind).to.equal(recordedAt.toISOString()));
 
       // There must be a single settlement per kind for the group, to not bill the host twice
       const settlements = await models.TransactionSettlement.findAll({

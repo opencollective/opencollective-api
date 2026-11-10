@@ -241,6 +241,11 @@ const applyOrderUpdateInput = (order: Order, input, { fromAccount, toAccount, ho
       host,
       order.currency,
     );
+    const previousTax = order.data?.tax;
+    if (isNil(taxInfo.idNumber) && previousTax?.idNumber && previousTax.id === taxInfo.id) {
+      // Clients can't always read the tax ID number to send it back: keep the one already recorded
+      taxInfo.idNumber = previousTax.idNumber;
+    }
     order.set('taxAmount', taxAmount);
     order.set('data', { ...order.data, tax: taxInfo });
   } else if (tax === null && clearTaxOnNull) {
