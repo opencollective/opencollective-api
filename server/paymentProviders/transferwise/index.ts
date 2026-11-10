@@ -742,7 +742,7 @@ async function getAvailableCurrencies(
 
 function validatePayoutMethod(connectedAccount: ConnectedAccount, payoutMethod: PayoutMethod): void {
   const currency = (<RecipientAccount>payoutMethod.data)?.currency;
-  if (connectedAccount.data?.type === 'business' && blockedCurrenciesForBusinessProfiles.includes(currency)) {
+  if (toLower(connectedAccount.data?.type) === 'business' && blockedCurrenciesForBusinessProfiles.includes(currency)) {
     throw new Error(`Sorry, this host's business profile can not create a transaction to ${currency}`);
   }
   if (

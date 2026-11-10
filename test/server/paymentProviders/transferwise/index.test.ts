@@ -981,6 +981,33 @@ describe('server/paymentProviders/transferwise/index', () => {
     });
   });
 
+  describe('validatePayoutMethod', () => {
+    const makePayoutMethod = currency =>
+      models.PayoutMethod.build({ type: PayoutMethodTypes.BANK_ACCOUNT, data: { currency } });
+    const makeConnectedAccount = data => models.ConnectedAccount.build({ service: 'transferwise', data });
+
+    // Wise v2 `/v2/profiles` returns `BUSINESS`, older connected accounts may have stored `business`
+    ['BUSINESS', 'business'].forEach(type => {
+      it(`blocks currencies for business profiles (type: ${type})`, () => {
+        expect(() =>
+          transferwise.validatePayoutMethod(makeConnectedAccount({ type }), makePayoutMethod('PKR')),
+        ).to.throw("Sorry, this host's business profile can not create a transaction to PKR");
+      });
+
+      it(`allows other currencies for business profiles (type: ${type})`, () => {
+        expect(() =>
+          transferwise.validatePayoutMethod(makeConnectedAccount({ type }), makePayoutMethod('EUR')),
+        ).to.not.throw();
+      });
+    });
+
+    it('does not apply the business block to personal profiles', () => {
+      expect(() =>
+        transferwise.validatePayoutMethod(makeConnectedAccount({ type: 'PERSONAL' }), makePayoutMethod('PKR')),
+      ).to.not.throw();
+    });
+  });
+
   describe('connectTransferwiseAccount', () => {
     const personalProfile = { id: 217896, type: 'PERSONAL', userId: 217896 };
     const businessProfile = { id: 220192, type: 'BUSINESS', companyRole: 'OWNER', userId: 217896 };
