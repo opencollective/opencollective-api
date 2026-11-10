@@ -215,6 +215,37 @@ describe('server/graphql/common/features', () => {
       });
     });
 
+    describe('FUNDS_GRANTS_MANAGEMENT', () => {
+      it('Returns UNSUPPORTED for hosted accounts', async () => {
+        const host = await fakeActiveHost({ plan: 'start-plan-2021' });
+        const fund = await fakeCollective({ type: CollectiveType.FUND, HostCollectiveId: host.id, isActive: true });
+        const result = await resolveFeatureStatusWithReq(FEATURE.FUNDS_GRANTS_MANAGEMENT, fund);
+        expect(result).to.eq(FEATURE_STATUS.UNSUPPORTED);
+      });
+
+      it('Returns DISABLED when the host plan does not include it', async () => {
+        const host = await fakeActiveHost();
+        await fakePlatformSubscription({
+          CollectiveId: host.id,
+          plan: { features: { FUNDS_GRANTS_MANAGEMENT: false } },
+        });
+        const result = await resolveFeatureStatusWithReq(FEATURE.FUNDS_GRANTS_MANAGEMENT, host);
+        expect(result).to.eq(FEATURE_STATUS.DISABLED);
+      });
+
+      it('Returns ACTIVE when the host plan includes it, even if the host does not accept grants itself', async () => {
+        const host = await fakeActiveHost({
+          settings: { expenseTypes: { GRANT: false } } as CollectiveModel['settings'],
+        });
+        await fakePlatformSubscription({
+          CollectiveId: host.id,
+          plan: { features: { FUNDS_GRANTS_MANAGEMENT: true } },
+        });
+        const result = await resolveFeatureStatusWithReq(FEATURE.FUNDS_GRANTS_MANAGEMENT, host);
+        expect(result).to.eq(FEATURE_STATUS.ACTIVE);
+      });
+    });
+
     describe('TRANSFERWISE', () => {
       it('Returns UNSUPPORTED when the feature is not supported', async () => {
         const collective = await fakeCollective({ type: CollectiveType.USER });

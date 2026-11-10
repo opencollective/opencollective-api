@@ -102,13 +102,8 @@ const FeaturesAccess: Partial<
     onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS],
   },
   [FEATURE.FUNDS_GRANTS_MANAGEMENT]: {
-    accountTypes: [
-      CollectiveType.ORGANIZATION,
-      CollectiveType.COLLECTIVE,
-      CollectiveType.EVENT,
-      CollectiveType.FUND,
-      CollectiveType.PROJECT,
-    ],
+    // Only describes whether the host's plan includes the feature. Whether an account accepts grants is `RECEIVE_GRANTS`.
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
   },
   [FEATURE.TAX_FORMS]: {
     onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
