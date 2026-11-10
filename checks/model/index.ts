@@ -4,7 +4,6 @@ import { sequelize } from '../../server/models';
 
 import { CheckFn, logChecksErrors, runAllChecks } from './_utils';
 import { checks as collectivesChecks } from './collectives';
-import { checks as currencyExchangeRatesChecks } from './currency-exchange-rates';
 import { checks as deadLocksChecks } from './dead-locks';
 import { checks as expensesChecks } from './expenses';
 import { checks as hostedCollectivesChecks } from './hosted-collectives';
@@ -17,13 +16,13 @@ import { checks as paymentMethodsChecks } from './payment-methods';
 import { checks as payoutMethodsChecks } from './payout-methods';
 import { checks as tiersChecks } from './tiers';
 import { checks as transactionsChecks } from './transactions';
+import { checks as usdExchangeRatesChecks } from './usd-exchange-rates';
 import { checks as usersChecks } from './users';
 import { checks as virtualCardsChecks } from './virtual-cards';
 import { checks as zeroDecimalCurrenciesChecks } from './zero-decimal-currencies';
 
 const allModelChecks: CheckFn[] = [
   ...collectivesChecks,
-  ...currencyExchangeRatesChecks,
   ...locationsChecks,
   ...deadLocksChecks,
   ...expensesChecks,
@@ -39,6 +38,7 @@ const allModelChecks: CheckFn[] = [
   ...usersChecks,
   ...virtualCardsChecks,
   ...zeroDecimalCurrenciesChecks,
+  ...usdExchangeRatesChecks,
 ];
 
 export async function checkAllModels({ closeConnection = false }: { closeConnection?: boolean } = {}) {

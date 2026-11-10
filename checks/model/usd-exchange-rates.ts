@@ -22,9 +22,9 @@ const MAX_STALENESS_DAYS = 7;
  *
  * Only meaningful where the cron runs: dev and test databases hold seeded rates that never refresh.
  */
-export async function checkCurrencyExchangeRatesAreNotStale() {
+export async function checkUsdExchangeRatesAreNotStale() {
   if (!['production', 'staging'].includes(config.env)) {
-    logger.info('Skipping checkCurrencyExchangeRatesAreNotStale: FX rates are only recorded in production and staging');
+    logger.info('Skipping checkUsdExchangeRatesAreNotStale: FX rates are only recorded in production and staging');
     return;
   }
 
@@ -59,7 +59,7 @@ export async function checkCurrencyExchangeRatesAreNotStale() {
   }
 }
 
-export const checks = [checkCurrencyExchangeRatesAreNotStale];
+export const checks = [checkUsdExchangeRatesAreNotStale];
 
 if (!module.parent) {
   runAllChecksThenExit(checks);

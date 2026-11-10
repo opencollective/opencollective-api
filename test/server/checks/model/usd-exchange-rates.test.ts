@@ -3,12 +3,12 @@ import config from 'config';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
-import { checkCurrencyExchangeRatesAreNotStale } from '../../../../checks/model/currency-exchange-rates';
+import { checkUsdExchangeRatesAreNotStale } from '../../../../checks/model/usd-exchange-rates';
 import { SUPPORTED_CURRENCIES } from '../../../../server/constants/currencies';
 import models from '../../../../server/models';
 import { resetTestDB } from '../../../utils';
 
-describe('checks/model/currency-exchange-rates', () => {
+describe('checks/model/usd-exchange-rates', () => {
   const sandbox = createSandbox();
 
   beforeEach(resetTestDB);
@@ -23,7 +23,7 @@ describe('checks/model/currency-exchange-rates', () => {
   it('passes when every supported currency was recorded in the last week', async () => {
     sandbox.stub(config, 'env').value('production');
     await recordRates(() => moment().subtract(1, 'day').toDate());
-    await checkCurrencyExchangeRatesAreNotStale();
+    await checkUsdExchangeRatesAreNotStale();
   });
 
   it('fails on currencies with no rate for more than a week', async () => {
@@ -33,12 +33,12 @@ describe('checks/model/currency-exchange-rates', () => {
     );
     await models.UsdExchangeRate.destroy({ where: { currency: 'ZMW' } });
 
-    await expect(checkCurrencyExchangeRatesAreNotStale()).to.be.rejectedWith(
+    await expect(checkUsdExchangeRatesAreNotStale()).to.be.rejectedWith(
       'No FX rate recorded for more than 7 days: NZD, ZMW',
     );
   });
 
   it('is skipped outside production and staging', async () => {
-    await checkCurrencyExchangeRatesAreNotStale(); // no rates at all in the test DB
+    await checkUsdExchangeRatesAreNotStale(); // no rates at all in the test DB
   });
 });
