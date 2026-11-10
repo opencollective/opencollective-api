@@ -5,12 +5,13 @@ import { keys } from 'lodash';
 import { SUPPORTED_CURRENCIES } from '../../server/constants/currencies';
 import { fetchFxRates } from '../../server/lib/currency';
 import logger from '../../server/lib/logger';
-import models from '../../server/models';
+import { sequelize } from '../../server/models';
 import { runCronJob } from '../utils';
 
 /**
  * Stores the rates from USD to every supported currency. The other pairs are computed from them by
- * the "CurrencyExchangeRates" view, so one request to the provider covers every pair.
+ * `fx_rate` (and the "CurrencyExchangeRates" view, for reports), so one request to the provider
+ * covers every pair.
  */
 export const run = async (): Promise<void> => {
   logger.info(`Storing FX rates from USD to ${SUPPORTED_CURRENCIES}...`);
@@ -22,7 +23,17 @@ export const run = async (): Promise<void> => {
     throw new Error('Could not fetch the exchange rates from USD');
   }
 
-  await models.CurrencyExchangeRate.bulkCreate(currencies.map(to => ({ from: 'USD', to, rate: rates[to] })));
+  // One rate per currency and day: running the job again the same day replaces the day's rates
+  await sequelize.query(
+    `
+    INSERT INTO "UsdExchangeRates" ("currency", "rate", "createdAt", "updatedAt")
+    SELECT c.currency, c.rate, NOW(), NOW()
+    FROM UNNEST(ARRAY[:currencies]::varchar[], ARRAY[:rates]::double precision[]) AS c(currency, rate)
+    ON CONFLICT ("currency", "day") DO UPDATE
+    SET "rate" = EXCLUDED."rate", "createdAt" = EXCLUDED."createdAt", "updatedAt" = EXCLUDED."updatedAt"
+    `,
+    { replacements: { currencies, rates: currencies.map(currency => rates[currency]) } },
+  );
 
   const missingCurrencies = SUPPORTED_CURRENCIES.filter(currency => currency !== 'USD' && !rates[currency]);
   if (missingCurrencies.length) {

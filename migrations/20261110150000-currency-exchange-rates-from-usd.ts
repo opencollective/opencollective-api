@@ -8,6 +8,7 @@ import type { QueryInterface } from 'sequelize';
  * from USD differs from the one Fixer returned by at most 1e-5 (relative), since Fixer computes
  * them the same way. The view keeps the columns of the table, so the queries and reports that read
  * it don't change. Inserts and deletes on the view go to "UsdExchangeRates" (see the triggers).
+ * The API code doesn't read the view: it uses `fx_rate(from, to, at)`, defined below.
  *
  * The old table is kept as "CurrencyExchangeRatesArchive", to compare and roll back. Dropping it is
  * left to a later migration.
@@ -150,6 +151,24 @@ module.exports = {
         INSTEAD OF DELETE ON "CurrencyExchangeRates"
         FOR EACH ROW EXECUTE FUNCTION currency_exchange_rates_delete()
       `);
+
+      // What the API queries use instead of the view: the latest rate of each currency from USD at
+      // `at`, looked up separately (two index lookups on ("currency", "createdAt")). A currency
+      // without any rate gives NULL right away, where the view would walk back through every day.
+      await query(`
+        CREATE FUNCTION fx_rate(from_currency VARCHAR, to_currency VARCHAR, at TIMESTAMP WITH TIME ZONE DEFAULT NOW())
+        RETURNS DOUBLE PRECISION AS $$
+          SELECT CASE WHEN from_currency = to_currency THEN 1 ELSE (
+            SELECT u."rate" FROM "UsdExchangeRates" u
+            WHERE u."currency" = to_currency AND u."createdAt" <= at
+            ORDER BY u."createdAt" DESC LIMIT 1
+          ) / (
+            SELECT u."rate" FROM "UsdExchangeRates" u
+            WHERE u."currency" = from_currency AND u."createdAt" <= at
+            ORDER BY u."createdAt" DESC LIMIT 1
+          ) END
+        $$ LANGUAGE sql STABLE PARALLEL SAFE
+      `);
     });
   },
 
@@ -157,6 +176,7 @@ module.exports = {
     await queryInterface.sequelize.transaction(async transaction => {
       const query = (sql: string) => queryInterface.sequelize.query(sql, { transaction });
 
+      await query(`DROP FUNCTION IF EXISTS fx_rate(VARCHAR, VARCHAR, TIMESTAMP WITH TIME ZONE)`);
       await query(`DROP VIEW "CurrencyExchangeRates"`);
       await query(`DROP FUNCTION currency_exchange_rates_insert()`);
       await query(`DROP FUNCTION currency_exchange_rates_delete()`);

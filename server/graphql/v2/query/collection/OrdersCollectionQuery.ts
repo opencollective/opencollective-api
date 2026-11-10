@@ -798,14 +798,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
           .then(eb.ref('Orders.totalAmount'))
           .else(
             eb.fn.coalesce(
-              eb
-                .selectFrom('CurrencyExchangeRates')
-                .select(sql<number>`rate * ${eb.ref('Orders.totalAmount')}`.as('totalAmount'))
-                .where('from', '=', eb.ref('Orders.currency'))
-                .where('to', '=', currency as SupportedCurrency)
-                .where('createdAt', '<=', eb.fn.coalesce(eb.ref('Orders.processedAt'), eb.ref('Orders.createdAt')))
-                .orderBy('CurrencyExchangeRates.createdAt', 'desc')
-                .limit(1),
+              sql<number>`fx_rate(${eb.ref('Orders.currency')}, ${currency}, COALESCE(${eb.ref('Orders.processedAt')}, ${eb.ref('Orders.createdAt')})) * ${eb.ref('Orders.totalAmount')}`,
               eb.ref('Orders.totalAmount'),
             ),
           )

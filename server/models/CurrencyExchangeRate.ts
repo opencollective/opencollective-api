@@ -11,8 +11,9 @@ export enum FX_RATE_SOURCE {
 
 /**
  * Sequelize model to represent an CurrencyExchangeRate, linked to the `CurrencyExchangeRates` view.
- * Only the rates from USD are stored (`UsdExchangeRates`): the view computes the other pairs, and
- * its triggers store inserted USD -> X and X -> USD rates (see migration 20261110150000).
+ * Only the rates from USD are stored (`UsdExchangeRates`): the view computes the other pairs for
+ * reports, and its triggers store inserted USD -> X and X -> USD rates. API queries use the
+ * `fx_rate(from, to, at)` SQL function instead of the view (see migration 20261110150000).
  */
 class CurrencyExchangeRate extends Model<
   InferAttributes<CurrencyExchangeRate>,
@@ -28,26 +29,23 @@ class CurrencyExchangeRate extends Model<
   declare public updatedAt: Date;
   declare public deletedAt: Date;
 
+  /**
+   * The latest rate from `fromCurrency` to each of `toCurrencies` at `date`, computed from the rates
+   * from USD (see `fx_rate`). Currencies without a rate are left out.
+   */
   static getMany(
     fromCurrency: string,
     toCurrencies: string[],
     date: string | Date = 'latest',
   ): Promise<CurrencyExchangeRate[]> {
-    // One "latest rate" lookup per currency: the rates are computed by a view, a DISTINCT ON over
-    // the whole history of every pair would compute them all
     return sequelize.query(
       `
-      SELECT r.*
-      FROM UNNEST(ARRAY[:toCurrencies]::varchar[]) AS c(currency)
-      CROSS JOIN LATERAL (
-        SELECT *
-        FROM "CurrencyExchangeRates"
-        WHERE "createdAt" <= :date
-        AND "from" = :fromCurrency
-        AND "to" = c.currency
-        ORDER BY "createdAt" DESC
-        LIMIT 1
+      SELECT *
+      FROM (
+        SELECT :fromCurrency AS "from", c.currency AS "to", fx_rate(:fromCurrency, c.currency, :date) AS "rate"
+        FROM UNNEST(ARRAY[:toCurrencies]::varchar[]) AS c(currency)
       ) r
+      WHERE r."rate" IS NOT NULL
       ORDER BY r."to"
     `,
       {
@@ -63,16 +61,26 @@ class CurrencyExchangeRate extends Model<
     );
   }
 
+  /**
+   * Standard deviation and latest value of the daily rate from `from` to `to` over the last 5 days,
+   * computed from the rates from USD of each day.
+   */
   static async getPairStats(
     from: string,
     to: string,
   ): Promise<{ from: string; to: string; stddev: number; latestRate: number }> {
     const info = sequelize.query<{ from: string; to: string; stddev: number | null; latestRate: number | null }>(
       `
-        SELECT "from", "to", STDDEV("rate"), (ARRAY_AGG("rate" ORDER BY "createdAt" DESC))[1] as "latestRate"
-        FROM "CurrencyExchangeRates"
-        WHERE "from" = :from AND "to" = :to AND "createdAt" >= DATE_TRUNC('day', NOW() - INTERVAL '5 days')
-        GROUP BY "to", "from"
+        SELECT
+          :from AS "from",
+          :to AS "to",
+          STDDEV(t."rate" / f."rate") AS "stddev",
+          (ARRAY_AGG(t."rate" / f."rate" ORDER BY t."createdAt" DESC))[1] AS "latestRate"
+        FROM "UsdExchangeRates" t
+        INNER JOIN "UsdExchangeRates" f ON f."currency" = :from AND f."day" = t."day"
+        WHERE t."currency" = :to
+        AND t."createdAt" >= DATE_TRUNC('day', NOW() - INTERVAL '5 days')
+        HAVING COUNT(*) > 0
       `,
       { type: QueryTypes.SELECT, raw: true, plain: true, replacements: { from, to } },
     );

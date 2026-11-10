@@ -665,14 +665,7 @@ export const generateLoaders = req => {
             cbc."HostCollectiveId",
             SUM(cbc.balance),
             cbc."hostCurrency",
-            (
-              SELECT rate
-              FROM "CurrencyExchangeRates"
-              WHERE "from" = "hostCurrency"
-                AND "to" = 'USD'
-              ORDER BY "createdAt" DESC
-              LIMIT 1
-            ) AS "rate"
+            fx_rate(cbc."hostCurrency", 'USD') AS "rate"
           FROM "CollectiveBalanceCheckpoint" cbc
           INNER JOIN "Collectives" c ON c."id" = cbc."HostCollectiveId"
           WHERE cbc."HostCollectiveId" IN (:ids)
