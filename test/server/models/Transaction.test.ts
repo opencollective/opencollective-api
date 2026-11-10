@@ -728,6 +728,35 @@ describe('server/models/Transaction', () => {
       expect(get(manualResult, 'hostFeeShareTransaction.amount')).to.equal(Math.round(amount * 0.1 * 0.2));
       expect(get(manualResult, 'hostFeeShareDebtTransaction.amount')).to.equal(-Math.round(amount * 0.1 * 0.2));
     });
+
+    it('creates the host fee share and debt when the transaction has no data', async () => {
+      await host.update({ data: { hostFeeSharePercent: 15 } });
+      const order = await fakeOrder({ CollectiveId: collective.id, totalAmount: 1000, platformTipEligible: false });
+
+      await Transaction.createDoubleEntry({
+        ...defaultTransactionData,
+        kind: TransactionKind.CONTRIBUTION,
+        type: TransactionTypes.CREDIT,
+        description: 'Contribution without data',
+        amount: 1000,
+        amountInHostCurrency: 1000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        hostFeeInHostCurrency: 100,
+        platformFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+        OrderId: order.id,
+      });
+
+      const hostFeeShareTransactions = await Transaction.findAll({
+        where: { OrderId: order.id, kind: TransactionKind.HOST_FEE_SHARE },
+      });
+      expect(hostFeeShareTransactions).to.have.length(2);
+      const hostFeeShareDebtTransactions = await Transaction.findAll({
+        where: { OrderId: order.id, kind: TransactionKind.HOST_FEE_SHARE_DEBT },
+      });
+      expect(hostFeeShareDebtTransactions).to.have.length(2);
+    });
   });
 
   describe('createDoubleEntry', () => {
