@@ -15,7 +15,9 @@ import {
   fakeConnectedAccount,
   fakeConversation,
   fakeEvent,
+  fakeExpense,
   fakeHost,
+  fakePlatformSubscription,
   fakeProject,
   fakeUpdate,
   fakeVendor,
@@ -24,6 +26,10 @@ import {
 /** The resolver takes `(collective, args, req)`; these tests only exercise `collective`. */
 const resolveFeatureStatus = (feature: FEATURE, collective) =>
   getFeatureStatusResolver(feature)(collective, undefined, undefined);
+
+/** Same as `resolveFeatureStatus`, for resolvers that read `req.loaders` */
+const resolveFeatureStatusWithReq = (feature: FEATURE, collective) =>
+  getFeatureStatusResolver(feature)(collective, undefined, {});
 
 describe('server/graphql/common/features', () => {
   describe('getFeatureStatusResolver', () => {
@@ -154,6 +160,57 @@ describe('server/graphql/common/features', () => {
       it('Returns ACTIVE for a vendor when publicProfile is explicitly enabled by the fiscal host admin', async () => {
         const vendor = await fakeVendor({ settings: { features: { publicProfile: true } } });
         const result = await resolveFeatureStatus(FEATURE.PUBLIC_PROFILE, vendor);
+        expect(result).to.eq(FEATURE_STATUS.ACTIVE);
+      });
+    });
+
+    describe('RECEIVE_GRANTS', () => {
+      const grantsSettings = { expenseTypes: { GRANT: true } } as CollectiveModel['settings'];
+
+      it('Returns UNSUPPORTED for users', async () => {
+        const collective = await fakeCollective({ type: CollectiveType.USER });
+        const result = await resolveFeatureStatusWithReq(FEATURE.RECEIVE_GRANTS, collective);
+        expect(result).to.eq(FEATURE_STATUS.UNSUPPORTED);
+      });
+
+      it('Returns DISABLED when the account does not accept grants', async () => {
+        const host = await fakeActiveHost({ plan: 'start-plan-2021' });
+        const fund = await fakeCollective({ type: CollectiveType.FUND, HostCollectiveId: host.id });
+        const result = await resolveFeatureStatusWithReq(FEATURE.RECEIVE_GRANTS, fund);
+        expect(result).to.eq(FEATURE_STATUS.DISABLED);
+      });
+
+      it('Returns DISABLED when the host plan does not include funds & grants management', async () => {
+        const host = await fakeActiveHost({ settings: grantsSettings });
+        await fakePlatformSubscription({
+          CollectiveId: host.id,
+          plan: { features: { FUNDS_GRANTS_MANAGEMENT: false } },
+        });
+        const fund = await fakeCollective({ type: CollectiveType.FUND, HostCollectiveId: host.id });
+        const result = await resolveFeatureStatusWithReq(FEATURE.RECEIVE_GRANTS, fund);
+        expect(result).to.eq(FEATURE_STATUS.DISABLED);
+      });
+
+      it('Returns AVAILABLE when the account accepts grants', async () => {
+        const host = await fakeActiveHost({ plan: 'start-plan-2021' });
+        const fund = await fakeCollective({
+          type: CollectiveType.FUND,
+          HostCollectiveId: host.id,
+          settings: grantsSettings,
+        });
+        const result = await resolveFeatureStatusWithReq(FEATURE.RECEIVE_GRANTS, fund);
+        expect(result).to.eq(FEATURE_STATUS.AVAILABLE);
+      });
+
+      it('Returns ACTIVE when the account has received grants', async () => {
+        const host = await fakeActiveHost({ plan: 'start-plan-2021' });
+        const fund = await fakeCollective({
+          type: CollectiveType.FUND,
+          HostCollectiveId: host.id,
+          settings: grantsSettings,
+        });
+        await fakeExpense({ CollectiveId: fund.id, type: 'GRANT' });
+        const result = await resolveFeatureStatusWithReq(FEATURE.RECEIVE_GRANTS, fund);
         expect(result).to.eq(FEATURE_STATUS.ACTIVE);
       });
     });

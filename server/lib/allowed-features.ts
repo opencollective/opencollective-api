@@ -164,6 +164,15 @@ const FeaturesAccess: Partial<
       CollectiveType.PROJECT,
     ],
   },
+  [FEATURE.RECEIVE_GRANTS]: {
+    accountTypes: [
+      CollectiveType.ORGANIZATION,
+      CollectiveType.COLLECTIVE,
+      CollectiveType.EVENT,
+      CollectiveType.FUND,
+      CollectiveType.PROJECT,
+    ],
+  },
   [FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS]: {
     onlyPublicAccounts: true,
     accountTypes: [

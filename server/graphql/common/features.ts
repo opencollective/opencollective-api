@@ -228,6 +228,9 @@ export const getFeatureStatusResolver =
         return checkReceiveFinancialContributions(collective, req);
       case FEATURE.RECEIVE_EXPENSES:
         return checkCanReceiveExpenses(collective, req);
+      // TODO: Remove FUNDS_GRANTS_MANAGEMENT from this case once the frontend reads RECEIVE_GRANTS. FUNDS_GRANTS_MANAGEMENT
+      // should only reflect whether the plan includes the feature.
+      case FEATURE.RECEIVE_GRANTS:
       case FEATURE.FUNDS_GRANTS_MANAGEMENT:
         return checkCanReceiveGrants(collective, req);
       case FEATURE.MULTI_CURRENCY_EXPENSES:
