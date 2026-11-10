@@ -30,25 +30,28 @@ module.exports = {
       `);
 
       // About 300k rows: every day since 2018 has USD-based rates. One rate per currency and day,
-      // the latest (the job rarely ran twice a day).
+      // the latest (the job rarely ran twice a day). USD -> USD (1) is the leg of every X -> USD and
+      // USD -> X pair, and Fixer doesn't always return it: it's added on the days that miss it.
+      // Inserted in time order, so that "id" keeps following time (some reports ORDER BY "id" DESC).
       await query(`
+        WITH usd_rates AS (
+          SELECT DISTINCT ON ("to", ("createdAt" AT TIME ZONE 'UTC')::date)
+            "to" AS "currency", "rate", "createdAt", COALESCE("updatedAt", "createdAt") AS "updatedAt"
+          FROM "CurrencyExchangeRates"
+          WHERE "from" = 'USD'
+          AND "deletedAt" IS NULL
+          AND "rate" > 0
+          ORDER BY "to", ("createdAt" AT TIME ZONE 'UTC')::date, "createdAt" DESC
+        ), missing_usd AS (
+          SELECT 'USD' AS "currency", 1 AS "rate", MIN("createdAt") AS "createdAt", MIN("createdAt") AS "updatedAt"
+          FROM usd_rates
+          GROUP BY ("createdAt" AT TIME ZONE 'UTC')::date
+          HAVING NOT BOOL_OR("currency" = 'USD')
+        )
         INSERT INTO "UsdExchangeRates" ("currency", "rate", "createdAt", "updatedAt")
-        SELECT DISTINCT ON ("to", ("createdAt" AT TIME ZONE 'UTC')::date)
-          "to", "rate", "createdAt", COALESCE("updatedAt", "createdAt")
-        FROM "CurrencyExchangeRates"
-        WHERE "from" = 'USD'
-        AND "deletedAt" IS NULL
-        AND "rate" > 0
-        ORDER BY "to", ("createdAt" AT TIME ZONE 'UTC')::date, "createdAt" DESC
-      `);
-
-      // USD -> USD (1) is the leg of every X -> USD and USD -> X pair. Fixer doesn't always return it.
-      await query(`
-        INSERT INTO "UsdExchangeRates" ("currency", "rate", "createdAt", "updatedAt")
-        SELECT 'USD', 1, MIN("createdAt"), MIN("createdAt")
-        FROM "UsdExchangeRates"
-        GROUP BY "day"
-        HAVING NOT BOOL_OR("currency" = 'USD')
+        SELECT "currency", "rate", "createdAt", "updatedAt"
+        FROM (SELECT * FROM usd_rates UNION ALL SELECT * FROM missing_usd) rates
+        ORDER BY "createdAt", "currency"
       `);
 
       await query(
