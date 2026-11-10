@@ -174,6 +174,30 @@ describe('server/lib/currency', () => {
     });
   });
 
+  describe('fetchFxRates without DB fallback', () => {
+    beforeEach(async () => {
+      await resetTestDB();
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', rate: 0.9 });
+      sandbox.stub(config, 'fixer').value({ accessKey: 'fixer-key', disableMock: true });
+    });
+
+    afterEach(() => nock.cleanAll());
+
+    it('throws instead of returning the stored rates when Fixer fails', async () => {
+      nock('https://data.fixer.io')
+        .get('/latest')
+        .query(true)
+        .twice()
+        .reply(200, { success: false, error: { code: 201, info: 'You have supplied an invalid Source Currency.' } });
+
+      await expect(CurrencyLib.fetchFxRates('USD', ['EUR'], 'latest', { fallbackToDb: false })).to.be.rejectedWith(
+        'Could not fetch the FX rates of USD from Fixer',
+      );
+      // The default still falls back to the DB
+      expect(await CurrencyLib.fetchFxRates('USD', ['EUR'])).to.deep.eq({ EUR: 0.9 });
+    });
+  });
+
   describe('roundCentsAmount', () => {
     it('leaves amounts unchanged for standard (decimal) currencies', () => {
       expect(CurrencyLib.roundCentsAmount(1234, 'USD')).to.equal(1234);

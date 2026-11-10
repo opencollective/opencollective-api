@@ -23,7 +23,8 @@ export const run = async (): Promise<void> => {
   const failedCurrencies: string[] = [];
   for (const currency of SUPPORTED_CURRENCIES) {
     try {
-      const currencyRates = await fetchFxRates(currency, [...SUPPORTED_CURRENCIES]);
+      // No DB fallback: saving the stored rates again as today's would hide the failure
+      const currencyRates = await fetchFxRates(currency, [...SUPPORTED_CURRENCIES], 'latest', { fallbackToDb: false });
       const targetCurrencies = keys(currencyRates);
       if (targetCurrencies.length) {
         const exchangeRates = targetCurrencies.map(to => ({

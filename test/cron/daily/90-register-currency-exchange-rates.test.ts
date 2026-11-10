@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { createSandbox } from 'sinon';
+import sinon, { createSandbox } from 'sinon';
 
 import { run as registerCurrencyExchangeRates } from '../../../cron/daily/90-register-currency-exchange-rates';
 import { SUPPORTED_CURRENCIES } from '../../../server/constants/currencies';
@@ -38,8 +38,11 @@ describe('cron/daily/register-currency-exchange-rates', () => {
   });
 
   it('succeeds when every currency is stored', async () => {
-    sandbox.stub(currencyLib, 'fetchFxRates').resolves({ USD: 1.5 });
+    const fetchFxRates = sandbox.stub(currencyLib, 'fetchFxRates').resolves({ USD: 1.5 });
     await registerCurrencyExchangeRates();
     expect(await models.CurrencyExchangeRate.count()).to.eq(SUPPORTED_CURRENCIES.length);
+    // Never saves the stored rates again as new ones
+    expect(fetchFxRates.alwaysCalledWithMatch(sinon.match.string, sinon.match.array, 'latest', { fallbackToDb: false }))
+      .to.be.true;
   });
 });

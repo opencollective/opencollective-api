@@ -134,10 +134,16 @@ export const getRatesFromDb = async (
   return result;
 };
 
+/**
+ * Fetches the rates from Fixer. When Fixer fails, falls back to the latest rates stored in the DB,
+ * unless `fallbackToDb` is false: the job that records the rates must not save stored rates again
+ * as new ones, which would hide the failure.
+ */
 export async function fetchFxRates(
   fromCurrency: SupportedCurrency,
   toCurrencies: SupportedCurrency[],
   date: string | Date = 'latest',
+  { fallbackToDb = true }: { fallbackToDb?: boolean } = {},
 ): Promise<ResultCurrencyMap> {
   date = getDate(date);
 
@@ -185,6 +191,10 @@ export async function fetchFxRates(
   if (useMockRate) {
     const ratesValues = toCurrencies.map(() => 1.1);
     return zipObject(toCurrencies, ratesValues);
+  }
+
+  if (!fallbackToDb) {
+    throw new Error(`Could not fetch the FX rates of ${fromCurrency} from Fixer`);
   }
 
   // As a fallback, try to fetch the rates from the DB
