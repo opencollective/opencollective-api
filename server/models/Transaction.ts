@@ -1274,7 +1274,7 @@ class Transaction extends ModelWithPublicId<
     });
 
     let hostFeeShareDebtTransaction;
-    if (!transaction.data.isPlatformRevenueDirectlyCollected) {
+    if (!transaction.data?.isPlatformRevenueDirectlyCollected) {
       hostFeeShareDebtTransaction = await Transaction.createHostFeeShareDebtTransactions(
         { hostFeeShareTransaction },
         { sequelizeTransaction },

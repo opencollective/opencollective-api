@@ -6,6 +6,7 @@ import sinon from 'sinon';
 
 import { SupportedCurrency } from '../../../server/constants/currencies';
 import * as CurrencyLib from '../../../server/lib/currency';
+import * as SentryLib from '../../../server/lib/sentry';
 import { fakeCurrencyExchangeRate } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
@@ -140,6 +141,36 @@ describe('server/lib/currency', () => {
       ));
   });
 
+  describe('fetchFxRates when Fixer fails', () => {
+    beforeEach(async () => {
+      await resetTestDB();
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', rate: 0.9 });
+      sandbox.stub(config, 'fixer').value({ accessKey: 'fixer-secret-key', disableMock: true });
+    });
+
+    afterEach(() => nock.cleanAll());
+
+    it('reports a warning without the access key and falls back to the DB', async () => {
+      const reportMessage = sandbox.stub(SentryLib, 'reportMessageToSentry');
+      const reportError = sandbox.stub(SentryLib, 'reportErrorToSentry');
+      nock('https://data.fixer.io')
+        .get('/latest')
+        .query(true)
+        .reply(200, { success: false, error: { code: 201, info: 'You have supplied an invalid Source Currency.' } });
+
+      const rates = await CurrencyLib.fetchFxRates('USD', ['EUR']);
+
+      expect(rates).to.deep.eq({ EUR: 0.9 });
+      expect(reportMessage.calledOnce).to.be.true;
+      const [message, params] = reportMessage.firstCall.args;
+      expect(message).to.eq('FX Rate query issue: You have supplied an invalid Source Currency.');
+      expect(params.severity).to.eq('warning');
+      expect(JSON.stringify(reportMessage.firstCall.args)).to.not.include('fixer-secret-key');
+      expect(reportError.calledOnce).to.be.true;
+      expect(reportError.firstCall.args[1].severity).to.eq('warning');
+    });
+  });
+
   describe('loadFxRatesMap', () => {
     before(async () => {
       sandbox.stub(config, 'fixer').value({ disableMock: true });
@@ -171,6 +202,30 @@ describe('server/lib/currency', () => {
         '2023-02-01T00:00:00.000Z': { USD: { EUR: 0.8, NZD: 1.6 } }, // Latest rates
         latest: { USD: { NZD: 1.6 } }, // Latest rates (no date provided)
       });
+    });
+  });
+
+  describe('fetchFxRates without DB fallback', () => {
+    beforeEach(async () => {
+      await resetTestDB();
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', rate: 0.9 });
+      sandbox.stub(config, 'fixer').value({ accessKey: 'fixer-key', disableMock: true });
+    });
+
+    afterEach(() => nock.cleanAll());
+
+    it('throws instead of returning the stored rates when Fixer fails', async () => {
+      nock('https://data.fixer.io')
+        .get('/latest')
+        .query(true)
+        .twice()
+        .reply(200, { success: false, error: { code: 201, info: 'You have supplied an invalid Source Currency.' } });
+
+      await expect(CurrencyLib.fetchFxRates('USD', ['EUR'], 'latest', { fallbackToDb: false })).to.be.rejectedWith(
+        'Could not fetch the FX rates of USD from Fixer',
+      );
+      // The default still falls back to the DB
+      expect(await CurrencyLib.fetchFxRates('USD', ['EUR'])).to.deep.eq({ EUR: 0.9 });
     });
   });
 

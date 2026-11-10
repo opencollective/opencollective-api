@@ -1411,6 +1411,18 @@ describe('server/graphql/common/expenses', () => {
         });
       });
     });
+
+    it('lets collective and host admins delete DRAFT expenses when called with { throw: true }', async () => {
+      await runForAllContexts(async context => {
+        const { expense, req } = context;
+        await expense.update({ status: 'DRAFT' });
+        expect(await canDeleteExpense(req.collectiveAdmin, expense, { throw: true })).to.be.true;
+        expect(await canDeleteExpense(req.hostAdmin, expense, { throw: true })).to.be.true;
+        expect(await getApolloErrorCode(canDeleteExpense(req.randomUser, expense, { throw: true }))).to.equal(
+          'MINIMAL_CONDITION_NOT_MET',
+        );
+      });
+    });
   });
 
   describe('canPayExpense', () => {
