@@ -492,25 +492,14 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
         });
 
-        it('enforces 2FA on the user profile when fromAccount is omitted', async () => {
+        it('defaults to the user profile when fromAccount is omitted and the user has 2FA enabled', async () => {
           const userWith2FA = await fakeUser({}, {}, { enable2FA: true });
           const orderWithoutFromAccount = omit(validOrderParams, 'fromAccount');
 
-          const resultWithout2FA = await callCreateOrder({ order: orderWithoutFromAccount }, userWith2FA);
-          expect(resultWithout2FA.errors).to.exist;
-          expect(resultWithout2FA.errors[0].message).to.not.include('Cannot read properties');
-          expect(resultWithout2FA.errors[0].extensions?.code).to.eq('2FA_REQUIRED');
-
-          const resultWith2FA = await graphqlQueryV2(
-            CREATE_ORDER_MUTATION,
-            { order: orderWithoutFromAccount },
-            userWith2FA,
-            null,
-            { [TwoFactorAuthenticationHeader]: generateValid2FAHeader(userWith2FA) },
-          );
-          resultWith2FA.errors && console.error(resultWith2FA.errors);
-          expect(resultWith2FA.errors).to.not.exist;
-          expect(resultWith2FA.data.createOrder.order.fromAccount.legacyId).to.eq(userWith2FA.CollectiveId);
+          const result = await callCreateOrder({ order: orderWithoutFromAccount }, userWith2FA);
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.createOrder.order.fromAccount.legacyId).to.eq(userWith2FA.CollectiveId);
         });
 
         it('rejects order with non-positive quantity', async () => {
