@@ -79,6 +79,7 @@ class UsdExchangeRate extends Model<InferAttributes<UsdExchangeRate>, InferCreat
 
   /**
    * Standard deviation and latest value of the daily rate from `from` to `to` over the last 5 days.
+   * Returns nothing when fewer than two days have rates, since no deviation can be computed.
    */
   static async getPairStats(
     from: string,
@@ -95,7 +96,8 @@ class UsdExchangeRate extends Model<InferAttributes<UsdExchangeRate>, InferCreat
         INNER JOIN "UsdExchangeRates" f ON f."currency" = :from AND f."day" = t."day"
         WHERE t."currency" = :to
         AND t."createdAt" >= DATE_TRUNC('day', NOW() - INTERVAL '5 days')
-        HAVING COUNT(*) > 0
+        -- A deviation needs at least two days; without it, callers use their own margin
+        HAVING COUNT(*) > 1
       `,
       { type: QueryTypes.SELECT, raw: true, plain: true, replacements: { from, to } },
     );

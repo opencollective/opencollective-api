@@ -64,5 +64,10 @@ describe('server/models/UsdExchangeRate', () => {
       expect(stats).to.have.property('from');
       expect(stats).to.have.property('to');
     });
+
+    it('returns nothing when only one day has rates', async () => {
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'MXN', rate: 18, createdAt: moment().subtract(1, 'days') });
+      expect(await UsdExchangeRate.getPairStats('USD', 'MXN')).to.be.null;
+    });
   });
 });
