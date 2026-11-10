@@ -2,7 +2,12 @@ import { maxInteger } from '../../constants/math';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate, roundCentsAmount } from '../../lib/currency';
-import { createRefundTransaction, getHostFee, getHostFeeSharePercent } from '../../lib/payments';
+import {
+  createRefundTransaction,
+  getHostFee,
+  getHostFeeSharePercent,
+  getPaymentProcessorFeeToReverseForManualFunds,
+} from '../../lib/payments';
 import { getRefundableAmountFromCollectiveInHostCurrency } from '../../lib/refunds';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
@@ -40,7 +45,8 @@ const paymentMethodProvider: BasePaymentProviderService = {
       }
     }
 
-    return createRefundTransaction(transaction, 0, null, user, null, null, refundKind);
+    const refundedProcessorFee = await getPaymentProcessorFeeToReverseForManualFunds(transaction, refundKind);
+    return createRefundTransaction(transaction, refundedProcessorFee, null, user, null, null, refundKind);
   },
 
   // We don't check balance for "Added Funds"
@@ -61,7 +67,8 @@ const paymentMethodProvider: BasePaymentProviderService = {
     const amount = order.totalAmount;
     const currency = order.currency;
     const hostCurrency = host.currency;
-    const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
+    const hostCurrencyFxRate =
+      options?.ledgerOverrides?.hostCurrencyFxRate ?? (await getFxRate(currency, hostCurrency));
     const amountInHostCurrency = roundCentsAmount(amount * hostCurrencyFxRate, hostCurrency);
 
     const hostFee = await getHostFee(order);
@@ -91,17 +98,18 @@ const paymentMethodProvider: BasePaymentProviderService = {
       hostFeeInHostCurrency,
       description: order.description,
       clearedAt: order.processedAt || null,
+      createdAt: options?.ledgerOverrides?.createdAt,
       data: {
         // No platform tip for now here
         platformTipEligible: false,
         isSharedRevenue,
         hostFeeSharePercent,
         tax: order.data?.tax,
-        invoiceTemplate: options.invoiceTemplate,
+        invoiceTemplate: options?.invoiceTemplate,
       },
     };
 
-    return await models.Transaction.createFromContributionPayload(transactionPayload);
+    return await models.Transaction.createFromContributionPayload(transactionPayload, options?.ledgerOverrides);
   },
 };
 

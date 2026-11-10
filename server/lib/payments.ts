@@ -32,6 +32,7 @@ import {
   isPaymentProviderWithExternalRecurring,
   type PaymentProviderService,
   type PaymentProviderServiceWithInternalRecurringManagement,
+  type ProcessOrderOptions,
 } from '../paymentProviders/types';
 
 import { applyBalanceAccountingCategory } from './accounting/categorization/balance-accounts';
@@ -123,10 +124,7 @@ export function findPaymentMethodProvider(
  *  field. Which means that the query to select the order must include
  *  the `PaymentMethods` table.
  */
-export async function processOrder(
-  order: Order,
-  options: { isAddedFund?: boolean; invoiceTemplate?: string } = {},
-): Promise<Transaction | void> {
+export async function processOrder(order: Order, options: ProcessOrderOptions = {}): Promise<Transaction | void> {
   const paymentMethodProvider = findPaymentMethodProvider(order.paymentMethod);
   if (get(paymentMethodProvider, 'features.waitToCharge') && !get(order, 'paymentMethod.paid')) {
     return;
@@ -734,6 +732,26 @@ async function refundTax(
  *  method that should be saved within the *data* field of the
  *  transactions being created.
  */
+/**
+ * When funds recorded manually by a host admin (added funds, manual contributions) are reversed because of
+ * an edit, the payment processor fee must be reversed in full: nothing was actually refunded through a
+ * payment processor, so there is no lost fee for the host to cover. The new transactions record their own fee.
+ *
+ * @returns the payment processor fee to reverse, in host currency. Always 0 for other kinds of refunds, and
+ * when the fee is not recorded as a separate transaction (legacy).
+ */
+export async function getPaymentProcessorFeeToReverseForManualFunds(
+  transaction: Transaction,
+  refundKind?: RefundKind,
+): Promise<number> {
+  if (refundKind !== RefundKind.EDIT) {
+    return 0;
+  }
+
+  const processorFeeTransaction = await transaction.getPaymentProcessorFeeTransaction();
+  return Math.abs(processorFeeTransaction?.amountInHostCurrency || 0);
+}
+
 export async function createRefundTransaction(
   transaction: Transaction,
   refundedPaymentProcessorFeeInHostCurrency: number,

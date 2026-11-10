@@ -1,3 +1,4 @@
+import type { Transaction as SequelizeTransaction } from 'sequelize';
 import type Stripe from 'stripe';
 
 import { SupportedCurrency } from '../constants/currencies';
@@ -8,6 +9,24 @@ import PaymentMethod from '../models/PaymentMethod';
 import Transaction from '../models/Transaction';
 import User from '../models/User';
 import VirtualCardModel from '../models/VirtualCard';
+
+/**
+ * Values that new ledger entries must take from the ones they replace when an order is edited in place,
+ * see `replaceOrderTransactions`.
+ */
+export type LedgerWriteOverrides = {
+  sequelizeTransaction: SequelizeTransaction;
+  TransactionGroup: string;
+  createdAt: Date;
+  hostCurrencyFxRate?: number;
+};
+
+export type ProcessOrderOptions = {
+  isAddedFund?: boolean;
+  invoiceTemplate?: string;
+  /** Only supported by the providers used for funds recorded manually by host admins (`host`, `manual`) */
+  ledgerOverrides?: LedgerWriteOverrides;
+};
 
 export interface BasePaymentProviderService {
   /**
@@ -22,10 +41,7 @@ export interface BasePaymentProviderService {
   /**
    * Triggers the payment for this order and updates it accordingly
    */
-  processOrder(
-    order: Order,
-    options?: { isAddedFund?: boolean; invoiceTemplate?: string },
-  ): Promise<Transaction | void>;
+  processOrder(order: Order, options?: ProcessOrderOptions): Promise<Transaction | void>;
 
   /**
    * Refunds a transaction processed with this payment provider service
@@ -103,7 +119,7 @@ export interface PaymentProvider {
   /**
    * Triggers the payment for this order and updates it accordingly
    */
-  processOrder(order: Order): Promise<Transaction>;
+  processOrder(order: Order, options?: ProcessOrderOptions): Promise<Transaction>;
 
   /**
    * The different types of payment methods supported by this provider
