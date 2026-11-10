@@ -9,18 +9,6 @@ type Options = {
   lineDivider?: ', ' | '\n';
 };
 
-const getLibAddressFromLocation = ({ country, structured }: Location) => {
-  const { address1, address2, city, zone, postalCode } = structured;
-  return {
-    country: country as CountryCode,
-    addressLine1: address1,
-    addressLine2: address2,
-    city,
-    state: normalizeZoneCode(country, zone),
-    zip: postalCode,
-  };
-};
-
 export async function formatAddress(
   { country, structured }: Location,
   { includeCountry = false, lineDivider = ', ' }: Options = {},
@@ -29,11 +17,21 @@ export async function formatAddress(
     return null;
   }
 
-  const libAddress = getLibAddressFromLocation({ country, structured });
-  const { addressLine1: address1, addressLine2: address2, city, state: normalizedZone, zip: postalCode } = libAddress;
+  const { address1, address2, city, zone, postalCode } = structured;
+  const normalizedZone = normalizeZoneCode(country, zone);
 
   try {
-    const formatted = libFormatAddress(libAddress, { appendCountry: includeCountry });
+    const formatted = libFormatAddress(
+      {
+        country: country as CountryCode,
+        addressLine1: address1,
+        addressLine2: address2,
+        city,
+        state: normalizedZone,
+        zip: postalCode,
+      },
+      { appendCountry: includeCountry },
+    );
 
     // The address lib returns a newline-separated string, convert to requested divider
     if (lineDivider === '\n') {
@@ -42,16 +40,11 @@ export async function formatAddress(
       return formatted.split('\n').filter(Boolean).join(lineDivider);
     }
   } catch (error) {
-    reportErrorToSentry(error, {
-      extra: {
-        country,
-        zone: normalizedZone,
-        providedFields: Object.entries(structured)
-          .filter(([, value]) => Boolean(value))
-          .map(([key]) => key),
-        validationIssues: error instanceof AddressValidationError ? error.issues : undefined,
-      },
-    });
+    // Addresses are not validated on input, so not matching the country's rules (e.g. a zip in an unexpected format or
+    // a missing state) is expected and not worth reporting
+    if (!(error instanceof AddressValidationError)) {
+      reportErrorToSentry(error);
+    }
 
     // Use fallback formatting (US format)
     return [address1, address2, [city, normalizedZone, postalCode].filter(Boolean).join(' ')]

@@ -1,6 +1,8 @@
 import { expect } from 'chai';
+import sinon from 'sinon';
 
 import { formatAddress } from '../../../server/lib/format-address';
+import * as SentryLib from '../../../server/lib/sentry';
 
 describe('server/lib/format-address', () => {
   describe('formatAddress', () => {
@@ -346,15 +348,27 @@ describe('server/lib/format-address', () => {
 
     describe('fallback formatting when the address is not valid for the country', () => {
       const sanFrancisco = { address1: '123 Main Street', city: 'San Francisco', zone: 'CA' };
+      let sandbox: sinon.SinonSandbox, reportErrorToSentryStub: sinon.SinonStub;
+
+      beforeEach(() => {
+        sandbox = sinon.createSandbox();
+        reportErrorToSentryStub = sandbox.stub(SentryLib, 'reportErrorToSentry');
+      });
+
+      afterEach(() => {
+        sandbox.restore();
+      });
 
       it('falls back when the zip does not match the country format', async () => {
         const result = await formatAddress({ country: 'US', structured: { ...sanFrancisco, postalCode: 'ABC' } });
         expect(result).to.equal('123 Main Street, San Francisco CA ABC');
+        expect(reportErrorToSentryStub.called).to.be.false;
       });
 
       it('falls back when the zip does not match the subdivision', async () => {
         const result = await formatAddress({ country: 'US', structured: { ...sanFrancisco, postalCode: '10001' } });
         expect(result).to.equal('123 Main Street, San Francisco CA 10001');
+        expect(reportErrorToSentryStub.called).to.be.false;
       });
 
       it('falls back when a required subdivision is unknown', async () => {
@@ -363,6 +377,17 @@ describe('server/lib/format-address', () => {
           structured: { ...sanFrancisco, zone: 'Atlantis', postalCode: '94102' },
         });
         expect(result).to.equal('123 Main Street, San Francisco Atlantis 94102');
+        expect(reportErrorToSentryStub.called).to.be.false;
+      });
+
+      it('falls back when the zip uses an unexpected format for a contributor-provided address', async () => {
+        // Brazilian zips are expected as "12345-678", contributors sometimes type them as "12.345-678"
+        const result = await formatAddress({
+          country: 'BR',
+          structured: { address1: 'Rua Augusta 1', city: 'São Paulo', zone: 'SP', postalCode: '01.305-000' },
+        });
+        expect(result).to.equal('Rua Augusta 1, São Paulo SP 01.305-000');
+        expect(reportErrorToSentryStub.called).to.be.false;
       });
 
       it('falls back when the country is unknown', async () => {
@@ -371,17 +396,8 @@ describe('server/lib/format-address', () => {
           structured: { address1: '1 Nowhere Lane', city: 'Atlantis', postalCode: '12345' },
         });
         expect(result).to.equal('1 Nowhere Lane, Atlantis 12345');
+        expect(reportErrorToSentryStub.calledOnce).to.be.true;
       });
-    });
-  });
-
-  describe('fallback for user-provided addresses that do not match the country rules', () => {
-    it('does not throw for a zip with the wrong format (e.g. DZ expects 5 digits)', async () => {
-      const result = await formatAddress({
-        country: 'DZ',
-        structured: { address1: 'Street Name, 123', city: 'Citycitycity', postalCode: '123' },
-      });
-      expect(result).to.equal('Street Name, 123, Citycitycity 123');
     });
   });
 });
