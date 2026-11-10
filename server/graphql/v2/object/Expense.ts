@@ -362,12 +362,20 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
             limit,
             totalCount: async () => req.loaders.Comment.countByExpenseAndType.load({ ExpenseId: expense.id, type }),
             nodes: async () =>
-              models.Comment.findAll({
-                where: { ExpenseId: expense.id, type },
-                order: [[orderBy.field, orderBy.direction]],
-                offset,
-                limit,
-              }),
+              orderBy.field === 'createdAt'
+                ? req.loaders.Comment.pageByExpense.load({
+                    ExpenseId: expense.id,
+                    type,
+                    direction: orderBy.direction,
+                    limit,
+                    offset,
+                  })
+                : models.Comment.findAll({
+                    where: { ExpenseId: expense.id, type },
+                    order: [[orderBy.field, orderBy.direction]],
+                    offset,
+                    limit,
+                  }),
           };
         },
       },

@@ -1,10 +1,11 @@
 import DataLoader from 'dataloader';
 import express from 'express';
-import { set } from 'lodash';
-import { Sequelize } from 'sequelize';
+import { groupBy, set } from 'lodash';
+import { QueryTypes, Sequelize } from 'sequelize';
 
 import { ReactionEmoji } from '../../constants/reaction-emoji';
 import models, { Op, sequelize } from '../../models';
+import Comment from '../../models/Comment';
 import EmojiReaction from '../../models/EmojiReaction';
 
 type CommentCountByExpenseIdAndType = {
@@ -12,7 +13,64 @@ type CommentCountByExpenseIdAndType = {
   type: string | string[];
 };
 
+type CommentsPageByExpenseKey = {
+  ExpenseId: number;
+  type: string[];
+  direction: 'ASC' | 'DESC';
+  limit: number;
+  offset: number;
+};
+
+const getCommentsPageGroupKey = (key: CommentsPageByExpenseKey): string =>
+  `${[...key.type].sort().join('|')}.${key.direction}.${key.limit}.${key.offset}`;
+
 export default {
+  /**
+   * One page of comments (ordered by `createdAt`) for each expense, fetched with a single query per
+   * distinct (type, direction, limit, offset) instead of one query per expense.
+   */
+  pageByExpense: (): DataLoader<CommentsPageByExpenseKey, Comment[]> =>
+    new DataLoader(
+      async (keys: readonly CommentsPageByExpenseKey[]) => {
+        const results = new Map<string, Comment[]>();
+        const groups = groupBy(keys, getCommentsPageGroupKey);
+        await Promise.all(
+          Object.values(groups).map(async groupKeys => {
+            const { type, direction, limit, offset } = groupKeys[0];
+            const sqlDirection = direction === 'DESC' ? 'DESC' : 'ASC';
+            const comments = await sequelize.query<Comment>(
+              `
+              SELECT * FROM (
+                SELECT c.*, ROW_NUMBER() OVER (
+                  PARTITION BY c."ExpenseId" ORDER BY c."createdAt" ${sqlDirection}, c."id" ${sqlDirection}
+                ) AS "__position"
+                FROM "Comments" c
+                WHERE c."ExpenseId" IN (:expenseIds)
+                AND c."type" IN (:types)
+                AND c."deletedAt" IS NULL
+              ) AS ranked
+              WHERE "__position" > :offset AND "__position" <= :offset + :limit
+              ORDER BY "ExpenseId", "__position"
+              `,
+              {
+                type: QueryTypes.SELECT,
+                model: models.Comment,
+                mapToModel: true,
+                replacements: { expenseIds: groupKeys.map(k => k.ExpenseId), types: type, offset, limit },
+              },
+            );
+
+            const byExpenseId = groupBy(comments, 'ExpenseId');
+            const groupKey = getCommentsPageGroupKey(groupKeys[0]);
+            groupKeys.forEach(k => results.set(`${k.ExpenseId}.${groupKey}`, byExpenseId[k.ExpenseId] || []));
+          }),
+        );
+
+        return keys.map(k => results.get(`${k.ExpenseId}.${getCommentsPageGroupKey(k)}`) || []);
+      },
+      { cacheKeyFn: key => `${key.ExpenseId}.${getCommentsPageGroupKey(key)}` },
+    ),
+
   countByExpenseAndType: (): DataLoader<CommentCountByExpenseIdAndType, number> =>
     new DataLoader(
       async (ExpenseIdAndType: Array<CommentCountByExpenseIdAndType>) => {
