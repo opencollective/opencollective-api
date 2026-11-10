@@ -402,9 +402,21 @@ describe('server/graphql/v2/mutation/OrderMutations > editPaidManualOrder', () =
       ]);
       expect(getNetAmountForCollective(transactions)).to.equal(8800); // 115 - 15 (tax) - 10 (host fee) - 2 (processor fee)
 
+      // Changing the amount without passing the tax keeps it, and updates its amount
+      result = await callEdit(order, { amount: { valueInCents: 20000, currency: 'USD' } }, 'IN_PLACE');
+      expect(result.errors).to.not.exist;
+      expect(result.data.editPaidManualOrder).to.containSubset({
+        taxAmount: { valueInCents: 3000 },
+        totalAmount: { valueInCents: 23000 },
+      });
+      transactions = await getLiveTransactions();
+      expect(transactions).to.containSubset([
+        { dataValues: { CollectiveId: collective.id, type: 'CREDIT', kind: 'CONTRIBUTION', amount: 23000 } },
+        { dataValues: { CollectiveId: collective.id, type: 'DEBIT', kind: 'TAX', amount: -3000 } },
+      ]);
+
       // Taxes can be removed
       result = await callEdit(order, { amount: { valueInCents: 10000, currency: 'USD' }, tax: null }, 'IN_PLACE');
-      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.editPaidManualOrder.totalAmount.valueInCents).to.equal(10000);
       expect(result.data.editPaidManualOrder.taxAmount).to.be.null;

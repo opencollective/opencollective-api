@@ -261,6 +261,10 @@ const applyOrderUpdateInput = (order: Order, input, { fromAccount, toAccount, ho
 
   // Re-compute total amount
   const baseAmount = !isNil(input.amount) ? getValueInCentsFromAmountInput(input.amount) : getOrderBaseAmount(order);
+  if (isNil(tax) && order.data?.tax && !isNil(input.amount)) {
+    // The tax is kept, but its amount depends on the new base amount
+    order.set('taxAmount', getTaxAmount(baseAmount, order.data.tax, order.currency));
+  }
   order.set(
     'totalAmount',
     getTotalAmountForOrderInput(baseAmount, order.platformTipAmount, tax || order.data?.tax, order.currency),
