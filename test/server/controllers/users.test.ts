@@ -6,7 +6,7 @@ import httpMocks from 'node-mocks-http';
 import sinon from 'sinon';
 
 import ActivityTypes from '../../../server/constants/activities';
-import { resendEmailVerificationOTP, signin, signup, verifyEmail } from '../../../server/controllers/users';
+import { exists, resendEmailVerificationOTP, signin, signup, verifyEmail } from '../../../server/controllers/users';
 import { generateLoaders } from '../../../server/graphql/loaders';
 import { OTP_RATE_LIMIT_MAX_ATTEMPTS, OTP_SESSION_MAX_AGE } from '../../../server/lib/auth';
 import cache, { sessionCache } from '../../../server/lib/cache';
@@ -101,6 +101,39 @@ describe('server/controllers/users', () => {
     await signin(request, response, () => {});
     return response;
   };
+
+  describe('exists', () => {
+    const makeExistsRequest = async (email: string, ip: string) => {
+      const request = httpMocks.createRequest({ method: 'GET', url: '/users/exists', query: { email }, ip });
+      const response = httpMocks.createResponse();
+      const sendSpy = sandbox.spy(response, 'send');
+      await exists(request, response);
+      return { response, sendSpy };
+    };
+
+    it('returns whether the user exists', async () => {
+      const user = await fakeUser();
+      const ip = randIPV4();
+
+      expect((await makeExistsRequest(user.email, ip)).response._getData()).to.eql({ exists: true });
+      expect((await makeExistsRequest(randEmail(), ip)).response._getData()).to.eql({ exists: false });
+    });
+
+    it('sends a single rate limit error without looking up the user once the limit is exceeded', async () => {
+      const user = await fakeUser();
+      const ip = randIPV4();
+      for (let i = 0; i < config.limits.search.email.perHourPerIp; i++) {
+        await makeExistsRequest(user.email, ip);
+      }
+
+      const findOneSpy = sandbox.spy(models.User, 'findOne');
+      const { response, sendSpy } = await makeExistsRequest(user.email, ip);
+
+      expect(sendSpy.callCount).to.eql(1);
+      expect(response._getData()).to.eql({ error: { message: 'Rate limit exceeded' } });
+      expect(findOneSpy.called).to.be.false;
+    });
+  });
 
   describe('signin', () => {
     it('rejects unknown emails without creating a user or sending an email', async () => {
