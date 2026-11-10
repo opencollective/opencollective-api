@@ -105,7 +105,8 @@ const aggregateByStatus = (stats: ExpenseStats[]) =>
         result[value.status].count += value.count;
         result[value.status].lastCreatedAt = max([value.lastCreatedAt, result[value.status].lastCreatedAt]);
       } else {
-        result[value.status] = value;
+        // Copy the row, as the original stats are reused elsewhere (e.g. to compute the collective stats)
+        result[value.status] = { ...value };
       }
       return result;
     }, {} as StatsAggregatedByStatus),
@@ -338,7 +339,7 @@ const getExpensesAmountsStats = async (
                 AND r."to" = :displayCurrency
                 -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
                 AND r."createdAt" <= e."createdAt"
-                ORDER BY e."createdAt" DESC
+                ORDER BY r."createdAt" DESC
                 LIMIT 1
               ), (
                 -- Fix for old expenses where we didn't have an exchange rate stored yet: just use the oldest rate available
@@ -346,7 +347,7 @@ const getExpensesAmountsStats = async (
                 FROM "CurrencyExchangeRates" r
                 WHERE r."from" = e.currency
                 AND r."to" = :displayCurrency
-                ORDER BY e."createdAt" ASC -- Oldest rate
+                ORDER BY r."createdAt" ASC -- Oldest rate
                 LIMIT 1
             ))
             END AS "amountInHostCurrency"
@@ -408,7 +409,7 @@ const getCollectiveBalances = async (
   const balancesInHostCurrency = await Promise.all(
     collectiveBalances.map(async balance => {
       if (balance.currency === displayCurrency) {
-        return balance as { currency: SupportedCurrency; value: number };
+        return balance as { CollectiveId: number; currency: SupportedCurrency; value: number };
       } else {
         const convertParams: ConvertToCurrencyArgs = {
           amount: balance.value,
@@ -416,6 +417,7 @@ const getCollectiveBalances = async (
           toCurrency: displayCurrency,
         };
         return {
+          CollectiveId: balance.CollectiveId,
           value: await req.loaders.CurrencyExchangeRate.convert.load(convertParams),
           currency: displayCurrency,
         };
