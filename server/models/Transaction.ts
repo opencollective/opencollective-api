@@ -598,19 +598,19 @@ class Transaction extends ModelWithPublicId<
           netAmountInCollectiveCurrency: -roundCentsAmount(transaction.amount, transaction.currency),
           amountInHostCurrency: -roundCentsAmount(
             transaction.netAmountInCollectiveCurrency * hostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           hostFeeInHostCurrency: roundCentsAmount(
             transaction.hostFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           platformFeeInHostCurrency: roundCentsAmount(
             transaction.platformFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           paymentProcessorFeeInHostCurrency: roundCentsAmount(
             transaction.paymentProcessorFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           data: { ...omit(transaction.data, ['hostToPlatformFxRate']), oppositeTransactionHostCurrencyFxRate },
         };
@@ -634,7 +634,7 @@ class Transaction extends ModelWithPublicId<
             const hostFeePercent = fromCollective.hasMoneyManagement ? 0 : fromCollective.hostFeePercent;
             const taxAmountInHostCurrency = roundCentsAmount(
               (transaction.taxAmount || 0) * hostCurrencyFxRate,
-              transaction.hostCurrency,
+              hostCurrency,
             );
             oppositeTransaction.hostFeeInHostCurrency = calcFee(
               oppositeTransaction.amountInHostCurrency +
@@ -1696,7 +1696,7 @@ class Transaction extends ModelWithPublicId<
       oppositeTransaction.platformFeeInHostCurrency || 0,
       roundCentsAmount(
         (transaction.platformFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate,
-        transaction.hostCurrency,
+        oppositeTransaction.hostCurrency,
       ),
       'platformFeeInHostCurrency in oppositeTransaction should match',
     );
@@ -1705,7 +1705,7 @@ class Transaction extends ModelWithPublicId<
       oppositeTransaction.hostFeeInHostCurrency || 0,
       roundCentsAmount(
         (transaction.hostFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate,
-        transaction.hostCurrency,
+        oppositeTransaction.hostCurrency,
       ),
       'hostFeeInHostCurrency in oppositeTransaction should match',
     );
@@ -1714,7 +1714,7 @@ class Transaction extends ModelWithPublicId<
       oppositeTransaction.paymentProcessorFeeInHostCurrency || 0,
       roundCentsAmount(
         (transaction.paymentProcessorFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate,
-        transaction.hostCurrency,
+        oppositeTransaction.hostCurrency,
       ),
       'paymentProcessorFeeInHostCurrency in oppositeTransaction should match',
     );
