@@ -23,13 +23,15 @@ class UsdExchangeRate extends Model<InferAttributes<UsdExchangeRate>, InferCreat
   declare public updatedAt: CreationOptional<Date>;
 
   /**
-   * Stores rates from USD (`{ EUR: 0.92, ... }`). One rate per currency and day: a rate recorded
-   * again the same day replaces the previous one if it's more recent.
+   * Stores rates from USD (`{ EUR: 0.92, ... }`) and returns the currencies stored. Rates that are
+   * not positive finite numbers are skipped: every pair computed from them would be wrong. One rate
+   * per currency and day: a rate recorded again the same day replaces the previous one if it's
+   * more recent.
    */
-  static async record(rates: Record<string, number>, createdAt: Date = new Date()): Promise<void> {
-    const currencies = Object.keys(rates);
+  static async record(rates: Record<string, number>, createdAt: Date = new Date()): Promise<string[]> {
+    const currencies = Object.keys(rates).filter(currency => Number.isFinite(rates[currency]) && rates[currency] > 0);
     if (!currencies.length) {
-      return;
+      return [];
     }
 
     await sequelize.query(
@@ -43,6 +45,8 @@ class UsdExchangeRate extends Model<InferAttributes<UsdExchangeRate>, InferCreat
       `,
       { replacements: { currencies, rates: currencies.map(currency => rates[currency]), createdAt } },
     );
+
+    return currencies;
   }
 
   /**

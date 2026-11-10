@@ -7,7 +7,7 @@ import type { QueryInterface } from 'sequelize';
  * "CurrencyExchangeRates" kept every pair (137 x 137 rows a day, 30.5M rows, 4 GB). A pair computed
  * from USD differs from the one Fixer returned by at most 1e-5 (relative), since Fixer computes
  * them the same way. The view keeps the columns of the table, so the queries and reports that read
- * it don't change. Inserts and deletes on the view go to "UsdExchangeRates" (see the triggers).
+ * it don't change. The view is read-only: rates are written to "UsdExchangeRates".
  * The API code doesn't read the view: it uses `fx_rate(from, to, at)`, defined below.
  *
  * "CurrencyExchangeRates" is deprecated: the view is a compatibility layer for existing reports
@@ -25,7 +25,8 @@ module.exports = {
         CREATE TABLE "UsdExchangeRates" (
           "id" SERIAL PRIMARY KEY,
           "currency" VARCHAR(255) NOT NULL,
-          "rate" DOUBLE PRECISION NOT NULL,
+          -- A zero, NaN or infinite rate would break every pair computed from it
+          "rate" DOUBLE PRECISION NOT NULL CHECK ("rate" > 0 AND "rate" < 'Infinity'),
           "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
           "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
           -- The rates of one day are written a few milliseconds apart: pairs are matched by day
@@ -45,6 +46,7 @@ module.exports = {
           WHERE "from" = 'USD'
           AND "deletedAt" IS NULL
           AND "rate" > 0
+          AND "rate" < 'Infinity' -- also excludes NaN, which Postgres sorts above every number
           ORDER BY "to", ("createdAt" AT TIME ZONE 'UTC')::date, "createdAt" DESC
         ), missing_usd AS (
           SELECT 'USD' AS "currency", 1 AS "rate", MIN("createdAt") AS "createdAt", MIN("createdAt") AS "updatedAt"
@@ -102,59 +104,6 @@ module.exports = {
         FOR EACH ROW EXECUTE FUNCTION usd_exchange_rates_add_usd()
       `);
 
-      // Writes on the view: USD -> X is stored as is, X -> USD as USD -> X = 1 / rate. A second
-      // rate for the same currency and day replaces the first one if it's more recent.
-      await query(`
-        CREATE FUNCTION currency_exchange_rates_insert() RETURNS TRIGGER AS $$
-        DECLARE
-          created_at TIMESTAMP WITH TIME ZONE := COALESCE(NEW."createdAt", NOW());
-        BEGIN
-          IF NEW."from" = NEW."to" THEN
-            RETURN NEW;
-          ELSIF NEW."from" = 'USD' THEN
-            INSERT INTO "UsdExchangeRates" ("currency", "rate", "createdAt", "updatedAt")
-            VALUES (NEW."to", NEW."rate", created_at, COALESCE(NEW."updatedAt", created_at))
-            ON CONFLICT ("currency", "day") DO UPDATE
-            SET "rate" = EXCLUDED."rate", "createdAt" = EXCLUDED."createdAt", "updatedAt" = EXCLUDED."updatedAt"
-            WHERE EXCLUDED."createdAt" >= "UsdExchangeRates"."createdAt"
-            RETURNING "id" INTO NEW."id";
-          ELSIF NEW."to" = 'USD' THEN
-            INSERT INTO "UsdExchangeRates" ("currency", "rate", "createdAt", "updatedAt")
-            VALUES (NEW."from", 1 / NEW."rate", created_at, COALESCE(NEW."updatedAt", created_at))
-            ON CONFLICT ("currency", "day") DO UPDATE
-            SET "rate" = EXCLUDED."rate", "createdAt" = EXCLUDED."createdAt", "updatedAt" = EXCLUDED."updatedAt"
-            WHERE EXCLUDED."createdAt" >= "UsdExchangeRates"."createdAt";
-          ELSE
-            RAISE EXCEPTION 'Only rates from or to USD are stored, got % -> %', NEW."from", NEW."to";
-          END IF;
-          NEW."createdAt" := created_at;
-          RETURN NEW;
-        END;
-        $$ LANGUAGE plpgsql
-      `);
-      await query(`
-        CREATE TRIGGER currency_exchange_rates_insert
-        INSTEAD OF INSERT ON "CurrencyExchangeRates"
-        FOR EACH ROW EXECUTE FUNCTION currency_exchange_rates_insert()
-      `);
-
-      // Deleting USD -> X deletes the stored rate. Other pairs are computed: nothing to delete.
-      await query(`
-        CREATE FUNCTION currency_exchange_rates_delete() RETURNS TRIGGER AS $$
-        BEGIN
-          IF OLD."from" = 'USD' THEN
-            DELETE FROM "UsdExchangeRates" WHERE "id" = OLD."id";
-          END IF;
-          RETURN OLD;
-        END;
-        $$ LANGUAGE plpgsql
-      `);
-      await query(`
-        CREATE TRIGGER currency_exchange_rates_delete
-        INSTEAD OF DELETE ON "CurrencyExchangeRates"
-        FOR EACH ROW EXECUTE FUNCTION currency_exchange_rates_delete()
-      `);
-
       // What the API queries use instead of the view: the latest rate of each currency from USD at
       // `at`, looked up separately (two index lookups on ("currency", "createdAt")). A currency
       // without any rate gives NULL right away, where the view would walk back through every day.
@@ -181,8 +130,6 @@ module.exports = {
 
       await query(`DROP FUNCTION IF EXISTS fx_rate(VARCHAR, VARCHAR, TIMESTAMP WITH TIME ZONE)`);
       await query(`DROP VIEW "CurrencyExchangeRates"`);
-      await query(`DROP FUNCTION currency_exchange_rates_insert()`);
-      await query(`DROP FUNCTION currency_exchange_rates_delete()`);
       await query(`ALTER TABLE "CurrencyExchangeRatesArchive" RENAME TO "CurrencyExchangeRates"`);
 
       // Rates recorded since the migration: only USD-based ones (the other pairs were computed)

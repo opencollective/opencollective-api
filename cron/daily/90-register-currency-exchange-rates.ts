@@ -15,15 +15,16 @@ export const run = async (): Promise<void> => {
 
   // No DB fallback: saving the stored rates again as today's would hide the failure
   const rates = await fetchFxRates('USD', [...SUPPORTED_CURRENCIES], 'latest', { fallbackToDb: false });
-  if (!Object.keys(rates).length) {
+  const storedCurrencies = await models.UsdExchangeRate.record(rates);
+  if (!storedCurrencies.length) {
     throw new Error('Could not fetch the exchange rates from USD');
   }
 
-  await models.UsdExchangeRate.record(rates);
-
-  const missingCurrencies = SUPPORTED_CURRENCIES.filter(currency => currency !== 'USD' && !rates[currency]);
+  const missingCurrencies = SUPPORTED_CURRENCIES.filter(
+    currency => currency !== 'USD' && !storedCurrencies.includes(currency),
+  );
   if (missingCurrencies.length) {
-    throw new Error(`No exchange rate returned for: ${missingCurrencies.join(', ')}`);
+    throw new Error(`No valid exchange rate returned for: ${missingCurrencies.join(', ')}`);
   }
 
   logger.info('Done.');

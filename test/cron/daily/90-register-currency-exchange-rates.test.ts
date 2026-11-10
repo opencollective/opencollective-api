@@ -49,13 +49,17 @@ describe('cron/daily/register-currency-exchange-rates', () => {
     expect(await models.UsdExchangeRate.count()).to.eq(0);
   });
 
-  it('stores the returned rates, then fails on the missing currencies', async () => {
-    const rates = allRatesFromUsd();
+  it('stores the valid rates, then fails on the missing or invalid ones', async () => {
+    const rates: Record<string, number> = { ...allRatesFromUsd(), EUR: 0, MXN: NaN };
     delete rates.NZD;
     sandbox.stub(currencyLib, 'fetchFxRates').resolves(rates);
 
-    await expect(registerCurrencyExchangeRates()).to.be.rejectedWith('No exchange rate returned for: NZD');
-    const [eurToUsd] = await models.UsdExchangeRate.getMany('EUR', ['USD']);
-    expect(eurToUsd.rate).to.be.closeTo(0.5, 1e-9);
+    await expect(registerCurrencyExchangeRates()).to.be.rejectedWith(
+      'No valid exchange rate returned for: EUR, MXN, NZD',
+    );
+    // The valid rates are stored, the invalid ones are not
+    const [gbpToUsd] = await models.UsdExchangeRate.getMany('GBP', ['USD']);
+    expect(gbpToUsd.rate).to.be.closeTo(0.5, 1e-9);
+    expect(await models.UsdExchangeRate.getMany('EUR', ['USD'])).to.be.empty;
   });
 });
