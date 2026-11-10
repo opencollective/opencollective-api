@@ -1136,7 +1136,8 @@ export const reviewClosed = async (event: Stripe.Event) => {
   const clearedAt = event.created && moment.unix(event.created).toDate();
 
   const paymentIntentTransaction = await models.Transaction.findOne({
-    where: { data: { charge: { payment_intent: stripePaymentIntentId } } },
+    // Refund transactions created by OC copy `data.charge`, so skip them to find the original charge
+    where: { isRefund: false, data: { charge: { payment_intent: stripePaymentIntentId } } },
     include: [
       {
         model: models.Order,
@@ -1191,20 +1192,22 @@ export const reviewClosed = async (event: Stripe.Event) => {
         }
       }
 
-      // Create refund transaction for the fraudulent charge
-      const transactionGroup = uuid();
-      await createRefundTransaction(
-        paymentIntentTransaction,
-        0,
-        {
-          ...paymentIntentTransaction.data,
-          review: event,
-          refundTransactionId: paymentIntentTransaction.id,
-        },
-        null,
-        transactionGroup,
-        clearedAt,
-      );
+      // Create refund transaction for the fraudulent charge, unless it was already refunded in OC
+      if (!paymentIntentTransaction.RefundTransactionId) {
+        const transactionGroup = uuid();
+        await createRefundTransaction(
+          paymentIntentTransaction,
+          0,
+          {
+            ...paymentIntentTransaction.data,
+            review: event,
+            refundTransactionId: paymentIntentTransaction.id,
+          },
+          null,
+          transactionGroup,
+          clearedAt,
+        );
+      }
 
       // charge review was determined to be fraudulent
       if (closedReason === 'refunded_as_fraud') {
