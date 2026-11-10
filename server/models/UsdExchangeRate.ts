@@ -9,6 +9,13 @@ type ExchangeRate = { from: string; to: string; rate: number };
  * pair is computed from them: X -> Y = (USD -> Y) / (USD -> X), with the `fx_rate(from, to, at)`
  * SQL function in queries.
  *
+ * These are mid-market reference rates from Fixer, with no bid/ask spread. On a real market,
+ * USD -> EUR is not exactly 1 / (EUR -> USD): buying and selling have different prices. For
+ * mid-market rates the two match, and Fixer itself computes every pair from one base: the pairs it
+ * returned matched the ones computed here within 1e-5, its rounding. So computing pairs from USD
+ * loses nothing, but the rates remain estimates for statistics, filters and suggested amounts.
+ * Money that actually moves must use the rate of the provider that moves it (Wise, PayPal, Stripe).
+ *
  * `CurrencyExchangeRates` is deprecated: it used to store every pair, and is now a view computing
  * them from this table, kept only so that existing reports (Metabase) keep working. Don't use it in
  * the code. See migration 20261110150000.

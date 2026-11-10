@@ -6,7 +6,8 @@ import type { QueryInterface } from 'sequelize';
  *
  * "CurrencyExchangeRates" kept every pair (137 x 137 rows a day, 30.5M rows, 4 GB). A pair computed
  * from USD differs from the one Fixer returned by at most 1e-5 (relative), since Fixer computes
- * them the same way. The view keeps the columns of the table, so the queries and reports that read
+ * them the same way. This holds for mid-market reference rates only: a market has a bid/ask spread,
+ * so X -> Y is not exactly 1 / (Y -> X) at the price money is exchanged (see UsdExchangeRate). The view keeps the columns of the table, so the queries and reports that read
  * it don't change. The view is read-only: rates are written to "UsdExchangeRates".
  * The API code doesn't read the view: it uses `fx_rate(from, to, at)`, defined below.
  *
