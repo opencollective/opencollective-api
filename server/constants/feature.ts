@@ -15,6 +15,11 @@ enum FEATURE {
   USE_EXPENSES = 'USE_EXPENSES',
   /** Whether this profile can receive expenses */
   RECEIVE_EXPENSES = 'RECEIVE_EXPENSES',
+  /**
+   * Whether this profile accepts grant requests. Not a plan feature: the plan side is covered by
+   * `FUNDS_GRANTS_MANAGEMENT` on the host, which `getSupportedExpenseTypes` already checks.
+   */
+  RECEIVE_GRANTS = 'RECEIVE_GRANTS',
   /** Whether this account can use multi-currency expenses */
   MULTI_CURRENCY_EXPENSES = 'MULTI_CURRENCY_EXPENSES',
   /** Whether this profile can create "goals" (displayed on the collective page) */
