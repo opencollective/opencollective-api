@@ -247,6 +247,12 @@ export const TransactionsCollectionArgs = {
 export const TransactionsCollectionResolver = async (
   args,
   req: express.Request,
+  {
+    accounts: preloadedAccounts,
+  }: {
+    /** Already loaded accounts matching `args.account`, to skip fetching them again */
+    accounts?: Collective[];
+  } = {},
 ): Promise<GraphQLTransactionsCollectionReturnType> => {
   enforceScope(req, 'transactions');
 
@@ -329,7 +335,10 @@ export const TransactionsCollectionResolver = async (
     }
 
     // Fetch accounts (and optionally their children)
-    accountsFromAccountParam = await fetchAccountsWithReferences(args.account, fetchAccountsParams);
+    accountsFromAccountParam =
+      preloadedAccounts && !args.includeChildrenTransactions
+        ? preloadedAccounts
+        : await fetchAccountsWithReferences(args.account, fetchAccountsParams);
     accountsToCheckForPrivateVisibility.push(...accountsFromAccountParam);
 
     // Block access when explicitly filtering by a private account the viewer cannot see
@@ -338,7 +347,8 @@ export const TransactionsCollectionResolver = async (
       flatten(
         accountsFromAccountParam.map(account => {
           const accountIds = args.includeRegularTransactions ? [account.id] : [];
-          const childrenIds = account.children?.map(child => child.id) || [];
+          // Preloaded accounts may come with a `children` association loaded for other purposes
+          const childrenIds = args.includeChildrenTransactions ? account.children?.map(child => child.id) || [] : [];
           return [...accountIds, ...childrenIds];
         }),
       ),

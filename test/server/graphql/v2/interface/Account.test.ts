@@ -1,16 +1,22 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import sinon from 'sinon';
 
 import MemberRoles from '../../../../../server/constants/roles';
+import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import models from '../../../../../server/models';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import {
   fakeActiveHost,
   fakeCollective,
+  fakeExpense,
   fakeIncognitoProfile,
   fakeKYCVerification,
   fakeMember,
   fakeOrganization,
+  fakeProject,
   fakeTier,
+  fakeTransaction,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
@@ -451,6 +457,103 @@ describe('server/graphql/v2/interface/Account', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('Tier is not associated with this collective');
+    });
+  });
+
+  describe('transactions', () => {
+    const query = gql`
+      query ExpensesWithAccountTransactions($account: AccountReferenceInput!) {
+        expenses(account: $account) {
+          nodes {
+            id
+            account {
+              id
+              transactions(type: DEBIT, kind: EXPENSE) {
+                totalCount
+                nodes {
+                  publicId
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    let sandbox;
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('resolves the same account transactions only once per request', async () => {
+      const host = await fakeActiveHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const expenses = await Promise.all([1, 2, 3].map(() => fakeExpense({ CollectiveId: collective.id })));
+      const transaction = await fakeTransaction({
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        ExpenseId: expenses[0].id,
+        kind: TransactionKind.EXPENSE,
+        amount: -1000,
+      });
+
+      const countSpy = sandbox.spy(models.Transaction, 'count');
+      const result = await graphqlQueryV2(query, { account: { legacyId: collective.id } });
+      expect(result.errors).to.not.exist;
+
+      const nodes = result.data.expenses.nodes;
+      expect(nodes).to.have.length(3);
+      for (const node of nodes) {
+        expect(node.account.transactions.totalCount).to.eq(1);
+        expect(node.account.transactions.nodes.map(t => t.publicId)).to.deep.eq([transaction.publicId]);
+      }
+
+      expect(countSpy.callCount).to.eq(1);
+    });
+
+    it('ignores a preloaded children association unless includeChildrenTransactions is set', async () => {
+      // `me.contributorProfiles` returns accounts with their `children` association already loaded
+      const host = await fakeActiveHost();
+      const user = await fakeUser();
+      const collective = await fakeCollective({ HostCollectiveId: host.id, admin: user });
+      const project = await fakeProject({ ParentCollectiveId: collective.id, HostCollectiveId: host.id });
+      const forAccount = await fakeCollective({ HostCollectiveId: host.id });
+      const parentTransaction = await fakeTransaction({
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        amount: -100,
+      });
+      await fakeTransaction({ CollectiveId: project.id, HostCollectiveId: host.id, amount: -200 });
+
+      const result = await graphqlQueryV2(
+        gql`
+          query ContributorProfilesTransactions($forAccount: AccountReferenceInput!) {
+            me {
+              contributorProfiles(forAccount: $forAccount) {
+                account {
+                  slug
+                  transactions {
+                    nodes {
+                      publicId
+                    }
+                  }
+                }
+              }
+            }
+          }
+        `,
+        { forAccount: { slug: forAccount.slug } },
+        user,
+      );
+      expect(result.errors).to.not.exist;
+
+      const profile = result.data.me.contributorProfiles.find(p => p.account.slug === collective.slug);
+      expect(profile.account.transactions.nodes.map(t => t.publicId)).to.deep.eq([parentTransaction.publicId]);
     });
   });
 });
