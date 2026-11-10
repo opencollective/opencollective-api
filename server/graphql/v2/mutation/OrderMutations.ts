@@ -275,7 +275,10 @@ const orderMutations = {
         const isCollectiveRelated =
           fromCollective?.id === collective.ParentCollectiveId || fromCollective?.ParentCollectiveId === collective.id;
         const onlyAskOnLogin = isUsingBalance && !isCollectiveRelated ? false : true;
-        await twoFactorAuthLib.enforceForAccount(req, fromCollective, { onlyAskOnLogin });
+        // When no `fromAccount` is provided, the order is made on behalf of the logged-in user's profile (see `createOrderLegacy`)
+        const contributingAccount =
+          fromCollective || (await req.loaders.Collective.byId.load(req.remoteUser.CollectiveId));
+        await twoFactorAuthLib.enforceForAccount(req, contributingAccount, { onlyAskOnLogin });
       }
 
       const result = await createOrderLegacy(legacyOrderObj, req);
