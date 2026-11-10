@@ -126,7 +126,6 @@ export const generateLoaders = req => {
       idByPublicId: generateEntityIdByPublicIdLoader(AccountingCategory),
     },
     CurrencyExchangeRate: {
-      ...context.loaders.CurrencyExchangeRate,
       convert: generateConvertToCurrencyLoader(),
       fxRate: generateFxRateLoader(),
     },

@@ -12,7 +12,6 @@ import Comment from './Comment';
 import ConnectedAccount from './ConnectedAccount';
 import Conversation from './Conversation';
 import ConversationFollower from './ConversationFollower';
-import CurrencyExchangeRate from './CurrencyExchangeRate';
 import EmojiReaction from './EmojiReaction';
 import Expense from './Expense';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
@@ -49,6 +48,7 @@ import TransactionsImport from './TransactionsImport';
 import TransactionsImportRow from './TransactionsImportRow';
 import Update from './Update';
 import UploadedFile from './UploadedFile';
+import UsdExchangeRate from './UsdExchangeRate';
 import User from './User';
 import UserToken from './UserToken';
 import UserTwoFactorMethod from './UserTwoFactorMethod';
@@ -68,7 +68,6 @@ const models = {
   ConnectedAccount,
   Conversation,
   ConversationFollower,
-  CurrencyExchangeRate,
   EmojiReaction,
   Expense,
   ExpenseAttachedFile,
@@ -102,6 +101,7 @@ const models = {
   TransactionsImport,
   TransactionsImportRow,
   Update,
+  UsdExchangeRate,
   UploadedFile,
   User,
   UserToken,
@@ -439,7 +439,6 @@ export {
   ConnectedAccount,
   Conversation,
   ConversationFollower,
-  CurrencyExchangeRate,
   EmojiReaction,
   ExportRequest as ExportRequests,
   Expense,
@@ -473,6 +472,7 @@ export {
   TransactionsImportRow,
   TransactionSettlement,
   Update,
+  UsdExchangeRate,
   UploadedFile,
   User,
   UserToken,

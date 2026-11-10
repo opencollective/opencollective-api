@@ -52,10 +52,7 @@ export const resetTestDB = async ({ groupedTruncate = true, retries = 5 } = {}) 
   const resetFn = async () => {
     // Using a manual query rather than `await sequelize.truncate({ cascade: true,  restartIdentity: true });`
     // for performance reasons: https://github.com/sequelize/sequelize/issues/15865
-    // "CurrencyExchangeRates" is a view: its rows are stored in "UsdExchangeRates"
-    const tableNames = values(sequelize.models).map(m =>
-      m.tableName === 'CurrencyExchangeRates' ? '"UsdExchangeRates"' : `"${m.tableName}"`,
-    );
+    const tableNames = values(sequelize.models).map(m => `"${m.tableName}"`);
     if (groupedTruncate) {
       await sequelize.query(`TRUNCATE TABLE ${tableNames.join(', ')} RESTART IDENTITY CASCADE`);
     } else {

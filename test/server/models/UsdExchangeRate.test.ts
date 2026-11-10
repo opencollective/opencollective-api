@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 import moment from 'moment';
 
-import CurrencyExchangeRate from '../../../server/models/CurrencyExchangeRate';
+import UsdExchangeRate from '../../../server/models/UsdExchangeRate';
 import { fakeCurrencyExchangeRate } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
-describe('server/models/CurrencyExchangeRate', () => {
+describe('server/models/UsdExchangeRate', () => {
   let rates;
 
   before(async () => {
@@ -22,7 +22,7 @@ describe('server/models/CurrencyExchangeRate', () => {
 
   describe('getMany', () => {
     it('returns latest rates for multiple currencies', async () => {
-      const result = await CurrencyExchangeRate.getMany('USD', ['EUR', 'NZD']);
+      const result = await UsdExchangeRate.getMany('USD', ['EUR', 'NZD']);
       expect(result).to.have.length(2);
 
       const usdToEur = result.find(rate => rate.to === 'EUR');
@@ -36,7 +36,7 @@ describe('server/models/CurrencyExchangeRate', () => {
 
     it('returns rates from last week for multiple currencies', async () => {
       const twoDaysAgo = new Date(new Date().getTime() - 2 * 24 * 60 * 60 * 1000);
-      const result = await CurrencyExchangeRate.getMany('USD', ['EUR', 'NZD'], twoDaysAgo);
+      const result = await UsdExchangeRate.getMany('USD', ['EUR', 'NZD'], twoDaysAgo);
       expect(result).to.have.length(2);
 
       const usdToEur = result.find(rate => rate.to === 'EUR');
@@ -57,7 +57,7 @@ describe('server/models/CurrencyExchangeRate', () => {
         fakeCurrencyExchangeRate({ from: 'USD', to: 'BRL', rate: 5.2, createdAt: moment().subtract(1, 'days') }),
         fakeCurrencyExchangeRate({ from: 'USD', to: 'BRL', rate: 5.1, createdAt: moment() }),
       ]);
-      const stats = await CurrencyExchangeRate.getPairStats('USD', 'BRL');
+      const stats = await UsdExchangeRate.getPairStats('USD', 'BRL');
 
       expect(stats).to.have.property('latestRate', 5.1);
       expect(stats).to.have.property('stddev');

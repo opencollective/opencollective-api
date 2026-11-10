@@ -37,16 +37,16 @@ describe('cron/daily/register-currency-exchange-rates', () => {
     );
     expect(count).to.eq(SUPPORTED_CURRENCIES.length);
 
-    const [eurToNzd] = await models.CurrencyExchangeRate.getMany('EUR', ['NZD']);
+    const [eurToNzd] = await models.UsdExchangeRate.getMany('EUR', ['NZD']);
     expect(eurToNzd.rate).to.be.closeTo(2, 1e-9);
-    const [nzdToUsd] = await models.CurrencyExchangeRate.getMany('NZD', ['USD']);
+    const [nzdToUsd] = await models.UsdExchangeRate.getMany('NZD', ['USD']);
     expect(nzdToUsd.rate).to.be.closeTo(0.625, 1e-9);
   });
 
   it('fails without storing anything when no rate is returned', async () => {
     sandbox.stub(currencyLib, 'fetchFxRates').resolves({});
     await expect(registerCurrencyExchangeRates()).to.be.rejectedWith('Could not fetch the exchange rates from USD');
-    expect(await models.CurrencyExchangeRate.count()).to.eq(0);
+    expect(await models.UsdExchangeRate.count()).to.eq(0);
   });
 
   it('stores the returned rates, then fails on the missing currencies', async () => {
@@ -55,7 +55,7 @@ describe('cron/daily/register-currency-exchange-rates', () => {
     sandbox.stub(currencyLib, 'fetchFxRates').resolves(rates);
 
     await expect(registerCurrencyExchangeRates()).to.be.rejectedWith('No exchange rate returned for: NZD');
-    const [eurToUsd] = await models.CurrencyExchangeRate.getMany('EUR', ['USD']);
+    const [eurToUsd] = await models.UsdExchangeRate.getMany('EUR', ['USD']);
     expect(eurToUsd.rate).to.be.closeTo(0.5, 1e-9);
   });
 });

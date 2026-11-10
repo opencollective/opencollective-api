@@ -10,6 +10,9 @@ import type { QueryInterface } from 'sequelize';
  * it don't change. Inserts and deletes on the view go to "UsdExchangeRates" (see the triggers).
  * The API code doesn't read the view: it uses `fx_rate(from, to, at)`, defined below.
  *
+ * "CurrencyExchangeRates" is deprecated: the view is a compatibility layer for existing reports
+ * (Metabase), the code uses "UsdExchangeRates" (model `UsdExchangeRate`) and `fx_rate`.
+ *
  * The old table is kept as "CurrencyExchangeRatesArchive", to compare and roll back. Dropping it is
  * left to a later migration.
  */
