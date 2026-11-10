@@ -9,6 +9,7 @@ import OrderStatuses from '../../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../../../server/constants/platform';
 import emailLib from '../../../../../server/lib/email';
+import { getTaxVendor } from '../../../../../server/lib/transactions';
 import models from '../../../../../server/models';
 import { TransactionSettlementStatus } from '../../../../../server/models/TransactionSettlement';
 import {
@@ -80,6 +81,8 @@ describe('server/graphql/v2/mutation/OrderMutations > editPaidManualOrder', () =
   before(async () => {
     await resetTestDB();
     await seedDefaultVendors();
+    // Tax vendors are memoized for the lifetime of the process: drop the ones loaded by previous test files
+    getTaxVendor.cache.clear();
     await fakeHost({ id: PlatformConstants.PlatformCollectiveId, slug: randStr('platform-') });
     hostAdmin = await fakeUser();
     collectiveAdmin = await fakeUser();
@@ -386,7 +389,6 @@ describe('server/graphql/v2/mutation/OrderMutations > editPaidManualOrder', () =
         },
         'IN_PLACE',
       );
-      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.editPaidManualOrder).to.containSubset({
         taxAmount: { valueInCents: 1500 },
