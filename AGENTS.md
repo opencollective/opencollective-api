@@ -25,6 +25,8 @@ Private organizations: `docs/private-organizations.md`.
 
 **Not defects:** public GraphQL introspection, permissive API CORS.
 
+**Security label:** If a PR has a security aspect (permissions, auth, 2FA, OAuth scopes, private accounts, payments, user input handling, or a security fix), add the `security` label to it. The label triggers automated security reviews.
+
 ## Quality
 
 From this repo: `npm run type:check`, `npm run lint:check`, `npm run prettier:check` (fix: `prettier:write`), `npm run ts-unused-exports`.
