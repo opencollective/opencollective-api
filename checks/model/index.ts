@@ -4,6 +4,7 @@ import { sequelize } from '../../server/models';
 
 import { CheckFn, logChecksErrors, runAllChecks } from './_utils';
 import { checks as collectivesChecks } from './collectives';
+import { checks as currencyExchangeRatesChecks } from './currency-exchange-rates';
 import { checks as deadLocksChecks } from './dead-locks';
 import { checks as expensesChecks } from './expenses';
 import { checks as hostedCollectivesChecks } from './hosted-collectives';
@@ -22,6 +23,7 @@ import { checks as zeroDecimalCurrenciesChecks } from './zero-decimal-currencies
 
 const allModelChecks: CheckFn[] = [
   ...collectivesChecks,
+  ...currencyExchangeRatesChecks,
   ...locationsChecks,
   ...deadLocksChecks,
   ...expensesChecks,
