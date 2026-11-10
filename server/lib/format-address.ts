@@ -1,12 +1,6 @@
 import { Location } from '../types/Location';
 
-import {
-  AddressValidationError,
-  AddressValidationIssue,
-  CountryCode,
-  formatAddress as libFormatAddress,
-  getAddressValidationIssues,
-} from './address';
+import { AddressValidationError, CountryCode, formatAddress as libFormatAddress } from './address';
 import { normalizeZoneCode } from './normalize-zone';
 import { reportErrorToSentry } from './sentry';
 
@@ -26,28 +20,6 @@ const getLibAddressFromLocation = ({ country, structured }: Location) => {
     zip: postalCode,
   };
 };
-
-/**
- * Returns the problems of a structured location for its country. Returns an empty list when there is no structured
- * address or no country to validate against.
- *
- * @param ignoreMissingFields only report values that were provided but are invalid (e.g. a malformed postal code)
- */
-export function getLocationValidationIssues(
-  location: Location,
-  { ignoreMissingFields = false }: { ignoreMissingFields?: boolean } = {},
-): AddressValidationIssue[] {
-  if (!location?.structured || !location.country) {
-    return [];
-  }
-
-  try {
-    return getAddressValidationIssues(getLibAddressFromLocation(location), { ignoreMissingFields });
-  } catch {
-    // Unknown country: nothing we can validate against
-    return [];
-  }
-}
 
 export async function formatAddress(
   { country, structured }: Location,

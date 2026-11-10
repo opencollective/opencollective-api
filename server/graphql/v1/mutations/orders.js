@@ -17,7 +17,6 @@ import { VAT_OPTIONS } from '../../../constants/vat';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
 import { roundCentsAmount } from '../../../lib/currency';
-import { getLocationValidationIssues } from '../../../lib/format-address';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import { mustUpdateLocation } from '../../../lib/location';
 import { executeOrder, isBalanceOnlyCollectiveType, isPlatformTipEligible, processOrder } from '../../../lib/payments';
@@ -62,27 +61,6 @@ const mustUpdateNames = (fromAccount, fromAccountInfo) => {
 };
 
 /**
- * Rejects a submitted location whose provided values are not valid for its country (e.g. a malformed postal code),
- * so that the contributor can fix it rather than having it stored as-is. Missing fields are not enforced here.
- */
-const assertValidLocationInput = location => {
-  const issues = getLocationValidationIssues(location, { ignoreMissingFields: true });
-  if (!issues.length) {
-    return;
-  }
-
-  const messages = new Set(
-    issues.map(issue =>
-      issue.field === 'zip'
-        ? `Invalid postal code "${location.structured.postalCode}" for country ${location.country}`
-        : `Invalid state/region "${location.structured.zone}" for country ${location.country}`,
-    ),
-  );
-
-  throw new ValidationFailed([...messages].join(', '));
-};
-
-/**
  * Checks that the profile has all requirements for this contribution (name, address, etc) and updates
  * it if necessary. Must be called **after** checking permissions and authentication!
  */
@@ -97,9 +75,6 @@ const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest) => {
   const isVerifiedProfile = !fromAccount.data?.isGuest;
   if (!isGuest || !isVerifiedProfile) {
     if (mustUpdateLocation(existingLocation, location)) {
-      if (location !== existingLocation) {
-        assertValidLocationInput(location);
-      }
       await fromAccount.setLocation(location);
     }
     if (mustUpdateNames(fromAccount, fromAccountInfo)) {

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { formatAddress, getLocationValidationIssues } from '../../../server/lib/format-address';
+import { formatAddress } from '../../../server/lib/format-address';
 
 describe('server/lib/format-address', () => {
   describe('formatAddress', () => {
@@ -375,37 +375,13 @@ describe('server/lib/format-address', () => {
     });
   });
 
-  describe('getLocationValidationIssues', () => {
-    const validDE = { address1: 'Unter den Linden 1', city: 'Berlin', postalCode: '10117' };
-
-    it('returns no issue for a valid address', () => {
-      expect(getLocationValidationIssues({ country: 'DE', structured: validDE })).to.deep.equal([]);
-    });
-
-    it('returns no issue without structured data or country', () => {
-      expect(getLocationValidationIssues({ country: 'DE' })).to.deep.equal([]);
-      expect(getLocationValidationIssues({ structured: validDE })).to.deep.equal([]);
-      expect(getLocationValidationIssues({ country: 'XX', structured: validDE })).to.deep.equal([]);
-    });
-
-    it('reports a malformed postal code', () => {
-      const issues = getLocationValidationIssues({ country: 'DE', structured: { ...validDE, postalCode: '1234' } });
-      expect(issues.map(i => [i.field, i.type])).to.deep.equal([['zip', 'invalid']]);
-    });
-
-    it('reports missing fields unless ignoreMissingFields is set', () => {
-      const location = { country: 'DE', structured: { postalCode: '10117' } };
-      expect(getLocationValidationIssues(location).map(i => i.field)).to.include.members(['city', 'addressLine1']);
-      expect(getLocationValidationIssues(location, { ignoreMissingFields: true })).to.deep.equal([]);
-    });
-
-    it('still reports provided-but-invalid values with ignoreMissingFields', () => {
-      const issues = getLocationValidationIssues(
-        { country: 'US', structured: { zone: 'Atlantis', postalCode: '1' } },
-        { ignoreMissingFields: true },
-      );
-      expect(issues.map(i => i.field)).to.include.members(['zip', 'state']);
-      expect(issues.every(i => i.type === 'invalid')).to.be.true;
+  describe('fallback for user-provided addresses that do not match the country rules', () => {
+    it('does not throw for a zip with the wrong format (e.g. DZ expects 5 digits)', async () => {
+      const result = await formatAddress({
+        country: 'DZ',
+        structured: { address1: 'Street Name, 123', city: 'Citycitycity', postalCode: '123' },
+      });
+      expect(result).to.equal('Street Name, 123, Citycitycity 123');
     });
   });
 });
