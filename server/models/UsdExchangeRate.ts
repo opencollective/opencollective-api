@@ -23,12 +23,14 @@ class UsdExchangeRate extends Model<InferAttributes<UsdExchangeRate>, InferCreat
   declare public updatedAt: CreationOptional<Date>;
 
   /**
-   * Stores rates from USD (`{ EUR: 0.92, ... }`) and returns the currencies stored. Rates that are
-   * not positive finite numbers are skipped: every pair computed from them would be wrong. One rate
+   * Stores rates from USD (`{ EUR: 0.92, ... }`) and returns the currencies stored. USD is always
+   * stored as 1, whatever the provider returned. Rates that are not positive finite numbers are skipped: every pair computed from them would be wrong. One rate
    * per currency and day: a rate recorded again the same day replaces the previous one if it's
    * more recent.
    */
-  static async record(rates: Record<string, number>, createdAt: Date = new Date()): Promise<string[]> {
+  static async record(inputRates: Record<string, number>, createdAt: Date = new Date()): Promise<string[]> {
+    // USD -> USD is 1 by definition, and every pair involving USD divides by it
+    const rates = 'USD' in inputRates ? { ...inputRates, USD: 1 } : inputRates;
     const currencies = Object.keys(rates).filter(currency => Number.isFinite(rates[currency]) && rates[currency] > 0);
     if (!currencies.length) {
       return [];

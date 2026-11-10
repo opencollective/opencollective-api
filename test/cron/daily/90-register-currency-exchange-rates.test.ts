@@ -43,6 +43,13 @@ describe('cron/daily/register-currency-exchange-rates', () => {
     expect(nzdToUsd.rate).to.be.closeTo(0.625, 1e-9);
   });
 
+  it('stores USD -> USD as 1 whatever the provider returns', async () => {
+    sandbox.stub(currencyLib, 'fetchFxRates').resolves({ ...allRatesFromUsd(), USD: 1.2, EUR: 0.8 });
+    await registerCurrencyExchangeRates();
+    const [eurToUsd] = await models.UsdExchangeRate.getMany('EUR', ['USD']);
+    expect(eurToUsd.rate).to.be.closeTo(1.25, 1e-9);
+  });
+
   it('fails without storing anything when no rate is returned', async () => {
     sandbox.stub(currencyLib, 'fetchFxRates').resolves({});
     await expect(registerCurrencyExchangeRates()).to.be.rejectedWith('Could not fetch the exchange rates from USD');
