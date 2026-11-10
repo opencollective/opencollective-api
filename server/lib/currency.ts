@@ -161,7 +161,12 @@ export async function fetchFxRates(
       const res = await fetch(`https://data.fixer.io/${simplifiedDate}?${searchParams.toString()}`);
       const json = await res.json();
       if (json.error) {
-        reportMessageToSentry(`FX Rate query issue: ${json.error.info} (${searchParams.toString()})`);
+        // Fixer is often briefly unavailable and the caller falls back to the DB: a warning, not an error.
+        // The access key is part of searchParams: never send them to Sentry.
+        reportMessageToSentry(`FX Rate query issue: ${json.error.info}`, {
+          severity: 'warning',
+          extra: { fromCurrency, toCurrencies, date: simplifiedDate },
+        });
         throw new Error('We are unable to fetch some currencies FX rate at the moment');
       }
       const rates = {};
@@ -176,8 +181,8 @@ export async function fetchFxRates(
       if (useMockRate) {
         logger.info(`Unable to fetch fxRate with Fixer API: ${error.message}. Returning 1.1`);
       } else {
-        logger.error(`Unable to fetch fxRate with Fixer API: ${error.message}. Using DB fallback`);
-        reportErrorToSentry(error);
+        logger.warn(`Unable to fetch fxRate with Fixer API: ${error.message}. Using DB fallback`);
+        reportErrorToSentry(error, { severity: 'warning', extra: { fromCurrency, date } });
       }
     }
   }
