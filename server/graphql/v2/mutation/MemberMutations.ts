@@ -28,7 +28,10 @@ const isLastAdmin = async (account, memberAccount) => {
     },
   });
 
-  return admins.length === 1 && admins[0].MemberCollectiveId === memberAccount.id;
+  // `editMember` and `removeMember` change all of the member's ADMIN rows on this account (there can be several),
+  // so check whether any other admin row, including inherited ones from the parent, would remain
+  const isChangedRow = admin => admin.CollectiveId === account.id && admin.MemberCollectiveId === memberAccount.id;
+  return admins.some(isChangedRow) && admins.every(isChangedRow);
 };
 
 const memberMutations = {
