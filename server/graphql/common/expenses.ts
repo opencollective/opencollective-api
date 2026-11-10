@@ -2661,6 +2661,9 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
       throw new Forbidden('You need to be an admin of the collective to import expenses');
     } else if (expenseData.transactionsImportRow.isProcessed()) {
       throw new ValidationFailed('This transaction has already been processed');
+    } else if (expenseCurrency !== collective.host.currency) {
+      // The expense is marked as paid with `expense.amount` booked as a host-currency amount
+      throw new ValidationFailed('Expenses created from a transactions import must be in the host currency');
     }
 
     const transactionsImport = await expenseData.transactionsImportRow.getImport();
