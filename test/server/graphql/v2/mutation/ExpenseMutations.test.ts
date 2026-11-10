@@ -2296,6 +2296,35 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq('Cannot use accounting categories without a host');
       });
 
+      it('uses the existing expense type to check the accounting category when editing other fields without type', async () => {
+        const expense = await fakeExpense({ status: 'PENDING', type: 'INVOICE' });
+        await fakePlatformSubscription({
+          CollectiveId: expense.collective.HostCollectiveId,
+          plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } },
+        });
+        const accountingCategory = await fakeAccountingCategory({
+          CollectiveId: expense.collective.HostCollectiveId,
+          kind: 'EXPENSE',
+          expensesTypes: ['INVOICE'],
+        });
+        const accountingCategoryIdV2 = idEncode(accountingCategory.id, 'accounting-category');
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: {
+              id: idEncode(expense.id, 'expense'),
+              description: 'New description', // Editing another field bypasses the tags/category-only edit path
+              accountingCategory: { id: accountingCategoryIdV2 },
+            },
+          },
+          expense.User,
+        );
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.description).to.eq('New description');
+        expect(result.data.editExpense.accountingCategory.id).to.eq(accountingCategoryIdV2);
+      });
+
       it('reserves the accounting category changes of paid expenses to host admins', async () => {
         const expense = await fakeExpense({ status: 'PAID' });
         const hostAdmin = await fakeUser();

@@ -3569,7 +3569,7 @@ export async function editExpense(
     } else {
       checkCanUseAccountingCategory(
         remoteUser,
-        expenseData.type,
+        expenseType,
         expenseData.accountingCategory,
         expense.host ?? expense.collective.host,
         expense.collective,
