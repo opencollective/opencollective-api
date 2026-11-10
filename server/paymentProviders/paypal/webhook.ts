@@ -12,6 +12,7 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { floatAmountToCents } from '../../lib/currency';
 import logger from '../../lib/logger';
+import { applyPendingTierChangeAfterCharge } from '../../lib/order-tier-change';
 import { createRefundTransaction, pauseOrderInDb } from '../../lib/payments';
 import { validateWebhookEvent, WatchedPaypalWebhookEvent } from '../../lib/paypal';
 import { recordOrderProcessed } from '../../lib/recurring-contributions';
@@ -158,11 +159,14 @@ async function handleSaleCompleted(req: Request): Promise<void> {
     });
   });
 
-  // 3. Send "Thank you" (order.processed) email & record activity
+  // 3. Apply a tier change waiting for this payment (e.g. tier upgrade approved through a new PayPal subscription)
+  await applyPendingTierChangeAfterCharge(order, transaction);
+
+  // 4. Send "Thank you" (order.processed) email & record activity
   const isFirstPayment = order.Subscription.chargeNumber === 1;
   await recordOrderProcessed(order, transaction, { isFirstPayment });
 
-  // 4. Register user as a member, since the transaction is not created in `processOrder`
+  // 5. Register user as a member, since the transaction is not created in `processOrder`
   // for PayPal subscriptions.
   await order.getOrCreateMembers();
 }

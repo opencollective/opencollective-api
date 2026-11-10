@@ -22,6 +22,7 @@ import { applyContributionAccountingCategoryRules } from '../../lib/accounting/c
 import { getFxRate, isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { lockUntilResolved } from '../../lib/mutex';
+import { applyPendingTierChangeAfterCharge } from '../../lib/order-tier-change';
 import {
   createRefundTransaction,
   createSubscription,
@@ -315,6 +316,8 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
           previousStripePaymentIntents: [...(order.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
         },
       }),
+    // Apply a tier change waiting for this payment before registering the membership
+    () => applyPendingTierChangeAfterCharge(order, transaction),
     () => order.getOrCreateMembers(),
   ];
 
