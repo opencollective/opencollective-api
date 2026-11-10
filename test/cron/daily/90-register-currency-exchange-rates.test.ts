@@ -30,6 +30,13 @@ describe('cron/daily/register-currency-exchange-rates', () => {
     expect(bases).to.include('ZMW'); // last of the list, after the failing currency
   });
 
+  it('reports a currency for which no rates are returned and keeps processing the others', async () => {
+    sandbox.stub(currencyLib, 'fetchFxRates').callsFake(async from => (from === 'EUR' ? {} : { USD: 1.5 }));
+
+    await expect(registerCurrencyExchangeRates()).to.be.rejectedWith('Could not store exchange rates for: EUR');
+    expect(await models.CurrencyExchangeRate.count()).to.eq(SUPPORTED_CURRENCIES.length - 1);
+  });
+
   it('succeeds when every currency is stored', async () => {
     sandbox.stub(currencyLib, 'fetchFxRates').resolves({ USD: 1.5 });
     await registerCurrencyExchangeRates();
