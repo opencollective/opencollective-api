@@ -1000,6 +1000,25 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(location.address).to.include('123 Main St');
           expect(location.address).to.include('New York');
         });
+
+        it('Rejects a guest location with a postal code that is invalid for the country', async () => {
+          const orderData = {
+            ...validOrderParams,
+            fromAccount: null,
+            guestInfo: {
+              email: randEmail(),
+              captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
+              location: {
+                country: 'DE',
+                structured: { address1: 'Unter den Linden 1', city: 'Berlin', postalCode: '1234' },
+              },
+            },
+          };
+
+          const result = await callCreateOrder({ order: orderData });
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal('Invalid postal code "1234" for country DE');
+        });
       });
 
       describe('Common checks', () => {

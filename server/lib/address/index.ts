@@ -61,41 +61,85 @@ const REQUIRABLE_FIELDS = {
   A: 'addressLine1',
 } as const;
 
-/**
- * Throws if the address is missing a required field, has a zip that doesn't match the country's (or sub-region's)
- * format, or has an unknown state in a country where the state is required.
- */
-const validateAddress = (address: Address): void => {
-  const countryData = getCountryData(address.country);
-  const errors: string[] = [];
+export type AddressValidationIssue = {
+  field: (typeof REQUIRABLE_FIELDS)[keyof typeof REQUIRABLE_FIELDS];
+  /** `missing`: a required field is empty. `invalid`: the provided value doesn't match the country's rules */
+  type: 'missing' | 'invalid';
+  message: string;
+};
 
-  for (const [abbr, field] of Object.entries(REQUIRABLE_FIELDS)) {
-    if (countryData.require.includes(abbr) && !(address as Record<string, string>)[field]?.trim()) {
-      errors.push(`Field ${field} is required`);
-    }
+export class AddressValidationError extends Error {
+  readonly country: string;
+  readonly issues: AddressValidationIssue[];
+
+  constructor(country: string, issues: AddressValidationIssue[]) {
+    super(`Address validation failed: ${issues.map(issue => issue.message).join(', ')}`);
+    this.name = 'AddressValidationError';
+    this.country = country;
+    this.issues = issues;
   }
+}
 
-  if (countryData.zip) {
-    const regex = new RegExp(`^${countryData.zip}$`);
-    const subRegion = address.state ? countryData.sub_regions?.find(sr => sr.key === address.state) : null;
-    const zip = address.zip?.trim() ?? '';
-    if (!regex.test(zip)) {
-      errors.push(`Zip format invalid. Expected: /${regex.source}/`);
-    }
-    if (subRegion?.zip) {
-      const subRegionRegex = new RegExp(`^${subRegion.zip}`);
-      if (!subRegionRegex.test(zip)) {
-        errors.push(`Zip format invalid. Expected: /${regex.source}/ and /${subRegionRegex.source}/`);
+/**
+ * Lists the problems of an address: missing required fields, a zip that doesn't match the country's (or sub-region's)
+ * format, or an unknown state in a country where the state is required.
+ *
+ * @param ignoreMissingFields only report values that were provided but are invalid
+ * @throws if the country is unknown
+ */
+export const getAddressValidationIssues = (
+  address: Address,
+  { ignoreMissingFields = false }: { ignoreMissingFields?: boolean } = {},
+): AddressValidationIssue[] => {
+  const countryData = getCountryData(address.country);
+  const issues: AddressValidationIssue[] = [];
+
+  if (!ignoreMissingFields) {
+    for (const [abbr, field] of Object.entries(REQUIRABLE_FIELDS)) {
+      if (countryData.require.includes(abbr) && !(address as Record<string, string>)[field]?.trim()) {
+        issues.push({ field, type: 'missing', message: `Field ${field} is required` });
       }
     }
   }
 
-  if (countryData.require.includes('S') && !countryData.sub_regions?.find(sr => sr.key === address.state)) {
-    errors.push(`State invalid for country: ${address.country}`);
+  const zip = address.zip?.trim() ?? '';
+  if (countryData.zip && (zip || !ignoreMissingFields)) {
+    const regex = new RegExp(`^${countryData.zip}$`);
+    const subRegion = address.state ? countryData.sub_regions?.find(sr => sr.key === address.state) : null;
+    if (!regex.test(zip)) {
+      issues.push({ field: 'zip', type: 'invalid', message: `Zip format invalid. Expected: /${regex.source}/` });
+    }
+    if (subRegion?.zip) {
+      const subRegionRegex = new RegExp(`^${subRegion.zip}`);
+      if (!subRegionRegex.test(zip)) {
+        issues.push({
+          field: 'zip',
+          type: 'invalid',
+          message: `Zip format invalid. Expected: /${regex.source}/ and /${subRegionRegex.source}/`,
+        });
+      }
+    }
   }
 
-  if (errors.length) {
-    throw new Error(`Address validation failed: ${errors.join(', ')}`);
+  const hasState = Boolean(address.state?.trim());
+  if (
+    countryData.require.includes('S') &&
+    (hasState || !ignoreMissingFields) &&
+    !countryData.sub_regions?.find(sr => sr.key === address.state)
+  ) {
+    issues.push({ field: 'state', type: 'invalid', message: `State invalid for country: ${address.country}` });
+  }
+
+  return issues;
+};
+
+/**
+ * Throws an `AddressValidationError` if the address is not valid for its country (see `getAddressValidationIssues`).
+ */
+const validateAddress = (address: Address): void => {
+  const issues = getAddressValidationIssues(address);
+  if (issues.length) {
+    throw new AddressValidationError(address.country, issues);
   }
 };
 
