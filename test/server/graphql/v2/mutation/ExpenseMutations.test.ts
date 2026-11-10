@@ -3590,6 +3590,77 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(get(expense.data, 'invoiceFile.url')).to.eql(invoiceUploadedFile.getDataValue('url'));
       });
 
+      it('keeps the items and taxes of a DRAFT when only its description is edited', async () => {
+        const collective = await fakeCollective({ currency: 'USD' });
+        const draftAuthor = await fakeUser();
+        const expense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: ExpenseTypes.INVOICE,
+          currency: 'USD',
+          amount: 11550,
+          CollectiveId: collective.id,
+          UserId: draftAuthor.id,
+          data: {
+            items: [{ description: 'Item', amount: 10000, currency: 'EUR', expenseCurrencyFxRate: 1.1 }],
+            taxes: [{ type: 'VAT', rate: 0.05 }],
+          },
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: 'New description' } },
+          draftAuthor,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await expense.reload();
+        expect(expense.description).to.equal('New description');
+        expect(draftItems(expense)).to.have.length(1);
+        expect(draftItems(expense)[0]).to.deep.include({ amount: 10000, currency: 'EUR', expenseCurrencyFxRate: 1.1 });
+        expect(expense.data.taxes).to.deep.equal([{ type: 'VAT', rate: 0.05 }]);
+        expect(expense.amount).to.equal(11550);
+      });
+
+      it('keeps the taxes of a DRAFT when its items are edited without `tax`', async () => {
+        const collective = await fakeCollective({ currency: 'USD' });
+        const draftAuthor = await fakeUser();
+        const expense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: ExpenseTypes.INVOICE,
+          currency: 'USD',
+          amount: 1050,
+          CollectiveId: collective.id,
+          UserId: draftAuthor.id,
+          data: {
+            items: [{ description: 'Item', amount: 1000, currency: 'USD' }],
+            taxes: [{ type: 'VAT', rate: 0.05 }],
+          },
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: {
+              id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+              items: [
+                {
+                  amountV2: { valueInCents: 2000, currency: 'USD' },
+                  description: 'Item',
+                  incurredAt: '2023-09-26T00:00:00.000Z',
+                },
+              ],
+            },
+          },
+          draftAuthor,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await expense.reload();
+        expect(draftItems(expense)[0]).to.deep.include({ amount: 2000, currency: 'USD' });
+        expect(expense.data.taxes).to.deep.equal([{ type: 'VAT', rate: 0.05 }]);
+        expect(expense.amount).to.equal(2100);
+      });
+
       it('send notification to invited external user when DRAFT is updated', async () => {
         const collective = await fakeCollective({ currency: 'EUR', settings: vatSettings({ type: 'OWN' }) });
         const draftAuthor = await fakeUser();
