@@ -1599,6 +1599,42 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(transactions[0].amount).to.eq(-4200);
         expect(transactions[0].amountInHostCurrency).to.eq(-4200);
       });
+
+      it('must be in the host currency', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user, currency: 'USD' });
+        const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+        const transactionsImport = await fakeTransactionsImport({ CollectiveId: host.id });
+        const transactionsImportRow = await fakeTransactionsImportRow({
+          TransactionsImportId: transactionsImport.id,
+          amount: -1000,
+          currency: 'USD',
+        });
+        const expenseData = {
+          ...getValidExpenseData(),
+          currency: 'JPY',
+          payee: { legacyId: user.CollectiveId },
+          items: [{ description: 'A first item', amountV2: { valueInCents: 100000, currency: 'JPY' } }],
+        };
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            transactionsImportRow: { id: idEncode(transactionsImportRow.id, 'transactions-import-row') },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq(
+          'Expenses created from a transactions import must be in the host currency',
+        );
+        expect(await models.Expense.count({ where: { CollectiveId: collective.id } })).to.eq(0);
+        await transactionsImportRow.reload();
+        expect(transactionsImportRow.ExpenseId).to.be.null;
+      });
     });
 
     describe('with uploaded files', () => {
