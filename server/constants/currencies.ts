@@ -252,7 +252,7 @@ export const SUPPORTED_CURRENCIES = [
   'MMK',
   'MNT',
   'MOP',
-  'MRO',
+  'MRU',
   'MUR',
   'MVR',
   'MWK',
