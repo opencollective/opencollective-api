@@ -3110,16 +3110,15 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
   }
 
   const currency = expenseData.currency || existingExpense.currency;
-  const items =
-    (await prepareExpenseItemInputs(
-      req,
-      currency,
-      expenseData.items || (existingExpense.data.items as Array<Record<string, unknown> & { url?: string }>),
-      {
+  // Items stored in `data.items` are already prepared. Running them through `prepareExpenseItemInputs` again
+  // would treat them as legacy `amount` inputs and reset their currency and FX rate.
+  const items = expenseData.items
+    ? await prepareExpenseItemInputs(req, currency, expenseData.items, {
         isEditing: true,
         expenseType: expenseData.type || existingExpense.type,
-      },
-    )) || existingExpense.items;
+      })
+    : (existingExpense.data.items as Array<Partial<ExpenseItem>>) || existingExpense.items;
+  const taxes = expenseData.tax !== undefined ? expenseData.tax : existingExpense.data?.taxes;
 
   const attachedFiles =
     (await prepareAttachedFiles(req, expenseData.attachedFiles)) || existingExpense.data.attachedFiles;
@@ -3141,12 +3140,12 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
 
   const newExpenseValues = {
     ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
-    amount: models.Expense.computeTotalAmountForExpense(items, expenseData.tax),
+    amount: models.Expense.computeTotalAmountForExpense(items, taxes),
     lastEditedById: req.remoteUser.id,
     UserId: req.remoteUser.id,
     data: {
       items,
-      taxes: expenseData.tax,
+      taxes,
       attachedFiles: attachedFiles,
       invoiceFile: invoiceFileUrl ? { url: invoiceFileUrl } : null,
     },
