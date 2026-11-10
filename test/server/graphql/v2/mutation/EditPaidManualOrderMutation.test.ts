@@ -252,6 +252,8 @@ describe('server/graphql/v2/mutation/OrderMutations > editPaidManualOrder', () =
       expect(result.errors[0].message).to.equal('hostFeePercent should be a value between 0 and 100.');
       result = await callEdit(order, { amount: { valueInCents: 5000, currency: 'EUR' } });
       expect(result.errors[0].message).to.match(/Expected currency/i);
+      result = await callEdit(order, { tax: { type: 'GST', rate: 1.5 } });
+      expect(result.errors[0].message).to.equal('Tax rate must be between 0 and 1');
 
       // Nothing changed
       const transactions = await getAllOrderTransactions(order);

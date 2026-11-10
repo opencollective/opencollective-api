@@ -228,6 +228,9 @@ const applyOrderUpdateInput = (order: Order, input, { fromAccount, toAccount, ho
     order.set('data', { ...order.data, paymentProcessorFee: paymentProcessorFeeInCents });
   }
   if (!isNil(tax)) {
+    if (!isNil(tax.rate) && (tax.rate < 0 || tax.rate > 1)) {
+      throw new ValidationFailed('Tax rate must be between 0 and 1');
+    }
     const quantity = 1; // Not supported yet by OrderUpdateInput
     const { taxInfo, taxAmount } = getOrderTaxInfo(
       tax,
