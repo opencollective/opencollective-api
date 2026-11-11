@@ -16,17 +16,11 @@ import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getFxRate, roundCentsAmount } from '../../server/lib/currency';
 import { getPendingHostFeeShare } from '../../server/lib/host-metrics';
 import logger from '../../server/lib/logger';
+import { selectPlatformPayoutMethod } from '../../server/lib/platform-subscriptions';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { getHostPlatformTipsAccount } from '../../server/lib/transactions';
 import { parseToBoolean } from '../../server/lib/utils';
-import models, {
-  Collective,
-  ConnectedAccount,
-  Expense,
-  PaymentMethod,
-  sequelize,
-  Transaction,
-} from '../../server/models';
+import models, { Collective, Expense, PaymentMethod, sequelize, Transaction } from '../../server/models';
 import { ExpenseStatus, ExpenseType } from '../../server/models/Expense';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { TransactionSettlementStatus } from '../../server/models/TransactionSettlement';
@@ -86,7 +80,7 @@ async function getLastPaidSettlementManagedPayoutMethod(host): Promise<PayoutMet
     include: [
       {
         model: PayoutMethod,
-        attributes: ['type'],
+        attributes: ['id', 'type'],
         paranoid: false, // even if it was deleted at some point, we just want to know the type used
       },
       {
@@ -104,34 +98,6 @@ async function getLastPaidSettlementManagedPayoutMethod(host): Promise<PayoutMet
   }
 
   return res.PayoutMethod;
-}
-
-function isValidHostPayoutMethodType(
-  host: Collective,
-  hostConnectedAccounts: ConnectedAccount[],
-  payoutMethodType: PayoutMethodTypes,
-): boolean {
-  switch (payoutMethodType) {
-    case PayoutMethodTypes.PAYPAL: {
-      if (hostConnectedAccounts?.find(c => c.service === 'paypal') && !host.settings?.['disablePaypalPayouts']) {
-        return true;
-      }
-      break;
-    }
-    case PayoutMethodTypes.BANK_ACCOUNT: {
-      if (hostConnectedAccounts?.find(c => c.service === 'transferwise')) {
-        return true;
-      }
-      break;
-    }
-
-    case PayoutMethodTypes.OTHER:
-    case PayoutMethodTypes.STRIPE: {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 /**
@@ -525,32 +491,6 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       where: { deletedAt: null },
     });
 
-    const lastPayoutMethod = await getLastPaidSettlementManagedPayoutMethod(host);
-    const payoutMethod = [
-      lastPayoutMethod?.type,
-      PayoutMethodTypes.STRIPE,
-      PayoutMethodTypes.BANK_ACCOUNT,
-      PayoutMethodTypes.PAYPAL,
-      PayoutMethodTypes.OTHER,
-    ]
-      .filter(Boolean)
-      .filter(type => isValidHostPayoutMethodType(host, connectedAccounts, type))
-      .map(type => {
-        if (type === lastPayoutMethod?.type && payoutMethods[type]?.some(pm => pm.id === lastPayoutMethod.id)) {
-          return lastPayoutMethod;
-        }
-
-        if (type === PayoutMethodTypes.BANK_ACCOUNT) {
-          return settlementBankAccountPayoutMethod;
-        }
-        return payoutMethods[type]?.[0];
-      })
-      .find(Boolean);
-
-    if (!payoutMethod) {
-      throw new Error('No Payout Method found, the platform account needs to have at least one payout method.');
-    }
-
     const hostToUsdFxRate = await getFxRate(host.currency, 'USD');
 
     // The minimum-amount threshold is applied to the COMBINED total of both bundles, not each bundle
@@ -561,6 +501,20 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     const combinedAmountChargedInUsd =
       (sumBy(hostItems, 'amount') + sumBy(platformTipsItems, 'amount')) * hostToUsdFxRate;
     const belowThreshold = combinedAmountChargedInUsd < MIN_AMOUNT_USD;
+
+    // Both bundles share the payout method, so Stripe is ruled out on their combined amount.
+    const payoutMethod = selectPlatformPayoutMethod({
+      host,
+      hostConnectedAccounts: connectedAccounts,
+      lastUsedPayoutMethod: await getLastPaidSettlementManagedPayoutMethod(host),
+      platformPayoutMethods: payoutMethods,
+      bankAccountPayoutMethod: settlementBankAccountPayoutMethod,
+      amountInUSD: combinedAmountChargedInUsd,
+    });
+
+    if (!payoutMethod) {
+      throw new Error('No Payout Method found, the platform account needs to have at least one payout method.');
+    }
 
     // --- Host-billed settlement expense (legacy tips + platform share + per-collective fee) ---
     if (hostItems.length > 0) {
