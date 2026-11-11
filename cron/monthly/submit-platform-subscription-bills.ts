@@ -205,10 +205,12 @@ export async function run(
         },
       ]);
 
+      const totalAmountCharged = sumBy(items, 'amount');
       const payoutMethod = await PlatformSubscription.getPreferredPlatformPayout(
         organization,
         payoutMethods,
         settlementBankAccountPayoutMethod,
+        totalAmountCharged, // bills are in USD
       );
 
       if (!payoutMethod) {
@@ -217,7 +219,6 @@ export async function run(
         );
       }
 
-      const totalAmountCharged = sumBy(items, 'amount');
       const expenseData = {
         FromCollectiveId: PlatformConstants.PlatformCollectiveId,
         lastEditedById: PlatformConstants.PlatformUserId,
