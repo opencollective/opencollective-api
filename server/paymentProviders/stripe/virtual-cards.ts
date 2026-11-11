@@ -17,6 +17,12 @@ import models from '../../models';
 import VirtualCard from '../../models/VirtualCard';
 import { getOrCreateVendor, getVirtualCardForTransaction, persistVirtualCardTransaction } from '../utils';
 
+// `Stripe.Issuing.CardUpdateParams` is re-exported by stripe-node as a type only, without its nested
+// namespace, so derive the member types from it instead of `CardUpdateParams.SpendingControls...`.
+type CardUpdateParams = Stripe.Issuing.CardUpdateParams;
+type SpendingLimitInterval = CardUpdateParams['spending_controls']['spending_limits'][number]['interval'];
+type CardStatus = CardUpdateParams['status'];
+
 export const assignCardToCollective = async (cardNumber, expiryDate, cvv, name, collectiveId, host, userId) => {
   const stripe = await getStripeClient(host);
   if (!stripe) {
@@ -88,9 +94,7 @@ export const createVirtualCard = async (
       spending_limits: [
         {
           amount: limitAmount,
-          interval: <Stripe.Issuing.CardUpdateParams.SpendingControls.SpendingLimit.Interval>(
-            limitInterval.toLowerCase()
-          ),
+          interval: <SpendingLimitInterval>limitInterval.toLowerCase(),
         },
       ],
     },
@@ -122,16 +126,14 @@ export const updateVirtualCardLimit = async (
       spending_limits: [
         {
           amount: limitAmount,
-          interval: <Stripe.Issuing.CardUpdateParams.SpendingControls.SpendingLimit.Interval>(
-            limitInterval.toLowerCase()
-          ),
+          interval: <SpendingLimitInterval>limitInterval.toLowerCase(),
         },
       ],
     },
   });
 };
 
-const setCardStatus = async (virtualCard: VirtualCard, status: Stripe.Issuing.CardUpdateParams.Status) => {
+const setCardStatus = async (virtualCard: VirtualCard, status: CardStatus) => {
   const host = await virtualCard.getHost();
   const stripe = await getStripeClient(host);
   if (!stripe) {
