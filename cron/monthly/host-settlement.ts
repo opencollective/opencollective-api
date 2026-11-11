@@ -16,12 +16,11 @@ import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getFxRate, roundCentsAmount } from '../../server/lib/currency';
 import { getPendingHostFeeShare } from '../../server/lib/host-metrics';
 import logger from '../../server/lib/logger';
-import { selectPlatformPayoutMethod } from '../../server/lib/platform-subscriptions';
+import { getLastUsedPlatformPayoutMethod, selectPlatformPayoutMethod } from '../../server/lib/platform-subscriptions';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { getHostPlatformTipsAccount } from '../../server/lib/transactions';
 import { parseToBoolean } from '../../server/lib/utils';
-import models, { Collective, Expense, PaymentMethod, sequelize, Transaction } from '../../server/models';
-import { ExpenseStatus, ExpenseType } from '../../server/models/Expense';
+import models, { Collective, Expense, sequelize, Transaction } from '../../server/models';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { TransactionSettlementStatus } from '../../server/models/TransactionSettlement';
 import { runCronJob } from '../utils';
@@ -67,38 +66,6 @@ const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
 const KIND = process.env.KIND;
 const { PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT } = TransactionKind;
-
-// return last payout method used for the last paid settlement if its was not manual or other.
-async function getLastPaidSettlementManagedPayoutMethod(host): Promise<PayoutMethod> {
-  const res = await Expense.findOne({
-    where: {
-      CollectiveId: host.id,
-      type: ExpenseType.SETTLEMENT,
-      status: ExpenseStatus.PAID,
-    },
-    attributes: [],
-    include: [
-      {
-        model: PayoutMethod,
-        attributes: ['id', 'type'],
-        paranoid: false, // even if it was deleted at some point, we just want to know the type used
-      },
-      {
-        model: PaymentMethod,
-        as: 'paymentMethod',
-        attributes: ['type'],
-        paranoid: false, // even if it was deleted at some point, we just want to know the type used
-      },
-    ],
-    order: [['createdAt', 'desc']],
-  });
-
-  if (!res) {
-    return null;
-  }
-
-  return res.PayoutMethod;
-}
 
 /**
  * Create one SETTLEMENT expense from OFiTech against `billedCollective`, attach its items + CSV,
@@ -506,7 +473,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     const payoutMethod = selectPlatformPayoutMethod({
       host,
       hostConnectedAccounts: connectedAccounts,
-      lastUsedPayoutMethod: await getLastPaidSettlementManagedPayoutMethod(host),
+      lastUsedPayoutMethod: await getLastUsedPlatformPayoutMethod(host),
       platformPayoutMethods: payoutMethods,
       bankAccountPayoutMethod: settlementBankAccountPayoutMethod,
       amountInUSD: combinedAmountChargedInUsd,

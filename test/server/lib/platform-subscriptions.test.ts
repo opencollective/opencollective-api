@@ -1,10 +1,15 @@
 import { expect } from 'chai';
 
-import { getPreferredPlatformPayout, selectPlatformPayoutMethod } from '../../../server/lib/platform-subscriptions';
+import {
+  getLastUsedPlatformPayoutMethod,
+  getPreferredPlatformPayout,
+  selectPlatformPayoutMethod,
+} from '../../../server/lib/platform-subscriptions';
 import { ExpenseStatus, ExpenseType } from '../../../server/models/Expense';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
   fakeActiveHost,
+  fakeCollective,
   fakeConnectedAccount,
   fakeExpense,
   fakeOrganization,
@@ -114,6 +119,35 @@ describe('server/lib/platform-subscriptions', () => {
       await payBill(host, otherPayoutMethod);
       const payoutMethod = await getPreferredPlatformPayout(host, platformPayoutMethods, bankPayoutMethod, 32000);
       expect(payoutMethod.id).to.equal(stripePayoutMethod.id);
+    });
+
+    it('follows the payout method of the last paid settlement', async () => {
+      const host = await createHostWithWise();
+      await payBill(host, stripePayoutMethod);
+      await fakeExpense({
+        type: ExpenseType.SETTLEMENT,
+        status: ExpenseStatus.PAID,
+        CollectiveId: host.id,
+        FromCollectiveId: platform.id,
+        PayoutMethodId: paypalPayoutMethod.id,
+      });
+      await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal' });
+      const payoutMethod = await getPreferredPlatformPayout(host, platformPayoutMethods, bankPayoutMethod, 32000);
+      expect(payoutMethod.id).to.equal(paypalPayoutMethod.id);
+    });
+
+    it('counts settlements billed to the platform-tips account of the host', async () => {
+      const host = await createHostWithWise();
+      const platformTipsAccount = await fakeCollective({ ParentCollectiveId: host.id, HostCollectiveId: host.id });
+      await fakeExpense({
+        type: ExpenseType.SETTLEMENT,
+        status: ExpenseStatus.PAID,
+        CollectiveId: platformTipsAccount.id,
+        HostCollectiveId: host.id,
+        FromCollectiveId: platform.id,
+        PayoutMethodId: bankPayoutMethod.id,
+      });
+      expect((await getLastUsedPlatformPayoutMethod(host)).id).to.equal(bankPayoutMethod.id);
     });
 
     it('uses the bank account for a large first bill', async () => {
