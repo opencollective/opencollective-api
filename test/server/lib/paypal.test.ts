@@ -6,6 +6,7 @@ import { createSandbox } from 'sinon';
 import {
   executePayouts,
   getHostsWithPayPalConnected,
+  getPayoutItem,
   validateConnectedAccount,
   validateWebhookEvent,
 } from '../../../server/lib/paypal';
@@ -158,6 +159,30 @@ describe('lib/paypal', () => {
       }
 
       expect(caught).to.equal(error);
+    });
+  });
+
+  describe('getPayoutItem', () => {
+    let execute;
+
+    before(() => {
+      execute = sandbox.stub();
+      sandbox.stub(paypalPayoutsSDK.core, 'PayPalHttpClient').returns({ execute });
+    });
+    after(() => {
+      sandbox.restore();
+    });
+
+    it('fetches the payout item from the single-item endpoint', async () => {
+      const payoutItem = { payout_item_id: 'ITEM-1', transaction_status: 'FAILED' };
+      execute.resolves({ result: payoutItem });
+
+      const result = await getPayoutItem(connectedAccount as unknown as ConnectedAccount, 'ITEM-1');
+
+      expect(result).to.deep.equal(payoutItem);
+      const request = execute.getCall(0).args[0];
+      expect(request.verb).to.equal('GET');
+      expect(request.path).to.equal('/v1/payments/payouts-item/ITEM-1?');
     });
   });
 
