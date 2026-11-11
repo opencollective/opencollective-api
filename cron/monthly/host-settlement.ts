@@ -469,14 +469,17 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       (sumBy(hostItems, 'amount') + sumBy(platformTipsItems, 'amount')) * hostToUsdFxRate;
     const belowThreshold = combinedAmountChargedInUsd < MIN_AMOUNT_USD;
 
-    // Both bundles share the payout method, so Stripe is ruled out on their combined amount.
+    // Both bundles share the payout method, so Stripe is ruled out on the combined amount of the bundles that will be
+    // billed: a negative bundle is rolled forward, it doesn't lower what the other one charges.
+    const billedAmountInUsd =
+      (Math.max(sumBy(hostItems, 'amount'), 0) + Math.max(sumBy(platformTipsItems, 'amount'), 0)) * hostToUsdFxRate;
     const payoutMethod = selectPlatformPayoutMethod({
       host,
       hostConnectedAccounts: connectedAccounts,
       lastUsedPayoutMethod: await getLastUsedPlatformPayoutMethod(host),
       platformPayoutMethods: payoutMethods,
       bankAccountPayoutMethod: settlementBankAccountPayoutMethod,
-      amountInUSD: combinedAmountChargedInUsd,
+      amountInUSD: billedAmountInUsd,
     });
 
     if (!payoutMethod) {
