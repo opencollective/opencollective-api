@@ -1,4 +1,5 @@
 import config from 'config';
+import { Op } from 'sequelize';
 
 import { Collective, ConnectedAccount, Expense, PayoutMethod } from '../models';
 import { ExpenseStatus, ExpenseType } from '../models/Expense';
@@ -73,7 +74,7 @@ export async function getPreferredPlatformPayout(
   bankAccountPayoutMethod: PayoutMethod,
   amountInUSD: number,
 ): Promise<PayoutMethod | null> {
-  const lastUsedPayoutMethod = await getLastUsedPayoutMethod(organization);
+  const lastUsedPayoutMethod = await getLastUsedPlatformPayoutMethod(organization);
   const host = await organization.getHostCollective();
   const hostConnectedAccounts = (await host?.getConnectedAccounts()) ?? [];
 
@@ -100,11 +101,19 @@ export async function chargeExpense(expense: Expense) {
   }
 }
 
-async function getLastUsedPayoutMethod(organization: Collective): Promise<PayoutMethod> {
+/**
+ * The payout method of the last paid platform expense (settlement or platform bill) billed to this account, or to
+ * its platform-tips account: both kinds share the same habit, so switching one of them is remembered for the other.
+ */
+export async function getLastUsedPlatformPayoutMethod(account: Collective): Promise<PayoutMethod | null> {
   const res = await Expense.findOne({
     where: {
-      CollectiveId: organization.id,
-      type: ExpenseType.PLATFORM_BILLING,
+      [Op.or]: [
+        { CollectiveId: account.id },
+        // Platform tips settlements are billed to the host's platform-tips account, with the host as HostCollectiveId
+        { HostCollectiveId: account.id, type: ExpenseType.SETTLEMENT },
+      ],
+      type: [ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING],
       status: ExpenseStatus.PAID,
     },
     attributes: [],
@@ -119,7 +128,7 @@ async function getLastUsedPayoutMethod(organization: Collective): Promise<Payout
   });
 
   // "Other" is the fallback when nothing else applies, not a choice: try the automated payout methods again.
-  // A bill paid manually to the bank account still counts, it's how this organization pays.
+  // An expense paid manually to the bank account still counts, it's how this account pays.
   if (!res || res.PayoutMethod?.type === PayoutMethodTypes.OTHER) {
     return null;
   }
