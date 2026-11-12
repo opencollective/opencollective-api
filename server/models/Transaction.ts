@@ -1133,23 +1133,10 @@ class Transaction extends ModelWithPublicId<
     const hostCurrencyFxRate = transaction.hostCurrencyFxRate;
     const amountInHostCurrency = -transaction.taxAmount * hostCurrencyFxRate;
 
-    let FromCollectiveId, CollectiveId;
-    if (!transaction.isRefund) {
-      CollectiveId = vendor.id;
-      if (transaction.kind === EXPENSE) {
-        FromCollectiveId = transaction.FromCollectiveId;
-      } else {
-        FromCollectiveId = transaction.CollectiveId;
-      }
-    } else {
-      // it's not likely to be used like this, as taxes are separated
-      FromCollectiveId = vendor.id;
-      if (transaction.kind === EXPENSE) {
-        CollectiveId = transaction.FromCollectiveId;
-      } else {
-        CollectiveId = transaction.CollectiveId;
-      }
-    }
+    // The direction is carried by the sign of the amount: positive (vendor is credited) for regular transactions,
+    // negative (vendor is debited, tax goes back to the account) for refunds since their taxAmount is already flipped.
+    const CollectiveId = vendor.id;
+    const FromCollectiveId = transaction.kind === EXPENSE ? transaction.FromCollectiveId : transaction.CollectiveId;
 
     const taxTransactionData = {
       type: CREDIT,

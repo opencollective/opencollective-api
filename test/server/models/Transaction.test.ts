@@ -11,6 +11,7 @@ import PlatformConstants from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../../server/constants/transactions';
 import * as LibActivities from '../../../server/lib/activities';
+import { createRefundTransaction } from '../../../server/lib/payments';
 import { getHostPlatformTipsAccount } from '../../../server/lib/transactions';
 import type { Transaction as TransactionModel } from '../../../server/models';
 import models, { Op } from '../../../server/models';
@@ -883,6 +884,51 @@ describe('server/models/Transaction', () => {
         // Validation of the opposite side must agree with the stored rounding
         await Transaction.validate(debit, { oppositeTransaction: credit });
       });
+    });
+  });
+
+  describe('createTaxTransactions', () => {
+    it('gives the tax back to the collective when refunding a contribution with embedded tax', async () => {
+      // Legacy contribution, tax embedded in the transaction (taxes not separated yet)
+      sandbox.stub(config.ledger, 'separateTaxes').value(false);
+      const contribution = await models.Transaction.createDoubleEntry({
+        type: TransactionTypes.CREDIT,
+        kind: TransactionKind.CONTRIBUTION,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        CreatedByUserId: user.id,
+        amount: 1000,
+        amountInHostCurrency: 1000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        hostCurrencyFxRate: 1,
+        taxAmount: -200,
+        netAmountInCollectiveCurrency: 800,
+        description: 'Legacy contribution with embedded tax',
+      });
+      expect(await collective.getBalance()).to.equal(800);
+
+      // Refund it once taxes are separated
+      sandbox.stub(config.ledger, 'separateTaxes').value(true);
+      const refundedContribution = await createRefundTransaction(contribution, 0, null, user);
+      const refund = await models.Transaction.findByPk(refundedContribution.RefundTransactionId);
+
+      const vendor = await models.Collective.findBySlug('other-tax-vendor');
+      const taxTransactions = await models.Transaction.findAll({
+        where: { TransactionGroup: refund.TransactionGroup, kind: TransactionKind.TAX },
+      });
+      expect(taxTransactions).to.have.length(2);
+      const taxCredit = taxTransactions.find(t => t.type === TransactionTypes.CREDIT);
+      const taxDebit = taxTransactions.find(t => t.type === TransactionTypes.DEBIT);
+      expect(taxCredit.CollectiveId).to.equal(collective.id);
+      expect(taxCredit.FromCollectiveId).to.equal(vendor.id);
+      expect(taxCredit.HostCollectiveId).to.equal(host.id);
+      expect(taxCredit.amount).to.equal(200);
+      expect(taxDebit.CollectiveId).to.equal(vendor.id);
+      expect(taxDebit.amount).to.equal(-200);
+
+      expect(await collective.getBalance()).to.equal(0);
     });
   });
 
