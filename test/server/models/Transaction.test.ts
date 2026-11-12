@@ -17,6 +17,7 @@ import models, { Op } from '../../../server/models';
 
 type TransactionPayload = Partial<TransactionModel> & { totalAmount?: number; platformTipAmount?: number };
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeHost,
   fakeOrder,
@@ -801,6 +802,85 @@ describe('server/models/Transaction', () => {
       expect(debit.amountInHostCurrency).to.equal(0);
       expect(debit.paymentProcessorFeeInHostCurrency).to.equal(-500);
       expect(debit.netAmountInCollectiveCurrency).to.equal(-500);
+    });
+
+    describe('rounds the opposite transaction amounts in the opposite host currency', () => {
+      // USD -> zero-decimal currency rates with enough decimals to produce non-round converted amounts
+      for (const { currency, fxRate } of [
+        { currency: 'KRW', fxRate: 1346.62 },
+        { currency: 'JPY', fxRate: 155.237 },
+      ] as const) {
+        it(`USD host credit, ${currency} host debit`, async () => {
+          const usdHost = await fakeActiveHost({ currency: 'USD' });
+          const zeroDecimalHost = await fakeActiveHost({ currency });
+          const paymentMethod = await fakePaymentMethod({
+            service: PAYMENT_METHOD_SERVICE.STRIPE,
+            type: PAYMENT_METHOD_TYPE.CREDITCARD,
+            CollectiveId: zeroDecimalHost.id,
+          });
+
+          // Mirrors `createTransactionsFromPaidStripeExpense`: a USD expense (e.g. PLATFORM_BILLING) paid by card
+          // by a self-hosted org whose host currency is zero-decimal.
+          const result = await models.Transaction.createDoubleEntry({
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.EXPENSE,
+            CollectiveId: usdHost.id,
+            FromCollectiveId: zeroDecimalHost.id,
+            HostCollectiveId: usdHost.id,
+            PaymentMethodId: paymentMethod.id,
+            currency: 'USD',
+            hostCurrency: 'USD',
+            hostCurrencyFxRate: 1,
+            amount: 1000,
+            amountInHostCurrency: 1000,
+            paymentProcessorFeeInHostCurrency: -59,
+            platformFeeInHostCurrency: -13,
+            hostFeeInHostCurrency: 0,
+            netAmountInCollectiveCurrency: 928,
+            data: {
+              charge: { currency: 'usd' },
+              // eslint-disable-next-line camelcase
+              balanceTransaction: { currency: currency.toLowerCase(), exchange_rate: fxRate },
+            } as TransactionModel['data'],
+          });
+
+          const transactions = await models.Transaction.findAll({
+            where: { TransactionGroup: result.TransactionGroup },
+          });
+          expect(transactions).to.have.length(2);
+          const credit = transactions.find(t => t.type === 'CREDIT');
+          const debit = transactions.find(t => t.type === 'DEBIT');
+
+          // Credit side is untouched
+          expect(credit.hostCurrency).to.equal('USD');
+          expect(credit.amountInHostCurrency).to.equal(1000);
+          expect(credit.paymentProcessorFeeInHostCurrency).to.equal(-59);
+          expect(credit.platformFeeInHostCurrency).to.equal(-13);
+
+          // Debit side is converted AND rounded in the zero-decimal currency
+          expect(debit.HostCollectiveId).to.equal(zeroDecimalHost.id);
+          expect(debit.hostCurrency).to.equal(currency);
+          expect(debit.hostCurrencyFxRate).to.equal(fxRate);
+          expect(debit.amount).to.equal(-928);
+          expect(debit.netAmountInCollectiveCurrency).to.equal(-1000);
+          for (const field of [
+            'amountInHostCurrency',
+            'paymentProcessorFeeInHostCurrency',
+            'platformFeeInHostCurrency',
+            'hostFeeInHostCurrency',
+          ]) {
+            expect(debit[field] % 100, `${field}=${debit[field]} should be a multiple of 100`).to.equal(0);
+          }
+          expect(debit.amountInHostCurrency).to.equal(-Math.round((928 * fxRate) / 100) * 100);
+          expect(debit.paymentProcessorFeeInHostCurrency).to.equal(-Math.round((59 * fxRate) / 100) * 100);
+          expect(debit.platformFeeInHostCurrency).to.equal(-Math.round((13 * fxRate) / 100) * 100);
+          expect(debit.netAmountInHostCurrency % 100).to.equal(0);
+
+          // Both sides pass the model validation (incl. the opposite-transaction fee checks)
+          await models.Transaction.validate(credit, { oppositeTransaction: debit });
+          await models.Transaction.validate(debit, { oppositeTransaction: credit });
+        });
+      }
     });
   });
 
