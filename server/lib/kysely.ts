@@ -55,14 +55,37 @@ export function kyselyToSequelizeModels<T extends Model>(ModelClass: ModelStatic
 }
 
 /**
- * Returns the SQL of a Kysely query with its parameters inlined (escaped by Sequelize), to embed it in a Sequelize
- * query, e.g. with `sequelize.literal`. Only for queries whose own SQL text has no `$1`-like literal.
+ * Returns the SQL of a Kysely query with its parameters inlined, to embed it in a Sequelize query, e.g. with
+ * `sequelize.literal`. Throws rather than return SQL that could read differently from the parameterized query:
+ * - The `$N` sequences of the compiled SQL must be `$1` to `$n` in order, for `n` parameters. Kysely emits exactly
+ *   that, so anything else is text of the query itself (`sql.lit`, `sql.raw`), which must not be replaced.
+ * - A placeholder must not directly follow a letter, digit, `_`, `$`, `&` or quote, as the value would merge with
+ *   that token: `E$1` would become an escape string (`E'…'`), where a backslash escapes the closing quote.
+ * - Parameters must be strings (escaped by Sequelize) or finite numbers. Negative numbers are put in parentheses:
+ *   `3-$1` would otherwise become `3--2`, where `--` starts a comment.
+ *
+ * Errors do not include the parameters, which can be user input.
  */
 export function compileToInlineSQL(query: Compilable): string {
   const { sql, parameters } = query.compile();
-  return sql.replace(/\$(\d+)/g, (_, position) =>
-    sequelize.escape(parameters[Number(position) - 1] as string | number),
-  );
+  const placeholders = Array.from(sql.matchAll(/\$(\d+)/g));
+  const isExpected = (placeholder: RegExpMatchArray, index: number) =>
+    placeholder[1] === String(index + 1) && !/[\w$&']/.test(sql.charAt(placeholder.index - 1));
+  if (placeholders.length !== parameters.length || !placeholders.every(isExpected)) {
+    throw new Error('compileToInlineSQL: the placeholders of the query do not match its parameters');
+  }
+
+  // Single pass with a function: `$1`-like text in a value is not replaced again
+  return sql.replace(/\$(\d+)/g, (_, position) => {
+    const value = parameters[Number(position) - 1];
+    if (typeof value === 'string') {
+      return sequelize.escape(value);
+    } else if (typeof value === 'number' && Number.isFinite(value)) {
+      return value < 0 ? `(${value})` : `${value}`;
+    } else {
+      throw new Error(`compileToInlineSQL: only strings and finite numbers can be inlined (parameter $${position})`);
+    }
+  });
 }
 
 export type DatabaseWithViews = Database & ViewsDatabase;
