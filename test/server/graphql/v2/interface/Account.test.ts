@@ -667,6 +667,127 @@ describe('server/graphql/v2/interface/Account', () => {
       const all = await graphqlQueryV2(query, { slug: collective.slug });
       expect(all.data.account.members.totalCount).to.equal(5);
     });
+
+    it('breaks ties between equal totals with orderBy', async () => {
+      const collective = await fakeCollective();
+      const backers = [];
+      for (const daysAgo of [3, 1, 2]) {
+        const backer = await fakeOrganization();
+        await fakeMember({
+          CollectiveId: collective.id,
+          MemberCollectiveId: backer.id,
+          role: MemberRoles.BACKER,
+          createdAt: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000),
+        });
+        backers.push({ backer, daysAgo });
+      }
+      const top = await fakeOrganization();
+      await fakeMember({ CollectiveId: collective.id, MemberCollectiveId: top.id, role: MemberRoles.BACKER });
+      await fakeTransaction({
+        kind: TransactionKind.CONTRIBUTION,
+        CollectiveId: collective.id,
+        FromCollectiveId: top.id,
+        amount: 1000,
+      });
+
+      const tieQuery = gql`
+        query MembersTieTest($slug: String!, $direction: OrderDirection!) {
+          account(slug: $slug) {
+            members(
+              role: [BACKER]
+              orderByTotalContributed: DESC
+              orderBy: { field: CREATED_AT, direction: $direction }
+            ) {
+              nodes {
+                account {
+                  slug
+                }
+              }
+            }
+          }
+        }
+      `;
+      const oldestFirst = [...backers].sort((a, b) => b.daysAgo - a.daysAgo).map(b => b.backer.slug);
+
+      let result = await graphqlQueryV2(tieQuery, { slug: collective.slug, direction: 'ASC' });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.members.nodes.map(n => n.account.slug)).to.deep.equal([top.slug, ...oldestFirst]);
+
+      result = await graphqlQueryV2(tieQuery, { slug: collective.slug, direction: 'DESC' });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.members.nodes.map(n => n.account.slug)).to.deep.equal([
+        top.slug,
+        ...[...oldestFirst].reverse(),
+      ]);
+    });
+
+    it('combines isActive with orderByTotalContributed, with consistent pagination', async () => {
+      const collective = await fakeCollective();
+      const monthlyTier = await fakeTier({ CollectiveId: collective.id, interval: 'month' });
+
+      const addBacker = async ({ amount = 0, monthlyDaysAgo = null } = {}) => {
+        const backer = await fakeOrganization();
+        await fakeMember({
+          CollectiveId: collective.id,
+          MemberCollectiveId: backer.id,
+          role: MemberRoles.BACKER,
+          TierId: monthlyDaysAgo !== null ? monthlyTier.id : null,
+        });
+        if (amount) {
+          const order =
+            monthlyDaysAgo !== null
+              ? await fakeOrder({ CollectiveId: collective.id, FromCollectiveId: backer.id, TierId: monthlyTier.id })
+              : null;
+          await fakeTransaction({
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            FromCollectiveId: backer.id,
+            OrderId: order?.id,
+            amount,
+            ...(monthlyDaysAgo !== null && {
+              createdAt: new Date(Date.now() - monthlyDaysAgo * 24 * 60 * 60 * 1000),
+            }),
+          });
+        }
+        return backer;
+      };
+
+      const activeSmall = await addBacker({ amount: 1000 });
+      const activeBig = await addBacker({ amount: 5000, monthlyDaysAgo: 10 });
+      const activeMedium = await addBacker({ amount: 3000 });
+      await addBacker({ amount: 9000, monthlyDaysAgo: 90 }); // Lapsed: inactive despite the largest total
+
+      const pagedQuery = gql`
+        query MembersActivePagedTest($slug: String!, $offset: Int!) {
+          account(slug: $slug) {
+            members(role: [BACKER], isActive: true, orderByTotalContributed: DESC, limit: 2, offset: $offset) {
+              totalCount
+              nodes {
+                isActive
+                account {
+                  slug
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const page1 = await graphqlQueryV2(pagedQuery, { slug: collective.slug, offset: 0 });
+      expect(page1.errors).to.not.exist;
+      expect(page1.data.account.members.totalCount).to.equal(3);
+      expect(page1.data.account.members.nodes.map(n => n.account.slug)).to.deep.equal([
+        activeBig.slug,
+        activeMedium.slug,
+      ]);
+
+      const page2 = await graphqlQueryV2(pagedQuery, { slug: collective.slug, offset: 2 });
+      expect(page2.errors).to.not.exist;
+      expect(page2.data.account.members.totalCount).to.equal(3);
+      expect(page2.data.account.members.nodes.map(n => n.account.slug)).to.deep.equal([activeSmall.slug]);
+      expect([...page1.data.account.members.nodes, ...page2.data.account.members.nodes].every(n => n.isActive)).to.be
+        .true;
+    });
   });
 
   describe('memberOf', () => {
