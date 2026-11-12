@@ -10,7 +10,7 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import { getPolicy } from '../../../lib/policies';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
-import { editPublicMessage } from '../../common/members';
+import { checkCanEditTeam, editPublicMessage } from '../../common/members';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { BadRequest, Forbidden, Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLMemberRole } from '../enum';
@@ -160,6 +160,8 @@ const memberMutations = {
         throw new Forbidden('You can only edit accountants, admins, members or community managers.');
       }
 
+      await checkCanEditTeam(account, req);
+
       // Make sure we don't edit the role of last admin
       if (args.role !== MemberRoles.ADMIN) {
         if (await isLastAdmin(account, memberAccount)) {
@@ -245,6 +247,11 @@ const memberMutations = {
         )
       ) {
         throw new Forbidden('You can only remove accountants, admins, members, or community managers.');
+      }
+
+      // Cancelling a pending invitation is allowed even when the team is locked, as it doesn't change memberships
+      if (!args.isInvitation) {
+        await checkCanEditTeam(account, req);
       }
 
       if (args.role === MemberRoles.ADMIN) {
