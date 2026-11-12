@@ -96,6 +96,13 @@ describe('server/lib/sql-search (search arms)', () => {
       expect(await search(`${otherOrder.id}`)).to.include(otherOrder.id);
     });
 
+    it('matches nothing by number when the number does not fit in an integer column', async () => {
+      const options = { amountFields: ['Orders.totalAmount' as const] };
+      expect(await search('99999999999', options)).to.deep.eq([]); // Too large for an ID and for an amount
+      expect(await search('40500021', options)).to.deep.eq([]); // Fits as an ID, but not as an amount in cents
+      expect(await search(`${otherOrder.id}`, options)).to.include(otherOrder.id);
+    });
+
     it('ignores deleted rows and deleted accounts', async () => {
       expect(await search('zebulon')).to.not.include(deletedOrder.id);
 

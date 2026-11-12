@@ -1001,6 +1001,10 @@ type SearchArmsOptions = {
   limits?: { maxAccounts?: number; maxMatches?: number };
 };
 
+/** Whether a number can be the value of a PostgreSQL `integer` column, the type of IDs and amounts */
+const fitsInIntegerColumn = (value: number): boolean =>
+  Number.isInteger(value) && value >= -(2 ** 31) && value <= 2 ** 31 - 1;
+
 const unionArms = (arms: SearchArmsQuery[]): SearchArmsQuery =>
   arms.slice(1).reduce((query, arm) => query.union(arm), arms[0]);
 
@@ -1151,12 +1155,17 @@ export const buildSearchArms = async (
       conditions.push(sql<SqlBool>`${toKyselyReference(field)} && ARRAY[${preparedTerm}]::varchar[]`),
     );
 
-    // Bare numbers (not #id): match integer id columns and/or amount columns (stored in cents)
+    // Bare numbers (not #id): match integer id columns and/or amount columns (stored in cents).
+    // A number that does not fit in an `integer` column cannot match it, and PostgreSQL rejects it as a parameter
+    // compared to such a column ("out of range for type integer"): it gets no arm.
     if (parsedTerm.type === 'number') {
-      if (!parsedTerm.isFloat) {
+      const amountInCents = floatAmountToCents(parsedTerm.term);
+      if (!parsedTerm.isFloat && fitsInIntegerColumn(parsedTerm.term)) {
         idFields.forEach(field => conditions.push(equals(field, parsedTerm.term)));
       }
-      amountFields.forEach(field => conditions.push(equals(field, floatAmountToCents(parsedTerm.term))));
+      if (fitsInIntegerColumn(amountInCents)) {
+        amountFields.forEach(field => conditions.push(equals(field, amountInCents)));
+      }
     }
   }
 

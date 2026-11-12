@@ -1474,6 +1474,9 @@ describe('server/graphql/v2/collection/TransactionCollection - searchTerm', () =
     const hostScope = { host: { legacyId: host.id } };
     await expectSearchResults({ ...hostScope, searchTerm: '123' }, [fromContributor]);
     await expectSearchResults({ ...hostScope, searchTerm: '123.00' }, [fromContributor]);
+    // Numbers that do not fit in an integer column, as an amount in cents or as an ID
+    await expectSearchResults({ ...hostScope, searchTerm: '40500021' }, []);
+    await expectSearchResults({ ...hostScope, searchTerm: '99999999999' }, []);
     await expectSearchResults({ ...hostScope, searchTerm: `#${mentioningContributor.id}` }, [mentioningContributor], {
       withSearchArms: false,
     });
