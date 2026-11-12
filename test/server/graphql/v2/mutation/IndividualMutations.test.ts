@@ -503,7 +503,7 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
     });
 
     it('counts rejected attempts toward the rate limit', async () => {
-      sandbox.stub(config, 'limits').value({ ...config.limits, changeEmailPerHour: { update: 0 } });
+      sandbox.stub(config, 'limits').value({ ...config.limits, changeEmailPerHour: { update: 1 } });
       const user = await fakeUser({ confirmedAt: new Date() });
       const otherUser = await fakeUser();
 
@@ -512,6 +512,31 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
 
       const second = await graphqlQueryV2(requestEmailChangeMutation, { email: randEmail() }, user);
       expect(second.errors[0].message).to.equal('Rate limit exceeded');
+    });
+
+    it('applies the rate limit to concurrent requests', async () => {
+      sandbox.stub(config, 'limits').value({ ...config.limits, changeEmailPerHour: { update: 1 } });
+      const user = await fakeUser({ confirmedAt: new Date() });
+
+      const results = await Promise.all(
+        [randEmail(), randEmail(), randEmail()].map(email =>
+          graphqlQueryV2(requestEmailChangeMutation, { email }, user),
+        ),
+      );
+      expect(results.filter(r => !r.errors)).to.have.length(1);
+      expect(results.filter(r => r.errors?.[0].message === 'Rate limit exceeded')).to.have.length(2);
+    });
+
+    it('gives the attempt back when the verification email fails to send', async () => {
+      sandbox.stub(config, 'limits').value({ ...config.limits, changeEmailPerHour: { update: 1 } });
+      sendEmailStub.onFirstCall().rejects(new Error('SMTP down'));
+      const user = await fakeUser({ confirmedAt: new Date() });
+
+      const first = await graphqlQueryV2(requestEmailChangeMutation, { email: randEmail() }, user);
+      expect(first.errors[0].message).to.equal('Error while sending the verification email, please try again later');
+
+      const second = await graphqlQueryV2(requestEmailChangeMutation, { email: randEmail() }, user);
+      expect(second.errors).to.not.exist;
     });
 
     it('rejects an invalid email address', async () => {
@@ -540,7 +565,7 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
     });
 
     it('should throw an error if rate limit is exceeded', async () => {
-      sandbox.stub(config, 'limits').value({ ...config.limits, changeEmailPerHour: { update: -1 } });
+      sandbox.stub(config, 'limits').value({ ...config.limits, changeEmailPerHour: { update: 0 } });
       const user = await fakeUser({ confirmedAt: new Date() });
       const result = await graphqlQueryV2(requestEmailChangeMutation, { email: randEmail() }, user);
       expect(result.errors).to.exist;

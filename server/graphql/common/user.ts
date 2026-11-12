@@ -12,6 +12,7 @@ import roles from '../../constants/roles';
 import cache from '../../lib/cache';
 import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
+import RateLimit from '../../lib/rate-limit';
 import { reportErrorToSentry } from '../../lib/sentry';
 import models, { Collective, Op, sequelize } from '../../models';
 import User from '../../models/User';
@@ -200,14 +201,6 @@ export const requestUserEmailChange = async (user: User, newEmail: string): Prom
     throw new ValidationFailed('Email address is required');
   }
 
-  // Put some rate limiting for user so they can't bruteforce the system to guess emails
-  const maxChangePerHour = config.limits.changeEmailPerHour.update;
-  const countCacheKey = `user_email_change_${user.id}`;
-  const existingCount = (await cache.get(countCacheKey)) || 0;
-  if (existingCount > maxChangePerHour) {
-    throw new RateLimitExceeded();
-  }
-
   // If somehow user tries to update the email to its existing value then we remove
   // any email waiting for confirmation
   if (user.email === newEmail) {
@@ -217,9 +210,12 @@ export const requestUserEmailChange = async (user: User, newEmail: string): Prom
     return user;
   }
 
-  // Count every real attempt, including the ones rejected below, so that the limit also applies
-  // to users trying to guess which addresses are registered
-  cache.set(countCacheKey, existingCount + 1, 60 * 60);
+  // Rate limit every real attempt, including the ones rejected below, so that users can't guess which addresses
+  // are registered. Registered before the async checks so that concurrent requests can't all pass it.
+  const rateLimit = new RateLimit(`user_email_change_${user.id}`, config.limits.changeEmailPerHour.update);
+  if (!(await rateLimit.registerCall())) {
+    throw new RateLimitExceeded();
+  }
 
   // Ensure this email is not already used by another user, nor waiting for validation on another account
   const existingEmail = await models.User.findOne({
@@ -257,6 +253,7 @@ export const requestUserEmailChange = async (user: User, newEmail: string): Prom
     });
   } catch (e) {
     reportErrorToSentry(e, { user, extra: { newEmail } });
+    await rateLimit.unregisterCall(); // Not the user's fault, give the attempt back
     throw new Error('Error while sending the verification email, please try again later');
   }
 
