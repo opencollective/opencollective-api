@@ -249,10 +249,7 @@ const memberMutations = {
         throw new Forbidden('You can only remove accountants, admins, members, or community managers.');
       }
 
-      // Cancelling a pending invitation is allowed even when the team is locked, as it doesn't change memberships
-      if (!args.isInvitation) {
-        await checkCanEditTeam(account, req);
-      }
+      await checkCanEditTeam(account, req);
 
       if (args.role === MemberRoles.ADMIN) {
         if (await isLastAdmin(account, memberAccount)) {

@@ -436,7 +436,7 @@ describe('memberMutations', () => {
       expectTeamLocked(await editMember(project, projectMember, admin));
     });
 
-    it('can still cancel a pending invitation', async () => {
+    it('cannot remove a pending invitation', async () => {
       const { admin, account } = await setupAccount();
       const invitedUser = await fakeUser();
       const invitation = await models.MemberInvitation.invite(account, {
@@ -457,9 +457,9 @@ describe('memberMutations', () => {
         admin,
       );
 
-      expect(result.errors).to.not.exist;
-      await invitation.reload({ paranoid: false });
-      expect(invitation.deletedAt).to.not.be.null;
+      expectTeamLocked(result);
+      await invitation.reload();
+      expect(invitation.deletedAt).to.be.null;
     });
   });
 
