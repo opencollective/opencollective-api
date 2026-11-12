@@ -27299,6 +27299,11 @@ type Mutation {
     A message to attach as a reason for the action
     """
     message: String
+
+    """
+    Custom data to store on the host application, shallow-merged into its existing `customData` (top-level keys are overwritten). Requires `hostApplication`. Max 50kB. Server-generated keys (validatedRepositoryInfo) cannot be set. Note: admins of the applying account can also read `customData`.
+    """
+    customData: JSON
   ): ProcessHostApplicationResponse!
 
   """
