@@ -957,4 +957,145 @@ describe('MemberInvitationMutations', () => {
       }
     });
   });
+
+  describe('when the team is locked', () => {
+    const inviteMembersMutation = gql`
+      mutation InviteMembersLocked($account: AccountReferenceInput!, $members: [InviteMemberInput!]!) {
+        inviteMembers(account: $account, members: $members) {
+          id
+        }
+      }
+    `;
+
+    const editMemberInvitationMutation = gql`
+      mutation EditMemberInvitationLocked(
+        $memberAccount: AccountReferenceInput!
+        $account: AccountReferenceInput!
+        $role: MemberRole
+      ) {
+        editMemberInvitation(memberAccount: $memberAccount, account: $account, role: $role) {
+          id
+        }
+      }
+    `;
+
+    const cancelMemberInvitationMutation = gql`
+      mutation CancelMemberInvitationLocked($invitation: MemberInvitationReferenceInput!) {
+        cancelMemberInvitation(invitation: $invitation)
+      }
+    `;
+
+    const replyToMemberInvitationMutation = gql`
+      mutation ReplyToMemberInvitationLocked($invitation: MemberInvitationReferenceInput!, $accept: Boolean!) {
+        replyToMemberInvitation(invitation: $invitation, accept: $accept)
+      }
+    `;
+
+    let admin, lockedCollective;
+
+    beforeEach(async () => {
+      admin = await fakeUser();
+      lockedCollective = await fakeCollective({ admin });
+    });
+
+    const expectTeamLocked = result => {
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].extensions.code).to.equal('TeamLocked');
+    };
+
+    it('cannot invite members to a frozen account', async () => {
+      await lockedCollective.freeze('Frozen for audit', false);
+      const invitedUser = await fakeUser();
+
+      const inviteResult = await utils.graphqlQueryV2(
+        inviteMemberMutation,
+        {
+          memberAccount: { legacyId: invitedUser.CollectiveId },
+          account: { legacyId: lockedCollective.id },
+          role: roles.ADMIN,
+        },
+        admin,
+      );
+      expectTeamLocked(inviteResult);
+
+      const inviteManyResult = await utils.graphqlQueryV2(
+        inviteMembersMutation,
+        {
+          account: { legacyId: lockedCollective.id },
+          members: [{ memberAccount: { legacyId: invitedUser.CollectiveId }, role: roles.ADMIN }],
+        },
+        admin,
+      );
+      expectTeamLocked(inviteManyResult);
+
+      expect(await models.MemberInvitation.count({ where: { CollectiveId: lockedCollective.id } })).to.equal(0);
+    });
+
+    it('cannot invite members when the TEAM feature is disabled', async () => {
+      await lockedCollective.update({ data: { features: { TEAM: false } } });
+      const invitedUser = await fakeUser();
+      const result = await utils.graphqlQueryV2(
+        inviteMemberMutation,
+        {
+          memberAccount: { legacyId: invitedUser.CollectiveId },
+          account: { legacyId: lockedCollective.id },
+          role: roles.ADMIN,
+        },
+        admin,
+      );
+      expectTeamLocked(result);
+    });
+
+    it('cannot edit, accept, decline or cancel a pending invitation', async () => {
+      const invitation = await fakeMemberInvitation({ CollectiveId: lockedCollective.id, role: roles.MEMBER });
+      const invitedUser = await invitation.memberCollective.getUser();
+      await lockedCollective.freeze('Frozen for audit', false);
+
+      // Edit
+      const editResult = await utils.graphqlQueryV2(
+        editMemberInvitationMutation,
+        {
+          memberAccount: { legacyId: invitation.MemberCollectiveId },
+          account: { legacyId: lockedCollective.id },
+          role: roles.ADMIN,
+        },
+        admin,
+      );
+      expectTeamLocked(editResult);
+      await invitation.reload();
+      expect(invitation.role).to.equal(roles.MEMBER);
+
+      // Accept
+      const acceptResult = await utils.graphqlQueryV2(
+        replyToMemberInvitationMutation,
+        { invitation: { id: idEncode(invitation.id, IDENTIFIER_TYPES.MEMBER_INVITATION) }, accept: true },
+        invitedUser,
+      );
+      expectTeamLocked(acceptResult);
+      const membership = await models.Member.findOne({
+        where: { CollectiveId: lockedCollective.id, MemberCollectiveId: invitation.MemberCollectiveId },
+      });
+      expect(membership).to.be.null;
+
+      // Decline
+      const declineResult = await utils.graphqlQueryV2(
+        replyToMemberInvitationMutation,
+        { invitation: { id: idEncode(invitation.id, IDENTIFIER_TYPES.MEMBER_INVITATION) }, accept: false },
+        invitedUser,
+      );
+      expectTeamLocked(declineResult);
+
+      // Cancel
+      const cancelResult = await utils.graphqlQueryV2(
+        cancelMemberInvitationMutation,
+        { invitation: { id: idEncode(invitation.id, IDENTIFIER_TYPES.MEMBER_INVITATION) } },
+        admin,
+      );
+      expectTeamLocked(cancelResult);
+
+      // The invitation is still pending
+      await invitation.reload();
+      expect(invitation.deletedAt).to.be.null;
+    });
+  });
 });
