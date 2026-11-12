@@ -124,6 +124,10 @@ async function handleSaleCompleted(req: Request): Promise<void> {
   let transaction;
   const { order } = await loadSubscriptionForWebhookEvent(req, subscriptionId);
   await order.lock(async () => {
+    // `lock` works on its own copy of the row: reload to get what was committed before the lock was acquired
+    // (e.g. a tier change), rather than what was loaded before waiting for it.
+    await order.reload();
+
     // 2.1 Make sure the sale hasn't already been recorded
     const existingTransaction = await findTransactionByPaypalId(sale.id, { OrderId: order.id });
     if (existingTransaction) {
