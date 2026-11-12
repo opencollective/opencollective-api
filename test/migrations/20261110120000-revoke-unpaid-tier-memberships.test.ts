@@ -144,6 +144,12 @@ describe(`migrations/${MIGRATION_NAME}`, () => {
       status: OrderStatuses.PAID,
     });
     await recordCharge(oneTimeOrder, 100000);
+    // Upgraded with a 20% tax ($1,200 with tax), charged $1,080 with tax: that's $900 without, below the tier price
+    const exploitedWithTax = await createOrder({
+      totalAmount: 120000,
+      charges: [108000],
+      data: { tax: { id: 'VAT', percentage: 20 } },
+    });
 
     // --- Must not be touched ---
     const untouched = {
@@ -154,6 +160,18 @@ describe(`migrations/${MIGRATION_NAME}`, () => {
       refundedTierPriceChargeThenBelow: await createOrder({ charges: [100], refundedCharges: [100000] }),
       paidUpgrade: await createOrder({ charges: [100, 100000] }),
       tierPriceRaisedSince: await createOrder({ totalAmount: 50000, charges: [50000] }),
+      // 20% tax: $1,200 with tax pays for the $1,000 tier
+      paidUpgradeWithTax: await createOrder({
+        totalAmount: 120000,
+        charges: [100, 120000],
+        data: { tax: { id: 'VAT', percentage: 20 } },
+      }),
+      // 20% tax: $1,080 with tax is $900 without, the contribution itself is below the tier price
+      tierPriceRaisedSinceWithTax: await createOrder({
+        totalAmount: 108000,
+        charges: [108000],
+        data: { tax: { id: 'VAT', percentage: 20 } },
+      }),
       notRecurring: await createOrder({ interval: null, status: OrderStatuses.PAID }),
       // Upgraded and charged below the price, but a payment may be completing right now
       upgradeChargeProcessing: await createOrder({ charges: [100], status: OrderStatuses.PROCESSING }),
@@ -195,6 +213,13 @@ describe(`migrations/${MIGRATION_NAME}`, () => {
     await exploitedButPaidElsewhere.member.reload();
     expect(exploitedButPaidElsewhere.member.TierId).to.eq(goldTier.id);
 
+    // Revoked: the charge covers the tier price only with the tax included
+    await exploitedWithTax.order.reload();
+    expect(exploitedWithTax.order.TierId).to.be.null;
+    expect(exploitedWithTax.order.data.pendingTierChange).to.containSubset({ TierId: goldTier.id });
+    await exploitedWithTax.member.reload();
+    expect(exploitedWithTax.member.TierId).to.be.null;
+
     for (const [key, fixture] of Object.entries(untouched)) {
       expect(await snapshot(fixture), key).to.deep.eq(before[key]);
     }
@@ -202,15 +227,28 @@ describe(`migrations/${MIGRATION_NAME}`, () => {
     // Migration log
     const migrationLog = await models.MigrationLog.findOne({ where: { description: MIGRATION_NAME } });
     expect(migrationLog.data['orders'].map(o => o.id).sort()).to.deep.eq(
-      [exploitedActive.order.id, exploitedCancelled.order.id, exploitedButPaidElsewhere.order.id].sort(),
+      [
+        exploitedActive.order.id,
+        exploitedCancelled.order.id,
+        exploitedButPaidElsewhere.order.id,
+        exploitedWithTax.order.id,
+      ].sort(),
     );
-    expect(migrationLog.data['membersMovedToNoTier'].map(m => m.id)).to.deep.eq([exploitedActive.member.id]);
+    expect(migrationLog.data['membersMovedToNoTier'].map(m => m.id)).to.deep.eq([
+      exploitedActive.member.id,
+      exploitedWithTax.member.id,
+    ]);
     expect(migrationLog.data['membersDeleted'].map(m => m.id)).to.deep.eq([exploitedCancelled.member.id]);
     expect(migrationLog.data['skippedChargeDue']).to.deep.eq([untouched.upgradeChargeDue.order.id]);
 
     // Rollback restores everything, except what changed since the migration
     await migration.down(sequelize.getQueryInterface());
-    for (const { order, member } of [exploitedActive, exploitedCancelled, exploitedButPaidElsewhere]) {
+    for (const { order, member } of [
+      exploitedActive,
+      exploitedCancelled,
+      exploitedButPaidElsewhere,
+      exploitedWithTax,
+    ]) {
       await order.reload();
       expect(order.TierId).to.eq(goldTier.id);
       expect(order.data.pendingTierChange).to.not.exist;
@@ -256,5 +294,29 @@ describe(`migrations/${MIGRATION_NAME}`, () => {
     // The unchanged order of the same run is restored
     await rejoined.order.reload();
     expect(rejoined.order.TierId).to.eq(goldTier.id);
+  });
+
+  it('logs the orders skipped because a charge is due, even when no order is updated', async () => {
+    // Process whatever the previous tests left, so that nothing else matches
+    await migration.up(sequelize.getQueryInterface());
+    await models.MigrationLog.destroy({ where: { description: MIGRATION_NAME } });
+
+    const chargeDue = await createOrder({ charges: [100], nextChargeDate: moment().subtract(1, 'day').toDate() });
+    const before = await snapshot(chargeDue);
+
+    await migration.up(sequelize.getQueryInterface());
+
+    expect(await snapshot(chargeDue)).to.deep.eq(before);
+    const migrationLog = await models.MigrationLog.findOne({ where: { description: MIGRATION_NAME } });
+    expect(migrationLog).to.exist;
+    expect(migrationLog.data['orders']).to.deep.eq([]);
+    expect(migrationLog.data['membersMovedToNoTier']).to.deep.eq([]);
+    expect(migrationLog.data['membersDeleted']).to.deep.eq([]);
+    expect(migrationLog.data['skippedChargeDue']).to.include(chargeDue.order.id);
+
+    // Nothing to restore
+    await migration.down(sequelize.getQueryInterface());
+    expect(await snapshot(chargeDue)).to.deep.eq(before);
+    expect(await models.MigrationLog.count({ where: { description: MIGRATION_NAME } })).to.eq(0);
   });
 });

@@ -17,6 +17,7 @@ import { type QueryInterface, QueryTypes } from 'sequelize';
  * - none of its charges ever reached the tier price, refunded or not. Orders whose tier-price charges were
  *   refunded are a separate policy question and are left alone. Orders with a charge in another currency are
  *   skipped too, since the amounts can't be compared.
+ * Amounts are compared with the tier price without the order's tax, like `doesAmountSatisfyTier` does.
  *
  * Nothing is done to an order that may be paying for its tier right now, so that a payment can never complete
  * against an order this migration just changed:
@@ -92,6 +93,45 @@ const REQUIRED_AMOUNT = `
   COALESCE(CASE WHEN t."amountType" = 'FIXED' THEN t.amount END, t."minimumAmount") * COALESCE(o.quantity, 1)
 `;
 
+/** Copy of `ZERO_DECIMAL_CURRENCIES` (server/constants/currencies.ts): their amounts are rounded to the unit (x100) */
+const ZERO_DECIMAL_CURRENCIES = [
+  'BIF',
+  'CLP',
+  'DJF',
+  'GNF',
+  'JPY',
+  'KMF',
+  'KRW',
+  'MGA',
+  'PYG',
+  'RWF',
+  'UGX',
+  'VND',
+  'VUV',
+  'XAF',
+  'XOF',
+  'XPF',
+];
+
+const TAX_PERCENTAGE = `
+  CASE
+    WHEN JSONB_TYPEOF(o.data #> '{tax,percentage}') = 'number'
+    THEN GREATEST(CAST(o.data #>> '{tax,percentage}' AS NUMERIC), 0)
+    ELSE 0
+  END
+`;
+
+/**
+ * A tax-inclusive amount of the order without its tax, as `doesAmountSatisfyTier` computes it:
+ * `roundCentsAmount(amount / (1 + taxPercentage / 100), currency)`. Tier prices don't include taxes.
+ */
+const withoutTax = (amount: string) => `
+  ROUND(
+    (${amount}) / (1 + (${TAX_PERCENTAGE}) / 100),
+    CASE WHEN o.currency IN (:zeroDecimalCurrencies) THEN -2 ELSE 0 END
+  )
+`;
+
 const MATCHED_ORDERS_QUERY = `
   SELECT
     o.id,
@@ -119,7 +159,7 @@ const MATCHED_ORDERS_QUERY = `
   AND o.status NOT IN (:inFlightStatuses)
   AND o.data ->> 'lockedAt' IS NULL
   AND ${REQUIRED_AMOUNT} > 0
-  AND o."totalAmount" - COALESCE(o."platformTipAmount", 0) >= ${REQUIRED_AMOUNT}
+  AND ${withoutTax(`o."totalAmount" - COALESCE(o."platformTipAmount", 0)`)} >= ${REQUIRED_AMOUNT}
   -- Successfully charged at least once
   AND EXISTS (SELECT 1 FROM "Transactions" tr WHERE ${CONTRIBUTION_CREDIT} AND tr."RefundTransactionId" IS NULL)
   -- ...but never at the tier price, refunded or not (and never in another currency)
@@ -127,7 +167,7 @@ const MATCHED_ORDERS_QUERY = `
     SELECT 1
     FROM "Transactions" tr
     WHERE ${CONTRIBUTION_CREDIT}
-    AND (tr.currency <> o.currency OR tr.amount >= ${REQUIRED_AMOUNT})
+    AND (tr.currency <> o.currency OR ${withoutTax('tr.amount')} >= ${REQUIRED_AMOUNT})
   )
   ORDER BY o.id
   FOR UPDATE OF o
@@ -173,22 +213,25 @@ module.exports = {
     await sequelize.transaction(async transaction => {
       const matched = await sequelize.query<MatchedOrder>(MATCHED_ORDERS_QUERY, {
         type: QueryTypes.SELECT,
-        replacements: { inFlightStatuses: IN_FLIGHT_STATUSES },
+        replacements: { inFlightStatuses: IN_FLIGHT_STATUSES, zeroDecimalCurrencies: ZERO_DECIMAL_CURRENCIES },
         transaction,
       });
 
       const skippedChargeDue = matched.filter(o => o.isChargeDue).map(o => o.id);
       const orders = matched.filter(o => !o.isChargeDue).map(({ isChargeDue, ...order }) => order); // eslint-disable-line @typescript-eslint/no-unused-vars
-      if (!orders.length) {
+      if (!matched.length) {
         return;
       }
 
+      // When every matched order is skipped, nothing is updated but the skipped ones are still logged
       const orderIds = orders.map(o => o.id);
-      const members = await sequelize.query<MatchedMember>(MATCHED_MEMBERS_QUERY, {
-        type: QueryTypes.SELECT,
-        replacements: { orderIds },
-        transaction,
-      });
+      const members = !orders.length
+        ? []
+        : await sequelize.query<MatchedMember>(MATCHED_MEMBERS_QUERY, {
+            type: QueryTypes.SELECT,
+            replacements: { orderIds },
+            transaction,
+          });
 
       // Members: move to "no tier", unless the account already has a "no tier" membership for this collective
       // (or another revoked membership was already moved there)
@@ -240,8 +283,11 @@ module.exports = {
       }
 
       // Orders: back to custom contribution, with the tier pending for the ones that can still be charged
-      const updated = await sequelize.query<{ id: number; pendingTierChangeAfter: Record<string, unknown> | null }>(
-        `
+      type UpdatedRow = { id: number; pendingTierChangeAfter: Record<string, unknown> | null };
+      const updated = !orders.length
+        ? []
+        : await sequelize.query<UpdatedRow>(
+            `
         UPDATE "Orders"
         SET
           "TierId" = NULL,
@@ -266,17 +312,17 @@ module.exports = {
         WHERE id IN (:orderIds)
         RETURNING id, "data" -> 'pendingTierChange' AS "pendingTierChangeAfter"
       `,
-        {
-          type: QueryTypes.SELECT,
-          replacements: {
-            orderIds,
-            finalStatuses: FINAL_STATUSES,
-            requestedAt: new Date().toISOString(),
-            source: MIGRATION_NAME,
-          },
-          transaction,
-        },
-      );
+            {
+              type: QueryTypes.SELECT,
+              replacements: {
+                orderIds,
+                finalStatuses: FINAL_STATUSES,
+                requestedAt: new Date().toISOString(),
+                source: MIGRATION_NAME,
+              },
+              transaction,
+            },
+          );
 
       const pendingAfterById = new Map(updated.map(o => [o.id, o.pendingTierChangeAfter ?? null]));
       const data: MigrationData = {
