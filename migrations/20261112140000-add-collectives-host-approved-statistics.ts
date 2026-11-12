@@ -6,7 +6,7 @@ import { QueryInterface } from 'sequelize';
  * Planner statistics on the host of an account together with whether it is approved
  * (opencollective/opencollective#8947).
  *
- * The contributions of a host are those of the accounts with `"HostCollectiveId" = <host> AND "approvedAt" IS NOT
+ * Host dashboard incoming contributions are usually filtered with `"HostCollectiveId" = <host> AND "approvedAt" IS NOT
  * NULL`. PostgreSQL estimates the two conditions separately and multiplies them, but they are strongly correlated:
  * nearly all accounts are individuals, with neither a host nor an approval date. On 649k accounts, a host with 5,505
  * approved accounts was estimated at 63, and its 1.47M contributions at 250. The planner then read all of them to
