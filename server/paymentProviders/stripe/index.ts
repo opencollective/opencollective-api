@@ -112,19 +112,24 @@ async function connectStripeAccount({
     const previousCurrency = collective.currency;
     const newCurrency = stripeAccount.default_currency?.toUpperCase();
     if (newCurrency && newCurrency !== previousCurrency) {
-      await collective.setCurrency(newCurrency);
-      await models.Activity.create({
-        type: activities.COLLECTIVE_EDITED,
-        UserId: CreatedByUserId,
-        CollectiveId: collective.id,
-        FromCollectiveId: collective.id,
-        HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
-        data: {
-          collective: collective.minimal,
-          previousData: { currency: previousCurrency },
-          newData: { currency: newCurrency },
-          source: 'stripe-connect',
-        },
+      await sequelize.transaction(async transaction => {
+        await collective.setCurrency(newCurrency, { transaction });
+        await models.Activity.create(
+          {
+            type: activities.COLLECTIVE_EDITED,
+            UserId: CreatedByUserId,
+            CollectiveId: collective.id,
+            FromCollectiveId: collective.id,
+            HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
+            data: {
+              collective: collective.minimal,
+              previousData: { currency: previousCurrency },
+              newData: { currency: newCurrency },
+              source: 'stripe-connect',
+            },
+          },
+          { transaction },
+        );
       });
     }
   } catch (error) {
