@@ -9,7 +9,7 @@ import { roles } from '../../../../constants';
 import { CollectiveType } from '../../../../constants/collectives';
 import { type DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
 import { assertCanSeeAccount } from '../../../../lib/private-accounts';
-import { parseSearchTerm, sanitizeSearchTermForILike } from '../../../../lib/sql-search';
+import { isPostgresInteger, parseSearchTerm, sanitizeSearchTermForILike } from '../../../../lib/sql-search';
 import { Collective } from '../../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../common/context-permissions';
 import { enforceScope, isRemoteUserRoot } from '../../../common/scope-check';
@@ -152,9 +152,14 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
         const sanitizedSlug = sanitizeSearchTermForILike(parsed.term.toString());
         query = query.where('fc.slug', 'ilike', `%${sanitizedSlug}%`);
       } else if (parsed.type === 'id' || parsed.type === 'number') {
-        query = query.where(({ eb, or }) =>
-          or([eb('cas.CollectiveId', '=', Number(parsed.term)), eb('cas.FromCollectiveId', '=', Number(parsed.term))]),
-        );
+        const id = parsed.term;
+        if (!isPostgresInteger(id)) {
+          query = query.where(sql<boolean>`FALSE`); // Out-of-range or non-integer: no account can have this ID
+        } else {
+          query = query.where(({ eb, or }) =>
+            or([eb('cas.CollectiveId', '=', id), eb('cas.FromCollectiveId', '=', id)]),
+          );
+        }
       } else if (parsed.type === 'publicId') {
         query = query.where(sql.ref('fc.publicId'), '=', parsed.term);
       } else if (parsed.type !== 'email') {

@@ -1004,6 +1004,19 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       expect(result.data.orders.nodes.map(node => node.legacyId)).to.include(order2.id);
     });
 
+    it('does not fail when searching for numbers that do not fit in a Postgres integer', async () => {
+      for (const searchTerm of ['99999999999', '1'.repeat(400), '#99999999999', `#${'1'.repeat(400)}`]) {
+        const result = await graphqlQueryV2(ordersQuery, {
+          account: { legacyId: collective.id },
+          filter: 'INCOMING',
+          searchTerm,
+        });
+
+        expect(result.errors, searchTerm).to.not.exist;
+        expect(result.data.orders.totalCount).to.eq(0);
+      }
+    });
+
     it('does not return orders when searching by snapshot email without admin access', async () => {
       const result = await graphqlQueryV2(ordersQuery, {
         account: { legacyId: collective.id },

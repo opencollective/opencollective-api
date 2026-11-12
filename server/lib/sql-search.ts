@@ -190,6 +190,19 @@ export const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
+// Bounds of the Postgres `integer` type, used by our ID and amount columns.
+const PG_INTEGER_MIN = -2147483648;
+const PG_INTEGER_MAX = 2147483647;
+
+/**
+ * Whether a parsed search number can be compared with an `integer` column. Postgres rejects
+ * out-of-range values ("value ... is out of range for type integer"), and digit strings longer
+ * than ~309 chars parse to `Infinity`, which Sequelize inlines as an (unknown) column name.
+ * Values outside this range can't match any row, so the condition must be skipped instead.
+ */
+export const isPostgresInteger = (value: unknown): value is number =>
+  Number.isInteger(value) && (value as number) >= PG_INTEGER_MIN && (value as number) <= PG_INTEGER_MAX;
+
 // PostgreSQL's tsquery has a fixed internal stack size. Long search terms with many
 // tokens can exceed it and throw "tsquery stack too small". Cap the term to a safe length.
 export const MAX_SEARCH_TERM_LENGTH = 150;
@@ -760,6 +773,9 @@ export const buildSearchConditions = (
   if (parsedTerm.type === 'slug' && slugFields?.length) {
     return slugFields.map(field => ({ [field]: parsedTerm.term }));
   } else if (parsedTerm.type === 'id' && idFields?.length) {
+    if (!isPostgresInteger(parsedTerm.term)) {
+      return [sequelize.literal('FALSE')]; // No row can have this ID
+    }
     return idFields.map(field => ({ [field]: parsedTerm.term }));
   } else if (parsedTerm.type === 'email' && emailFields?.length) {
     return emailFields.map(field => ({ [field]: parsedTerm.term }));
@@ -814,11 +830,12 @@ export const buildSearchConditions = (
 
   // Conditions for numbers (ID, amount)
   if (parsedTerm.type === 'number') {
-    if (!parsedTerm.isFloat && idFields?.length) {
+    if (!parsedTerm.isFloat && idFields?.length && isPostgresInteger(parsedTerm.term)) {
       conditions.push(...idFields.map(field => ({ [field]: parsedTerm.term })));
     }
-    if (amountFields?.length) {
-      conditions.push(...amountFields.map(field => ({ [field]: floatAmountToCents(parsedTerm.term as number) })));
+    const amountInCents = floatAmountToCents(parsedTerm.term);
+    if (amountFields?.length && isPostgresInteger(amountInCents)) {
+      conditions.push(...amountFields.map(field => ({ [field]: amountInCents })));
     }
   }
 
@@ -878,6 +895,9 @@ export const buildKyselySearchConditions =
       return q.where(({ eb, or }) => or(slugFields.map(field => eb(toKyselyReference(field), '=', parsedTerm.term))));
     }
     if (parsedTerm.type === 'id' && idFields?.length) {
+      if (!isPostgresInteger(parsedTerm.term)) {
+        return q.where(sql<boolean>`FALSE`); // No row can have this ID
+      }
       return q.where(({ eb, or }) => or(idFields.map(field => eb(toKyselyReference(field), '=', parsedTerm.term))));
     }
     if (parsedTerm.type === 'email' && emailFields?.length) {
@@ -940,13 +960,12 @@ export const buildKyselySearchConditions =
 
       // Bare numbers (not #id): match integer id columns and/or amount columns (stored in cents).
       if (parsedTerm.type === 'number') {
-        if (!parsedTerm.isFloat && idFields?.length) {
+        if (!parsedTerm.isFloat && idFields?.length && isPostgresInteger(parsedTerm.term)) {
           idFields.forEach(field => conditions.push(eb(toKyselyReference(field), '=', parsedTerm.term)));
         }
-        if (amountFields?.length) {
-          amountFields.forEach(field =>
-            conditions.push(eb(toKyselyReference(field), '=', floatAmountToCents(parsedTerm.term as number))),
-          );
+        const amountInCents = floatAmountToCents(parsedTerm.term);
+        if (amountFields?.length && isPostgresInteger(amountInCents)) {
+          amountFields.forEach(field => conditions.push(eb(toKyselyReference(field), '=', amountInCents)));
         }
       }
 
