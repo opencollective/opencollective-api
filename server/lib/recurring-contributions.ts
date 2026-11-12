@@ -23,6 +23,7 @@ import {
 import { FEATURE } from './allowed-features';
 import emailLib from './email';
 import logger from './logger';
+import { applyPendingTierChangeAfterCharge } from './order-tier-change';
 import { getOrderPaymentProcessingUrl, processOrder } from './payments';
 import { getTransactionPdf } from './pdf';
 import { reportErrorToSentry } from './sentry';
@@ -278,6 +279,11 @@ export async function processOrderWithSubscription(
       if (orderProcessedStatus === 'success' || orderProcessedStatus === 'processing') {
         // TODO: we should consolidate on error and remove latestError
         order.data = omit(order.data, ['error', 'latestError']);
+      }
+
+      if (orderProcessedStatus === 'success') {
+        // The contributor may have asked to move to a tier that this charge pays for
+        await applyPendingTierChangeAfterCharge(order, transaction);
       }
     }
   } else if (options.simulate) {
