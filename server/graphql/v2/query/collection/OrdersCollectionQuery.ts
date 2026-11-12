@@ -367,6 +367,19 @@ interface OrdersCollectionArgsType {
   createdBy?: AccountReferenceInput[];
 }
 
+/**
+ * `"approvedAt" IS NOT NULL` for the account of a contribution, written the way the `collectives__host_approved`
+ * statistics define it (see the migration that creates them): PostgreSQL only uses statistics on an expression for
+ * conditions that are written like it. Both forms select the same accounts.
+ *
+ * Without the statistics, the planner multiplies the share of accounts that have this host by the share of accounts
+ * that are approved, as if they were unrelated, when nearly all accounts are individuals with neither. It then expects
+ * about a hundred times fewer hosted accounts than a large host has, and reads all their contributions to sort them
+ * instead of reading the most recent contributions first.
+ */
+const isApproved = (join: 'collective' | 'fromCollective') =>
+  sql<SqlBool>`(${sql.ref(`${join}.approvedAt`)} IS NOT NULL) IS TRUE`;
+
 export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, req: express.Request) => {
   enforceScope(req, 'orders');
 
@@ -620,7 +633,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
       });
     })
     .$if(!!host, qb => {
-      return qb.where('collective.HostCollectiveId', '=', host.id).where('collective.approvedAt', 'is not', null);
+      return qb.where('collective.HostCollectiveId', '=', host.id).where(isApproved('collective'));
     })
     .$if(!!account, qb => {
       function accountConditionOrs(
@@ -635,7 +648,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         switch (hostContext) {
           case 'ALL':
             if (account.hasMoneyManagement) {
-              ors.push(eb(`${join}.HostCollectiveId`, '=', account.id).and(eb(`${join}.approvedAt`, 'is not', null)));
+              ors.push(eb(`${join}.HostCollectiveId`, '=', account.id).and(isApproved(join)));
             } else {
               ors.push(eb(`${join}.id`, '=', account.id));
             }
@@ -650,7 +663,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
             ors.push(
               eb(`${join}.HostCollectiveId`, '=', account.id)
                 .and(eb(join === 'collective' ? 'Orders.CollectiveId' : 'Orders.FromCollectiveId', '!=', account.id))
-                .and(eb(`${join}.approvedAt`, 'is not', null))
+                .and(isApproved(join))
                 .and(
                   eb(`${join}.ParentCollectiveId`, '!=', account.id).or(eb(`${join}.ParentCollectiveId`, 'is', null)),
                 ),
@@ -731,7 +744,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         const isWithinHost = (join: JoinAlias) =>
           eb(`${join}.HostCollectiveId`, 'is not', null)
             .and(eb(`${join}.HostCollectiveId`, '=', oppositeAccountScopeHostId))
-            .and(eb(`${join}.approvedAt`, 'is not', null));
+            .and(isApproved(join));
         const isOutsideHost = (join: JoinAlias) => not(isWithinHost(join));
 
         // Account-level scoping: "internal" means the account itself or a non-vendor child.
