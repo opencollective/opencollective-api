@@ -1158,6 +1158,73 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
     });
   });
 
+  describe('maxTotalCount argument', () => {
+    const cappedOrdersQuery = gql`
+      query CappedOrders($account: AccountReferenceInput, $maxTotalCount: Int, $limit: Int, $offset: Int) {
+        orders(account: $account, filter: INCOMING, maxTotalCount: $maxTotalCount, limit: $limit, offset: $offset) {
+          totalCount
+          totalCountIsCapped
+          nodes {
+            id
+          }
+        }
+      }
+    `;
+
+    let collective;
+
+    before(async () => {
+      collective = await fakeCollective();
+      for (let i = 0; i < 5; i++) {
+        await fakeOrder({ CollectiveId: collective.id, status: OrderStatuses.PAID });
+      }
+    });
+
+    const queryOrders = async (variables = {}) => {
+      const result = await graphqlQueryV2(cappedOrdersQuery, { account: { legacyId: collective.id }, ...variables });
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      return result.data.orders;
+    };
+
+    it('returns the exact total by default', async () => {
+      const orders = await queryOrders();
+      expect(orders.totalCount).to.eq(5);
+      expect(orders.totalCountIsCapped).to.be.false;
+    });
+
+    it('caps the total when there are more orders', async () => {
+      const orders = await queryOrders({ maxTotalCount: 3, limit: 2 });
+      expect(orders.totalCount).to.eq(3);
+      expect(orders.totalCountIsCapped).to.be.true;
+      expect(orders.nodes).to.have.length(2);
+    });
+
+    it('returns the exact total when it is not above the maximum', async () => {
+      for (const maxTotalCount of [5, 6, 1000]) {
+        const orders = await queryOrders({ maxTotalCount });
+        expect(orders.totalCount).to.eq(5);
+        expect(orders.totalCountIsCapped).to.be.false;
+      }
+    });
+
+    it('does not depend on the page', async () => {
+      const orders = await queryOrders({ maxTotalCount: 4, limit: 2, offset: 4 });
+      expect(orders.totalCount).to.eq(4);
+      expect(orders.totalCountIsCapped).to.be.true;
+      expect(orders.nodes).to.have.length(1);
+    });
+
+    it('rejects a maximum below 1', async () => {
+      const result = await graphqlQueryV2(cappedOrdersQuery, {
+        account: { legacyId: collective.id },
+        maxTotalCount: 0,
+      });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('maxTotalCount must be at least 1');
+    });
+  });
+
   describe('createdByUsers resolver', () => {
     let collective, childAccount, user1, user2, user3;
 
