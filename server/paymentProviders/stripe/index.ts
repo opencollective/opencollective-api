@@ -5,6 +5,7 @@ import config from 'config';
 import express from 'express';
 import { random } from 'lodash';
 
+import activities from '../../constants/activities';
 import { sessionCache } from '../../lib/cache';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
@@ -108,8 +109,23 @@ async function connectStripeAccount({
   }
 
   try {
-    if (stripeAccount.default_currency) {
-      await collective.setCurrency(stripeAccount.default_currency.toUpperCase());
+    const previousCurrency = collective.currency;
+    const newCurrency = stripeAccount.default_currency?.toUpperCase();
+    if (newCurrency && newCurrency !== previousCurrency) {
+      await collective.setCurrency(newCurrency);
+      await models.Activity.create({
+        type: activities.COLLECTIVE_EDITED,
+        UserId: CreatedByUserId,
+        CollectiveId: collective.id,
+        FromCollectiveId: collective.id,
+        HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
+        data: {
+          collective: collective.minimal,
+          previousData: { currency: previousCurrency },
+          newData: { currency: newCurrency },
+          source: 'stripe-connect',
+        },
+      });
     }
   } catch (error) {
     logger.error(`Unable to set currency for '${collective.slug}': ${error.message}`);
