@@ -41,7 +41,7 @@ export const getCollectivePageRoute = async (
     const parentCollective =
       collective.parentCollective ||
       collective.parent ||
-      (collective.getParentCollective ? await collective.getParentCollective() : null);
+      (collective.getParentCollective ? await collective.getParentCollective({ attributes: ['id', 'slug'] }) : null);
     const parentSlug = parentCollective?.slug || 'collective';
     return `/${parentSlug}/${collective.type === 'EVENT' ? 'events' : 'projects'}/${collective.slug}`;
   }
