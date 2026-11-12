@@ -502,6 +502,21 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
       expect(sendEmailStub.called).to.be.false;
     });
 
+    it('rejects an email waiting for validation on a deleted account', async () => {
+      const user = await fakeUser({ confirmedAt: new Date() });
+      const pendingEmail = randEmail();
+      const deletedUser = await fakeUser({
+        emailWaitingForValidation: pendingEmail,
+        emailConfirmationToken: randStr(),
+      });
+      await deletedUser.destroy();
+
+      const result = await graphqlQueryV2(requestEmailChangeMutation, { email: pendingEmail }, user);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('A user with that email already exists');
+      expect(sendEmailStub.called).to.be.false;
+    });
+
     it('counts rejected attempts toward the rate limit', async () => {
       sandbox.stub(config, 'limits').value({ ...config.limits, changeEmailPerHour: { update: 1 } });
       const user = await fakeUser({ confirmedAt: new Date() });

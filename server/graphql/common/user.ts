@@ -5,6 +5,7 @@ import cryptoRandomString from 'crypto-random-string';
 import { pick } from 'lodash';
 import assert from 'node:assert';
 import type Sequelize from 'sequelize';
+import { UniqueConstraintError } from 'sequelize';
 
 import { activities } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
@@ -232,10 +233,18 @@ export const requestUserEmailChange = async (user: User, newEmail: string): Prom
   // re-generating the token.
   if (newEmail !== user.emailWaitingForValidation) {
     // Store temporary user's email and generate the confirmation token
-    user = await user.update({
-      emailWaitingForValidation: newEmail,
-      emailConfirmationToken: crypto.randomBytes(48).toString('hex'),
-    });
+    try {
+      user = await user.update({
+        emailWaitingForValidation: newEmail,
+        emailConfirmationToken: crypto.randomBytes(48).toString('hex'),
+      });
+    } catch (e) {
+      // The unique constraint also covers deleted users and concurrent requests, which the check above can't see
+      if (e instanceof UniqueConstraintError) {
+        throw new ValidationFailed('A user with that email already exists');
+      }
+      throw e;
+    }
   }
 
   const data = {
