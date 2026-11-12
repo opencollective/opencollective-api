@@ -47,7 +47,7 @@
     "@peculiar/asn1-x509": "2.11.1",
     "@sentry/node": "11.11.0",
     "@sentry/profiling-node": "11.11.0",
-    "@simplewebauthn/server": "14.0.3",
+    "@simplewebauthn/server": "14.1.0",
     "async-mutex": "0.5.0",
     "axios": "1.21.0",
     "babel-plugin-add-module-exports": "1.0.4",
