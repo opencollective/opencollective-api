@@ -289,6 +289,8 @@ class Order extends ModelWithPublicId<
       previousTierId: number | null;
       requestedAt: string;
       requestedByUserId?: number | null;
+      /** Set when the change wasn't requested by the contributor, e.g. by a data migration */
+      source?: string;
     };
   };
 
