@@ -335,10 +335,14 @@ export const TransactionsCollectionResolver = async (
     }
 
     // Fetch accounts (and optionally their children)
-    accountsFromAccountParam =
-      preloadedAccounts && !args.includeChildrenTransactions
-        ? preloadedAccounts
-        : await fetchAccountsWithReferences(args.account, fetchAccountsParams);
+    // Reuse preloaded accounts only when they carry `isPrivate`, which the visibility check below relies on
+    const canReusePreloadedAccounts =
+      preloadedAccounts &&
+      !args.includeChildrenTransactions &&
+      preloadedAccounts.every(account => account.isPrivate !== undefined);
+    accountsFromAccountParam = canReusePreloadedAccounts
+      ? preloadedAccounts
+      : await fetchAccountsWithReferences(args.account, fetchAccountsParams);
     accountsToCheckForPrivateVisibility.push(...accountsFromAccountParam);
 
     // Block access when explicitly filtering by a private account the viewer cannot see

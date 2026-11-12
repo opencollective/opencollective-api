@@ -1,9 +1,13 @@
+// Load the schema before importing one of its resolvers directly, or its circular imports resolve to undefined types
+import '../../../../../server/graphql/v2/schema';
+
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import sinon from 'sinon';
 
 import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import { TransactionsCollectionResolver } from '../../../../../server/graphql/v2/query/collection/TransactionsCollectionQuery';
 import models from '../../../../../server/models';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import {
@@ -14,12 +18,13 @@ import {
   fakeKYCVerification,
   fakeMember,
   fakeOrganization,
+  fakePrivateHost,
   fakeProject,
   fakeTier,
   fakeTransaction,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { graphqlQueryV2, makeRequest, resetTestDB } from '../../../../utils';
 
 describe('server/graphql/v2/interface/Account', () => {
   describe('kycVerificationRequests', () => {
@@ -554,6 +559,25 @@ describe('server/graphql/v2/interface/Account', () => {
 
       const profile = result.data.me.contributorProfiles.find(p => p.account.slug === collective.slug);
       expect(profile.account.transactions.nodes.map(t => t.publicId)).to.deep.eq([parentTransaction.publicId]);
+    });
+
+    it('does not reuse a preloaded account loaded without isPrivate', async () => {
+      const privateHost = await fakePrivateHost();
+      const privateCollective = await fakeCollective({ HostCollectiveId: privateHost.id, isPrivate: true });
+      // An account loaded with a projection that leaves out `isPrivate`
+      const partialAccount = await models.Collective.findByPk(privateCollective.id, { attributes: ['id'] });
+      expect(partialAccount.isPrivate).to.be.undefined;
+
+      const args = {
+        account: { legacyId: privateCollective.id },
+        limit: 10,
+        offset: 0,
+        includeRegularTransactions: true,
+        orderBy: { field: 'createdAt', direction: 'DESC' },
+      };
+      await expect(
+        TransactionsCollectionResolver(args, makeRequest(), { accounts: [partialAccount] }),
+      ).to.be.rejectedWith('One or more of the accounts are private');
     });
   });
 });
