@@ -1046,9 +1046,8 @@ describe('MemberInvitationMutations', () => {
       expectTeamLocked(result);
     });
 
-    it('cannot edit or accept a pending invitation, but can cancel or decline it', async () => {
+    it('cannot edit, accept, decline or cancel a pending invitation', async () => {
       const invitation = await fakeMemberInvitation({ CollectiveId: lockedCollective.id, role: roles.MEMBER });
-      const otherInvitation = await fakeMemberInvitation({ CollectiveId: lockedCollective.id, role: roles.ADMIN });
       const invitedUser = await invitation.memberCollective.getUser();
       await lockedCollective.freeze('Frozen for audit', false);
 
@@ -1084,17 +1083,19 @@ describe('MemberInvitationMutations', () => {
         { invitation: { id: idEncode(invitation.id, IDENTIFIER_TYPES.MEMBER_INVITATION) }, accept: false },
         invitedUser,
       );
-      expect(declineResult.errors).to.not.exist;
-      expect(declineResult.data.replyToMemberInvitation).to.equal(false);
+      expectTeamLocked(declineResult);
 
       // Cancel
       const cancelResult = await utils.graphqlQueryV2(
         cancelMemberInvitationMutation,
-        { invitation: { id: idEncode(otherInvitation.id, IDENTIFIER_TYPES.MEMBER_INVITATION) } },
+        { invitation: { id: idEncode(invitation.id, IDENTIFIER_TYPES.MEMBER_INVITATION) } },
         admin,
       );
-      expect(cancelResult.errors).to.not.exist;
-      expect(cancelResult.data.cancelMemberInvitation).to.equal(true);
+      expectTeamLocked(cancelResult);
+
+      // The invitation is still pending
+      await invitation.reload();
+      expect(invitation.deletedAt).to.be.null;
     });
   });
 });

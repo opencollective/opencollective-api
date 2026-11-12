@@ -271,6 +271,7 @@ const memberInvitationMutations = {
         throw new Forbidden('Only admins can cancel an invitation.');
       }
 
+      await checkCanEditTeam(account, req);
       await twoFactorAuthLib.enforceForAccount(req, account);
       await invitation.destroy();
       return true;
@@ -298,10 +299,10 @@ const memberInvitationMutations = {
         throw new Forbidden('Only an admin of the invited account can reply to the invitation');
       }
 
-      // Declining is always allowed: it doesn't change memberships
+      const collective = await invitation.getCollective();
+      await checkCanEditTeam(collective, req);
+
       if (args.accept) {
-        const collective = await invitation.getCollective();
-        await checkCanEditTeam(collective, req);
         await invitation.accept();
 
         // Restore financial contributions if Collective now has enough admins to comply with host policy
