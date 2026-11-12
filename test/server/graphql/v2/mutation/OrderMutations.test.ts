@@ -3086,6 +3086,132 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         `Moving Added Funds when the current source Account has a different Fiscal Host than the new source Account is not supported.`,
       );
     });
+
+    describe('backer memberships', () => {
+      const getBackerMembers = (MemberCollectiveId, CollectiveId) =>
+        models.Member.findAll({
+          where: { MemberCollectiveId, CollectiveId, role: MemberRoles.BACKER },
+          order: [['id', 'ASC']],
+        });
+
+      const fakeOrderWithPaymentMethod = async (orderData = {}, options = {}) => {
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        });
+        return fakeOrder({ PaymentMethodId: paymentMethod.id, ...orderData }, { withTransactions: true, ...options });
+      };
+
+      it('merges into the existing membership when moving to a tier the contributor already backs', async () => {
+        const order = await fakeOrderWithPaymentMethod({}, { withBackerMember: true, withTier: true });
+        const [sourceMember] = await getBackerMembers(order.FromCollectiveId, order.CollectiveId);
+        const existingMember = await models.Member.create({
+          MemberCollectiveId: order.FromCollectiveId,
+          CollectiveId: order.CollectiveId,
+          role: MemberRoles.BACKER,
+          TierId: null,
+          CreatedByUserId: order.CreatedByUserId,
+        });
+
+        const result = await callMoveOrders([order], rootUser, { tier: 'custom' });
+        expect(result.errors).to.not.exist;
+
+        const members = await getBackerMembers(order.FromCollectiveId, order.CollectiveId);
+        expect(members.map(m => m.id)).to.deep.eq([existingMember.id]);
+        expect(await models.Member.findByPk(sourceMember.id)).to.be.null;
+
+        const migrationLog = await models.MigrationLog.findOne({ where: { type: 'MOVE_ORDERS' } });
+        expect(migrationLog.data['members']).to.deep.eq([existingMember.id]);
+        expect(migrationLog.data['removedMembers']).to.deep.eq([sourceMember.id]);
+        expect(migrationLog.data['createdMembers']).to.deep.eq([]);
+      });
+
+      it('merges into the existing membership when moving to an account that already backs the tier', async () => {
+        const order = await fakeOrderWithPaymentMethod({}, { withBackerMember: true, withTier: true });
+        const [sourceMember] = await getBackerMembers(order.FromCollectiveId, order.CollectiveId);
+        const newProfile = (await fakeUser()).collective;
+        const existingMember = await models.Member.create({
+          MemberCollectiveId: newProfile.id,
+          CollectiveId: order.CollectiveId,
+          role: MemberRoles.BACKER,
+          TierId: order.TierId,
+          CreatedByUserId: order.CreatedByUserId,
+        });
+
+        const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
+        expect(result.errors).to.not.exist;
+
+        expect(await getBackerMembers(order.FromCollectiveId, order.CollectiveId)).to.be.empty;
+        const members = await getBackerMembers(newProfile.id, order.CollectiveId);
+        expect(members.map(m => m.id)).to.deep.eq([existingMember.id]);
+
+        const migrationLog = await models.MigrationLog.findOne({ where: { type: 'MOVE_ORDERS' } });
+        expect(migrationLog.data['members']).to.deep.eq([existingMember.id]);
+        expect(migrationLog.data['removedMembers']).to.deep.eq([sourceMember.id]);
+      });
+
+      it('keeps the source membership when contributions that are not moved still rely on it', async () => {
+        const order = await fakeOrderWithPaymentMethod({}, { withBackerMember: true, withTier: true });
+        const [sourceMember] = await getBackerMembers(order.FromCollectiveId, order.CollectiveId);
+        // Another contribution from the same account on the same tier, not moved
+        await fakeOrderWithPaymentMethod({
+          CreatedByUserId: order.CreatedByUserId,
+          FromCollectiveId: order.FromCollectiveId,
+          CollectiveId: order.CollectiveId,
+          TierId: order.TierId,
+          status: OrderStatuses.PAID,
+        });
+        const newProfile = (await fakeUser()).collective;
+
+        const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
+        expect(result.errors).to.not.exist;
+
+        const sourceMembers = await getBackerMembers(order.FromCollectiveId, order.CollectiveId);
+        expect(sourceMembers.map(m => m.id)).to.deep.eq([sourceMember.id]);
+        expect(sourceMembers[0].TierId).to.eq(order.TierId);
+
+        const newMembers = await getBackerMembers(newProfile.id, order.CollectiveId);
+        expect(newMembers).to.have.length(1);
+        expect(newMembers[0].TierId).to.eq(order.TierId);
+        expect(newMembers[0].since.getTime()).to.eq(sourceMember.since.getTime());
+
+        const migrationLog = await models.MigrationLog.findOne({ where: { type: 'MOVE_ORDERS' } });
+        expect(migrationLog.data['members']).to.deep.eq([newMembers[0].id]);
+        expect(migrationLog.data['createdMembers']).to.deep.eq([newMembers[0].id]);
+        expect(migrationLog.data['removedMembers']).to.deep.eq([]);
+      });
+
+      it('merges several moved contributions into a single membership', async () => {
+        const order1 = await fakeOrderWithPaymentMethod({}, { withBackerMember: true, withTier: true });
+        const order2 = await fakeOrderWithPaymentMethod(
+          {
+            CreatedByUserId: order1.CreatedByUserId,
+            FromCollectiveId: order1.FromCollectiveId,
+            CollectiveId: order1.CollectiveId,
+          },
+          { withBackerMember: true },
+        );
+        expect(await getBackerMembers(order1.FromCollectiveId, order1.CollectiveId)).to.have.length(2);
+        const newProfile = (await fakeUser()).collective;
+
+        const result = await callMoveOrders([order1, order2], rootUser, { fromAccount: newProfile, tier: 'custom' });
+        expect(result.errors).to.not.exist;
+
+        expect(await getBackerMembers(order1.FromCollectiveId, order1.CollectiveId)).to.be.empty;
+        const members = await getBackerMembers(newProfile.id, order1.CollectiveId);
+        expect(members).to.have.length(1);
+        expect(members[0].TierId).to.be.null;
+      });
+
+      it('does not create a membership when the contribution had none', async () => {
+        const order = await fakeOrderWithPaymentMethod({}, { withTier: true });
+        const newProfile = (await fakeUser()).collective;
+
+        const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
+        expect(result.errors).to.not.exist;
+        expect(await getBackerMembers(newProfile.id, order.CollectiveId)).to.be.empty;
+      });
+    });
   });
 
   describe('Other mutations', () => {

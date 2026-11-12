@@ -18,6 +18,7 @@ import roles from '../constants/roles';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import models, { Op, sequelize } from '../models';
+import type Member from '../models/Member';
 import type Order from '../models/Order';
 import type Tier from '../models/Tier';
 import type Transaction from '../models/Transaction';
@@ -110,13 +111,105 @@ export const getLastPaidAmount = async (order: Order): Promise<number | null> =>
   return getPaidAmountFromContributionCredit(order, credit)?.amount ?? null;
 };
 
+type BackerMembershipKey = { MemberCollectiveId: number; TierId: number | null };
+
 /**
- * Moves the contributor's BACKER membership of `order.collective` from `fromTierId` to `toTierId`.
+ * Moves a BACKER membership of `CollectiveId` from `from` to `to` (another tier and/or another member account),
+ * because the contributions in `movedOrderIds` moved there.
  *
  * Memberships are unique per (account, collective, role, tier), and other contributions from the same account
- * can rely on the same row: the source row is only moved/removed when no other active or paid contribution
- * from the account is on that tier. A missing target row is created without the "new member" activity, since
- * this is not a new contributor.
+ * can rely on the same row:
+ * - if a membership already exists for `to`, it is reused (the source is merged into it, never duplicated);
+ * - the source row is only moved/removed when no other active or paid contribution from the source account is on
+ *   the source tier, otherwise it is kept and the target is created next to it.
+ * A missing target row is created without the "new member" activity, since this is not a new contributor. With
+ * `onlyIfSourceExists`, nothing is created when there's no source membership to move.
+ *
+ * Returns the membership the moved contributions now rely on (null if none) and what was created/removed.
+ */
+export const moveBackerMembership = async (
+  {
+    CollectiveId,
+    from,
+    to,
+    movedOrderIds,
+    CreatedByUserId,
+    onlyIfSourceExists = false,
+  }: {
+    CollectiveId: number;
+    from: BackerMembershipKey;
+    to: BackerMembershipKey;
+    movedOrderIds: number[];
+    CreatedByUserId: number;
+    onlyIfSourceExists?: boolean;
+  },
+  { transaction }: { transaction?: SequelizeTransaction } = {},
+): Promise<{ member: Member | null; createdMember: Member | null; removedMember: Member | null }> => {
+  const fromKey = {
+    CollectiveId,
+    role: roles.BACKER,
+    MemberCollectiveId: from.MemberCollectiveId,
+    TierId: from.TierId || null,
+  };
+  const toKey = {
+    CollectiveId,
+    role: roles.BACKER,
+    MemberCollectiveId: to.MemberCollectiveId,
+    TierId: to.TierId || null,
+  };
+  const result = { member: null, createdMember: null, removedMember: null };
+  if (fromKey.MemberCollectiveId === toKey.MemberCollectiveId && fromKey.TierId === toKey.TierId) {
+    result.member = await models.Member.findOne({ where: fromKey, transaction });
+    return result;
+  }
+
+  // Sequential queries: they can run on a single SQL transaction connection
+  const source = await models.Member.findOne({ where: fromKey, transaction });
+  if (!source && onlyIfSourceExists) {
+    return result;
+  }
+
+  const target = await models.Member.findOne({ where: toKey, transaction });
+  const otherOrdersOnSource = await models.Order.count({
+    transaction,
+    where: {
+      id: { [Op.notIn]: movedOrderIds },
+      FromCollectiveId: fromKey.MemberCollectiveId,
+      CollectiveId,
+      TierId: fromKey.TierId,
+      status: [OrderStatuses.ACTIVE, OrderStatuses.PAID],
+    },
+  });
+
+  const keepSource = otherOrdersOnSource > 0;
+  if (!target && source && !keepSource) {
+    result.member = await source.update(
+      { MemberCollectiveId: toKey.MemberCollectiveId, TierId: toKey.TierId },
+      { transaction },
+    );
+    return result;
+  }
+
+  if (target) {
+    result.member = target;
+  } else {
+    result.member = result.createdMember = await models.Member.create(
+      { ...toKey, CreatedByUserId, since: source?.since ?? new Date() },
+      { transaction },
+    );
+  }
+
+  if (source && !keepSource) {
+    await source.destroy({ transaction });
+    result.removedMember = source;
+  }
+
+  return result;
+};
+
+/**
+ * Moves the contributor's BACKER membership of `order.collective` from `fromTierId` to `toTierId`.
+ * See `moveBackerMembership`.
  */
 export const syncBackerMembershipTier = async (
   order: Order,
@@ -128,41 +221,16 @@ export const syncBackerMembershipTier = async (
     return;
   }
 
-  const baseWhere = {
-    MemberCollectiveId: order.FromCollectiveId,
-    CollectiveId: order.CollectiveId,
-    role: roles.BACKER,
-  };
-  // Sequential queries: they can run on a single SQL transaction connection
-  const source = await models.Member.findOne({ where: { ...baseWhere, TierId: fromTierId || null }, transaction });
-  const target = await models.Member.findOne({ where: { ...baseWhere, TierId: toTierId || null }, transaction });
-  const otherOrdersOnSourceTier = await models.Order.count({
-    transaction,
-    where: {
-      id: { [Op.ne]: order.id },
-      FromCollectiveId: order.FromCollectiveId,
+  await moveBackerMembership(
+    {
       CollectiveId: order.CollectiveId,
-      TierId: fromTierId || null,
-      status: [OrderStatuses.ACTIVE, OrderStatuses.PAID],
+      from: { MemberCollectiveId: order.FromCollectiveId, TierId: fromTierId },
+      to: { MemberCollectiveId: order.FromCollectiveId, TierId: toTierId },
+      movedOrderIds: [order.id],
+      CreatedByUserId: order.CreatedByUserId,
     },
-  });
-
-  const keepSource = otherOrdersOnSourceTier > 0;
-  if (!target) {
-    if (source && !keepSource) {
-      await source.update({ TierId: toTierId || null }, { transaction });
-      return;
-    }
-
-    await models.Member.create(
-      { ...baseWhere, TierId: toTierId || null, CreatedByUserId: order.CreatedByUserId, since: new Date() },
-      { transaction },
-    );
-  }
-
-  if (source && !keepSource) {
-    await source.destroy({ transaction });
-  }
+    { transaction },
+  );
 };
 
 /**
