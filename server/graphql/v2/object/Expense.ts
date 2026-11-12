@@ -25,7 +25,7 @@ import { expenseKycStatus } from '../../../lib/kyc/expenses/kyc-expenses-check';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import SQLQueries from '../../../lib/queries';
-import models, { Activity, UploadedFile } from '../../../models';
+import { Activity, UploadedFile } from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import ExpenseModel, { ExpenseTaxDefinition } from '../../../models/Expense';
 import LegalDocument, { LEGAL_DOCUMENT_TYPE, LegalDocumentAttributes } from '../../../models/LegalDocument';
@@ -33,7 +33,7 @@ import transferwise from '../../../paymentProviders/transferwise';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
 import { checkScope, isRemoteUserRoot } from '../../common/scope-check';
-import { Unauthorized } from '../../errors';
+import { BadRequest, Unauthorized } from '../../errors';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
 import { GraphQLCurrency } from '../enum';
@@ -348,6 +348,9 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
           },
         },
         async resolve(expense, { limit, offset, orderBy }, req) {
+          if (orderBy.field !== 'createdAt') {
+            throw new BadRequest('Comments can only be ordered by CREATED_AT');
+          }
           if (!(await ExpenseLib.canComment(req, expense))) {
             return null;
           }
@@ -362,20 +365,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
             limit,
             totalCount: async () => req.loaders.Comment.countByExpenseAndType.load({ ExpenseId: expense.id, type }),
             nodes: async () =>
-              orderBy.field === 'createdAt'
-                ? req.loaders.Comment.pageByExpense.load({
-                    ExpenseId: expense.id,
-                    type,
-                    direction: orderBy.direction,
-                    limit,
-                    offset,
-                  })
-                : models.Comment.findAll({
-                    where: { ExpenseId: expense.id, type },
-                    order: [[orderBy.field, orderBy.direction]],
-                    offset,
-                    limit,
-                  }),
+              req.loaders.Comment.pageByExpense.load({ orderBy, ExpenseId: expense.id, type, limit, offset }),
           };
         },
       },

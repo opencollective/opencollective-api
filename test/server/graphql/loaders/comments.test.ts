@@ -48,7 +48,7 @@ describe('server/graphql/loaders/comments', () => {
       const keyFor = ExpenseId => ({
         ExpenseId,
         type: [CommentType.COMMENT],
-        direction: 'ASC' as const,
+        orderBy: { field: 'createdAt' as const, direction: 'ASC' as const },
         limit: 2,
         offset: 0,
       });
@@ -68,11 +68,17 @@ describe('server/graphql/loaders/comments', () => {
     it('supports offset, direction and types', async () => {
       const loader = commentsLoader.pageByExpense();
       const [descWithOffset, withPrivateNotes] = await Promise.all([
-        loader.load({ ExpenseId: expense1.id, type: [CommentType.COMMENT], direction: 'DESC', limit: 10, offset: 1 }),
+        loader.load({
+          ExpenseId: expense1.id,
+          type: [CommentType.COMMENT],
+          orderBy: { field: 'createdAt' as const, direction: 'DESC' as const },
+          limit: 10,
+          offset: 1,
+        }),
         loader.load({
           ExpenseId: expense1.id,
           type: [CommentType.COMMENT, CommentType.PRIVATE_NOTE],
-          direction: 'ASC',
+          orderBy: { field: 'createdAt' as const, direction: 'ASC' as const },
           limit: 10,
           offset: 0,
         }),

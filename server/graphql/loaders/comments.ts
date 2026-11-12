@@ -16,18 +16,19 @@ type CommentCountByExpenseIdAndType = {
 type CommentsPageByExpenseKey = {
   ExpenseId: number;
   type: string[];
-  direction: 'ASC' | 'DESC';
+  /** Only `createdAt` exists on comments among the chronological fields */
+  orderBy: { field: 'createdAt'; direction: 'ASC' | 'DESC' };
   limit: number;
   offset: number;
 };
 
 const getCommentsPageGroupKey = (key: CommentsPageByExpenseKey): string =>
-  `${[...key.type].sort().join('|')}.${key.direction}.${key.limit}.${key.offset}`;
+  `${[...key.type].sort().join('|')}.${key.orderBy.field}.${key.orderBy.direction}.${key.limit}.${key.offset}`;
 
 export default {
   /**
    * One page of comments (ordered by `createdAt`) for each expense, fetched with a single query per
-   * distinct (type, direction, limit, offset) instead of one query per expense.
+   * distinct (type, orderBy, limit, offset) instead of one query per expense.
    */
   pageByExpense: (): DataLoader<CommentsPageByExpenseKey, Comment[]> =>
     new DataLoader(
@@ -36,8 +37,8 @@ export default {
         const groups = groupBy(keys, getCommentsPageGroupKey);
         await Promise.all(
           Object.values(groups).map(async groupKeys => {
-            const { type, direction, limit, offset } = groupKeys[0];
-            const sqlDirection = direction === 'DESC' ? 'DESC' : 'ASC';
+            const { type, orderBy, limit, offset } = groupKeys[0];
+            const sqlDirection = orderBy.direction === 'DESC' ? 'DESC' : 'ASC';
             const comments = await sequelize.query<Comment>(
               `
               SELECT * FROM (

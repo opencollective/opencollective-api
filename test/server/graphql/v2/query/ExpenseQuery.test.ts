@@ -613,5 +613,25 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
         expect(result.data.expense.comments.nodes[index].html).to.equal(`comment ${index + 1}`);
       });
     });
+
+    it('rejects an order by a field comments do not have', async () => {
+      const result = await graphqlQueryV2(
+        gql`
+          query ExpenseCommentsOrder($id: Int!) {
+            expense(expense: { legacyId: $id }) {
+              comments(orderBy: { field: EFFECTIVE_DATE, direction: DESC }) {
+                nodes {
+                  id
+                }
+              }
+            }
+          }
+        `,
+        { id: expense.id },
+        collectiveAdmin,
+      );
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('Comments can only be ordered by CREATED_AT');
+    });
   });
 });
