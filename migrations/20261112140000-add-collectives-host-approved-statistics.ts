@@ -7,8 +7,8 @@ import { QueryInterface } from 'sequelize';
  * (opencollective/opencollective#8947).
  *
  * Host dashboard incoming contributions are usually filtered with `"HostCollectiveId" = <host> AND "approvedAt" IS NOT
- * NULL`. PostgreSQL estimates the two conditions separately and multiplies them, but they are strongly correlated:
- * nearly all contributing accounts are individuals, with neither a host nor an approval date. On 649k accounts, a host with 5,505
+ * NULL`. PostgreSQL estimates the two conditions separately and multiplies them, but they are strongly correlated.
+ * On 649k accounts, a host with 5,505
  * approved accounts was estimated at 63, and its 1.47M contributions at 250. The planner then read all of them to
  * sort them, where reading the most recent contributions first finds a page immediately: 4.3 s instead of 1 ms for the
  * first page of the host's incoming contributions, 4.0 s instead of 1.1 s for their total.
