@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import { v4 as uuid } from 'uuid';
 
+import ExpenseStatuses from '../../../../../server/constants/expense-status';
 import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { sequelize } from '../../../../../server/models';
@@ -9,6 +10,7 @@ import {
   fakeActiveHost,
   fakeActivity,
   fakeCollective,
+  fakeExpense,
   fakeIncognitoProfile,
   fakeMember,
   fakeTransaction,
@@ -833,6 +835,69 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
       );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('not hosted by the host provided');
+    });
+  });
+
+  describe('private profile info', () => {
+    const communityEmailsQuery = gql`
+      query CommunityEmails($host: AccountReferenceInput!, $limit: Int!, $offset: Int!) {
+        community(host: $host, type: [INDIVIDUAL], limit: $limit, offset: $offset) {
+          nodes {
+            slug
+            ... on Individual {
+              email
+            }
+          }
+        }
+      }
+    `;
+
+    let privateHost, privateHostAdmin, privateCollective, incognitoUser, expensePayee;
+
+    before(async () => {
+      privateHostAdmin = await fakeUser();
+      privateHost = await fakeActiveHost({ admin: privateHostAdmin });
+      privateCollective = await fakeCollective({ HostCollectiveId: privateHost.id });
+
+      incognitoUser = await fakeUser({}, { name: 'Incognito Contributor' });
+      const incognitoProfile = await fakeIncognitoProfile(incognitoUser);
+      await fakeMember({
+        CollectiveId: privateCollective.id,
+        MemberCollectiveId: incognitoProfile.id,
+        role: MemberRoles.BACKER,
+      });
+
+      expensePayee = await fakeUser({}, { name: 'Expense Payee' });
+      const formerCollective = await fakeCollective({ HostCollectiveId: null });
+      const expense = await fakeExpense({
+        HostCollectiveId: privateHost.id,
+        CollectiveId: formerCollective.id,
+        FromCollectiveId: expensePayee.collective.id,
+        status: ExpenseStatuses.PAID,
+      });
+      await fakeActivity({
+        type: 'collective.expense.paid',
+        FromCollectiveId: expensePayee.collective.id,
+        CollectiveId: formerCollective.id,
+        HostCollectiveId: privateHost.id,
+        ExpenseId: expense.id,
+      });
+
+      await refreshCommunityMaterializedViews();
+    });
+
+    it('returns the email of incognito contributors and of payees of unhosted collectives', async () => {
+      const result = await graphqlQueryV2(
+        communityEmailsQuery,
+        { host: { legacyId: privateHost.id }, limit: 100, offset: 0 },
+        privateHostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const emailBySlug = Object.fromEntries(result.data.community.nodes.map(node => [node.slug, node.email]));
+      expect(emailBySlug[incognitoUser.collective.slug]).to.equal(incognitoUser.email);
+      expect(emailBySlug[expensePayee.collective.slug]).to.equal(expensePayee.email);
     });
   });
 });

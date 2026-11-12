@@ -5,6 +5,7 @@ import { QueryTypes } from 'sequelize';
 
 import { roles } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
+import ExpenseStatuses from '../../constants/expense-status';
 import OrderStatuses from '../../constants/order-status';
 import { MemberRolesForPrivateAccounts } from '../../constants/roles';
 import models, { Collective, Op, sequelize } from '../../models';
@@ -125,6 +126,160 @@ async function getProcessingOrderCounterpartyIds(
   return new Set(rows.map(row => row.matchedId));
 }
 
+type IncognitoProfileLink = {
+  MainCollectiveId: number;
+  IncognitoCollectiveId: number;
+};
+
+/**
+ * Returns the links between primary profiles and their incognito profiles.
+ * The link is stored as an ADMIN membership on the incognito profile.
+ */
+async function getIncognitoProfileLinksForMainProfiles(mainProfileIds: number[]): Promise<IncognitoProfileLink[]> {
+  const ids = uniq(mainProfileIds.filter(Boolean));
+  if (!ids.length) {
+    return [];
+  }
+
+  const members = (await models.Member.findAll({
+    attributes: ['CollectiveId', 'MemberCollectiveId'],
+    where: {
+      MemberCollectiveId: ids,
+      role: roles.ADMIN,
+    },
+    include: [
+      {
+        association: 'collective',
+        attributes: [],
+        required: true,
+        where: { type: CollectiveType.USER, isIncognito: true },
+      },
+    ],
+    raw: true,
+  })) as unknown as Array<{ CollectiveId: number; MemberCollectiveId: number }>;
+
+  return members.map(member => ({
+    MainCollectiveId: member.MemberCollectiveId,
+    IncognitoCollectiveId: member.CollectiveId,
+  }));
+}
+
+type ExpensePayeeRow = {
+  matchedId: number;
+};
+
+/**
+ * Returns the account ids (from `targetIds`) of users who received an expense from a host the remote
+ * user administers, either paid or in-flight.
+ *
+ * Matches on `Expense.HostCollectiveId` (the host that paid) rather than the collective's current host,
+ * so access is preserved after the collective is unhosted or moves to another host.
+ */
+async function getExpensePayeeIds(targetIds: number[], adminOfCollectiveIds: number[]): Promise<Set<number>> {
+  const ids = uniq(targetIds.filter(Boolean));
+  if (!ids.length || !adminOfCollectiveIds.length) {
+    return new Set();
+  }
+
+  const rows = (await models.Expense.findAll({
+    attributes: [[sequelize.col('FromCollectiveId'), 'matchedId']],
+    where: {
+      FromCollectiveId: ids,
+      HostCollectiveId: adminOfCollectiveIds,
+      status: [ExpenseStatuses.PAID, ExpenseStatuses.PROCESSING, ExpenseStatuses.SCHEDULED_FOR_PAYMENT],
+    },
+    group: [sequelize.col('FromCollectiveId')],
+    raw: true,
+  })) as unknown as ExpensePayeeRow[];
+
+  return new Set(rows.map(row => row.matchedId));
+}
+
+type PrivateInfoAccessOptions = {
+  /** Only consider memberships/relationships through a host administered by the remote user. */
+  hostAdminsOnly?: boolean;
+};
+
+/**
+ * Returns the account ids (from `collectiveIds`) the remote user can see private info for.
+ *
+ * Access is granted when the remote user:
+ * - is the account itself;
+ * - is an admin of the account;
+ * - is an admin of a collective where the account (or one of its profiles) is a member;
+ * - is an admin of the host of a collective where the account has a processing order;
+ * - is an admin of the host that paid an expense to the account.
+ *
+ * Incognito memberships are only taken into account for host admins: they grant access to the
+ * primary profile, which is the account surfaced in the host dashboard.
+ */
+async function getAccountIdsWithPrivateInfoAccess(
+  req: Pick<express.Request, 'remoteUser'>,
+  collectiveIds: number[],
+  { hostAdminsOnly = false }: PrivateInfoAccessOptions = {},
+): Promise<Set<number>> {
+  const remoteUser = req.remoteUser;
+  if (!remoteUser) {
+    return new Set();
+  }
+
+  await remoteUser.populateRoles();
+  const adminOfCollectiveIds = remoteUser.getAdministratedCollectiveIds();
+  const otherAccountIds = uniq(collectiveIds.filter(id => id && id !== remoteUser.CollectiveId));
+
+  const incognitoProfileLinks = await getIncognitoProfileLinksForMainProfiles(otherAccountIds);
+  const incognitoProfileIds = incognitoProfileLinks.map(link => link.IncognitoCollectiveId);
+  const mainIdByIncognitoId = new Map(
+    incognitoProfileLinks.map(link => [link.IncognitoCollectiveId, link.MainCollectiveId]),
+  );
+  const accountIdsWithIncognito = uniq([...otherAccountIds, ...incognitoProfileIds]);
+
+  const [administratedMembers, administratedIncognitoMembers, processingOrderCounterpartyIds, expensePayeeIds] =
+    await Promise.all([
+      getAdministratedMemberRowsForPrivateInfo(req, otherAccountIds, { hostAdminsOnly, adminOfCollectiveIds }),
+      getAdministratedMemberRowsForPrivateInfo(req, incognitoProfileIds, {
+        hostAdminsOnly: true,
+        adminOfCollectiveIds,
+      }),
+      getProcessingOrderCounterpartyIds(otherAccountIds, adminOfCollectiveIds),
+      getExpensePayeeIds(accountIdsWithIncognito, adminOfCollectiveIds),
+    ]);
+
+  const accessibleIds = new Set<number>();
+
+  for (const collectiveId of collectiveIds) {
+    if (collectiveId === remoteUser.CollectiveId || remoteUser.isAdmin(collectiveId)) {
+      accessibleIds.add(collectiveId);
+    }
+  }
+
+  for (const member of administratedMembers) {
+    accessibleIds.add(member.MemberCollectiveId);
+  }
+
+  for (const member of administratedIncognitoMembers) {
+    const mainProfileId = mainIdByIncognitoId.get(member.MemberCollectiveId);
+    if (mainProfileId) {
+      accessibleIds.add(mainProfileId);
+    }
+  }
+
+  for (const expensePayeeId of expensePayeeIds) {
+    accessibleIds.add(expensePayeeId);
+
+    const mainProfileId = mainIdByIncognitoId.get(expensePayeeId);
+    if (mainProfileId) {
+      accessibleIds.add(mainProfileId);
+    }
+  }
+
+  for (const orderCounterpartyId of processingOrderCounterpartyIds) {
+    accessibleIds.add(orderCounterpartyId);
+  }
+
+  return accessibleIds;
+}
+
 export default {
   /**
    * Returns the collective (account) for this user ID, including incognito profiles
@@ -232,35 +387,17 @@ export default {
    * - be an admin of a collective where user is a member (even as incognito)
    * - be an admin of the host of a collective where user is a member (even as incognito)
    * - be an admin of the host of a collective where user has an order in `PROCESSING`
+   * - be an admin of the host that paid an expense to the user
    * Only explicitly permitted membership roles grant access; HOST memberships require host approval.
    */
   canSeePrivateProfileInfo: (req): DataLoader<number, boolean> => {
     return new DataLoader(async (collectiveIds: number[]) => {
-      const remoteUser = req.remoteUser;
-      if (!remoteUser) {
+      if (!req.remoteUser) {
         return collectiveIds.map(() => false);
       }
 
-      await remoteUser.populateRoles();
-      const adminOfCollectiveIds = remoteUser.getAdministratedCollectiveIds();
-      const otherAccountIds = uniq(collectiveIds.filter(id => id && id !== remoteUser.CollectiveId));
-
-      const [administratedMembers, processingOrderCounterpartyIds] = await Promise.all([
-        getAdministratedMemberRowsForPrivateInfo(req, otherAccountIds, { adminOfCollectiveIds }),
-        getProcessingOrderCounterpartyIds(otherAccountIds, adminOfCollectiveIds),
-      ]);
-
-      // User must be self, directly administered by remoteUser, or have an order being processed by
-      // a collective the remoteUser administers.
-      const administratedMemberCollectiveIds = new Set(administratedMembers.map(m => m.MemberCollectiveId));
-      return collectiveIds.map(collectiveId => {
-        return (
-          collectiveId === remoteUser.CollectiveId ||
-          req.remoteUser.isAdmin(collectiveId) ||
-          administratedMemberCollectiveIds.has(collectiveId) ||
-          processingOrderCounterpartyIds.has(collectiveId)
-        );
-      });
+      const accessibleIds = await getAccountIdsWithPrivateInfoAccess(req, collectiveIds);
+      return collectiveIds.map(collectiveId => accessibleIds.has(collectiveId));
     });
   },
   /**
@@ -268,38 +405,17 @@ export default {
    * - be the user himself
    * - be an admin of the host of a collective where user is a member (even as incognito)
    * - be an admin of the host of a collective where user has an order in `PROCESSING`
+   * - be an admin of the host that paid an expense to the user
    * Only explicitly permitted membership roles grant access; HOST memberships require host approval.
    */
   canSeePrivateLocation: (req): DataLoader<number, boolean> => {
     return new DataLoader(async (collectiveIds: number[]) => {
-      const remoteUser = req.remoteUser;
-      if (!remoteUser) {
+      if (!req.remoteUser) {
         return collectiveIds.map(() => false);
       }
 
-      await remoteUser.populateRoles();
-      const adminOfCollectiveIds = remoteUser.getAdministratedCollectiveIds();
-      const otherAccountIds = uniq(collectiveIds.filter(id => id && id !== remoteUser.CollectiveId));
-
-      const [administratedMembers, processingOrderCounterpartyIds] = await Promise.all([
-        getAdministratedMemberRowsForPrivateInfo(req, otherAccountIds, {
-          hostAdminsOnly: true,
-          adminOfCollectiveIds,
-        }),
-        getProcessingOrderCounterpartyIds(otherAccountIds, adminOfCollectiveIds),
-      ]);
-
-      // User must be self, directly administered by remoteUser, or have an order being processed by
-      // a collective the remoteUser administers.
-      const administratedMemberCollectiveIds = new Set(administratedMembers.map(m => m.MemberCollectiveId));
-      return collectiveIds.map(collectiveId => {
-        return (
-          collectiveId === remoteUser.CollectiveId ||
-          req.remoteUser.isAdmin(collectiveId) ||
-          administratedMemberCollectiveIds.has(collectiveId) ||
-          processingOrderCounterpartyIds.has(collectiveId)
-        );
-      });
+      const accessibleIds = await getAccountIdsWithPrivateInfoAccess(req, collectiveIds, { hostAdminsOnly: true });
+      return collectiveIds.map(collectiveId => accessibleIds.has(collectiveId));
     });
   },
   /**
