@@ -147,16 +147,16 @@ describe('server/paymentProviders/paypal/payment', () => {
         });
       });
 
-      it('rejects if bad amount', () => {
+      it('rejects if bad amount', async () => {
         mockPaypalOrderDetail({ amount: '42.00' });
-        expect(paypalPayment.processOrder(order)).to.be.rejectedWith(
+        await expect(paypalPayment.processOrder(order)).to.be.rejectedWith(
           /The amount\/currency for this payment doesn't match what's expected for this order/,
         );
       });
 
-      it('rejects if bad currency', () => {
+      it('rejects if bad currency', async () => {
         mockPaypalOrderDetail({ currency: 'EUR' });
-        expect(paypalPayment.processOrder(order)).to.be.rejectedWith(
+        await expect(paypalPayment.processOrder(order)).to.be.rejectedWith(
           /The amount\/currency for this payment doesn't match what's expected for this order/,
         );
       });
