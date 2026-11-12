@@ -802,6 +802,88 @@ describe('server/models/Transaction', () => {
       expect(debit.paymentProcessorFeeInHostCurrency).to.equal(-500);
       expect(debit.netAmountInCollectiveCurrency).to.equal(-500);
     });
+
+    describe('opposite side hosted in a zero-decimal currency', () => {
+      const USD_TO_KRW = 1346.619822;
+      let krwCollective;
+
+      beforeEach(async () => {
+        sandbox.stub(Transaction, 'getFxRate').callsFake(async (from, to) => {
+          if (from === to) {
+            return 1;
+          } else if (from === 'USD' && to === 'KRW') {
+            return USD_TO_KRW;
+          } else if (from === 'KRW' && to === 'USD') {
+            return 1 / USD_TO_KRW;
+          }
+          throw new Error(`Unexpected FX rate request: ${from} -> ${to}`);
+        });
+
+        const krwHost = await fakeHost({ currency: 'KRW', CreatedByUserId: user.id });
+        // hostFeePercent: 0 to avoid generating cross-host fees for the expense
+        krwCollective = await fakeCollective({ HostCollectiveId: krwHost.id, currency: 'KRW', hostFeePercent: 0 });
+      });
+
+      const createExpensePair = async (fees: { paymentProcessorFeeInHostCurrency?: number } = {}) => {
+        const paymentProcessorFeeInHostCurrency = fees.paymentProcessorFeeInHostCurrency || 0;
+        // USD-hosted collective pays an expense to an account hosted in KRW
+        const result = await models.Transaction.createDoubleEntry({
+          type: TransactionTypes.DEBIT,
+          kind: TransactionKind.EXPENSE,
+          description: 'Expense paid to a KRW-hosted account',
+          CollectiveId: collective.id,
+          FromCollectiveId: krwCollective.id,
+          HostCollectiveId: host.id,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          hostCurrencyFxRate: 1,
+          amount: -1000,
+          amountInHostCurrency: -1000,
+          hostFeeInHostCurrency: 0,
+          platformFeeInHostCurrency: 0,
+          paymentProcessorFeeInHostCurrency,
+          netAmountInCollectiveCurrency: -1000 + paymentProcessorFeeInHostCurrency,
+        });
+
+        const transactions = await models.Transaction.findAll({ where: { TransactionGroup: result.TransactionGroup } });
+        expect(transactions).to.have.length(2);
+        return {
+          credit: transactions.find(t => t.type === 'CREDIT'),
+          debit: transactions.find(t => t.type === 'DEBIT'),
+        };
+      };
+
+      it('rounds the opposite transaction amount using its own host currency', async () => {
+        const { credit, debit } = await createExpensePair();
+
+        expect(debit.hostCurrency).to.equal('USD');
+        expect(debit.amountInHostCurrency).to.equal(-1000);
+
+        expect(credit.CollectiveId).to.equal(krwCollective.id);
+        expect(credit.hostCurrency).to.equal('KRW');
+        expect(credit.hostCurrencyFxRate).to.equal(USD_TO_KRW);
+        // 1000 * 1346.619822 = 1346619.82 -> 1346600 (₩13,466 stored x100). Was 1346620 before the fix.
+        expect(credit.amountInHostCurrency).to.equal(1346600);
+        expect(credit.amountInHostCurrency % 100).to.equal(0);
+        expect(credit.netAmountInHostCurrency % 100).to.equal(0);
+      });
+
+      it('rounds the opposite transaction fees using its own host currency', async () => {
+        const { credit, debit } = await createExpensePair({ paymentProcessorFeeInHostCurrency: -37 });
+
+        expect(credit.hostCurrency).to.equal('KRW');
+        // 1037 * 1346.619822 = 1396444.76 -> 1396400 (was 1396445)
+        expect(credit.amountInHostCurrency).to.equal(1396400);
+        // -37 * 1346.619822 = -49824.93 -> -49800 (was -49825)
+        expect(credit.paymentProcessorFeeInHostCurrency).to.equal(-49800);
+        for (const field of ['amountInHostCurrency', 'paymentProcessorFeeInHostCurrency', 'netAmountInHostCurrency']) {
+          expect(credit[field] % 100, field).to.equal(0);
+        }
+
+        // Validation of the opposite side must agree with the stored rounding
+        await Transaction.validate(debit, { oppositeTransaction: credit });
+      });
+    });
   });
 
   describe('with separated fees transactions', () => {
