@@ -273,10 +273,7 @@ describe('lib/security/expense', () => {
         ['2021-01-01', 2],
         ['2022-01-01', 3],
       ] as const) {
-        const fxRate = await fakeCurrencyExchangeRate({ from: 'GBP', to: 'USD', rate });
-        await sequelize.query(`UPDATE "CurrencyExchangeRates" SET "createdAt" = :createdAt WHERE id = :id`, {
-          replacements: { createdAt, id: fxRate.id },
-        });
+        await fakeCurrencyExchangeRate({ from: 'GBP', to: 'USD', rate, createdAt: new Date(createdAt) });
       }
 
       const [checks, oldExpenseChecks] = await checkExpensesBatch(makeRequest() as any, [

@@ -332,24 +332,20 @@ const getExpensesAmountsStats = async (
             -- Simple case: expense is already in display currency
             WHEN e.currency = :displayCurrency THEN e.amount
             -- Convert expense to display currency
-            ELSE e.amount * COALESCE((
-                SELECT rate
-                FROM "CurrencyExchangeRates" r
-                WHERE r."from" = e.currency
-                AND r."to" = :displayCurrency
-                -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
-                AND r."createdAt" <= e."createdAt"
-                ORDER BY r."createdAt" DESC
-                LIMIT 1
-              ), (
-                -- Fix for old expenses where we didn't have an exchange rate stored yet: just use the oldest rate available
-                SELECT rate
-                FROM "CurrencyExchangeRates" r
-                WHERE r."from" = e.currency
-                AND r."to" = :displayCurrency
-                ORDER BY r."createdAt" ASC -- Oldest rate
-                LIMIT 1
-            ))
+            ELSE e.amount * COALESCE(
+              -- Most recent rate that is older than the expense
+              fx_rate(e.currency, :displayCurrency, e."createdAt"),
+              -- Fix for old expenses where we didn't have an exchange rate stored yet: use the oldest rate
+              -- available, from the first day both currencies have one
+              fx_rate(
+                e.currency,
+                :displayCurrency,
+                GREATEST(
+                  (SELECT MIN(u."createdAt") FROM "UsdExchangeRates" u WHERE u."currency" = e.currency),
+                  (SELECT MIN(u."createdAt") FROM "UsdExchangeRates" u WHERE u."currency" = :displayCurrency)
+                )
+              )
+            )
             END AS "amountInHostCurrency"
         FROM "Expenses" e
         WHERE e."deletedAt" IS NULL

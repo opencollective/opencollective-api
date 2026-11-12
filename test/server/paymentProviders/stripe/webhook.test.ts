@@ -38,6 +38,7 @@ import {
   fakePaymentMethod,
   fakePayoutMethod,
   fakeSubscription,
+  fakeTier,
   fakeTransaction,
   fakeUser,
   randStr,
@@ -1059,6 +1060,429 @@ describe('webhook', () => {
       });
 
       describe('when the order has a subscription', () => {
+        const stubPaidContribution = () =>
+          sandbox.stub(common, 'createChargeTransactions').callsFake(async (charge, { sqlTransaction }) =>
+            models.Transaction.createFromContributionPayload(
+              {
+                OrderId: order.id,
+                CollectiveId: order.CollectiveId,
+                FromCollectiveId: order.FromCollectiveId,
+                amount: order.totalAmount,
+                currency: order.currency,
+                CreatedByUserId: order.CreatedByUserId,
+                amountInHostCurrency: order.totalAmount,
+                hostCurrency: order.currency,
+                hostCurrencyFxRate: 1,
+                type: 'CREDIT',
+                kind: TransactionKind.CONTRIBUTION,
+                isRefund: false,
+                data: { charge },
+              },
+              { sequelizeTransaction: sqlTransaction },
+            ),
+          );
+        const successEvent = () => ({
+          ...event,
+          data: {
+            object: {
+              ...event.data.object,
+              status: 'succeeded',
+              charges: {
+                data: [
+                  {
+                    ...event.data.object.charges.data[0],
+                    id: `${event.data.object.charges.data[0].id}_paid`,
+                    paid: true,
+                    payment_intent: event.data.object.id,
+                  },
+                ],
+              },
+            },
+          },
+        });
+
+        for (const mode of ['async', 'sync', 'early-success', 'failure', 'cancelled']) {
+          for (const sufficient of [true, false]) {
+            it(`integration: preserves pending tier and membership through ${mode} payment (sufficient: ${sufficient})`, async () => {
+              sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+              sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+              const oldTier = await fakeTier({
+                CollectiveId: order.CollectiveId,
+                currency: order.currency,
+                amount: 100,
+              });
+              const newTier = await fakeTier({
+                CollectiveId: order.CollectiveId,
+                currency: order.currency,
+                amountType: 'FIXED',
+                amount: order.totalAmount + (sufficient ? 0 : 100),
+              });
+              const subscription = await fakeSubscription({
+                interval: 'month',
+                isActive: mode !== 'cancelled',
+                chargeRetryCount: 0,
+              });
+              await order.update({
+                TierId: oldTier.id,
+                interval: 'month',
+                SubscriptionId: subscription.id,
+                status: mode === 'cancelled' ? OrderStatuses.CANCELLED : OrderStatuses.PROCESSING,
+                data: {
+                  ...order.data,
+                  pendingTierChange: {
+                    TierId: newTier.id,
+                    previousTierId: oldTier.id,
+                    requestedAt: new Date().toISOString(),
+                    requestedByUserId: order.CreatedByUserId,
+                  },
+                },
+              });
+              order.Subscription = subscription;
+              const memberWhere = {
+                CollectiveId: order.CollectiveId,
+                MemberCollectiveId: order.FromCollectiveId,
+                role: 'BACKER',
+              };
+              await models.Member.destroy({ where: memberWhere });
+              const membershipSnapshots: { tier: number; pending: boolean; credits: number }[] = [];
+              const createMembers = models.Order.prototype.getOrCreateMembers;
+              sandbox.stub(models.Order.prototype, 'getOrCreateMembers').callsFake(async function () {
+                if (this.id === order.id) {
+                  membershipSnapshots.push({
+                    tier: this.TierId,
+                    pending: Boolean(this.data.pendingTierChange),
+                    credits: await models.Transaction.count({ where: { OrderId: order.id, type: 'CREDIT' } }),
+                  });
+                }
+                return createMembers.call(this);
+              });
+              const paid = stubPaidContribution();
+              if (mode === 'sync' || mode === 'early-success') {
+                if (mode === 'early-success') {
+                  event.data.object.id = randStr('pi_tier_processing');
+                }
+                sandbox.stub(libPayments, 'processOrder').callsFake(async processingOrder => {
+                  if (mode === 'early-success') {
+                    await processingOrder.update({
+                      data: { ...processingOrder.data, stripePaymentIntent: event.data.object },
+                    });
+                    await webhook.stripePaymentIntentFailed(event);
+                    await webhook.stripePaymentIntentSucceeded(successEvent());
+                    return;
+                  }
+                  return paid(successEvent().data.object.charges.data[0], { order });
+                });
+                const result = await processOrderWithSubscription(order, {});
+                expect(result.status).to.equal('success');
+              } else if (mode === 'failure') {
+                await webhook.stripePaymentIntentFailed(event);
+              } else {
+                await webhook.stripePaymentIntentSucceeded(successEvent());
+              }
+              await order.reload();
+              await subscription.reload();
+              expect(subscription.chargeRetryCount).to.equal(mode === 'failure' ? 1 : 0);
+              const applied = mode !== 'failure' && sufficient;
+              expect(order.TierId).to.equal(applied ? newTier.id : oldTier.id);
+              if (applied) {
+                expect(order.data.pendingTierChange).to.be.undefined;
+                const members = await models.Member.findAll({ where: memberWhere });
+                expect(members).to.have.length(1);
+                expect(members[0].TierId).to.equal(newTier.id);
+              } else {
+                expect(order.data.pendingTierChange.TierId).to.equal(newTier.id);
+                expect(await models.Member.count({ where: { ...memberWhere, TierId: newTier.id } })).to.equal(0);
+              }
+              if (mode === 'cancelled') {
+                expect(order.status).to.equal(OrderStatuses.CANCELLED);
+                expect(subscription.isActive).to.equal(false);
+              }
+              if (mode === 'async' && sufficient) {
+                expect(membershipSnapshots[0]).to.eql({ tier: newTier.id, pending: false, credits: 1 });
+                const appliedCount = await models.Activity.count({
+                  where: { OrderId: order.id, type: ActivityTypes.ORDER_UPDATED },
+                });
+                await webhook.stripePaymentIntentSucceeded(successEvent());
+                expect(
+                  await models.Activity.count({ where: { OrderId: order.id, type: ActivityTypes.ORDER_UPDATED } }),
+                ).to.equal(appliedCount);
+              }
+            });
+          }
+        }
+
+        for (const { lateProviderWrite, initialCount } of [
+          { lateProviderWrite: false, initialCount: 0 },
+          { lateProviderWrite: true, initialCount: 0 },
+          { lateProviderWrite: true, initialCount: MAX_RETRIES - 1 },
+        ]) {
+          it(`review: preserves success after an early failure before recurring finalization (late provider: ${lateProviderWrite}, retries: ${initialCount})`, async () => {
+            sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+            sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+            stubPaidContribution();
+            const subscription = await fakeSubscription({
+              interval: 'month',
+              isActive: true,
+              chargeRetryCount: initialCount,
+            });
+            await order.update({ interval: 'month', SubscriptionId: subscription.id, status: OrderStatuses.ERROR });
+            order.Subscription = subscription;
+            event.data.object.id = randStr('pi_failure_then_success');
+            sandbox.stub(libPayments, 'processOrder').callsFake(async processingOrder => {
+              await processingOrder.update({
+                data: { ...processingOrder.data, stripePaymentIntent: event.data.object },
+              });
+              await webhook.stripePaymentIntentFailed(event);
+              await webhook.stripePaymentIntentSucceeded(successEvent());
+              if (lateProviderWrite) {
+                await processingOrder.update({ status: OrderStatuses.PROCESSING, data: processingOrder.data });
+              }
+            });
+            const result = await processOrderWithSubscription(order, {});
+            await order.reload();
+            await subscription.reload();
+            expect(order.status).to.equal(
+              initialCount + 1 >= MAX_RETRIES ? OrderStatuses.CANCELLED : OrderStatuses.ACTIVE,
+            );
+            expect(subscription.isActive).to.equal(initialCount + 1 < MAX_RETRIES);
+            expect(subscription.chargeRetryCount).to.equal(0);
+            expect(subscription.data.stripeRecurringPaymentAttempt.outcome).to.equal('success');
+            expect(result.status).to.equal('success');
+            expect(result.retriesAfter).to.equal(0);
+          });
+        }
+
+        it('review: preserves a synchronous posted success after an early failure', async () => {
+          sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+          stubPaidContribution();
+          const subscription = await fakeSubscription({ interval: 'month', isActive: true, chargeRetryCount: 0 });
+          await order.update({ interval: 'month', SubscriptionId: subscription.id });
+          order.Subscription = subscription;
+          event.data.object.id = randStr('pi_sync_success');
+          sandbox.stub(libPayments, 'processOrder').callsFake(async processingOrder => {
+            await processingOrder.update({ data: { ...processingOrder.data, stripePaymentIntent: event.data.object } });
+            await webhook.stripePaymentIntentFailed(event);
+            const paid = await common.createChargeTransactions(successEvent().data.object.charges.data[0], { order });
+            await processingOrder.update({ data: { ...processingOrder.data, stripePaymentIntent: undefined } });
+            return paid;
+          });
+          const result = await processOrderWithSubscription(order, {});
+          await order.reload();
+          await subscription.reload();
+          expect(order.status).to.equal(OrderStatuses.ACTIVE);
+          expect(subscription.chargeRetryCount).to.equal(0);
+          expect(subscription.data.stripeRecurringPaymentAttempt.outcome).to.equal('success');
+          expect(result.status).to.equal('success');
+        });
+
+        for (const initialCount of [0, MAX_RETRIES - 2]) {
+          it(`review: rebases synchronous failure on a previous intent increment (${initialCount})`, async () => {
+            sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+            const subscription = await fakeSubscription({
+              interval: 'month',
+              isActive: true,
+              chargeRetryCount: initialCount,
+            });
+            await order.update({ interval: 'month', SubscriptionId: subscription.id, status: OrderStatuses.ACTIVE });
+            order.Subscription = subscription;
+            sandbox.stub(libPayments, 'processOrder').callsFake(async processingOrder => {
+              await webhook.stripePaymentIntentFailed(event);
+              await processingOrder.update({
+                data: {
+                  ...processingOrder.data,
+                  stripePaymentIntent: { ...event.data.object, id: randStr('pi_sync') },
+                },
+              });
+              throw new Error('Your card was declined.');
+            });
+            const result = await processOrderWithSubscription(order, {});
+            await subscription.reload();
+            await order.reload();
+            expect(subscription.chargeRetryCount).to.equal(initialCount + 2);
+            expect(result.retriesAfter).to.equal(initialCount + 2);
+            expect(subscription.isActive).to.equal(initialCount + 2 < MAX_RETRIES);
+            expect(order.status).to.equal(
+              initialCount + 2 >= MAX_RETRIES ? OrderStatuses.CANCELLED : OrderStatuses.ERROR,
+            );
+          });
+        }
+
+        it('review: schedules the third failed retry five days later', async () => {
+          sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+          const subscription = await fakeSubscription({ interval: 'month', isActive: true, chargeRetryCount: 2 });
+          await order.update({ interval: 'month', SubscriptionId: subscription.id });
+          const clock = sandbox.useFakeTimers({ now: new Date('2026-11-12T12:00:00Z'), toFake: ['Date'] });
+          await webhook.stripePaymentIntentFailed(event);
+          await subscription.reload();
+          expect(subscription.chargeRetryCount).to.equal(3);
+          expect(subscription.nextChargeDate.toISOString()).to.equal('2026-11-17T00:00:00.000Z');
+          clock.restore();
+        });
+
+        it('review: serializes success before a concurrent threshold failure without Redis', async () => {
+          sandbox.stub(redisLib, 'createRedisClient').resolves(null);
+          sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+          sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+          const subscription = await fakeSubscription({
+            interval: 'month',
+            isActive: true,
+            chargeRetryCount: MAX_RETRIES - 1,
+          });
+          await order.update({ interval: 'month', SubscriptionId: subscription.id });
+          const ledgerReached = Promise.withResolvers<void>();
+          const release = Promise.withResolvers<void>();
+          const paid = stubPaidContribution();
+          paid.callsFake(async charge => {
+            ledgerReached.resolve();
+            await release.promise;
+            return fakeTransaction(
+              {
+                OrderId: order.id,
+                CollectiveId: order.CollectiveId,
+                FromCollectiveId: order.FromCollectiveId,
+                amount: order.totalAmount,
+                currency: order.currency,
+                type: 'CREDIT',
+                kind: TransactionKind.CONTRIBUTION,
+                isRefund: false,
+                data: { charge },
+              },
+              { createDoubleEntry: true },
+            );
+          });
+          const success = webhook.stripePaymentIntentSucceeded(successEvent());
+          let failure: Promise<unknown>;
+          try {
+            await ledgerReached.promise;
+            const backend = Promise.withResolvers<number>();
+            const originalFind = models.Order.findOne;
+            sandbox.stub(models.Order, 'findOne').callsFake(async options => {
+              const [row] = await sequelize.query<{ pid: number }>('SELECT pg_backend_pid() AS pid', {
+                transaction: options.transaction,
+                type: QueryTypes.SELECT,
+              });
+              backend.resolve(row.pid);
+              return originalFind.call(models.Order, options);
+            });
+            let failureDone = false;
+            failure = webhook.stripePaymentIntentFailed(event).then(() => {
+              failureDone = true;
+            });
+            const pid = await backend.promise;
+            await utils.waitForCondition(async () => {
+              const [row] = await sequelize.query<{ wait_event_type: string }>(
+                'SELECT wait_event_type FROM pg_stat_activity WHERE pid = :pid',
+                { replacements: { pid }, type: QueryTypes.SELECT },
+              );
+              return failureDone || row?.wait_event_type === 'Lock';
+            });
+          } finally {
+            release.resolve();
+            await Promise.allSettled([success, failure]);
+          }
+          await success;
+          await failure;
+          await order.reload();
+          await subscription.reload();
+          expect(order.status).to.equal(OrderStatuses.ACTIVE);
+          expect(subscription.isActive).to.equal(true);
+          expect(subscription.deactivatedAt).to.be.null;
+          expect(subscription.chargeRetryCount).to.equal(0);
+        });
+
+        it('review: rolls back the paid ledger and success state together before retrying', async () => {
+          sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+          stubPaidContribution();
+          const subscription = await fakeSubscription({ interval: 'month', isActive: true, chargeRetryCount: 1 });
+          await order.update({ interval: 'month', SubscriptionId: subscription.id });
+          const originalUpdate = models.Order.prototype.update;
+          const update = sandbox.stub(models.Order.prototype, 'update').callsFake(async function (values, options) {
+            const result = await originalUpdate.call(this, values, options);
+            if (values.status === OrderStatuses.ACTIVE) {
+              throw new Error('success state interrupted');
+            }
+            return result;
+          });
+          await expect(webhook.stripePaymentIntentSucceeded(successEvent())).to.be.rejectedWith(
+            'success state interrupted',
+          );
+          update.restore();
+          await order.reload();
+          await subscription.reload();
+          expect(order.status).to.equal(OrderStatuses.PROCESSING);
+          expect(subscription.chargeRetryCount).to.equal(1);
+          expect(await models.Transaction.count({ where: { OrderId: order.id } })).to.equal(0);
+          await webhook.stripePaymentIntentSucceeded(successEvent());
+          await order.reload();
+          await subscription.reload();
+          expect(order.status).to.equal(OrderStatuses.ACTIVE);
+          expect(subscription.chargeRetryCount).to.equal(0);
+          expect(await models.Transaction.count({ where: { OrderId: order.id, type: 'CREDIT' } })).to.equal(1);
+        });
+
+        it('ignores an earlier intent failure after a different recurring intent succeeds', async () => {
+          const sendFailureEmail = sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+          sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+          const subscription = await fakeSubscription({ interval: 'month', isActive: true, chargeRetryCount: 0 });
+          await order.update({ interval: 'month', SubscriptionId: subscription.id });
+          const oldFailure = { ...event, data: { object: { ...event.data.object } } };
+          await webhook.stripePaymentIntentFailed(oldFailure);
+          await order.reload();
+          await subscription.reload();
+          expect(subscription.chargeRetryCount).to.equal(1);
+          order.Subscription = subscription;
+          const nextIntent = { ...event.data.object, id: randStr('pi_new_success'), status: 'processing' };
+          sandbox.stub(libPayments, 'processOrder').callsFake(async processingOrder => {
+            await processingOrder.update({ data: { ...processingOrder.data, stripePaymentIntent: nextIntent } });
+          });
+          await processOrderWithSubscription(order, {});
+          await order.reload();
+          expect(order.data.stripePaymentIntent.id).to.equal(nextIntent.id);
+          const paidCharge = {
+            ...event.data.object.charges.data[0],
+            id: randStr('ch_new_success'),
+            payment_intent: nextIntent.id,
+            paid: true,
+            status: 'succeeded',
+          };
+          sandbox.stub(common, 'createChargeTransactions').callsFake(async charge =>
+            fakeTransaction(
+              {
+                OrderId: order.id,
+                CollectiveId: order.CollectiveId,
+                FromCollectiveId: order.FromCollectiveId,
+                amount: order.totalAmount,
+                currency: order.currency,
+                type: 'CREDIT',
+                kind: TransactionKind.CONTRIBUTION,
+                isRefund: false,
+                data: { charge },
+              },
+              { createDoubleEntry: true },
+            ),
+          );
+          await webhook.stripePaymentIntentSucceeded({
+            ...event,
+            data: { object: { ...nextIntent, status: 'succeeded', charges: { data: [paidCharge] } } },
+          });
+          await order.reload();
+          await subscription.reload();
+          expect(order.status).to.equal(OrderStatuses.ACTIVE);
+          expect(order.data.stripePaymentIntent).to.be.undefined;
+          expect(subscription.chargeRetryCount).to.equal(0);
+          const beforeOrder = order.toJSON();
+          const beforeSubscription = subscription.toJSON();
+          metricsCountStub.resetHistory();
+          sendFailureEmail.resetHistory();
+          await webhook.stripePaymentIntentFailed({ ...oldFailure, id: 'evt_delayed_old_intent' });
+          await order.reload();
+          await subscription.reload();
+          expect(order.toJSON()).to.eql(beforeOrder);
+          expect(subscription.toJSON()).to.eql(beforeSubscription);
+          expect(metricsCountStub).to.not.have.been.called;
+          expect(sendFailureEmail).to.not.have.been.called;
+        });
+
         for (const lateProviderResponse of [false, 'succeeded', 'processing']) {
           it(`preserves a successful payment against an older failure (late provider response: ${lateProviderResponse})`, async () => {
             const sendFailureEmail = sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
@@ -1229,6 +1653,47 @@ describe('webhook', () => {
             );
           return { child, waitFor };
         };
+        it('review: serializes a successful payment and failure in independent processes', async () => {
+          const subscription = await fakeSubscription({
+            interval: 'month',
+            isActive: true,
+            chargeRetryCount: MAX_RETRIES - 1,
+          });
+          await order.update({ interval: 'month', SubscriptionId: subscription.id });
+          event.data.object.payment_method = 'pm_review_worker';
+          await order.paymentMethod.update({
+            data: { ...order.paymentMethod.data, stripePaymentMethodId: 'pm_review_worker' },
+          });
+          const first = startWorker();
+          const second = startWorker();
+          try {
+            await Promise.all([first.waitFor('ready'), second.waitFor('ready')]);
+            first.child.send({ type: 'run', event: successEvent(), pause: true, success: true });
+            await first.waitFor('paused');
+            second.child.send({ type: 'run', event, pause: false });
+            const { pid } = await second.waitFor('backend');
+            await utils.waitForCondition(async () => {
+              const [row] = await sequelize.query<{ wait_event_type: string }>(
+                'SELECT wait_event_type FROM pg_stat_activity WHERE pid = :pid',
+                { replacements: { pid }, type: QueryTypes.SELECT },
+              );
+              return row?.wait_event_type === 'Lock';
+            });
+            first.child.send({ type: 'release' });
+            await Promise.all([first.waitFor('done'), second.waitFor('done')]);
+            await order.reload();
+            await subscription.reload();
+            expect(order.status).to.equal(OrderStatuses.ACTIVE);
+            expect(subscription.isActive).to.equal(true);
+            expect(subscription.deactivatedAt).to.be.null;
+            expect(subscription.chargeRetryCount).to.equal(0);
+            expect(await models.Transaction.count({ where: { OrderId: order.id, type: 'CREDIT' } })).to.equal(1);
+          } finally {
+            first.child.kill();
+            second.child.kill();
+          }
+        }).timeout(90000);
+
         for (const terminateFirst of [false, true]) {
           it(`recovers duplicate failures across independent processes (crashed worker: ${terminateFirst})`, async () => {
             const subscription = await fakeSubscription({ interval: 'month', isActive: true, chargeRetryCount: 0 });

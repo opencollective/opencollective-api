@@ -346,6 +346,123 @@ describe('memberMutations', () => {
     });
   });
 
+  describe('when the team is locked', () => {
+    const editMemberMutation = gql`
+      mutation EditMemberLocked(
+        $memberAccount: AccountReferenceInput!
+        $account: AccountReferenceInput!
+        $role: MemberRole
+      ) {
+        editMember(memberAccount: $memberAccount, account: $account, role: $role) {
+          id
+        }
+      }
+    `;
+
+    const removeMemberMutation = gql`
+      mutation RemoveMemberLocked(
+        $memberAccount: AccountReferenceInput!
+        $account: AccountReferenceInput!
+        $role: MemberRole!
+        $isInvitation: Boolean
+      ) {
+        removeMember(memberAccount: $memberAccount, account: $account, role: $role, isInvitation: $isInvitation)
+      }
+    `;
+
+    const setupAccount = async () => {
+      const admin = await fakeUser();
+      const member = await fakeUser();
+      const account = await fakeCollective({ admin });
+      await account.addUserWithRole(member, roles.MEMBER);
+      return { admin, member, account };
+    };
+
+    const editMember = (account, member, admin) =>
+      utils.graphqlQueryV2(
+        editMemberMutation,
+        {
+          memberAccount: { legacyId: member.CollectiveId },
+          account: { legacyId: account.id },
+          role: roles.ADMIN,
+        },
+        admin,
+      );
+
+    const removeMember = (account, member, admin) =>
+      utils.graphqlQueryV2(
+        removeMemberMutation,
+        { memberAccount: { legacyId: member.CollectiveId }, account: { legacyId: account.id }, role: roles.MEMBER },
+        admin,
+      );
+
+    const expectTeamLocked = result => {
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].extensions.code).to.equal('TeamLocked');
+    };
+
+    it('cannot edit or remove members of a frozen account', async () => {
+      const { admin, member, account } = await setupAccount();
+      await account.freeze('Frozen for audit', false);
+
+      expectTeamLocked(await editMember(account, member, admin));
+      expectTeamLocked(await removeMember(account, member, admin));
+
+      const membership = await models.Member.findOne({
+        where: { CollectiveId: account.id, MemberCollectiveId: member.CollectiveId },
+      });
+      expect(membership.role).to.equal(roles.MEMBER);
+
+      // Unfreezing restores the ability to edit the team
+      await account.reload();
+      await account.unfreeze('Unfrozen', 'Unfrozen');
+      const result = await editMember(account, member, admin);
+      expect(result.errors).to.not.exist;
+    });
+
+    it('cannot edit or remove members when the TEAM feature is disabled', async () => {
+      const { admin, member, account } = await setupAccount();
+      await account.update({ data: { features: { TEAM: false } } });
+      expectTeamLocked(await editMember(account, member, admin));
+      expectTeamLocked(await removeMember(account, member, admin));
+    });
+
+    it('cannot edit members of a project when the team of the parent is locked', async () => {
+      const { admin, account } = await setupAccount();
+      const project = await fakeProject({ ParentCollectiveId: account.id });
+      const projectMember = await fakeUser();
+      await project.addUserWithRole(projectMember, roles.MEMBER);
+      await account.update({ data: { features: { TEAM: false } } });
+      expectTeamLocked(await editMember(project, projectMember, admin));
+    });
+
+    it('cannot remove a pending invitation', async () => {
+      const { admin, account } = await setupAccount();
+      const invitedUser = await fakeUser();
+      const invitation = await models.MemberInvitation.invite(account, {
+        role: roles.MEMBER,
+        MemberCollectiveId: invitedUser.CollectiveId,
+        CreatedByUserId: admin.id,
+      });
+      await account.freeze('Frozen for audit', false);
+
+      const result = await utils.graphqlQueryV2(
+        removeMemberMutation,
+        {
+          memberAccount: { legacyId: invitedUser.CollectiveId },
+          account: { legacyId: account.id },
+          role: roles.MEMBER,
+          isInvitation: true,
+        },
+        admin,
+      );
+
+      expectTeamLocked(result);
+      await invitation.reload();
+      expect(invitation.deletedAt).to.be.null;
+    });
+  });
+
   describe('removed follower feature', () => {
     it('does not expose follow mutations or the follower member role', async () => {
       const result = await utils.graphqlQueryV2(

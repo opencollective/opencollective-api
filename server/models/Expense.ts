@@ -261,6 +261,7 @@ class Expense extends ModelWithPublicId<
         ...pick(data, [
           'isManualPayout',
           'error',
+          'errorRetrievalFailed',
           'payee',
           'draftKey',
           'inviteUrl',

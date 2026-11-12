@@ -7,19 +7,18 @@ import { reportMessageToSentry } from '../../lib/sentry';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { parseToBoolean } from '../../lib/utils';
 import models from '../../models';
-import { editPublicMessage } from '../common/members';
+import { checkCanEditTeam, editPublicMessage } from '../common/members';
 import {
   checkRemoteUserCanUseAccount,
   checkRemoteUserCanUseOrders,
   checkRemoteUserCanUseWebhooks,
 } from '../common/scope-check';
-import { createUser } from '../common/user';
+import { createUser, requestUserEmailChange } from '../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../errors';
 
 import { createCollective, createCollectiveFromGithub, editCollective } from './mutations/collectives';
 import { editWebhooks } from './mutations/notifications';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
-import { updateUserEmail } from './mutations/users';
 import { CollectiveInterfaceType } from './CollectiveInterface';
 import {
   CaptchaInputType,
@@ -177,7 +176,7 @@ const mutations = {
     resolve: async (_, { email }, req) => {
       checkRemoteUserCanUseAccount(req);
       await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
-      return updateUserEmail(req.remoteUser, email);
+      return requestUserEmailChange(req.remoteUser, email);
     },
   },
   editCoreContributors: {
@@ -196,6 +195,7 @@ const mutations = {
       } else if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized();
       } else {
+        await checkCanEditTeam(collective, req);
         await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
         await collective.editMembers(args.members, {

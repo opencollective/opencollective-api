@@ -22,6 +22,7 @@ import { applyContributionAccountingCategoryRules } from '../../lib/accounting/c
 import { getFxRate, isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { lockUntilResolved } from '../../lib/mutex';
+import { applyPendingTierChangeAfterCharge } from '../../lib/order-tier-change';
 import {
   createRefundTransaction,
   createSubscription,
@@ -232,33 +233,31 @@ export async function stripePaymentIntentSucceeded(event: Stripe.Event) {
 const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   const stripeAccount = event.account ?? config.stripe.accountId;
   const stripePaymentIntent = event.data.object as Stripe.PaymentIntent;
-
   let charge = stripePaymentIntent.latest_charge || getPaymentIntentCharge(stripePaymentIntent);
   if (typeof charge === 'string') {
     charge = await stripe.charges.retrieve(charge, { stripeAccount });
   }
 
-  const order = await models.Order.findOne({
+  const include = [
+    { association: 'collective', required: true },
+    { association: 'fromCollective', required: true },
+    { association: 'createdByUser', required: true },
+  ];
+  const candidate = await models.Order.findOne({
     where: getWhereStripePaymentIntentId(stripePaymentIntent.id),
-    include: [
-      { association: 'collective', required: true },
-      { association: 'fromCollective', required: true },
-      { association: 'createdByUser', required: true },
-    ],
+    include,
   });
-
-  if (!order) {
+  if (!candidate) {
     logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${stripePaymentIntent.id}`);
     return;
   }
-
-  const expectedAmount = convertToStripeAmount(order.currency, order.totalAmount);
-  const expectedCurrency = order.currency.toLowerCase();
+  const expectedAmount = convertToStripeAmount(candidate.currency, candidate.totalAmount);
+  const expectedCurrency = candidate.currency.toLowerCase();
   if (
     stripePaymentIntent.amount !== expectedAmount ||
     stripePaymentIntent.currency?.toLowerCase() !== expectedCurrency
   ) {
-    const message = `Stripe Webhook: PaymentIntent ${stripePaymentIntent.id} amount/currency (${stripePaymentIntent.amount} ${stripePaymentIntent.currency}) does not match order ${order.id} (${expectedAmount} ${expectedCurrency})`;
+    const message = `Stripe Webhook: PaymentIntent ${stripePaymentIntent.id} amount/currency (${stripePaymentIntent.amount} ${stripePaymentIntent.currency}) does not match order ${candidate.id} (${expectedAmount} ${expectedCurrency})`;
     logger.error(message);
     reportMessageToSentry(message, {
       extra: {
@@ -266,91 +265,113 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
         paymentIntentAmount: stripePaymentIntent.amount,
         paymentIntentCurrency: stripePaymentIntent.currency,
         paymentIntentStatus: stripePaymentIntent.status,
-        orderId: order.id,
+        orderId: candidate.id,
         expectedAmount,
         expectedCurrency,
       },
     });
     return;
   }
-
-  // If charge was already processed, ignore event. (Potential edge-case: if the webhook is called while processing a 3DS validation)
-  const existingChargeTransaction = await models.Transaction.findOne({
-    where: { data: { charge: { id: charge.id } } },
-  });
-  if (existingChargeTransaction) {
-    logger.info(
-      `Stripe Webhook: ${existingChargeTransaction.OrderId} already processed charge ${charge.id}, ignoring event ${event.id}`,
+  // Resolve the remote payment method before taking the payment-state locks.
+  const paymentMethod = await createOrUpdateOrderStripePaymentMethod(candidate, stripeAccount, stripePaymentIntent);
+  const result = await sequelize.transaction(async sqlTransaction => {
+    const order = await models.Order.findOne({
+      where: { id: candidate.id, ...getWhereStripePaymentIntentId(stripePaymentIntent.id) },
+      include,
+      transaction: sqlTransaction,
+      // Serialize payment writers while allowing foreign-key KEY SHARE locks from ledger hooks.
+      lock: { level: sqlTransaction.LOCK.NO_KEY_UPDATE, of: models.Order },
+    });
+    if (!order) {
+      return;
+    }
+    const existingChargeTransaction = await models.Transaction.findOne({
+      where: { data: { charge: { id: charge.id } } },
+      transaction: sqlTransaction,
+    });
+    if (existingChargeTransaction) {
+      return;
+    }
+    const subscription = order.SubscriptionId
+      ? await models.Subscription.findByPk(order.SubscriptionId, { transaction: sqlTransaction, lock: true })
+      : null;
+    const wasCancelled = order.status === OrderStatuses.CANCELLED;
+    const transaction = await createChargeTransactions(charge, { order, sqlTransaction });
+    await order.update(
+      {
+        status: wasCancelled
+          ? OrderStatuses.CANCELLED
+          : order.SubscriptionId
+            ? OrderStatuses.ACTIVE
+            : OrderStatuses.PAID,
+        processedAt: new Date(),
+        data: {
+          ...omit(order.data, ['stripePaymentIntent']),
+          previousStripePaymentIntents: [...(order.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
+        },
+      },
+      { transaction: sqlTransaction },
     );
+    if (subscription) {
+      order.Subscription = subscription;
+      const attempt = subscription.data?.stripeRecurringPaymentAttempt;
+      const belongsToAttempt =
+        attempt &&
+        (attempt.paymentIntentId === stripePaymentIntent.id ||
+          (!attempt.outcome && attempt.previousPaymentIntentId !== stripePaymentIntent.id));
+      await subscription.update(
+        {
+          chargeNumber: subscription.chargeNumber + 1,
+          lastChargedAt: transaction.clearedAt,
+          chargeRetryCount: getChargeRetryCount('success', order),
+          ...getNextChargeAndPeriodStartDates('success', order),
+          ...(belongsToAttempt
+            ? {
+                data: {
+                  ...subscription.data,
+                  stripeRecurringPaymentAttempt: {
+                    ...attempt,
+                    paymentIntentId: stripePaymentIntent.id,
+                    outcome: 'success' as const,
+                    isCancelled: wasCancelled,
+                  },
+                },
+              }
+            : {}),
+        },
+        { transaction: sqlTransaction },
+      );
+    }
+    return { order, transaction, wasCancelled };
+  });
+  if (!result) {
     return;
   }
-
-  const paymentMethod = await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, stripePaymentIntent);
-
-  const wasCancelled = order.status === OrderStatuses.CANCELLED;
-  const transaction = await createChargeTransactions(charge, { order });
-
-  // Terminal success of the payment attempt. Emitted after the existing-charge dedupe above and once
-  // the ledger records the payment, so redeliveries and settle-twice flows count exactly once.
+  const { order, transaction, wasCancelled } = result;
   recordPaymentOutcome({
     provider: MetricProvider.STRIPE,
     flow: MetricFlow.CONTRIBUTION,
     method: paymentMethod.type,
     outcome: MetricEvent.SUCCEEDED,
   });
-
   const sideEffects: (() => Promise<unknown>)[] = [
-    // Payment is in the ledger: release the orders limit first, so it can't stay locked if a later effect fails
     () => (order.SubscriptionId ? Promise.resolve() : cleanOrdersLimitForOrder(order)),
-    () =>
-      order.update({
-        status: wasCancelled
-          ? OrderStatuses.CANCELLED
-          : !order.SubscriptionId
-            ? OrderStatuses.PAID
-            : OrderStatuses.ACTIVE,
-        processedAt: new Date(),
-        data: {
-          ...omit(order.data, ['stripePaymentIntent']),
-          previousStripePaymentIntents: [...(order.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
-        },
-      }),
+    // The tier helper reads the committed ledger and opens its own transaction.
+    () => applyPendingTierChangeAfterCharge(order, transaction),
     () => order.getOrCreateMembers(),
   ];
-
-  // after successful first payment of a recurring subscription where the payment confirmation is async
-  // and the subscription is managed by us.
   if (order.interval && !order.SubscriptionId) {
     if (!wasCancelled) {
       sideEffects.push(() =>
         createSubscription(order, { lastChargedAt: transaction.clearedAt || transaction.createdAt }),
       );
     }
-
     sideEffects.push(() => applyContributionAccountingCategoryRules(order));
-  } else if (order.SubscriptionId) {
-    const subscription = await models.Subscription.findByPk(order.SubscriptionId);
-    order.Subscription = subscription;
-    const chargeRetryCount = getChargeRetryCount('success', order);
-    const { nextPeriodStart, nextChargeDate } = getNextChargeAndPeriodStartDates('success', order);
-
-    sideEffects.push(() =>
-      subscription.update({
-        chargeNumber: subscription.chargeNumber + 1,
-        lastChargedAt: transaction.clearedAt,
-        chargeRetryCount,
-        nextPeriodStart,
-        nextChargeDate,
-      }),
-    );
-  } else {
+  } else if (!order.SubscriptionId) {
     sideEffects.push(() => applyContributionAccountingCategoryRules(order));
   }
-
   sideEffects.push(() => applyBalanceAccountingCategory(order));
-
   sendEmailNotifications(order, transaction, { firstPayment: order.interval && !order.SubscriptionId });
-
   await sideEffects.reduce(async (promise, effect) => {
     await promise;
     return effect();
@@ -798,6 +819,7 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
           );
           await order.update({ status: OrderStatuses.CANCELLED }, { transaction });
         } else {
+          subscription.chargeRetryCount = chargeRetryCount;
           const { nextPeriodStart, nextChargeDate } = getNextChargeAndPeriodStartDates('failure', order);
           await subscription.update(
             {

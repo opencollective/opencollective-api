@@ -80,13 +80,20 @@ describe('server/lib/currency', () => {
       expect(result.USD).to.eq(1 / usdToEurRate.rate);
     });
 
-    it('works with other supported currencies', async () => {
-      const eurToNzdRate = await fakeCurrencyExchangeRate({ from: 'EUR', to: 'NZD' });
+    it('works with other supported currencies, computed from their USD rates', async () => {
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', rate: 0.8 });
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'NZD', rate: 1.6 });
       const result1 = await CurrencyLib.getRatesFromDb('EUR', ['NZD']);
-      expect(result1.NZD).to.eq(eurToNzdRate.rate);
+      expect(result1.NZD).to.be.closeTo(2, 1e-9);
 
       const result2 = await CurrencyLib.getRatesFromDb('NZD', ['EUR']);
-      expect(result2.EUR).to.eq(1 / eurToNzdRate.rate);
+      expect(result2.EUR).to.be.closeTo(0.5, 1e-9);
+    });
+
+    it('rejects storing a rate between two currencies other than USD', async () => {
+      await expect(fakeCurrencyExchangeRate({ from: 'EUR', to: 'NZD' })).to.be.rejectedWith(
+        'Only rates from or to USD are stored',
+      );
     });
   });
 
@@ -182,7 +189,6 @@ describe('server/lib/currency', () => {
       // Latest rates
       await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', createdAt: '2023-01-01T00:00:00.000Z', rate: 0.8 });
       await fakeCurrencyExchangeRate({ from: 'USD', to: 'NZD', createdAt: '2023-01-01T00:00:00.000Z', rate: 1.6 });
-      await fakeCurrencyExchangeRate({ from: 'EUR', to: 'NZD', createdAt: '2023-01-01T00:00:00.000Z', rate: 1.8 });
     });
 
     it('returns the rates map for requested conversions', async () => {

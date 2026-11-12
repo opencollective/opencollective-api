@@ -2633,6 +2633,78 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         newData: { 'data.privateInstructions': 'Please invoice monthly', 'data.isUSEntity': true },
       });
     });
+
+    describe('hostFeePercent', () => {
+      const editAccountHostFeeMutation = gql`
+        mutation EditAccountHostFee($account: AccountUpdateInput!) {
+          editAccount(account: $account) {
+            id
+            description
+            ... on AccountWithHost {
+              hostFeePercent
+            }
+          }
+        }
+      `;
+
+      it('ignores a null hostFeePercent and does not cascade it to hosted collectives', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin, hostFeePercent: 0 });
+        const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, hostFeePercent: 0 });
+
+        const result = await graphqlQueryV2(
+          editAccountHostFeeMutation,
+          { account: { id: idEncode(host.id, 'account'), hostFeePercent: null, description: 'Updated description' } },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await host.reload();
+        await hostedCollective.reload();
+        expect(host.description).to.equal('Updated description');
+        expect(host.hostFeePercent).to.equal(0);
+        expect(hostedCollective.hostFeePercent).to.equal(0);
+      });
+
+      it('updates the host fee and cascades it to hosted collectives', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin, hostFeePercent: 0 });
+        const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, hostFeePercent: 0 });
+
+        const result = await graphqlQueryV2(
+          editAccountHostFeeMutation,
+          { account: { id: idEncode(host.id, 'account'), hostFeePercent: 5 } },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await host.reload();
+        await hostedCollective.reload();
+        expect(host.hostFeePercent).to.equal(5);
+        expect(hostedCollective.hostFeePercent).to.equal(5);
+      });
+
+      it('rejects an out-of-range hostFeePercent', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin, hostFeePercent: 0 });
+        const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, hostFeePercent: 0 });
+
+        const result = await graphqlQueryV2(
+          editAccountHostFeeMutation,
+          { account: { id: idEncode(host.id, 'account'), hostFeePercent: 150 } },
+          hostAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/Invalid host fee percent/);
+        await host.reload();
+        await hostedCollective.reload();
+        expect(host.hostFeePercent).to.equal(0);
+        expect(hostedCollective.hostFeePercent).to.equal(0);
+      });
+    });
   });
 
   describe('archiveAccount / unarchiveAccount', () => {

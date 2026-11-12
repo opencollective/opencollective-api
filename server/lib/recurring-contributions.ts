@@ -25,6 +25,7 @@ import {
 import { FEATURE } from './allowed-features';
 import emailLib from './email';
 import logger from './logger';
+import { applyPendingTierChangeAfterCharge } from './order-tier-change';
 import { getOrderPaymentProcessingUrl, processOrder } from './payments';
 import { getTransactionPdf } from './pdf';
 import { reportErrorToSentry } from './sentry';
@@ -327,6 +328,11 @@ export async function processOrderWithSubscription(
         // TODO: we should consolidate on error and remove latestError
         order.data = omit(order.data, ['error', 'latestError']);
       }
+
+      if (orderProcessedStatus === 'success') {
+        // The contributor may have asked to move to a tier that this charge pays for
+        await applyPendingTierChangeAfterCharge(order, transaction);
+      }
     }
   } else if (options.simulate) {
     await sleep(Math.random() * 1000 * 5);
@@ -366,6 +372,33 @@ export async function processOrderWithSubscription(
           if (attempt?.id !== stripePaymentAttemptId) {
             throw new Error(`Recurring payment attempt for order #${order.id} was superseded`);
           }
+          if (attempt.outcome === 'success' || orderProcessedStatus === 'success') {
+            // Success committed after an early failure. Keep its reset counter, dates and cached data.
+            failureAlreadyRecorded = true;
+            order.Subscription = subscription;
+            if (attempt.outcome !== 'success') {
+              subscription.chargeRetryCount = getChargeRetryCount('success', order);
+              Object.assign(subscription, getNextChargeAndPeriodStartDates('success', order));
+              if (subscription.chargeNumber !== null) {
+                subscription.chargeNumber += 1;
+              }
+              subscription.data = {
+                ...subscription.data,
+                stripeRecurringPaymentAttempt: { ...attempt, outcome: 'success' },
+              };
+              await subscription.save({ transaction });
+            }
+            order.status =
+              attempt.isCancelled || currentOrder.status === status.CANCELLED ? status.CANCELLED : status.ACTIVE;
+            order.data = currentOrder.data;
+            csvEntry.status = 'success';
+            csvEntry.error = null;
+            csvEntry.retriesAfter = subscription.chargeRetryCount;
+            csvEntry.chargeDateAfter = dateFormat(subscription.nextChargeDate);
+            csvEntry.nextPeriodStartAfter = dateFormat(subscription.nextPeriodStart);
+            await order.save({ transaction });
+            return;
+          }
           if (attempt.outcome === 'failure') {
             // The webhook committed first. Do not overwrite its retry dates, cancellation or count,
             // even if the provider subsequently wrote a stale PROCESSING PaymentIntent snapshot.
@@ -381,6 +414,17 @@ export async function processOrderWithSubscription(
             await order.save({ transaction });
             return;
           }
+          // A delayed failure for the previous intent can update the subscription without
+          // completing this attempt. Rebase on the locked row rather than saving a stale count.
+          order.Subscription = subscription;
+          subscription.chargeRetryCount = getChargeRetryCount(orderProcessedStatus, order);
+          Object.assign(subscription, getNextChargeAndPeriodStartDates(orderProcessedStatus, order));
+          if (orderProcessedStatus === 'failure' && subscription.chargeRetryCount >= MAX_RETRIES) {
+            cancelSubscription(order);
+          }
+          csvEntry.retriesAfter = subscription.chargeRetryCount;
+          csvEntry.chargeDateAfter = dateFormat(subscription.nextChargeDate);
+          csvEntry.nextPeriodStartAfter = dateFormat(subscription.nextPeriodStart);
           order.Subscription.data = {
             ...subscription.data,
             stripeRecurringPaymentAttempt: {
