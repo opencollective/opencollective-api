@@ -2811,7 +2811,7 @@ describe('server/graphql/common/expenses', () => {
         HostCollectiveId: host.id,
         amount: 1000 * 100,
       });
-      await models.CurrencyExchangeRate.destroy({ where: { to: ['BRL', 'EUR'] } });
+      await models.UsdExchangeRate.destroy({ where: { currency: ['BRL', 'EUR'] } });
       await Promise.all([
         fakeCurrencyExchangeRate({ from: 'USD', to: 'BRL', rate: 5.0, createdAt: moment().subtract(3, 'days') }),
         fakeCurrencyExchangeRate({ from: 'USD', to: 'BRL', rate: 5.1, createdAt: moment().subtract(2, 'days') }),

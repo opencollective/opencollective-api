@@ -459,6 +459,138 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         ]);
       }),
     );
+
+    describe('payout item errors at batch review', () => {
+      const buildFailedItem = (overrides = {}) => ({
+        transaction_status: 'FAILED',
+        payout_item_id: 'payout-item-1',
+        payout_batch_id: 'fake-batch-id',
+        payout_item: { sender_item_id: expense.id.toString() },
+        ...overrides,
+      });
+
+      const getErrorActivity = async () => {
+        const activities = await expense.getActivities({ where: { type: 'collective.expense.error' } });
+        expect(activities).to.have.length(1);
+        return activities[0];
+      };
+
+      it('uses the errors included in the batch item without fetching the payout item', async () => {
+        sandbox.stub(paypalLib, 'getPayoutItem');
+        stubOf(paypalLib.getBatchInfo).resolves({
+          items: [
+            buildFailedItem({
+              errors: {
+                name: 'RECEIVER_COUNTRY_NOT_ALLOWED',
+                message: 'The receiver country is not allowed.',
+                debug_id: 'debug-1',
+                details: [{ issue: 'RECEIVER_COUNTRY_NOT_ALLOWED', field: 'items[0].receiver' }],
+              },
+            }),
+          ],
+        });
+
+        await paypalPayouts.checkBatchStatus([expense]);
+
+        expect(expense).to.have.property('status', 'ERROR');
+        expect(paypalLib.getPayoutItem).to.not.have.been.called;
+        // The raw payload is persisted (debug data included); `sanitizeErrorData` gates exposure
+        expect((await getErrorActivity()).data.error).to.deep.equal({
+          name: 'RECEIVER_COUNTRY_NOT_ALLOWED',
+          message: 'The receiver country is not allowed.',
+          debug_id: 'debug-1',
+          details: [{ issue: 'RECEIVER_COUNTRY_NOT_ALLOWED', field: 'items[0].receiver' }],
+        });
+      });
+
+      it('fetches the payout item when a failed item has no errors', async () => {
+        const getPayoutItemStub = sandbox.stub(paypalLib, 'getPayoutItem');
+        getPayoutItemStub.resolves({
+          payout_item_id: 'payout-item-1',
+          transaction_id: 'transaction-1',
+          transaction_status: 'FAILED',
+          errors: {
+            name: 'RECEIVING_LIMIT_EXCEEDED',
+            message: 'The receiver has exceeded the receiving limit.',
+            debug_id: 'debug-2',
+            details: [{ issue: 'RECEIVING_LIMIT_EXCEEDED', field: 'items[0].receiver' }],
+          },
+        });
+        stubOf(paypalLib.getBatchInfo).resolves({ items: [buildFailedItem()] });
+
+        await paypalPayouts.checkBatchStatus([expense]);
+
+        expect(expense).to.have.property('status', 'ERROR');
+        expect(getPayoutItemStub).to.have.been.calledOnce;
+        expect(getPayoutItemStub.getCall(0).args[1]).to.equal('payout-item-1');
+        const { data } = await getErrorActivity();
+        expect(data.error).to.deep.equal({
+          name: 'RECEIVING_LIMIT_EXCEEDED',
+          message: 'The receiver has exceeded the receiving limit.',
+          debug_id: 'debug-2',
+          details: [{ issue: 'RECEIVING_LIMIT_EXCEEDED', field: 'items[0].receiver' }],
+        });
+        // The whole payout item detail is kept for debugging
+        expect(data.payoutItem).to.deep.contain({
+          payout_item_id: 'payout-item-1',
+          transaction_id: 'transaction-1',
+          transaction_status: 'FAILED',
+        });
+        expect(data).to.not.have.property('errorRetrievalFailed');
+      });
+
+      it('stores a status-derived message when the payout item endpoint has no errors either', async () => {
+        sandbox.stub(paypalLib, 'getPayoutItem').resolves({
+          payout_item_id: 'payout-item-1',
+          transaction_id: 'transaction-1',
+          transaction_status: 'FAILED',
+        });
+        stubOf(paypalLib.getBatchInfo).resolves({ items: [buildFailedItem()] });
+
+        await paypalPayouts.checkBatchStatus([expense]);
+
+        expect(expense).to.have.property('status', 'ERROR');
+        const { data } = await getErrorActivity();
+        expect(data.error).to.deep.equal({ message: 'PayPal payout item FAILED' });
+        expect(data.payoutItem).to.deep.contain({ transaction_id: 'transaction-1' });
+        // A successful lookup with no errors is conclusive, so it is not retried
+        expect(data).to.not.have.property('errorRetrievalFailed');
+      });
+
+      it('stores a status-derived message when fetching the payout item fails', async () => {
+        sandbox.stub(paypalLib, 'getPayoutItem').rejects(new Error('PayPal is unavailable'));
+        stubOf(paypalLib.getBatchInfo).resolves({ items: [buildFailedItem({ transaction_status: 'BLOCKED' })] });
+
+        await paypalPayouts.checkBatchStatus([expense]);
+
+        expect(expense).to.have.property('status', 'ERROR');
+        const { data } = await getErrorActivity();
+        expect(data.error).to.deep.equal({ message: 'PayPal payout item BLOCKED' });
+        expect(data.payoutItem).to.deep.contain({ payout_item_id: 'payout-item-1' });
+        // Flagged so the backfill script retries the retrieval instead of treating it as conclusive
+        expect(data.errorRetrievalFailed).to.equal(true);
+      });
+
+      it('does not fetch the payout item for successful items', async () => {
+        sandbox.stub(paypalLib, 'getPayoutItem');
+        stubOf(paypalLib.getBatchInfo).resolves({
+          items: [
+            {
+              transaction_status: 'SUCCESS',
+              payout_item_id: 'payout-item-1',
+              payout_item: { sender_item_id: expense.id.toString() },
+              payout_batch_id: 'fake-batch-id',
+              time_processed: '2024-08-15T10:30:00Z',
+            },
+          ],
+        });
+
+        await paypalPayouts.checkBatchStatus([expense]);
+
+        expect(expense).to.have.property('status', 'PAID');
+        expect(paypalLib.getPayoutItem).to.not.have.been.called;
+      });
+    });
   });
 
   describe('estimatePaypalPayoutFee', () => {

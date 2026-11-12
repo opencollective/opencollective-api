@@ -318,7 +318,7 @@ const getSortSubQuery = (
     [ORDER_BY_PSEUDO_FIELDS.MONEY_MANAGED]: {
       query: `
         COALESCE((SELECT SUM(balance) FROM "CollectiveBalanceCheckpoint" WHERE "HostCollectiveId" = c.id AND "hostCurrency" = c."currency" GROUP BY "HostCollectiveId", "hostCurrency"), 0)
-        * (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = c."currency" AND "to" = 'USD' ORDER BY "createdAt" DESC LIMIT 1)
+        * fx_rate(c."currency", 'USD')
       `,
     },
     [ORDER_BY_PSEUDO_FIELDS.BALANCE]: {

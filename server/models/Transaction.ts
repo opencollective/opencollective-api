@@ -598,19 +598,19 @@ class Transaction extends ModelWithPublicId<
           netAmountInCollectiveCurrency: -roundCentsAmount(transaction.amount, transaction.currency),
           amountInHostCurrency: -roundCentsAmount(
             transaction.netAmountInCollectiveCurrency * hostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           hostFeeInHostCurrency: roundCentsAmount(
             transaction.hostFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           platformFeeInHostCurrency: roundCentsAmount(
             transaction.platformFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           paymentProcessorFeeInHostCurrency: roundCentsAmount(
             transaction.paymentProcessorFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           data: { ...omit(transaction.data, ['hostToPlatformFxRate']), oppositeTransactionHostCurrencyFxRate },
         };
@@ -634,7 +634,7 @@ class Transaction extends ModelWithPublicId<
             const hostFeePercent = fromCollective.hasMoneyManagement ? 0 : fromCollective.hostFeePercent;
             const taxAmountInHostCurrency = roundCentsAmount(
               (transaction.taxAmount || 0) * hostCurrencyFxRate,
-              transaction.hostCurrency,
+              hostCurrency,
             );
             oppositeTransaction.hostFeeInHostCurrency = calcFee(
               oppositeTransaction.amountInHostCurrency +
@@ -1133,23 +1133,10 @@ class Transaction extends ModelWithPublicId<
     const hostCurrencyFxRate = transaction.hostCurrencyFxRate;
     const amountInHostCurrency = -transaction.taxAmount * hostCurrencyFxRate;
 
-    let FromCollectiveId, CollectiveId;
-    if (!transaction.isRefund) {
-      CollectiveId = vendor.id;
-      if (transaction.kind === EXPENSE) {
-        FromCollectiveId = transaction.FromCollectiveId;
-      } else {
-        FromCollectiveId = transaction.CollectiveId;
-      }
-    } else {
-      // it's not likely to be used like this, as taxes are separated
-      FromCollectiveId = vendor.id;
-      if (transaction.kind === EXPENSE) {
-        CollectiveId = transaction.FromCollectiveId;
-      } else {
-        CollectiveId = transaction.CollectiveId;
-      }
-    }
+    // The direction is carried by the sign of the amount: positive (vendor is credited) for regular transactions,
+    // negative (vendor is debited, tax goes back to the account) for refunds since their taxAmount is already flipped.
+    const CollectiveId = vendor.id;
+    const FromCollectiveId = transaction.kind === EXPENSE ? transaction.FromCollectiveId : transaction.CollectiveId;
 
     const taxTransactionData = {
       type: CREDIT,
@@ -1696,7 +1683,7 @@ class Transaction extends ModelWithPublicId<
       oppositeTransaction.platformFeeInHostCurrency || 0,
       roundCentsAmount(
         (transaction.platformFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate,
-        transaction.hostCurrency,
+        oppositeTransaction.hostCurrency,
       ),
       'platformFeeInHostCurrency in oppositeTransaction should match',
     );
@@ -1705,7 +1692,7 @@ class Transaction extends ModelWithPublicId<
       oppositeTransaction.hostFeeInHostCurrency || 0,
       roundCentsAmount(
         (transaction.hostFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate,
-        transaction.hostCurrency,
+        oppositeTransaction.hostCurrency,
       ),
       'hostFeeInHostCurrency in oppositeTransaction should match',
     );
@@ -1714,7 +1701,7 @@ class Transaction extends ModelWithPublicId<
       oppositeTransaction.paymentProcessorFeeInHostCurrency || 0,
       roundCentsAmount(
         (transaction.paymentProcessorFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate,
-        transaction.hostCurrency,
+        oppositeTransaction.hostCurrency,
       ),
       'paymentProcessorFeeInHostCurrency in oppositeTransaction should match',
     );

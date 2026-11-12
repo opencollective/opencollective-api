@@ -93,7 +93,7 @@ export const getRatesFromDb = async (
 
   // Fetch rates
   const [from, to] = isInverted ? [toCurrencies[0], [fromCurrency]] : [fromCurrency, toCurrencies];
-  const allRates = await models.CurrencyExchangeRate.getMany(from, to, date);
+  const allRates = await models.UsdExchangeRate.getMany(from, to, date);
   const result = {};
   let missingCurrencies;
   if (isInverted) {
@@ -112,7 +112,7 @@ export const getRatesFromDb = async (
       isSupportedCurrency(toCurrencies[0]) &&
       isSupportedCurrency(fromCurrency)
     ) {
-      const usdRates = await models.CurrencyExchangeRate.getMany(toCurrencies[0], [fromCurrency], date);
+      const usdRates = await models.UsdExchangeRate.getMany(toCurrencies[0], [fromCurrency], date);
       if (usdRates[0]) {
         result[toCurrencies[0]] = 1 / usdRates[0].rate;
         missingCurrencies = [];
@@ -121,8 +121,8 @@ export const getRatesFromDb = async (
 
     // If some currencies are still missing, we have no choice but to throw an error
     if (missingCurrencies.length > 0) {
-      logger.error(`FX rate error: missing currencies in CurrencyExchangeRate: ${missingCurrencies.join(', ')}`);
-      reportMessageToSentry('FX rate error: missing currencies in CurrencyExchangeRate', {
+      logger.error(`FX rate error: missing currencies in UsdExchangeRate: ${missingCurrencies.join(', ')}`);
+      reportMessageToSentry('FX rate error: missing currencies in UsdExchangeRate', {
         extra: { fromCurrency, toCurrencies, missingCurrencies },
       });
       throw new Error(
