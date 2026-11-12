@@ -1,6 +1,7 @@
 import config from 'config';
 import debugLib from 'debug';
 import {
+  type Compilable,
   Kysely,
   type KyselyPlugin,
   type PluginTransformQueryArgs,
@@ -51,6 +52,17 @@ export function kyselyToSequelizeModels<T extends Model>(ModelClass: ModelStatic
     }
     return rowToModel(rows, ModelClass) as R extends unknown[] ? T[] : T;
   };
+}
+
+/**
+ * Returns the SQL of a Kysely query with its parameters inlined (escaped by Sequelize), to embed it in a Sequelize
+ * query, e.g. with `sequelize.literal`. Only for queries whose own SQL text has no `$1`-like literal.
+ */
+export function compileToInlineSQL(query: Compilable): string {
+  const { sql, parameters } = query.compile();
+  return sql.replace(/\$(\d+)/g, (_, position) =>
+    sequelize.escape(parameters[Number(position) - 1] as string | number),
+  );
 }
 
 export type DatabaseWithViews = Database & ViewsDatabase;

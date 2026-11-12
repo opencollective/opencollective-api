@@ -26,7 +26,12 @@ import { TransactionKind } from '../../../../constants/transaction-kind';
 import { DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
-import { buildKyselySearchConditions, buildSearchConditions, parseSearchTerm } from '../../../../lib/sql-search';
+import {
+  buildKyselySearchConditions,
+  buildSearchArms,
+  buildSearchConditions,
+  parseSearchTerm,
+} from '../../../../lib/sql-search';
 import models, { Collective, ManualPaymentProvider, Op, PaymentMethod, Tier, User } from '../../../../models';
 import { checkScope, enforceScope, isRemoteUserRoot } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../../errors';
@@ -516,6 +521,37 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
   const isHostAdminEmailSearch = isHostAdmin && parsedSearchTerm.type === 'email';
   const hasSearchTerm = !!parsedSearchTerm.term;
 
+  // Fields searched on the contribution itself. Its accounts (and its author, for emails) are searched through joins
+  // by `buildKyselySearchConditions`, or resolved first by `buildSearchArms`.
+  const searchIdFields = ['Orders.id'];
+  const searchTextFields = [
+    'Orders.description',
+    ...(isCollectiveAdmin ? [sql`"Orders".data->>'ponumber'`, sql`"Orders".data#>>'{fromAccountInfo,name}'`] : []),
+  ];
+  const searchEmailFields = isCollectiveAdmin ? [sql<string>`lower("Orders".data#>>'{fromAccountInfo,email}')`] : [];
+  const searchStringArrayFields = ['Orders.tags'];
+  const searchStringArrayTransformFn = (str: string) => str.toLowerCase();
+
+  // On large hosts, searching through the joined accounts has to visit every contribution of the host. When the term
+  // is selective, look for the matching contributions first, then apply the other filters to them.
+  const searchArms = !hasSearchTerm
+    ? null
+    : await buildSearchArms(args.searchTerm, {
+        table: 'Orders',
+        accountIdFields: ['Orders.CollectiveId', 'Orders.FromCollectiveId'],
+        userIdFields: isHostAdminEmailSearch ? ['Orders.CreatedByUserId'] : [],
+        idFields: searchIdFields,
+        textFields: searchTextFields,
+        emailFields: searchEmailFields.map(field => ({
+          field,
+          // Predicate of "Orders_data_fromAccountInfo_email_search_idx"
+          indexPredicate: sql<SqlBool>`COALESCE("Orders".data#>>'{fromAccountInfo,email}', '') <> ''`,
+        })),
+        stringArrayFields: searchStringArrayFields,
+        stringArrayTransformFn: searchStringArrayTransformFn,
+        publicIdFields: [{ field: 'Orders.publicId', prefix: EntityShortIdPrefix.Order }],
+      });
+
   const shouldApplyPrivateRecipientVisibilityFilter = !isRemoteUserRoot(req) && !host;
   const kysely = getKysely();
   const query = kysely
@@ -677,29 +713,20 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         return or(ors);
       });
     })
-    .$if(isHostAdminEmailSearch && hasSearchTerm, qb =>
+    .$if(!!searchArms, qb => qb.where('Orders.id', 'in', searchArms))
+    .$if(isHostAdminEmailSearch && hasSearchTerm && !searchArms, qb =>
       qb.leftJoin('Users', join =>
         join.onRef('Users.id', '=', 'Orders.CreatedByUserId').on('Users.deletedAt', 'is', null),
       ),
     )
-    .$if(hasSearchTerm, qb =>
+    .$if(hasSearchTerm && !searchArms, qb =>
       buildKyselySearchConditions(args.searchTerm, {
-        idFields: ['Orders.id'],
+        idFields: searchIdFields,
         slugFields: ['collective.slug', 'fromCollective.slug'],
-        textFields: [
-          'collective.name',
-          'fromCollective.name',
-          'Orders.description',
-          ...(isCollectiveAdmin
-            ? [sql`"Orders".data->>'ponumber'`, sql`"Orders".data#>>'{fromAccountInfo,name}'`]
-            : []),
-        ],
-        emailFields: [
-          isCollectiveAdmin && sql<string>`lower("Orders".data#>>'{fromAccountInfo,email}')`,
-          isHostAdminEmailSearch && 'Users.email',
-        ].filter(Boolean),
-        stringArrayFields: ['Orders.tags'],
-        stringArrayTransformFn: (str: string) => str.toLowerCase(),
+        textFields: ['collective.name', 'fromCollective.name', ...searchTextFields],
+        emailFields: [...searchEmailFields, isHostAdminEmailSearch && 'Users.email'].filter(Boolean),
+        stringArrayFields: searchStringArrayFields,
+        stringArrayTransformFn: searchStringArrayTransformFn,
         publicIdFields: [
           { field: 'Orders.publicId', prefix: EntityShortIdPrefix.Order },
           {
