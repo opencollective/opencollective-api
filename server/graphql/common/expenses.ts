@@ -4109,7 +4109,7 @@ export const checkHasBalanceToPayExpense = async (
   }
 
   const exchangeStats =
-    !isSameCurrency && (await models.CurrencyExchangeRate.getPairStats(expense.collective.currency, expense.currency));
+    !isSameCurrency && (await models.UsdExchangeRate.getPairStats(expense.collective.currency, expense.currency));
 
   // Ensure the collective has enough funds to pay the expense, with an error margin of 2σ (standard deviations) the exchange rate of past 5 days
   // to account for fluctuating rates. If no exchange rate is available, fallback to the 20% rule.

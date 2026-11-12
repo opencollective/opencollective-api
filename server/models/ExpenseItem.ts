@@ -4,6 +4,7 @@ import { DataTypes, Transaction } from 'sequelize';
 
 import { SUPPORTED_CURRENCIES, SupportedCurrency } from '../constants/currencies';
 import ExpenseType from '../constants/expense-type';
+import { FX_RATE_SOURCE } from '../constants/fx-rate-source';
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
@@ -11,7 +12,6 @@ import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-
 import sequelize from '../lib/sequelize';
 import { isValidURL } from '../lib/url-utils';
 
-import { FX_RATE_SOURCE } from './CurrencyExchangeRate';
 import Expense from './Expense';
 import { ModelWithPublicId } from './ModelWithPublicId';
 import { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
