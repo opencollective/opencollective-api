@@ -203,6 +203,23 @@ export const createOrderUpdatedActivity = async (
 };
 
 /**
+ * Runs `update` in a SQL transaction. If it fails, restores the order instance's `TierId` and `data`: callers (e.g.
+ * the recurring contributions job) save the same instance afterwards, and must not persist a rolled-back change.
+ */
+const updateOrderOrRestore = async (
+  order: Order,
+  update: (transaction: SequelizeTransaction) => Promise<void>,
+): Promise<void> => {
+  const previous = { TierId: order.TierId, data: order.data };
+  try {
+    await sequelize.transaction(update);
+  } catch (e) {
+    order.set(previous);
+    throw e;
+  }
+};
+
+/**
  * To call after any successful charge of a recurring contribution: applies `order.data.pendingTierChange`
  * if the charge paid for the pending tier. The order instance is updated in place.
  *
@@ -221,9 +238,13 @@ export const applyPendingTierChangeAfterCharge = async (
     const tier = await models.Tier.findByPk(pendingTierChange.TierId);
     if (!tier || tier.CollectiveId !== order.CollectiveId) {
       // Tier deleted or order moved to another collective: the pending change can't be applied anymore
-      await order.update({ data: omit(order.data, ['pendingTierChange']) });
-      await createOrderUpdatedActivity(order, {
-        changes: { pendingTierChange: { ...pendingTierChange, status: 'DISCARDED', reason: 'TIER_UNAVAILABLE' } },
+      await updateOrderOrRestore(order, async transaction => {
+        await order.update({ data: omit(order.data, ['pendingTierChange']) }, { transaction });
+        await createOrderUpdatedActivity(
+          order,
+          { changes: { pendingTierChange: { ...pendingTierChange, status: 'DISCARDED', reason: 'TIER_UNAVAILABLE' } } },
+          { transaction },
+        );
       });
       return false;
     }
@@ -240,7 +261,7 @@ export const applyPendingTierChangeAfterCharge = async (
     }
 
     const previousTierId = order.TierId || null;
-    await sequelize.transaction(async transaction => {
+    await updateOrderOrRestore(order, async transaction => {
       await order.update({ TierId: tier.id, data: omit(order.data, ['pendingTierChange']) }, { transaction });
       await syncBackerMembershipTier(order, previousTierId, tier.id, { transaction });
       await createOrderUpdatedActivity(
