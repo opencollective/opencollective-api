@@ -273,7 +273,8 @@ describe('Order amount vs. tier validation', () => {
 
       expect(result.errors).to.not.exist;
       await order.reload();
-      expect(order.TierId).to.eq(fixedTier.id);
+      // Accepted, but pending until a charge pays for the tier (see order-tier-change.test.ts)
+      expect(order.data.pendingTierChange.TierId).to.eq(fixedTier.id);
       expect(order.totalAmount).to.eq(10000);
     });
 
@@ -293,7 +294,7 @@ describe('Order amount vs. tier validation', () => {
 
       expect(result.errors).to.not.exist;
       await order.reload();
-      expect(order.TierId).to.eq(fixedTier.id);
+      expect(order.data.pendingTierChange.TierId).to.eq(fixedTier.id);
     });
 
     it('accepts an amount matching the fixed tier when taxes apply', async () => {
@@ -312,7 +313,7 @@ describe('Order amount vs. tier validation', () => {
 
       expect(result.errors).to.not.exist;
       await order.reload();
-      expect(order.TierId).to.eq(fixedTier.id);
+      expect(order.data.pendingTierChange.TierId).to.eq(fixedTier.id);
     });
   });
 

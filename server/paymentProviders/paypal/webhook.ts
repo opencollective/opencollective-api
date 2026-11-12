@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import Debug from 'debug';
 import { Request } from 'express';
-import { get, toNumber } from 'lodash';
+import { get, omit, toNumber } from 'lodash';
 import moment from 'moment';
 
 import FEATURE from '../../constants/feature';
@@ -12,6 +12,7 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { floatAmountToCents } from '../../lib/currency';
 import logger from '../../lib/logger';
+import { applyPendingTierChangeAfterCharge } from '../../lib/order-tier-change';
 import { createRefundTransaction, pauseOrderInDb } from '../../lib/payments';
 import { validateWebhookEvent, WatchedPaypalWebhookEvent } from '../../lib/paypal';
 import { recordOrderProcessed } from '../../lib/recurring-contributions';
@@ -123,6 +124,12 @@ async function handleSaleCompleted(req: Request): Promise<void> {
   let transaction;
   const { order } = await loadSubscriptionForWebhookEvent(req, subscriptionId);
   await order.lock(async () => {
+    // `lock` works on its own copy of the row: reload to get what was committed before the lock was acquired
+    // (e.g. a tier change), rather than what was loaded before waiting for it.
+    await order.reload();
+    // ...without the lock's own marker: it's released in SQL, later updates of `data` must not write it back
+    order.set('data', omit(order.data, ['lockedAt']), { raw: true });
+
     // 2.1 Make sure the sale hasn't already been recorded
     const existingTransaction = await findTransactionByPaypalId(sale.id, { OrderId: order.id });
     if (existingTransaction) {
@@ -158,11 +165,14 @@ async function handleSaleCompleted(req: Request): Promise<void> {
     });
   });
 
-  // 3. Send "Thank you" (order.processed) email & record activity
+  // 3. Apply a tier change waiting for this payment (e.g. tier upgrade approved through a new PayPal subscription)
+  await applyPendingTierChangeAfterCharge(order, transaction);
+
+  // 4. Send "Thank you" (order.processed) email & record activity
   const isFirstPayment = order.Subscription.chargeNumber === 1;
   await recordOrderProcessed(order, transaction, { isFirstPayment });
 
-  // 4. Register user as a member, since the transaction is not created in `processOrder`
+  // 5. Register user as a member, since the transaction is not created in `processOrder`
   // for PayPal subscriptions.
   await order.getOrCreateMembers();
 }

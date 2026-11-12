@@ -7,7 +7,7 @@ import { reportMessageToSentry } from '../../lib/sentry';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { parseToBoolean } from '../../lib/utils';
 import models from '../../models';
-import { editPublicMessage } from '../common/members';
+import { checkCanEditTeam, editPublicMessage } from '../common/members';
 import {
   checkRemoteUserCanUseAccount,
   checkRemoteUserCanUseOrders,
@@ -195,6 +195,7 @@ const mutations = {
       } else if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized();
       } else {
+        await checkCanEditTeam(collective, req);
         await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
         await collective.editMembers(args.members, {
