@@ -1807,4 +1807,112 @@ describe('server/models/Collective', () => {
       expect(result).to.deep.equal({ value: 4200, currency: 'USD' });
     });
   });
+
+  describe('setCurrency', () => {
+    const getOpenCollectivePaymentMethods = (CollectiveId: number) =>
+      models.PaymentMethod.findAll({
+        where: { CollectiveId, service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE },
+        order: [['id', 'ASC']],
+      });
+
+    it('updates the currency of the opencollective host and collective payment methods', async () => {
+      const organization = await fakeOrganization({ currency: 'USD' });
+      await organization.activateMoneyManagement({ silent: true });
+      const paymentMethodsBefore = await getOpenCollectivePaymentMethods(organization.id);
+      expect(paymentMethodsBefore.map(pm => [pm.type, pm.currency])).to.have.deep.members([
+        [PAYMENT_METHOD_TYPE.HOST, 'USD'],
+        [PAYMENT_METHOD_TYPE.COLLECTIVE, 'USD'],
+      ]);
+
+      await organization.setCurrency('EUR');
+
+      await organization.reload();
+      expect(organization.currency).to.eq('EUR');
+      const paymentMethodsAfter = await getOpenCollectivePaymentMethods(organization.id);
+      expect(paymentMethodsAfter.map(pm => [pm.id, pm.type, pm.currency])).to.have.deep.members(
+        paymentMethodsBefore.map(pm => [pm.id, pm.type, 'EUR']),
+      );
+
+      // Getters must return the existing payment methods rather than creating new ones
+      const hostPaymentMethod = await organization.getOrCreateHostPaymentMethod();
+      const internalPaymentMethod = await organization.getOrCreateInternalPaymentMethod();
+      expect(paymentMethodsBefore.map(pm => pm.id)).to.include.members([
+        hostPaymentMethod.id,
+        internalPaymentMethod.id,
+      ]);
+      expect(await getOpenCollectivePaymentMethods(organization.id)).to.have.length(2);
+    });
+
+    it('does not update payment methods that already have transactions', async () => {
+      const organization = await fakeOrganization({ currency: 'USD' });
+      await organization.activateMoneyManagement({ silent: true });
+      const hostPaymentMethod = await organization.getOrCreateHostPaymentMethod();
+      const internalPaymentMethod = await organization.getOrCreateInternalPaymentMethod();
+      // Recorded with hostCurrency=EUR so that the host currency change itself is allowed
+      await fakeTransaction({
+        PaymentMethodId: hostPaymentMethod.id,
+        HostCollectiveId: organization.id,
+        currency: 'EUR',
+        hostCurrency: 'EUR',
+      });
+
+      await organization.setCurrency('EUR');
+
+      await hostPaymentMethod.reload();
+      await internalPaymentMethod.reload();
+      expect(hostPaymentMethod.currency).to.eq('USD');
+      expect(internalPaymentMethod.currency).to.eq('EUR');
+    });
+
+    it('does not touch payment methods from other services or types', async () => {
+      const organization = await fakeOrganization({ currency: 'USD' });
+      const giftCard = await fakePaymentMethod({
+        CollectiveId: organization.id,
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.GIFTCARD,
+        currency: 'USD',
+      });
+      const creditCard = await fakePaymentMethod({
+        CollectiveId: organization.id,
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        currency: 'USD',
+      });
+
+      await organization.setCurrency('EUR');
+
+      await giftCard.reload();
+      await creditCard.reload();
+      expect(giftCard.currency).to.eq('USD');
+      expect(creditCard.currency).to.eq('USD');
+    });
+
+    it('cascades to the payment methods of hosted collectives, events and projects', async () => {
+      const host = await fakeOrganization({ currency: 'USD' });
+      await host.activateMoneyManagement({ silent: true });
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      const event = await fakeEvent({ ParentCollectiveId: hostedCollective.id, currency: 'USD' });
+      const project = await fakeProject({ ParentCollectiveId: hostedCollective.id, currency: 'USD' });
+      const accounts = [hostedCollective, event, project];
+      for (const account of accounts) {
+        // Clear any payment method created by the fakers, to only keep one we control
+        await models.PaymentMethod.destroy({ where: { CollectiveId: account.id }, force: true });
+        await fakePaymentMethod({
+          CollectiveId: account.id,
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+          currency: 'USD',
+        });
+      }
+
+      await host.setCurrency('EUR');
+
+      for (const account of accounts) {
+        await account.reload();
+        expect(account.currency).to.eq('EUR');
+        const paymentMethods = await getOpenCollectivePaymentMethods(account.id);
+        expect(paymentMethods.map(pm => pm.currency)).to.deep.eq(['EUR']);
+      }
+    });
+  });
 });

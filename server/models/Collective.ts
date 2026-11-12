@@ -2416,6 +2416,27 @@ class Collective extends ModelWithPublicId<
         await pMap(projects, project => project.setCurrency(currency, { transaction }), { concurrency: 3 });
       }
 
+      // Update internal payment methods (budget & added funds) as they're expected to be in the account currency.
+      // Payment methods that were already used are left untouched to preserve the history.
+      const paymentMethods = await PaymentMethod.findAll({
+        where: {
+          CollectiveId: this.id,
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: [PAYMENT_METHOD_TYPE.COLLECTIVE, PAYMENT_METHOD_TYPE.HOST],
+          currency: { [Op.ne]: currency },
+        },
+        transaction,
+      });
+      for (const paymentMethod of paymentMethods) {
+        const pmTransactionCount = await Transaction.count({
+          where: { PaymentMethodId: paymentMethod.id },
+          transaction,
+        });
+        if (pmTransactionCount === 0) {
+          await paymentMethod.update({ currency }, { transaction });
+        }
+      }
+
       return this.update({ currency }, { transaction });
     };
 
