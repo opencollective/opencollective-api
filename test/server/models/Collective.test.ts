@@ -1165,6 +1165,50 @@ describe('server/models/Collective', () => {
       });
   });
 
+  describe('updateHostFeeAsSystem', () => {
+    it('updates the host and cascades to approved hosted collectives without a custom fee', async () => {
+      const host = await fakeActiveHost({ hostFeePercent: 0 });
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, hostFeePercent: 0 });
+      const customFeeCollective = await fakeCollective({
+        HostCollectiveId: host.id,
+        hostFeePercent: 2,
+        data: { useCustomHostFee: true },
+      });
+
+      await host.updateHostFeeAsSystem(7.5);
+
+      await Promise.all([host.reload(), hostedCollective.reload(), customFeeCollective.reload()]);
+      expect(host.hostFeePercent).to.equal(7.5);
+      expect(hostedCollective.hostFeePercent).to.equal(7.5);
+      expect(customFeeCollective.hostFeePercent).to.equal(2);
+    });
+
+    it('is a no-op when hostFeePercent is undefined', async () => {
+      const host = await fakeActiveHost({ hostFeePercent: 3 });
+      await host.updateHostFeeAsSystem(undefined);
+      await host.reload();
+      expect(host.hostFeePercent).to.equal(3);
+    });
+
+    for (const invalidValue of [null, -1, 101, NaN, Infinity, '5']) {
+      it(`rejects ${String(invalidValue)} without touching the host or hosted collectives`, async () => {
+        const host = await fakeActiveHost({ hostFeePercent: 0 });
+        const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, hostFeePercent: 0 });
+
+        await expect(host.updateHostFeeAsSystem(invalidValue as number)).to.be.rejectedWith(/Invalid host fee percent/);
+
+        await Promise.all([host.reload(), hostedCollective.reload()]);
+        expect(host.hostFeePercent).to.equal(0);
+        expect(hostedCollective.hostFeePercent).to.equal(0);
+      });
+    }
+
+    it('rejects null even if the current value is already null', async () => {
+      const collective = await fakeCollective({ hostFeePercent: null });
+      await expect(collective.updateHostFeeAsSystem(null)).to.be.rejectedWith(/Invalid host fee percent/);
+    });
+  });
+
   describe('backers', () => {
     it('gets the latest transactions of a user collective', () => {
       return Collective.findOne({ where: { id: user1.CollectiveId } }).then(userCollective => {

@@ -2207,6 +2207,8 @@ class Collective extends ModelWithPublicId<
 
   /**
    * Similar to `updateHostFeeAsUser`, but doesn't check for permissions.
+   * Passing `undefined` is a no-op. Any other value must be a number between 0 and 100: hosted collectives
+   * are updated in bulk without hooks, so an invalid value here would be cascaded to all of them.
    */
   updateHostFeeAsSystem = async function (
     hostFeePercent: number,
@@ -2215,7 +2217,16 @@ class Collective extends ModelWithPublicId<
       dropCustomHostedCollectivesFees = false,
     }: { transaction?: SequelizeTransaction; dropCustomHostedCollectivesFees?: boolean } = {},
   ): Promise<Collective> {
-    if (typeof hostFeePercent === 'undefined' || hostFeePercent === this.hostFeePercent) {
+    if (typeof hostFeePercent === 'undefined') {
+      return this;
+    } else if (
+      typeof hostFeePercent !== 'number' ||
+      !Number.isFinite(hostFeePercent) ||
+      hostFeePercent < 0 ||
+      hostFeePercent > 100
+    ) {
+      throw new Error(`Invalid host fee percent: ${hostFeePercent}. It must be a number between 0 and 100.`);
+    } else if (hostFeePercent === this.hostFeePercent) {
       return this;
     } else if (
       [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.FUND, CollectiveType.PROJECT].includes(this.type)
