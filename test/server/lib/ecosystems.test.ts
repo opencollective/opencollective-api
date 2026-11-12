@@ -45,6 +45,10 @@ const COMMITS_ROUTE: MockRoute = {
   match: url => url.includes('commits.ecosyste.ms') && url.includes('/repositories/lookup'),
   body: null,
 };
+const COMMITS_LIST_ROUTE: MockRoute = {
+  match: url => url.includes('commits.ecosyste.ms') && /\/commits\?/.test(url),
+  body: [],
+};
 const ISSUES_ROUTE: MockRoute = {
   match: url => url.includes('issues.ecosyste.ms') && url.includes('/repositories/lookup'),
   body: null,
@@ -140,7 +144,14 @@ describe('server/lib/ecosystems', () => {
       const entry = await fetchRepoSummary(REPO_URL);
 
       // The entry has the same structure as the POC's EcosystemsRepoSummary
-      expect(Object.keys(entry).sort()).to.deep.equal(['contributors', 'issues', 'owner', 'packages', 'repository']);
+      expect(Object.keys(entry).sort()).to.deep.equal([
+        'contributors',
+        'firstCommit',
+        'issues',
+        'owner',
+        'packages',
+        'repository',
+      ]);
       expect(entry.packages).to.deep.equal([PACKAGE]);
       expect(entry.repository).to.deep.equal(REPO_METADATA); // Resolved from the package's repo_metadata
       expect(entry.contributors).to.deep.equal({
@@ -149,6 +160,7 @@ describe('server/lib/ecosystems', () => {
       });
       expect(entry.issues).to.deep.equal({ full_name: 'opencollective/opencollective-frontend', issues_count: 3 });
       expect(entry.owner).to.deep.equal({ login: 'opencollective', name: 'Open Collective' });
+      expect(entry.firstCommit).to.be.null;
 
       // A single repo is requested (no list of URLs), and the owner is resolved from the repo host/owner
       const packagesCall = fetchStub.getCalls().find(call => PACKAGES_ROUTE.match(String(call.args[0])));
@@ -157,6 +169,47 @@ describe('server/lib/ecosystems', () => {
 
       const ownerCall = fetchStub.getCalls().find(call => OWNER_ROUTE.match(String(call.args[0])));
       expect(String(ownerCall.args[0])).to.contain('/hosts/GitHub/owners/opencollective');
+    });
+
+    it('fetches the first commit through the commits list URL exposed by the commits lookup', async () => {
+      const commitsUrl =
+        'https://commits.ecosyste.ms/api/v1/hosts/GitHub/repositories/opencollective%2Fopencollective-frontend/commits';
+      fetchStub = mockEcosystemsFetch([
+        { match: PACKAGES_ROUTE.match, body: [PACKAGE] },
+        {
+          match: COMMITS_ROUTE.match,
+          body: {
+            full_name: 'opencollective/opencollective-frontend',
+            total_commits: 10,
+            commits_url: commitsUrl,
+          },
+        },
+        {
+          match: COMMITS_LIST_ROUTE.match,
+          body: [
+            {
+              sha: 'first-commit-sha',
+              message: 'first commit',
+              timestamp: '2016-12-12T05:10:07.000Z',
+            },
+          ],
+        },
+        { match: ISSUES_ROUTE.match, body: null },
+        { match: OWNER_ROUTE.match, body: null },
+      ]);
+
+      const entry = await fetchRepoSummary(REPO_URL);
+
+      expect(entry.firstCommit).to.deep.equal({
+        sha: 'first-commit-sha',
+        message: 'first commit',
+        timestamp: '2016-12-12T05:10:07.000Z',
+      });
+
+      const firstCommitCall = fetchStub.getCalls().find(call => COMMITS_LIST_ROUTE.match(String(call.args[0])));
+      const firstCommitUrl = new URL(String(firstCommitCall.args[0]));
+      expect(firstCommitUrl.searchParams.get('order')).to.equal('asc');
+      expect(firstCommitUrl.searchParams.get('per_page')).to.equal('1');
     });
 
     it('sends the ecosystems token as a bearer token when configured', async () => {
@@ -204,7 +257,14 @@ describe('server/lib/ecosystems', () => {
 
       const entry = await fetchRepoSummary(REPO_URL);
 
-      expect(entry).to.deep.equal({ packages: [], repository: null, contributors: null, issues: null, owner: null });
+      expect(entry).to.deep.equal({
+        packages: [],
+        repository: null,
+        contributors: null,
+        issues: null,
+        owner: null,
+        firstCommit: null,
+      });
     });
 
     it('tolerates secondary lookup failures', async () => {
@@ -250,6 +310,30 @@ describe('server/lib/ecosystems', () => {
       ]);
       const complete = await fetchRepoSummaryWithStatus(REPO_URL);
       expect(complete.isComplete).to.be.true;
+    });
+
+    it('reports a repository that is still being indexed as an incomplete summary', async () => {
+      const commitsUrl =
+        'https://commits.ecosyste.ms/api/v1/hosts/GitHub/repositories/opencollective%2Fopencollective-frontend/commits';
+      fetchStub = mockEcosystemsFetch([
+        { match: PACKAGES_ROUTE.match, body: [PACKAGE] },
+        {
+          match: COMMITS_ROUTE.match,
+          body: {
+            full_name: 'opencollective/opencollective-frontend',
+            total_commits: 0,
+            commits_url: commitsUrl,
+          },
+        },
+        { match: COMMITS_LIST_ROUTE.match, status: 202, body: { status: 'pending' } },
+        ISSUES_ROUTE,
+        OWNER_ROUTE,
+      ]);
+
+      const { summary, isComplete } = await fetchRepoSummaryWithStatus(REPO_URL);
+
+      expect(summary.firstCommit).to.be.null;
+      expect(isComplete).to.be.false;
     });
 
     it('throws when a core repository lookup fails', async () => {
