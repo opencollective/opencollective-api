@@ -228,6 +228,13 @@ const updateOrderMutation = gql`
         id
         name
       }
+      pendingTierChange {
+        requestedAt
+        tier {
+          id
+          name
+        }
+      }
       paymentMethod {
         id
       }
@@ -3562,7 +3569,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         expect(result.errors).to.not.exist;
         expect(result.data.updateOrder.amount.value).to.eq(73);
-        expect(result.data.updateOrder.tier.name).to.eq(fixedTier.name);
+        // Nothing was paid for this tier yet: it applies on the next successful charge
+        expect(result.data.updateOrder.tier).to.be.null;
+        expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedTier.name);
       });
 
       it('when changing the amount, the tax amount is updated too', async () => {
@@ -3924,7 +3933,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             clock = useFakeTimers({ now: today.toDate(), toFake: ['Date'] }); // Manually setting today's date
             const { result, order } = await updateFakeOrder(today, 'month', 'year');
             expect(result.errors).to.not.exist;
-            expect(result.data.updateOrder.tier.name).to.eq(fixedYearlyTier.name);
+            expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedYearlyTier.name);
 
             const subscription = await order.getSubscription();
             expect(subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
@@ -3936,7 +3945,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             clock = useFakeTimers({ now: today.toDate(), toFake: ['Date'] }); // Manually setting today's date
             const { result, order } = await updateFakeOrder(today, 'year', 'month');
             expect(result.errors).to.not.exist;
-            expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+            expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedMonthlyTier.name);
 
             const subscription = await order.getSubscription();
             expect(subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
@@ -3951,7 +3960,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
             const { result, order } = await updateFakeOrder(firstOfJanuary, 'month', 'year');
             expect(result.errors).to.not.exist;
-            expect(result.data.updateOrder.tier.name).to.eq(fixedYearlyTier.name);
+            expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedYearlyTier.name);
 
             const subscription = await order.getSubscription();
             expect(subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
@@ -3964,7 +3973,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
             const { result, order } = await updateFakeOrder(firstOfJanuary, 'year', 'month');
             expect(result.errors).to.not.exist;
-            expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+            expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedMonthlyTier.name);
 
             const subscription = await order.getSubscription();
             expect(subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
@@ -3979,7 +3988,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
             const { result, order } = await updateFakeOrder(firstOfJanuary, 'month', 'year');
             expect(result.errors).to.not.exist;
-            expect(result.data.updateOrder.tier.name).to.eq(fixedYearlyTier.name);
+            expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedYearlyTier.name);
 
             const subscription = await order.getSubscription();
             expect(subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
@@ -3992,7 +4001,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
             const { result, order } = await updateFakeOrder(firstOfJanuary, 'year', 'month');
             expect(result.errors).to.not.exist;
-            expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+            expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedMonthlyTier.name);
 
             const subscription = await order.getSubscription();
             expect(subscription.nextChargeDate.toISOString()).to.equal('2022-08-01T00:00:00.000Z');
@@ -4005,7 +4014,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
             const { result, order } = await updateFakeOrder(firstOfJanuary, 'year', 'month');
             expect(result.errors).to.not.exist;
-            expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+            expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedMonthlyTier.name);
 
             const subscription = await order.getSubscription();
             expect(subscription.nextChargeDate.toISOString()).to.equal('2022-07-01T00:00:00.000Z');
