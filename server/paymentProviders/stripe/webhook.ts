@@ -682,36 +682,157 @@ export async function stripePaymentIntentFailed(event: Stripe.Event) {
 
 const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
   const stripePaymentIntent = event.data.object as Stripe.PaymentIntent;
-  const order = await models.Order.findOne({
-    where: getWhereStripePaymentIntentId(stripePaymentIntent.id),
-    include: [
-      { association: 'collective', required: true },
-      { association: 'fromCollective', required: true },
-      { association: 'createdByUser', required: true },
-      { association: 'paymentMethod', required: false },
-    ],
+  const result = await sequelize.transaction(async transaction => {
+    const order = await models.Order.findOne({
+      where: getWhereStripePaymentIntentId(stripePaymentIntent.id),
+      transaction,
+      // Lock only Orders: paymentMethod is an optional (outer-joined) association.
+      lock: { level: transaction.LOCK.UPDATE, of: models.Order },
+      include: [
+        { association: 'collective', required: true },
+        { association: 'fromCollective', required: true },
+        { association: 'createdByUser', required: true },
+        { association: 'paymentMethod', required: false },
+      ],
+    });
+
+    if (!order) {
+      logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${stripePaymentIntent.id}`);
+      return;
+    }
+
+    const charge = getPaymentIntentCharge(stripePaymentIntent);
+    const reason = stripePaymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
+    logger.info(`Stripe Webook: Payment Intent failed for Order #${order.id}. Reason: ${reason}`);
+
+    const wasCancelled = order.status === OrderStatuses.CANCELLED;
+    const wasAlreadyFailed = order.status === OrderStatuses.ERROR;
+    const subscription = order.SubscriptionId
+      ? await models.Subscription.findByPk(order.SubscriptionId, { transaction, lock: transaction.LOCK.UPDATE })
+      : null;
+    if (subscription && !wasCancelled) {
+      order.Subscription = subscription;
+    }
+    const attempt = subscription?.data?.stripeRecurringPaymentAttempt;
+    // A new processing invocation does not make a late notification for its previous intent new.
+    const belongsToAttempt =
+      attempt &&
+      (attempt.paymentIntentId === stripePaymentIntent.id ||
+        (!attempt.outcome && attempt.previousPaymentIntentId !== stripePaymentIntent.id));
+    const previousIntent =
+      attempt &&
+      !attempt.outcome &&
+      attempt.previousFailureRecorded &&
+      attempt.previousPaymentIntentId === stripePaymentIntent.id;
+    const successfulOutcome =
+      order.data.stripePaymentIntent?.status === 'succeeded' || (belongsToAttempt && attempt.outcome === 'success');
+    // A provider may restore an older intent snapshot after the success webhook cleared it.
+    // The posted contribution remains authoritative even if that snapshot still says processing.
+    const paidTransaction =
+      !successfulOutcome &&
+      !previousIntent &&
+      (await models.Transaction.findOne({
+        attributes: ['id'],
+        where: {
+          OrderId: order.id,
+          type: TransactionTypes.CREDIT,
+          kind: TransactionKind.CONTRIBUTION,
+          isRefund: false,
+          data: { charge: { paid: true } },
+          [Op.or]: [
+            { data: { charge: { payment_intent: stripePaymentIntent.id } } },
+            { data: { charge: { payment_intent: { id: stripePaymentIntent.id } } } },
+          ],
+        },
+        transaction,
+      }));
+    if (successfulOutcome || paidTransaction || previousIntent) {
+      // Keep both status and the newer cached data. Email behavior is intentionally unchanged.
+      return { order, reason, recordFailure: false };
+    }
+    await order.update(
+      {
+        status: wasCancelled ? OrderStatuses.CANCELLED : OrderStatuses.ERROR,
+        data: { ...order.data, stripePaymentIntent: stripePaymentIntent },
+      },
+      { transaction },
+    );
+
+    let recordFailure = !wasCancelled && !wasAlreadyFailed;
+    if (order.SubscriptionId && !wasCancelled) {
+      // Only a processing invocation started by us can establish an early new attempt while the
+      // order still has the previous ERROR status. A different Event or PaymentIntent alone cannot.
+      const alreadyRecorded = belongsToAttempt && (attempt.outcome === 'failure' || attempt.outcome === 'success');
+      if (alreadyRecorded && attempt.isCancelled) {
+        await order.update({ status: OrderStatuses.CANCELLED }, { transaction });
+      }
+      const applyRetry = !alreadyRecorded && (!wasAlreadyFailed || Boolean(belongsToAttempt));
+      recordFailure =
+        applyRetry ||
+        Boolean(belongsToAttempt && attempt.outcome === 'failure' && attempt.failureMetricClaimed === false);
+      if (applyRetry) {
+        const chargeRetryCount = getChargeRetryCount('failure', order);
+        const exceededAttempts = chargeRetryCount >= MAX_RETRIES;
+        const attemptUpdate = belongsToAttempt
+          ? {
+              data: {
+                ...subscription.data,
+                stripeRecurringPaymentAttempt: {
+                  ...attempt,
+                  paymentIntentId: stripePaymentIntent.id,
+                  outcome: 'failure' as const,
+                  isCancelled: exceededAttempts,
+                  failureMetricClaimed: true,
+                },
+              },
+            }
+          : {};
+        if (exceededAttempts) {
+          await subscription.update(
+            {
+              ...attemptUpdate,
+              isActive: false,
+              deactivatedAt: new Date(),
+            },
+            { transaction },
+          );
+          await order.update({ status: OrderStatuses.CANCELLED }, { transaction });
+        } else {
+          const { nextPeriodStart, nextChargeDate } = getNextChargeAndPeriodStartDates('failure', order);
+          await subscription.update(
+            {
+              ...attemptUpdate,
+              chargeRetryCount,
+              nextPeriodStart,
+              nextChargeDate,
+            },
+            { transaction },
+          );
+        }
+      } else if (recordFailure) {
+        // A 3DS confirmation retry was already counted by the cron worker. Claim only its
+        // terminal failure metric; do not change the retry count or reschedule it again.
+        await subscription.update(
+          {
+            data: {
+              ...subscription.data,
+              stripeRecurringPaymentAttempt: { ...attempt, failureMetricClaimed: true },
+            },
+          },
+          { transaction },
+        );
+      }
+    }
+
+    return { order, reason, recordFailure };
   });
 
-  if (!order) {
-    logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${stripePaymentIntent.id}`);
+  if (!result) {
     return;
   }
-
-  const charge = getPaymentIntentCharge(stripePaymentIntent);
-  const reason = stripePaymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
-  logger.info(`Stripe Webook: Payment Intent failed for Order #${order.id}. Reason: ${reason}`);
-
-  const wasCancelled = order.status === OrderStatuses.CANCELLED;
-  const wasAlreadyFailed = order.status === OrderStatuses.ERROR;
-  await order.update({
-    status: wasCancelled ? OrderStatuses.CANCELLED : OrderStatuses.ERROR,
-    data: { ...order.data, stripePaymentIntent: stripePaymentIntent },
-  });
-
-  // Terminal failure of the payment attempt. Counted only when the order transitions to ERROR, which
-  // keeps redeliveries of the same event from double-counting. `REQUIRE_CLIENT_CONFIRMATION` (3DS)
-  // failures still land here once the attempt is terminally declined.
-  if (!wasCancelled && !wasAlreadyFailed) {
+  const { order, reason, recordFailure } = result;
+  // Emit external side effects after commit; a rolled-back failure must remain retryable.
+  if (recordFailure) {
     recordPaymentOutcome({
       provider: MetricProvider.STRIPE,
       flow: MetricFlow.CONTRIBUTION,
@@ -720,32 +841,7 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
       errorType: mapErrorToType(stripePaymentIntent.last_payment_error || reason),
     });
   }
-
   const userFriendlyError = userFriendlyErrorMessage({ message: reason }) || UNKNOWN_ERROR_MSG;
-
-  if (order.SubscriptionId) {
-    const subscription = await models.Subscription.findByPk(order.SubscriptionId);
-    order.Subscription = subscription;
-    const chargeRetryCount = getChargeRetryCount('failure', order);
-
-    const exceededAttempts = chargeRetryCount >= MAX_RETRIES;
-
-    if (exceededAttempts) {
-      await subscription.update({
-        isActive: false,
-        deactivatedAt: new Date(),
-      });
-      await order.update({ status: OrderStatuses.CANCELLED });
-    } else {
-      const { nextPeriodStart, nextChargeDate } = getNextChargeAndPeriodStartDates('failure', order);
-      await subscription.update({
-        chargeRetryCount,
-        nextPeriodStart,
-        nextChargeDate,
-      });
-    }
-  }
-
   sendOrderFailedEmail(order, userFriendlyError);
 };
 

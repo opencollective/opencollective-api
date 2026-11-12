@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import config from 'config';
 import { get, omit } from 'lodash';
 import moment from 'moment';
@@ -6,7 +8,7 @@ import { Op, QueryTypes, Transaction as SequelizeTransaction } from 'sequelize';
 import activities from '../constants/activities';
 import intervals from '../constants/intervals';
 import status from '../constants/order-status';
-import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import roles from '../constants/roles';
 import type { Order } from '../models';
 import models, { sequelize } from '../models';
@@ -185,6 +187,46 @@ export async function processOrderWithSubscription(
     }
   }
 
+  let stripePaymentAttemptId: string;
+  if (
+    !options.dryRun &&
+    !order.collective.deactivatedAt &&
+    order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.STRIPE
+  ) {
+    // Persist the processing invocation before calling Stripe. Unlike order.status, this survives
+    // provider writes of stale order data and distinguishes an early failure from the previous attempt.
+    stripePaymentAttemptId = randomUUID();
+    const started = await sequelize.transaction(async transaction => {
+      const currentOrder = await models.Order.findByPk(order.id, { transaction, lock: true });
+      if (!currentOrder || currentOrder.updatedAt.getTime() !== order.updatedAt.getTime()) {
+        return false;
+      }
+      const subscription = await models.Subscription.findByPk(order.SubscriptionId, { transaction, lock: true });
+      const previousAttempt = subscription.data?.stripeRecurringPaymentAttempt;
+      await subscription.update(
+        {
+          data: {
+            ...subscription.data,
+            stripeRecurringPaymentAttempt: {
+              id: stripePaymentAttemptId,
+              previousPaymentIntentId: currentOrder.data?.stripePaymentIntent?.id,
+              previousFailureRecorded:
+                previousAttempt?.outcome === 'failure' &&
+                Boolean(previousAttempt.paymentIntentId) &&
+                previousAttempt.paymentIntentId === currentOrder.data?.stripePaymentIntent?.id,
+            },
+          },
+        },
+        { transaction },
+      );
+      order.Subscription = subscription;
+      return true;
+    });
+    if (!started) {
+      return;
+    }
+  }
+
   logger.info(
     `order: ${order.id}, subscription: ${order.Subscription.id}, ` +
       `attempt: #${order.Subscription.chargeRetryCount}, ` +
@@ -207,9 +249,11 @@ export async function processOrderWithSubscription(
     nextPeriodStartAfter: null,
   };
 
-  let orderProcessedStatus = 'unattempted';
+  let orderProcessedStatus: 'unattempted' | 'processing' | 'failure' | 'success' = 'unattempted';
   let collectiveIsArchived = false;
   let creditCardNeedsConfirmation = false;
+  let failureMetric: Parameters<typeof recordPaymentOutcome>[0];
+  let failureAlreadyRecorded = false;
   let transaction: Awaited<ReturnType<typeof processOrder>>;
 
   if (!options.dryRun) {
@@ -231,13 +275,17 @@ export async function processOrderWithSubscription(
           // Terminal failure of a payment attempt. Internal flows (opencollective service) are out of scope.
           const provider = paymentServiceToMetricProvider(order.paymentMethod?.service);
           if (provider === MetricProvider.STRIPE || provider === MetricProvider.PAYPAL) {
-            recordPaymentOutcome({
+            failureMetric = {
               provider,
               flow: MetricFlow.CONTRIBUTION,
               method: order.paymentMethod.type,
               outcome: MetricEvent.FAILED,
               errorType: mapErrorToType(error),
-            });
+            };
+            if (!stripePaymentAttemptId) {
+              recordPaymentOutcome(failureMetric);
+              failureMetric = undefined;
+            }
           }
         }
         orderProcessedStatus = 'failure';
@@ -309,12 +357,48 @@ export async function processOrderWithSubscription(
     } catch (error) {
       reportErrorToSentry(error, { severity: 'fatal', feature: FEATURE.RECURRING_CONTRIBUTIONS });
     } finally {
-      await order.Subscription.save();
       // Lock the order row so that a bulk cancellation cannot commit between the check and the save
       await sequelize.transaction(async transaction => {
-        await keepConcurrentCancellation(order, transaction);
+        const currentOrder = await keepConcurrentCancellation(order, transaction);
+        if (stripePaymentAttemptId) {
+          const subscription = await models.Subscription.findByPk(order.SubscriptionId, { transaction, lock: true });
+          const attempt = subscription.data?.stripeRecurringPaymentAttempt;
+          if (attempt?.id !== stripePaymentAttemptId) {
+            throw new Error(`Recurring payment attempt for order #${order.id} was superseded`);
+          }
+          if (attempt.outcome === 'failure') {
+            // The webhook committed first. Do not overwrite its retry dates, cancellation or count,
+            // even if the provider subsequently wrote a stale PROCESSING PaymentIntent snapshot.
+            failureAlreadyRecorded = true;
+            order.Subscription = subscription;
+            order.status =
+              attempt.isCancelled || currentOrder.status === status.CANCELLED ? status.CANCELLED : status.ERROR;
+            order.data = currentOrder.data;
+            csvEntry.status = 'failure';
+            csvEntry.retriesAfter = subscription.chargeRetryCount;
+            csvEntry.chargeDateAfter = dateFormat(subscription.nextChargeDate);
+            csvEntry.nextPeriodStartAfter = dateFormat(subscription.nextPeriodStart);
+            await order.save({ transaction });
+            return;
+          }
+          order.Subscription.data = {
+            ...subscription.data,
+            stripeRecurringPaymentAttempt: {
+              ...attempt,
+              paymentIntentId: order.data?.stripePaymentIntent?.id,
+              outcome: orderProcessedStatus === 'unattempted' ? undefined : orderProcessedStatus,
+              isCancelled: order.status === status.CANCELLED,
+              // 3DS confirmation consumes a retry, but is not itself a terminal payment failure.
+              failureMetricClaimed: Boolean(failureMetric),
+            },
+          };
+        }
+        await order.Subscription.save({ transaction });
         await order.save({ transaction });
       });
+    }
+    if (failureMetric && !failureAlreadyRecorded) {
+      recordPaymentOutcome(failureMetric);
     }
   }
 
@@ -326,20 +410,17 @@ export async function processOrderWithSubscription(
  * in-memory order as-is would then overwrite the `CANCELLED` status and drop `needsAsyncDeactivation`, and the
  * contribution would keep being charged. Keep the cancellation instead.
  */
-async function keepConcurrentCancellation(order: Order, transaction: SequelizeTransaction): Promise<void> {
-  if (order.status === status.CANCELLED) {
-    return;
-  }
-
+async function keepConcurrentCancellation(order: Order, transaction: SequelizeTransaction): Promise<Order> {
   const currentOrder = await models.Order.findByPk(order.id, {
     attributes: ['id', 'status', 'data'],
     transaction,
     lock: true,
   });
-  if (currentOrder?.status === status.CANCELLED) {
+  if (order.status !== status.CANCELLED && currentOrder?.status === status.CANCELLED) {
     order.status = status.CANCELLED;
     order.data = { ...order.data, ...currentOrder.data };
   }
+  return currentOrder;
 }
 
 /** Standard way to format dates in this script */
