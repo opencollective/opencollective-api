@@ -46,6 +46,7 @@ const EXPECTED_ENTRY = {
   contributors: { total_commits: 10 },
   issues: { issues_count: 3 },
   owner: { login: 'opencollective' },
+  firstCommit: null,
 };
 
 const makeRequest = (query: object) =>

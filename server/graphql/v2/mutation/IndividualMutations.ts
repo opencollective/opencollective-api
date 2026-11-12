@@ -14,10 +14,11 @@ import {
   rejectOAuthAndPersonalTokenAuth,
   requireSessionToken,
 } from '../../common/scope-check';
-import { confirmUserEmail } from '../../common/user';
+import { confirmUserEmail, requestUserEmailChange } from '../../common/user';
 import { RateLimitExceeded, Unauthorized } from '../../errors';
 import { GraphQLIndividual } from '../object/Individual';
 import { GraphQLSetPasswordResponse } from '../object/SetPasswordResponse';
+import GraphQLEmailAddress from '../scalar/EmailAddress';
 
 const individualMutations = {
   setChangelogViewDate: {
@@ -123,6 +124,28 @@ const individualMutations = {
       auth.setAuthCookie(req.res, token);
 
       return { individual, token };
+    },
+  },
+  requestEmailChange: {
+    type: new GraphQLNonNull(GraphQLIndividual),
+    description:
+      'Request a change of the email address of the logged-in user. A confirmation link is sent to the new address, and the change is applied by `confirmEmail`. The pending address is returned in `emailWaitingForValidation`. Session only (OAuth/Personal tokens are not allowed). 2FA.',
+    args: {
+      email: {
+        type: new GraphQLNonNull(GraphQLEmailAddress),
+        description: 'The new email address. Sending the current address cancels any pending change.',
+      },
+    },
+    resolve: async (_, { email }, req: express.Request) => {
+      rejectOAuthAndPersonalTokenAuth(req, 'OAuth and Personal Tokens are not allowed to change the email address.');
+      requireSessionToken(req, 'A session token is required to change the email address.');
+      if (!req.remoteUser) {
+        throw new Unauthorized('You need to be logged in to manage account.');
+      }
+
+      await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
+      const user = await requestUserEmailChange(req.remoteUser, email);
+      return user.getCollective({ loaders: req.loaders });
     },
   },
   confirmEmail: {

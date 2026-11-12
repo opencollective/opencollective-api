@@ -140,6 +140,46 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
   return Promise.all(updateExpenses);
 };
 
+type PayoutItemError = NonNullable<PayoutItemDetails['errors']> | { message: string };
+
+/** Stored when the provider reports a failed item without any error payload. */
+const getStatusDerivedError = (item: PayoutItemDetails): PayoutItemError => ({
+  message: `PayPal payout item ${item.transaction_status}`,
+});
+
+/**
+ * PayPal omits `errors` from some failed batch items, and the webhook that used to fetch them is
+ * disabled (see opencollective/opencollective#8789). Ask the payout item endpoint instead and fall
+ * back to a status-derived message so the stored error is never empty.
+ *
+ * Provider payloads are stored as-is: `sanitizeErrorData` (`server/graphql/common/activities.ts`)
+ * is what filters them before they reach clients, so keeping the raw item and error preserves
+ * debugging data (`debug_id`, error `details`, links, transaction ids).
+ */
+const fetchPayoutItemError = async (
+  item: PayoutItemDetails,
+  expense: Expense,
+  host: Collective,
+): Promise<{ error: PayoutItemError; payoutItem: PayoutItemDetails; retrievalFailed?: boolean }> => {
+  if (item.errors) {
+    return { error: item.errors, payoutItem: item };
+  }
+
+  try {
+    const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
+    const payoutItem = await paypal.getPayoutItem(connectedAccount, item.payout_item_id);
+    return { error: payoutItem?.errors ?? getStatusDerivedError(item), payoutItem: payoutItem ?? item };
+  } catch (e) {
+    logger.error(`PayPal: failed to fetch payout item ${item.payout_item_id} for expense #${expense.id}`, e);
+    reportErrorToSentry(e, {
+      feature: FEATURE.PAYPAL_PAYOUTS,
+      extra: { expenseId: expense.id, payoutItemId: item.payout_item_id },
+    });
+    // Flag the activity so the backfill script retries: the fallback message below is not conclusive
+    return { error: getStatusDerivedError(item), payoutItem: item, retrievalFailed: true };
+  }
+};
+
 export const checkBatchItemStatus = async (
   item: PayoutItemDetails,
   expense: Expense,
@@ -212,13 +252,19 @@ export const checkBatchItemStatus = async (
     case 'RETURNED':
     case 'REVERSED':
       if (expense.status !== status.ERROR) {
+        const { error: payoutItemError, payoutItem, retrievalFailed } = await fetchPayoutItemError(item, expense, host);
         await expense.setError(expense.lastEditedById);
         const data = omit(expense.data, ['payout_batch_id', 'batch_status', 'sender_batch_header']);
         await expense.update({ data });
         await expense.createActivity(
           activities.COLLECTIVE_EXPENSE_ERROR,
           { id: expense.lastEditedById },
-          { error: item.errors, isSystem: true, payoutItem: item },
+          {
+            error: payoutItemError,
+            isSystem: true,
+            payoutItem,
+            ...(retrievalFailed && { errorRetrievalFailed: true }),
+          },
         );
 
         // Terminal failure of the payout attempt (the ERROR guard above makes redeliveries no-ops)

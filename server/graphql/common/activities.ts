@@ -45,6 +45,49 @@ const sanitizeErrorData = (error): { name?: string; message?: string; details?: 
   return sanitized;
 };
 
+const getWiseTransferStateMessage = (state: string): string | undefined => {
+  switch (state) {
+    case 'cancelled':
+      return 'Wise transfer cancelled';
+    case 'funds_refunded':
+      return 'Wise transfer refunded';
+    case 'bounced_back':
+      return 'Wise transfer bounced back';
+  }
+};
+
+const getEventErrorMessage = (event): string | undefined => {
+  if (event.event_type === 'transfers#refund') {
+    const refundAmount = event.data?.resource?.refund_amount;
+    const refundCurrency = event.data?.resource?.refund_currency;
+    return typeof refundAmount === 'number' && typeof refundCurrency === 'string'
+      ? `Wise transfer refunded ${refundAmount} ${refundCurrency}`
+      : 'Wise transfer refunded';
+  } else if (event.event_type === 'transfers#state-change') {
+    return getWiseTransferStateMessage(event.data?.current_state) ?? 'Wise transfer failed';
+  }
+};
+
+/**
+ * Provider webhooks (Wise) persist an `event` rather than an `error` when reporting a failure.
+ * Derive a human-readable summary from it, building a fresh object so that provider ids
+ * (`resource.id`, `account_id`, `profile_id`, `subscription_id`) never reach clients
+ * (see opencollective/opencollective#8323).
+ */
+const deriveErrorSummaryFromEvent = (event): { name?: string; message?: string } | undefined => {
+  if (!event || typeof event !== 'object') {
+    return undefined;
+  }
+
+  const name = typeof event.event_type === 'string' ? event.event_type : undefined;
+  const message = getEventErrorMessage(event);
+  if (!name && !message) {
+    return undefined;
+  }
+
+  return { ...(name && { name }), ...(message && { message }) };
+};
+
 export const sanitizeActivityData = async (req: Express.Request, activity): Promise<Partial<Activity['data']>> => {
   const toPick = [];
   if ([ActivityTypes.FISCAL_HOST_NOTE_SET, ActivityTypes.FISCAL_HOST_NOTE_REMOVED].includes(activity.type)) {
@@ -210,8 +253,15 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
     }
   }
   const data = pick(activity.data, toPick);
-  if ('error' in data) {
+  if (data.error) {
     data.error = sanitizeErrorData(data.error);
+  } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_ERROR) {
+    // Webhook-written rows have no `error`, so the thread would otherwise always read "An unknown
+    // error occurred". The derived summary holds no provider payload, so it is safe for every viewer.
+    const summary = deriveErrorSummaryFromEvent(activity.data?.event);
+    if (summary) {
+      data.error = summary;
+    }
   }
   return data;
 };
