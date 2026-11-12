@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import Debug from 'debug';
 import { Request } from 'express';
-import { get, toNumber } from 'lodash';
+import { get, omit, toNumber } from 'lodash';
 import moment from 'moment';
 
 import FEATURE from '../../constants/feature';
@@ -127,6 +127,8 @@ async function handleSaleCompleted(req: Request): Promise<void> {
     // `lock` works on its own copy of the row: reload to get what was committed before the lock was acquired
     // (e.g. a tier change), rather than what was loaded before waiting for it.
     await order.reload();
+    // ...without the lock's own marker: it's released in SQL, later updates of `data` must not write it back
+    order.set('data', omit(order.data, ['lockedAt']), { raw: true });
 
     // 2.1 Make sure the sale hasn't already been recorded
     const existingTransaction = await findTransactionByPaypalId(sale.id, { OrderId: order.id });

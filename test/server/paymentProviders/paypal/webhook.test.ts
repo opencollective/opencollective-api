@@ -221,6 +221,35 @@ describe('server/paymentProviders/paypal/webhook', () => {
       expect((await order.getSubscription()).chargeNumber).to.eq(1);
     });
 
+    it('releases the lock when a pending tier change is applied', async () => {
+      const host = await fakeHost();
+      await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      const tier = await fakeTier({ CollectiveId: collective.id, amountType: 'FIXED', amount: 1000, currency: 'USD' });
+      const order = await createOrderWithSubscription({
+        CollectiveId: collective.id,
+        TierId: null,
+        currency: 'USD',
+        quantity: 1,
+        status: 'ACTIVE',
+        data: { pendingTierChange: { TierId: tier.id, previousTierId: null, requestedAt: new Date().toISOString() } },
+      });
+
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+      await callPaymentSaleCompleted(host.id, {
+        resource: {
+          billing_agreement_id: order.paymentMethod.token,
+          amount: { total: '12.00', currency: 'USD' },
+          transaction_fee: { value: '1.20', currency: 'USD' },
+        },
+      });
+
+      await order.reload();
+      expect(order.TierId).to.eq(tier.id);
+      expect(order.data.pendingTierChange).to.not.exist;
+      expect(order.data.lockedAt).to.not.exist;
+    });
+
     it('records a thirdparty payment outcome metric for the successful recurring payment', async () => {
       const host = await fakeHost();
       await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
