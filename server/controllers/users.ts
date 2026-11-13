@@ -459,6 +459,8 @@ export async function signup(req: express.Request, res: express.Response) {
       { sendEvenIfNotProduction: true },
     );
   } catch (e) {
+    // The sessionId is not returned on this path: drop the session so the caller can sign up again
+    await sessionCache.delete(otpSessionKey);
     reportErrorToSentry(e, { user, handler: HandlerType.EXPRESS, domain: ENGINEERING_DOMAINS.INDIVIDUAL_ONBOARDING });
     res.status(500).send({
       error: { message: 'Error sending OTP email', type: 'EMAIL_SEND_ERROR' },
@@ -494,6 +496,18 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
     return;
   }
 
+  // Check if OTP request already exists
+  const otpSessionKey = `otp_signup_${sanitizedEmail}`;
+  const existingSession: SignupRequestSession = await sessionCache.get(otpSessionKey);
+  if (!sessionId || !existingSession || existingSession.sessionId !== sessionId) {
+    res.status(401).send({
+      error: { message: 'Not found', type: 'NOT_FOUND' },
+    });
+    return;
+  }
+
+  // Registered only once the caller has proven it owns the session: a sessionless call sends no
+  // mail, and charging it would let anyone lock an email out of `signup` without a captcha.
   const emailRateLimit = new RateLimit(
     // Shared with `signup`: these are the two routes that send OTP mail, and separate keys per
     // route let an attacker alternate them to bypass the per-email budget entirely.
@@ -506,16 +520,6 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
       email: sanitizedEmail,
       clientIP: req.ip,
       route: 'resend-otp',
-    });
-    return;
-  }
-
-  // Check if OTP request already exists
-  const otpSessionKey = `otp_signup_${sanitizedEmail}`;
-  const existingSession: SignupRequestSession = await sessionCache.get(otpSessionKey);
-  if (!sessionId || !existingSession || existingSession.sessionId !== sessionId) {
-    res.status(401).send({
-      error: { message: 'Not found', type: 'NOT_FOUND' },
     });
     return;
   }
@@ -533,10 +537,10 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
   }
 
   const user = await models.User.findByPk(existingSession.userId);
-  // A confirmed account has nothing left to verify. Confirming out-of-band never clears
-  // `data.requiresVerification`, so that flag alone would keep re-sending OTPs past the
-  // confirmation - drop the stale session instead of leaving it cached.
-  if (!user || user.data?.requiresVerification !== true || user.confirmedAt) {
+  // A confirmed account has nothing left to verify - drop the stale session instead of leaving
+  // it cached. `confirmedAt` is the only test: `signup` also opens sessions for existing
+  // unconfirmed users (guests), which never carry `data.requiresVerification`.
+  if (!user || user.confirmedAt) {
     if (user?.confirmedAt) {
       await logOtpSecurityEvent({
         event: 'otp_confirmed_user_rejected',
@@ -605,6 +609,14 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
       clientIP: req.ip,
       route: 'verify-email',
     });
+    return;
+  }
+
+  // The per-email budget is shared by everyone who knows the address, so it must only be spent by
+  // callers holding the challenge's `sessionId`. Anyone else is bounded by the per-IP budget above.
+  const pendingSession: SignupRequestSession = await sessionCache.get(`otp_signup_${sanitizedEmail}`);
+  if (!pendingSession || pendingSession.sessionId !== sessionId) {
+    res.status(403).send({ error: { message: 'Not found', type: 'NOT_FOUND' } });
     return;
   }
 
