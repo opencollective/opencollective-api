@@ -4564,7 +4564,14 @@ export const getExpenseAmountInDifferentCurrency = async (expense: Expense, toCu
     const result = await req.loaders.Expense.expenseToHostTransactionFxRateLoader.load(expense.id);
     // If collective changed their currency since the expense was paid, we can't rely on transaction.currency
     if (!isNil(result?.rate) && (!expense.collective || expense.collective.currency === result.currency)) {
-      return buildAmount(result.rate, OPENCOLLECTIVE, false, expense.createdAt);
+      // `result.rate` converts the expense currency to the host currency: use it as-is only for the host currency,
+      // and go through the recorded collective -> host rate for the collective currency.
+      const debit = find(transactions, { kind: TransactionKind.EXPENSE, isRefund: false, type: 'DEBIT' });
+      if (debit?.hostCurrency === toCurrency) {
+        return buildAmount(result.rate, OPENCOLLECTIVE, false, expense.createdAt);
+      } else if (debit?.currency === toCurrency && debit.hostCurrencyFxRate) {
+        return buildAmount(result.rate / debit.hostCurrencyFxRate, OPENCOLLECTIVE, false, expense.createdAt);
+      }
     }
   }
 
