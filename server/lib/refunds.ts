@@ -17,9 +17,11 @@ export const getRefundableAmountFromCollectiveInHostCurrency = async (transactio
   const paymentFee = relatedCreditTransactions.find(t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE);
   const tax = relatedCreditTransactions.find(t => t.kind === TransactionKind.TAX);
 
-  // The net amount excludes the fees and taxes embedded in the contribution, which never reached the Collective balance
+  // The net amount excludes the fees and taxes embedded in the contribution, which never reached the Collective balance.
+  // A legacy host fee embedded in the contribution is the exception: the refund does not give it back to the Collective.
   return (
     Transaction.calculateNetAmountInHostCurrency(contribution) -
+    (contribution.hostFeeInHostCurrency || 0) -
     (hostFee?.amountInHostCurrency || 0) -
     (paymentFee?.amountInHostCurrency || 0) -
     (tax?.amountInHostCurrency || 0)
