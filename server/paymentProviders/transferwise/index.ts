@@ -181,7 +181,8 @@ async function quoteExpense(
     (targetAccount === undefined || wiseIdsEqual(existingQuote.targetAccount, targetAccount)) &&
     // We can not reuse quotes if a Transfer was already created
     !expense.data.transfer &&
-    moment.utc().subtract(60, 'seconds').isBefore(existingQuote['expirationTime']);
+    // Only reuse quotes that remain valid for at least another 60 seconds
+    moment.utc().add(60, 'seconds').isBefore(existingQuote['expirationTime']);
   if (isExistingQuoteValid) {
     logger.debug(`quoteExpense(): reusing existing quote...`);
     return <ExpenseDataQuoteV3 | ExpenseDataQuoteV2>existingQuote;

@@ -231,6 +231,40 @@ describe('server/paymentProviders/transferwise/index', () => {
       await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, '91828971');
       expect(createQuote.callCount).to.be.equal(1);
     });
+
+    describe('existing quote expiration', () => {
+      const setExistingQuoteExpiration = async (expirationTime: moment.Moment) => {
+        await expense.reload();
+        await expense.update({
+          data: { ...expense.data, quote: { ...expense.data.quote, expirationTime: expirationTime.toISOString() } },
+        });
+        createQuote.resetHistory();
+      };
+
+      it('reuses an existing quote that is valid for more than 60 seconds', async () => {
+        await setExistingQuoteExpiration(moment.utc().add(20, 'minutes'));
+        await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, '123');
+        expect(createQuote.callCount).to.be.equal(0);
+      });
+
+      it('creates a new quote if the existing one expires in less than 60 seconds', async () => {
+        await setExistingQuoteExpiration(moment.utc().add(30, 'seconds'));
+        await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, '123');
+        expect(createQuote.callCount).to.be.equal(1);
+      });
+
+      it('creates a new quote if the existing one has just expired', async () => {
+        await setExistingQuoteExpiration(moment.utc().subtract(30, 'seconds'));
+        await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, '123');
+        expect(createQuote.callCount).to.be.equal(1);
+      });
+
+      it('creates a new quote if the existing one expired a while ago', async () => {
+        await setExistingQuoteExpiration(moment.utc().subtract(5, 'minutes'));
+        await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, '123');
+        expect(createQuote.callCount).to.be.equal(1);
+      });
+    });
   });
 
   describe('payExpense', () => {
