@@ -55,6 +55,8 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: GraphQLString,
         description: 'Email for the account. For authenticated user: scope: "email".',
         async resolve(userCollective, args, req: Request) {
+          // Incognito profiles have no email of their own. Dashboards deduplicate them to the primary
+          // profile, so the incognito account itself always stays hidden here.
           if (!req.remoteUser || userCollective.isIncognito || !checkScope(req, 'email')) {
             return null;
           } else if (await req.loaders.Collective.canSeePrivateProfileInfo.load(userCollective.id)) {
