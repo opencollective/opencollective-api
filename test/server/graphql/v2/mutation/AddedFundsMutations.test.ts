@@ -1,6 +1,7 @@
 import { expect } from 'chai';
+import config from 'config';
 import gql from 'fake-tag';
-import { groupBy } from 'lodash';
+import { groupBy, sumBy } from 'lodash';
 import { createSandbox } from 'sinon';
 
 import { roles } from '../../../../../server/constants';
@@ -13,6 +14,7 @@ import * as libcurrency from '../../../../../server/lib/currency';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models, { Op } from '../../../../../server/models';
 import { BalanceSheetAccountingCategoryKind } from '../../../../../server/models/AccountingCategory';
+import { TransactionSettlementStatus } from '../../../../../server/models/TransactionSettlement';
 import {
   fakeAccountingCategory,
   fakeActiveHost,
@@ -124,6 +126,7 @@ const editAddedFundsMutation = gql`
     $invoiceTemplate: String
     $tax: TaxInput
     $accountingCategory: AccountingCategoryReferenceInput
+    $strategy: OrderEditStrategy
   ) {
     editAddedFunds(
       order: $order
@@ -139,9 +142,11 @@ const editAddedFundsMutation = gql`
       invoiceTemplate: $invoiceTemplate
       tax: $tax
       accountingCategory: $accountingCategory
+      strategy: $strategy
     ) {
       id
       legacyId
+      status
       description
       hostFeePercent
       memo
@@ -1078,6 +1083,274 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       );
       expect(hostFeeCredit.taxAmount.valueInCents).to.be.null;
       expect(hostFeeDebit.taxAmount.valueInCents).to.be.null;
+    });
+  });
+
+  describe('editAddedFunds (in place)', () => {
+    let ledgerConfigStub;
+
+    before(async () => {
+      await utils.seedDefaultVendors();
+      // Same ledger settings as production
+      ledgerConfigStub = sandbox
+        .stub(config, 'ledger')
+        .value({ ...config.ledger, separatePaymentProcessorFees: true, separateTaxes: true });
+    });
+
+    after(() => {
+      ledgerConfigStub.restore();
+    });
+
+    const addFunds = async (variables = {}) => {
+      const result = await graphqlQueryV2(
+        addFundsMutation,
+        {
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
+          amount: { currency: 'USD', valueInCents: 2000 },
+          description: 'add funds as admin',
+          hostFeePercent: 10,
+          ...variables,
+        },
+        hostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      return result.data.addFunds;
+    };
+
+    const editInPlace = (order, variables = {}, remoteUser = hostAdmin) =>
+      graphqlQueryV2(
+        editAddedFundsMutation,
+        {
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
+          order: { id: order.id },
+          hostFeePercent: 10,
+          description: 'add funds as admin',
+          amount: { currency: 'USD', valueInCents: 2000 },
+          strategy: 'IN_PLACE',
+          ...variables,
+        },
+        remoteUser,
+      );
+
+    const getAllOrderTransactions = OrderId =>
+      models.Transaction.findAll({ where: { OrderId }, paranoid: false, order: [['id', 'ASC']] });
+
+    it('replaces the transactions without recording a reversal', async () => {
+      const order = await addFunds();
+      const originalTransactions = await getAllOrderTransactions(order.legacyId);
+      const originalCredit = originalTransactions.find(t => t.kind === 'ADDED_FUNDS' && t.type === 'CREDIT');
+      expect(originalTransactions).to.have.length(4); // Added funds + host fee, CREDIT and DEBIT
+
+      const processedAt = new Date('2024-02-03T00:00:00.000Z');
+      const result = await editInPlace(order, {
+        hostFeePercent: 5,
+        description: 'edited in place',
+        amount: { currency: 'USD', valueInCents: 3000 },
+        processedAt,
+      });
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAddedFunds).to.containSubset({
+        status: 'PAID',
+        amount: { valueInCents: 3000 },
+        hostFeePercent: 5,
+        description: 'edited in place',
+      });
+
+      // The API only returns the new transactions, none of them is a refund
+      expect(result.data.editAddedFunds.transactions).to.have.length(4);
+      result.data.editAddedFunds.transactions.forEach(transaction => {
+        expect(transaction.isRefund).to.be.false;
+        expect(transaction.isRefunded).to.be.false;
+      });
+
+      // Old transactions are gone from the ledger, and no reversal was recorded
+      const allTransactions = await getAllOrderTransactions(order.legacyId);
+      expect(allTransactions).to.have.length(8);
+      expect(allTransactions.filter(t => t.isRefund || t.RefundTransactionId)).to.have.length(0);
+      const deletedTransactions = allTransactions.filter(t => t.deletedAt);
+      expect(deletedTransactions.map(t => t.id)).to.have.members(originalTransactions.map(t => t.id));
+
+      // New transactions reflect the new values, and take the place of the previous ones
+      const newTransactions = allTransactions.filter(t => !t.deletedAt);
+      expect(newTransactions).to.have.length(4);
+      newTransactions.forEach(transaction => {
+        expect(transaction.TransactionGroup).to.equal(originalCredit.TransactionGroup);
+        expect(transaction.createdAt.toISOString()).to.equal(originalCredit.createdAt.toISOString());
+        expect(transaction.clearedAt.toISOString()).to.equal(processedAt.toISOString());
+      });
+      expect(newTransactions).to.containSubset([
+        { dataValues: { CollectiveId: collective.id, type: 'CREDIT', kind: 'ADDED_FUNDS', amount: 3000 } },
+        { dataValues: { CollectiveId: collective.id, type: 'DEBIT', kind: 'HOST_FEE', amount: -150 } },
+        { dataValues: { CollectiveId: collective.HostCollectiveId, type: 'CREDIT', kind: 'HOST_FEE', amount: 150 } },
+      ]);
+      newTransactions
+        .filter(t => t.kind === 'ADDED_FUNDS')
+        .forEach(t => expect(t.description).to.equal('edited in place'));
+
+      // Only the new values count towards the balance of the collective: 3000 of funds, minus 150 of host fee
+      const getNetAmountForCollective = transactions =>
+        sumBy(
+          transactions.filter(t => t.CollectiveId === collective.id),
+          'netAmountInCollectiveCurrency',
+        );
+      expect(getNetAmountForCollective(originalTransactions)).to.equal(1800);
+      expect(
+        getNetAmountForCollective(await models.Transaction.findAll({ where: { OrderId: order.legacyId } })),
+      ).to.equal(2850);
+
+      // The edit is tracked in the activity log
+      const activity = await models.Activity.findOne({
+        where: { OrderId: order.legacyId, type: 'added.funds.edited' },
+      });
+      expect(activity.UserId).to.equal(hostAdmin.id);
+      expect(activity.data.strategy).to.equal('IN_PLACE');
+      expect(activity.data.editedTransactions).to.have.members(originalTransactions.map(t => t.id));
+      expect(activity.data.previousData).to.containSubset({ totalAmount: 2000, description: 'add funds as admin' });
+      expect(activity.data.newData).to.containSubset({ totalAmount: 3000, description: 'edited in place' });
+    });
+
+    it('can be edited multiple times, and reversed afterwards', async () => {
+      const order = await addFunds();
+      let result = await editInPlace(order, { amount: { currency: 'USD', valueInCents: 2500 } });
+      expect(result.errors).to.not.exist;
+      result = await editInPlace(order, { amount: { currency: 'USD', valueInCents: 2600 }, hostFeePercent: 0 });
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAddedFunds.transactions).to.have.length(2);
+
+      result = await editInPlace(order, { amount: { currency: 'USD', valueInCents: 2700 }, strategy: 'REVERSE' });
+      expect(result.errors).to.not.exist;
+
+      const transactions = await models.Transaction.findAll({ where: { OrderId: order.legacyId } });
+      const credits = transactions.filter(t => t.kind === 'ADDED_FUNDS' && t.type === 'CREDIT' && !t.isRefund);
+      expect(credits.map(t => t.amount)).to.have.members([2600, 2700]);
+      expect(credits.find(t => t.amount === 2600).RefundTransactionId).to.exist;
+      expect(credits.find(t => t.amount === 2700).RefundTransactionId).to.not.exist;
+    });
+
+    it('reverses payment processor fees in full when editing with a reversal', async () => {
+      const order = await addFunds({ hostFeePercent: 0 });
+      const paymentProcessorFee = { currency: 'USD', valueInCents: 100 };
+      let result = await editInPlace(order, { hostFeePercent: 0, paymentProcessorFee, strategy: 'REVERSE' });
+      expect(result.errors).to.not.exist;
+      result = await editInPlace(order, {
+        hostFeePercent: 0,
+        paymentProcessorFee: { currency: 'USD', valueInCents: 50 },
+        strategy: 'REVERSE',
+      });
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      // The host must not cover a fee that was never lost
+      const transactions = await models.Transaction.findAll({ where: { OrderId: order.legacyId } });
+      expect(transactions.filter(t => t.kind === 'PAYMENT_PROCESSOR_COVER')).to.have.length(0);
+      const processorFees = transactions.filter(
+        t => t.kind === 'PAYMENT_PROCESSOR_FEE' && t.CollectiveId === collective.id,
+      );
+      expect(sumBy(processorFees, 'amount')).to.equal(-50);
+      expect(processorFees.filter(t => !t.isRefund && !t.RefundTransactionId).map(t => t.amount)).to.deep.equal([-50]);
+    });
+
+    it('can change the source and the taxes', async () => {
+      const order = await addFunds({ tax: { type: 'GST', rate: 0.15 } });
+      const newSource = await fakeOrganization();
+      const result = await editInPlace(order, {
+        fromAccount: { legacyId: newSource.id },
+        tax: { type: 'GST', rate: 0.21 },
+      });
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAddedFunds.taxAmount.valueInCents).to.equal(347);
+
+      const transactions = await models.Transaction.findAll({
+        where: { OrderId: order.legacyId, kind: 'ADDED_FUNDS' },
+      });
+      expect(transactions).to.have.length(2);
+      expect(transactions.find(t => t.type === 'CREDIT').FromCollectiveId).to.equal(newSource.id);
+      expect(transactions.find(t => t.type === 'DEBIT').CollectiveId).to.equal(newSource.id);
+    });
+
+    it('updates the host fee share owed to the platform', async () => {
+      const hostFeeSharePlan = { hostFeeSharePercent: 15 };
+      const previousPlan = collective.host.plan;
+      await collective.host.update({
+        plan: 'grow-plan-2021',
+        data: { ...collective.host.data, plan: hostFeeSharePlan },
+      });
+      try {
+        const order = await addFunds();
+        const getHostFeeShareDebts = () =>
+          models.Transaction.findAll({ where: { OrderId: order.legacyId, kind: 'HOST_FEE_SHARE_DEBT' } });
+        const originalDebts = await getHostFeeShareDebts();
+        expect(originalDebts).to.have.length(2); // CREDIT + DEBIT
+
+        const TransactionGroup = originalDebts[0].TransactionGroup;
+        const result = await editInPlace(order, { amount: { currency: 'USD', valueInCents: 4000 } });
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        const newDebts = await getHostFeeShareDebts();
+        expect(newDebts).to.have.length(originalDebts.length);
+        expect(Math.abs(newDebts[0].amount)).to.equal(Math.abs(originalDebts[0].amount) * 2);
+        const settlements = await models.TransactionSettlement.findAll({ where: { TransactionGroup } });
+        expect(settlements).to.have.length(1);
+        expect(settlements[0].status).to.equal('OWED');
+
+        // Once invoiced, the amounts can only change with a reversal
+        await settlements[0].update({ status: TransactionSettlementStatus.INVOICED });
+        const failedResult = await editInPlace(order, { amount: { currency: 'USD', valueInCents: 5000 } });
+        expect(failedResult.errors).to.exist;
+        expect(failedResult.errors[0].message).to.match(/already been invoiced as part of a platform settlement/);
+        expect(await getHostFeeShareDebts()).to.containSubset(newDebts.map(t => ({ id: t.id })));
+      } finally {
+        await collective.host.update({ plan: previousPlan });
+      }
+    });
+
+    it('leaves everything untouched if the new transactions cannot be recorded', async () => {
+      const order = await addFunds();
+      const originalTransactions = await getAllOrderTransactions(order.legacyId);
+      const createStub = sandbox.stub(models.Transaction, 'createDoubleEntry').rejects(new Error('Ledger is down'));
+      try {
+        const result = await editInPlace(order, { amount: { currency: 'USD', valueInCents: 9900 } });
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('Ledger is down');
+      } finally {
+        createStub.restore();
+      }
+
+      const transactions = await getAllOrderTransactions(order.legacyId);
+      expect(transactions.map(t => t.id)).to.deep.equal(originalTransactions.map(t => t.id));
+      expect(transactions.filter(t => t.deletedAt)).to.have.length(0);
+      const dbOrder = await models.Order.findByPk(order.legacyId);
+      expect(dbOrder.totalAmount).to.equal(2000);
+      expect(dbOrder.status).to.equal(OrderStatuses.PAID);
+    });
+
+    it('cannot edit funds that have been refunded', async () => {
+      const order = await addFunds();
+      const [credit] = await models.Transaction.findAll({
+        where: { OrderId: order.legacyId, kind: 'ADDED_FUNDS', type: 'CREDIT' },
+      });
+      await credit.update({ RefundTransactionId: credit.id });
+      const result = await editInPlace(order, { amount: { currency: 'USD', valueInCents: 100 } });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Refunded transactions cannot be edited in place');
+    });
+
+    it('must be an admin of the host', async () => {
+      const order = await addFunds();
+      for (const remoteUser of [collectiveAdmin, randomUser]) {
+        const result = await editInPlace(order, { amount: { currency: 'USD', valueInCents: 100 } }, remoteUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      }
+
+      const transactions = await getAllOrderTransactions(order.legacyId);
+      expect(transactions.filter(t => t.deletedAt)).to.have.length(0);
     });
   });
 });

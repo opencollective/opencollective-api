@@ -26885,7 +26885,7 @@ type Mutation {
   ): Order!
 
   """
-  Add funds to the given account. Scope: "host".
+  Edit funds that were previously added to an account. Scope: "host".
   """
   editAddedFunds(
     """
@@ -26957,6 +26957,11 @@ type Mutation {
     The balance/clearing accounting category the funds were received through
     """
     balanceAccountingCategory: AccountingCategoryReferenceInput
+
+    """
+    How the ledger should be updated to reflect the changes
+    """
+    strategy: OrderEditStrategy! = REVERSE
   ): Order!
   createApplication(application: ApplicationCreateInput!): Application
   updateApplication(application: ApplicationUpdateInput!): Application
@@ -29646,6 +29651,21 @@ input TransactionsImportRowReferenceInput {
   The id of the row (ie: tir_xxxxxxxx)
   """
   id: NonEmptyString!
+}
+
+"""
+How the ledger is updated when editing added funds
+"""
+enum OrderEditStrategy {
+  """
+  Reverse the existing transactions and record new ones. The ledger keeps track of the previous values.
+  """
+  REVERSE
+
+  """
+  Replace the existing transactions with the new values, without recording a reversal. Transactions that were already exported or reconciled will not match the ledger anymore.
+  """
+  IN_PLACE
 }
 
 """

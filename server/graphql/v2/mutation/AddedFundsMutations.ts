@@ -13,6 +13,7 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { roundCentsAmount } from '../../../lib/currency';
 import { getDiffBetweenInstances } from '../../../lib/data';
+import { OrderEditStrategy, replaceOrderTransactions } from '../../../lib/edit-order-transactions';
 import { executeOrder } from '../../../lib/payments';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Order } from '../../../models';
@@ -24,9 +25,10 @@ import {
   checkCanUseAccountingCategoryForOrder,
 } from '../../common/orders';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseHost } from '../../common/scope-check';
-import { refundTransaction } from '../../common/transactions';
-import { ValidationFailed } from '../../errors';
+import { canRefund, refundTransaction } from '../../common/transactions';
+import { Forbidden, ValidationFailed } from '../../errors';
 import { getOrderTaxInfoFromTaxInput } from '../../v1/mutations/orders';
+import { GraphQLOrderEditStrategy } from '../enum/OrderEditStrategy';
 import {
   fetchAccountingCategoryWithReference,
   GraphQLAccountingCategoryReferenceInput,
@@ -280,7 +282,7 @@ export default {
   },
   editAddedFunds: {
     type: new GraphQLNonNull(GraphQLOrder),
-    description: 'Add funds to the given account. Scope: "host".',
+    description: 'Edit funds that were previously added to an account. Scope: "host".',
     args: {
       order: {
         type: new GraphQLNonNull(GraphQLOrderReferenceInput),
@@ -338,10 +340,18 @@ export default {
         type: GraphQLAccountingCategoryReferenceInput,
         description: 'The balance/clearing accounting category the funds were received through',
       },
+      strategy: {
+        type: new GraphQLNonNull(GraphQLOrderEditStrategy),
+        description: 'How the ledger should be updated to reflect the changes',
+        defaultValue: OrderEditStrategy.REVERSE,
+      },
     },
     resolve: async (
       _,
-      args: Omit<AddFundsMutationArgs, 'transactionsImportRow'> & { order: OrderReferenceInputGraphQLType },
+      args: Omit<AddFundsMutationArgs, 'transactionsImportRow'> & {
+        order: OrderReferenceInputGraphQLType;
+        strategy: OrderEditStrategy;
+      },
       req: express.Request,
     ) => {
       checkRemoteUserCanUseHost(req);
@@ -401,7 +411,7 @@ export default {
         );
       }
 
-      // Refund Existing Order
+      const isInPlaceEdit = args.strategy === OrderEditStrategy.IN_PLACE;
       const transactions = await order.getTransactions({
         where: { kind: TransactionKind.ADDED_FUNDS },
         order: [['id', 'desc']],
@@ -410,8 +420,18 @@ export default {
       const creditTransction = transactions.find(t => t.type === 'CREDIT');
       assert(creditTransction, 'No CREDIT transaction found for this order');
 
-      // `refundTransaction` will throw if the user is not authorized to refund the transaction (/edit the order)
-      await refundTransaction(creditTransction, req, RefundKind.EDIT, { ignoreBalanceCheck: true });
+      if (isInPlaceEdit) {
+        // Same permissions as for reversing the transaction
+        if (!(await canRefund(creditTransction, undefined, req))) {
+          throw new Forbidden('You are not allowed to edit these funds');
+        } else if (order.status !== OrderStatuses.PAID) {
+          throw new ValidationFailed(`Only paid orders can be edited in place, this one is ${order.status}`);
+        }
+      } else {
+        // Refund Existing Order
+        // `refundTransaction` will throw if the user is not authorized to refund the transaction (/edit the order)
+        await refundTransaction(creditTransction, req, RefundKind.EDIT, { ignoreBalanceCheck: true });
+      }
 
       const previousData = order.toJSON();
       // Update existing Order
@@ -429,7 +449,7 @@ export default {
         totalAmount: totalAmount,
         currency: account.currency,
         description: args.description || order.description,
-        status: OrderStatuses.NEW,
+        ...(isInPlaceEdit ? {} : { status: OrderStatuses.NEW }),
         TierId: tier === null ? null : tier?.id || order.TierId,
         AccountingCategoryId: accountingCategory === null ? null : accountingCategory?.id || order.AccountingCategoryId,
         BalanceAccountingCategoryId:
@@ -453,17 +473,31 @@ export default {
         );
         orderData.data.tax = getOrderTaxInfoFromTaxInput(args.tax, fromAccount, account, host);
       }
-      await order.update(orderData);
-      const diff = getDiffBetweenInstances(order.toJSON(), previousData, ['status', 'updatedAt']);
 
-      // Execute Order
-      await executeOrder(req.remoteUser, order, {
-        invoiceTemplate: args.invoiceTemplate,
-        isAddedFund: true,
-      });
+      let editedTransactions: number[];
+      let diff: ReturnType<typeof getDiffBetweenInstances>;
+      if (isInPlaceEdit) {
+        // Replace the existing transactions with ones that reflect the new values
+        const replacedTransactions = await replaceOrderTransactions(order, creditTransction, {
+          orderData,
+          invoiceTemplate: args.invoiceTemplate,
+          isAddedFund: true,
+        });
+        editedTransactions = replacedTransactions.map(t => t.id);
+        diff = getDiffBetweenInstances(order.toJSON(), previousData, ['status', 'updatedAt']);
+      } else {
+        await order.update(orderData);
+        diff = getDiffBetweenInstances(order.toJSON(), previousData, ['status', 'updatedAt']);
+
+        // Execute Order
+        await executeOrder(req.remoteUser, order, {
+          invoiceTemplate: args.invoiceTemplate,
+          isAddedFund: true,
+        });
+        editedTransactions = transactions.map(t => t.id);
+      }
 
       // Create Activity
-      const editedTransactions = transactions.map(t => t.id);
       await models.Activity.create({
         type: ActivityTypes.ADDED_FUNDS_EDITED,
         UserId: req.remoteUser.id,
@@ -474,6 +508,7 @@ export default {
         data: {
           ...diff,
           editedTransactions,
+          strategy: args.strategy,
         },
       });
 
