@@ -7,7 +7,7 @@ import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import * as CommunitySearchLib from '../../../../../server/lib/community-search';
-import { sequelize } from '../../../../../server/models';
+import models, { sequelize } from '../../../../../server/models';
 import {
   fakeActiveHost,
   fakeActivity,
@@ -578,7 +578,7 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
 
     it('matches wildcard characters literally', async () => {
       await expectSearchResults({ searchTerm: '100%' }, [ivy]);
-      await expectSearchResults({ searchTerm: '1__%' }, []);
+      await expectSearchResults({ searchTerm: '1__%' }, [], { accountsFirst: false });
       await expectSearchResults({ searchTerm: 'ivy_underscore' }, [ivy]);
       await expectSearchResults({ searchTerm: 'ivy_undersc_re' }, []);
       await expectSearchResults({ searchTerm: 'Aar_n' }, []);
@@ -604,9 +604,16 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
       await expectSearchResults({ searchTerm: 'zeppelin' }, everyone);
     });
 
-    it('uses the regular conditions for a term shorter than 3 characters', async () => {
-      await expectSearchResults({ searchTerm: 'ze' }, [aaron, dora, gina, hank, zeppelinOrg], { accountsFirst: false });
-      await expectSearchResults({ searchTerm: 'zep' }, [aaron, dora, gina, hank, zeppelinOrg]);
+    it('uses the regular conditions for a term without 3 consecutive letters or digits', async () => {
+      const everyone = [aaron, dora, gina, hank, zeppelinOrg];
+      await expectSearchResults({ searchTerm: 'ze' }, everyone, { accountsFirst: false });
+      await expectSearchResults({ searchTerm: 'zep' }, everyone);
+      await expectSearchResults({ searchTerm: '% L' }, [ivy], { accountsFirst: false });
+      await expectSearchResults({ searchTerm: '% Le' }, [ivy], { accountsFirst: false });
+      await expectSearchResults({ searchTerm: '% Leg' }, [ivy]);
+      await expectSearchResults({ searchTerm: 'C++' }, [], { accountsFirst: false });
+      await expectSearchResults({ searchTerm: '___' }, [], { accountsFirst: false });
+      await expectSearchResults({ searchTerm: 'a-b-c' }, [], { accountsFirst: false });
     });
 
     it('uses the regular conditions when the host or the account has few rows', async () => {
@@ -705,6 +712,29 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
       await expectPages({ ...byName, searchTerm: 'Alone' }, abeAndZed);
       await expectPages(byName, everyoneByName, { accountsFirst: false });
       await expectPages({}, everyoneByName, { accountsFirst: false });
+    });
+
+    it('uses the regular conditions when a lookup is cut by its limit, also when users share an account', async () => {
+      // Nothing prevents two users from having the same account: 3 users match by email, for 2 accounts
+      const [abe] = abeAndZed;
+      for (const [name, account] of [
+        ['one', twins[0]],
+        ['two', twins[0]],
+        ['three', abe],
+      ]) {
+        await models.User.create({ email: `${name}.sharedmailmatch@community-search.test`, CollectiveId: account.id });
+      }
+
+      const variables = { orderBy: { field: 'NAME', direction: 'ASC' }, searchTerm: 'sharedmailmatch' };
+      for (const maxAccounts of [1, 2]) {
+        // The lookup of users stops after `maxAccounts + 1` rows, which can all be for the same account
+        const limit = sandbox.stub(CommunitySearchLib.COMMUNITY_SEARCH_LIMITS, 'maxAccounts').value(maxAccounts);
+        await expectPages(variables, [abe, twins[0]], { accountsFirst: false });
+        limit.restore();
+      }
+
+      sandbox.stub(CommunitySearchLib.COMMUNITY_SEARCH_LIMITS, 'maxAccounts').value(3);
+      await expectPages(variables, [abe, twins[0]]);
     });
 
     it('returns each account once across pages, by account id among the same totals', async () => {

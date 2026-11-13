@@ -10,8 +10,6 @@ import { sanitizeSearchTermForILike } from './sql-search';
  * An object, so that tests can change the limits.
  */
 export const COMMUNITY_SEARCH_LIMITS = {
-  /** Trigram indexes can't serve a shorter term: both tables would be read entirely (0.5 s for 650k accounts) */
-  minTermLength: 3,
   /**
    * Rows of `AdminCommunityActivitySummary` in the searched scope (a host, or one of its accounts). On a small scope
    * the regular conditions start from its rows and are faster: 2 ms against 110 ms per request for 61 rows and 6,400
@@ -25,6 +23,12 @@ export const COMMUNITY_SEARCH_LIMITS = {
    */
   maxAccounts: 10_000,
 };
+
+/**
+ * A trigram index only serves a term with three consecutive letters or digits. Without them (`ab`, `C++`, `___`),
+ * both tables would be read entirely: 0.5 s for 650k accounts.
+ */
+const HAS_TRIGRAM = /[\p{L}\p{N}]{3}/u;
 
 /**
  * For a text search in the community of a host: the IDs of the accounts whose name or slug contain the term, or whose
@@ -44,8 +48,8 @@ export const findCommunitySearchAccountIds = async (
   term: string,
   scope: { HostCollectiveId?: number; CollectiveId?: number },
 ): Promise<number[] | null> => {
-  const { minTermLength, minScopeRows, maxAccounts } = COMMUNITY_SEARCH_LIMITS;
-  if (term.length < minTermLength) {
+  const { minScopeRows, maxAccounts } = COMMUNITY_SEARCH_LIMITS;
+  if (!HAS_TRIGRAM.test(term)) {
     return null;
   }
 
@@ -87,7 +91,12 @@ export const findCommunitySearchAccountIds = async (
       .execute(),
   ]);
 
-  // A list cut by its limit has more than `maxAccounts` IDs: `null` is returned, never a partial list
+  // A list cut by its limit is never used: `null` is returned. Rows are counted before the IDs are deduplicated,
+  // as nothing prevents several users from having the same account, which would hide that a list was cut.
+  if (accounts.length > maxAccounts || users.length > maxAccounts) {
+    return null;
+  }
+
   const ids = uniq([...accounts, ...users].map(row => Number(row.id)));
   return ids.length > maxAccounts ? null : ids;
 };
