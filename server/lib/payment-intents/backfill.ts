@@ -449,10 +449,11 @@ export const backfillLedgerPhase = async (options: BackfillOptions = {}): Promis
       break;
     }
 
-    // Never split an order and an expense sharing the same id across two pages, the cursor would skip the second one
+    // Never split an order and an expense sharing the same id across two pages, the cursor would skip the second one.
+    // Leave the pair for the next page to respect the limit, unless it is the only thing that fits (limit of 1).
     let pageLength = Math.min(pageSize, merged.length);
     if (pageLength < merged.length && merged[pageLength].id === merged[pageLength - 1].id) {
-      pageLength++;
+      pageLength = pageLength > 1 ? pageLength - 1 : pageLength + 1;
     }
 
     const page = merged.slice(0, pageLength);
