@@ -1331,7 +1331,10 @@ class Transaction extends ModelWithPublicId<
    * Creates a transaction pair from given payload. Defaults to `CONTRIBUTION` kind unless
    * specified otherwise.
    */
-  static async createFromContributionPayload(transaction: TransactionCreationAttributes): Promise<Transaction> {
+  static async createFromContributionPayload(
+    transaction: TransactionCreationAttributes,
+    { sequelizeTransaction }: { sequelizeTransaction?: SequelizeTransaction } = {},
+  ): Promise<Transaction> {
     try {
       Transaction.validateContributionPayload(transaction);
     } catch (error) {
@@ -1366,7 +1369,7 @@ class Transaction extends ModelWithPublicId<
 
     transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
 
-    return Transaction.createDoubleEntry(transaction);
+    return Transaction.createDoubleEntry(transaction, { sequelizeTransaction });
   }
 
   static async fetchHost(

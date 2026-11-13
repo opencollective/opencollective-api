@@ -20,7 +20,18 @@ class Subscription extends Model<InferAttributes<Subscription>, InferCreationAtt
   declare nextPeriodStart: Date;
   declare chargeRetryCount: number;
   declare chargeNumber: number;
-  declare data: Record<string, unknown>;
+  declare data: Record<string, unknown> & {
+    stripeRecurringPaymentAttempt?: {
+      id: string;
+      previousPaymentIntentId?: string;
+      previousFailureRecorded?: boolean;
+      paymentIntentId?: string;
+      outcome?: 'processing' | 'failure' | 'success';
+      isCancelled?: boolean;
+      failureMetricClaimed?: boolean;
+    };
+  };
+
   declare stripeSubscriptionId: string;
   declare paypalSubscriptionId: string;
   declare isManagedExternally: boolean;
