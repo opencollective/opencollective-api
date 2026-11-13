@@ -237,6 +237,10 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
       }
     }
 
+    // Many people have the same name or the same total: without a last key that is unique, PostgreSQL returns them
+    // in an order that depends on the plan, and the same account can come back on two pages.
+    query = query.orderBy(sql.raw('fc.id ASC'));
+
     query = query.limit(replacements.limit).offset(replacements.offset);
 
     const result = await query.execute();

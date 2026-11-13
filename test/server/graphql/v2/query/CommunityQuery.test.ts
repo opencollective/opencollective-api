@@ -5,6 +5,7 @@ import { v4 as uuid } from 'uuid';
 
 import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import * as CommunitySearchLib from '../../../../../server/lib/community-search';
 import { sequelize } from '../../../../../server/models';
 import {
@@ -621,6 +622,100 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
       sandbox.restore();
       sandbox.stub(CommunitySearchLib.COMMUNITY_SEARCH_LIMITS, 'minScopeRows').value(12);
       await expectSearchResults({ searchTerm: 'zeppelin', relation: ['ADMIN'] }, [gina], { accountsFirst: false });
+    });
+  });
+
+  describe('order among accounts with the same name or total', () => {
+    let sandbox, tiedHost, tiedHostAdmin, twins, abeAndZed, everyoneById;
+
+    /** All the pages of a list, as the IDs of their accounts in the order they were returned */
+    const fetchAllPages = async (variables: Record<string, unknown>, limit: number) => {
+      const ids = [];
+      for (let offset = 0; ; offset += limit) {
+        const result = await graphqlQueryV2(
+          communityQuery,
+          { host: { legacyId: tiedHost.id }, ...variables, limit, offset },
+          tiedHostAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        ids.push(...result.data.community.nodes.map(node => node.id));
+        if (result.data.community.nodes.length < limit) {
+          return ids;
+        }
+      }
+    };
+
+    /** Expects every account once across the pages, in this order, with or without the matching accounts first */
+    const expectPages = async (variables: Record<string, unknown>, expectedAccounts, { accountsFirst = true } = {}) => {
+      const expectedIds = expectedAccounts.map(account => idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT));
+      const findAccountIds = sandbox.spy(CommunitySearchLib, 'findCommunitySearchAccountIds');
+      expect(await fetchAllPages(variables, 3)).to.deep.eq(expectedIds);
+      expect(Boolean(findAccountIds.called && (await findAccountIds.lastCall.returnValue))).to.eq(accountsFirst);
+      findAccountIds.restore();
+
+      const withRegularConditions = sandbox.stub(CommunitySearchLib, 'findCommunitySearchAccountIds').resolves(null);
+      expect(await fetchAllPages(variables, 3)).to.deep.eq(expectedIds);
+      expect(await fetchAllPages(variables, 4)).to.deep.eq(expectedIds);
+      withRegularConditions.restore();
+    };
+
+    before(async () => {
+      sandbox = sinon.createSandbox();
+      tiedHostAdmin = await fakeUser({}, { name: 'Zoe Tiedhostadmin' });
+      tiedHost = await fakeActiveHost({ admin: tiedHostAdmin });
+      const tiedCollective = await fakeCollective({ HostCollectiveId: tiedHost.id });
+      const fakeMemberAccount = async (name: string) => {
+        const user = await fakeUser({}, { name });
+        await fakeMember({
+          CollectiveId: tiedCollective.id,
+          MemberCollectiveId: user.CollectiveId,
+          role: MemberRoles.BACKER,
+        });
+        return user.collective;
+      };
+
+      // Created in an order that is not the one of their names, with no transaction: all tied on their totals
+      const zed = await fakeMemberAccount('Zed Alone');
+      twins = [];
+      for (let i = 0; i < 6; i++) {
+        twins.push(await fakeMemberAccount('Tied Twin'));
+      }
+      const abe = await fakeMemberAccount('Abe Alone');
+      for (let i = 0; i < 5; i++) {
+        twins.push(await fakeMemberAccount('Tied Twin'));
+      }
+      abeAndZed = [abe, zed];
+      everyoneById = [tiedHostAdmin.collective, zed, ...twins.slice(0, 6), abe, ...twins.slice(6)];
+      await refreshCommunityMaterializedViews();
+    });
+
+    beforeEach(() => {
+      sandbox.stub(CommunitySearchLib.COMMUNITY_SEARCH_LIMITS, 'minScopeRows').value(1);
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('returns each account once across pages, by account id among the same names', async () => {
+      const byName = { orderBy: { field: 'NAME', direction: 'ASC' } };
+      const everyoneByName = [abeAndZed[0], ...twins, abeAndZed[1], tiedHostAdmin.collective];
+      await expectPages({ ...byName, searchTerm: 'Tied Twin' }, twins);
+      await expectPages({ ...byName, searchTerm: 'Alone' }, abeAndZed);
+      await expectPages(byName, everyoneByName, { accountsFirst: false });
+      await expectPages({}, everyoneByName, { accountsFirst: false });
+    });
+
+    it('returns each account once across pages, by account id among the same totals', async () => {
+      for (const field of ['TOTAL_CONTRIBUTED', 'TOTAL_EXPENDED']) {
+        for (const direction of ['ASC', 'DESC']) {
+          const orderBy = { field, direction };
+          await expectPages({ orderBy, searchTerm: 'Tied Twin' }, twins);
+          await expectPages({ orderBy, searchTerm: 'Tied' }, [tiedHostAdmin.collective, ...twins]);
+          await expectPages({ orderBy }, everyoneById, { accountsFirst: false });
+        }
+      }
     });
   });
 
