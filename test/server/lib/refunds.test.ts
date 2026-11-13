@@ -96,5 +96,30 @@ describe('server/lib/refunds', () => {
       expect(await collective.getBalance()).to.equal(7500);
       await expectRefundToTakeRequiredAmount(collective, transaction, 8000);
     });
+
+    it('requires the embedded payment processor fee when the collective is its own host', async () => {
+      sandbox
+        .stub(config, 'ledger')
+        .value({ ...config.ledger, separateTaxes: false, separatePaymentProcessorFees: false });
+      const host = await fakeHost({ currency: 'EUR' });
+      const user = await fakeUser();
+      // 100.00 EUR with a 3.00 EUR payment processor fee, contributed to the host itself
+      const transaction = await models.Transaction.createFromContributionPayload({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: host.id,
+        HostCollectiveId: host.id,
+        type: TransactionTypes.CREDIT,
+        kind: TransactionKind.CONTRIBUTION,
+        description: 'Contribution to the host',
+        amount: 10000,
+        amountInHostCurrency: 10000,
+        currency: 'EUR',
+        hostCurrency: 'EUR',
+        hostCurrencyFxRate: 1,
+        paymentProcessorFeeInHostCurrency: 300,
+      });
+      await expectRefundToTakeRequiredAmount(host, transaction, 10000);
+    });
   });
 });
