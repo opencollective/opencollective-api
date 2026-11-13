@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import type { Request } from 'express';
 import { cloneDeep } from 'lodash';
 import moment from 'moment';
+import nock from 'nock';
 
 import { expenseStatus } from '../../../../server/constants';
 import { CollectiveType } from '../../../../server/constants/collectives';
@@ -56,7 +57,14 @@ import {
   fakeUser,
   fakeVendor,
 } from '../../../test-helpers/fake-data';
-import { getApolloErrorCode, getOrCreatePlatformAccount, makeRequest, resetTestDB } from '../../../utils';
+import {
+  getApolloErrorCode,
+  getOrCreatePlatformAccount,
+  makeRequest,
+  nockFixerRates,
+  resetCaches,
+  resetTestDB,
+} from '../../../utils';
 
 describe('server/graphql/common/expenses', () => {
   const contextShape = {
@@ -1934,6 +1942,58 @@ describe('server/graphql/common/expenses', () => {
           EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
         );
         expect(await canApprove(makeRequest(dualRoleAdmin), expense)).to.be.false;
+      });
+
+      describe('with an expense in another currency', () => {
+        before(async () => {
+          await resetCaches();
+          nockFixerRates({ GBP: { USD: 1.25 }, JPY: { USD: 0.0067 } });
+        });
+
+        after(async () => {
+          nock.cleanAll();
+          await resetCaches();
+        });
+
+        it('compares the policy limit with the expense amount converted to the host currency', async () => {
+          const collectiveAdmin = await fakeUser();
+          const host = await fakeHost({ currency: 'USD' });
+          const collective = await fakeCollective({
+            currency: 'USD',
+            HostCollectiveId: host.id,
+            admin: collectiveAdmin,
+          });
+          await collectiveAdmin.populateRoles({ force: true });
+          await collective.setPolicies({
+            [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true, amountInCents: 1000e2 },
+          } as Parameters<typeof collective.setPolicies>[0]);
+
+          const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+          const createExpense = async (amount: number, currency: string) => {
+            const expense = await fakeExpense({
+              CollectiveId: collective.id,
+              FromCollectiveId: collectiveAdmin.CollectiveId,
+              PayoutMethodId: payoutMethod.id,
+              UserId: collectiveAdmin.id,
+              status: 'PENDING',
+              amount,
+              currency,
+            });
+            expense.collective = collective;
+            return expense;
+          };
+
+          // 900 GBP = 1125 USD, above the 1000 USD limit
+          const gbpExpense = await createExpense(900e2, 'GBP');
+          expect(
+            await getApolloErrorCode(canApprove(makeRequest(collectiveAdmin), gbpExpense, { throw: true })),
+          ).to.equal(EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE);
+          expect(await canApprove(makeRequest(collectiveAdmin), gbpExpense)).to.be.false;
+
+          // 1500 JPY = 10 USD, below the 1000 USD limit
+          const jpyExpense = await createExpense(1500e2, 'JPY');
+          expect(await canApprove(makeRequest(collectiveAdmin), jpyExpense)).to.be.true;
+        });
       });
     });
 
