@@ -1058,7 +1058,7 @@ const orderMutations = {
       const orders = await fetchOrdersWithReferences(args.orders, {
         include: [
           { association: 'paymentMethod' },
-          { association: 'fromCollective', attributes: ['id', 'slug'] },
+          { association: 'fromCollective', attributes: ['id', 'slug', 'HostCollectiveId'] },
           { association: 'collective', attributes: ['id', 'slug', 'HostCollectiveId'] },
         ],
       });

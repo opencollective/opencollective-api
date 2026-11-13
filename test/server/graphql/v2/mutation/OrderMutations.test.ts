@@ -3129,6 +3129,41 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         `Moving Added Funds when the current source Account has a different Fiscal Host than the new source Account is not supported.`,
       );
     });
+
+    describe('Added Funds from a hosted Collective', () => {
+      let host, order;
+
+      beforeEach(async () => {
+        host = await fakeActiveHost();
+        const sourceCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.HOST,
+        });
+        order = await fakeOrder(
+          { PaymentMethodId: paymentMethod.id, FromCollectiveId: sourceCollective.id },
+          { withTransactions: true, withBackerMember: true },
+        );
+      });
+
+      it('can be moved to another Collective under the same host', async () => {
+        const newProfile = await fakeCollective({ HostCollectiveId: host.id });
+        const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
+        expect(result.errors).to.not.exist;
+        expect(result.data.moveOrders[0].fromAccount.legacyId).to.eq(newProfile.id);
+      });
+
+      it('cannot be moved to an unhosted User profile', async () => {
+        const newProfile = (await fakeUser({}, { name: 'New profile' })).collective;
+        const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal(
+          `Moving Added Funds when the current source Account has a different Fiscal Host than the new source Account is not supported.`,
+        );
+        await order.reload();
+        expect(order.FromCollectiveId).to.not.eq(newProfile.id);
+      });
+    });
   });
 
   describe('Other mutations', () => {
