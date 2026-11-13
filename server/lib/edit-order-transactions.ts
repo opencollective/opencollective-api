@@ -8,7 +8,8 @@ import type { LedgerWriteOverrides } from '../paymentProviders/types';
 import { processOrder } from './payments';
 
 /**
- * How the ledger should be updated when a host admin edits funds that they added manually.
+ * How the ledger should be updated when a host admin edits funds that were recorded manually
+ * (added funds, manual contributions).
  */
 export enum OrderEditStrategy {
   /** Reverse the existing transactions and record new ones (regular accounting practice) */
@@ -20,6 +21,11 @@ export enum OrderEditStrategy {
 type ReplaceOrderTransactionsParams = {
   /** The changes to apply on the order, saved atomically with the ledger changes */
   orderData: Partial<InferAttributes<Order>>;
+  /**
+   * The payment method to process the order with, when it's not persisted on the order (manual contributions).
+   * Defaults to the payment method of the order.
+   */
+  paymentMethod?: Record<string, unknown>;
   invoiceTemplate?: string;
   isAddedFund?: boolean;
 };
@@ -57,18 +63,19 @@ const assertTransactionsCanBeReplaced = async (
  * of the order, without recording a reversal. The new transactions keep the group and the date of
  * the ones they replace. Everything happens in a single SQL transaction.
  *
- * Only meant for added funds: nothing is refunded nor charged on a payment processor.
+ * Only meant for orders whose transactions were recorded manually by a host admin: nothing is
+ * refunded nor charged on a payment processor.
  *
  * Note that balances served from the `CollectiveBalanceCheckpoint` materialized view will only
  * reflect the change once the view is refreshed.
  *
- * @param creditTransaction the main ADDED_FUNDS CREDIT transaction to replace
+ * @param creditTransaction the main CREDIT transaction (ADDED_FUNDS or CONTRIBUTION) to replace
  * @returns the transactions that were replaced
  */
 export async function replaceOrderTransactions(
   order: Order,
   creditTransaction: Transaction,
-  { orderData, invoiceTemplate, isAddedFund }: ReplaceOrderTransactionsParams,
+  { orderData, paymentMethod, invoiceTemplate, isAddedFund }: ReplaceOrderTransactionsParams,
 ): Promise<Transaction[]> {
   const TransactionGroup = creditTransaction.TransactionGroup;
   const replacedTransactions = await sequelize.transaction(async sqlTransaction => {
@@ -92,7 +99,7 @@ export async function replaceOrderTransactions(
 
     // Update the order, making sure we don't keep outdated associations around
     await order.update(orderData, { transaction: sqlTransaction });
-    Object.assign(order, { collective: null, fromCollective: null, tier: null, paymentMethod: null });
+    Object.assign(order, { collective: null, fromCollective: null, tier: null, paymentMethod: paymentMethod || null });
     await order.populate();
 
     const host = await order.collective.getHostCollective();

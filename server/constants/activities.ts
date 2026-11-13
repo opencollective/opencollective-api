@@ -128,6 +128,7 @@ enum ActivityTypes {
   ORDER_DISPUTE_CLOSED = 'order.dispute.closed',
   ORDER_UPDATED = 'order.updated',
   ADDED_FUNDS_EDITED = 'added.funds.edited',
+  ORDER_PAID_MANUALLY_EDITED = 'order.paid.manually.edited',
   // Vendors
   VENDOR_CREATED = 'vendor.created',
   VENDOR_EDITED = 'vendor.edited',
