@@ -593,6 +593,57 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
     });
   });
 
+  describe('when the host also has a "Log in with PayPal" payee account', () => {
+    let payoutsAccount;
+
+    beforeEach(async () => {
+      host = await fakeHost({ currency: 'USD' });
+      // Same shape as the account created by `connectPaypalPayoutMethod`: no clientId, personal OAuth token
+      await fakeConnectedAccount({
+        CollectiveId: host.id,
+        service: 'paypal',
+        clientId: null,
+        username: 'admin-personal@paypal.test',
+        token: 'PERSONAL_OAUTH_ACCESS_TOKEN',
+        refreshToken: 'PERSONAL_REFRESH_TOKEN',
+        data: { payerId: 'PAYER123' },
+      });
+      payoutsAccount = await fakeConnectedAccount({
+        CollectiveId: host.id,
+        service: 'paypal',
+        clientId: 'HOST_APP_CLIENT_ID',
+        token: 'HOST_APP_SECRET',
+      });
+      collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.PAYPAL, data: { email: 'payee@test.com' } });
+      expense = await fakeExpense({
+        status: status.SCHEDULED_FOR_PAYMENT,
+        amount: 10000,
+        CollectiveId: collective.id,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+      expense.collective = collective;
+      expense.PayoutMethod = payoutMethod;
+    });
+
+    it('payExpensesBatch uses the host payouts credentials', async () => {
+      sandbox.stub(paypalLib, 'executePayouts').resolves({ batch_header: { payout_batch_id: 'fake' } });
+      await paypalPayouts.payExpensesBatch([expense]);
+      const connectedAccount = stubOf(paypalLib.executePayouts).getCall(0).args[0];
+      expect(connectedAccount.id).to.eq(payoutsAccount.id);
+      expect(connectedAccount.clientId).to.eq('HOST_APP_CLIENT_ID');
+    });
+
+    it('checkBatchStatus uses the host payouts credentials', async () => {
+      await expense.update({ status: status.PROCESSING, data: { payout_batch_id: 'BATCH1' } });
+      sandbox.stub(paypalLib, 'getBatchInfo').resolves({ items: [] });
+      await paypalPayouts.checkBatchStatus([expense]);
+      const connectedAccount = stubOf(paypalLib.getBatchInfo).getCall(0).args[0];
+      expect(connectedAccount.id).to.eq(payoutsAccount.id);
+    });
+  });
+
   describe('estimatePaypalPayoutFee', () => {
     it('returns 2% for domestic payout when below cap', async () => {
       const host = await fakeHost({ currency: 'USD', countryISO: 'US' });
