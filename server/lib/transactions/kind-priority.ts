@@ -9,11 +9,6 @@ const PRIMARY_TRANSACTION_KINDS = [
   TransactionKind.PREPAID_PAYMENT_METHOD,
 ] as const;
 
-type PrimaryTransactionKind = (typeof PRIMARY_TRANSACTION_KINDS)[number];
-
-export const isPrimaryTransactionKind = (kind: TransactionKind): kind is PrimaryTransactionKind =>
-  (PRIMARY_TRANSACTION_KINDS as readonly TransactionKind[]).includes(kind);
-
 /** SQL CASE expression for ordering transactions by kind priority (lowest = primary). */
 export const getTransactionKindPriorityCase = (tableName: string): string => `
   CASE

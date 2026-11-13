@@ -11,7 +11,6 @@ import ExpenseTagStatsCollectionQuery from './collection/ExpenseTagStatsCollecti
 import ExportRequestsCollectionQuery from './collection/ExportRequestsCollectionQuery';
 import HostsCollectionQuery from './collection/HostsCollectionQuery';
 import getOrdersCollectionQuery from './collection/OrdersCollectionQuery';
-import PaymentIntentCollectionQuery from './collection/PaymentIntentCollectionQuery';
 import TagStatsCollectionQuery from './collection/TagStatsCollectionQuery';
 import TransactionsCollectionQuery from './collection/TransactionsCollectionQuery';
 import UpdatesCollectionQuery from './collection/UpdatesCollectionQuery';
@@ -32,7 +31,6 @@ import MemberInvitationsQuery from './MemberInvitationsQuery';
 import OffPlatformTransactionsInstitutionsQuery from './OffPlatformTransactionsInstitutionsQuery';
 import OrderQuery from './OrderQuery';
 import OrganizationQuery from './OrganizationQuery';
-import PaymentIntentQuery from './PaymentIntentQuery';
 import PaypalPlanQuery from './PaypalPlanQuery';
 import PersonalTokenQuery from './PersonalTokenQuery';
 import platformSubscriptionTiers from './PlatformSubscriptionTiers';
@@ -104,8 +102,6 @@ const query = {
       }
     },
   },
-  paymentIntent: PaymentIntentQuery,
-  paymentIntents: PaymentIntentCollectionQuery,
   platformSubscriptionTiers,
 };
 
