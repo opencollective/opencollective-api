@@ -470,6 +470,30 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
       expect(result.data.transactions.totalCount).to.eq(1);
     });
 
+    it('by public id, matching the transaction only and not the ones that mention its id', async () => {
+      const searchedCollective = await fakeCollective();
+      const transaction = await fakeTransaction({ CollectiveId: searchedCollective.id, type: 'CREDIT', amount: 1000 });
+      expect(transaction.publicId).to.match(/^tx_/);
+      await fakeTransaction({
+        CollectiveId: searchedCollective.id,
+        type: 'DEBIT',
+        amount: -1000,
+        description: `Refund of ${transaction.publicId}`,
+      });
+
+      const search = searchTerm =>
+        graphqlQueryV2(transactionsCollectionQuery, { slug: searchedCollective.slug, searchTerm });
+      const result = await search(transaction.publicId);
+      expect(result.errors).to.not.exist;
+      expect(result.data.transactions.totalCount).to.eq(1);
+      expect(result.data.transactions.nodes.map(node => node.type)).to.deep.eq(['CREDIT']);
+
+      // A term that only starts like a public id is still searched in the description
+      const partialResult = await search(transaction.publicId.slice(0, 12));
+      expect(partialResult.data.transactions.totalCount).to.eq(1);
+      expect(partialResult.data.transactions.nodes.map(node => node.type)).to.deep.eq(['DEBIT']);
+    });
+
     describe('by payment method type', () => {
       it('returns transactions without payment method', async () => {
         const result = await graphqlQueryV2(transactionsCollectionQuery, {
