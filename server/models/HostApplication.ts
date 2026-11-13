@@ -120,6 +120,18 @@ class HostApplication extends ModelWithPublicId<
     }
 
     if (status === HostApplicationStatus.APPROVED) {
+      // The collective now has a host: applications to other hosts are no longer valid
+      await this.update(
+        { status: HostApplicationStatus.EXPIRED },
+        {
+          where: {
+            CollectiveId: collective.id,
+            HostCollectiveId: { [Op.ne]: host.id },
+            status: HostApplicationStatus.PENDING,
+          },
+        },
+      );
+
       await Activity.create({
         type: activities.COLLECTIVE_APPROVED,
         UserId: user.id,

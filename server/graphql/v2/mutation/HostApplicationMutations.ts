@@ -496,6 +496,9 @@ const rejectApplication = async (host, collective, req, reason: string) => {
   }
   const { remoteUser } = req;
 
+  // Change the status of the application first: resetting the host expires the applications that are still pending
+  await models.HostApplication.updatePendingApplications(host, collective, HostApplicationStatus.REJECTED);
+
   // Reset host for collective & its children
   if (collective.HostCollectiveId === host.id) {
     await collective.changeHost(null, remoteUser);
@@ -519,9 +522,8 @@ const rejectApplication = async (host, collective, req, reason: string) => {
     },
   });
 
-  // Purge cache and change the status of the application
+  // Purge cache
   purgeCacheForCollective(collective.slug);
-  await models.HostApplication.updatePendingApplications(host, collective, HostApplicationStatus.REJECTED);
   return collective;
 };
 
