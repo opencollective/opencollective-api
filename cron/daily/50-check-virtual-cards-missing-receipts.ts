@@ -24,9 +24,9 @@ const processVirtualCard = async (expenses: Array<Expense>) => {
   const data = {
     expenses: expenses.map(e => ({
       ...e.info,
-      url: `${config.host.website}/${collective.slug}/expenses/${e.id}?edit=1`,
+      url: `${config.host.website}/${collective.slug}/expenses/${e.id}`,
     })),
-    virtualCard,
+    virtualCard: virtualCard.info,
     host: host.info,
     collective: collective.info,
     daysLeft: 31 - maxDaysPending,
@@ -63,7 +63,7 @@ const processVirtualCard = async (expenses: Array<Expense>) => {
   }
 };
 
-const run = async () => {
+export const run = async () => {
   const expenses = await models.Expense.findPendingCardCharges({
     include: [
       { model: models.VirtualCard, as: 'virtualCard', required: true },

@@ -228,6 +228,13 @@ const updateOrderMutation = gql`
         id
         name
       }
+      pendingTierChange {
+        requestedAt
+        tier {
+          id
+          name
+        }
+      }
       paymentMethod {
         id
       }
@@ -492,6 +499,16 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
         });
 
+        it('rejects order with non-positive quantity', async () => {
+          let result = await callCreateOrder({ order: { ...validOrderParams, quantity: 0 } }, fromUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.include('Quantity must be at least 1');
+
+          result = await callCreateOrder({ order: { ...validOrderParams, quantity: -1 } }, fromUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.include('Quantity must be at least 1');
+        });
+
         it('cannot create an order with a credit card on behalf of a collective', async () => {
           const fromCollective = await fakeCollective({ HostCollectiveId: host.id });
           const collectiveAdmin = await fakeUser();
@@ -509,6 +526,39 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           expect(result.errors).to.exist;
           expect(result.errors[0].message).to.match(/only pay with its balance/i);
+        });
+
+        it('rejects a frequency that does not match a fixed interval tier', async () => {
+          const tier = await fakeTier({
+            CollectiveId: toCollective.id,
+            amount: 5000,
+            amountType: 'FLEXIBLE',
+            interval: 'month',
+          });
+          const result = await callCreateOrder(
+            { order: { ...validOrderParams, frequency: 'ONETIME', tier: { legacyId: tier.id } } },
+            fromUser,
+          );
+
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq('This tier only accepts contributions with a "month" interval');
+        });
+
+        it('accepts any frequency for a flexible interval tier', async () => {
+          const tier = await fakeTier({
+            CollectiveId: toCollective.id,
+            amount: 5000,
+            amountType: 'FLEXIBLE',
+            interval: 'flexible',
+          });
+          const result = await callCreateOrder(
+            { order: { ...validOrderParams, frequency: 'ONETIME', tier: { legacyId: tier.id } } },
+            fromUser,
+          );
+
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.createOrder.order.frequency).to.eq('ONETIME');
         });
 
         it('supports additional params', async () => {
@@ -571,6 +621,57 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(order.amount.valueInCents).to.eq(5000);
           expect(order.platformTipAmount.valueInCents).to.eq(2500);
           expect(order.platformTipEligible).to.eq(true);
+        });
+
+        it('rejects a negative platform tip (card path)', async () => {
+          const result = await callCreateOrder(
+            {
+              order: {
+                ...validOrderParams,
+                platformTipAmount: {
+                  valueInCents: -100,
+                },
+              },
+            },
+            fromUser,
+          );
+
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
+        });
+
+        it('rejects a negative platform tip (balance transfer path)', async () => {
+          const result = await callCreateOrder(
+            {
+              order: {
+                ...validOrderParams,
+                isBalanceTransfer: true,
+                platformTipAmount: {
+                  valueInCents: -100,
+                },
+              },
+            },
+            fromUser,
+          );
+
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
+        });
+
+        it('rejects an order that offsets the contribution with a negative platform tip', async () => {
+          const result = await callCreateOrder(
+            {
+              order: {
+                ...validOrderParams,
+                amount: { valueInCents: 1000 },
+                platformTipAmount: { valueInCents: -999 },
+              },
+            },
+            fromUser,
+          );
+
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
         });
 
         it('respects the isSavedForLater param', async () => {
@@ -637,6 +738,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             CollectiveId: event.id,
             name: 'tier-name',
             type: 'TICKET',
+            interval: null,
             amount: 0,
             amountType: 'FLEXIBLE',
             presets: [0, 500, 1000],
@@ -1021,7 +1123,12 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
       describe('Quantity', () => {
         it('fails if not enough available', async () => {
-          const tier = await fakeTier({ maxQuantity: 10, CollectiveId: toCollective.id, name: 'My Tier' });
+          const tier = await fakeTier({
+            maxQuantity: 10,
+            CollectiveId: toCollective.id,
+            name: 'My Tier',
+            interval: null,
+          });
           const orderData = { ...validOrderParams, tier: { legacyId: tier.id }, quantity: 11 };
           const result = await callCreateOrder({ order: orderData }, fromUser);
           expect(result.errors).to.exist;
@@ -1496,7 +1603,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
     });
 
-    // Moved/adapted from `test/server/paymentProviders/opencollective/collective.test.js` + `test/server/graphql/v1/createOrder.test.js`
+    // Moved/adapted from `test/server/paymentProviders/opencollective/collective.test.ts` + `test/server/graphql/v1/createOrder.test.js`
     describe('Collective to Collective Transactions', () => {
       const STRIPE_FEE_STUBBED_VALUE = 300;
       let sandbox,
@@ -1958,6 +2065,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       const tier = await fakeTier({
         CollectiveId: validOrderPrams.toAccount.legacyId,
         currency: validOrderPrams.toAccount.currency,
+        amount: 100e2,
       });
       const orderInput = { ...validOrderPrams, tier: { legacyId: tier.id } };
       const result = await callCreatePendingOrder({ order: orderInput }, hostAdmin);
@@ -1966,6 +2074,17 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       const resultOrder = result.data.createPendingOrder;
       expect(resultOrder.status).to.equal('PENDING');
       expect(resultOrder.tier.legacyId).to.equal(tier.id);
+    });
+
+    it('rejects a tier that does not belong to the destination collective', async () => {
+      const foreignCollective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id });
+      const foreignTier = await fakeTier({ CollectiveId: foreignCollective.id, currency: 'USD' });
+      const orderInput = { ...validOrderPrams, tier: { legacyId: foreignTier.id } };
+      const result = await callCreatePendingOrder({ order: orderInput }, hostAdmin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        `Tier #${foreignTier.id} is not part of collective #${validOrderPrams.toAccount.legacyId}`,
+      );
     });
 
     it('creates a pending order with tax', async () => {
@@ -2283,7 +2402,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         },
       });
 
-      const newTier = await fakeTier({ CollectiveId: order.CollectiveId, currency: 'USD' });
+      const newTier = await fakeTier({ CollectiveId: order.CollectiveId, currency: 'USD', amount: 150e2 });
       const newFromAccount = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id });
       validEditOrderParams = {
         legacyId: order.id,
@@ -2384,6 +2503,33 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(result.errors[0].message).to.equal(
         'Only pending contributions created by fiscal-host admins can be editted',
       );
+    });
+
+    it('rejects changing to a tier that does not belong to the destination collective', async () => {
+      const foreignCollective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id });
+      const foreignTier = await fakeTier({ CollectiveId: foreignCollective.id, currency: 'USD' });
+      const result = await callEditPendingOrder(
+        { order: { ...validEditOrderParams, tier: { legacyId: foreignTier.id } } },
+        hostAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        `Tier #${foreignTier.id} is not part of collective #${order.CollectiveId}`,
+      );
+    });
+
+    it('rejects a negative platform tip amount', async () => {
+      const result = await callEditPendingOrder(
+        {
+          order: {
+            ...validEditOrderParams,
+            platformTipAmount: { valueInCents: -100, currency: 'USD' },
+          },
+        },
+        hostAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
     });
 
     it('edits a pending order', async () => {
@@ -2797,7 +2943,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
       const fakeOrderOptions = { withTransactions: true, withBackerMember: true, withTier: true };
       const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
-      const newTier = await fakeTier({ CollectiveId: order.CollectiveId });
+      const newTier = await fakeTier({
+        CollectiveId: order.CollectiveId,
+        amount: order.totalAmount,
+        currency: order.currency,
+      });
       const newProfile = (await fakeUser({}, { name: 'New profile' })).collective;
       const backerMember = await models.Member.findOne({
         where: {
@@ -2939,7 +3089,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
   });
 
   describe('Other mutations', () => {
-    // This file and `OrderMutations.test.js` were implemented at the same time. We are merging the files,
+    // This file and `OrderMutations.test.ts` were implemented at the same time. We are merging the files,
     // but these tests would need to be reconciliated before we can put them in the same
     // `describe` than `createOrder`
 
@@ -3305,7 +3455,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         );
 
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.match(/Amount is incorrect for this Tier./);
+        expect(result.errors[0].message).to.match(/This tier uses a fixed amount/);
       });
 
       it('cannot update an order with an amount less than the tier minimum', async () => {
@@ -3322,7 +3472,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         );
 
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.match(/Amount is less than minimum value allowed for this Tier./);
+        expect(result.errors[0].message).to.match(/below minimum tier value/);
       });
 
       it('updates the order payment method', async () => {
@@ -3419,7 +3569,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         expect(result.errors).to.not.exist;
         expect(result.data.updateOrder.amount.value).to.eq(73);
-        expect(result.data.updateOrder.tier.name).to.eq(fixedTier.name);
+        // Nothing was paid for this tier yet: it applies on the next successful charge
+        expect(result.data.updateOrder.tier).to.be.null;
+        expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedTier.name);
       });
 
       it('when changing the amount, the tax amount is updated too', async () => {
@@ -3676,6 +3828,26 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(orderWithTaxes.Subscription.amount).to.eq(1200);
       });
 
+      it('rejects a negative platform tip amount', async () => {
+        await order2.reload();
+        const totalAmountBefore = order2.totalAmount;
+        const platformTipAmountBefore = order2.platformTipAmount;
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(order2.id, 'order') },
+            platformTipAmount: { valueInCents: -100, currency: order2.currency },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
+        await order2.reload();
+        expect(order2.totalAmount).to.eq(totalAmountBefore);
+        expect(order2.platformTipAmount).to.eq(platformTipAmountBefore);
+      });
+
       it('rejects amount/tier change for PayPal-managed subscription without paypalSubscriptionId', async () => {
         const paypalPm = await fakePaymentMethod({
           service: PAYMENT_METHOD_SERVICE.PAYPAL,
@@ -3738,7 +3910,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             updateOrderMutation,
             {
               order: { id: idEncode(order.id, 'order') },
-              amount: { value: 8800 / 100 },
+              amount: { value: newTier.amount / 100 },
               tier: { legacyId: newTier.id },
             },
             user,
@@ -3761,7 +3933,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             clock = useFakeTimers({ now: today.toDate(), toFake: ['Date'] }); // Manually setting today's date
             const { result, order } = await updateFakeOrder(today, 'month', 'year');
             expect(result.errors).to.not.exist;
-            expect(result.data.updateOrder.tier.name).to.eq(fixedYearlyTier.name);
+            expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedYearlyTier.name);
 
             const subscription = await order.getSubscription();
             expect(subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
@@ -3773,7 +3945,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             clock = useFakeTimers({ now: today.toDate(), toFake: ['Date'] }); // Manually setting today's date
             const { result, order } = await updateFakeOrder(today, 'year', 'month');
             expect(result.errors).to.not.exist;
-            expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+            expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedMonthlyTier.name);
 
             const subscription = await order.getSubscription();
             expect(subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
@@ -3788,7 +3960,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
             const { result, order } = await updateFakeOrder(firstOfJanuary, 'month', 'year');
             expect(result.errors).to.not.exist;
-            expect(result.data.updateOrder.tier.name).to.eq(fixedYearlyTier.name);
+            expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedYearlyTier.name);
 
             const subscription = await order.getSubscription();
             expect(subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
@@ -3801,7 +3973,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
             const { result, order } = await updateFakeOrder(firstOfJanuary, 'year', 'month');
             expect(result.errors).to.not.exist;
-            expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+            expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedMonthlyTier.name);
 
             const subscription = await order.getSubscription();
             expect(subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
@@ -3816,7 +3988,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
             const { result, order } = await updateFakeOrder(firstOfJanuary, 'month', 'year');
             expect(result.errors).to.not.exist;
-            expect(result.data.updateOrder.tier.name).to.eq(fixedYearlyTier.name);
+            expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedYearlyTier.name);
 
             const subscription = await order.getSubscription();
             expect(subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
@@ -3829,7 +4001,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
             const { result, order } = await updateFakeOrder(firstOfJanuary, 'year', 'month');
             expect(result.errors).to.not.exist;
-            expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+            expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedMonthlyTier.name);
 
             const subscription = await order.getSubscription();
             expect(subscription.nextChargeDate.toISOString()).to.equal('2022-08-01T00:00:00.000Z');
@@ -3842,7 +4014,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             const firstOfJanuary = moment(new Date(2022, 0, 1)); // 1st of January 2022
             const { result, order } = await updateFakeOrder(firstOfJanuary, 'year', 'month');
             expect(result.errors).to.not.exist;
-            expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+            expect(result.data.updateOrder.pendingTierChange.tier.name).to.eq(fixedMonthlyTier.name);
 
             const subscription = await order.getSubscription();
             expect(subscription.nextChargeDate.toISOString()).to.equal('2022-07-01T00:00:00.000Z');
@@ -3880,6 +4052,33 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         expect(result.data).to.have.nested.property('processPendingOrder.status').equal('EXPIRED');
+      });
+
+      it('rejects marking as paid when the tier does not belong to the destination collective', async () => {
+        const foreignCollective = await fakeCollective({
+          currency: 'USD',
+          HostCollectiveId: collective.HostCollectiveId,
+        });
+        const foreignTier = await fakeTier({ CollectiveId: foreignCollective.id, currency: 'USD' });
+        await order.update({ TierId: foreignTier.id, data: { isPendingContribution: true } });
+
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            order: {
+              id: idEncode(order.id, 'order'),
+            },
+            action: 'MARK_AS_PAID',
+          },
+          hostAdminUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal(
+          `Tier #${foreignTier.id} is not part of collective #${collective.id}`,
+        );
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.PENDING);
       });
 
       it('should mark as paid', async () => {
@@ -3995,6 +4194,45 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         const tip = transactions.find(t => t.kind === 'PLATFORM_TIP');
         expect(tip).to.have.property('amount').equal(100);
+      });
+
+      it('rejects a negative platform tip when marking as paid', async () => {
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            action: 'MARK_AS_PAID',
+            order: {
+              id: idEncode(order.id, 'order'),
+              amount: { valueInCents: 10000, currency: order.currency },
+              platformTip: { valueInCents: -100, currency: order.currency },
+            },
+          },
+          hostAdminUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.PENDING);
+      });
+
+      it('rejects a negative platform tip edit without an amount change', async () => {
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            action: 'MARK_AS_PAID',
+            order: {
+              id: idEncode(order.id, 'order'),
+              platformTip: { valueInCents: -50, currency: order.currency },
+            },
+          },
+          hostAdminUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.PENDING);
       });
     });
 

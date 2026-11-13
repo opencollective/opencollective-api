@@ -28,6 +28,16 @@
   "opensearch": {
     "maxSyncDelay": 5000
   },
+  "search": {
+    "postgres": {
+      "enabled": true,
+      "concurrencyPerRequest": 2,
+      "maxConcurrentQueries": 8,
+      "workMem": "32MB",
+      "typoSimilarityThreshold": 0.5,
+      "maxCountedMatches": 10000
+    }
+  },
   "platform": {},
   "maintenancedb": {
     "url": "postgres://postgres@127.0.0.1:5432/postgres"
@@ -72,9 +82,6 @@
       "perUser": 10,
       "perIp": 10
     },
-    "giftCards": {
-      "maxPerDay": 100
-    },
     "klippa": {
       "perUser": {
         "month": 100,
@@ -88,6 +95,8 @@
       "confirmToken": 15
     },
     "setPasswordPerUserPerHour": 10,
+    "addCreditCardPerUserPerHour": 10,
+    "maxCreditCardsPerAccount": 100,
     "confirmEmailPerIpPerHour": 10,
     "skipCleanOrdersLimitSlugs": "",
     "enabledMasks": "",
@@ -97,6 +106,9 @@
     "maxNumberOfAppsPerUser": 15,
     "maxWebhooksPerUserPerCollective": 50,
     "webhookUrlValidationPerUserPerHour": 30,
+    "ecosystems": {
+      "repositoryLookupsPerHourPerIp": 30
+    },
     "search": {
       "global": {
         "perMinutePerUser": 75,
@@ -112,6 +124,7 @@
     "userSignUpPerHour": 3,
     "userExchangeLoginTokenPerHourPerIp": 50,
     "userRefreshTokenPerHourPerIp": 50,
+    "wiseBatchPaymentPerHour": 30,
     "collectiveEmailMessagePerHour": 5,
     "maxCoreContributorsPerAccount": 60,
     "transactionsImports": {
@@ -169,7 +182,8 @@
   },
   "slack": {
     "webhooks": {
-      "abuse": null
+      "abuse": null,
+      "engineeringAlerts": null
     }
   },
   "captcha": {
@@ -207,8 +221,7 @@
     "blockedCurrenciesForNonProfits": "INR",
     "currenciesThatRequireReference": "RUB",
     "blockedCountries": "SS, SD, BI, CF, TD, CG, CD, SO, CU, IR, VE, SY, KP, AF, ER, IQ, LY, MM, YE, RU, BY",
-    "useTransferRefundHandler": false,
-    "useSimplifiedQuote": true
+    "useTransferRefundHandler": false
   },
   "hyperwatch": {
     "enabled": false,

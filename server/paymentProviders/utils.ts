@@ -15,7 +15,8 @@ import { crypto as cryptoLib } from '../lib/encryption';
 import logger from '../lib/logger';
 import { toNegative } from '../lib/math';
 import { createRefundTransaction } from '../lib/payments';
-import models, { Op } from '../models';
+import models, { Op, sequelize } from '../models';
+import type Transaction from '../models/Transaction';
 
 export const getVirtualCardForTransaction = async cardId => {
   return models.VirtualCard.findOne({
@@ -44,6 +45,28 @@ export const notifyCollectiveMissingReceipt = async (expense, virtualCard) => {
     { id: virtualCard.UserId },
     { ...expense.data, user: virtualCard.user },
   );
+};
+
+/**
+ * Returns the transaction that already recorded this virtual card refund, if any.
+ *
+ * The condition must be spelled `data ->> 'refundTransactionId'` to match the expression of the
+ * `transactions__data_refund_txn_id` index. Sequelize turns `data: { refundTransactionId }` into
+ * `data #>> '{refundTransactionId}'`, which Postgres cannot match to that index: it then reads every
+ * transaction of the collective, which took 97 seconds for Open Source Collective's own cards.
+ */
+export const findVirtualCardRefundTransaction = async (
+  CollectiveId: number,
+  refundTransactionId: string,
+): Promise<Transaction | null> => {
+  return models.Transaction.findOne({
+    where: {
+      CollectiveId,
+      [Op.and]: [
+        sequelize.where(sequelize.literal(`"Transaction"."data" ->> 'refundTransactionId'`), refundTransactionId),
+      ],
+    },
+  });
 };
 
 export const persistVirtualCardTransaction = async (virtualCard, transaction) => {
@@ -144,12 +167,7 @@ export const persistVirtualCardTransaction = async (virtualCard, transaction) =>
   }
 
   if (transaction.isRefund) {
-    const existingTransaction = await models.Transaction.findOne({
-      where: {
-        CollectiveId: collective.id,
-        data: { refundTransactionId: transactionId },
-      },
-    });
+    const existingTransaction = await findVirtualCardRefundTransaction(collective.id, transactionId);
 
     if (existingTransaction) {
       logger.warn(`Virtual Card refund already reconciled, ignoring it: ${transactionId}`);

@@ -20,7 +20,7 @@ import {
   InferAttributes,
   InferCreationAttributes,
 } from 'sequelize';
-import Temporal from 'sequelize-temporal';
+import Stripe from 'stripe';
 
 import { roles } from '../constants';
 import ActivityTypes from '../constants/activities';
@@ -35,6 +35,7 @@ import { executeOrder } from '../lib/payments';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes, Transaction as SequelizeTransaction } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { capitalize, sleep } from '../lib/utils';
 
@@ -73,6 +74,139 @@ type OrderDataValuesByRole = {
   accountingRules?: OrderDataValuesRoleDetails;
 };
 
+type SubscriptionStatusChangeOptions = {
+  messageForContributors?: string;
+  messageSource?: 'PLATFORM' | 'COLLECTIVE' | 'HOST';
+  paymentProviderAction?: 'CANCEL' | 'PAUSE';
+  transaction?: SequelizeTransaction;
+  createActivity?: boolean;
+};
+
+type SubscriptionStatusChangeTarget =
+  | { axis: 'toAccount'; collectiveId: number; includeChildren: boolean }
+  | { axis: 'tier'; tierId: number }
+  | { axis: 'fromAccounts'; fromAccountIds: number[] };
+
+/**
+ * SQL fragments selecting the orders to update. The axes answer different questions:
+ * - `toAccount`: which contributions are *received by* this account (archive/unhost/freeze)
+ * - `tier`: which contributions go to this tier (tier deletion)
+ * - `fromAccounts`: which contributions are *made by* these accounts (archived or deleted contributor)
+ *
+ * The `approvedAt` guard only makes sense for the `toAccount` axis: it exists to avoid touching contributions of
+ * collectives that were never approved to receive money. A contribution to a deleted tier must be stopped even when
+ * the tier's collective is not approved, and a contribution is stopped on the `fromAccounts` axis because its
+ * contributor is gone, regardless of the state of the receiving account.
+ */
+const SUBSCRIPTION_STATUS_CHANGE_TARGET_SQL = {
+  toAccount: {
+    joins: `INNER JOIN "Collectives" c ON c.id = "Orders"."CollectiveId"`,
+    conditions: `(c.id = :collectiveId OR (:includeChildren AND c."ParentCollectiveId" = :collectiveId))
+        AND c."approvedAt" IS NOT NULL`,
+  },
+  tier: {
+    joins: '',
+    conditions: `"Orders"."TierId" = :tierId`,
+  },
+  fromAccounts: {
+    joins: '',
+    conditions: `"Orders"."FromCollectiveId" IN (:fromAccountIds)`,
+  },
+} as const;
+
+/**
+ * Sets the status of all recurring orders matching `target`, and flags the ones whose subscription is still active
+ * for the asynchronous deactivation/pause in `cron/10mn/00-handle-batch-subscriptions-update.ts` (which also calls
+ * the payment provider for externally managed subscriptions, e.g. PayPal).
+ *
+ * With `includePausedOrders`, `PAUSED` orders whose subscription is already inactive are also moved to the new
+ * status - a paused contribution to a deleted tier or from an archived account must not stay resumable - but they
+ * are **not** flagged: there is nothing to deactivate, and a flag that the 10-minute job can never clear would block
+ * `updateOrder` and `OrderPermissions.canResume` forever.
+ *
+ * `CANCELLED` orders are never selected: a cancellation is final, and pausing one that is still waiting for its
+ * asynchronous deactivation would let `resumePausedSubscriptions` bring it back to life.
+ */
+async function updateOrdersSubscriptionStatus(
+  target: SubscriptionStatusChangeTarget,
+  newStatus: OrderStatus.CANCELLED | OrderStatus.PAUSED,
+  {
+    messageForContributors = '',
+    messageSource = 'PLATFORM',
+    paymentProviderAction = 'CANCEL',
+    transaction = undefined,
+    createActivity = true,
+    includePausedOrders = false,
+  }: SubscriptionStatusChangeOptions & {
+    /**
+     * Also move `PAUSED` orders (whose subscription is already inactive) to the new status. Used when the
+     * contribution can never be resumed (deleted tier, archived contributor). Off for the `toAccount` axis so that
+     * unhosting or changing host keeps paused contributions resumable.
+     */
+    includePausedOrders?: boolean;
+  } = {},
+): Promise<void> {
+  const isDeactivation = paymentProviderAction === 'CANCEL';
+  const { joins, conditions } = SUBSCRIPTION_STATUS_CHANGE_TARGET_SQL[target.axis];
+  // Raw SQL bulk update: this intentionally bypasses the `Order` model hooks (and `sequelize-temporal`), which are
+  // not meant to be triggered by this status change.
+  await sequelize.query(
+    `
+      UPDATE "Orders"
+      SET
+        status = :newStatus,
+        "updatedAt" = NOW(),
+        "data" = COALESCE("Orders"."data", '{}'::JSONB) || JSONB_BUILD_OBJECT(
+          'messageForContributors', :messageForContributors,
+          'messageSource', :messageSource,
+          'pausedBy', :pausedBy,
+          'needsAsyncDeactivation', (:isDeactivation AND "target"."subscriptionIsActive"),
+          'needsAsyncPause', (:isPause AND "target"."subscriptionIsActive"),
+          'needsAsyncReactivation', FALSE,
+          'createStatusChangeActivity', :createActivity
+        )
+      FROM (
+        SELECT "Orders".id AS id, "Subscriptions"."isActive" AS "subscriptionIsActive"
+        FROM "Orders"
+        INNER JOIN "Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
+        ${joins}
+        WHERE ${conditions}
+          AND "Orders"."status" NOT IN ('PAID', 'EXPIRED', 'REJECTED', 'CANCELLED')
+          AND "Orders"."status" != :newStatus
+          AND (
+            "Subscriptions"."isActive" IS TRUE
+            OR (:includePausedOrders AND "Orders"."status" = 'PAUSED')
+          )
+          AND "Orders"."deletedAt" IS NULL
+          AND "Subscriptions"."deletedAt" IS NULL
+      ) AS "target"
+      WHERE "Orders".id = "target".id
+    `,
+    {
+      type: QueryTypes.UPDATE,
+      raw: true,
+      transaction,
+      replacements: {
+        newStatus,
+        messageSource: messageSource || '',
+        pausedBy: newStatus === OrderStatus.PAUSED ? messageSource : null,
+        isDeactivation,
+        isPause: paymentProviderAction === 'PAUSE',
+        createActivity,
+        includePausedOrders,
+        messageForContributors: messageForContributors
+          ? sanitizeHTML(messageForContributors, optsSanitizeHtmlForSimplified)
+          : '',
+        // Only used by one of the two target axes, the rest is ignored by Sequelize
+        collectiveId: target.axis === 'toAccount' ? target.collectiveId : null,
+        includeChildren: target.axis === 'toAccount' ? target.includeChildren : false,
+        tierId: target.axis === 'tier' ? target.tierId : null,
+        fromAccountIds: target.axis === 'fromAccounts' ? target.fromAccountIds : [0],
+      },
+    },
+  );
+}
+
 class Order extends ModelWithPublicId<
   EntityShortIdPrefix.Order,
   InferAttributes<Order>,
@@ -109,11 +243,18 @@ class Order extends ModelWithPublicId<
     resumeReason?: string;
     pausedBy?: 'HOST' | 'PLATFORM' | 'USER' | 'COLLECTIVE';
     tax?: OrderTax;
+    // Partial payment-intent snapshots (`{ id, status }`, see `payment-intent.ts`) are deliberately stored here,
+    // so this cannot be typed as a full `Stripe.PaymentIntent` without touching the writers. Narrowing it would
+    // force changes across payment providers and tests without a shared partial-intent type.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     stripePaymentIntent?: any;
-    previousStripePaymentIntents?: any[];
-    customData?: any;
+    previousStripePaymentIntents?: Stripe.PaymentIntent[];
+    customData?: Record<string, unknown>;
     needsConfirmation?: boolean;
     paypalStatusChangeNote?: string;
+    paypalStatusUpdateTime?: Date | string;
+    cancelledFromPayPalReconciliation?: boolean;
+    paypalCaptureId?: string;
     savePaymentMethod?: boolean;
     isBalanceTransfer?: boolean;
     isRootBalanceTransfer?: boolean;
@@ -142,6 +283,15 @@ class Order extends ModelWithPublicId<
     lockedAt?: Date;
     valuesByRole?: OrderDataValuesByRole;
     previousStatus?: OrderStatus;
+    /** Tier change requested through `updateOrder`, applied once a charge pays for it. See `server/lib/order-tier-change.ts` */
+    pendingTierChange?: {
+      TierId: number;
+      previousTierId: number | null;
+      requestedAt: string;
+      requestedByUserId?: number | null;
+      /** Set when the change wasn't requested by the contributor, e.g. by a data migration */
+      source?: string;
+    };
   };
 
   declare taxAmount?: number;
@@ -322,42 +472,6 @@ class Order extends ModelWithPublicId<
     return ['HOST', 'PLATFORM', 'USER', 'COLLECTIVE'].includes(pausedBy);
   }
 
-  /**
-   * Cancels all subscription orders in the given tier
-   */
-  static async cancelActiveOrdersByTierId(tierId: number): Promise<void> {
-    await Order.update(
-      { status: OrderStatus.CANCELLED },
-      {
-        where: {
-          TierId: tierId,
-          SubscriptionId: { [Op.not]: null },
-          status: {
-            [Op.not]: [OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED],
-          },
-        },
-      },
-    );
-  }
-
-  /**
-   * Cancels all subscription orders for the given collective
-   */
-  static async cancelActiveOrdersByCollective(collectiveIds: number | number[]): Promise<void> {
-    await Order.update(
-      { status: OrderStatus.CANCELLED },
-      {
-        where: {
-          FromCollectiveId: collectiveIds,
-          SubscriptionId: { [Op.not]: null },
-          status: {
-            [Op.not]: [OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED],
-          },
-        },
-      },
-    );
-  }
-
   static countActiveRecurringForPaymentService({
     service,
     HostCollectiveId,
@@ -400,7 +514,8 @@ class Order extends ModelWithPublicId<
   }
 
   /**
-   * Update the status of all non-transferable active orders for the given collective.
+   * Update the status of all non-transferable active orders **to** the given collective (and, optionally, its
+   * children). `PAUSED` orders are left untouched so that they stay resumable (e.g. under a new host).
    *
    * The only type of contributions that can be transferred are non-Stripe Connect credit card subscriptions.
    * In the future, we could add support for recurring contributions between children and parent collectives.
@@ -417,61 +532,76 @@ class Order extends ModelWithPublicId<
       transaction = undefined,
       createActivity = true,
       includeChildren = true,
-    }: {
-      messageForContributors?: string;
-      messageSource?: 'PLATFORM' | 'COLLECTIVE' | 'HOST';
-      paymentProviderAction?: 'CANCEL' | 'PAUSE';
-      transaction?: SequelizeTransaction;
-      createActivity?: boolean;
-      includeChildren?: boolean;
-    } = {},
+    }: SubscriptionStatusChangeOptions & { includeChildren?: boolean } = {},
   ): Promise<void> {
-    await sequelize.query(
-      `
-      UPDATE "Orders"
-      SET
-        status = :newStatus,
-        "updatedAt" = NOW(),
-        "data" = COALESCE("data", '{}'::JSONB) || JSONB_BUILD_OBJECT(
-          'messageForContributors', :messageForContributors,
-          'messageSource', :messageSource,
-          'pausedBy', :pausedBy,
-          'needsAsyncDeactivation', :needsAsyncDeactivation,
-          'needsAsyncPause', :needsAsyncPause,
-          'needsAsyncReactivation', FALSE,
-          'createStatusChangeActivity', :createActivity
-        )
-      WHERE id IN (
-        SELECT "Orders".id FROM "Orders"
-        INNER JOIN "Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
-        INNER JOIN "Collectives" c ON c.id = "Orders"."CollectiveId"
-        WHERE (c.id = :collectiveId OR (:includeChildren AND c."ParentCollectiveId" = :collectiveId))
-        AND c."approvedAt" IS NOT NULL
-        AND "Subscriptions"."isActive" IS TRUE
-        AND "Orders"."status" != :newStatus
-        AND "Orders"."deletedAt" IS NULL
-        AND "Subscriptions"."deletedAt" IS NULL
-      )
-    `,
-      {
-        type: QueryTypes.UPDATE,
-        raw: true,
-        transaction,
-        replacements: {
-          collectiveId,
-          newStatus,
-          messageSource: messageSource || '',
-          pausedBy: newStatus === OrderStatus.PAUSED ? messageSource : null,
-          needsAsyncDeactivation: paymentProviderAction === 'CANCEL',
-          needsAsyncPause: paymentProviderAction === 'PAUSE',
-          createActivity,
-          includeChildren,
-          messageForContributors: messageForContributors
-            ? sanitizeHTML(messageForContributors, optsSanitizeHtmlForSimplified)
-            : '',
-        },
-      },
-    );
+    await updateOrdersSubscriptionStatus({ axis: 'toAccount', collectiveId, includeChildren }, newStatus, {
+      messageForContributors,
+      messageSource,
+      paymentProviderAction,
+      transaction,
+      createActivity,
+    });
+  }
+
+  /**
+   * Cancel all recurring orders to the given tier, typically before deleting it. Unlike
+   * {@link stopActiveSubscriptions}, `PAUSED` orders are cancelled too (a paused contribution to a deleted tier must
+   * not stay resumable) and the approval status of the tier's collective is ignored.
+   *
+   * Note: the linked subscriptions will be cancelled in `cron/10mn/00-handle-batch-subscriptions-update.ts`.
+   */
+  static async stopActiveSubscriptionsForTier(
+    tierId: number,
+    {
+      messageForContributors = '',
+      messageSource = 'PLATFORM',
+      transaction = undefined,
+      createActivity = true,
+    }: Omit<SubscriptionStatusChangeOptions, 'paymentProviderAction'> = {},
+  ): Promise<void> {
+    await updateOrdersSubscriptionStatus({ axis: 'tier', tierId }, OrderStatus.CANCELLED, {
+      messageForContributors,
+      messageSource,
+      transaction,
+      createActivity,
+      includePausedOrders: true,
+    });
+  }
+
+  /**
+   * Update the status of all non-transferable recurring orders **made by** the given accounts. Used when an account
+   * is archived or deleted: its outgoing contributions must stop too.
+   *
+   * Unlike {@link stopActiveSubscriptions}, this does not look at the receiving account at all: a contribution is
+   * stopped because the contributor is gone, not because of the state of the collective it goes to. For the same
+   * reason, `PAUSED` orders are stopped too: they must not stay resumable.
+   *
+   * Note: the linked subscriptions will be cancelled in `cron/10mn/00-handle-batch-subscriptions-update.ts`.
+   */
+  static async stopActiveSubscriptionsFromAccounts(
+    fromAccountIds: number | number[],
+    newStatus: OrderStatus.CANCELLED | OrderStatus.PAUSED,
+    {
+      messageForContributors = '',
+      messageSource = 'PLATFORM',
+      paymentProviderAction = 'CANCEL',
+      transaction = undefined,
+      createActivity = true,
+    }: SubscriptionStatusChangeOptions = {},
+  ): Promise<void> {
+    const ids = Array.isArray(fromAccountIds) ? fromAccountIds : [fromAccountIds];
+    if (!ids.length) {
+      return;
+    }
+
+    await updateOrdersSubscriptionStatus({ axis: 'fromAccounts', fromAccountIds: ids }, newStatus, {
+      messageForContributors,
+      messageSource,
+      paymentProviderAction,
+      transaction,
+      createActivity,
+      includePausedOrders: true,
+    });
   }
 
   static async resumePausedSubscriptions(
@@ -861,9 +991,10 @@ Order.prototype.getOrCreateMembers = async function () {
     { order: this },
   );
 
-  // Register user as backer of Open Collective
+  // Register user as backer of Open Collective, unless the tip is recorded on the host's own platform-tips account
   let platformTipMember;
-  if (this.platformTipAmount) {
+  const host = this.platformTipAmount && (await this.collective.getHostCollective({ returnEvenIfNotApproved: true }));
+  if (this.platformTipAmount && !host?.hasNewPlatformTipsLedger()) {
     const platform = await Collective.findByPk(PlatformConstants.PlatformCollectiveId);
     platformTipMember = await platform.findOrAddUserWithRole(
       { id: this.CreatedByUserId, CollectiveId: this.FromCollectiveId },

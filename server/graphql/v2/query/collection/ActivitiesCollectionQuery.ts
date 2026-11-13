@@ -11,7 +11,7 @@ import { CollectiveType } from '../../../../constants/collectives';
 import { assertCanSeeAccount, assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import models, { Activity, Collective, Op, User } from '../../../../models';
 import { CommentType } from '../../../../models/Comment';
-import { checkRemoteUserCanUseAccount } from '../../../common/scope-check';
+import { checkRemoteUserCanUseAccount, isRemoteUserRoot } from '../../../common/scope-check';
 import { BadRequest, NotFound } from '../../../errors';
 import { GraphQLActivityCollection } from '../../collection/ActivityCollection';
 import { GraphQLActivityAndClassesType } from '../../enum/ActivityType';
@@ -91,7 +91,7 @@ const ActivitiesCollectionQuery = {
   args: ActivitiesCollectionArgs,
   async resolve(_: void, args, req): Promise<CollectionReturnType> {
     checkRemoteUserCanUseAccount(req, { signedOutMessage: 'You need to be logged in to view activities.' });
-    const isRoot = req.remoteUser.isRoot();
+    const isRoot = isRemoteUserRoot(req);
     const { offset, limit } = args;
 
     // Load accounts
@@ -124,6 +124,7 @@ const ActivitiesCollectionQuery = {
     // Build accounts conditions
     const where: WhereOptions<Activity> = {};
     const accountOrConditions = [];
+    let allowedAccounts: Collective[] = [];
     if (accounts?.length) {
       // Sanity checks for performance
       if (args.includeHostedAccounts && accounts.length > 1) {
@@ -132,7 +133,7 @@ const ActivitiesCollectionQuery = {
         throw new Error('Cannot retrieve children accounts activity for more than 100 accounts at the same time');
       }
 
-      const allowedAccounts =
+      allowedAccounts =
         isRoot ||
         // It is fine to load host/account related activities. Adding the double check to avoid accidents in the future.
         (host && req.remoteUser.isAdminOfCollectiveOrHost(host))
@@ -210,6 +211,34 @@ const ActivitiesCollectionQuery = {
           { 'data.comment.type': { [Op.not]: CommentType.PRIVATE_NOTE } },
         ],
       });
+    }
+
+    // Fiscal host notes are host-private. They must never reach collective admins, but host admins
+    // should see them in their host/hosted-account activity feed.
+    const adminHostIds = new Set<number>();
+    if (host && req.remoteUser?.isAdmin(host.id)) {
+      adminHostIds.add(host.id);
+    }
+    for (const account of allowedAccounts) {
+      if (req.remoteUser?.isAdmin(account.id)) {
+        adminHostIds.add(account.id);
+      }
+      if (account.HostCollectiveId && req.remoteUser?.isAdmin(account.HostCollectiveId)) {
+        adminHostIds.add(account.HostCollectiveId);
+      }
+    }
+
+    const fiscalHostNoteTypes = [ActivityTypes.FISCAL_HOST_NOTE_SET, ActivityTypes.FISCAL_HOST_NOTE_REMOVED];
+    where[Op.and] = where[Op.and] || [];
+    if (adminHostIds.size > 0) {
+      where[Op.and].push({
+        [Op.or]: [
+          { type: { [Op.notIn]: fiscalHostNoteTypes } },
+          { HostCollectiveId: { [Op.in]: Array.from(adminHostIds) } },
+        ],
+      });
+    } else {
+      where[Op.and].push({ type: { [Op.notIn]: fiscalHostNoteTypes } });
     }
 
     const order: Order = [[args.orderBy.field, args.orderBy.direction]];

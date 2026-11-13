@@ -88,10 +88,6 @@ const FeaturesAccess: Partial<
     accountTypes: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION],
     onlyPublicAccounts: true,
   },
-  [FEATURE.EMIT_GIFT_CARDS]: {
-    accountTypes: [CollectiveType.ORGANIZATION],
-    onlyPublicAccounts: true,
-  },
   [FEATURE.EVENTS]: {
     onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
     accountTypes: [CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],
@@ -106,13 +102,8 @@ const FeaturesAccess: Partial<
     onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS],
   },
   [FEATURE.FUNDS_GRANTS_MANAGEMENT]: {
-    accountTypes: [
-      CollectiveType.ORGANIZATION,
-      CollectiveType.COLLECTIVE,
-      CollectiveType.EVENT,
-      CollectiveType.FUND,
-      CollectiveType.PROJECT,
-    ],
+    // Only describes whether the host's plan includes the feature. Whether an account accepts grants is `RECEIVE_GRANTS`.
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
   },
   [FEATURE.TAX_FORMS]: {
     onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
@@ -160,6 +151,15 @@ const FeaturesAccess: Partial<
     ],
   },
   [FEATURE.RECEIVE_EXPENSES]: {
+    accountTypes: [
+      CollectiveType.ORGANIZATION,
+      CollectiveType.COLLECTIVE,
+      CollectiveType.EVENT,
+      CollectiveType.FUND,
+      CollectiveType.PROJECT,
+    ],
+  },
+  [FEATURE.RECEIVE_GRANTS]: {
     accountTypes: [
       CollectiveType.ORGANIZATION,
       CollectiveType.COLLECTIVE,

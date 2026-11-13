@@ -1,14 +1,8 @@
-import { URLSearchParams } from 'url';
-
 import { pick } from 'lodash';
 
-import { activities } from '../../../constants';
-import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import logger from '../../../lib/logger';
-import RateLimit from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Op } from '../../../models';
-import GiftCard from '../../../paymentProviders/opencollective/giftcard';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { Forbidden } from '../../errors';
 
@@ -27,44 +21,11 @@ export async function createPaymentMethod(args, remoteUser) {
   if (!args.type) {
     throw new Error('Missing PaymentMethod type');
   }
-  if (args.type === PAYMENT_METHOD_TYPE.GIFTCARD) {
-    // either amount or monthlyLimitPerMember needs to be present
-    if (!args.amount && !args.monthlyLimitPerMember) {
-      throw new Error('you need to define either the amount or the monthlyLimitPerMember of the payment method.');
-    }
-    return createGiftCardPaymentMethod(args, remoteUser);
-  } else if (args.service === 'stripe' && args.type === 'creditcard') {
+  if (args.service === 'stripe' && args.type === 'creditcard') {
     return createStripeCreditCard(args, remoteUser);
   } else {
     throw new Error('Payment method type not supported');
   }
-}
-
-/** Create the Gift Card Payment Method through an organization
- *
- * @param {Object} args contains the parameters to create the new
- *  payment method.
- * @param {String} [args.description] The description of the new payment
- *  method.
- * @param {Number} args.CollectiveId The ID of the organization creating the gift card.
- * @param {Number} [args.PaymentMethodId] The ID of the Source Payment method the
- *                 organization wants to use
- * @param {Number} args.amount The total amount that will be
- *  credited to the newly created payment method.
- * @param {String} args.currency The currency of the gift card
- * @param {[limitedToTags]} [args.limitedToTags] Limit this payment method to donate to collectives having those tags
- * @param {Date} [args.expiryDate] The expiry date of the payment method
- * @param {Object} remoteUser logged in user
- * @returns {models.PaymentMethod} return the gift card payment method.
- */
-async function createGiftCardPaymentMethod(args, remoteUser) {
-  // making sure it's a string, trim and uppercase it.
-  args.currency = args.currency.toString().toUpperCase();
-  if (!['USD', 'EUR'].includes(args.currency)) {
-    throw new Error(`Currency ${args.currency} not supported. We only support USD and EUR at the moment.`);
-  }
-  const paymentMethod = await GiftCard.create(args, remoteUser);
-  return paymentMethod;
 }
 
 /** Add a stripe credit card to given collective */
@@ -115,54 +76,6 @@ async function createStripeCreditCard(args, remoteUser) {
       },
     },
   );
-
-  return paymentMethod;
-}
-
-/** Claim the Gift Card Payment Method By an (existing or not) user
- * @param {Object} args contains the parameters
- * @param {String} args.code The 8 last digits of the UUID
- * @param {String} args.email The email of the user claiming the gift card
- * @returns {models.PaymentMethod} return the gift card payment method.
- */
-export async function claimPaymentMethod(args, req) {
-  const rateLimitKey = req.remoteUser ? `claim-giftcard-user-${req.remoteUser.id}` : `claim-giftcard-ip-${req.ip}`;
-  const rateLimit = new RateLimit(rateLimitKey, 5, 60 * 60 * 24); // Can claim 5 gift cards per day
-  if (!(await rateLimit.registerCall())) {
-    throw new Error('Rate limit exceeded. Please try again later.');
-  }
-
-  const paymentMethod = await GiftCard.claim(args, req.remoteUser);
-  const user = await models.User.findOne({
-    where: { CollectiveId: paymentMethod.CollectiveId },
-  });
-  const { initialBalance, monthlyLimitPerMember, currency, name, expiryDate } = paymentMethod;
-  const amount = initialBalance || monthlyLimitPerMember;
-  const emitter = await models.Collective.findByPk(paymentMethod.sourcePaymentMethod.CollectiveId);
-
-  const qs = new URLSearchParams({
-    code: paymentMethod.uuid.substring(0, 8),
-  }).toString();
-
-  // If the User is already authenticated it doesn't need this email
-  // It will be redirected to the /redeemed page
-  // See: https://github.com/opencollective/opencollective-frontend/blob/08323de06714c20ce33e93bfebcbbeb0af587413/src/pages/redeem.js#L143
-  if (!req.remoteUser) {
-    await models.Activity.create({
-      type: activities.USER_CARD_CLAIMED,
-      UserId: user.id,
-      CollectiveId: user.CollectiveId,
-      FromCollectiveId: emitter.id,
-      data: {
-        loginLink: user.generateLoginLink(`/redeemed?${qs}`),
-        initialBalance: amount,
-        name,
-        currency,
-        expiryDate,
-        emitter: emitter.info,
-      },
-    });
-  }
 
   return paymentMethod;
 }

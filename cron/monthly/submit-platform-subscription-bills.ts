@@ -14,9 +14,9 @@ import logger from '../../server/lib/logger';
 import { notify } from '../../server/lib/notifications/email';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
-import models, { Collective, Op, PlatformSubscription, sequelize } from '../../server/models';
+import models, { Collective, Op, PlatformSubscription } from '../../server/models';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
-import { Billing } from '../../server/models/PlatformSubscription';
+import { Billing, BillingPeriod } from '../../server/models/PlatformSubscription';
 import { runCronJob } from '../utils';
 
 const json2csv = (data, opts = undefined) => new Parser(opts).parse(data);
@@ -28,6 +28,7 @@ const defaultDate = process.env.START_DATE ? moment.utc(process.env.START_DATE) 
 const DRY = parseToBoolean(process.env.DRY);
 const isProduction = config.env === 'production';
 const SKIP_BILLING_FOR_ORGANIZATIONS = process.env.SKIP_BILLING_FOR_ORGANIZATIONS?.split(',') ?? [];
+const SKIP_ORGANIZATIONS_WITHOUT_TRANSACTIONS = parseToBoolean(process.env.SKIP_ORGANIZATIONS_WITHOUT_TRANSACTIONS);
 
 /** Skip billing when every platform subscription in the period was a short trial */
 function shouldSkipBillForShortEndedTrial(bill: Billing, asOf: moment.Moment): boolean {
@@ -52,7 +53,42 @@ function shouldSkipBillForShortEndedTrial(bill: Billing, asOf: moment.Moment): b
   return true;
 }
 
-export async function run(baseDate: Date | moment.Moment = defaultDate): Promise<void> {
+/** Whether the organization, or any account it hosts, has at least one transaction in the billing period */
+async function hasTransactionsInBillingPeriod(organization: Collective, billingPeriod: BillingPeriod) {
+  const billingRange = PlatformSubscription.getBillingPeriodRange(billingPeriod);
+  const hostIds = await PlatformSubscription.getBilledHostIds(organization.id, billingPeriod);
+  const transaction = await models.Transaction.findOne({
+    attributes: ['id'],
+    where: {
+      [Op.or]: [{ CollectiveId: hostIds }, { HostCollectiveId: hostIds }],
+      createdAt: {
+        [Op.gte]: PlatformSubscription.periodStartDate(billingRange),
+        [Op.lte]: PlatformSubscription.periodEndDate(billingRange),
+      },
+    },
+  });
+
+  return Boolean(transaction);
+}
+
+/** Whether the organization has a platform bill that was not canceled, which makes it a customer we never skip */
+async function hasPlatformBill(organization: Collective) {
+  const bill = await models.Expense.findOne({
+    attributes: ['id'],
+    where: {
+      CollectiveId: organization.id,
+      type: expenseTypes.PLATFORM_BILLING,
+      status: { [Op.ne]: expenseStatus.CANCELED },
+    },
+  });
+
+  return Boolean(bill);
+}
+
+export async function run(
+  baseDate: Date | moment.Moment = defaultDate,
+  { skipOrganizationsWithoutTransactions = SKIP_ORGANIZATIONS_WITHOUT_TRANSACTIONS } = {},
+): Promise<void> {
   const momentDate = moment(baseDate);
   const billingPeriodDate = moment(momentDate).subtract(1, 'months');
   const year = billingPeriodDate.year();
@@ -69,23 +105,13 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     pm => pm.data?.['currency'] === 'USD',
   );
 
-  const distinctActiveSubscriptionsByCollectiveId = await PlatformSubscription.findAll({
-    where: {
-      period: {
-        [Op.overlap]: PlatformSubscription.getBillingPeriodRange({ year, month }),
-      },
-    },
-    attributes: [[sequelize.fn('DISTINCT', sequelize.col('CollectiveId')), 'CollectiveId']],
-    order: [['CollectiveId', 'ASC']],
-    raw: true,
-  });
-  logger.info(`Found ${distinctActiveSubscriptionsByCollectiveId.length} active subscribers...`);
+  const billableCollectiveIds = await PlatformSubscription.getBillableCollectiveIds({ year, month });
+  logger.info(`Found ${billableCollectiveIds.length} billable subscribers...`);
 
   const currency = 'USD' as SupportedCurrency;
-  for (let i = 0; i < distinctActiveSubscriptionsByCollectiveId.length; i++) {
-    const logPrefix = `[${i + 1}/${distinctActiveSubscriptionsByCollectiveId.length}]`;
-    const subscription = distinctActiveSubscriptionsByCollectiveId[i];
-    const orgId = subscription.CollectiveId;
+  for (let i = 0; i < billableCollectiveIds.length; i++) {
+    const logPrefix = `[${i + 1}/${billableCollectiveIds.length}]`;
+    const orgId = billableCollectiveIds[i];
     try {
       const organization: Collective = await models.Collective.findByPk(orgId);
       if (SKIP_BILLING_FOR_ORGANIZATIONS.includes(organization.slug)) {
@@ -125,6 +151,17 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
         continue;
       }
 
+      if (
+        skipOrganizationsWithoutTransactions &&
+        !(await hasTransactionsInBillingPeriod(organization, bill.billingPeriod)) &&
+        !(await hasPlatformBill(organization))
+      ) {
+        logger.info(
+          `${logPrefix} Skipping bill for organization ${organization.name} #${organization.id} because it has no transactions in the billing period and was never billed (SKIP_ORGANIZATIONS_WITHOUT_TRANSACTIONS)`,
+        );
+        continue;
+      }
+
       if (shouldSkipBillForShortEndedTrial(bill, momentDate)) {
         logger.info(
           `${logPrefix} Skipping bill under short-trial grace (ended subscription(s) under 15 days, total under $10) for organization ${organization.name} #${organization.id}`,
@@ -157,6 +194,12 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
         bill.additional.utilization.expensesPaid > 0 && {
           description: `Additional Paid Expenses Utilization: ${bill.additional.utilization.expensesPaid}`,
           amount: bill.additional.amounts.expensesPaid,
+          incurredAt,
+          currency,
+        },
+        bill.crowdfunding.fee > 0 && {
+          description: `Crowdfunding Fee: ${bill.crowdfunding.feePercent}% of $${(bill.crowdfunding.totalAmount / 100).toFixed(2)}`,
+          amount: bill.crowdfunding.fee,
           incurredAt,
           currency,
         },
@@ -227,7 +270,6 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       reportErrorToSentry(e, {
         extra: {
           organizationId: orgId,
-          subscription,
         },
       });
     }

@@ -170,8 +170,6 @@ enum ActivityTypes {
   // Webhooks
   WEBHOOK_STRIPE_RECEIVED = 'webhook.stripe.received',
   WEBHOOK_PAYPAL_RECEIVED = 'webhook.paypal.received',
-  // Reports
-  COLLECTIVE_MONTHLY_REPORT = 'collective.monthlyreport',
   // Host
   ACTIVATED_COLLECTIVE_AS_HOST = 'activated.collective.as.host', // deprecated
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT = 'activated.collective.as.independent', // deprecated
@@ -182,6 +180,10 @@ enum ActivityTypes {
   // Hosting
   ACTIVATED_HOSTING = 'activated.hosting',
   DEACTIVATED_HOSTING = 'deactivated.hosting',
+
+  // Fiscal host notes
+  FISCAL_HOST_NOTE_SET = 'fiscal.host.note.set',
+  FISCAL_HOST_NOTE_REMOVED = 'fiscal.host.note.removed',
 
   // Agreements
   AGREEMENT_CREATED = 'agreement.created',
@@ -208,6 +210,13 @@ enum ActivityTypes {
   KYC_REVOKED = 'kyc.revoked',
   KYC_VERIFIED = 'kyc.verified',
 }
+
+/** Activities recorded on the applicant collective that the host must also be notified about. */
+export const HostApplicationActivities = [
+  ActivityTypes.COLLECTIVE_APPLY,
+  ActivityTypes.COLLECTIVE_APPROVED,
+  ActivityTypes.COLLECTIVE_REJECTED,
+];
 
 /** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */
 export const TransactionalActivities = [
@@ -242,7 +251,6 @@ export enum ActivityClasses {
   ACTIVITIES_UPDATES = 'activitiesUpdates',
   VIRTUAL_CARDS = 'virtualCards',
   FUND_EVENTS = 'fundsEvents',
-  REPORTS = 'reports',
 }
 
 export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
@@ -274,6 +282,8 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.COLLECTIVE_TRANSACTION_CREATED, // TODO: Should not be here. See https://github.com/opencollective/opencollective/issues/5903
     ActivityTypes.COLLECTIVE_EDITED,
     ActivityTypes.COLLECTIVE_DELETED,
+    ActivityTypes.FISCAL_HOST_NOTE_SET,
+    ActivityTypes.FISCAL_HOST_NOTE_REMOVED,
   ],
   [ActivityClasses.EXPENSES]: [
     ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
@@ -348,7 +358,6 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.VIRTUAL_CARD_REQUESTED,
     ActivityTypes.VIRTUAL_CARD_PURCHASE,
   ],
-  [ActivityClasses.REPORTS]: [ActivityTypes.COLLECTIVE_MONTHLY_REPORT],
 };
 
 export default ActivityTypes;

@@ -6,6 +6,8 @@ import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/pe
 import type { Collective, Conversation, Expense, Order, Transaction, Update } from '../../../models';
 import ActivityModel from '../../../models/Activity';
 import { sanitizeActivityData } from '../../common/activities';
+import { isRemoteUserRoot } from '../../common/scope-check';
+import { hasUpdatesScopeForNonPublicUpdate } from '../../common/update';
 import { GraphQLActivityType } from '../enum';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
@@ -94,7 +96,7 @@ export const GraphQLActivity = new GraphQLObjectType({
           isIncognito = Boolean(fromCollective?.isIncognito);
         }
 
-        if (isIncognito && !req.remoteUser?.isRoot() && !req.remoteUser?.isAdminOfCollective(userCollective)) {
+        if (isIncognito && !isRemoteUserRoot(req) && !req.remoteUser?.isAdminOfCollective(userCollective)) {
           return null;
         }
 
@@ -122,11 +124,19 @@ export const GraphQLActivity = new GraphQLObjectType({
     update: {
       type: GraphQLUpdate,
       description: 'The update related to this activity, if any',
-      resolve: async (activity, _, req: express.Request): Promise<Update> => {
+      resolve: async (activity, _, req: express.Request): Promise<Update | null> => {
         const updateId = activity.data?.UpdateId || activity.data?.update?.id;
-        if (updateId) {
-          return req.loaders.Update.byId.load(updateId);
+        if (!updateId) {
+          return null;
         }
+
+        const update = await req.loaders.Update.byId.load(updateId);
+        // Match account.updates: token auth without the updates scope does not receive unpublished or private updates.
+        if (!update || !hasUpdatesScopeForNonPublicUpdate(req, update)) {
+          return null;
+        }
+
+        return update;
       },
     },
     conversation: {

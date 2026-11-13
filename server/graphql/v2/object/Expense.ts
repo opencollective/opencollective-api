@@ -9,7 +9,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { findLast, pick, round, takeRightWhile, toString, uniq } from 'lodash';
+import { findLast, omit, pick, round, takeRightWhile, toString, uniq } from 'lodash';
 import { WhereOptions } from 'sequelize';
 
 import { roles } from '../../../constants';
@@ -27,12 +27,12 @@ import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import SQLQueries from '../../../lib/queries';
 import models, { Activity, UploadedFile } from '../../../models';
 import { CommentType } from '../../../models/Comment';
-import ExpenseModel from '../../../models/Expense';
+import ExpenseModel, { ExpenseTaxDefinition } from '../../../models/Expense';
 import LegalDocument, { LEGAL_DOCUMENT_TYPE, LegalDocumentAttributes } from '../../../models/LegalDocument';
 import transferwise from '../../../paymentProviders/transferwise';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
-import { checkScope } from '../../common/scope-check';
+import { checkScope, isRemoteUserRoot } from '../../common/scope-check';
 import { Unauthorized } from '../../errors';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
@@ -71,7 +71,7 @@ import { GraphQLSecurityCheck } from './SecurityCheck';
 import { GraphQLTaxInfo } from './TaxInfo';
 import { GraphQLTransactionsImportRow } from './TransactionsImportRow';
 import { GraphQLTransferWiseRequiredField } from './TransferWise';
-import { GraphQLVirtualCard } from './VirtualCard';
+import { canSeeVirtualCardPrivateInfo, GraphQLVirtualCard } from './VirtualCard';
 
 const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'taxes',
@@ -202,7 +202,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
           if (!expense.data?.taxes) {
             return [];
           } else {
-            return (expense.data.taxes as any[]).map(({ type, rate, idNumber }) => ({
+            return (expense.data.taxes as ExpenseTaxDefinition[]).map(({ type, rate, idNumber }) => ({
               id: type,
               percentage: round(rate * 100, 2),
               type,
@@ -448,9 +448,16 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
         type: GraphQLVirtualCard,
         description: 'The virtual card used to pay for this charge',
         async resolve(expense, _, req) {
-          if (expense.VirtualCardId) {
-            return req.loaders.VirtualCard.byId.load(expense.VirtualCardId);
+          if (!expense.VirtualCardId) {
+            return null;
           }
+
+          const virtualCard = await req.loaders.VirtualCard.byId.load(expense.VirtualCardId);
+          if (!virtualCard || !(await canSeeVirtualCardPrivateInfo(req, virtualCard))) {
+            return null;
+          }
+
+          return virtualCard;
         },
       },
       attachedFiles: {
@@ -638,6 +645,16 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
             }
 
             const draftData = pick(expense.data, draftFields);
+
+            // Keep tax IDs consistent with the structured `Expense.taxes` resolver.
+            if (Array.isArray(draftData.taxes) && !(await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense))) {
+              draftData.taxes = (draftData.taxes as ExpenseTaxDefinition[]).map(tax => {
+                if (tax && typeof tax === 'object' && 'idNumber' in tax) {
+                  return omit(tax, 'idNumber');
+                }
+                return tax;
+              });
+            }
             const items = ((expense.data.items as { url?: string }[]) || []).map(item => pick(item, itemsFields));
             for (const item of items) {
               if (item.url) {
@@ -845,7 +862,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
       platformBillingData: {
         type: GraphQLJSON,
         async resolve(expense, _, req) {
-          if (req.remoteUser.isRoot()) {
+          if (isRemoteUserRoot(req)) {
             return expense.data.bill;
           }
         },

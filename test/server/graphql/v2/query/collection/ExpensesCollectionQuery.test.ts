@@ -37,6 +37,7 @@ import {
   fakeProject,
   fakeTransaction,
   fakeUser,
+  fakeVendor,
   randStr,
 } from '../../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../../utils';
@@ -672,6 +673,40 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
           fromAccount: { legacyId: submitter.CollectiveId },
           lastCommentBy: ['HOST_ADMIN'],
         },
+        submitter,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expense.id);
+    });
+
+    it('expense submitter can filter by lastCommentBy on expenses they submitted for a vendor', async () => {
+      const submitter = await fakeUser();
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const vendor = await fakeVendor({ ParentCollectiveId: host.id });
+
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: vendor.id,
+        UserId: submitter.id,
+        HostCollectiveId: host.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+      await fakeComment({
+        ExpenseId: expense.id,
+        CollectiveId: collective.id,
+        CreatedByUserId: hostAdmin.id,
+        FromCollectiveId: hostAdmin.CollectiveId,
+        mainCommenterRole: CommentMainRole.HOST_ADMIN,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        { fromAccount: { legacyId: vendor.id }, lastCommentBy: ['HOST_ADMIN'] },
         submitter,
       );
 
@@ -1812,6 +1847,41 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       const result = await graphqlQueryV2(expensesQuery, { searchTerm: slug });
       expect(result.data.expenses.totalCount).to.eq(1);
       expect(result.data.expenses.nodes[0].legacyId).to.eq(expenseTwo.id);
+    });
+
+    it('searches in Wise transfer ids above Number.MAX_SAFE_INTEGER with exact digits', async () => {
+      const bigTransferId = '9223372036854775807';
+      const adjacentTransferId = '9223372036854775806';
+      const bigExpense = await fakeExpense({
+        FromCollectiveId: ownerUser.collective.id,
+        CollectiveId: expenseOne.CollectiveId,
+        description: 'Big Wise transfer',
+        data: { transfer: { id: bigTransferId } },
+      });
+      await fakeExpense({
+        FromCollectiveId: ownerUser.collective.id,
+        CollectiveId: expenseOne.CollectiveId,
+        description: 'Adjacent Wise transfer',
+        data: { transfer: { id: adjacentTransferId } },
+      });
+
+      const result = await graphqlQueryV2(expensesQuery, { searchTerm: bigTransferId });
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(bigExpense.id);
+    });
+
+    it('searches in legacy numeric Wise transfer ids stored as JSON numbers', async () => {
+      const transferId = 2147483648;
+      const legacyExpense = await fakeExpense({
+        FromCollectiveId: ownerUser.collective.id,
+        CollectiveId: expenseOne.CollectiveId,
+        description: 'Legacy numeric Wise transfer',
+        data: { transfer: { id: transferId } },
+      });
+
+      const result = await graphqlQueryV2(expensesQuery, { searchTerm: String(transferId) });
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(legacyExpense.id);
     });
   });
 

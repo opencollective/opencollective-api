@@ -11,9 +11,11 @@ import {
   fakeMember,
   fakeOrder,
   fakePrivateOrganization,
+  fakeTransaction,
   fakeUser,
+  fakeUserToken,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { graphqlQueryV2, oAuthGraphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const orderQuery = gql`
   query Order($legacyId: Int!) {
@@ -280,6 +282,55 @@ describe('server/graphql/v2/object/Order', () => {
       expect(result.errors.some(error => error.message === 'This account is private. You must be a member to view it.'))
         .to.be.true;
       expect(result.data.order.fromAccount).to.be.null;
+    });
+  });
+
+  describe('transactions', () => {
+    const orderTransactionsQuery = gql`
+      query Order($legacyId: Int!) {
+        order(order: { legacyId: $legacyId }) {
+          id
+          transactions {
+            id
+          }
+        }
+      }
+    `;
+
+    it('rejects OAuth tokens without the transactions scope', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin.collective });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const order = await fakeOrder({ CollectiveId: collective.id });
+      await fakeTransaction({ OrderId: order.id, CollectiveId: collective.id });
+      const userToken = await fakeUserToken({
+        user: hostAdmin,
+        scope: ['orders'],
+      });
+
+      const result = await oAuthGraphqlQueryV2(orderTransactionsQuery, { legacyId: order.id }, userToken);
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'The User Token is not allowed for operations in scope "transactions".',
+      );
+    });
+
+    it('allows OAuth tokens with orders and transactions scopes', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin.collective });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const order = await fakeOrder({ CollectiveId: collective.id });
+      await fakeTransaction({ OrderId: order.id, CollectiveId: collective.id });
+      const userToken = await fakeUserToken({
+        user: hostAdmin,
+        scope: ['orders', 'transactions'],
+      });
+
+      const result = await oAuthGraphqlQueryV2(orderTransactionsQuery, { legacyId: order.id }, userToken);
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.order.transactions).to.be.an('array').that.is.not.empty;
     });
   });
 

@@ -1,3 +1,5 @@
+import type { ThroughOptions } from 'sequelize';
+
 import sequelize, { Op } from '../lib/sequelize';
 
 import AccountingCategory from './AccountingCategory';
@@ -10,12 +12,12 @@ import Comment from './Comment';
 import ConnectedAccount from './ConnectedAccount';
 import Conversation from './Conversation';
 import ConversationFollower from './ConversationFollower';
-import CurrencyExchangeRate from './CurrencyExchangeRate';
 import EmojiReaction from './EmojiReaction';
 import Expense from './Expense';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import ExportRequest from './ExportRequest';
+import FiscalHostNote from './FiscalHostNote';
 import HostApplication from './HostApplication';
 import { KYCVerification } from './KYCVerification';
 import LegalDocument from './LegalDocument';
@@ -46,6 +48,7 @@ import TransactionsImport from './TransactionsImport';
 import TransactionsImportRow from './TransactionsImportRow';
 import Update from './Update';
 import UploadedFile from './UploadedFile';
+import UsdExchangeRate from './UsdExchangeRate';
 import User from './User';
 import UserToken from './UserToken';
 import UserTwoFactorMethod from './UserTwoFactorMethod';
@@ -65,12 +68,12 @@ const models = {
   ConnectedAccount,
   Conversation,
   ConversationFollower,
-  CurrencyExchangeRate,
   EmojiReaction,
   Expense,
   ExpenseAttachedFile,
   ExpenseItem,
   ExportRequest,
+  FiscalHostNote,
   HostApplication,
   LegalDocument,
   Location,
@@ -98,6 +101,7 @@ const models = {
   TransactionsImport,
   TransactionsImportRow,
   Update,
+  UsdExchangeRate,
   UploadedFile,
   User,
   UserToken,
@@ -136,16 +140,24 @@ Agreement.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'Collective' }
 Agreement.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'Host' });
 Agreement.belongsTo(User, { foreignKey: 'UserId', as: 'User' });
 
+// FiscalHostNote
+FiscalHostNote.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
+FiscalHostNote.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'account' });
+FiscalHostNote.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
+FiscalHostNote.belongsTo(User, { foreignKey: 'UpdatedByUserId', as: 'updatedByUser' });
+Collective.hasMany(FiscalHostNote, { foreignKey: 'HostCollectiveId', as: 'givenFiscalHostNotes' });
+Collective.hasMany(FiscalHostNote, { foreignKey: 'CollectiveId', as: 'receivedFiscalHostNotes' });
+
 // Collective
 Collective.belongsTo(Collective, { as: 'HostCollective' });
 Collective.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
 Collective.belongsTo(Collective, { foreignKey: 'ParentCollectiveId', as: 'parent' });
 Collective.belongsToMany(Collective, {
   as: 'memberCollectives',
-  through: { model: Member, unique: false, foreignKey: 'MemberCollectiveId' } as any,
+  through: { model: Member, unique: false, foreignKey: 'MemberCollectiveId' } as ThroughOptions,
 });
 Collective.belongsToMany(Collective, {
-  through: { model: Member, unique: false, foreignKey: 'CollectiveId' } as any,
+  through: { model: Member, unique: false, foreignKey: 'CollectiveId' } as ThroughOptions,
   as: 'memberOfCollectives',
 });
 Collective.hasMany(AccountingCategory, { foreignKey: 'CollectiveId', as: 'accountingCategories' });
@@ -287,6 +299,7 @@ PaymentMethod.hasMany(Transaction);
 
 // Payout method
 PayoutMethod.belongsTo(Collective);
+PayoutMethod.belongsTo(ConnectedAccount);
 PayoutMethod.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
 
 // PaypalPlan
@@ -426,10 +439,10 @@ export {
   ConnectedAccount,
   Conversation,
   ConversationFollower,
-  CurrencyExchangeRate,
   EmojiReaction,
   ExportRequest as ExportRequests,
   Expense,
+  FiscalHostNote,
   ExpenseAttachedFile,
   ExpenseItem,
   HostApplication,
@@ -459,6 +472,7 @@ export {
   TransactionsImportRow,
   TransactionSettlement,
   Update,
+  UsdExchangeRate,
   UploadedFile,
   User,
   UserToken,

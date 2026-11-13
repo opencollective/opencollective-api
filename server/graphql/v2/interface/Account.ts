@@ -26,9 +26,11 @@ import { getContextPermission, PERMISSION_TYPE } from '../../common/context-perm
 import { getFeatureStatusResolver } from '../../common/features';
 import {
   checkRemoteUserCanUseAccount,
+  checkRemoteUserCanUseApplications,
   checkRemoteUserCanUseKYC,
   checkScope,
-  rejectOAuthAndPersonalTokenAuth,
+  isRemoteUserRoot,
+  requireSessionToken,
 } from '../../common/scope-check';
 import { BadRequest, ContentNotReady, Forbidden, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
@@ -40,7 +42,6 @@ import { GraphQLMemberCollection, GraphQLMemberOfCollection } from '../collectio
 import { GraphQLOAuthApplicationCollection } from '../collection/OAuthApplicationCollection';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
 import { GraphQLTransactionCollection } from '../collection/TransactionCollection';
-import { GraphQLTransactionGroupCollection } from '../collection/TransactionGroupCollection';
 import { GraphQLUpdateCollection } from '../collection/UpdateCollection';
 import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection';
 import {
@@ -89,6 +90,7 @@ import { GraphQLActivity } from '../object/Activity';
 import { GraphQLActivitySubscription } from '../object/ActivitySubscription';
 import { GraphQLCommunityStats } from '../object/CommunityStats';
 import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
+import { GraphQLFiscalHostNote } from '../object/FiscalHostNote';
 import { GraphQLLegalDocument } from '../object/LegalDocument';
 import { GraphQLLocation } from '../object/Location';
 import { GraphQLMemberInvitation } from '../object/MemberInvitation';
@@ -104,10 +106,6 @@ import {
   ExpensesCollectionQueryResolver,
 } from '../query/collection/ExpensesCollectionQuery';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
-import {
-  TransactionGroupCollectionArgs,
-  TransactionGroupCollectionResolver,
-} from '../query/collection/TransactionGroupCollectionQuery';
 import {
   TransactionsCollectionArgs,
   TransactionsCollectionResolver,
@@ -173,6 +171,57 @@ const accountFieldsDefinition = () => ({
         }
       } else {
         return account.legalName;
+      }
+    },
+  },
+  isUSEntity: {
+    type: GraphQLBoolean,
+    description: 'Whether the account is a US person or entity. Scope: "account".',
+    resolve: async (account: Collective, _, req) => {
+      if (!checkScope(req, 'account')) {
+        return null;
+      }
+      if (
+        !req.remoteUser?.isAdminOfCollective(account) &&
+        !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
+      ) {
+        return null;
+      } else if (account.isIncognito) {
+        if (!checkScope(req, 'incognito')) {
+          return null;
+        }
+        const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(account.id);
+        if (mainProfile) {
+          return mainProfile.data?.isUSEntity ?? null;
+        }
+      } else {
+        return account.data?.isUSEntity ?? null;
+      }
+    },
+  },
+  taxableCountry: {
+    type: GraphQLString,
+    description:
+      'The country the account is taxable in (residence for individuals, incorporation for organizations), set from the US tax form (W-9 / W-8BEN / W-8BEN-E) submitted by the account. Scope: "account".',
+    resolve: async (account: Collective, _, req) => {
+      if (!checkScope(req, 'account')) {
+        return null;
+      }
+      if (
+        !req.remoteUser?.isAdminOfCollective(account) &&
+        !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
+      ) {
+        return null;
+      } else if (account.isIncognito) {
+        if (!checkScope(req, 'incognito')) {
+          return null;
+        }
+        const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(account.id);
+        if (mainProfile) {
+          return mainProfile.data?.taxableCountry ?? null;
+        }
+      } else {
+        return account.data?.taxableCountry ?? null;
       }
     },
   },
@@ -431,6 +480,10 @@ const accountFieldsDefinition = () => ({
         type: GraphQLAccountReferenceInput,
         description: 'Specific account to query the membership of.',
       },
+      tier: {
+        type: GraphQLTierReferenceInput,
+        description: 'Filter members by tier',
+      },
       orderBy: {
         type: new GraphQLNonNull(GraphQLOrderByInput),
         defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
@@ -444,7 +497,7 @@ const accountFieldsDefinition = () => ({
   emails: {
     type: new GraphQLList(new GraphQLNonNull(GraphQLEmailAddress)),
     description:
-      'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.',
+      'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".',
   },
   transactions: {
     type: new GraphQLNonNull(GraphQLTransactionCollection),
@@ -456,6 +509,13 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLOrderCollection),
     args: {
       ...OrdersCollectionArgs,
+    },
+  },
+  webhooks: {
+    type: new GraphQLNonNull(GraphQLWebhookCollection),
+    description: 'Webhooks registered on this account. Only available to admins. Scope: "webhooks".',
+    args: {
+      ...omit(WebhookCollectionArgs, ['account']),
     },
   },
   expenses: {
@@ -575,7 +635,7 @@ const accountFieldsDefinition = () => ({
       if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'applications')) {
         return null;
       }
-      rejectOAuthAndPersonalTokenAuth(req);
+      requireSessionToken(req);
 
       const { limit, offset } = args;
       const where = { CollectiveId: collective.id, type: 'oAuth' };
@@ -658,6 +718,11 @@ const accountFieldsDefinition = () => ({
       const canSeeDraftUpdates =
         checkScope(req, 'updates') &&
         (req.remoteUser?.isAdminOfCollective(collective) || req.remoteUser?.isCommunityManager(collective));
+
+      // Asking for drafts without permission returns an empty page, not the published list.
+      if (isDraft && !canSeeDraftUpdates) {
+        return { nodes: [], totalCount: 0, limit, offset };
+      }
 
       if (onlyPublishedUpdates || !canSeeDraftUpdates) {
         where = assign(where, { publishedAt: { [Op.ne]: null } });
@@ -967,7 +1032,7 @@ const accountFieldsDefinition = () => ({
   },
   hostApplicationRequests: {
     type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-    description: 'Host application requests',
+    description: 'Host application requests. Scope: "applications".',
     args: {
       ...CollectionArgs,
       orderBy: {
@@ -1000,7 +1065,7 @@ const accountFieldsDefinition = () => ({
       },
     },
     async resolve(collective: Collective, args, req) {
-      if (!req.remoteUser?.isAdminOfCollective(collective) && !req.remoteUser?.isRoot()) {
+      if (!req.remoteUser?.isAdminOfCollective(collective) && !isRemoteUserRoot(req)) {
         throw new Unauthorized('You need to be logged in as an admin of this collective to see its activity');
       }
 
@@ -1053,7 +1118,6 @@ const accountFieldsDefinition = () => ({
       }
     },
   },
-  transactionGroups: accountTransactionGroups,
   transactionReports: {
     type: GraphQLTransactionReports,
     description: 'EXPERIMENTAL (this may change or be removed)',
@@ -1166,6 +1230,46 @@ const accountFieldsDefinition = () => ({
       };
     },
   },
+  fiscalHostNote: {
+    type: GraphQLFiscalHostNote,
+    description: 'A host-private note about this account, only visible to admins of the given fiscal host',
+    args: {
+      host: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'The fiscal host the note belongs to',
+      },
+    },
+    async resolve(account: Collective, args, req: express.Request) {
+      const host = await fetchAccountWithReference(args.host, { loaders: req.loaders, throwIfMissing: true });
+      if (!checkScope(req, 'host') || !req.remoteUser?.isAdminOfCollective(host)) {
+        return null;
+      }
+
+      // Incognito contributions belong to a separate profile; surface the note from the main profile
+      // when the caller is authorized to see that profile in this context.
+      let noteAccount = account;
+      if (account.isIncognito) {
+        if (!checkScope(req, 'account') || !checkScope(req, 'incognito')) {
+          return null;
+        } else if (
+          !canSeeIncognitoProfile(req, account) &&
+          !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
+        ) {
+          return null;
+        }
+
+        noteAccount = await req.loaders.Collective.mainProfileFromIncognito.load(account.id);
+        if (!noteAccount) {
+          return null;
+        }
+      }
+
+      return req.loaders.FiscalHostNote.byHostAndAccount.load({
+        hostId: host.id,
+        accountId: noteAccount.id,
+      });
+    },
+  },
   communityStats: {
     type: GraphQLCommunityStats,
     description: 'Various stats about how this account is connected to the rest of the community',
@@ -1260,17 +1364,6 @@ const accountTransactions = {
   },
   async resolve(collective: Collective, args, req) {
     return TransactionsCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
-  },
-};
-
-const accountTransactionGroups = {
-  type: new GraphQLNonNull(GraphQLTransactionGroupCollection),
-  description: '[!] Warning: this query is currently in beta and the API might change',
-  args: {
-    ...omit(TransactionGroupCollectionArgs, ['account']),
-  },
-  async resolve(collective: Collective, args, req) {
-    return TransactionGroupCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
   },
 };
 
@@ -1397,11 +1490,13 @@ export const AccountFields = {
   emails: {
     type: new GraphQLList(new GraphQLNonNull(GraphQLEmailAddress)),
     description:
-      'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.',
+      'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".',
     async resolve(collective: Collective, _, req) {
-      if (await req.loaders.Collective.canSeePrivateProfileInfo.load(collective.id)) {
-        return req.loaders.Member.adminUserEmailsForCollective.load(collective);
+      if (!checkScope(req, 'email') || !(await req.loaders.Collective.canSeePrivateProfileInfo.load(collective.id))) {
+        return null;
       }
+
+      return req.loaders.Member.adminUserEmailsForCollective.load(collective);
     },
   },
 
@@ -1620,7 +1715,7 @@ export const AccountFields = {
   },
   hostApplicationRequests: {
     type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-    description: 'Host application requests',
+    description: 'Host application requests. Scope: "applications".',
     args: {
       ...CollectionArgs,
       orderBy: {
@@ -1634,6 +1729,7 @@ export const AccountFields = {
       },
     },
     async resolve(account: Collective, args, req: Express.Request) {
+      checkRemoteUserCanUseApplications(req);
       if (!req.remoteUser?.isAdmin(account.id)) {
         throw new Unauthorized(
           'You need to be logged in as an admin of the collective to see its host applications requests',

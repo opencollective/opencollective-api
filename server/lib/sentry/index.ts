@@ -35,6 +35,8 @@ export type CaptureErrorParams = {
   transactionName?: string;
   /** Used to group Axios errors, when the URL includes parameters */
   requestPath?: string;
+  /** Masked token, only used to add context to the fallback log message */
+  accessToken?: string;
   req?: Express.Request;
 };
 
@@ -72,8 +74,9 @@ if (checkIfSentryConfigured()) {
 
   // Catch all errors that haven't been caught anywhere else
   process
-    .on('unhandledRejection', (reason: any) => {
-      reportErrorToSentry(reason, { severity: 'fatal', handler: HandlerType.FALLBACK });
+    .on('unhandledRejection', (reason: unknown) => {
+      // The rejection reason can be anything; Sentry handles non-Error values fine
+      reportErrorToSentry(reason as Error, { severity: 'fatal', handler: HandlerType.FALLBACK });
     })
     .on('uncaughtException', (err: Error) => {
       reportErrorToSentry(err, { severity: 'fatal', handler: HandlerType.FALLBACK });

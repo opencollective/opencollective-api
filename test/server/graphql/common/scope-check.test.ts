@@ -17,12 +17,14 @@ import {
   checkScope,
   enforceScope,
   rejectOAuthAndPersonalTokenAuth,
+  requireSessionToken,
 } from '../../../../server/graphql/common/scope-check';
 import {
   fakeApplication,
   fakeComment,
   fakeConversation,
   fakeExpense,
+  fakeOrder,
   fakePersonalToken,
   fakeUpdate,
   fakeUser,
@@ -301,7 +303,7 @@ describe('server/graphql/common/scope-check', () => {
     });
   });
   describe('checkRemoteUserCanUseComment', () => {
-    let commentOnExpense, commentOnConversation, commentOnUpdate, expense, conversation, update;
+    let commentOnExpense, commentOnConversation, commentOnUpdate, commentOnOrder, expense, conversation, update, order;
     before(async () => {
       expense = await fakeExpense({
         status: 'APPROVED',
@@ -315,6 +317,10 @@ describe('server/graphql/common/scope-check', () => {
         publishedAt: new Date(),
       });
       conversation = await fakeConversation({
+        CollectiveId: randomUser.collective.id,
+      });
+      order = await fakeOrder({
+        FromCollectiveId: userOwningTheToken.collective.id,
         CollectiveId: randomUser.collective.id,
       });
       commentOnExpense = await fakeComment({
@@ -331,6 +337,12 @@ describe('server/graphql/common/scope-check', () => {
         UpdateId: update.id,
         FromCollectiveId: userOwningTheToken.collective.id,
         CollectiveId: update.CollectiveId,
+      });
+      commentOnOrder = await fakeComment({
+        OrderId: order.id,
+        ExpenseId: null,
+        FromCollectiveId: userOwningTheToken.collective.id,
+        CollectiveId: order.CollectiveId,
       });
     });
     it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
@@ -352,6 +364,11 @@ describe('server/graphql/common/scope-check', () => {
       req.userToken = userTokenWithScopeConversations;
       expect(() => checkRemoteUserCanUseComment(commentOnConversation, req)).to.not.throw();
     });
+    it(`Execute without errors for comment on Order if the scope is allowed by the user token`, async () => {
+      const userTokenWithScopeOrders = await fakeUserToken({ scope: ['orders'] });
+      req.userToken = userTokenWithScopeOrders;
+      expect(() => checkRemoteUserCanUseComment(commentOnOrder, req)).to.not.throw();
+    });
     it(`Throws when not authenticated`, async () => {
       req.remoteUser = null;
       expect(() => checkRemoteUserCanUseComment(commentOnExpense, req)).to.throw(
@@ -363,6 +380,9 @@ describe('server/graphql/common/scope-check', () => {
       expect(() => checkRemoteUserCanUseComment(commentOnConversation, req)).to.throw(
         `You need to be logged in to manage conversations`,
       );
+      expect(() => checkRemoteUserCanUseComment(commentOnOrder, req)).to.throw(
+        `You need to be logged in to manage orders`,
+      );
     });
     it(`Throws if the scope is not available on the token`, async () => {
       expect(() => checkRemoteUserCanUseComment(commentOnExpense, req)).to.throw(
@@ -373,6 +393,9 @@ describe('server/graphql/common/scope-check', () => {
       );
       expect(() => checkRemoteUserCanUseComment(commentOnConversation, req)).to.throw(
         `The User Token is not allowed for operations in scope "conversations".`,
+      );
+      expect(() => checkRemoteUserCanUseComment(commentOnOrder, req)).to.throw(
+        `The User Token is not allowed for operations in scope "orders".`,
       );
     });
   });
@@ -431,6 +454,43 @@ describe('server/graphql/common/scope-check', () => {
       expect(() => rejectOAuthAndPersonalTokenAuth(req)).to.throw(
         'OAuth and personal tokens cannot be used to manage tokens. Please use the web interface.',
       );
+    });
+  });
+
+  describe('requireSessionToken', () => {
+    const message = 'A session token is required. Please use the web interface.';
+
+    for (const scope of ['session', undefined]) {
+      it(`accepts ${scope || 'legacy'} session tokens`, () => {
+        req.userToken = null;
+        req.jwtPayload = { scope };
+        expect(() => requireSessionToken(req)).to.not.throw();
+      });
+    }
+
+    for (const scope of ['login', 'reset-password', 'oauth', 'twofactorauth', 'connected-account', 'unknown']) {
+      it(`rejects JWTs with ${scope} scope`, () => {
+        req.userToken = null;
+        req.jwtPayload = { scope };
+        expect(() => requireSessionToken(req)).to.throw(message);
+      });
+    }
+
+    it('rejects OAuth authentication', () => {
+      expect(() => requireSessionToken(req)).to.throw(message);
+    });
+
+    it('rejects personal token authentication even with a session JWT', async () => {
+      req.userToken = null;
+      req.personalToken = await fakePersonalToken({ user: userOwningTheToken });
+      req.jwtPayload = { scope: 'session' };
+      expect(() => requireSessionToken(req)).to.throw(message);
+    });
+
+    it('supports a custom rejection message', () => {
+      req.userToken = null;
+      req.jwtPayload = { scope: 'login' };
+      expect(() => requireSessionToken(req, 'Session required')).to.throw('Session required');
     });
   });
 });

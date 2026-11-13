@@ -212,11 +212,17 @@ function stubStripePayments(sandbox) {
   } as any);
 
   sandbox.stub(stripe.balanceTransactions, 'retrieve').resolves({
-    amount: 1100,
+    amount: 7500,
     currency: 'usd',
     fee: 0,
     // eslint-disable-next-line camelcase
-    fee_details: [],
+    fee_details: [
+      {
+        type: 'application_fee',
+        amount: 2500,
+        currency: 'usd',
+      },
+    ],
   } as any);
 }
 

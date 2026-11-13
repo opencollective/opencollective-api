@@ -21,6 +21,7 @@ import PlatformConstants from '../constants/platform';
 import { RefundKind } from '../constants/refund-kind';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
+import type { Loaders } from '../graphql/loaders';
 import { shouldGenerateTransactionActivities } from '../lib/activities';
 import { getFxRate, roundCentsAmount } from '../lib/currency';
 import logger from '../lib/logger';
@@ -51,7 +52,7 @@ import User from './User';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 
-const { CONTRIBUTION, EXPENSE, ADDED_FUNDS } = TransactionKind;
+const { CONTRIBUTION, EXPENSE, ADDED_FUNDS, BALANCE_TRANSFER } = TransactionKind;
 
 export const MERCHANT_ID_PATHS = {
   [CONTRIBUTION]: [
@@ -119,7 +120,7 @@ export type TransactionData = {
   refund?: Stripe.Refund | Partial<PaypalRefund>;
   refundedFromDoubleTransactionsScript?: boolean;
   refundReason?: string;
-  refundTransactionId?: Transaction['id'];
+  refundTransactionId?: Transaction['id'] | string; // Stripe webhooks store our transaction id, virtual cards the provider's (`ipi_...`)
   review?: Stripe.Event; // Why not Stripe.Review? Who knows
   tax?: Tax;
   taxAmountRemovedFromMigration?: number;
@@ -220,8 +221,9 @@ class Transaction extends ModelWithPublicId<
   declare settlementStatus: TransactionSettlementStatus;
 
   // Class methods
-  declare getHostCollective: (options?: { loaders?: any }) => Promise<Collective>;
+  declare getHostCollective: (options?: { loaders?: Loaders }) => Promise<Collective>;
   declare getCollective: BelongsToGetAssociationMixin<Collective>;
+  declare getFromCollective: BelongsToGetAssociationMixin<Collective>;
   declare getOrder: BelongsToGetAssociationMixin<Order>;
   declare getExpense: BelongsToGetAssociationMixin<Expense>;
   declare hasPlatformTip: () => boolean;
@@ -458,8 +460,12 @@ class Transaction extends ModelWithPublicId<
         transaction.PaymentMethod?.service !== PAYMENT_METHOD_SERVICE.STRIPE
       ) {
         throw new Error('Transaction kind=EXPENSE should be initiated as a DEBIT transaction.');
-      } else if (transaction.kind === CONTRIBUTION && transaction.type === DEBIT && !transaction.isRefund) {
-        throw new Error('Transaction kind=CONTRIBUTION should be initiated as a CREDIT transaction.');
+      } else if (
+        (transaction.kind === CONTRIBUTION || transaction.kind === BALANCE_TRANSFER) &&
+        transaction.type === DEBIT &&
+        !transaction.isRefund
+      ) {
+        throw new Error(`Transaction kind=${transaction.kind} should be initiated as a CREDIT transaction.`);
       }
       // TODO: should we check for refunds also?
 
@@ -592,19 +598,19 @@ class Transaction extends ModelWithPublicId<
           netAmountInCollectiveCurrency: -roundCentsAmount(transaction.amount, transaction.currency),
           amountInHostCurrency: -roundCentsAmount(
             transaction.netAmountInCollectiveCurrency * hostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           hostFeeInHostCurrency: roundCentsAmount(
             transaction.hostFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           platformFeeInHostCurrency: roundCentsAmount(
             transaction.platformFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           paymentProcessorFeeInHostCurrency: roundCentsAmount(
             transaction.paymentProcessorFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           data: { ...omit(transaction.data, ['hostToPlatformFxRate']), oppositeTransactionHostCurrencyFxRate },
         };
@@ -628,7 +634,7 @@ class Transaction extends ModelWithPublicId<
             const hostFeePercent = fromCollective.hasMoneyManagement ? 0 : fromCollective.hostFeePercent;
             const taxAmountInHostCurrency = roundCentsAmount(
               (transaction.taxAmount || 0) * hostCurrencyFxRate,
-              transaction.hostCurrency,
+              hostCurrency,
             );
             oppositeTransaction.hostFeeInHostCurrency = calcFee(
               oppositeTransaction.amountInHostCurrency +
@@ -745,6 +751,10 @@ class Transaction extends ModelWithPublicId<
       return;
     }
 
+    if (platformTip < 0) {
+      throw new Error('Platform tip amount cannot be negative');
+    }
+
     const host = await Transaction.fetchHost(transaction, { sqlTransaction: sequelizeTransaction });
     const hostHasNewPlatformTipsLedger = Boolean(host?.hasNewPlatformTipsLedger?.());
 
@@ -769,6 +779,23 @@ class Transaction extends ModelWithPublicId<
       PlatformConstants.PlatformCurrency,
       transaction,
     );
+
+    // If we have platformTipInHostCurrency available, we trust it, otherwise we compute it
+    const platformTipInHostCurrency = roundCentsAmount(
+      transaction.data?.platformTipInHostCurrency || amount * transaction.hostCurrencyFxRate,
+      transaction.hostCurrency,
+    );
+    const remainingAmountInHostCurrency = roundCentsAmount(
+      transaction.amountInHostCurrency - platformTipInHostCurrency,
+      transaction.hostCurrency,
+    );
+    const remainingAmount = roundCentsAmount(transaction.amount - amount, transaction.currency);
+
+    // Defense-in-depth: a platform tip must never drive the parent transaction negative.
+    // Validate before creating the double entry to prevent creating orphaned records if this check fails.
+    if (remainingAmount < 0 || remainingAmountInHostCurrency < 0) {
+      throw new Error('Platform tip amount cannot exceed the transaction amount');
+    }
 
     let tipCollectiveId: number;
     let tipHostCollectiveId: number;
@@ -853,18 +880,9 @@ class Transaction extends ModelWithPublicId<
       );
     }
 
-    // If we have platformTipInHostCurrency available, we trust it, otherwise we compute it
-    const platformTipInHostCurrency = roundCentsAmount(
-      transaction.data?.platformTipInHostCurrency || amount * transaction.hostCurrencyFxRate,
-      transaction.hostCurrency,
-    );
-
     // Recalculate amount
-    transaction.amountInHostCurrency = roundCentsAmount(
-      transaction.amountInHostCurrency - platformTipInHostCurrency,
-      transaction.hostCurrency,
-    );
-    transaction.amount = roundCentsAmount(transaction.amount - amount, transaction.currency);
+    transaction.amountInHostCurrency = remainingAmountInHostCurrency;
+    transaction.amount = remainingAmount;
 
     // Reset the platformFee because we're accounting for this value in a separate set of transactions
     // This way of passing tips is deprecated but still used in some older tests
@@ -1115,23 +1133,10 @@ class Transaction extends ModelWithPublicId<
     const hostCurrencyFxRate = transaction.hostCurrencyFxRate;
     const amountInHostCurrency = -transaction.taxAmount * hostCurrencyFxRate;
 
-    let FromCollectiveId, CollectiveId;
-    if (!transaction.isRefund) {
-      CollectiveId = vendor.id;
-      if (transaction.kind === EXPENSE) {
-        FromCollectiveId = transaction.FromCollectiveId;
-      } else {
-        FromCollectiveId = transaction.CollectiveId;
-      }
-    } else {
-      // it's not likely to be used like this, as taxes are separated
-      FromCollectiveId = vendor.id;
-      if (transaction.kind === EXPENSE) {
-        CollectiveId = transaction.FromCollectiveId;
-      } else {
-        CollectiveId = transaction.CollectiveId;
-      }
-    }
+    // The direction is carried by the sign of the amount: positive (vendor is credited) for regular transactions,
+    // negative (vendor is debited, tax goes back to the account) for refunds since their taxAmount is already flipped.
+    const CollectiveId = vendor.id;
+    const FromCollectiveId = transaction.kind === EXPENSE ? transaction.FromCollectiveId : transaction.CollectiveId;
 
     const taxTransactionData = {
       type: CREDIT,
@@ -1256,7 +1261,7 @@ class Transaction extends ModelWithPublicId<
     });
 
     let hostFeeShareDebtTransaction;
-    if (!transaction.data.isPlatformRevenueDirectlyCollected) {
+    if (!transaction.data?.isPlatformRevenueDirectlyCollected) {
       hostFeeShareDebtTransaction = await Transaction.createHostFeeShareDebtTransactions(
         { hostFeeShareTransaction },
         { sequelizeTransaction },
@@ -1678,7 +1683,7 @@ class Transaction extends ModelWithPublicId<
       oppositeTransaction.platformFeeInHostCurrency || 0,
       roundCentsAmount(
         (transaction.platformFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate,
-        transaction.hostCurrency,
+        oppositeTransaction.hostCurrency,
       ),
       'platformFeeInHostCurrency in oppositeTransaction should match',
     );
@@ -1687,7 +1692,7 @@ class Transaction extends ModelWithPublicId<
       oppositeTransaction.hostFeeInHostCurrency || 0,
       roundCentsAmount(
         (transaction.hostFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate,
-        transaction.hostCurrency,
+        oppositeTransaction.hostCurrency,
       ),
       'hostFeeInHostCurrency in oppositeTransaction should match',
     );
@@ -1696,7 +1701,7 @@ class Transaction extends ModelWithPublicId<
       oppositeTransaction.paymentProcessorFeeInHostCurrency || 0,
       roundCentsAmount(
         (transaction.paymentProcessorFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate,
-        transaction.hostCurrency,
+        oppositeTransaction.hostCurrency,
       ),
       'paymentProcessorFeeInHostCurrency in oppositeTransaction should match',
     );

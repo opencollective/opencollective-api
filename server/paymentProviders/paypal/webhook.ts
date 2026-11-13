@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import Debug from 'debug';
 import { Request } from 'express';
-import { get, toNumber } from 'lodash';
+import { get, omit, toNumber } from 'lodash';
 import moment from 'moment';
 
 import FEATURE from '../../constants/feature';
@@ -12,17 +12,19 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { floatAmountToCents } from '../../lib/currency';
 import logger from '../../lib/logger';
+import { applyPendingTierChangeAfterCharge } from '../../lib/order-tier-change';
 import { createRefundTransaction, pauseOrderInDb } from '../../lib/payments';
 import { validateWebhookEvent, WatchedPaypalWebhookEvent } from '../../lib/paypal';
 import { recordOrderProcessed } from '../../lib/recurring-contributions';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
+import { MetricEvent, MetricFlow, MetricProvider, recordPaymentOutcome } from '../../lib/sentry/metrics';
 import models from '../../models';
 import { PayoutWebhookRequest, PaypalCapture, PaypalRefund } from '../../types/paypal';
 
 import { paypalRequestV2 } from './api';
 import { findTransactionByPaypalId, recordPaypalCapture, recordPaypalSale } from './payment';
 import { checkBatchItemStatus } from './payouts';
-import { CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON, CONTRIBUTION_PAUSED_MSG } from './subscription';
+import { CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON, markPaypalSubscriptionAsCancelledInDb } from './subscription';
 
 const debug = Debug('paypal:webhook');
 
@@ -122,6 +124,12 @@ async function handleSaleCompleted(req: Request): Promise<void> {
   let transaction;
   const { order } = await loadSubscriptionForWebhookEvent(req, subscriptionId);
   await order.lock(async () => {
+    // `lock` works on its own copy of the row: reload to get what was committed before the lock was acquired
+    // (e.g. a tier change), rather than what was loaded before waiting for it.
+    await order.reload();
+    // ...without the lock's own marker: it's released in SQL, later updates of `data` must not write it back
+    order.set('data', omit(order.data, ['lockedAt']), { raw: true });
+
     // 2.1 Make sure the sale hasn't already been recorded
     const existingTransaction = await findTransactionByPaypalId(sale.id, { OrderId: order.id });
     if (existingTransaction) {
@@ -131,6 +139,15 @@ async function handleSaleCompleted(req: Request): Promise<void> {
 
     // 2.2 Record the transaction
     transaction = await recordPaypalSale(order, sale);
+
+    // Terminal success of the payment attempt. Emitted after the existing-transaction dedupe above and
+    // once the ledger records the payment, so redeliveries count exactly once.
+    recordPaymentOutcome({
+      provider: MetricProvider.PAYPAL,
+      flow: MetricFlow.CONTRIBUTION,
+      method: order.paymentMethod.type,
+      outcome: MetricEvent.SUCCEEDED,
+    });
 
     // 2.3 Mark order/subscription as active
     if (order.status !== OrderStatus.ACTIVE) {
@@ -148,11 +165,14 @@ async function handleSaleCompleted(req: Request): Promise<void> {
     });
   });
 
-  // 3. Send "Thank you" (order.processed) email & record activity
+  // 3. Apply a tier change waiting for this payment (e.g. tier upgrade approved through a new PayPal subscription)
+  await applyPendingTierChangeAfterCharge(order, transaction);
+
+  // 4. Send "Thank you" (order.processed) email & record activity
   const isFirstPayment = order.Subscription.chargeNumber === 1;
   await recordOrderProcessed(order, transaction, { isFirstPayment });
 
-  // 4. Register user as a member, since the transaction is not created in `processOrder`
+  // 5. Register user as a member, since the transaction is not created in `processOrder`
   // for PayPal subscriptions.
   await order.getOrCreateMembers();
 }
@@ -212,6 +232,15 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
 
     // Record the transaction
     transaction = await recordPaypalCapture(order, capture);
+
+    // Terminal success of the payment attempt (after the existing-transaction dedupe above, inside the lock)
+    recordPaymentOutcome({
+      provider: MetricProvider.PAYPAL,
+      flow: MetricFlow.CONTRIBUTION,
+      method: order.paymentMethod.type,
+      outcome: MetricEvent.SUCCEEDED,
+    });
+
     await order.update({ processedAt: new Date(), status: OrderStatus.PAID });
   });
 
@@ -437,22 +466,10 @@ async function handleSubscriptionCancelled(req: Request): Promise<void> {
   }
 
   const { order } = result;
-  if (order.status !== OrderStatus.CANCELLED) {
-    const shouldKeepPaused = subscription.status_change_note === CONTRIBUTION_PAUSED_MSG;
-    await order.update({
-      status: order.status === OrderStatus.PAUSED && shouldKeepPaused ? OrderStatus.PAUSED : OrderStatus.CANCELLED,
-      data: { ...order.data, paypalStatusChangeNote: subscription.status_change_note },
-    });
-  }
-
-  if (order.Subscription.isActive || !order.Subscription.deactivatedAt) {
-    await order.Subscription.update({
-      isActive: false,
-      deactivatedAt: new Date(),
-      nextChargeDate: null,
-      data: { ...order.Subscription.data, deactivatedFromPayPalWebhook: true },
-    });
-  }
+  await markPaypalSubscriptionAsCancelledInDb(order, {
+    statusChangeNote: subscription.status_change_note,
+    subscriptionData: { deactivatedFromPayPalWebhook: true },
+  });
 }
 
 /**
@@ -504,7 +521,7 @@ const ignoreWebhookEvent = (req: Request): Promise<void> => {
 
 const EventHandlers: Record<WatchedPaypalWebhookEvent, (req: Request) => Promise<void>> = {
   // These payout events are all ignored, especially since https://github.com/opencollective/opencollective-api/commit/641ce51e57e818530571e86d23d54b292bee52a8#diff-439d2ae7fe1dcbd7d538ed0df2359e38309366f6a9785f9e7ebc297e5e0a7068
-  // opencollective-api/cron/hourly/11-check-pending-paypal-expenses.js is handling the sync, so data should still be up-to-date
+  // opencollective-api/cron/hourly/11-check-pending-paypal-expenses.ts is handling the sync, so data should still be up-to-date
   // Handling them would allow for faster sync: https://github.com/opencollective/opencollective/issues/8789
   [WatchedPaypalWebhookEvent.PAYOUTS_BATCH_DENIED]: ignoreWebhookEvent,
   [WatchedPaypalWebhookEvent.PAYOUTS_BATCH_PROCESSING]: ignoreWebhookEvent,

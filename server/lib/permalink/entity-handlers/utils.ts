@@ -1,5 +1,7 @@
 import express from 'express';
 
+import Collective from '../../../models/Collective';
+
 export type Handler = (req: express.Request, res: express.Response) => Promise<void>;
 
 export const notFound = (res: express.Response) => res.redirect(302, '/not-found');
@@ -28,7 +30,9 @@ export const getDashboardRoute = (
   return query ? `${route}?${query}` : route;
 };
 
-export const getCollectivePageRoute = async (collective: any): Promise<string> => {
+export const getCollectivePageRoute = async (
+  collective: Collective & { parentCollective?: Collective },
+): Promise<string> => {
   if (!collective) {
     return '';
   }

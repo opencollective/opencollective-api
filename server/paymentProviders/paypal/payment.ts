@@ -12,7 +12,8 @@ import {
   isPlatformTipEligible,
 } from '../../lib/payments';
 import { paypalAmountToCents } from '../../lib/paypal';
-import { reportErrorToSentry } from '../../lib/sentry';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
+import { MetricEvent, MetricFlow, MetricProvider, recordPaymentOutcome } from '../../lib/sentry/metrics';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 import Order from '../../models/Order';
@@ -40,6 +41,24 @@ const recordTransaction = async (
   if (!host) {
     throw new Error(`Cannot create transaction: collective id ${order.collective.id} doesn't have a host`);
   }
+
+  // Fees below are computed on the order amounts, so they will be off if PayPal charged something else. This
+  // happens when a subscription bills its outstanding balance with the next cycle (see `auto_bill_outstanding`
+  // and https://github.com/opencollective/opencollective/issues/6600).
+  if (amount !== order.totalAmount || currency !== order.currency) {
+    reportMessageToSentry('PayPal charged amount does not match the order amount', {
+      feature: FEATURE.PAYPAL_DONATIONS,
+      severity: 'warning',
+      extra: {
+        orderId: order.id,
+        amount,
+        currency,
+        orderTotalAmount: order.totalAmount,
+        orderCurrency: order.currency,
+      },
+    });
+  }
+
   const hostCurrency = host.currency;
   const hostFeeSharePercent = await getHostFeeSharePercent(order);
   const isSharedRevenue = !!hostFeeSharePercent;
@@ -109,7 +128,7 @@ export function recordPaypalTransaction(
 ): Promise<Transaction> {
   const currency = paypalTransaction.amount_with_breakdown.gross_amount.currency_code;
   const amount = floatAmountToCents(parseFloat(paypalTransaction.amount_with_breakdown.gross_amount.value));
-  const fee = parseFloat(get(paypalTransaction.amount_with_breakdown, 'fee_amount.value', '0.0'));
+  const fee = floatAmountToCents(parseFloat(get(paypalTransaction.amount_with_breakdown, 'fee_amount.value', '0.0')));
   return recordTransaction(order, amount, currency, fee, {
     data: { ...data, paypalTransaction, paypalCaptureId: paypalTransaction.id },
     createdAt,
@@ -205,6 +224,16 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<Transaction | u
 
       if (!transaction) {
         transaction = await recordPaypalCapture(order, captureDetails);
+
+        // Terminal success of the synchronous PayPal capture. Emitted only when this flow records the
+        // transaction: if the capture-completed webhook won the race (see the lock above), it created
+        // the transaction and already emitted, and we must not count the payment twice.
+        recordPaymentOutcome({
+          provider: MetricProvider.PAYPAL,
+          flow: MetricFlow.CONTRIBUTION,
+          method: order.paymentMethod.type,
+          outcome: MetricEvent.SUCCEEDED,
+        });
       }
     },
     {

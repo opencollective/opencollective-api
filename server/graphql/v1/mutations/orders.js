@@ -9,6 +9,7 @@ import { get, isEmpty, isNil, omit, pick, set } from 'lodash';
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
+import INTERVALS from '../../../constants/intervals';
 import status from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
@@ -18,13 +19,8 @@ import { checkCaptcha } from '../../../lib/check-captcha';
 import { roundCentsAmount } from '../../../lib/currency';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import { mustUpdateLocation } from '../../../lib/location';
-import {
-  calcFee,
-  executeOrder,
-  isBalanceOnlyCollectiveType,
-  isPlatformTipEligible,
-  processOrder,
-} from '../../../lib/payments';
+import { applyPendingTierChangeAfterCharge } from '../../../lib/order-tier-change';
+import { executeOrder, isBalanceOnlyCollectiveType, isPlatformTipEligible, processOrder } from '../../../lib/payments';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import {
   checkGuestContribution,
@@ -35,11 +31,20 @@ import {
 } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
 import { reportErrorToSentry } from '../../../lib/sentry';
+import {
+  mapErrorToType,
+  MetricEvent,
+  MetricFlow,
+  MetricProvider,
+  paymentServiceToMetricProvider,
+  recordPaymentOutcome,
+} from '../../../lib/sentry/metrics';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency } from '../../../lib/utils';
 import models, { Op, Order } from '../../../models';
 import { checkReceiveFinancialContributions } from '../../common/features';
+import { assertOrderAmountMatchesTier } from '../../common/orders';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
@@ -288,9 +293,17 @@ export async function createOrder(order, req) {
   let orderCreated, isGuest, guestToken;
   try {
     // ---- Set defaults ----
-    order.quantity = order.quantity || 1;
+    order.quantity = order.quantity ?? 1;
     order.taxAmount = order.taxAmount || 0;
     order.collective = collective;
+
+    if (!Number.isInteger(order.quantity) || order.quantity < 1) {
+      throw new ValidationFailed('Quantity must be at least 1');
+    }
+
+    if (order.platformTipAmount < 0) {
+      throw new ValidationFailed('Platform tip amount cannot be negative');
+    }
 
     let tier;
     if (order.tier) {
@@ -434,29 +447,32 @@ export async function createOrder(order, req) {
     }
 
     const tipAmount = order.platformTipAmount || 0;
-    const expectedGrossUnitAmount = tier?.amountType === 'FIXED' ? tier.amount || 0 : order.amount;
     const netAmountForCollective = roundCentsAmount(order.totalAmount - order.taxAmount - tipAmount, currency);
-    const expectedAmountForCollective = roundCentsAmount(order.quantity * expectedGrossUnitAmount, currency); // order.amount is always set when called from GraphQL v2
-    const expectedTaxAmount = calcFee(expectedAmountForCollective, taxPercent, currency);
-
-    // Make sure net amount and tax amount are correct
-    if (netAmountForCollective !== expectedAmountForCollective || order.taxAmount !== expectedTaxAmount) {
-      const prettyTotalAmount = formatCurrency(order.totalAmount, currency, 2);
-      const prettyExpectedAmount = formatCurrency(expectedAmountForCollective, currency, 2);
-      const taxInfoStr = expectedTaxAmount ? ` + ${formatCurrency(expectedTaxAmount, currency, 2)} tax` : '';
-      throw new Error(
-        `This tier uses a fixed amount. Order total must be ${prettyExpectedAmount}${taxInfoStr}. You set: ${prettyTotalAmount}`,
-      );
+    // A new order must never credit the collective with a negative net amount, even if
+    // `quantity × unitAmount` happens to be self-consistent with a negative quantity.
+    if (netAmountForCollective < 0) {
+      throw new ValidationFailed(`Invalid net amount for collective: ${netAmountForCollective}`);
     }
 
-    // If using a tier, amount can never be less than the minimum amount
-    if (tier && tier.minimumAmount) {
-      const minAmount = tier.minimumAmount * order.quantity;
-      const minTotalAmount = taxPercent ? roundCentsAmount(minAmount * (1 + taxPercent / 100), currency) : minAmount;
-      if ((order.totalAmount || 0) < minTotalAmount) {
-        const prettyMinTotal = formatCurrency(minTotalAmount, currency);
-        throw new Error(`The amount you set is below minimum tier value, it should be at least ${prettyMinTotal}`);
-      }
+    // Make sure the net amount and tax amount are correct, and that the amount matches the tier if there's one
+    assertOrderAmountMatchesTier(tier, {
+      baseAmountInCents: netAmountForCollective,
+      unitAmountInCents: order.amount, // order.amount is always set when called from GraphQL v2
+      taxAmountInCents: order.taxAmount,
+      totalAmountInCents: order.totalAmount,
+      quantity: order.quantity,
+      currency,
+      taxPercentage: taxPercent,
+    });
+
+    // Tiers with a fixed interval only accept contributions with this interval (free contributions excepted)
+    if (
+      tier?.interval &&
+      tier.interval !== INTERVALS.FLEXIBLE &&
+      tier.interval !== order.interval &&
+      order.amount > 0
+    ) {
+      throw new ValidationFailed(`This tier only accepts contributions with a "${tier.interval}" interval`);
     }
 
     // Default status, will get updated after the order is processed
@@ -610,7 +626,26 @@ export async function createOrder(order, req) {
         if (error.stripeResponse) {
           orderCreated.status = status.REQUIRE_CLIENT_CONFIRMATION;
         } else {
+          const wasAlreadyFailed = orderCreated.status === status.ERROR;
           orderCreated.status = status.ERROR;
+
+          // Terminal failure of a synchronous payment attempt - only when a payment method was set,
+          // and only when the order transitions to ERROR here (errors that already landed the order
+          // in ERROR, e.g. the PayPal subscription setup, have been counted at their own site).
+          // `REQUIRE_CLIENT_CONFIRMATION` (3DS) is not terminal and is not counted. Internal flows
+          // (opencollective service) are out of scope.
+          if (!wasAlreadyFailed) {
+            const provider = paymentServiceToMetricProvider(orderCreated.paymentMethod?.service);
+            if (provider === MetricProvider.STRIPE || provider === MetricProvider.PAYPAL) {
+              recordPaymentOutcome({
+                provider,
+                flow: MetricFlow.CONTRIBUTION,
+                method: orderCreated.paymentMethod.type,
+                outcome: MetricEvent.FAILED,
+                errorType: mapErrorToType(error),
+              });
+            }
+          }
         }
         // This is not working
         // orderCreated.data.error = { message: error.message };
@@ -687,7 +722,7 @@ export async function confirmOrder(order, remoteUser, guestToken) {
       await executeOrder(remoteUser, order);
       // executeOrder is updating the order to PAID
     } else {
-      await processOrder(order);
+      const transaction = await processOrder(order);
 
       order.status = status.ACTIVE;
       order.data = omit(order.data, ['error', 'latestError', 'stripePaymentIntent', 'needsConfirmation']);
@@ -699,6 +734,7 @@ export async function confirmOrder(order, remoteUser, guestToken) {
 
       await order.Subscription.save();
       await order.save();
+      await applyPendingTierChangeAfterCharge(order, transaction);
     }
 
     return order;

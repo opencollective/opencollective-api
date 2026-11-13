@@ -1,11 +1,13 @@
 /* eslint-disable camelcase */
 
+import * as Sentry from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
 import { set } from 'lodash';
 import sinon, { assert, createSandbox } from 'sinon';
 import Stripe from 'stripe';
 
+import ActivityTypes from '../../../../server/constants/activities';
 import { Service } from '../../../../server/constants/connected-account';
 import ExpenseStatuses from '../../../../server/constants/expense-status';
 import FEATURE from '../../../../server/constants/feature';
@@ -18,6 +20,7 @@ import { MAX_RETRIES } from '../../../../server/lib/recurring-contributions';
 import stripe from '../../../../server/lib/stripe';
 import * as transactions from '../../../../server/lib/transactions';
 import models, { Collective, Expense } from '../../../../server/models';
+import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import * as common from '../../../../server/paymentProviders/stripe/common';
 import * as webhook from '../../../../server/paymentProviders/stripe/webhook';
 import stripeMocks from '../../../mocks/stripe';
@@ -28,6 +31,7 @@ import {
   fakeExpense,
   fakeOrder,
   fakePaymentMethod,
+  fakePayoutMethod,
   fakeSubscription,
   fakeTransaction,
   fakeUser,
@@ -36,16 +40,33 @@ import {
 import * as utils from '../../../utils';
 
 describe('webhook', () => {
-  let sandbox;
+  let sandbox, metricsCountStub;
 
   beforeEach(async () => {
     await utils.resetTestDB();
     await utils.seedDefaultVendors();
     sandbox = createSandbox();
+    sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+    metricsCountStub = sandbox.stub(Sentry.metrics, 'count');
   });
 
   afterEach(() => {
     sandbox.restore();
+  });
+
+  describe('webhook()', () => {
+    for (const body of [undefined, null, {}, 'not-json', { livemode: true }, { type: 123, livemode: true }]) {
+      it(`rejects requests with an invalid body (${JSON.stringify(body)})`, async () => {
+        let error: Error | undefined;
+        try {
+          await webhook.webhook({ body, headers: {} } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.exist;
+        expect(error.message).to.equal('Source of event not recognized');
+      });
+    }
   });
 
   describe('chargeDisputeCreated()', () => {
@@ -324,7 +345,7 @@ describe('webhook', () => {
   });
 
   describe('reviewClosed()', () => {
-    let order, user;
+    let order, user, chargeTransaction;
 
     beforeEach(async () => {
       const paymentMethod = await fakePaymentMethod({
@@ -340,7 +361,7 @@ describe('webhook', () => {
         },
         { withSubscription: true },
       );
-      const tx = await fakeTransaction(
+      chargeTransaction = await fakeTransaction(
         {
           CreatedByUserId: user.id,
           OrderId: order.id,
@@ -357,7 +378,7 @@ describe('webhook', () => {
         {
           CreatedByUserId: user.id,
           OrderId: order.id,
-          TransactionGroup: tx.TransactionGroup,
+          TransactionGroup: chargeTransaction.TransactionGroup,
           amount: 5,
         },
         { createDoubleEntry: true },
@@ -489,6 +510,22 @@ describe('webhook', () => {
         const transactions = await order.getTransactions();
         expect(transactions.every(tx => tx.isInReview === false)).to.eql(true);
       });
+
+      it('does not refund again when the charge was already refunded in Open Collective', async () => {
+        await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+        // Refund through Open Collective first: refund transactions copy `data.charge` from the original
+        await libPayments.createRefundTransaction(chargeTransaction, 0, { ...chargeTransaction.data }, null);
+
+        await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded);
+
+        const transactions = await order.getTransactions();
+        expect(transactions.filter(tx => tx.isRefund)).to.have.length(2);
+        expect(transactions.every(tx => tx.isInReview === false)).to.eql(true);
+        const activity = await models.Activity.findOne({
+          where: { type: ActivityTypes.ORDER_REVIEW_CLOSED, OrderId: order.id },
+        });
+        expect(activity).to.exist;
+      });
     });
   });
 
@@ -566,6 +603,19 @@ describe('webhook', () => {
         await order.reload();
         expect(order.status).to.equal(OrderStatuses.PAID);
         expect(order.processedAt).to.not.be.null;
+      });
+
+      it('records a thirdparty payment outcome metric for the successful payment', async () => {
+        sandbox.stub(common, 'createChargeTransactions').resolves();
+        sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        expect(metricsCountStub).to.have.been.calledOnce;
+        expect(metricsCountStub.firstCall.args).to.deep.equal([
+          'thirdparty.stripe.payment.succeeded',
+          1,
+          { attributes: { flow: 'contribution', method: 'paymentintent' } },
+        ]);
       });
 
       it('does not process the order when PaymentIntent amount does not match', async () => {
@@ -749,6 +799,7 @@ describe('webhook', () => {
         // The existing-charge dedup short-circuits the handler before any side effect
         assert.notCalled(createChargeTransactionsStub);
         assert.notCalled(sendEmailNotificationsStub);
+        expect(metricsCountStub.called).to.be.false;
         await subscription.reload();
         expect(subscription.chargeNumber).to.equal(2);
       });
@@ -949,6 +1000,7 @@ describe('webhook', () => {
         expect(order.status).to.equal(OrderStatuses.PROCESSING);
         expect(order.data.stripePaymentIntent).to.have.property('id').not.equal('pi_notfound');
         assert.notCalled(order.update);
+        expect(metricsCountStub.called).to.be.false;
       });
 
       it('send email notification and updates order.status', async () => {
@@ -969,6 +1021,36 @@ describe('webhook', () => {
           },
           'Something went wrong with the payment, please contact support@opencollective.com.',
         );
+      });
+
+      it('records a thirdparty payment outcome metric for the failed payment', async () => {
+        sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+        set(event, 'data.object.last_payment_error', {
+          code: 'insufficient_funds',
+          message: 'Your card has insufficient funds.',
+        });
+
+        await webhook.stripePaymentIntentFailed(event);
+
+        expect(metricsCountStub).to.have.been.calledOnce;
+        expect(metricsCountStub.firstCall.args).to.deep.equal([
+          'thirdparty.stripe.payment.failed',
+          1,
+          { attributes: { flow: 'contribution', method: 'paymentintent', error_type: 'insufficient_funds' } },
+        ]);
+      });
+
+      it('does not record the metric again when the failure event is redelivered', async () => {
+        sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+        set(event, 'data.object.last_payment_error', {
+          code: 'card_declined',
+          message: 'Your card was declined.',
+        });
+
+        await webhook.stripePaymentIntentFailed(event);
+        await webhook.stripePaymentIntentFailed(event);
+
+        expect(metricsCountStub).to.have.been.calledOnce;
       });
 
       describe('when the order has a subscription', () => {
@@ -1338,10 +1420,15 @@ describe('webhook', () => {
 
       payee = await fakeCollective();
 
+      // Stripe expense payments are not necessarily paid through a STRIPE payout method (card-funded
+      // expense payments carry the payee's method), so use an explicit non-Stripe one here.
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.BANK_ACCOUNT });
+
       expense = await fakeExpense({
         status: ExpenseStatuses.APPROVED,
         Collective: payee.id,
         FromCollectiveId: fromCollective.id,
+        PayoutMethodId: payoutMethod.id,
         currency: 'USD',
         amount: 100e2,
         description: 'A expense to be paid with stripe',
@@ -1385,6 +1472,19 @@ describe('webhook', () => {
         expect(expense.status).to.eql(ExpenseStatuses.PAID);
       });
 
+      it('records a successful payment outcome metric when the expense payment succeeds', async () => {
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.PAID);
+        expect(metricsCountStub).to.have.been.calledOnce;
+        expect(metricsCountStub.firstCall.args).to.deep.equal([
+          'thirdparty.stripe.payment.succeeded',
+          1,
+          { attributes: { flow: 'payout', method: 'BANK_ACCOUNT' } },
+        ]);
+      });
+
       it('does not mark expense as PAID when PaymentIntent amount does not match the expense', async () => {
         event.data.object.amount = 50e2;
         await webhook.stripePaymentIntentSucceeded(event);
@@ -1392,6 +1492,7 @@ describe('webhook', () => {
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
         expect(transactions.createTransactionsFromPaidStripeExpense).to.not.have.been.called;
+        expect(metricsCountStub.called).to.be.false;
       });
 
       it('does not mark expense as PAID when PaymentIntent currency does not match the expense', async () => {
@@ -1422,11 +1523,27 @@ describe('webhook', () => {
         expect(expense.status).to.eql(ExpenseStatuses.ERROR);
       });
 
+      it('records a failed payment outcome metric when the expense payment fails', async () => {
+        event.data.object.last_payment_error = { code: 'card_declined', message: 'Your card was declined.' };
+        await webhook.stripePaymentIntentProcessing(event);
+        await webhook.stripePaymentIntentFailed(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.ERROR);
+        expect(metricsCountStub).to.have.been.calledOnce;
+        expect(metricsCountStub.firstCall.args).to.deep.equal([
+          'thirdparty.stripe.payment.failed',
+          1,
+          { attributes: { flow: 'payout', method: 'BANK_ACCOUNT', error_type: 'card_declined' } },
+        ]);
+      });
+
       it('keeps expense status if payment failed immediately', async () => {
         await webhook.stripePaymentIntentFailed(event);
 
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
+        expect(metricsCountStub.called).to.be.false;
       });
     });
   });

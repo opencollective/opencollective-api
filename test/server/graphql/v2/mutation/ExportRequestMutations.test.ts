@@ -231,6 +231,49 @@ describe('server/graphql/v2/mutation/ExportRequestMutations', () => {
         'The User Token is not allowed for operations in scope "transactions".',
       );
     });
+
+    it('rejects OAuth token without incognito scope for TRANSACTIONS exports', async () => {
+      const adminUser = await fakeUser();
+      const collective = await fakeCollective({ admin: adminUser });
+      const tokenWithoutIncognito = await fakeUserToken({
+        user: adminUser,
+        scope: ['exportRequests', 'transactions'],
+      });
+      const tokenWithIncognito = await fakeUserToken({
+        user: adminUser,
+        scope: ['exportRequests', 'transactions', 'incognito'],
+      });
+
+      const withoutIncognito = await oAuthGraphqlQueryV2(
+        createExportRequestMutation,
+        {
+          exportRequest: {
+            account: { legacyId: collective.id },
+            name: 'No Incognito',
+            type: 'TRANSACTIONS',
+          },
+        },
+        tokenWithoutIncognito,
+      );
+      expect(withoutIncognito.errors).to.exist;
+      expect(withoutIncognito.errors[0].message).to.equal(
+        'The User Token is not allowed for operations in scope "incognito".',
+      );
+
+      const withIncognito = await oAuthGraphqlQueryV2(
+        createExportRequestMutation,
+        {
+          exportRequest: {
+            account: { legacyId: collective.id },
+            name: 'With Incognito',
+            type: 'TRANSACTIONS',
+          },
+        },
+        tokenWithIncognito,
+      );
+      expect(withIncognito.errors).to.not.exist;
+      expect(withIncognito.data.createExportRequest.id).to.exist;
+    });
   });
 
   describe('editExportRequest', () => {

@@ -175,7 +175,6 @@ describe('GraphQL Armor Protection Tests', () => {
         virtualCardMerchants { ${paginationFields} nodes { id name } }
         activitySubscriptions { id channel }
         permissions { id }
-        transactionGroups { ${paginationFields} nodes { id } }
         transactionReports { nodes { date } }
         transactions { ${paginationFields} nodes { id amount { valueInCents currency } } }
         orders { ${paginationFields} nodes { id amount { valueInCents currency } } }

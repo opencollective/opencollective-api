@@ -30,6 +30,15 @@ import { BasePaymentProviderService } from '../types';
 
 export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 
+/**
+ * Older API versions expose the charges of a PaymentIntent through a `charges` list, which is not part of the
+ * `PaymentIntent` type in the current version of the Stripe SDK. Prefer `latest_charge` whenever possible.
+ */
+export const getPaymentIntentCharge = (paymentIntent: Stripe.PaymentIntent): Stripe.Charge | undefined => {
+  const legacyCharges = (paymentIntent as Stripe.PaymentIntent & { charges?: Stripe.ApiList<Stripe.Charge> }).charges;
+  return legacyCharges?.data?.[0];
+};
+
 /** Refund a given transaction */
 export const refundTransaction: BasePaymentProviderService['refundTransaction'] = async (
   transaction: Transaction,
@@ -532,8 +541,7 @@ export async function createPaymentMethod(
   },
   createOptions?: CreateOptions,
 ): Promise<PaymentMethod> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const paymentIntentCharge: Stripe.Charge = (originPaymentIntent as any)?.charges?.data?.[0];
+  const paymentIntentCharge = originPaymentIntent ? getPaymentIntentCharge(originPaymentIntent) : undefined;
   const paymentMethodChargeDetails = paymentIntentCharge?.payment_method_details;
 
   const paymentMethodData: Record<string, unknown> = {

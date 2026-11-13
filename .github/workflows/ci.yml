@@ -34,7 +34,7 @@ env:
 
 jobs:
   lint:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     steps:
@@ -57,7 +57,7 @@ jobs:
       - run: npm run lint:check
 
   prettier:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     steps:
@@ -80,7 +80,7 @@ jobs:
       - run: npm run prettier:check
 
   typescript:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     steps:
@@ -96,14 +96,13 @@ jobs:
         uses: actions/cache@v6
         with:
           path: tsconfig.tsbuildinfo
+          # Exact commit only: restoring tsbuildinfo from another SHA corrupts incremental state and can crash tsc (stack overflow on TS 6).
           key: ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-tsc-${{ hashFiles('tsconfig.json', 'package-lock.json') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-tsc-${{ hashFiles('tsconfig.json', 'package-lock.json') }}-
 
       - run: npm run type:check
 
   depcheck:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     steps:
@@ -118,7 +117,7 @@ jobs:
       - run: npm run depcheck
 
   ts-unused-exports:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     steps:
@@ -134,7 +133,7 @@ jobs:
         run: npm run ts-unused-exports
 
   build:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     steps:
@@ -150,18 +149,17 @@ jobs:
         run: npm run build
 
   test:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     env:
       PG_DATABASE: opencollective_test
     services:
       redis:
-        image: redis@sha256:8a1efc5f479551822b47424ccae982026b633f28818eab0387348120a61e10e2
+        image: valkey/valkey:9.1
         ports:
           - 6379:6379
-        options: --entrypoint redis-server
       postgres:
-        image: postgres:16.15@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
+        image: postgres:16.15
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -188,14 +186,10 @@ jobs:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
       # The ubuntu-26.04 image ships PostgreSQL 18 client tools, whose pg_restore emits
-      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Install the 16 client from PGDG.
-      - name: Install PostgreSQL 16 client
-        run: |
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get install -y postgresql-client-16
-          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
-
+      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Run them from the postgres:16 image.
       - run: npm run db:restore:test
+        env:
+          USE_DOCKER: true
 
       - name: Test
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'
@@ -214,13 +208,15 @@ jobs:
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: Unit
+          files: test-results.xml
+          report_type: test_results
 
   test-graphql:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
 
     env:
@@ -228,12 +224,11 @@ jobs:
 
     services:
       redis:
-        image: redis@sha256:8a1efc5f479551822b47424ccae982026b633f28818eab0387348120a61e10e2
+        image: valkey/valkey:9.1
         ports:
           - 6379:6379
-        options: --entrypoint redis-server
       postgres:
-        image: postgres:16.15@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
+        image: postgres:16.15
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -242,7 +237,7 @@ jobs:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 5
       opensearch:
-        image: opensearchproject/opensearch:3@sha256:fafe3fc3587088674669235575aa166228c48bdb940294a8cdbbc1da75236a40
+        image: opensearchproject/opensearch:3
         ports:
           - 9200:9200
         env:
@@ -272,14 +267,10 @@ jobs:
           CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
 
       # The ubuntu-26.04 image ships PostgreSQL 18 client tools, whose pg_restore emits
-      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Install the 16 client from PGDG.
-      - name: Install PostgreSQL 16 client
-        run: |
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get install -y postgresql-client-16
-          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
-
+      # `SET transaction_timeout` that the PostgreSQL 16 service rejects. Run them from the postgres:16 image.
       - run: npm run db:restore:test
+        env:
+          USE_DOCKER: true
 
       - name: Test
         if: github.event_name != 'push' || github.ref != 'refs/heads/main'
@@ -298,22 +289,23 @@ jobs:
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: test-results.xml
+          report_type: test_results
 
   schema-update:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
 
     services:
       redis:
-        image: redis@sha256:8a1efc5f479551822b47424ccae982026b633f28818eab0387348120a61e10e2
+        image: valkey/valkey:9.1
         ports:
           - 6379:6379
-        options: --entrypoint redis-server
       postgres:
-        image: postgres:16.15@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
+        image: postgres:16.15
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -336,7 +328,7 @@ jobs:
 
   graphql-inspector:
     name: GraphQL Inspector
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-26.04
     # The action publishes its results as check runs (with annotations) and reads PR labels for the
     # approve-label override. Workflows triggered by Dependabot get a read-only GITHUB_TOKEN by
     # default, so the write scope must be requested explicitly. This job never installs or runs

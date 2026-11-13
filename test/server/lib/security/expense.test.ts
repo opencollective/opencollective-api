@@ -1,18 +1,31 @@
 import { expect } from 'chai';
 import { pick } from 'lodash';
+import sinon from 'sinon';
 
 import { CollectiveType } from '../../../../server/constants/collectives';
 import { Service } from '../../../../server/constants/connected-account';
 import OrderStatuses from '../../../../server/constants/order-status';
+import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import { checkExpense, checkExpensesBatch } from '../../../../server/lib/security/expense';
+import models from '../../../../server/models';
+import LegalDocument, {
+  LEGAL_DOCUMENT_REQUEST_STATUS,
+  LEGAL_DOCUMENT_SERVICE,
+} from '../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import {
   fakeCollective,
   fakeConnectedAccount,
+  fakeCurrencyExchangeRate,
   fakeExpense,
   fakeExpenseAttachedFile,
+  fakeHost,
+  fakeLegalDocument,
+  fakeLocation,
   fakeOrder,
   fakePayoutMethod,
+  fakeRequiredLegalDocument,
+  fakeTransaction,
   fakeUploadedFile,
   fakeUser,
   multiple,
@@ -22,6 +35,39 @@ import {
 import { makeRequest, resetTestDB } from '../../../utils';
 
 const snapshotChecks = checks => checks.map(c => pick(c, ['scope', 'level', 'message']));
+
+const encryptFormData = (values: Record<string, unknown>): string => {
+  return LegalDocument.encrypt(Buffer.from(JSON.stringify(values))).toString('base64');
+};
+
+const buildW9LegalDocumentData = ({
+  businessName,
+  signerFirstName,
+  signerLastName,
+  country,
+  city,
+  postalCode,
+  taxIdNumber,
+}: {
+  businessName: string;
+  signerFirstName: string;
+  signerLastName: string;
+  country: string;
+  city: string;
+  postalCode: string;
+  taxIdNumber: string;
+}) => ({
+  encryptedFormData: encryptFormData({
+    formType: 'W9',
+    submitterType: 'Business',
+    email: 'payee@example.com',
+    signer: { firstName: signerFirstName, middleName: '', lastName: signerLastName },
+    businessName,
+    taxIdNumberType: 'EIN',
+    taxIdNumber,
+    location: { country, structured: { address1: '1 Main St', city, postalCode } },
+  }),
+});
 
 describe('lib/security/expense', () => {
   before(resetTestDB);
@@ -146,6 +192,569 @@ describe('lib/security/expense', () => {
           message: 'Same attachment uploaded to multiple expenses',
         },
       ]);
+    });
+  });
+
+  describe('expense stats and amounts', () => {
+    const loadExpenseForChecks = id =>
+      models.Expense.findByPk(id, {
+        include: [
+          { association: 'collective' },
+          { association: 'fromCollective' },
+          { model: models.User, as: 'User', include: [{ association: 'collective' }] },
+          { association: 'PayoutMethod' },
+        ],
+      });
+
+    it('counts payments in this collective separately from payments on the platform', async () => {
+      const user = await fakeUser();
+      const host = await fakeHost();
+      const [collective, otherCollective] = await multiple(fakeCollective, 2, { HostCollectiveId: host.id });
+      const payoutMethod = await fakePayoutMethod({
+        type: PayoutMethodTypes.PAYPAL,
+        data: { email: `${randStr('paypal-')}@example.com` },
+        CollectiveId: user.CollectiveId,
+      });
+      const expenseData = {
+        UserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        PayoutMethodId: payoutMethod.id,
+        status: 'PAID' as const,
+      };
+
+      // The most recent paid expenses are in `collective`, so its stats row comes first
+      await multiple(fakeExpense, 3, {
+        ...expenseData,
+        CollectiveId: otherCollective.id,
+        createdAt: new Date('2020-01-01'),
+      });
+      await multiple(fakeExpense, 2, {
+        ...expenseData,
+        CollectiveId: collective.id,
+        createdAt: new Date('2021-01-01'),
+      });
+      const expense = await fakeExpense({ ...expenseData, CollectiveId: collective.id, status: 'PENDING' });
+
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+      expect(checks).to.containSubset([
+        {
+          scope: 'USER',
+          message: 'User was successfully paid 2 times by this collective and 5 times on the platform',
+        },
+        {
+          scope: 'PAYOUT_METHOD',
+          message: 'Payout Method was successfully paid 2 times by this collective and 5 times on the platform',
+        },
+      ]);
+    });
+
+    it('converts expense amounts with the latest exchange rate before the expense', async () => {
+      const host = await fakeHost({ currency: 'USD' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      // A paid expense, so that the "higher than usual" check is computed
+      await fakeExpense({ CollectiveId: collective.id, currency: 'USD', amount: 100, status: 'PAID' });
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        currency: 'GBP',
+        amount: 10000,
+        status: 'PENDING',
+        createdAt: new Date('2022-06-15'),
+      });
+      const oldExpense = await fakeExpense({
+        CollectiveId: collective.id,
+        currency: 'GBP',
+        amount: 10000,
+        status: 'PENDING',
+        createdAt: new Date('2019-06-15'),
+      });
+
+      for (const [createdAt, rate] of [
+        ['2020-01-01', 1.5],
+        ['2021-01-01', 2],
+        ['2022-01-01', 3],
+      ] as const) {
+        await fakeCurrencyExchangeRate({ from: 'GBP', to: 'USD', rate, createdAt: new Date(createdAt) });
+      }
+
+      const [checks, oldExpenseChecks] = await checkExpensesBatch(makeRequest() as any, [
+        await loadExpenseForChecks(expense.id),
+        await loadExpenseForChecks(oldExpense.id),
+      ]);
+
+      // Latest rate before 2022-06-15 is the 2022 one: £100 * 3 = $300
+      const amountCheck = checks.find(c => c.message === 'Amount is higher than usual');
+      expect(amountCheck.details).to.contain('$300.00');
+
+      // No rate before 2019-06-15: falls back to the oldest one (2020): £100 * 1.5 = $150
+      const oldAmountCheck = oldExpenseChecks.find(c => c.message === 'Amount is higher than usual');
+      expect(oldAmountCheck.details).to.contain('$150.00');
+    });
+
+    it('converts collective balances that are not in the display currency', async () => {
+      await fakeCurrencyExchangeRate({ from: 'EUR', to: 'USD', rate: 1.1 });
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', rate: 1 / 1.1 });
+
+      const createApprovedExpense = async (currency: 'USD' | 'EUR') => {
+        const host = await fakeHost({ currency });
+        const collective = await fakeCollective({ HostCollectiveId: host.id, currency });
+        // Balance of 1000.00
+        await fakeTransaction(
+          {
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100000,
+            currency,
+            hostCurrency: currency,
+            amountInHostCurrency: 100000,
+            netAmountInCollectiveCurrency: 100000,
+            kind: TransactionKind.CONTRIBUTION,
+          },
+          { createDoubleEntry: true },
+        );
+        // An approved expense of 10.00, well below the balance
+        const expense = await fakeExpense({ CollectiveId: collective.id, amount: 1000, currency, status: 'APPROVED' });
+        return loadExpenseForChecks(expense.id);
+      };
+
+      // The display currency comes from the first expense's host (USD), so the EUR balance gets converted
+      const usdExpense = await createApprovedExpense('USD');
+      const eurExpense = await createApprovedExpense('EUR');
+      const [usdChecks, eurChecks] = await checkExpensesBatch(makeRequest() as any, [usdExpense, eurExpense]);
+      const findBalanceCheck = checks =>
+        checks.find(c => c.message === 'The total amount of approved expenses is higher than the collective balance');
+      expect(findBalanceCheck(usdChecks)).to.be.undefined;
+      expect(findBalanceCheck(eurChecks)).to.be.undefined;
+    });
+  });
+
+  describe('legal document checks', () => {
+    let sandbox: sinon.SinonSandbox;
+    const getLegalDocumentChecks = checks => checks.filter(check => check.scope === 'LEGAL_DOCUMENT');
+
+    const createPayeeWithLocation = async ({
+      legalName,
+      countryISO,
+      city,
+      postalCode,
+    }: {
+      legalName: string;
+      countryISO: string;
+      city: string;
+      postalCode: string;
+    }) => {
+      const payee = await fakeCollective({ type: CollectiveType.ORGANIZATION, legalName, countryISO });
+      await fakeLocation({ CollectiveId: payee.id, country: countryISO, structured: { city, postalCode } });
+      return payee;
+    };
+
+    const createHost = async ({ requiresTaxForm = true } = {}) => {
+      const host = await fakeHost();
+      if (requiresTaxForm) {
+        await fakeRequiredLegalDocument({ HostCollectiveId: host.id });
+      }
+      return host;
+    };
+
+    const createProcessingCollective = (host: { id: number }) => fakeCollective({ HostCollectiveId: host.id });
+
+    const createExpenseForPayee = async (payee: { id: number }) => {
+      const host = await createHost();
+      const collective = await createProcessingCollective(host);
+      return fakeExpense({ CollectiveId: collective.id, FromCollectiveId: payee.id });
+    };
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('flags name, address and country mismatches with the submitted legal document', async () => {
+      const payee = await createPayeeWithLocation({
+        legalName: 'Acme Inc',
+        countryISO: 'FR',
+        city: 'Paris',
+        postalCode: '75001',
+      });
+      await fakeLegalDocument({
+        CollectiveId: payee.id,
+        service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+        data: buildW9LegalDocumentData({
+          businessName: 'Evil Corp',
+          signerFirstName: 'Jane',
+          signerLastName: 'Doe',
+          country: 'US',
+          city: 'New York',
+          postalCode: '10001',
+          taxIdNumber: '12-3456789',
+        }),
+      });
+
+      const expense = await createExpenseForPayee(payee);
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+      const legalDocumentChecks = getLegalDocumentChecks(checks);
+
+      expect(legalDocumentChecks).to.have.length(3);
+      expect(legalDocumentChecks).to.containSubset([
+        {
+          scope: 'LEGAL_DOCUMENT',
+          level: 'MEDIUM',
+          message: 'Legal document name does not match the payee name',
+        },
+        {
+          scope: 'LEGAL_DOCUMENT',
+          level: 'MEDIUM',
+          message: 'Legal document address does not match the payee address',
+        },
+        {
+          scope: 'LEGAL_DOCUMENT',
+          level: 'MEDIUM',
+          message: 'Legal document country does not match the payee country',
+        },
+      ]);
+      expect(legalDocumentChecks.map(check => check.level)).to.not.include('HIGH');
+      expect(legalDocumentChecks.find(check => check.message.includes('name')).details).to.include(
+        'The name on the legal document ("Jane Doe" / "Evil Corp") does not match the payee name ("Acme Inc").',
+      );
+      expect(legalDocumentChecks.find(check => check.message.includes('address')).details).to.eq(
+        'The legal document lists "New York, 10001 (US)", while the payee is registered at "Paris, 75001 (FR)".',
+      );
+      expect(legalDocumentChecks.find(check => check.message.includes('country')).details).to.eq(
+        'The legal document lists the country "US", while the payee is registered in "FR".',
+      );
+      // Tax IDs must never leak into the checks
+      expect(JSON.stringify(legalDocumentChecks)).to.not.include('12-3456789');
+    });
+
+    it('flags mismatches with the payout method bank account', async () => {
+      const payee = await createPayeeWithLocation({
+        legalName: 'Acme Inc',
+        countryISO: 'FR',
+        city: 'Paris',
+        postalCode: '75001',
+      });
+      await fakeLegalDocument({
+        CollectiveId: payee.id,
+        service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+        data: buildW9LegalDocumentData({
+          businessName: 'Acme Inc',
+          signerFirstName: 'Jane',
+          signerLastName: 'Doe',
+          country: 'FR',
+          city: 'Paris',
+          postalCode: '75001',
+          taxIdNumber: '12-3456789',
+        }),
+      });
+      const payoutMethod = await fakePayoutMethod({
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        CollectiveId: payee.id,
+        data: {
+          accountHolderName: 'Evil Corp',
+          currency: 'USD',
+          type: 'aba',
+          details: {
+            address: { country: 'US', city: 'New York', postCode: '10001', firstLine: '1 Main St', state: 'NY' },
+          },
+        },
+      });
+
+      const host = await createHost();
+      const collective = await createProcessingCollective(host);
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: payee.id,
+        PayoutMethodId: payoutMethod.id,
+      });
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+      const legalDocumentChecks = getLegalDocumentChecks(checks);
+
+      expect(legalDocumentChecks).to.have.length(3);
+      expect(legalDocumentChecks).to.containSubset([
+        {
+          scope: 'LEGAL_DOCUMENT',
+          level: 'MEDIUM',
+          message: 'Legal document name does not match the payout method account holder name',
+        },
+        {
+          scope: 'LEGAL_DOCUMENT',
+          level: 'MEDIUM',
+          message: 'Legal document address does not match the payout method address',
+        },
+        {
+          scope: 'LEGAL_DOCUMENT',
+          level: 'MEDIUM',
+          message: 'Legal document country does not match the payout method country',
+        },
+      ]);
+      expect(legalDocumentChecks.find(check => check.message.includes('name')).details).to.eq(
+        'The name on the legal document ("Jane Doe" / "Acme Inc") does not match the payout method account holder name ("Evil Corp").',
+      );
+      expect(legalDocumentChecks.find(check => check.message.includes('address')).details).to.eq(
+        'The legal document lists "Paris, 75001 (FR)", while the payout method is registered at "New York, 10001 (US)".',
+      );
+      expect(legalDocumentChecks.find(check => check.message.includes('country')).details).to.eq(
+        'The legal document lists the country "FR", while the payout method is registered in "US".',
+      );
+      expect(JSON.stringify(legalDocumentChecks)).to.not.include('12-3456789');
+    });
+
+    it('does not flag bank account details when the legal document matches them', async () => {
+      const payee = await createPayeeWithLocation({
+        legalName: 'Acme Inc',
+        countryISO: 'FR',
+        city: 'Paris',
+        postalCode: '75001',
+      });
+      await fakeLegalDocument({
+        CollectiveId: payee.id,
+        service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+        data: buildW9LegalDocumentData({
+          businessName: 'Acme Inc',
+          signerFirstName: 'Jane',
+          signerLastName: 'Doe',
+          country: 'FR',
+          city: 'Paris',
+          postalCode: '75001',
+          taxIdNumber: '12-3456789',
+        }),
+      });
+      const payoutMethod = await fakePayoutMethod({
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        CollectiveId: payee.id,
+        data: {
+          accountHolderName: 'Acme Inc',
+          currency: 'USD',
+          type: 'aba',
+          details: {
+            address: { country: 'FR', city: 'Paris', postCode: '75001', firstLine: '1 Main St', state: 'IDF' },
+          },
+        },
+      });
+
+      const host = await createHost();
+      const collective = await createProcessingCollective(host);
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: payee.id,
+        PayoutMethodId: payoutMethod.id,
+      });
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+      expect(getLegalDocumentChecks(checks)).to.be.empty;
+    });
+
+    it('does not flag anything when the legal document matches the payee', async () => {
+      const payee = await createPayeeWithLocation({
+        legalName: 'Acme Inc',
+        countryISO: 'FR',
+        city: 'Paris',
+        postalCode: '75001',
+      });
+      await fakeLegalDocument({
+        CollectiveId: payee.id,
+        service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+        data: buildW9LegalDocumentData({
+          businessName: 'Acme Inc',
+          signerFirstName: 'Jane',
+          signerLastName: 'Doe',
+          country: 'FR',
+          city: 'Paris',
+          postalCode: '75001',
+          taxIdNumber: '12-3456789',
+        }),
+      });
+
+      const expense = await createExpenseForPayee(payee);
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+      expect(getLegalDocumentChecks(checks)).to.be.empty;
+    });
+
+    it('ignores documents that are not RECEIVED', async () => {
+      const payee = await createPayeeWithLocation({
+        legalName: 'Acme Inc',
+        countryISO: 'FR',
+        city: 'Paris',
+        postalCode: '75001',
+      });
+      await fakeLegalDocument({
+        CollectiveId: payee.id,
+        service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
+        data: buildW9LegalDocumentData({
+          businessName: 'Evil Corp',
+          signerFirstName: 'Jane',
+          signerLastName: 'Doe',
+          country: 'US',
+          city: 'New York',
+          postalCode: '10001',
+          taxIdNumber: '12-3456789',
+        }),
+      });
+
+      const expense = await createExpenseForPayee(payee);
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+      expect(getLegalDocumentChecks(checks)).to.be.empty;
+    });
+
+    it('does not throw when the legal document payload cannot be decrypted', async () => {
+      const payee = await createPayeeWithLocation({
+        legalName: 'Acme Inc',
+        countryISO: 'FR',
+        city: 'Paris',
+        postalCode: '75001',
+      });
+      await fakeLegalDocument({
+        CollectiveId: payee.id,
+        service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+        data: { encryptedFormData: 'not-a-valid-payload' },
+      });
+
+      const expense = await createExpenseForPayee(payee);
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+      expect(getLegalDocumentChecks(checks)).to.be.empty;
+    });
+
+    it('ignores legal documents when the fiscal host does not require tax forms', async () => {
+      const host = await createHost({ requiresTaxForm: false });
+      const collective = await createProcessingCollective(host);
+      const payee = await createPayeeWithLocation({
+        legalName: 'Acme Inc',
+        countryISO: 'FR',
+        city: 'Paris',
+        postalCode: '75001',
+      });
+      await fakeLegalDocument({
+        CollectiveId: payee.id,
+        service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+        data: buildW9LegalDocumentData({
+          businessName: 'Evil Corp',
+          signerFirstName: 'Jane',
+          signerLastName: 'Doe',
+          country: 'US',
+          city: 'New York',
+          postalCode: '10001',
+          taxIdNumber: '12-3456789',
+        }),
+      });
+
+      const expense = await fakeExpense({ CollectiveId: collective.id, FromCollectiveId: payee.id });
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+      expect(getLegalDocumentChecks(checks)).to.be.empty;
+    });
+
+    it('skips tax form requirement lookups when no payee has a legal document', async () => {
+      const payee = await createPayeeWithLocation({
+        legalName: 'Acme Inc',
+        countryISO: 'FR',
+        city: 'Paris',
+        postalCode: '75001',
+      });
+      const expense = await createExpenseForPayee(payee);
+
+      const requiredLegalDocumentSpy = sandbox.spy(models.RequiredLegalDocument, 'findAll');
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+
+      expect(requiredLegalDocumentSpy.callCount).to.eq(0);
+      expect(getLegalDocumentChecks(checks)).to.be.empty;
+    });
+
+    it('scopes the checks to the fiscal host processing each expense', async () => {
+      const hostWithTaxForms = await createHost();
+      const hostWithoutTaxForms = await createHost({ requiresTaxForm: false });
+      const collectiveWithTaxForms = await createProcessingCollective(hostWithTaxForms);
+      const collectiveWithoutTaxForms = await createProcessingCollective(hostWithoutTaxForms);
+      const payee = await createPayeeWithLocation({
+        legalName: 'Acme Inc',
+        countryISO: 'FR',
+        city: 'Paris',
+        postalCode: '75001',
+      });
+      await fakeLegalDocument({
+        CollectiveId: payee.id,
+        service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+        data: buildW9LegalDocumentData({
+          businessName: 'Evil Corp',
+          signerFirstName: 'Jane',
+          signerLastName: 'Doe',
+          country: 'US',
+          city: 'New York',
+          postalCode: '10001',
+          taxIdNumber: '12-3456789',
+        }),
+      });
+
+      const [expenseWithTaxForms, expenseWithoutTaxForms] = await Promise.all([
+        fakeExpense({ CollectiveId: collectiveWithTaxForms.id, FromCollectiveId: payee.id }),
+        fakeExpense({ CollectiveId: collectiveWithoutTaxForms.id, FromCollectiveId: payee.id }),
+      ]);
+      const [checksWithTaxForms, checksWithoutTaxForms] = await checkExpensesBatch(makeRequest() as any, [
+        expenseWithTaxForms,
+        expenseWithoutTaxForms,
+      ]);
+
+      expect(getLegalDocumentChecks(checksWithTaxForms)).to.have.length(3);
+      expect(getLegalDocumentChecks(checksWithoutTaxForms)).to.be.empty;
+    });
+
+    it('loads the latest RECEIVED legal document once per batch', async () => {
+      const payee = await createPayeeWithLocation({
+        legalName: 'Acme Inc',
+        countryISO: 'FR',
+        city: 'Paris',
+        postalCode: '75001',
+      });
+      await fakeLegalDocument({
+        CollectiveId: payee.id,
+        service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+        createdAt: new Date('2024-01-01'),
+        data: buildW9LegalDocumentData({
+          businessName: 'Evil Corp',
+          signerFirstName: 'Jane',
+          signerLastName: 'Doe',
+          country: 'US',
+          city: 'New York',
+          postalCode: '10001',
+          taxIdNumber: '12-3456789',
+        }),
+      });
+      await fakeLegalDocument({
+        CollectiveId: payee.id,
+        service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+        createdAt: new Date('2025-01-01'),
+        data: buildW9LegalDocumentData({
+          businessName: 'Acme Inc',
+          signerFirstName: 'Jane',
+          signerLastName: 'Doe',
+          country: 'FR',
+          city: 'Paris',
+          postalCode: '75001',
+          taxIdNumber: '98-7654321',
+        }),
+      });
+
+      const findAllSpy = sandbox.spy(models.LegalDocument, 'findAll');
+      const host = await createHost();
+      const collective = await createProcessingCollective(host);
+      const [firstExpense, secondExpense] = await Promise.all([
+        fakeExpense({ CollectiveId: collective.id, FromCollectiveId: payee.id }),
+        fakeExpense({ CollectiveId: collective.id, FromCollectiveId: payee.id }),
+      ]);
+      const [firstChecks, secondChecks] = await checkExpensesBatch(makeRequest() as any, [firstExpense, secondExpense]);
+
+      expect(findAllSpy.callCount).to.eq(1);
+      expect(getLegalDocumentChecks(firstChecks)).to.be.empty;
+      expect(getLegalDocumentChecks(secondChecks)).to.be.empty;
     });
   });
 });

@@ -8,6 +8,7 @@ import { CollectiveType } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import PlatformConstants from '../constants/platform';
 import { VAT_OPTIONS } from '../constants/vat';
+import { VirtualCardLimitIntervals } from '../constants/virtual-cards';
 import models, { Collective, Member, Op, sequelize, User } from '../models';
 import { AllTierTypes } from '../models/Tier';
 
@@ -132,7 +133,6 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'budget',
   'categories',
   'collectivePage',
-  'crowdfundingRedesign',
   'disableCustomContributions',
   'dismissedHelpMessages',
   'disableCryptoContributions',
@@ -149,6 +149,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'goals',
   'goalsInterpolation',
   'hideCreditCardPostalCode',
+  'hostApplication',
   'hostCollective',
   'hostFeePercent',
   'HostId',
@@ -168,8 +169,6 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'twitter',
   'VAT',
   'GST',
-  'giftCardsMaxDailyCount',
-  'W9',
   'virtualcards',
   'transferwise',
   'customEmailMessage',
@@ -225,18 +224,19 @@ export function filterCollectiveSettings(settings: Record<string, unknown> | nul
  * Returns false if settings are valid or an error as string otherwise
  * @param {object|null} settings
  */
-export function validateSettings(settings: any): string | boolean {
+export function validateSettings(settings: Record<string, unknown>): string | boolean {
   if (!settings) {
     return false;
   }
 
   // Validate VAT
-  if (settings.VAT) {
-    if (typeof settings.VAT !== 'object') {
+  const vat = settings.VAT as { number?: string; type?: string } | undefined;
+  if (vat) {
+    if (typeof vat !== 'object') {
       return 'Invalid type for VAT settings';
-    } else if (settings.VAT.number && !LibTaxes.checkVATNumberFormat(settings.VAT.number).isValid) {
+    } else if (vat.number && !LibTaxes.checkVATNumberFormat(vat.number).isValid) {
       return 'Invalid VAT number';
-    } else if (settings.VAT.type && settings.VAT.type !== VAT_OPTIONS.HOST && settings.VAT.type !== VAT_OPTIONS.OWN) {
+    } else if (vat.type && vat.type !== VAT_OPTIONS.HOST && vat.type !== VAT_OPTIONS.OWN) {
       return 'Invalid VAT configuration';
     }
   }
@@ -244,12 +244,13 @@ export function validateSettings(settings: any): string | boolean {
   /*
    * Validate customEmailMessage length.
    */
-  if (settings.customEmailMessage && stripHTML(settings.customEmailMessage).length > 500) {
+  const customEmailMessage = settings.customEmailMessage as string;
+  if (customEmailMessage && stripHTML(customEmailMessage).length > 500) {
     return 'Custom "Thank you" email message should be less than 500 characters';
   }
 
-  if (settings.moderation?.rejectedCategories) {
-    const categories = get(settings, 'moderation.rejectedCategories');
+  if ((settings.moderation as { rejectedCategories?: unknown } | undefined)?.rejectedCategories) {
+    const categories = get(settings, 'moderation.rejectedCategories') as string[];
     for (const category of categories) {
       if (!Object.keys(MODERATION_CATEGORIES).includes(category)) {
         return 'Invalid filtering category';
@@ -257,7 +258,34 @@ export function validateSettings(settings: any): string | boolean {
     }
   }
 
-  if (settings?.tos && !isURL(settings.tos)) {
+  /*
+   * Validate the spending limit intervals allowed for virtual card requests.
+   */
+  const allowedSpendingLimitIntervals = get(settings, 'virtualcards.allowedSpendingLimitIntervals') as
+    Record<string, unknown> | undefined;
+  if (allowedSpendingLimitIntervals) {
+    if (typeof allowedSpendingLimitIntervals !== 'object' || Array.isArray(allowedSpendingLimitIntervals)) {
+      return 'Invalid type for virtual cards allowed spending limit intervals';
+    }
+
+    for (const [interval, isAllowed] of Object.entries(allowedSpendingLimitIntervals)) {
+      if (!Object.values(VirtualCardLimitIntervals).includes(interval as VirtualCardLimitIntervals)) {
+        return `Invalid virtual card spending limit interval: ${interval}`;
+      } else if (typeof isAllowed !== 'boolean') {
+        return `Invalid value for virtual card spending limit interval ${interval}: must be a boolean`;
+      }
+    }
+
+    const hasAllowedInterval = Object.values(VirtualCardLimitIntervals).some(
+      interval => allowedSpendingLimitIntervals[interval] !== false,
+    );
+    if (!hasAllowedInterval) {
+      return 'At least one virtual card spending limit interval must be allowed';
+    }
+  }
+
+  const tos = settings.tos as string;
+  if (tos && !isURL(tos)) {
     return 'Enter a valid URL. The URL should have the format https://example.com/…';
   }
 

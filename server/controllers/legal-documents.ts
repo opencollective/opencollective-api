@@ -53,7 +53,7 @@ export default {
         .send({ message: 'Unauthorized - OAuth and Personal Tokens are not allowed for this route' });
     }
 
-    // Rate limit by user
+    // Rate limit by user. Fail fast here, the download is registered after the 2FA check.
     const rateLimitKey = `legal-document-download-${req.remoteUser.id}`;
     const rateLimit = new RateLimit(rateLimitKey, config.limits.taxForms.downloadPerHour);
     if (await rateLimit.hasReachedLimit()) {
@@ -99,10 +99,14 @@ export default {
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, legalDocument.collective, { alwaysAskForToken: true });
 
+      // Register the download before fetching the file: the check above doesn't stop concurrent requests
+      if (!(await rateLimit.registerCall())) {
+        return res.status(429).send({ message: 'Rate limit exceeded' });
+      }
+
       // Download associated file with `fetch`
       const encryptedFileContent = await getFileFromS3(legalDocument.documentLink);
       const decryptedFileContent = LegalDocument.decrypt(encryptedFileContent);
-      await rateLimit.registerCall();
       return res.set('Content-Type', 'application/pdf').send(decryptedFileContent);
     } catch (error) {
       if (error.extensions?.code === '2FA_REQUIRED') {

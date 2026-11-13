@@ -3,10 +3,17 @@ import openCollectiveConfig from 'eslint-config-opencollective/eslint-node.confi
 import globals from 'globals';
 
 import graphqlMutationScopeCheck from './eslint-rules/graphql-mutation-scope-check.js';
+import noBareIsRoot from './eslint-rules/no-bare-is-root.js';
 import noMathRoundAmountNames from './eslint-rules/no-math-round-amount-names.js';
 import requirePrivateAccountCheck from './eslint-rules/require-private-account-check.js';
 import sequelizeModelRequirePublicIdPrefix from './eslint-rules/sequelize-model-public-id-prefix.js';
 import sequelizeModelRequireTableName from './eslint-rules/sequelize-model-table-name.js';
+
+// Fixture and stub code is excluded from the production build: nothing outside server/e2e/ may load it.
+const E2E_IMPORTS_RESTRICTION = {
+  group: ['**/e2e', '**/e2e/*'],
+  message: 'E2E-only code must stay in server/e2e/.',
+};
 
 export default [
   ...openCollectiveConfig,
@@ -266,6 +273,13 @@ export default [
     },
   },
   {
+    files: ['server/**/*.+(js|ts)'],
+    ignores: ['server/e2e/**'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [E2E_IMPORTS_RESTRICTION] }],
+    },
+  },
+  {
     files: ['server/graphql/v2/**/*.+(js|ts)'],
 
     rules: {
@@ -273,6 +287,7 @@ export default [
         'error',
         {
           patterns: [
+            E2E_IMPORTS_RESTRICTION,
             {
               group: ['**/v1/types'],
               message: 'GraphQL V1 types should not be used with V2.',
@@ -280,6 +295,21 @@ export default [
           ],
         },
       ],
+    },
+  },
+  // Root privileges must honor the `root` OAuth scope
+  {
+    files: ['server/**/*.+(js|ts)'],
+    ignores: ['server/graphql/common/scope-check.ts'],
+    plugins: {
+      'oauth-scopes': {
+        rules: {
+          'no-bare-is-root': noBareIsRoot,
+        },
+      },
+    },
+    rules: {
+      'oauth-scopes/no-bare-is-root': 'error',
     },
   },
   // GraphQL mutation scope-check enforcement

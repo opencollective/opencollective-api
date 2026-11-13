@@ -4,6 +4,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { searchCollectivesInDB } from '../../../../lib/sql-search';
 import type { Collective } from '../../../../models';
+import { isRemoteUserRoot } from '../../../common/scope-check';
 import { GraphQLAccountCollection } from '../../collection/AccountCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLCountryISO } from '../../enum';
 import { GraphQLTagSearchOperator } from '../../enum/TagSearchOperator';
@@ -167,7 +168,7 @@ const AccountsCollectionQuery = {
       includeArchived: args.includeArchived,
       includeVendorsForHostId,
       consolidatedBalance: args.consolidatedBalance,
-      isRoot: req.remoteUser?.isRoot() || false,
+      isRoot: isRemoteUserRoot(req),
       onlyOpenHosts: args.onlyOpenToApplications ? true : null,
       plan: args.plan,
       isPlatformSubscriber: args.isPlatformSubscriber,

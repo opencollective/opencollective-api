@@ -12,6 +12,13 @@ import TierType from '../../constants/tiers';
 import logger from '../../lib/logger';
 import { createRefundTransaction } from '../../lib/payments';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
+import {
+  mapErrorToType,
+  MetricEvent,
+  MetricFlow,
+  MetricProvider,
+  recordPaymentOutcome,
+} from '../../lib/sentry/metrics';
 import models, { Collective } from '../../models';
 import Order from '../../models/Order';
 import PaymentMethod from '../../models/PaymentMethod';
@@ -68,6 +75,55 @@ export const cancelPaypalSubscription = async (
 
     logger.error(`PayPal cancel subscription error: ${e.message}`);
     throw e;
+  }
+};
+
+/**
+ * Marks an order and its subscription as cancelled in the database. Used when PayPal is the source
+ * of truth for the cancellation (a `BILLING.SUBSCRIPTION.CANCELLED` webhook or a reconciliation with
+ * the PayPal API): the subscription is therefore **not** cancelled on PayPal and the contributor is
+ * **not** notified.
+ */
+export const markPaypalSubscriptionAsCancelledInDb = async (
+  order: Order,
+  {
+    statusChangeNote = undefined,
+    statusUpdateTime = undefined,
+    orderData = undefined,
+    subscriptionData = undefined,
+  }: {
+    /** The reason provided by PayPal when the subscription was cancelled (`status_change_note`) */
+    statusChangeNote?: string;
+    /** When the subscription was cancelled on PayPal. Defaults to now. */
+    statusUpdateTime?: Date | string;
+    /** Extra fields to store in `Order.data` */
+    orderData?: Record<string, unknown>;
+    /** Extra fields to store in `Subscription.data` */
+    subscriptionData?: Record<string, unknown>;
+  } = {},
+): Promise<void> => {
+  const subscription = order.Subscription || (await order.getSubscription());
+
+  if (order.status !== ORDER_STATUS.CANCELLED) {
+    // A contribution that was paused before being cancelled stays paused (see CONTRIBUTION_PAUSED_MSG)
+    const shouldKeepPaused = statusChangeNote === CONTRIBUTION_PAUSED_MSG;
+    await order.update({
+      status: order.status === ORDER_STATUS.PAUSED && shouldKeepPaused ? ORDER_STATUS.PAUSED : ORDER_STATUS.CANCELLED,
+      data: {
+        ...order.data,
+        ...(statusChangeNote ? { paypalStatusChangeNote: statusChangeNote } : null),
+        ...orderData,
+      },
+    });
+  }
+
+  if (subscription && (subscription.isActive || !subscription.deactivatedAt)) {
+    await subscription.update({
+      isActive: false,
+      deactivatedAt: statusUpdateTime ? new Date(statusUpdateTime) : new Date(),
+      nextChargeDate: null,
+      data: { ...subscription.data, ...subscriptionData },
+    });
   }
 };
 
@@ -170,7 +226,10 @@ async function createPaypalPlan(host, collective, productId, interval, amount, c
         },
       ],
       payment_preferences: {
-        auto_bill_outstanding: true,
+        // Never bill the outstanding balance in the next cycle: bundled charges surprise contributors (leading to
+        // cancellations and disputes) and break fees accounting. Existing plans and subscriptions are updated by
+        // `scripts/paypal/disable-auto-bill-outstanding.ts`. See https://github.com/opencollective/opencollective/issues/6600
+        auto_bill_outstanding: false,
         payment_failure_threshold: 4, // Will fail up to 4 times, after that the subscription gets cancelled
       },
       /* eslint-enable camelcase */
@@ -187,6 +246,10 @@ export async function getOrCreatePlan(
   currency: SupportedCurrency,
   tier: Tier = null,
 ): Promise<PaypalPlan> {
+  if (!host) {
+    throw new Error('A fiscal host is required to create a PayPal plan');
+  }
+
   const product = await models.PaypalProduct.findOne({
     where: { CollectiveId: collective.id, HostCollectiveId: host.id, TierId: tier?.id || null },
     include: [
@@ -302,6 +365,16 @@ export const setupPaypalSubscriptionForOrder = async (order: Order, paymentMetho
     const error = new Error('Failed to activate PayPal subscription');
     error['rootException'] = e;
     order.update({ status: ORDER_STATUS.ERROR });
+
+    // Terminal failure of the payment attempt (the order lands in ERROR here)
+    recordPaymentOutcome({
+      provider: MetricProvider.PAYPAL,
+      flow: MetricFlow.CONTRIBUTION,
+      method: paymentMethod.type,
+      outcome: MetricEvent.FAILED,
+      errorType: mapErrorToType(e),
+    });
+
     throw error;
   }
 
@@ -347,7 +420,6 @@ const createSubscription = async (order: Order, paypalSubscriptionId) => {
     amount: order.totalAmount,
     currency: order.currency,
     interval: order.interval,
-    quantity: order.quantity,
     isActive: false, // Will be activated when the payment hits
     isManagedExternally: true,
     nextChargeDate: new Date(), // It's supposed to be charged now
@@ -385,9 +457,11 @@ const verifySubscription = async (order: Order, paypalSubscription: PayPalSubscr
     throw new Error('Subscription must be approved to be activated');
   }
 
+  // The plan is created for the tier the contributor is moving to, which stays pending until PayPal charges it
+  // (see `server/lib/order-tier-change.ts`).
   // If the tier has been deleted, let's make sure we switch to a plan that matches the order
-  let tierId = order.TierId;
-  if (tierId && !order.Tier) {
+  let tierId = order.data?.pendingTierChange?.TierId ?? order.TierId;
+  if (tierId && order.Tier?.id !== tierId) {
     const tier = await models.Tier.findByPk(tierId);
     if (!tier) {
       tierId = null;

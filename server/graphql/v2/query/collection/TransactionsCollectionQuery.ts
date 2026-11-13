@@ -21,9 +21,10 @@ import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Collective, Expense, PaymentMethod, sequelize } from '../../../../models';
 import Order from '../../../../models/Order';
 import Transaction, { MERCHANT_ID_PATHS } from '../../../../models/Transaction';
-import { checkScope, enforceScope } from '../../../common/scope-check';
+import { checkScope, enforceScope, isRemoteUserRoot } from '../../../common/scope-check';
 import { BadRequest, Forbidden, NotFound } from '../../../errors';
 import {
+  type AnyPaymentMethodType,
   GraphQLTransactionCollection,
   GraphQLTransactionsCollectionReturnType,
 } from '../../collection/TransactionCollection';
@@ -262,7 +263,7 @@ export const TransactionsCollectionResolver = async (
   if (isNil(args.offset) || args.offset < 0) {
     args.offset = 0;
   }
-  if (args.limit > 10000 && !req.remoteUser?.isRoot()) {
+  if (args.limit > 10000 && !isRemoteUserRoot(req)) {
     throw new Error('Cannot fetch more than 10,000 transactions at the same time, please adjust the limit');
   }
 
@@ -468,7 +469,7 @@ export const TransactionsCollectionResolver = async (
   if (
     !req.remoteUser ||
     !(
-      req.remoteUser.isRoot() || // Root users can see all transactions
+      isRemoteUserRoot(req) || // Root users can see all transactions
       args.expense || // We already checked above that remote user could see all parties (fromCollective/collective)
       (host && req.remoteUser.hasRole(MemberRolesForPrivateAccounts, host.id)) || // Host admins can see external transactions from/to private accounts
       (fromAccount && req.remoteUser.hasRole(MemberRolesForPrivateAccounts, fromAccount.id)) ||
@@ -552,14 +553,8 @@ export const TransactionsCollectionResolver = async (
               WHEN "Transaction"."hostCurrency" = :currency THEN ABS("Transaction"."amountInHostCurrency")
               ELSE ABS(
                 COALESCE(
-                  (SELECT rate FROM "CurrencyExchangeRates"
-                    WHERE "from" = "Transaction"."currency"
-                    AND "to" = :currency
-                    -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
-                    AND "createdAt" <= COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")
-                    ORDER BY "createdAt" DESC
-                    LIMIT 1
-                  ) * "Transaction"."amount",
+                  -- Most recent rate that is older than the transaction
+                  fx_rate("Transaction"."currency", :currency, COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")) * "Transaction"."amount",
                   "Transaction"."amount"
                 )
               )
@@ -811,7 +806,7 @@ const getCacheKey = (resource, condition) => {
   }
 };
 
-const fetchWithCache = async (resource: string, condition, fetchFunction: () => Promise<any>) => {
+const fetchWithCache = async <T>(resource: string, condition, fetchFunction: () => Promise<T>): Promise<T> => {
   let cacheKey;
   if (condition) {
     cacheKey = getCacheKey(resource, condition);
@@ -829,7 +824,7 @@ const fetchWithCache = async (resource: string, condition, fetchFunction: () => 
   return results;
 };
 
-const fetchTransactionsKinds = async whereKinds => {
+const fetchTransactionsKinds = async (whereKinds): Promise<TransactionKind[]> => {
   const condition = whereKinds.length === 1 ? whereKinds[0] : null;
 
   return fetchWithCache('kinds', condition, () =>
@@ -842,7 +837,7 @@ const fetchTransactionsKinds = async whereKinds => {
   );
 };
 
-const fetchTransactionsPaymentMethodTypes = async whereKinds => {
+const fetchTransactionsPaymentMethodTypes = async (whereKinds): Promise<AnyPaymentMethodType[]> => {
   const condition = whereKinds.length === 1 ? whereKinds[0] : null;
 
   return fetchWithCache('paymentMethodTypes', condition, () =>
@@ -852,7 +847,7 @@ const fetchTransactionsPaymentMethodTypes = async whereKinds => {
       include: [{ model: PaymentMethod, required: false, attributes: [] }],
       group: ['PaymentMethod.type'],
       raw: true,
-    }).then(results => results.map(result => result.type || null)),
+    }).then(results => results.map(result => (result.type as AnyPaymentMethodType) || null)),
   );
 };
 

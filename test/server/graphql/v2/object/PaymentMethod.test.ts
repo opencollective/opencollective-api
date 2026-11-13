@@ -14,6 +14,7 @@ const paymentMethodsQuery = gql`
       id
       paymentMethods {
         id
+        type
         orders(status: $status) {
           totalCount
           nodes {
@@ -80,6 +81,34 @@ describe('server/graphql/v2/object/PaymentMethod', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.account.paymentMethods).to.have.length(1);
       expect(result.data.account.paymentMethods[0].orders.totalCount).to.equal(1);
+    });
+  });
+
+  describe('archived payment methods', () => {
+    it('are excluded from account.paymentMethods', async () => {
+      await fakePaymentMethod({
+        CollectiveId: user.collective.id,
+        CreatedByUserId: user.id,
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.PREPAID,
+        name: 'Prepaid Budget',
+        initialBalance: 10000,
+        data: { HostCollectiveId: user.collective.id },
+      });
+      await fakePaymentMethod({
+        CollectiveId: user.collective.id,
+        CreatedByUserId: user.id,
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.PREPAID,
+        name: 'Spent Prepaid Budget',
+        initialBalance: 0,
+        archivedAt: new Date(),
+        data: { HostCollectiveId: user.collective.id },
+      });
+
+      const result = await graphqlQueryV2(paymentMethodsQuery, { slug: user.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.paymentMethods.map(pm => pm.type)).to.have.members(['CREDITCARD', 'PREPAID']);
     });
   });
 });

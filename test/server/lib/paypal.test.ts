@@ -4,10 +4,13 @@ import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
 import {
+  executePayouts,
   getHostsWithPayPalConnected,
+  getPayoutItem,
   validateConnectedAccount,
   validateWebhookEvent,
 } from '../../../server/lib/paypal';
+import type { ConnectedAccount } from '../../../server/models';
 import { fakeActiveHost, fakeConnectedAccount, randStr } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
@@ -75,6 +78,111 @@ describe('lib/paypal', () => {
       execute.resolves({ result: { verification_status: 'FAILURE' } });
       const promise = validateWebhookEvent(connectedAccount, req);
       await expect(promise).to.be.eventually.rejectedWith(Error, 'Invalid webhook request');
+    });
+  });
+
+  describe('executePayouts', () => {
+    const payoutError = {
+      name: 'VALIDATION_ERROR',
+      message: 'Invalid request - see details',
+      debug_id: 'abc123',
+      details: [{ field: 'items[0].amount.value', issue: 'AMOUNT_INVALID', description: 'Amount is invalid' }],
+    };
+    const requestBody = {
+      sender_batch_header: {
+        recipient_type: 'EMAIL',
+        email_message: 'Message',
+        email_subject: 'Subject',
+        sender_batch_id: 'batch-1',
+      },
+      items: [
+        { note: 'Note', receiver: 'user@example.com', sender_item_id: '1', amount: { currency: 'USD', value: '1.00' } },
+      ],
+    };
+    let execute;
+
+    before(() => {
+      execute = sandbox.stub();
+      sandbox.stub(paypalPayoutsSDK.core, 'PayPalHttpClient').returns({ execute });
+    });
+    after(() => {
+      sandbox.restore();
+    });
+
+    const executePayoutsWithError = (error: Error & { statusCode?: number }) => {
+      execute.rejects(error);
+      return executePayouts(connectedAccount as unknown as ConnectedAccount, requestBody);
+    };
+
+    it('returns the parsed error object when the request fails with a JSON error body', async () => {
+      const result = await executePayoutsWithError(
+        Object.assign(new Error(JSON.stringify(payoutError)), { statusCode: 400 }),
+      );
+
+      expect(result).to.deep.equal(payoutError);
+    });
+
+    it('rethrows the original error when the error body is JSON null', async () => {
+      const error = Object.assign(new Error('null'), { statusCode: 500 });
+
+      let caught;
+      try {
+        await executePayoutsWithError(error);
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught).to.equal(error);
+    });
+
+    it('rethrows the original error when the error body is a JSON primitive', async () => {
+      const error = Object.assign(new Error('"upstream exploded"'), { statusCode: 500 });
+
+      let caught;
+      try {
+        await executePayoutsWithError(error);
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught).to.equal(error);
+    });
+
+    it('rethrows the original error when the error body is not JSON', async () => {
+      const error = Object.assign(new Error('Gateway timeout'), { statusCode: 504 });
+
+      let caught;
+      try {
+        await executePayoutsWithError(error);
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught).to.equal(error);
+    });
+  });
+
+  describe('getPayoutItem', () => {
+    let execute;
+
+    before(() => {
+      execute = sandbox.stub();
+      sandbox.stub(paypalPayoutsSDK.core, 'PayPalHttpClient').returns({ execute });
+    });
+    after(() => {
+      sandbox.restore();
+    });
+
+    it('fetches the payout item from the single-item endpoint', async () => {
+      const payoutItem = { payout_item_id: 'ITEM-1', transaction_status: 'FAILED' };
+      execute.resolves({ result: payoutItem });
+
+      const result = await getPayoutItem(connectedAccount as unknown as ConnectedAccount, 'ITEM-1');
+
+      expect(result).to.deep.equal(payoutItem);
+      const request = execute.getCall(0).args[0];
+      expect(request.verb).to.equal('GET');
+      expect(request.path).to.equal('/v1/payments/payouts-item/ITEM-1?');
     });
   });
 

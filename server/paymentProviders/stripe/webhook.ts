@@ -2,7 +2,7 @@
 import config from 'config';
 import debugLib from 'debug';
 import { Request } from 'express';
-import { get, omit } from 'lodash';
+import { omit } from 'lodash';
 import moment from 'moment';
 import { Op, QueryTypes, Transaction } from 'sequelize';
 import type Stripe from 'stripe';
@@ -22,6 +22,7 @@ import { applyContributionAccountingCategoryRules } from '../../lib/accounting/c
 import { getFxRate, isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { lockUntilResolved } from '../../lib/mutex';
+import { applyPendingTierChangeAfterCharge } from '../../lib/order-tier-change';
 import {
   createRefundTransaction,
   createSubscription,
@@ -31,15 +32,29 @@ import {
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates, MAX_RETRIES } from '../../lib/recurring-contributions';
 import { cleanOrdersLimitForOrder } from '../../lib/security/limit';
 import { reportMessageToSentry } from '../../lib/sentry';
+import {
+  mapErrorToType,
+  MetricEvent,
+  MetricFlow,
+  MetricProvider,
+  recordPaymentOutcome,
+} from '../../lib/sentry/metrics';
 import stripe, { convertToStripeAmount, getDashboardObjectIdURL } from '../../lib/stripe';
 import { createTransactionsFromPaidStripeExpense, getPaymentProcessorFeeVendor } from '../../lib/transactions';
 import models, { sequelize } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
 import Order from '../../models/Order';
 import PaymentMethod from '../../models/PaymentMethod';
+import { PayoutMethodTypes } from '../../models/PayoutMethod';
 
 import { getVirtualCardForTransaction } from './../utils';
-import { createChargeTransactions, createPaymentMethod, UNKNOWN_ERROR_MSG, userFriendlyErrorMessage } from './common';
+import {
+  createChargeTransactions,
+  createPaymentMethod,
+  getPaymentIntentCharge,
+  UNKNOWN_ERROR_MSG,
+  userFriendlyErrorMessage,
+} from './common';
 import * as virtualcard from './virtual-cards';
 
 const debug = debugLib('stripe');
@@ -219,7 +234,7 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   const stripeAccount = event.account ?? config.stripe.accountId;
   const stripePaymentIntent = event.data.object as Stripe.PaymentIntent;
 
-  let charge = stripePaymentIntent.latest_charge || ((stripePaymentIntent as any).charges?.data?.[0] as Stripe.Charge);
+  let charge = stripePaymentIntent.latest_charge || getPaymentIntentCharge(stripePaymentIntent);
   if (typeof charge === 'string') {
     charge = await stripe.charges.retrieve(charge, { stripeAccount });
   }
@@ -271,10 +286,20 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
     return;
   }
 
-  await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, stripePaymentIntent);
+  const paymentMethod = await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, stripePaymentIntent);
 
   const wasCancelled = order.status === OrderStatuses.CANCELLED;
   const transaction = await createChargeTransactions(charge, { order });
+
+  // Terminal success of the payment attempt. Emitted after the existing-charge dedupe above and once
+  // the ledger records the payment, so redeliveries and settle-twice flows count exactly once.
+  recordPaymentOutcome({
+    provider: MetricProvider.STRIPE,
+    flow: MetricFlow.CONTRIBUTION,
+    method: paymentMethod.type,
+    outcome: MetricEvent.SUCCEEDED,
+  });
+
   const sideEffects: (() => Promise<unknown>)[] = [
     // Payment is in the ledger: release the orders limit first, so it can't stay locked if a later effect fails
     () => (order.SubscriptionId ? Promise.resolve() : cleanOrdersLimitForOrder(order)),
@@ -291,6 +316,8 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
           previousStripePaymentIntents: [...(order.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
         },
       }),
+    // Apply a tier change waiting for this payment before registering the membership
+    () => applyPendingTierChangeAfterCharge(order, transaction),
     () => order.getOrCreateMembers(),
   ];
 
@@ -431,6 +458,18 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
 
   if (shouldMarkPaid) {
     await expense.markAsPaid({ paidAt });
+
+    // Terminal success of the payout attempt. Emitted only when this delivery records the payment
+    // (redeliveries are deduped on the charge transaction and never reach this line).
+    // The payout method is not necessarily Stripe: platform billing uses a STRIPE payout method,
+    // but card-funded expense payments carry the payee's method, so load the real one.
+    const payoutMethod = await expense.getPayoutMethod();
+    recordPaymentOutcome({
+      provider: MetricProvider.STRIPE,
+      flow: MetricFlow.PAYOUT,
+      method: payoutMethod?.type ?? PayoutMethodTypes.STRIPE,
+      outcome: MetricEvent.SUCCEEDED,
+    });
   }
 }
 
@@ -652,6 +691,7 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
       { association: 'collective', required: true },
       { association: 'fromCollective', required: true },
       { association: 'createdByUser', required: true },
+      { association: 'paymentMethod', required: false },
     ],
   });
 
@@ -660,15 +700,29 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
     return;
   }
 
-  const charge = (stripePaymentIntent as any).charges?.data?.[0] as Stripe.Charge;
+  const charge = getPaymentIntentCharge(stripePaymentIntent);
   const reason = stripePaymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
   logger.info(`Stripe Webook: Payment Intent failed for Order #${order.id}. Reason: ${reason}`);
 
   const wasCancelled = order.status === OrderStatuses.CANCELLED;
+  const wasAlreadyFailed = order.status === OrderStatuses.ERROR;
   await order.update({
     status: wasCancelled ? OrderStatuses.CANCELLED : OrderStatuses.ERROR,
     data: { ...order.data, stripePaymentIntent: stripePaymentIntent },
   });
+
+  // Terminal failure of the payment attempt. Counted only when the order transitions to ERROR, which
+  // keeps redeliveries of the same event from double-counting. `REQUIRE_CLIENT_CONFIRMATION` (3DS)
+  // failures still land here once the attempt is terminally declined.
+  if (!wasCancelled && !wasAlreadyFailed) {
+    recordPaymentOutcome({
+      provider: MetricProvider.STRIPE,
+      flow: MetricFlow.CONTRIBUTION,
+      method: order.paymentMethod?.type ?? 'unknown',
+      outcome: MetricEvent.FAILED,
+      errorType: mapErrorToType(stripePaymentIntent.last_payment_error || reason),
+    });
+  }
 
   const userFriendlyError = userFriendlyErrorMessage({ message: reason }) || UNKNOWN_ERROR_MSG;
 
@@ -715,17 +769,33 @@ async function handleExpensePaymentIntentFailed(event: Stripe.Event) {
     return;
   }
 
-  const charge = (stripePaymentIntent as any).charges?.data?.[0] as Stripe.Charge;
+  const charge = getPaymentIntentCharge(stripePaymentIntent);
   const reason = stripePaymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
   logger.info(`Stripe Webook: Payment Intent failed for Expense #${expense.id}. Reason: ${reason}`);
 
+  const isTerminalFailure = expense.status === ExpenseStatus.PROCESSING;
   await expense.update({
-    status: expense.status === ExpenseStatus.PROCESSING ? ExpenseStatus.ERROR : undefined,
+    status: isTerminalFailure ? ExpenseStatus.ERROR : undefined,
     data: {
       ...omit(expense.data, ['stripePaymentIntent']),
       previousStripePaymentIntents: [...(expense.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
     },
   });
+
+  // Terminal failure of the payout attempt: counted only when the expense transitions to ERROR, so
+  // redeliveries and failures arriving for already-settled expenses are not counted twice.
+  // The payout method is not necessarily Stripe (card-funded expense payments carry the payee's
+  // method), so load the real one rather than assuming STRIPE.
+  if (isTerminalFailure) {
+    const payoutMethod = await expense.getPayoutMethod();
+    recordPaymentOutcome({
+      provider: MetricProvider.STRIPE,
+      flow: MetricFlow.PAYOUT,
+      method: payoutMethod?.type ?? PayoutMethodTypes.STRIPE,
+      outcome: MetricEvent.FAILED,
+      errorType: mapErrorToType(stripePaymentIntent.last_payment_error || reason),
+    });
+  }
 }
 
 export const chargeDisputeCreated = async (event: Stripe.Event) => {
@@ -1069,7 +1139,8 @@ export const reviewClosed = async (event: Stripe.Event) => {
   const clearedAt = event.created && moment.unix(event.created).toDate();
 
   const paymentIntentTransaction = await models.Transaction.findOne({
-    where: { data: { charge: { payment_intent: stripePaymentIntentId } } },
+    // Refund transactions created by OC copy `data.charge`, so skip them to find the original charge
+    where: { isRefund: false, data: { charge: { payment_intent: stripePaymentIntentId } } },
     include: [
       {
         model: models.Order,
@@ -1124,20 +1195,22 @@ export const reviewClosed = async (event: Stripe.Event) => {
         }
       }
 
-      // Create refund transaction for the fraudulent charge
-      const transactionGroup = uuid();
-      await createRefundTransaction(
-        paymentIntentTransaction,
-        0,
-        {
-          ...paymentIntentTransaction.data,
-          review: event,
-          refundTransactionId: paymentIntentTransaction.id,
-        },
-        null,
-        transactionGroup,
-        clearedAt,
-      );
+      // Create refund transaction for the fraudulent charge, unless it was already refunded in OC
+      if (!paymentIntentTransaction.RefundTransactionId) {
+        const transactionGroup = uuid();
+        await createRefundTransaction(
+          paymentIntentTransaction,
+          0,
+          {
+            ...paymentIntentTransaction.data,
+            review: event,
+            refundTransactionId: paymentIntentTransaction.id,
+          },
+          null,
+          transactionGroup,
+          clearedAt,
+        );
+      }
 
       // charge review was determined to be fraudulent
       if (closedReason === 'refunded_as_fraud') {
@@ -1258,6 +1331,17 @@ export async function paymentMethodAttached(event: Stripe.Event) {
   });
 }
 
+const getIssuingVirtualCardId = (event: Stripe.Event): string | undefined => {
+  if (event.type.startsWith('issuing_authorization')) {
+    return (<Stripe.Issuing.Authorization>event.data.object).card?.id;
+  } else if (event.type.startsWith('issuing_transaction')) {
+    const card = (<Stripe.Issuing.Transaction>event.data.object).card;
+    return typeof card === 'string' ? card : card?.id;
+  } else if (event.type.startsWith('issuing_card')) {
+    return (<Stripe.Issuing.Card>event.data.object).id;
+  }
+};
+
 /*
  * Stripe issuing events are currently using account webhooks, meaning
  * that each host with virtual card enabled has an account webhook setup to this endpoint.
@@ -1265,21 +1349,19 @@ export async function paymentMethodAttached(event: Stripe.Event) {
  * This will be deprecated and unified when these events are migrated to the connect webhook.
  */
 async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
-  const event = <Stripe.Event>request.body;
+  const unverifiedEvent = <Stripe.Event>request.body;
 
-  let virtualCardId;
-  if (event.type.startsWith('issuing_authorization')) {
-    virtualCardId = (<Stripe.Issuing.Authorization>event.data.object).card.id;
-  } else if (event.type.startsWith('issuing_transaction')) {
-    const transaction = <Stripe.Issuing.Transaction>event.data.object;
-    virtualCardId = get(transaction, 'transaction.card.id', transaction?.card);
-  } else if (event.type.startsWith('issuing_card')) {
-    virtualCardId = (<Stripe.Issuing.Card>event.data.object).id;
-  } else {
-    logger.debug(`Stripe: Webhooks: Received an unsupported issuing event type: ${event.type}`);
+  if (
+    !unverifiedEvent.type.startsWith('issuing_authorization') &&
+    !unverifiedEvent.type.startsWith('issuing_transaction') &&
+    !unverifiedEvent.type.startsWith('issuing_card')
+  ) {
+    logger.debug(`Stripe: Webhooks: Received an unsupported issuing event type: ${unverifiedEvent.type}`);
     return;
   }
 
+  // The unverified card is only used to select a host's signing secret.
+  const virtualCardId = getIssuingVirtualCardId(unverifiedEvent);
   if (!virtualCardId) {
     throw new Error('virtual card id not set in webhook event');
   }
@@ -1290,31 +1372,43 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
     return;
   }
 
-  const stripeClient = await virtualcard.getStripeClient(virtualCard.host);
-  const webhookSigningSecret = await virtualcard.getWebhookSigninSecret(virtualCard.host);
+  const secretOwnerHost = virtualCard.host;
+  const stripeClient = await virtualcard.getStripeClient(secretOwnerHost);
+  const webhookSigningSecret = await virtualcard.getWebhookSigninSecret(secretOwnerHost);
 
+  let verifiedEvent: Stripe.Event;
   try {
-    stripeClient.webhooks.constructEvent(request.rawBody, request.headers['stripe-signature'], webhookSigningSecret);
+    verifiedEvent = stripeClient.webhooks.constructEvent(
+      request.rawBody,
+      request.headers['stripe-signature'],
+      webhookSigningSecret,
+    );
   } catch {
     throw new Error('Source of event not recognized');
   }
 
-  switch (event.type) {
+  const verifiedCardId = getIssuingVirtualCardId(verifiedEvent);
+  const verifiedCard = verifiedCardId && (await getVirtualCardForTransaction(verifiedCardId));
+  if (!verifiedCard || verifiedCard.HostCollectiveId !== secretOwnerHost.id) {
+    throw new Error('Source of event not recognized');
+  }
+
+  switch (verifiedEvent.type) {
     case 'issuing_authorization.request':
-      return virtualcard.processAuthorization(event);
+      return virtualcard.processAuthorization(verifiedEvent);
     case 'issuing_authorization.created':
-      if (!(<Stripe.Issuing.Authorization>event.data.object).approved) {
-        return virtualcard.processDeclinedAuthorization(event);
+      if (!(<Stripe.Issuing.Authorization>verifiedEvent.data.object).approved) {
+        return virtualcard.processDeclinedAuthorization(verifiedEvent);
       }
       return;
     case 'issuing_authorization.updated':
-      return virtualcard.processUpdatedTransaction(event);
+      return virtualcard.processUpdatedTransaction(verifiedEvent);
     case 'issuing_transaction.created':
-      return virtualcard.processTransaction(<Stripe.Issuing.Transaction>event.data.object);
+      return virtualcard.processTransaction(<Stripe.Issuing.Transaction>verifiedEvent.data.object);
     case 'issuing_card.updated':
-      return virtualcard.processCardUpdate(event);
+      return virtualcard.processCardUpdate(verifiedEvent);
     default:
-      logger.debug(`Stripe: Webhooks: Received an unsupported issuing event type: ${event.type}`);
+      logger.debug(`Stripe: Webhooks: Received an unsupported issuing event type: ${verifiedEvent.type}`);
       return;
   }
 }
@@ -1324,11 +1418,21 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
 
   let event = <Stripe.Event>request.body;
 
+  // Requests without a parsable JSON body (e.g. wrong content-type or empty body) leave `request.body` undefined
+  if (!event || typeof event !== 'object') {
+    throw new Error('Source of event not recognized');
+  }
+
   // Stripe sends test events to production as well
   // don't do anything if the event is not livemode
   // NOTE: not using config.env because of ugly tests
   if (process.env.OC_ENV === 'production' && !event.livemode) {
     return Promise.resolve();
+  }
+
+  // Reject payloads that don't look like a Stripe event (e.g. probes, non-Stripe callers)
+  if (typeof event.type !== 'string') {
+    throw new Error('Source of event not recognized');
   }
 
   if (event.type.startsWith('issuing')) {

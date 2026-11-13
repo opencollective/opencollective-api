@@ -9,11 +9,14 @@ import { activities } from '../constants';
 import { EmailTheme } from '../constants/email-theme';
 import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import models from '../models';
+import type Collective from '../models/Collective';
+import type User from '../models/User';
 
 import templates, { EmailTemplates } from './emailTemplates';
+import { timingSafeEqualString } from './encryption';
 import logger from './logger';
 import { reportErrorToSentry } from './sentry';
-import { isEmailInternal, md5, sha512 } from './utils';
+import { isEmailInternal, sha512 } from './utils';
 
 const debug = debugLib('email');
 const isDev = config.env === 'development';
@@ -39,7 +42,8 @@ type SendMessageData = {
   unsubscribeUrl?: string;
   interval?: string;
   config?;
-} & Record<string, any>;
+  theme?: typeof EmailTheme;
+} & Record<string, unknown>;
 
 export const getMailer = () => {
   if (config.mailpit.client && config.env !== 'production') {
@@ -60,32 +64,46 @@ export const getMailer = () => {
   }
 };
 
-const render = (template: EmailTemplates, data: any) => {
-  data.imageNotSvg = data.collective && data.collective.image && !data.collective.image.endsWith('.svg');
+/**
+ * Returns the compiled template function for `template`, or `undefined` if it's not a known template.
+ * Guards against inherited properties like `constructor` or `__proto__` being used as template names.
+ */
+const getTemplateRenderer = (template: string): (typeof templates)[EmailTemplates] | undefined => {
+  if (!Object.hasOwn(templates, template)) {
+    return undefined;
+  }
+
+  const renderer = templates[template];
+  return typeof renderer === 'function' ? renderer : undefined;
+};
+
+const render = (template: EmailTemplates, data: Record<string, unknown>) => {
+  const renderTemplate = getTemplateRenderer(template);
+  if (!renderTemplate) {
+    throw new Error(`Invalid email template: ${template}`);
+  }
+
+  const collectiveImage = (data.collective as { image?: string } | undefined)?.image;
+  data.imageNotSvg = Boolean(collectiveImage) && !collectiveImage.endsWith('.svg');
   data = merge({}, data);
   delete data.config;
   data.config = { host: config.host };
 
-  const html = juice(templates[template](data));
+  const html = juice(renderTemplate(data));
   const text = htmlToText(html);
   return { text, html };
 };
 
-const generateUnsubscribeToken = (email, collectiveSlug, type, hashingFunction = sha512) => {
+const generateUnsubscribeToken = (email, collectiveSlug, type) => {
   const uid = `${email}.${collectiveSlug || 'any'}.${type}.${config.keys.opencollective.emailUnsubscribeSecret}`;
-  const token = hashingFunction(uid);
-  return token;
+  return sha512(uid);
 };
 
+/**
+ * Legacy MD5 tokens (emails sent before June 2020) are no longer accepted.
+ */
 const isValidUnsubscribeToken = (token, email, collectiveSlug, type) => {
-  // Check token using the latest procedure
-  const computedToken = emailLib.generateUnsubscribeToken(email, collectiveSlug, type, sha512);
-  if (computedToken === token) {
-    return true;
-  }
-
-  // Backward-compatibility: check legacy tokens
-  return emailLib.generateUnsubscribeToken(email, collectiveSlug, type, md5) === token;
+  return timingSafeEqualString(token, emailLib.generateUnsubscribeToken(email, collectiveSlug, type));
 };
 
 /*
@@ -246,11 +264,8 @@ const getNotificationLabel = (template): string => {
     'collective.expense.created': 'notifications of new expenses submitted to this collective',
     'collective.expense.approved.for.host': 'notifications of new expenses approved under this host',
     'collective.expense.paid.for.host': 'notifications of new expenses paid under this host',
-    'collective.monthlyreport': 'monthly reports for collectives',
     'collective.member.created': 'notifications of new members',
     'collective.update.published': 'notifications of new updates from this collective',
-    'host.monthlyreport': 'monthly reports for host',
-    'host.yearlyreport': 'yearly reports for host',
     'collective.transaction.created': 'notifications of new transactions for this collective',
     onboarding: 'onboarding emails',
     'user.monthlyreport': 'monthly reports for backers',
@@ -273,11 +288,11 @@ const generateEmailFromTemplate = (
   data: SendMessageData = {},
   options: SendMessageOptions = {},
 ): ReturnType<typeof render> => {
-  const slug = get(options, 'collective.slug') || get(data, 'collective.slug') || '';
-  const hostSlug = get(data, 'host.slug');
-  const eventSlug = get(data, 'event.slug');
-  const projectSlug = get(data, 'project.slug');
-  const emailId = get(options, 'type') || template;
+  const slug = (get(options, 'collective.slug') || get(data, 'collective.slug') || '') as string;
+  const hostSlug = get(data, 'host.slug') as string;
+  const eventSlug = get(data, 'event.slug') as string;
+  const projectSlug = get(data, 'project.slug') as string;
+  const emailId = (get(options, 'type') || template) as string;
 
   // Populate the `listId` and `accountSlug` options to later populate the email headers. We're doing that here for
   // consistency with the unsubscribe link handling below, but mutating `data` is not ideal and should be refactored.
@@ -324,17 +339,14 @@ const generateEmailFromTemplate = (
   data.config = pick(config, ['host']);
   data.theme = EmailTheme;
 
-  if (!templates[template]) {
-    throw new Error(`Invalid email template: ${template}`);
-  }
-
-  const renderedTemplate = render(template, data);
+  const renderedTemplate = render(template, data); // Throws if the template is invalid
   return renderedTemplate;
 };
 
 const isNotificationActive = async (template: string, data: SendMessageData) => {
-  if (data.user && data.user.id) {
-    return models.Notification.isActive(template, data.user, data.collective);
+  const user = data.user as User;
+  if (user && user.id) {
+    return models.Notification.isActive(template, user, data.collective as Collective);
   } else {
     return true;
   }

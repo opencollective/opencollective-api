@@ -83,7 +83,7 @@ import Expense, {
   ExpenseType,
 } from '../../models/Expense';
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
-import ExpenseItem, { sanitizeExpenseItemDescription } from '../../models/ExpenseItem';
+import ExpenseItem, { ExpenseItemsDiff, sanitizeExpenseItemDescription } from '../../models/ExpenseItem';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import User from '../../models/User';
 import paymentProviders from '../../paymentProviders';
@@ -114,34 +114,62 @@ import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchan
 
 import { checkIsValidBalanceAccountingCategory } from './balance-accounting-categories';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from './context-permissions';
-import { checkScope } from './scope-check';
+import { checkRemoteUserCanRoot, checkScope } from './scope-check';
 import { hasProtectedUrlPermission } from './uploaded-file';
 
+/**
+ * Returns the fiscal host that manages this expense.
+ *
+ * `Expenses.HostCollectiveId` is the source of truth once set: when an account moves to another host, the new
+ * host must not see the expenses managed by the previous one. It's only written when an expense gets paid
+ * though, so we otherwise look at the account's own host and, for accounts with a parent and for archived
+ * accounts (`changeHost(null)` wipes the host reference), at its parent's host. Both are only used once
+ * approved, so that accounts still applying for fiscal sponsorship don't grant host permissions.
+ */
 const loadHostForExpense = async (req: express.Request, expense: Expense): Promise<Collective | null> => {
   const loadCollectiveById = (id: number): Promise<Collective | null> =>
     req.loaders ? req.loaders.Collective.byId.load(id) : Collective.findByPk(id);
 
   if (expense.host) {
     return expense.host;
-  } else if (expense.HostCollectiveId) {
-    expense.host = await loadCollectiveById(expense.HostCollectiveId);
-    return expense.host;
-  } else if (expense.collective?.host) {
-    return expense.collective.host;
-  } else if (expense.collective) {
-    if (expense.collective.HostCollectiveId) {
-      expense.collective.host = await loadCollectiveById(expense.collective.HostCollectiveId);
-      return expense.collective.host;
-    }
-  } else {
+  }
+
+  // The account is required to detect stale host references and to fall back on the parent
+  if (!expense.collective) {
     expense.collective = await loadCollectiveById(expense.CollectiveId);
-    if (expense.collective && expense.collective.HostCollectiveId) {
-      expense.collective.host = await loadCollectiveById(expense.collective.HostCollectiveId);
-      return expense.collective.host;
+    if (!expense.collective) {
+      return null;
     }
   }
 
-  return null;
+  // Address the exceptional case where the expense host id would be stale after a collective rehost
+  const hasStaleExpenseHostId =
+    expense.HostCollectiveId &&
+    expense.HostCollectiveId !== expense.collective.HostCollectiveId &&
+    expense.status !== expenseStatus.PAID;
+
+  if (expense.HostCollectiveId && !hasStaleExpenseHostId) {
+    expense.host = await loadCollectiveById(expense.HostCollectiveId);
+    return expense.host;
+  }
+
+  // `collective.host` => `collective.parent.host`, only once approved. Accounts with a parent inherit their
+  // host from it, so a child without its own host resolves to its parent's.
+  const getApprovedHost = async (account: Collective | null): Promise<Collective | null> => {
+    if (!account?.HostCollectiveId || !(await req.loaders.Collective.isApproved.load(account.id))) {
+      return null;
+    }
+
+    return account.host || (await loadCollectiveById(account.HostCollectiveId));
+  };
+
+  expense.host =
+    (await getApprovedHost(expense.collective)) ||
+    (expense.collective.ParentCollectiveId
+      ? await getApprovedHost(await loadCollectiveById(expense.collective.ParentCollectiveId))
+      : null);
+
+  return expense.host;
 };
 
 const isOwner = async (req: express.Request, expense: Expense): Promise<boolean> => {
@@ -157,6 +185,14 @@ const isOwner = async (req: express.Request, expense: Expense): Promise<boolean>
   return req.remoteUser.isAdminOfCollective(expense.fromCollective);
 };
 
+/**
+ * Whether the remote user submitted the expense. Unlike `isOwner`, this is true even when the payee is a vendor,
+ * so it must only be used for permissions that don't touch the payee's data (e.g. comments).
+ */
+const isSubmitter = async (req: express.Request, expense: Expense): Promise<boolean> => {
+  return Boolean(req.remoteUser) && req.remoteUser.id === expense.UserId;
+};
+
 const isOwnerAccountant = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
@@ -165,7 +201,7 @@ const isOwnerAccountant = async (req: express.Request, expense: Expense): Promis
   return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.FromCollectiveId);
 };
 
-const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boolean> => {
+export const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -199,24 +235,8 @@ const isHostAccountant = async (req: express.Request, expense: Expense): Promise
     return false;
   }
 
-  if (!expense.collective) {
-    expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-    if (!expense.collective) {
-      return false;
-    }
-  }
-
-  // Address the exceptional case where the expense host id would be stale after a collective rehost
-  const hasStaleExpenseHostId =
-    expense.HostCollectiveId &&
-    expense.HostCollectiveId !== expense.collective.HostCollectiveId &&
-    expense.status !== expenseStatus.PAID;
-
-  if (expense.HostCollectiveId && !hasStaleExpenseHostId) {
-    return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.HostCollectiveId);
-  }
-
-  return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.collective.HostCollectiveId);
+  const host = await loadHostForExpense(req, expense);
+  return host ? req.remoteUser.hasRole(roles.ACCOUNTANT, host.id) : false;
 };
 
 const isCollectiveOrHostAccountant = async (req: express.Request, expense: Expense): Promise<boolean> => {
@@ -246,6 +266,17 @@ const isPlatformAdmin = async (req: express.Request): Promise<boolean> => {
   return req.remoteUser.isAdminOfPlatform();
 };
 
+/** Platform invoices (subscription bills, host settlements). The billed host must not mutate amounts. */
+const isPlatformGeneratedExpense = (expense: Expense): boolean => {
+  return [ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type);
+};
+
+const isPlatformGeneratedExpenseEditableStatus = (status: ExpenseStatus | string): boolean => {
+  return [ExpenseStatus.PENDING, ExpenseStatus.APPROVED, ExpenseStatus.INCOMPLETE, ExpenseStatus.DRAFT].includes(
+    status as ExpenseStatus,
+  );
+};
+
 const isCollectiveAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
@@ -263,26 +294,8 @@ export const isHostAdmin = async (req: express.Request, expense: Expense): Promi
     return false;
   }
 
-  if (!expense.collective) {
-    expense.collective = req.loaders
-      ? await req.loaders.Collective.byId.load(expense.CollectiveId)
-      : await Collective.findByPk(expense.CollectiveId);
-    if (!expense.collective) {
-      return false;
-    }
-  }
-
-  // Address the exceptional case where the expense host id would be stale after a collective rehost
-  const hasStaleExpenseHostId =
-    expense.HostCollectiveId &&
-    expense.HostCollectiveId !== expense.collective.HostCollectiveId &&
-    expense.status !== expenseStatus.PAID;
-
-  if (expense.HostCollectiveId && !hasStaleExpenseHostId) {
-    return req.remoteUser.isAdmin(expense.HostCollectiveId);
-  }
-
-  return req.remoteUser.isAdmin(expense.collective.HostCollectiveId) && expense.collective.isActive;
+  const host = await loadHostForExpense(req, expense);
+  return host ? req.remoteUser.isAdmin(host.id) : false;
 };
 
 const isAdminOrAccountantOfHostWhoPaidExpense = async (req: express.Request, expense: Expense): Promise<boolean> => {
@@ -337,7 +350,7 @@ const isAdminOfCollectiveAndExpenseIsAVirtualCardButNotManuallyCreated = async (
 export type ExpensePermissionEvaluator = (
   req: express.Request,
   expense: Expense,
-  options?: { throw?: boolean },
+  options?: { throw?: boolean; payoutMethodId?: number },
 ) => Promise<boolean>;
 
 /**
@@ -434,10 +447,19 @@ export async function assertExpenseAccessibleForPrivateCollective(
 }
 
 /** Checks if the user can see expense's payout method private details (account number, PayPal email, ...etc) */
-export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator = async (req, expense) => {
+export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator = async (
+  req,
+  expense,
+  options: { throw?: boolean; payoutMethodId?: number } = {},
+) => {
   if (!validateExpenseScope(req)) {
     return false;
-  } else if (getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, expense.PayoutMethodId)) {
+  }
+
+  // Authorize against the given payout method, so historical snapshots embedded in
+  // activities are each evaluated by their own method identity (see #8702).
+  const payoutMethodId = options.payoutMethodId ?? expense.PayoutMethodId;
+  if (payoutMethodId && getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethodId)) {
     return true;
   }
 
@@ -452,8 +474,8 @@ export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator
   ];
 
   // Submitter can see own information until the expense is paid
-  if (expense.status === expenseStatus.PAID && expense.PayoutMethodId) {
-    const payoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
+  if (expense.status === expenseStatus.PAID && payoutMethodId) {
+    const payoutMethod = await req.loaders.PayoutMethod.byId.load(payoutMethodId);
     if (payoutMethod && !payoutMethod.isSaved) {
       allowedRoles = allowedRoles.filter(role => role !== isOwner && role !== isOwnerAccountant);
     }
@@ -622,7 +644,8 @@ export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, exp
 // Write permissions
 
 /**
- * Only the author or an admin of the collective or collective.host can edit an expense when it hasn't been paid yet
+ * Only the author or an admin of the collective or collective.host can edit an expense when it hasn't been paid yet.
+ * @deprecated Use the granular permissions instead.
  */
 export const canEditExpense: ExpensePermissionEvaluator = async (
   req: express.Request,
@@ -638,8 +661,6 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
   // Host and expense owner can attach receipts to paid charge expenses
   if (expense.type === ExpenseType.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status)) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
-  } else if (expense.status === 'DRAFT') {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isDraftPayee], options);
   } else if (nonEditableStatuses.includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden('Can not edit expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
@@ -650,6 +671,10 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
       throw new Forbidden('User cannot edit expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (isPlatformGeneratedExpense(expense)) {
+    return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
+  } else if (expense.status === 'DRAFT') {
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isDraftPayee], options);
   } else {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
   }
@@ -663,6 +688,14 @@ export const canEditTitle: ExpensePermissionEvaluator = async (req, expense, opt
       throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (isPlatformGeneratedExpense(expense)) {
+    if (!isPlatformGeneratedExpenseEditableStatus(expense.status)) {
+      if (options?.throw) {
+        throw new Forbidden('Can not edit title in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
+      }
+      return false;
+    }
+    return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
   } else if (expense.status === ExpenseStatus.DRAFT) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.PENDING) {
@@ -801,6 +834,10 @@ export const canEditPayoutMethod: ExpensePermissionEvaluator = async (req, expen
   return false;
 };
 
+/**
+ * Whether the current user can edit expense items (and thus the amount).
+ * Platform-generated invoices (PLATFORM_BILLING, SETTLEMENT) can only be edited by platform admins.
+ */
 export const canEditItems: ExpensePermissionEvaluator = async (req, expense, options) => {
   if (!validateExpenseScope(req, options)) {
     return false;
@@ -809,6 +846,17 @@ export const canEditItems: ExpensePermissionEvaluator = async (req, expense, opt
       throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (isPlatformGeneratedExpense(expense)) {
+    if (!isPlatformGeneratedExpenseEditableStatus(expense.status)) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'Can not edit expense items in current status',
+          EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+        );
+      }
+      return false;
+    }
+    return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
   } else if (expense.status === ExpenseStatus.DRAFT) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.PENDING) {
@@ -911,7 +959,8 @@ export const canDeleteExpense: ExpensePermissionEvaluator = async (
     return false;
   } else if (
     ['DRAFT', 'PENDING', 'INVITE_DECLINED'].includes(expense.status) &&
-    (await remoteUserMeetsOneCondition(req, expense, [isOwner], options))
+    // Don't forward `options`: non-owners must fall through to the admin checks below instead of throwing here
+    (await remoteUserMeetsOneCondition(req, expense, [isOwner]))
   ) {
     return true;
   } else if (!['REJECTED', 'SPAM', 'DRAFT', 'CANCELED'].includes(expense.status)) {
@@ -991,7 +1040,9 @@ export const canMarkAsPaid: ExpensePermissionEvaluator = async (
 };
 
 /**
- * Returns true if expense can be approved by user
+ * Returns true if expense can be approved by user.
+ * SETTLEMENT expenses are created by the platform but approved by the billed fiscal host (or a platform admin).
+ * PLATFORM_BILLING can only be approved by platform admins.
  */
 export const canApprove: ExpensePermissionEvaluator = async (
   req: express.Request,
@@ -1022,6 +1073,9 @@ export const canApprove: ExpensePermissionEvaluator = async (
       throw new Forbidden('User cannot approve expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (isPlatformGeneratedExpense(expense)) {
+    const approvers = expense.type === ExpenseType.SETTLEMENT ? [isHostAdmin, isPlatformAdmin] : [isPlatformAdmin];
+    return remoteUserMeetsOneCondition(req, expense, approvers, options);
   } else {
     expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
 
@@ -1035,47 +1089,54 @@ export const canApprove: ExpensePermissionEvaluator = async (
       return false;
     }
 
+    let collectiveIsHost = false;
     if (expense.collective.HostCollectiveId && expense.collective.approvedAt) {
       expense.collective.host =
         expense.collective.host || (await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId));
+      collectiveIsHost = expense.collective.id === expense.collective.host?.id;
     }
 
     const currency = expense.collective.host?.currency || expense.collective.currency;
     const requesterIsHostAdmin = await isHostAdmin(req, expense);
+    const userIsCollectiveAdmin = await isCollectiveAdmin(req, expense);
     const hostPolicy = await getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
     const collectivePolicy = await getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
+    const numberOfAdmins = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
+    const isExpenseAuthor = req.remoteUser.id === expense.UserId;
 
-    const hostPolicyApplies = hostPolicy.enabled && hostPolicy.appliesToHostedCollectives;
+    const hostPolicyApplies =
+      hostPolicy.enabled &&
+      (collectiveIsHost ||
+        (hostPolicy.appliesToHostedCollectives && (numberOfAdmins > 1 || hostPolicy.appliesToSingleAdminCollectives)));
     const collectivePolicyApplies =
       collectivePolicy.enabled && (!hostPolicyApplies || hostPolicy.amountInCents >= collectivePolicy.amountInCents);
-    const expenseAuthor = req.remoteUser.id === expense.UserId;
 
-    // Fiscal Host admins are exclusively subject to the applicable Fiscal Host policy.
-    const hostAdminCannotApprove =
-      requesterIsHostAdmin && expenseAuthor && hostPolicyApplies && expense.amount >= hostPolicy.amountInCents;
-    // Collective admins are subject to the applicable Fiscal Host and/or Collective policy.
-    // When both policies apply, the stricter policy has the lower amount threshold.
-    const collectiveAdminCannotApprove =
-      !requesterIsHostAdmin &&
-      expenseAuthor &&
-      ((collectivePolicyApplies && expense.amount >= collectivePolicy.amountInCents) ||
-        (hostPolicyApplies &&
-          (hostPolicy.appliesToSingleAdminCollectives ||
-            (await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id)) > 1) &&
-          expense.amount >= hostPolicy.amountInCents));
-    const authorCannotApprove = hostAdminCannotApprove || collectiveAdminCannotApprove;
+    let usedPolicy;
+    if (requesterIsHostAdmin) {
+      // Edge-case: Users who are admins of both the host and a collective that has a single admin are subject to collective policy.
+      if (
+        userIsCollectiveAdmin &&
+        numberOfAdmins === 1 &&
+        collectivePolicy?.enabled &&
+        !hostPolicy?.appliesToSingleAdminCollectives
+      ) {
+        usedPolicy = collectivePolicy;
+      } else {
+        usedPolicy = hostPolicyApplies && hostPolicy;
+      }
+    } else {
+      usedPolicy = (collectivePolicyApplies && collectivePolicy) || (hostPolicyApplies && hostPolicy);
+    }
 
+    const authorCannotApprove = usedPolicy && isExpenseAuthor && expense.amount >= usedPolicy.amountInCents;
     if (authorCannotApprove) {
-      const amountInCents =
-        hostAdminCannotApprove || !collectivePolicyApplies ? hostPolicy.amountInCents : collectivePolicy.amountInCents;
-
       if (options?.throw) {
         throw new Forbidden(
           'User cannot approve their own expenses',
           EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
           {
             reasonDetails: {
-              amount: amountInCents / 100,
+              amount: usedPolicy.amountInCents / 100,
               currency,
             },
           },
@@ -1408,7 +1469,7 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
     // Allow host admins to mark manually created virtual card charges as unpaid
     if (isManuallyCreatedCharge(expense)) {
       // Continue with normal flow - host admins will be checked below
-    } else if (!req.remoteUser?.isRoot()) {
+    } else if (!(req.remoteUser?.isRoot() && checkScope(req, 'root'))) {
       if (options?.throw) {
         throw new Forbidden(
           'Can not mark this type of expense as unpaid',
@@ -1453,7 +1514,7 @@ export const canComment: ExpensePermissionEvaluator = async (
     return remoteUserMeetsOneCondition(
       req,
       expense,
-      [isCollectiveAdmin, isHostAdmin, isOwner, isOwnerAccountant, isCollectiveOrHostAccountant],
+      [isCollectiveAdmin, isHostAdmin, isOwner, isSubmitter, isOwnerAccountant, isCollectiveOrHostAccountant],
       options,
     );
   }
@@ -1661,6 +1722,9 @@ export const markExpenseAsSpam = async (req: express.Request, expense: Expense):
   });
 
   // Limit the user so they can't submit expenses in the future
+  // This is intentional moderation behavior: USE_EXPENSES is limited platform-wide for the submitter
+  // until Open Collective staff review and undo it. The frontend confirmation modal warns the admin
+  // about this effect and a Slack abuse notification is emitted; it is not an accidental side effect.
   const submittedByUser = await updatedExpense.getSubmitterUser();
   await submittedByUser.limitFeature(FEATURE.USE_EXPENSES, `Expense #${expense.id} marked as SPAM`);
 
@@ -2021,7 +2085,26 @@ type ExpenseData = {
   balanceAccountingCategory?: AccountingCategory;
   transactionsImportRow?: TransactionsImportRow;
   reference?: string;
-  isNewExpenseFlow?: boolean;
+};
+
+/**
+ * The subset of the `editExpense` GraphQL arguments that the draft flows (`editExpenseDraft` /
+ * `submitExpenseDraft`) rely on.
+ */
+type ExpenseDraftArgs = {
+  draftKey?: string;
+  expense: {
+    payee?: {
+      email: string;
+      name?: string;
+      legalName?: string;
+      newsletterOptIn?: boolean;
+      organization?: Record<string, unknown>;
+      id?: string;
+      legacyId?: number;
+      slug?: string;
+    };
+  };
 };
 
 const EXPENSE_EDITABLE_FIELDS = [
@@ -2405,11 +2488,26 @@ export const checkCanReceiveExpense = (account: Collective): void => {
   }
 };
 
-export async function createExpense(
-  req: express.Request,
-  expenseData: ExpenseData,
-  opts?: { isNewExpenseFlow?: boolean },
-): Promise<Expense> {
+/**
+ * Enforces the `disablePublicExpenseSubmission` collective setting for expense creation.
+ * When public submission is disabled, only members of the collective, collective/host admins
+ * and root users may create expenses (including drafts).
+ * Shared by `createExpense` and `draftExpenseAndInviteUser` to keep the guards in sync.
+ */
+export const checkCanCreateExpenseForCollective = (collective: Collective, req: express.Request): void => {
+  const { remoteUser } = req;
+  // If the collective has public expense submission disabled, only members can create expenses
+  const isMember = Boolean(remoteUser.rolesByCollectiveId[String(collective.id)]);
+  if (
+    collective.settings?.['disablePublicExpenseSubmission'] &&
+    !isMember &&
+    !remoteUser.isAdminOfCollectiveOrHost(collective)
+  ) {
+    checkRemoteUserCanRoot(req, { rootOnlyMessage: 'You must be a member of the collective to create new expense' });
+  }
+};
+
+export async function createExpense(req: express.Request, expenseData: ExpenseData): Promise<Expense> {
   const { remoteUser } = req;
 
   // Check permissions
@@ -2435,15 +2533,13 @@ export async function createExpense(
     throw new ValidationFailed('Payee not found');
   }
 
-  // If the collective has public expense submission disabled, only members can create expenses
-  const isMember = Boolean(remoteUser.rolesByCollectiveId[String(collective.id)]);
-  if (
-    collective.settings?.['disablePublicExpenseSubmission'] &&
-    !isMember &&
-    !remoteUser.isAdminOfCollectiveOrHost(collective) &&
-    !remoteUser.isRoot()
-  ) {
-    throw new Error('You must be a member of the collective to create new expense');
+  checkCanCreateExpenseForCollective(collective, req);
+
+  // Validate description length
+  if (expenseData.description && expenseData.description.length > 255) {
+    throw new ValidationFailed(
+      'Expense description is too long (max 255 characters). Use the "Long description" field for additional details.',
+    );
   }
 
   // Let submitter customize the currency
@@ -2565,6 +2661,9 @@ export async function createExpense(
       throw new Forbidden('You need to be an admin of the collective to import expenses');
     } else if (expenseData.transactionsImportRow.isProcessed()) {
       throw new ValidationFailed('This transaction has already been processed');
+    } else if (expenseCurrency !== collective.host.currency) {
+      // The expense is marked as paid with `expense.amount` booked as a host-currency amount
+      throw new ValidationFailed('Expenses created from a transactions import must be in the host currency');
     }
 
     const transactionsImport = await expenseData.transactionsImportRow.getImport();
@@ -2598,10 +2697,6 @@ export async function createExpense(
     data['valuesByRole'] = {
       [key]: { accountingCategory: expenseData.accountingCategory.publicInfo },
     };
-  }
-
-  if (opts?.isNewExpenseFlow) {
-    data['isNewExpenseFlow'] = true;
   }
 
   const expense = await sequelize.transaction(async t => {
@@ -2679,6 +2774,9 @@ export async function createExpense(
   return expense;
 }
 
+const isPaidCharge = (expense: Expense): boolean =>
+  expense.type === ExpenseType.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status);
+
 /** Returns true if the expense should by put back to PENDING after this update */
 export const changesRequireStatusUpdate = (
   expense: Expense,
@@ -2689,10 +2787,7 @@ export const changesRequireStatusUpdate = (
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
   const hasCurrencyChanges = Boolean(newExpenseData.currency && newExpenseData.currency !== expense.currency);
-  const isPaidOrProcessingCharge =
-    expense.type === ExpenseType.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status);
-
-  if (isPaidOrProcessingCharge) {
+  if (isPaidCharge(expense)) {
     // Receipts are attached to card charges after the money moved, so those edits never need a new review
     return false;
   }
@@ -2703,7 +2798,7 @@ export const changesRequireStatusUpdate = (
 export const getItemsChanges = async (
   existingItems: ExpenseItem[],
   items: ExpenseData['items'],
-): Promise<[boolean, [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]]]> => {
+): Promise<[boolean, ExpenseItemsDiff]> => {
   if (items) {
     const itemsDiff = models.ExpenseItem.diffDBEntries(existingItems, items);
     const hasItemChanges = flatten(<unknown[]>itemsDiff).length > 0;
@@ -2752,12 +2847,10 @@ export async function submitExpenseDraft(
     args,
     requestedPayee,
     originalPayee,
-    isNewExpenseFlow,
   }: {
-    args?: Record<string, any> & { draftKey?: string };
+    args?: ExpenseDraftArgs;
     originalPayee?: Collective;
     requestedPayee?: Collective;
-    isNewExpenseFlow?: boolean;
   } = {},
 ) {
   // It is a submit on behalf being completed
@@ -2782,7 +2875,9 @@ export async function submitExpenseDraft(
     throw new Forbidden('Expense can not be edited.');
   }
 
-  const userIsOriginalPayee: boolean = Boolean(originalPayee) && req.remoteUser?.isAdminOfCollective(originalPayee);
+  const userIsOriginalPayee = originalPayee
+    ? req.remoteUser?.isAdminOfCollective(originalPayee)
+    : await isDraftPayee(req, existingExpense);
   const userIsAuthor = Boolean(req.remoteUser) && req.remoteUser.id === existingExpense.UserId;
   if (existingExpense.data?.draftKey !== args.draftKey && !userIsOriginalPayee && !userIsAuthor) {
     throw new Unauthorized('You need to submit the right draft key to edit this expense');
@@ -2815,7 +2910,6 @@ export async function submitExpenseDraft(
     overrideRemoteUser: undefined,
     skipPermissionCheck: true,
     skipActivity: true,
-    isNewExpenseFlow: isNewExpenseFlow === true ? true : undefined,
   };
   if (requestedPayee) {
     // Also allow admins of the payee's fiscal host (e.g. a host admin completing a cross-host
@@ -2980,12 +3074,7 @@ export async function sendDraftExpenseInvite(
   }
 }
 
-export async function editExpenseDraft(
-  req: express.Request,
-  expenseData: ExpenseData,
-  args: Record<string, any>,
-  opts?: { isNewExpenseFlow?: boolean },
-) {
+export async function editExpenseDraft(req: express.Request, expenseData: ExpenseData, args: ExpenseDraftArgs) {
   const existingExpense = await models.Expense.findByPk(expenseData.id, {
     include: [
       { model: models.ExpenseItem, as: 'items' },
@@ -3025,11 +3114,15 @@ export async function editExpenseDraft(
   }
 
   const currency = expenseData.currency || existingExpense.currency;
-  const items =
-    (await prepareExpenseItemInputs(req, currency, expenseData.items || (existingExpense.data.items as any), {
-      isEditing: true,
-      expenseType: expenseData.type || existingExpense.type,
-    })) || existingExpense.items;
+  // Items stored in `data.items` are already prepared. Running them through `prepareExpenseItemInputs` again
+  // would treat them as legacy `amount` inputs and reset their currency and FX rate.
+  const items = expenseData.items
+    ? await prepareExpenseItemInputs(req, currency, expenseData.items, {
+        isEditing: true,
+        expenseType: expenseData.type || existingExpense.type,
+      })
+    : (existingExpense.data.items as Array<Partial<ExpenseItem>>) || existingExpense.items;
+  const taxes = expenseData.tax !== undefined ? expenseData.tax : existingExpense.data?.taxes;
 
   const attachedFiles =
     (await prepareAttachedFiles(req, expenseData.attachedFiles)) || existingExpense.data.attachedFiles;
@@ -3051,12 +3144,12 @@ export async function editExpenseDraft(
 
   const newExpenseValues = {
     ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
-    amount: models.Expense.computeTotalAmountForExpense(items, expenseData.tax),
+    amount: models.Expense.computeTotalAmountForExpense(items, taxes),
     lastEditedById: req.remoteUser.id,
     UserId: req.remoteUser.id,
     data: {
       items,
-      taxes: expenseData.tax,
+      taxes,
       attachedFiles: attachedFiles,
       invoiceFile: invoiceFileUrl ? { url: invoiceFileUrl } : null,
     },
@@ -3076,10 +3169,6 @@ export async function editExpenseDraft(
     newExpenseValues.data['payee'] = payee;
     newExpenseValues.data['draftKey'] =
       process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
-  }
-
-  if (opts?.isNewExpenseFlow) {
-    newExpenseValues['isNewExpenseFlow'] = true;
   }
 
   await existingExpense.update({ ...newExpenseValues, data: { ...existingExpense.data, ...newExpenseValues.data } });
@@ -3150,6 +3239,159 @@ const editOnlyTagsAndAccountingCategory = async (
   return updatedExpense;
 };
 
+// ---- Edit change detection ----
+
+const hasAttachedFilesChanges = (expense: Expense, expenseData: ExpenseData): boolean => {
+  if (isUndefined(expenseData.attachedFiles)) {
+    return false;
+  }
+
+  try {
+    const [toCreate, toRemove, toUpdate] = models.ExpenseAttachedFile.diffDBEntries(
+      expense.attachedFiles || [],
+      expenseData.attachedFiles,
+    );
+    return toCreate.length + toRemove.length + toUpdate.length > 0;
+  } catch {
+    return true;
+  }
+};
+
+const haveItemAmountsChanged = (existingItems: ExpenseItem[], updatedItems: Partial<ExpenseItem>[]): boolean => {
+  const existingById = new Map(existingItems.map(item => [item.id, item]));
+  return updatedItems.some(item => {
+    if (isNil(item.amount)) {
+      return false;
+    }
+    if (!item.id) {
+      return item.amount !== 0;
+    }
+    const existing = existingById.get(item.id);
+    return Boolean(existing) && existing.amount !== item.amount;
+  });
+};
+
+const hasItemFieldChanges = (expense: Expense, itemsDiff: ExpenseItemsDiff, field: 'url' | 'description'): boolean => {
+  const [itemsToCreate, , itemsToUpdate] = itemsDiff;
+  return (
+    itemsToCreate.some(item => Boolean(item[field])) ||
+    itemsToUpdate.some(item => {
+      const existing = expense.items.find(existingItem => existingItem.id === item.id);
+      return existing && !isUndefined(item[field]) && existing[field] !== item[field];
+    })
+  );
+};
+
+type ExpenseEditChanges = {
+  items: boolean; // any item create/remove/update (from itemsDiff)
+  itemAmounts: boolean; // an individual item amount changed
+  itemDescriptions: boolean; // item.description changed
+  itemUrls: boolean; // item.url changed (receipt)
+  amount: boolean; // total (items+tax), tax definition, or currency changed
+  attachments: boolean; // attachedFiles diff or invoiceFile provided
+  title: boolean; // expense description
+  type: boolean;
+  payee: boolean; // fromCollective changed to a non-vendor
+  payoutMethod: boolean; // new inline method or different id
+};
+
+const getExpenseEditChanges = (
+  expense: Expense,
+  expenseData: ExpenseData,
+  {
+    updatedItems,
+    itemsDiff,
+    taxes,
+  }: {
+    updatedItems: Partial<ExpenseItem>[];
+    itemsDiff: ExpenseItemsDiff;
+    taxes: ExpenseTaxDefinition[];
+  },
+): ExpenseEditChanges => {
+  const newAmount = models.Expense.computeTotalAmountForExpense(updatedItems, taxes);
+  const hasAmountChanges = Number.isFinite(newAmount) && newAmount !== expense.amount;
+  const hasTaxChanges = !isUndefined(expenseData.tax) && !isEqual(expense.data?.taxes || [], taxes || []);
+  const isChangingCurrency = Boolean(expenseData.currency && expenseData.currency !== expense.currency);
+
+  return {
+    items: itemsDiff.some(list => list.length > 0),
+    itemAmounts: haveItemAmountsChanged(expense.items, updatedItems),
+    itemDescriptions: hasItemFieldChanges(expense, itemsDiff, 'description'),
+    itemUrls: hasItemFieldChanges(expense, itemsDiff, 'url'),
+    amount: hasAmountChanges || isChangingCurrency || hasTaxChanges,
+    attachments: hasAttachedFilesChanges(expense, expenseData) || !isUndefined(expenseData.invoiceFile),
+    title: isValueChanging(expense, expenseData, 'description'),
+    type: isValueChanging(expense, expenseData, 'type'),
+    // Host/collective admins can still reassign the payee to a vendor; `checkFromCollective` enforces that separately.
+    payee: Boolean(
+      expenseData.fromCollective?.id &&
+      expenseData.fromCollective.id !== expense.fromCollective.id &&
+      expenseData.fromCollective.type !== CollectiveType.VENDOR,
+    ),
+    payoutMethod: Boolean(
+      expenseData.payoutMethod !== undefined &&
+      (!expenseData.payoutMethod?.id || expenseData.payoutMethod.id !== expense.PayoutMethodId),
+    ),
+  };
+};
+
+/**
+ * Enforce field-level edit helpers when the payload actually changes those fields.
+ * `canEditExpense` is the coarse gate; these checks match the GraphQL permission fields
+ * the UI already uses (especially `canEditItems` for amount).
+ */
+const assertRegularExpenseEditPermissions = async (
+  req: express.Request,
+  expense: Expense,
+  changes: ExpenseEditChanges,
+): Promise<void> => {
+  if (changes.items || changes.amount || changes.attachments) {
+    await canEditItems(req, expense, { throw: true });
+  }
+  if (changes.title) {
+    await canEditTitle(req, expense, { throw: true });
+  }
+  if (changes.type) {
+    await canEditType(req, expense, { throw: true });
+  }
+  if (changes.payee) {
+    await canEditPayee(req, expense, { throw: true });
+  }
+  if (changes.payoutMethod) {
+    await canEditPayoutMethod(req, expense, { throw: true });
+  }
+};
+
+const assertPaidChargeEditPermissions = async (
+  req: express.Request,
+  expense: Expense,
+  changes: ExpenseEditChanges,
+): Promise<void> => {
+  if (changes.amount || changes.itemAmounts) {
+    throw new Forbidden('Cannot change the amount of a paid card charge');
+  }
+  if (changes.itemDescriptions) {
+    await canEditItemDescription(req, expense, { throw: true });
+  }
+  // Anything else touching items/files on a posted charge is treated as attaching receipts
+  const isAttachingReceipts = changes.itemUrls || changes.attachments || (changes.items && !changes.itemDescriptions);
+  if (isAttachingReceipts) {
+    await canAttachReceipts(req, expense, { throw: true });
+  }
+};
+
+const assertExpenseFieldEditPermissions = async (
+  req: express.Request,
+  expense: Expense,
+  changes: ExpenseEditChanges,
+): Promise<void> => {
+  if (isPaidCharge(expense)) {
+    await assertPaidChargeEditPermissions(req, expense, changes);
+  } else {
+    await assertRegularExpenseEditPermissions(req, expense, changes);
+  }
+};
+
 export async function editExpense(
   req: express.Request,
   expenseData: ExpenseData,
@@ -3158,7 +3400,6 @@ export async function editExpense(
     overrideRemoteUser?: User;
     skipPermissionCheck?: boolean;
     draftKey?: string;
-    isNewExpenseFlow?: boolean;
   } = {},
 ): Promise<Expense> {
   const remoteUser = options?.overrideRemoteUser || req.remoteUser;
@@ -3197,10 +3438,14 @@ export async function editExpense(
   const { collective } = expense;
   const { host } = collective;
   const expenseType = expenseData.type || expense.type;
-  const isPaidCreditCardCharge =
-    expense.type === ExpenseType.CHARGE &&
-    ['PAID', 'PROCESSING'].includes(expense.status) &&
-    Boolean(expense.VirtualCardId);
+  const isPaidChargeExpense = isPaidCharge(expense);
+
+  // Validate description length
+  if (expenseData.description && expenseData.description.length > 255) {
+    throw new ValidationFailed(
+      'Expense description is too long (max 255 characters). Use the "Long description" field for additional details.',
+    );
+  }
 
   // Check category only if it's changing
   if (expenseData.accountingCategory) {
@@ -3221,9 +3466,10 @@ export async function editExpense(
     return editOnlyTagsAndAccountingCategory(expense, modifiedFields, req);
   }
 
-  // Check if 2FA is enforced on any of the account remote user is admin of, unless it's a paid credit card charge
-  // since we strictly limit the fields that can be updated in that case
-  if (req.remoteUser && !isPaidCreditCardCharge) {
+  // Check if 2FA is enforced on any of the account remote user is admin of. It is skipped only for charges that
+  // came from a real card transaction (see #8601), where the record is system-created and we strictly limit the
+  // fields that can be updated. Manually created charges have no such anchor, so they keep the normal 2FA policy.
+  if (req.remoteUser && !(isPaidChargeExpense && expense.VirtualCardId)) {
     const accountsFor2FA = [expenseData.fromCollective, expense.fromCollective, collective, host].filter(Boolean);
     await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
   }
@@ -3258,11 +3504,24 @@ export async function editExpense(
   const taxes = expenseData.tax || (expense.data?.taxes as ExpenseTaxDefinition[]) || [];
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
 
-  if (!options?.skipPermissionCheck && !(await canEditExpense(req, expense))) {
-    throw new Forbidden("You don't have permission to edit this expense");
+  if (!options?.skipPermissionCheck) {
+    // Legacy permission check
+    if (!(await canEditExpense(req, expense))) {
+      throw new Forbidden("You don't have permission to edit this expense");
+    }
+
+    const changes = getExpenseEditChanges(expense, expenseData, {
+      updatedItems: updatedItemsData,
+      itemsDiff,
+      taxes,
+    });
+    await assertExpenseFieldEditPermissions(req, expense, changes);
   }
 
-  if (isPaidCreditCardCharge && !hasItemChanges) {
+  // The premise is "adding missing information": only charges that came in as a stub (`missingDetails`)
+  // require the real items to be supplied. A charge created manually already has its items, so editing
+  // its metadata must not demand item changes.
+  if (isPaidChargeExpense && expense.data?.missingDetails && !hasItemChanges) {
     throw new ValidationFailed(
       'You need to include Expense Items when adding missing information to card charge expenses',
     );
@@ -3298,7 +3557,7 @@ export async function editExpense(
 
   const cleanExpenseData = {
     ...(<Pick<ExpenseData, ExpenseEditableFieldsUnion>>(
-      pick(expenseData, isPaidCreditCardCharge ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS)
+      pick(expenseData, isPaidChargeExpense ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS)
     )),
     data: !expense.data ? null : cloneDeep(omit(expense.data, ['items', 'draftKey', 'recipient', 'quote'])), // Make sure we omit draft key and items
   };
@@ -3310,7 +3569,7 @@ export async function editExpense(
     } else {
       checkCanUseAccountingCategory(
         remoteUser,
-        expenseData.type,
+        expenseType,
         expenseData.accountingCategory,
         expense.host ?? expense.collective.host,
         expense.collective,
@@ -3355,7 +3614,7 @@ export async function editExpense(
 
     // Update payout method if we get new data from one of the param for it
     if (
-      !isPaidCreditCardCharge &&
+      !isPaidChargeExpense &&
       expenseData.payoutMethod !== undefined &&
       (!expenseData.payoutMethod?.id || // This represents a new payout method without an id
         expenseData.payoutMethod?.id !== expense.PayoutMethodId)
@@ -3444,12 +3703,12 @@ export async function editExpense(
       );
 
       await createAttachedFiles(expense, newAttachedFiles, remoteUser, transaction);
-      await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy()));
+      await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy({ transaction })));
       await Promise.all(
         updatedAttachedFiles.map((file: Record<string, unknown>) =>
           models.ExpenseAttachedFile.update(
             { url: file.url as string },
-            { where: { id: file.id, ExpenseId: expense.id } },
+            { where: { id: file.id, ExpenseId: expense.id }, transaction },
           ),
         ),
       );
@@ -3491,7 +3750,7 @@ export async function editExpense(
       tags: cleanExpenseData.tags,
     };
 
-    if (isPaidCreditCardCharge) {
+    if (isPaidChargeExpense && expense.data?.missingDetails) {
       set(updatedExpenseProps, 'data.missingDetails', false);
     }
     if (!isEqual(expense.data?.taxes, taxes)) {
@@ -3505,7 +3764,7 @@ export async function editExpense(
     return expense.update(updatedExpenseProps, { transaction });
   });
 
-  if (isPaidCreditCardCharge) {
+  if (isPaidChargeExpense) {
     if (cleanExpenseData.description) {
       await models.Transaction.update(
         { description: cleanExpenseData.description },
@@ -3516,13 +3775,15 @@ export async function editExpense(
     // Auto Resume Virtual Card (only when pause was automatic, e.g. missing receipts - not host manual pause)
     if (host?.settings?.virtualcards?.autopause) {
       const virtualCard = await expense.getVirtualCard();
-      const expensesMissingReceipts = await virtualCard.getExpensesMissingDetails();
-      if (
-        virtualCard.isPaused() &&
-        virtualCard.data?.pauseReason !== 'MANUAL' &&
-        expensesMissingReceipts.length === 0
-      ) {
-        await virtualCard.resume();
+      if (virtualCard) {
+        const expensesMissingReceipts = await virtualCard.getExpensesMissingDetails();
+        if (
+          virtualCard.isPaused() &&
+          virtualCard.data?.pauseReason !== 'MANUAL' &&
+          expensesMissingReceipts.length === 0
+        ) {
+          await virtualCard.resume();
+        }
       }
     }
   }
@@ -3848,7 +4109,7 @@ export const checkHasBalanceToPayExpense = async (
   }
 
   const exchangeStats =
-    !isSameCurrency && (await models.CurrencyExchangeRate.getPairStats(expense.collective.currency, expense.currency));
+    !isSameCurrency && (await models.UsdExchangeRate.getPairStats(expense.collective.currency, expense.currency));
 
   // Ensure the collective has enough funds to pay the expense, with an error margin of 2σ (standard deviations) the exchange rate of past 5 days
   // to account for fluctuating rates. If no exchange rate is available, fallback to the 20% rule.

@@ -1,18 +1,21 @@
 import config from 'config';
 import { isEmpty, keys, omit, pick } from 'lodash';
 import moment from 'moment';
+import type { Transaction as SequelizeTransaction } from 'sequelize';
 
 import INTERVALS from '../constants/intervals';
 import OrderStatus from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
+import { assertOrderAmountMatchesTier } from '../graphql/common/orders';
 import { BadRequest, Unauthorized, UnexpectedError, ValidationFailed } from '../graphql/errors';
-import { Member, sequelize } from '../models';
+import { sequelize } from '../models';
 import Order from '../models/Order';
 import PaymentMethod from '../models/PaymentMethod';
 import Tier from '../models/Tier';
 import User from '../models/User';
 
 import { roundCentsAmount } from './currency';
+import { doesAmountSatisfyTier, getLastPaidAmount, syncBackerMembershipTier } from './order-tier-change';
 import { findPaymentMethodProvider } from './payments';
 
 const getIsSubscriptionManagedExternally = pm => {
@@ -146,7 +149,7 @@ export const updatePaymentMethodForSubscription = async (
     await order.Subscription.deactivate();
   }
 
-  const { order: updatedOrder } = await updateOrderSubscription(order, null, newOrderData, newSubscriptionData, {});
+  const { order: updatedOrder } = await updateOrderSubscription(order, newOrderData, newSubscriptionData);
   return updatedOrder;
 };
 
@@ -160,16 +163,19 @@ const checkSubscriptionDetails = (order, tier: Tier, amountInCents) => {
     throw new ValidationFailed('Invalid amount.');
   }
 
-  // If using a named tier, amount can never be less than the minimum amount
-  if (tier && tier.amountType === 'FLEXIBLE' && amountInCents < tier.minimumAmount) {
-    throw new ValidationFailed('Amount is less than minimum value allowed for this Tier.');
-  }
-
-  // If using a FIXED tier, amount cannot be different from the tier's amount
-  // TODO: it should be amountInCents !== tier.amount, but we need to do work to make sure that would play well with platform fees/taxes
-  if (tier && tier.amountType === 'FIXED' && amountInCents < tier.amount) {
-    throw new ValidationFailed('Amount is incorrect for this Tier.');
-  }
+  // Make sure the amount matches the tier (fixed amount or minimum). `amountInCents` excludes platform
+  // tips but includes taxes: tier amounts are pre-tax, so we compare the net amount for the collective.
+  const taxPercentage = order.data?.tax?.percentage || 0;
+  const baseAmountInCents = taxPercentage
+    ? roundCentsAmount(amountInCents / (1 + taxPercentage / 100), order.currency)
+    : amountInCents;
+  assertOrderAmountMatchesTier(tier, {
+    baseAmountInCents,
+    totalAmountInCents: amountInCents + (order.platformTipAmount || 0),
+    quantity: order.quantity,
+    currency: order.currency,
+    taxPercentage,
+  });
 };
 
 type OrderSubscriptionUpdate = {
@@ -184,10 +190,9 @@ type OrderSubscriptionUpdate = {
  */
 export const updateOrderSubscription = async (
   order: Order,
-  member: Member,
   newOrderData: Record<string, unknown>,
   newSubscriptionData: Record<string, unknown> = undefined,
-  newMemberData: Record<string, unknown> = undefined,
+  { onUpdate }: { onUpdate?: (transaction: SequelizeTransaction) => Promise<void> } = {},
 ): Promise<OrderSubscriptionUpdate> => {
   const previousOrderValues = pick(order.dataValues, keys(newOrderData));
   const previousSubscriptionValues = pick(order.Subscription.dataValues, keys(newSubscriptionData));
@@ -205,21 +210,38 @@ export const updateOrderSubscription = async (
       order.Subscription = await order.Subscription.update(newSubscriptionData, { transaction });
     }
 
-    if (member && !isEmpty(newMemberData)) {
-      member = await member.update(newMemberData, { transaction });
+    if (onUpdate) {
+      await onUpdate(transaction);
     }
 
-    return { order, member, previousOrderValues, previousSubscriptionValues };
+    return { order, previousOrderValues, previousSubscriptionValues };
   });
+};
+
+/**
+ * - `NONE`: the tier is unchanged
+ * - `APPLIED`: the tier changed immediately (the latest charge already pays for it, or no tier)
+ * - `PENDING`: the tier will change once a charge pays for it, see `server/lib/order-tier-change.ts`
+ * - `PENDING_CANCELLED`: a pending tier change was dropped (e.g. the contributor went back to their current tier)
+ */
+type SubscriptionTierChange = 'NONE' | 'APPLIED' | 'PENDING' | 'PENDING_CANCELLED';
+
+type SubscriptionDetailsUpdate = OrderSubscriptionUpdate & {
+  tierChange: SubscriptionTierChange;
+  previousTierId: number | null;
+  requestedTierId: number | null;
 };
 
 export const updateSubscriptionDetails = async (
   order: Order,
   tier: Tier,
-  member: Member,
   amountInCents: number,
   platformTipAmount: number = order.platformTipAmount,
-): Promise<OrderSubscriptionUpdate> => {
+  { remoteUser }: { remoteUser?: User } = {},
+): Promise<SubscriptionDetailsUpdate> => {
+  if (platformTipAmount < 0) {
+    throw new ValidationFailed('Platform tip amount cannot be negative');
+  }
   // Make sure the new details are ok values, that match tier's minimum amount if there's one.
   // Validate against the contribution amount excluding the platform tip, since the tip goes to
   // the platform rather than the tier/collective.
@@ -228,7 +250,7 @@ export const updateSubscriptionDetails = async (
 
   const newOrderData = {};
   const newSubscriptionData = {};
-  const newMemberData = {};
+  let newData = order.data;
 
   // check if the amount is different from the previous amount
   if (amountInCents !== order.totalAmount) {
@@ -278,17 +300,53 @@ export const updateSubscriptionDetails = async (
     newSubscriptionData['nextPeriodStart'] = nextPeriodStart.toDate();
   }
 
-  // Update order's Tier
-  const newTierId = tier?.id || null;
-  if (newTierId !== order.TierId) {
-    newOrderData['TierId'] = newTierId;
-    newMemberData['TierId'] = newTierId;
+  // Update order's Tier. The new amount is billed from the next charge, so the tier (and the membership that
+  // lists the contributor under it) only changes now if the latest charge already paid for it.
+  const previousTierId = order.TierId || null;
+  const requestedTierId = tier?.id || null;
+  let tierChange: SubscriptionTierChange = 'NONE';
+  if (requestedTierId === previousTierId) {
+    if (order.data?.pendingTierChange) {
+      newData = omit(newData, ['pendingTierChange']);
+      tierChange = 'PENDING_CANCELLED';
+    }
+  } else if (!tier || doesAmountSatisfyTier(tier, order, await getLastPaidAmount(order))) {
+    newOrderData['TierId'] = requestedTierId;
+    newData = omit(newData, ['pendingTierChange']);
+    tierChange = 'APPLIED';
+  } else if (order.data?.pendingTierChange?.TierId === tier.id) {
+    tierChange = 'PENDING'; // Already pending (e.g. only the amount or tip changed), keep the original request
+  } else {
+    newData = {
+      ...newData,
+      pendingTierChange: {
+        TierId: tier.id,
+        previousTierId,
+        requestedAt: new Date().toISOString(),
+        requestedByUserId: remoteUser?.id ?? null,
+      },
+    };
+    tierChange = 'PENDING';
   }
 
-  if (!isEmpty(newOrderData) && (order.data?.stripePaymentIntent || order.data?.needsConfirmation)) {
-    newOrderData['data'] = omit(order.data, ['stripePaymentIntent', 'needsConfirmation']);
+  if (
+    (!isEmpty(newOrderData) || newData !== order.data) &&
+    (newData?.stripePaymentIntent || newData?.needsConfirmation)
+  ) {
+    newData = omit(newData, ['stripePaymentIntent', 'needsConfirmation']);
+  }
+
+  if (newData !== order.data) {
+    newOrderData['data'] = newData;
   }
 
   // Backup previous values
-  return updateOrderSubscription(order, member, newOrderData, newSubscriptionData, newMemberData);
+  const result = await updateOrderSubscription(order, newOrderData, newSubscriptionData, {
+    onUpdate:
+      tierChange === 'APPLIED'
+        ? transaction => syncBackerMembershipTier(order, previousTierId, requestedTierId, { transaction })
+        : undefined,
+  });
+
+  return { ...result, tierChange, previousTierId, requestedTierId };
 };

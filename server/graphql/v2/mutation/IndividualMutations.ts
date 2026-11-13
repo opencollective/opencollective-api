@@ -9,11 +9,16 @@ import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 import * as auth from '../../../lib/auth';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { confirmUserEmail } from '../../common/user';
+import {
+  checkRemoteUserCanUseAccount,
+  rejectOAuthAndPersonalTokenAuth,
+  requireSessionToken,
+} from '../../common/scope-check';
+import { confirmUserEmail, requestUserEmailChange } from '../../common/user';
 import { RateLimitExceeded, Unauthorized } from '../../errors';
 import { GraphQLIndividual } from '../object/Individual';
 import { GraphQLSetPasswordResponse } from '../object/SetPasswordResponse';
+import GraphQLEmailAddress from '../scalar/EmailAddress';
 
 const individualMutations = {
   setChangelogViewDate: {
@@ -56,7 +61,7 @@ const individualMutations = {
   },
   setPassword: {
     type: new GraphQLNonNull(GraphQLSetPasswordResponse),
-    description: 'Set password to Individual. Scope: "account". 2FA.',
+    description: 'Set password to Individual. Session only (OAuth/Personal tokens are not allowed). 2FA.',
     args: {
       password: {
         type: new GraphQLNonNull(GraphQLString),
@@ -68,7 +73,16 @@ const individualMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      checkRemoteUserCanUseAccount(req);
+      // Password resets accept their dedicated token; other password changes require a session.
+      rejectOAuthAndPersonalTokenAuth(req, 'OAuth and Personal Tokens are not allowed to set passwords.');
+      if (req.jwtPayload?.scope !== 'reset-password') {
+        requireSessionToken(req, 'A session or reset-password token is required to set passwords.');
+      }
+
+      // No need to check the scope, since personal/oauth tokens are rejected.
+      if (!req.remoteUser) {
+        throw new Unauthorized('You need to be logged in to manage account.');
+      }
 
       const rateLimitKey = `individual_set_password_${req.remoteUser.id}`;
       const rateLimitMax = config.limits.setPasswordPerUserPerHour;
@@ -98,23 +112,40 @@ const individualMutations = {
       // If we're there, it's a success, we can reset the rate limit count
       await rateLimit.reset();
 
-      const user = await req.remoteUser.setPassword(args.password, { userToken: req.userToken });
+      const user = await req.remoteUser.setPassword(args.password);
       const individual = await user.getCollective({ loaders: req.loaders });
 
-      let token;
-
-      // We don't want OAuth/Personal tokens to be exchanged against a session token
-      if (!req.userToken && !req.personalToken) {
-        // Context: this is token generation when updating password
-        token = await user.generateSessionToken({
-          sessionId: req.jwtPayload?.sessionId,
-          createActivity: false,
-          updateLastLoginAt: false,
-        });
-        auth.setAuthCookie(req.res, token);
-      }
+      // Context: this is token generation when updating password
+      const token = await user.generateSessionToken({
+        sessionId: req.jwtPayload?.sessionId,
+        createActivity: false,
+        updateLastLoginAt: false,
+      });
+      auth.setAuthCookie(req.res, token);
 
       return { individual, token };
+    },
+  },
+  requestEmailChange: {
+    type: new GraphQLNonNull(GraphQLIndividual),
+    description:
+      'Request a change of the email address of the logged-in user. A confirmation link is sent to the new address, and the change is applied by `confirmEmail`. The pending address is returned in `emailWaitingForValidation`. Session only (OAuth/Personal tokens are not allowed). 2FA.',
+    args: {
+      email: {
+        type: new GraphQLNonNull(GraphQLEmailAddress),
+        description: 'The new email address. Sending the current address cancels any pending change.',
+      },
+    },
+    resolve: async (_, { email }, req: express.Request) => {
+      rejectOAuthAndPersonalTokenAuth(req, 'OAuth and Personal Tokens are not allowed to change the email address.');
+      requireSessionToken(req, 'A session token is required to change the email address.');
+      if (!req.remoteUser) {
+        throw new Unauthorized('You need to be logged in to manage account.');
+      }
+
+      await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
+      const user = await requestUserEmailChange(req.remoteUser, email);
+      return user.getCollective({ loaders: req.loaders });
     },
   },
   confirmEmail: {
@@ -140,13 +171,9 @@ const individualMutations = {
         description: 'The token to confirm the email.',
       },
     },
-    // eslint-disable-next-line graphql-mutations/require-scope-check -- this mutation explicitly rejects OAuth and personal token auth; no scope check can be applied
     resolve: async (_, { token: confirmEmailToken }, req) => {
-      // Forbid this route for OAuth and Personal Tokens. Remember to check the scope if you want to allow it.
-      // Also make sure to prevent exchanging OAuth/Personal tokens for session tokens.
-      if (req.userToken || req.personalToken) {
-        throw new Unauthorized('OAuth and Personal Tokens are not allowed for this route');
-      }
+      // Guests can confirm email; authenticated requests must not exchange scoped credentials for a session.
+      requireSessionToken(req, 'A session token is required to confirm email while signed in.');
 
       // Rate limit (by IP, since we support anonymous requests)
       const rateLimitKey = `individual_confirm_email_ip_${req.ip}`;

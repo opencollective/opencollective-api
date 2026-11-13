@@ -15,6 +15,7 @@ import isEmail from 'validator/lib/isEmail';
 
 import { CollectiveType } from '../constants/collectives';
 import { MemberRolesForPrivateAccounts } from '../constants/roles';
+import { isRemoteUserRoot } from '../graphql/common/scope-check';
 import { BadRequest, RateLimitExceeded } from '../graphql/errors';
 import { ORDER_BY_PSEUDO_FIELDS } from '../graphql/v2/enum/OrderByFieldType';
 import {
@@ -52,7 +53,7 @@ const buildPrivateAccountSearchVisibilitySQL = async (
     return { sql: 'AND c."isPrivate" IS FALSE ' };
   }
 
-  if (remoteUser.isRoot()) {
+  if (isRemoteUserRoot(req)) {
     return { sql: '' };
   }
 
@@ -162,6 +163,15 @@ const trimSearchTerm = term => {
 };
 
 /**
+ * Removes leading zeros from the decimal text of an integer search term. JSONB `dataFields` are
+ * compared as text, so a user searching `007` must still match a stored value of `7`. Zero-like
+ * terms keep a single `0` instead of collapsing to an empty string.
+ */
+export const canonicalizeIntegerSearchText = (text: string): string => {
+  return text.replace(/^0+(?=\d)/, '');
+};
+
+/**
  * Sanitize a search string to be used in a SQL query
  *
  * Examples: "   crème     brulée => "creme brulee"
@@ -180,6 +190,10 @@ export const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
+// PostgreSQL's tsquery has a fixed internal stack size. Long search terms with many
+// tokens can exceed it and throw "tsquery stack too small". Cap the term to a safe length.
+export const MAX_SEARCH_TERM_LENGTH = 150;
+
 export const getSearchTermSQLConditions = (term: string, collectiveTable?: string, isRoot = false) => {
   let tsQueryFunc, tsQueryArg;
   let sqlConditions = '';
@@ -187,7 +201,7 @@ export const getSearchTermSQLConditions = (term: string, collectiveTable?: strin
   let sanitizedTermNoWhitespaces = '';
   let sanitizedTermForILike = '';
   let sanitizedTermNoWhitespacesForILike = '';
-  const trimmedTerm = trimSearchTerm(term);
+  const trimmedTerm = trimSearchTerm(term)?.slice(0, MAX_SEARCH_TERM_LENGTH);
   const getField = field => (collectiveTable ? `${collectiveTable}."${field}"` : `"${field}"`);
   if (trimmedTerm?.length > 0) {
     // Cleanup term
@@ -255,12 +269,14 @@ const getSortSubQuery = (
     },
     [ORDER_BY_PSEUDO_FIELDS.RANK]: {
       query: `
-      CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTermForILike)
-        THEN 1
+      CASE
+        WHEN c."slug" = :slugifiedTerm THEN 3
+        WHEN c."name" ILIKE :sanitizedTermForILike THEN 2
         ELSE
           ${
+            // Normalization 33 (1 | 32) scales the rank to [0, 1) so it never outranks exact matches
             searchTermConditions.tsQueryFunc
-              ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}), 1)`
+              ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}), 33)`
               : '0'
           }
       END`,
@@ -302,7 +318,7 @@ const getSortSubQuery = (
     [ORDER_BY_PSEUDO_FIELDS.MONEY_MANAGED]: {
       query: `
         COALESCE((SELECT SUM(balance) FROM "CollectiveBalanceCheckpoint" WHERE "HostCollectiveId" = c.id AND "hostCurrency" = c."currency" GROUP BY "HostCollectiveId", "hostCurrency"), 0)
-        * (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = c."currency" AND "to" = 'USD' ORDER BY "createdAt" DESC LIMIT 1)
+        * fx_rate(c."currency", 'USD')
       `,
     },
     [ORDER_BY_PSEUDO_FIELDS.BALANCE]: {
@@ -660,6 +676,11 @@ export const parseSearchTerm = (
       type: 'number';
       term: number;
       isFloat?: boolean;
+      /**
+       * Original decimal text. `term` is coerced through `parseFloat`, which rounds integers above
+       * `Number.MAX_SAFE_INTEGER`; JSONB data fields must be compared using the exact digits.
+       */
+      text: string;
     }
   | {
       type: 'publicId';
@@ -680,7 +701,7 @@ export const parseSearchTerm = (
     // Searching for integer IDs (e.g. `#123`)
     return { type: 'id', term: parseInt(searchTerm.replace(/^#/, '')) };
   } else if (searchTerm.match(/^\d+\.?\d*$/)) {
-    return { type: 'number', term: parseFloat(searchTerm), isFloat: searchTerm.includes('.') };
+    return { type: 'number', term: parseFloat(searchTerm), isFloat: searchTerm.includes('.'), text: searchTerm };
   } else if (isAnyEntityPublicId(searchTerm)) {
     return { type: 'publicId', term: searchTerm, prefix: getEntityShortIdPrefix(searchTerm) };
   } else {
@@ -783,7 +804,12 @@ export const buildSearchConditions = (
       (parsedTerm.type === 'number' && !parsedTerm.isFloat) ||
       parsedTerm.type === 'publicId')
   ) {
-    conditions.push(...dataFields.map(field => ({ [field]: toString(parsedTerm.term) })));
+    // For numeric terms, compare the original decimal text rather than the `parseFloat`-rounded
+    // value: Wise/external identifiers may exceed `Number.MAX_SAFE_INTEGER`. Leading zeros are
+    // canonicalized so `007` still matches a stored `7`.
+    const dataTerm =
+      parsedTerm.type === 'number' ? canonicalizeIntegerSearchText(parsedTerm.text) : toString(parsedTerm.term);
+    conditions.push(...dataFields.map(field => ({ [field]: dataTerm })));
   }
 
   // Conditions for numbers (ID, amount)
@@ -801,8 +827,16 @@ export const buildSearchConditions = (
 
 type KyselySearchField = string | Expression<unknown> | RawBuilder<unknown>;
 
+/**
+ * Resolves a dynamic search field to something `eb()` accepts. Plain strings are parsed
+ * with `sql.ref`, which uses the same parser as Kysely string references, so the
+ * generated SQL is unchanged.
+ */
+const toKyselyReference = (field: KyselySearchField): Expression<unknown> =>
+  typeof field === 'string' ? sql.ref(field) : field;
+
 export const buildKyselySearchConditions =
-  <T>(
+  (
     searchTerm: string,
     {
       slugFields = [],
@@ -831,7 +865,7 @@ export const buildKyselySearchConditions =
       }[];
     },
   ) =>
-  (q: SelectQueryBuilder<any, any, T>): SelectQueryBuilder<any, any, T> => {
+  <DB, TB extends keyof DB, O>(q: SelectQueryBuilder<DB, TB, O>): SelectQueryBuilder<DB, TB, O> => {
     const parsedTerm = parseSearchTerm(searchTerm);
 
     // Empty search => no condition
@@ -841,13 +875,13 @@ export const buildKyselySearchConditions =
 
     // Exclusive conditions: if an ID, slug, or email is searched, don't search other attributes.
     if (parsedTerm.type === 'slug' && slugFields?.length) {
-      return q.where(({ eb, or }) => or(slugFields.map(field => eb(field, '=', parsedTerm.term))));
+      return q.where(({ eb, or }) => or(slugFields.map(field => eb(toKyselyReference(field), '=', parsedTerm.term))));
     }
     if (parsedTerm.type === 'id' && idFields?.length) {
-      return q.where(({ eb, or }) => or(idFields.map(field => eb(field, '=', parsedTerm.term))));
+      return q.where(({ eb, or }) => or(idFields.map(field => eb(toKyselyReference(field), '=', parsedTerm.term))));
     }
     if (parsedTerm.type === 'email' && emailFields?.length) {
-      return q.where(({ eb, or }) => or(emailFields.map(field => eb(field, '=', parsedTerm.term))));
+      return q.where(({ eb, or }) => or(emailFields.map(field => eb(toKyselyReference(field), '=', parsedTerm.term))));
     }
     if (parsedTerm.type === 'publicId' && publicIdFields?.length) {
       const fields = publicIdFields
@@ -859,7 +893,7 @@ export const buildKyselySearchConditions =
           return [...acc, field.field];
         }, []);
       if (fields.length) {
-        return q.where(({ eb, or }) => or(fields.map(field => eb(field, '=', parsedTerm.term))));
+        return q.where(({ eb, or }) => or(fields.map(field => eb(toKyselyReference(field), '=', parsedTerm.term))));
       }
     }
 
@@ -873,16 +907,18 @@ export const buildKyselySearchConditions =
       const allTextFields = [...(slugFields || []), ...(textFields || [])];
 
       // Partial match on slug + free-text columns (also used for multi-word queries).
-      allTextFields.forEach(field => conditions.push(eb(field, 'ilike', `%${sanitizeSearchTermForILike(strTerm)}%`)));
+      allTextFields.forEach(field =>
+        conditions.push(eb(toKyselyReference(field), 'ilike', `%${sanitizeSearchTermForILike(strTerm)}%`)),
+      );
 
       // Tag / string-array overlap
       if (stringArrayFields?.length) {
         const preparedTerm = stringArrayTransformFn ? stringArrayTransformFn(strTerm) : strTerm;
         stringArrayFields.forEach(field => {
           if (castStringArraysToVarchar) {
-            conditions.push(eb(field, '&&', sql`CAST(ARRAY[${preparedTerm}] AS varchar[])`));
+            conditions.push(eb(toKyselyReference(field), '&&', sql`CAST(ARRAY[${preparedTerm}] AS varchar[])`));
           } else {
-            conditions.push(eb(field, '&&', sql`ARRAY[${preparedTerm}]::varchar[]`));
+            conditions.push(eb(toKyselyReference(field), '&&', sql`ARRAY[${preparedTerm}]::varchar[]`));
           }
         });
       }
@@ -894,16 +930,23 @@ export const buildKyselySearchConditions =
         ((parsedTerm.type === 'text' && parsedTerm.words === 1) ||
           (parsedTerm.type === 'number' && !parsedTerm.isFloat))
       ) {
-        dataFields.forEach(field => conditions.push(eb(field, '=', toString(parsedTerm.term))));
+        // For numeric terms, compare the original decimal text rather than the `parseFloat`-rounded
+        // value: Wise/external identifiers may exceed `Number.MAX_SAFE_INTEGER`. Leading zeros are
+        // canonicalized so `007` still matches a stored `7`.
+        const dataTerm =
+          parsedTerm.type === 'number' ? canonicalizeIntegerSearchText(parsedTerm.text) : toString(parsedTerm.term);
+        dataFields.forEach(field => conditions.push(eb(toKyselyReference(field), '=', dataTerm)));
       }
 
       // Bare numbers (not #id): match integer id columns and/or amount columns (stored in cents).
       if (parsedTerm.type === 'number') {
         if (!parsedTerm.isFloat && idFields?.length) {
-          idFields.forEach(field => conditions.push(eb(field, '=', parsedTerm.term)));
+          idFields.forEach(field => conditions.push(eb(toKyselyReference(field), '=', parsedTerm.term)));
         }
         if (amountFields?.length) {
-          amountFields.forEach(field => conditions.push(eb(field, '=', floatAmountToCents(parsedTerm.term as number))));
+          amountFields.forEach(field =>
+            conditions.push(eb(toKyselyReference(field), '=', floatAmountToCents(parsedTerm.term as number))),
+          );
         }
       }
 

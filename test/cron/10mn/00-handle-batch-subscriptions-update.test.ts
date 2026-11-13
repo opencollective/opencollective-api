@@ -149,13 +149,52 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
         CollectiveId: collective.id,
         TierId: tier.id,
         status: OrderStatuses.ACTIVE,
-        data: { needsAsyncDeactivation: true },
       },
       { withSubscription: true, withTransactions: true, withTier: true },
     );
 
-    await models.Order.cancelActiveOrdersByTierId(tier.id);
+    // This is what `deleteTier(stopRecurringContributions: true)` does: the order is cancelled straight away,
+    // deactivating the subscription (and cancelling it on the payment provider side) is left to this cron job.
+    await Order.stopActiveSubscriptionsForTier(tier.id);
     await tier.destroy();
+
+    // The order is cancelled and flagged before the job runs
+    await order.reload();
+    expect(order.status).to.eq(OrderStatuses.CANCELLED);
+    expect(order.data.needsAsyncDeactivation).to.be.true;
+
+    await runCronJob();
+
+    await order.reload();
+    await order.Subscription.reload();
+    expect(order.status).to.eq(OrderStatuses.CANCELLED);
+    expect(order.Subscription.isActive).to.be.false;
+    expect(order.data.needsAsyncDeactivation).to.be.false;
+
+    const activity = await models.Activity.findOne({ where: { type: activities.SUBSCRIPTION_CANCELED } });
+    expect(activity).to.exist;
+    expect(activity.data.reason).to.equal('Order tier deleted');
+    expect(activity.data.reasonCode).to.equal('DELETED_TIER');
+  });
+
+  it('cancels subscriptions made by an archived account', async () => {
+    const collective = await fakeCollective({ HostCollectiveId: host.id, slug: 'test-collective' });
+    const archivedAccount = await fakeCollective({ deactivatedAt: new Date() });
+    const order = await fakeOrder(
+      {
+        CollectiveId: collective.id,
+        FromCollectiveId: archivedAccount.id,
+        status: OrderStatuses.ACTIVE,
+      },
+      { withSubscription: true, withTransactions: true, withTier: true },
+    );
+
+    // This is what `archiveCollective` does for the outgoing contributions of the archived account
+    await Order.stopActiveSubscriptionsFromAccounts([archivedAccount.id], OrderStatuses.CANCELLED);
+
+    await order.reload();
+    expect(order.status).to.eq(OrderStatuses.CANCELLED);
+    expect(order.data.needsAsyncDeactivation).to.be.true;
 
     await runCronJob();
 
@@ -166,8 +205,67 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
 
     const activity = await models.Activity.findOne({ where: { type: activities.SUBSCRIPTION_CANCELED } });
     expect(activity).to.exist;
-    expect(activity.data.reason).to.equal('Order tier deleted');
-    expect(activity.data.reasonCode).to.equal('DELETED_TIER');
+    expect(activity.data.reason).to.equal(`@${archivedAccount.slug} archived their account`);
+    expect(activity.data.reasonCode).to.equal('ARCHIVED_CONTRIBUTOR');
+  });
+
+  it('cancels paused orders without asking for a deactivation', async () => {
+    const collective = await fakeCollective({ HostCollectiveId: host.id, slug: 'test-collective' });
+    const tier = await fakeTier({ CollectiveId: collective.id });
+    const order = await fakeOrder(
+      {
+        CollectiveId: collective.id,
+        TierId: tier.id,
+        status: OrderStatuses.PAUSED,
+        subscription: { isActive: false, deactivatedAt: new Date() },
+      },
+      { withSubscription: true, withTransactions: true },
+    );
+
+    await Order.stopActiveSubscriptionsForTier(tier.id);
+
+    // A paused contribution to a deleted tier must not stay resumable...
+    await order.reload();
+    expect(order.status).to.eq(OrderStatuses.CANCELLED);
+    // ...but there is nothing to deactivate: flagging it would leave a flag the job below can never clear, which
+    // permanently blocks `updateOrder` and `OrderPermissions.canResume`.
+    expect(order.data.needsAsyncDeactivation).to.not.be.true;
+
+    await runCronJob();
+
+    await order.reload();
+    await order.Subscription.reload();
+    expect(order.Subscription.isActive).to.be.false;
+
+    const activity = await models.Activity.findOne({ where: { type: activities.SUBSCRIPTION_CANCELED } });
+    expect(activity).to.not.exist;
+  });
+
+  it('records the cancellation silently when createStatusChangeActivity is false', async () => {
+    const collective = await fakeCollective({ HostCollectiveId: host.id, slug: 'test-collective' });
+    const order = await fakeOrder(
+      {
+        CollectiveId: collective.id,
+        status: OrderStatuses.CANCELLED,
+        // What `scripts/recurring-contributions/backfill-needs-async-deactivation.ts` writes: these contributions
+        // were cancelled a long time ago, the contributor must not hear about it now.
+        data: { needsAsyncDeactivation: true, createStatusChangeActivity: false },
+      },
+      { withSubscription: true, withTransactions: true },
+    );
+
+    await runCronJob();
+
+    await order.reload();
+    await order.Subscription.reload();
+    expect(order.status).to.eq(OrderStatuses.CANCELLED);
+    expect(order.Subscription.isActive).to.be.false;
+
+    // The activity is still recorded for the timeline, but `data.notify: false` suppresses every dispatch
+    const activity = await models.Activity.findOne({ where: { type: activities.SUBSCRIPTION_CANCELED } });
+    expect(activity).to.exist;
+    expect(activity.data.notify).to.be.false;
+    expect(activity.data.reasonCode).to.equal('CANCELLED_ORDER');
   });
 
   it('cancels paypal subscriptions from changed host', async () => {

@@ -9,9 +9,40 @@ import type { AccountReferenceInput } from '../../graphql/v2/input/AccountRefere
 import type { ExpenseReferenceInputFields } from '../../graphql/v2/input/ExpenseReferenceInput';
 import type { OrderReferenceInputGraphQLType } from '../../graphql/v2/input/OrderReferenceInput';
 import { UploadedFile } from '../../models';
-import { ExportRequestStatus } from '../../models/ExportRequest';
+import { ExportRequestTypes } from '../../models/ExportRequest';
 
 import type { ExportProcessor } from './types';
+
+/**
+ * The transaction search filter as provided by the REST service, translated to URL search params.
+ * Fields not listed here are ignored.
+ */
+type TransactionExportRequestVariables = {
+  account?: AccountReferenceInput;
+  excludeAccount?: AccountReferenceInput;
+  expense?: ExpenseReferenceInputFields;
+  order?: OrderReferenceInputGraphQLType;
+  expenseType?: string | string[];
+  kind?: string | string[];
+  amount?: {
+    gte?: { valueInCents: number; currency?: string };
+    lte?: { valueInCents: number; currency?: string };
+  };
+  paymentMethodService?: string | string[];
+  paymentMethodType?: string | string[];
+  type?: string;
+  searchTerm?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  clearedFrom?: string;
+  clearedTo?: string;
+  isRefund?: boolean;
+  hasDebt?: boolean;
+  includeEditedReversedTransactions?: boolean;
+  merchantId?: string;
+  accountingCategory?: string | string[];
+  group?: string | string[];
+};
 
 type TransactionExportRequestParameters = {
   fields?: string[];
@@ -19,12 +50,15 @@ type TransactionExportRequestParameters = {
   isHostReport?: boolean;
   flattenTaxesAndPaymentProcessorFees?: boolean;
   fetchAll?: boolean;
-  variables?: Record<string, any>;
+  variables?: TransactionExportRequestVariables;
 };
 
 const safeJoinString = (value: string[] | string) => (Array.isArray(value) ? value.join(',') : value);
 
-const makeUrl = ({
+/** If neither the download nor the upload moves data for this long, the export stream is considered wedged. */
+export const EXPORT_IDLE_TIMEOUT_MS = 15 * 60_000;
+
+export const makeUrl = ({
   account,
   isHostReport,
   variables = {},
@@ -40,10 +74,10 @@ const makeUrl = ({
 
   if (isHostReport) {
     if (queryFilter.variables.account) {
-      url.searchParams.set('account', (queryFilter.variables.account as AccountReferenceInput).slug);
+      url.searchParams.set('account', queryFilter.variables.account.slug);
     }
     if (queryFilter.variables.excludeAccount) {
-      url.searchParams.set('excludeAccount', (queryFilter.variables.excludeAccount as AccountReferenceInput).slug);
+      url.searchParams.set('excludeAccount', queryFilter.variables.excludeAccount.slug);
     }
   }
   if (fetchAll) {
@@ -105,13 +139,13 @@ const makeUrl = ({
     );
   }
   if (queryFilter.variables.order) {
-    url.searchParams.set('orderId', String((queryFilter.variables.order as OrderReferenceInputGraphQLType).legacyId));
+    url.searchParams.set('orderId', String(queryFilter.variables.order.legacyId));
   }
   if (queryFilter.variables.expense) {
-    url.searchParams.set('expenseId', String((queryFilter.variables.expense as ExpenseReferenceInputFields).legacyId));
+    url.searchParams.set('expenseId', String(queryFilter.variables.expense.legacyId));
   }
   if (queryFilter.variables.merchantId) {
-    url.searchParams.set('merchantId', queryFilter.variables.merchantId as string);
+    url.searchParams.set('merchantId', queryFilter.variables.merchantId);
   }
   if (queryFilter.variables.accountingCategory) {
     url.searchParams.set('accountingCategory', safeJoinString(queryFilter.variables.accountingCategory));
@@ -134,6 +168,12 @@ const makeUrl = ({
   return url.toString();
 };
 
+/** Set expiration date based on export type, with a 90 days fallback for unconfigured types. */
+export const getExportExpirationDate = (type: ExportRequestTypes): Date => {
+  const expirationDays = config.exports?.expirationDays?.[type] || 90;
+  return moment().add(expirationDays, 'days').toDate();
+};
+
 export const processTransactionsRequest: ExportProcessor = async (request, workerAbortSignal) => {
   const user = await request.getCreatedByUser();
   assert(user, 'ExportRequest must have a CreatedByUser');
@@ -148,40 +188,95 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
 
   const abortController = new AbortController();
   // Propagate worker abort signal to the upload and download stream
-  workerAbortSignal.addEventListener('abort', () => {
-    abortController.abort();
-  });
+  const propagateAbort = () => abortController.abort();
+  workerAbortSignal.addEventListener('abort', propagateAbort, { once: true });
 
-  const fileName = kebabCase(request.name) || `transactions-export`;
-  const stream = new Stream.PassThrough();
-  const pUpload = UploadedFile.uploadStream(stream, 'TRANSACTIONS_CSV_EXPORT', user, {
-    fileName: `${fileName}-${Date.now()}.csv`,
-    mimetype: 'text/csv',
-    abortController,
-  });
-  const pDownload = axios
-    .get(url, {
-      responseType: 'stream',
-      signal: abortController.signal,
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-    .then(response => {
-      response.data.pipe(stream);
+  let idleTimer: NodeJS.Timeout | null = null;
+  try {
+    const fileName = kebabCase(request.name) || `transactions-export`;
+    const stream = new Stream.PassThrough();
+    // Teardown helper: when either leg fails, cancel the other one so we never wait forever on a leg that
+    // can no longer make progress (e.g. a download backpressured by a dead upload). The first failure wins.
+    let failure: Error | null = null;
+    const abortLegs = (error: Error) => {
+      if (!failure) {
+        failure = error;
+      }
+      stream.destroy();
+      abortController.abort();
+    };
+
+    // Idle watchdog: if neither the download nor the upload moves data for `EXPORT_IDLE_TIMEOUT_MS`, the
+    // stream is wedged (stalled upstream, half-open connection): tear both legs down so the attempt fails and
+    // is retried instead of holding a worker slot and its heartbeat forever.
+    const armIdleWatchdog = () => {
+      if (idleTimer) {
+        clearTimeout(idleTimer);
+      }
+      idleTimer = setTimeout(() => {
+        abortLegs(new Error(`Export stalled: no data transferred for ${EXPORT_IDLE_TIMEOUT_MS / 60_000} minutes`));
+      }, EXPORT_IDLE_TIMEOUT_MS);
+    };
+
+    const pUpload = UploadedFile.uploadStream(stream, 'TRANSACTIONS_CSV_EXPORT', user, {
+      fileName: `${fileName}-${Date.now()}.csv`,
+      mimetype: 'text/csv',
+      abortController,
+      onProgress: armIdleWatchdog,
     });
 
-  const [uploadedFile] = await Promise.all([pUpload, pDownload]);
+    const pDownload = axios
+      .get(url, {
+        responseType: 'stream',
+        signal: abortController.signal,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then(
+        response =>
+          new Promise<void>((resolve, reject) => {
+            // The S3 upload only completes when the pass-through ends: forward download stream failures and
+            // settle when the pass-through is torn down, since a destroyed stream never drains the source
+            response.data.on('data', armIdleWatchdog);
+            response.data.on('error', error => {
+              abortLegs(error);
+              reject(error);
+            });
+            response.data.on('end', resolve);
+            stream.on('close', () => (failure ? reject(failure) : resolve()));
+            response.data.pipe(stream);
+          }),
+        error => {
+          abortLegs(error);
+          throw error;
+        },
+      );
+    pUpload.catch(error => abortLegs(error));
+    armIdleWatchdog();
 
-  // Set expiration date based on export type
-  const expirationDays = config.exports?.expirationDays?.[request.type] || 90;
-  const expiresAt = moment().add(expirationDays, 'days').toDate();
+    // Wait for both legs to settle so a failed download can never leave the S3 upload running
+    const [uploadResult, downloadResult] = await Promise.allSettled([pUpload, pDownload]);
+    if (failure) {
+      throw failure;
+    } else if (downloadResult.status === 'rejected') {
+      throw downloadResult.reason;
+    } else if (uploadResult.status === 'rejected') {
+      throw uploadResult.reason;
+    }
+    const uploadedFile = uploadResult.value;
+    const expiresAt = getExportExpirationDate(request.type);
 
-  await request.update({
-    UploadedFileId: uploadedFile.id,
-    status: ExportRequestStatus.COMPLETED,
-    expiresAt,
-  });
+    await request.update({
+      UploadedFileId: uploadedFile.id,
+      expiresAt,
+    });
+  } finally {
+    if (idleTimer) {
+      clearTimeout(idleTimer);
+    }
+    workerAbortSignal.removeEventListener('abort', propagateAbort);
+  }
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

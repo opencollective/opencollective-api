@@ -1,10 +1,15 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import { flatten } from 'lodash';
 import moment from 'moment';
+import { createSandbox } from 'sinon';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import { PlatformSubscriptionTiers, PlatformSubscriptionTierTypes } from '../../../../../server/constants/plans';
+import MemberRoles from '../../../../../server/constants/roles';
+import SQLQueries from '../../../../../server/lib/queries';
 import models, { PlatformSubscription } from '../../../../../server/models';
+import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import { BillingMonth } from '../../../../../server/models/PlatformSubscription';
 import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
 import {
@@ -12,7 +17,11 @@ import {
   fakeCollective,
   fakeEvent,
   fakeExpense,
+  fakeLegalDocument,
+  fakeMember,
+  fakePayoutMethod,
   fakeProject,
+  fakeRequiredLegalDocument,
   fakeUploadedFile,
   fakeUser,
   fakeVirtualCard,
@@ -214,6 +223,108 @@ describe('server/graphql/v2/object/Host', () => {
       expect(result.errors).to.be.undefined;
       expect(result.data.host.hostedAccountAgreements.totalCount).to.eql(1);
       expect(result.data.host.hostedAccountAgreements.nodes[0].title).to.eql('pubid agreement');
+    });
+  });
+
+  describe('hostedLegalDocuments', () => {
+    const taxFormsQuery = gql`
+      query HostTaxForms($slug: String!, $accounts: [AccountReferenceInput]) {
+        host(slug: $slug) {
+          id
+          hostedLegalDocuments(type: US_TAX_FORM, account: $accounts, orderBy: { field: CREATED_AT, direction: DESC }) {
+            totalCount
+            nodes {
+              id
+              account {
+                id
+                legacyId
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    let sandbox;
+    let host, hostAdmin, payee, otherPayee;
+
+    const setup = async () => {
+      hostAdmin = await fakeUser();
+      host = await fakeActiveHost({ admin: hostAdmin });
+      await fakeRequiredLegalDocument({ HostCollectiveId: host.id });
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id });
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      payee = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+      otherPayee = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+
+      // Both payees have been paid by the host above the tax form threshold
+      for (const fromCollective of [payee, otherPayee]) {
+        await fakeExpense({
+          FromCollectiveId: fromCollective.id,
+          CollectiveId: hostedCollective.id,
+          HostCollectiveId: host.id,
+          PayoutMethodId: payoutMethod.id,
+          amount: 1_000_000e2,
+          status: 'PAID',
+        });
+        await fakeLegalDocument({ CollectiveId: fromCollective.id });
+      }
+    };
+
+    before(resetTestDB);
+
+    beforeEach(async () => {
+      sandbox = createSandbox();
+      await setup();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('returns legal documents for all accounts requiring one', async () => {
+      const result = await graphqlQueryV2(taxFormsQuery, { slug: host.slug }, hostAdmin);
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.hostedLegalDocuments.totalCount).to.eql(2);
+    });
+
+    it('only returns legal documents of the requested accounts', async () => {
+      const result = await graphqlQueryV2(
+        taxFormsQuery,
+        { slug: host.slug, accounts: [{ id: payee.publicId }] },
+        hostAdmin,
+      );
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.hostedLegalDocuments.totalCount).to.eql(1);
+      expect(result.data.host.hostedLegalDocuments.nodes[0].account.legacyId).to.eql(payee.id);
+    });
+
+    it('scopes the tax forms requirement query to the requested accounts', async () => {
+      const spy = sandbox.spy(SQLQueries, 'getTaxFormsRequiredForAccounts');
+      const result = await graphqlQueryV2(
+        taxFormsQuery,
+        { slug: host.slug, accounts: [{ id: payee.publicId }] },
+        hostAdmin,
+      );
+      expect(result.errors).to.be.undefined;
+      expect(spy).to.have.been.calledOnceWith({
+        HostCollectiveId: host.id,
+        CollectiveId: [payee.id],
+        allTime: true,
+      });
+    });
+
+    it('does not return legal documents of accounts that do not require a tax form for this host', async () => {
+      const unrelatedAccount = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+      await fakeLegalDocument({ CollectiveId: unrelatedAccount.id });
+
+      const result = await graphqlQueryV2(
+        taxFormsQuery,
+        { slug: host.slug, accounts: [{ id: unrelatedAccount.publicId }] },
+        hostAdmin,
+      );
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.hostedLegalDocuments.totalCount).to.eql(0);
     });
   });
 
@@ -861,6 +972,18 @@ describe('server/graphql/v2/object/Host', () => {
                 }
               }
 
+              crowdfunding {
+                totalAmount {
+                  valueInCents
+                  currency
+                }
+                feePercent
+                fee {
+                  valueInCents
+                  currency
+                }
+              }
+
               subscriptions {
                 startDate
                 endDate
@@ -874,6 +997,12 @@ describe('server/graphql/v2/object/Host', () => {
         }
       }
     `;
+
+    const noCrowdfundingFee = {
+      totalAmount: { currency: 'USD', valueInCents: 0 },
+      feePercent: 0,
+      fee: { currency: 'USD', valueInCents: 0 },
+    };
 
     it('resolves to empty subscriptions if no subscription is active', async () => {
       const hostAdmin = await fakeUser();
@@ -891,6 +1020,7 @@ describe('server/graphql/v2/object/Host', () => {
           subscriptions: [],
           total: { currency: 'USD', valueInCents: 0 },
         },
+        crowdfunding: noCrowdfundingFee,
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,
@@ -919,6 +1049,7 @@ describe('server/graphql/v2/object/Host', () => {
           subscriptions: [],
           total: { currency: 'USD', valueInCents: 0 },
         },
+        crowdfunding: noCrowdfundingFee,
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,
@@ -971,6 +1102,7 @@ describe('server/graphql/v2/object/Host', () => {
             },
           ],
         },
+        crowdfunding: noCrowdfundingFee,
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,
@@ -1026,6 +1158,7 @@ describe('server/graphql/v2/object/Host', () => {
             },
           ],
         },
+        crowdfunding: noCrowdfundingFee,
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,
@@ -1079,6 +1212,7 @@ describe('server/graphql/v2/object/Host', () => {
             },
           ],
         },
+        crowdfunding: noCrowdfundingFee,
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,
@@ -1146,6 +1280,7 @@ describe('server/graphql/v2/object/Host', () => {
             },
           ],
         },
+        crowdfunding: noCrowdfundingFee,
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,
@@ -1174,6 +1309,59 @@ describe('server/graphql/v2/object/Host', () => {
           },
         ],
       });
+    });
+  });
+
+  describe('reports access', () => {
+    const hostReportsQuery = gql`
+      query HostTransactionReports($slug: String!) {
+        host(slug: $slug) {
+          id
+          hostTransactionsReports(timeUnit: MONTH) {
+            timeUnit
+          }
+          hostContributionsReport(timeUnit: MONTH) {
+            timeUnit
+          }
+          hostExpensesReport(timeUnit: MONTH) {
+            timeUnit
+          }
+        }
+      }
+    `;
+
+    let host, hostAccountant, randomUser;
+    before(async () => {
+      const hostAdmin = await fakeUser();
+      host = await fakeActiveHost({ admin: hostAdmin });
+      hostAccountant = await fakeUser();
+      await fakeMember({
+        CollectiveId: host.id,
+        MemberCollectiveId: hostAccountant.CollectiveId,
+        role: MemberRoles.ACCOUNTANT,
+      });
+      randomUser = await fakeUser();
+    });
+
+    it('allows an accountant of the host to see its transaction reports', async () => {
+      const result = await graphqlQueryV2(hostReportsQuery, { slug: host.slug }, hostAccountant);
+      expect(result.errors).to.not.exist;
+      expect(result.data.host.hostTransactionsReports.timeUnit).to.eq('MONTH');
+      expect(result.data.host.hostExpensesReport.timeUnit).to.eq('MONTH');
+      expect(result.data.host.hostContributionsReport.timeUnit).to.eq('MONTH');
+    });
+
+    it('still denies a user without a role on the host', async () => {
+      const result = await graphqlQueryV2(hostReportsQuery, { slug: host.slug }, randomUser);
+      expect(result.errors).to.exist;
+      expect(result.errors).to.have.length(3);
+      result.errors.map(error => {
+        expect(error.message).to.include('admin or an accountant');
+      });
+      const paths = flatten(result.errors.map(e => e.path));
+      expect(paths).to.include('hostExpensesReport');
+      expect(paths).to.include('hostTransactionsReports');
+      expect(paths).to.include('hostContributionsReport');
     });
   });
 });

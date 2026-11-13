@@ -10,7 +10,7 @@ import { Forbidden, NotFound, ValidationFailed } from '../errors';
 import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 import { fetchUpdateWithReference } from '../v2/input/UpdateReferenceInput';
 
-import { checkRemoteUserCanUseUpdates } from './scope-check';
+import { checkRemoteUserCanUseUpdates, checkScope } from './scope-check';
 
 export async function createUpdate(_, args, req) {
   checkRemoteUserCanUseUpdates(req);
@@ -112,6 +112,20 @@ export async function deleteUpdate(_, args, req) {
   return update;
 }
 
+/**
+ * Personal and OAuth tokens need the `updates` scope to read unpublished or private updates.
+ * Session authentication bypasses OAuth scopes and stays role-gated in `canSeeUpdate`.
+ */
+export function hasUpdatesScopeForNonPublicUpdate(req, update): boolean {
+  if (!update || (update.publishedAt && !update.isPrivate)) {
+    return true;
+  } else if (!req.userToken && !req.personalToken) {
+    return true;
+  } else {
+    return checkScope(req, 'updates');
+  }
+}
+
 const canSeeUpdateForFinancialContributors = (req, collective): Promise<boolean> => {
   const allowedNonAdminRoles = [
     MemberRoles.MEMBER,
@@ -153,6 +167,8 @@ export async function canSeeUpdate(req, update): Promise<boolean> {
 
   if (update.publishedAt && !update.isPrivate) {
     return true; // If the update is published and not private, it's visible to everyone
+  } else if (!hasUpdatesScopeForNonPublicUpdate(req, update)) {
+    return false;
   } else if (!req.remoteUser) {
     return false; // If the update is not published or private, it's not visible to logged out users
   }

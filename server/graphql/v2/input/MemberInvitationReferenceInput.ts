@@ -24,9 +24,9 @@ export const GraphQLMemberInvitationReferenceInput = new GraphQLInputObjectType(
 });
 
 export const fetchMemberInvitationWithReference = async (
-  input,
+  input: { id?: string; legacyId?: number },
   { throwIfMissing } = { throwIfMissing: false },
-): Promise<any> => {
+) => {
   let memberInvitation;
   if (isEntityPublicId(input.id, EntityShortIdPrefix.MemberInvitation)) {
     memberInvitation = await models.MemberInvitation.findOne({ where: { publicId: input.id } });

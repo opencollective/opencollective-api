@@ -32,8 +32,11 @@ export const getProvider = async (providerType, instanceType = RedisInstanceType
   }
 };
 
-const getDefaultProviderType = () => {
-  if (get(config, 'redis.serverUrl')) {
+const getDefaultProviderType = (instanceType = RedisInstanceType.DEFAULT) => {
+  if (
+    get(config, 'redis.serverUrl') ||
+    (instanceType === RedisInstanceType.SESSION && get(config, 'redis.serverUrlSession'))
+  ) {
     return PROVIDER_TYPES.REDIS;
   } else {
     return PROVIDER_TYPES.MEMORY;
@@ -43,7 +46,7 @@ const getDefaultProviderType = () => {
 const providers = {};
 
 const getDefaultProvider = (instanceType = RedisInstanceType.DEFAULT): Promise<ReturnType<typeof getProvider>> => {
-  const defaultProviderType = getDefaultProviderType();
+  const defaultProviderType = getDefaultProviderType(instanceType);
   if (!providers[instanceType]) {
     providers[instanceType] = getProvider(defaultProviderType, instanceType);
   }
@@ -96,7 +99,7 @@ const buildCache = (instanceType = RedisInstanceType.DEFAULT) => ({
       logger.warn(`Error while checking from cache: ${err.message}`);
     }
   },
-  set: async (key: string, value: any, expirationInSeconds?: number, options?) => {
+  set: async (key: string, value: unknown, expirationInSeconds?: number, options?) => {
     try {
       debugCache(`set ${key} ttl:${expirationInSeconds}s`);
       const provider = await getDefaultProvider(instanceType);
@@ -104,6 +107,18 @@ const buildCache = (instanceType = RedisInstanceType.DEFAULT) => ({
     } catch (err) {
       logger.warn(`Error while writing to cache: ${err.message}`);
     }
+  },
+  /** Atomically increments a counter. No try/catch: rate limits must not silently fail open on store errors. */
+  increment: async (key: string, amount: number, expirationInSeconds: number): Promise<number | undefined> => {
+    debugCache(`increment ${key} by ${amount} ttl:${expirationInSeconds}s`);
+    const provider = await getDefaultProvider(instanceType);
+    return provider.increment(key, amount, expirationInSeconds);
+  },
+  /** Decrements an existing counter, never below zero. Does nothing if the key expired. No try/catch, like `increment`. */
+  decrement: async (key: string, amount: number): Promise<number | undefined> => {
+    debugCache(`decrement ${key} by ${amount}`);
+    const provider = await getDefaultProvider(instanceType);
+    return provider.decrement(key, amount);
   },
   consume: async (key: string, options?) => {
     try {
@@ -140,6 +155,11 @@ export async function fetchCollectiveId(collectiveSlug) {
     cache.set(cacheKey, collective.id, oneDayInSeconds);
     return collective.id;
   }
+}
+
+/** Removes the cached slug -> id mapping (e.g. after a merge renames the account's slug) */
+export async function purgeCollectiveIdCacheForSlug(collectiveSlug: string) {
+  await cache.delete(`collective_id_with_slug_${collectiveSlug}`);
 }
 
 export function memoize(func, { key, maxAge = 0, serialize = JSON.stringify, unserialize = JSON.parse }) {

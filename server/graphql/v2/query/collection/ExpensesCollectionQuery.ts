@@ -28,6 +28,7 @@ import { AccountingCategory, Activity, Collective, Op, sequelize } from '../../.
 import Expense, { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
+import { isRemoteUserRoot } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized } from '../../../errors';
 import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection';
 import { GraphQLActivityType } from '../../enum/ActivityType';
@@ -197,7 +198,7 @@ const getHostContextConditions = (
 const buildExpenseCanCommentRoleSqlLiteral = (req: express.Request): ReturnType<typeof sequelize.literal> | null => {
   if (!req.remoteUser) {
     return sequelize.literal('FALSE'); // This will return an empty result set for all expenses
-  } else if (req.remoteUser.isRoot()) {
+  } else if (isRemoteUserRoot(req)) {
     return null; // No restrictions for root users
   }
 
@@ -232,10 +233,8 @@ const buildExpenseCanCommentRoleSqlLiteral = (req: express.Request): ReturnType<
   const sql = `(
     ${buildIsAdminOfCollectiveSql('collective')}
     OR ${buildHostAdminRoleSql()}
-    OR (
-      ("Expense"."UserId" = :userId AND "fromCollective"."type" != 'VENDOR')
-      OR ${buildIsAdminOfCollectiveSql('fromCollective')}
-    )
+    OR "Expense"."UserId" = :userId
+    OR ${buildIsAdminOfCollectiveSql('fromCollective')}
   )`;
 
   return sequelize.literal(
@@ -482,9 +481,10 @@ const loadAllAccountsFromArgs = async (
 
 export const ExpensesCollectionQueryResolver = async (
   _: void,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GraphQL resolver args bag, shaped by graphql-js at runtime
   args: Record<string, any> & { amount?: AmountRangeInputType },
   req: express.Request,
-): Promise<CollectionReturnType & { totalAmount?: any; payees?: any }> => {
+): Promise<CollectionReturnType & { totalAmount?: unknown; payees?: unknown }> => {
   const where = { [Op.and]: [] };
   const include = [];
 
@@ -500,7 +500,7 @@ export const ExpensesCollectionQueryResolver = async (
   };
 
   // Check arguments
-  if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+  if (args.limit > 1000 && !isRemoteUserRoot(req)) {
     throw new Error('Cannot fetch more than 1,000 expenses at the same time, please adjust the limit');
   }
 
@@ -590,7 +590,7 @@ export const ExpensesCollectionQueryResolver = async (
 
   // Restrict expenses whose payer collective is private unless the viewer may see that account (or submitted the expense).
   // When `accounts` / `account` / `host` is set, visibility was already enforced via assertCanSeeAllAccounts on those collectives.
-  if (!req.remoteUser?.isRoot() && accounts.length === 0 && !host) {
+  if (!isRemoteUserRoot(req) && accounts.length === 0 && !host) {
     ensureInclude('collective', { required: true });
 
     const orConditions: WhereOptions[] = [{ '$collective.isPrivate$': false }];
@@ -751,6 +751,11 @@ export const ExpensesCollectionQueryResolver = async (
   /*
    * Please notice that updateFilterConditionsForReadyToPay will query the DB with existing conditionals,
    * for performance reasons, we should make sure that complex conditionals are added after this function is called.
+   *
+   * DRAFT expenses are unlisted by default, not access-controlled: hiding them from listings keeps them
+   * out of sight, but they are not private objects. What is private is the sensitive data they hold
+   * (payout method details, emails, invoices, tax IDs), and those fields have their own permission checks.
+   * Do not treat this collection filter as a privacy boundary.
    */
   if (args.status && args.status.length > 0) {
     if (args.status.includes('ON_HOLD') && args.status.length === 1) {
@@ -766,7 +771,7 @@ export const ExpensesCollectionQueryResolver = async (
     }
   } else {
     if (req.remoteUser) {
-      const userClause: any[] = [{ status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } }];
+      const userClause: WhereOptions[] = [{ status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } }];
 
       if (accounts.every(account => req.remoteUser.isAdminOfCollectiveOrHost(account))) {
         userClause.push({ status: expenseStatus.DRAFT });
@@ -798,6 +803,7 @@ export const ExpensesCollectionQueryResolver = async (
       assert(args.amount.gte.currency === args.amount.lte.currency, 'Amount range must have the same currency');
     }
     const currency = args.amount.gte?.currency || args.amount.lte?.currency;
+    assert(currency, 'A currency must be provided when filtering by amount');
     const gte = args.amount.gte && getValueInCentsFromAmountInput(args.amount.gte);
     const lte = args.amount.lte && getValueInCentsFromAmountInput(args.amount.lte);
     const operator =
@@ -822,16 +828,8 @@ export const ExpensesCollectionQueryResolver = async (
               WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = "Expense"."currency"
                 AND "Expense"."data" #>> '{quote,targetCurrency}' = :currency
                 THEN ("Expense"."data" #> '{quote,rate}')::NUMERIC
-              ELSE COALESCE(
-                (SELECT rate FROM "CurrencyExchangeRates"
-                  WHERE "from" = "Expense"."currency"
-                  AND "to" = :currency
-                  -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
-                  AND "createdAt" <= COALESCE("Expense"."incurredAt", "Expense"."createdAt")
-                  ORDER BY "createdAt" DESC
-                  LIMIT 1),
-                1
-              )
+              -- Most recent rate that is older than the expense
+              ELSE COALESCE(fx_rate("Expense"."currency", :currency, COALESCE("Expense"."incurredAt", "Expense"."createdAt")), 1)
             END * "Expense"."amount"
           `,
             { currency },

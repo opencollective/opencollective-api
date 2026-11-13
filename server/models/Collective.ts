@@ -33,6 +33,7 @@ import pMap from 'p-map';
 import {
   Attributes,
   CreationOptional,
+  FindAttributeOptions,
   FindOptions,
   HasManyCountAssociationsMixin,
   HasManyCreateAssociationMixin,
@@ -41,9 +42,9 @@ import {
   InferAttributes,
   InferCreationAttributes,
   NonAttribute,
+  ProjectionAlias,
   WhereOptions,
 } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
 import validator from 'validator';
 
@@ -60,6 +61,7 @@ import plans, { HostPlan, PlatformSubscriptionTiers } from '../constants/plans';
 import PlatformConstants from '../constants/platform';
 import POLICIES, { DEFAULT_POLICIES, Policies, UseVendorPolicyValue } from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
+import type { VirtualCardLimitIntervals } from '../constants/virtual-cards';
 import {
   getBalanceAmount,
   getBalanceTimeSeries,
@@ -68,6 +70,7 @@ import {
   getTotalAmountReceivedAmount,
   getTotalAmountReceivedTimeSeries,
   getTotalAmountSpentAmount,
+  getTotalAmountSpentTimeSeries,
   getTotalMoneyManagedAmount,
   getYearlyBudgetAmount,
 } from '../lib/budget';
@@ -97,6 +100,7 @@ import queries from '../lib/queries';
 import { buildSanitizerOptions, optsSanitizeHtmlForSimplified, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, Sequelize, Transaction as SequelizeTransaction } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, SpamAnalysisReport } from '../lib/spam';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { isValidURL, prependHttp } from '../lib/url-utils';
@@ -161,6 +165,7 @@ type Settings = {
   // @deprecated Use `data.features` instead
   features?: {
     contactForm?: boolean;
+    conversations?: boolean;
     paypalDonations?: boolean;
     paypalPayouts?: boolean;
     stripePaymentIntent?: boolean;
@@ -179,6 +184,8 @@ type Settings = {
       period: number;
     };
     requestcard?: boolean;
+    /** Spending limit intervals (`VirtualCardLimitIntervals`) that collectives can pick when requesting a card. All allowed by default. */
+    allowedSpendingLimitIntervals?: Partial<Record<VirtualCardLimitIntervals, boolean>>;
   };
   payoutsTwoFactorAuth?: {
     enabled?: boolean;
@@ -191,6 +198,10 @@ type Settings = {
   apply?: boolean;
   applyMessage?: string;
   tos?: string;
+  hostApplication?: {
+    /** Whether the eligibility rules block applicants from submitting (defaults to true) */
+    blockOnErrors?: boolean;
+  };
   expenseTypes?: Partial<Record<ExpenseType, boolean>>;
   disabledTierTypes?: string[];
   /** Set when the account was automatically migrated to the new platform subscription pricing. */
@@ -231,6 +242,8 @@ type Data = Partial<{
   useVendorPolicy?: UseVendorPolicyValue;
   requiresProfileCompletion: boolean;
   isBlockedForUnpaidPlatformBilling?: boolean;
+  isUSEntity?: boolean;
+  taxableCountry?: string;
 }> &
   Record<string, unknown>;
 
@@ -387,24 +400,6 @@ class Collective extends ModelWithPublicId<
   declare public parent?: NonAttribute<Collective>;
   declare public children?: NonAttribute<Collective[]>;
 
-  static async createOrganization(collectiveData, adminUser, creator) {
-    const CreatedByUserId = creator?.id || adminUser.id;
-    const collective = await Collective.create({
-      CreatedByUserId,
-      ...collectiveData,
-      type: CollectiveType.ORGANIZATION,
-      isActive: true,
-    });
-    await Member.create({
-      CreatedByUserId,
-      CollectiveId: collective.id,
-      MemberCollectiveId: adminUser.CollectiveId,
-      role: roles.ADMIN,
-    });
-    await collective.generateCollectiveCreatedActivity(creator || adminUser, null, { collective: collective.info });
-    return collective;
-  }
-
   static createMany = (collectives, defaultValues, sequelizeParams) => {
     return pMap(collectives, u => Collective.create(defaults({}, u, defaultValues), sequelizeParams), {
       concurrency: 1,
@@ -500,14 +495,14 @@ class Collective extends ModelWithPublicId<
       startsAt: this.startsAt,
       endsAt: this.endsAt,
       timezone: this.timezone,
-      status: (this as any).status,
+      status: (this as unknown as { status?: unknown }).status,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       isActive: this.isActive,
       hasMoneyManagement: this.hasMoneyManagement,
       hasHosting: this.hasHosting,
       slug: this.slug,
-      tiers: (this as any).tiers,
+      tiers: this.tiers,
       type: this.type,
       settings: this.settings,
       website: this.website,
@@ -923,7 +918,7 @@ class Collective extends ModelWithPublicId<
         return existingProfile;
       }
 
-      const user = await this.getUser({ transaction }); // Ideally we should store the user that created the profile (can be a root admin), but User.getIncognitoProfile relies on this
+      const user = await this.getUser({ transaction });
       const account = await Collective.create(
         {
           name: 'Incognito',
@@ -1493,21 +1488,6 @@ class Collective extends ModelWithPublicId<
     return !this.isIncognito;
   };
 
-  /**
-   * Checks if the has been approved by a host.
-   * This function will throw if you try to call it with an event, as you should check the
-   * `isApproved` of the `parentCollective` instead.
-   */
-  isApproved = function () {
-    if (this.type === CollectiveType.EVENT) {
-      throw new Error("isApproved must be called on event's parent collective");
-    } else if (this.id === this.HostCollectiveId) {
-      return true;
-    } else {
-      return Boolean(this.HostCollectiveId && this.isActive && this.approvedAt);
-    }
-  };
-
   // This is quite ugly, and only needed for events.
   // I'd argue that we should store the event slug as `${parentCollectiveSlug}/events/${eventSlug}`
   getUrlPath = async function () {
@@ -1568,7 +1548,7 @@ class Collective extends ModelWithPublicId<
     paranoid = true,
     transaction = undefined,
   }: {
-    collectiveAttributes?: any;
+    collectiveAttributes?: FindAttributeOptions;
     paranoid?: boolean;
     transaction?: SequelizeTransaction;
   } = {}): Promise<User[]> {
@@ -1731,7 +1711,7 @@ class Collective extends ModelWithPublicId<
    * @param {*} endDate end of the time period
    */
   getCancelledOrders = async function (startDate = 0, endDate = new Date()) {
-    let orders = <Array<any>>await Order.findAll({
+    let orders = <Array<Order & { totalTransactions?: number }>>await Order.findAll({
       where: {
         CollectiveId: this.id,
       },
@@ -1783,25 +1763,33 @@ class Collective extends ModelWithPublicId<
    * type: COLLECTIVE/USER/ORGANIZATION or an array of types
    * until: date till when to count the number of backers
    */
-  getBackersCount = function (options: any = {}) {
-    const query = <any>{
-      attributes: [[Sequelize.fn('COUNT', Sequelize.fn('DISTINCT', Sequelize.col('FromCollectiveId'))), 'count']],
-      where: {
-        CollectiveId: this.id,
-        FromCollectiveId: { [Op.ne]: this.HostCollectiveId },
-        type: 'CREDIT',
-      },
+  getBackersCount = function (
+    options: {
+      since?: Date | string | number;
+      until?: Date | string | number;
+      type?: string | string[];
+      group?: string;
+    } = {},
+  ) {
+    const where: WhereOptions = {
+      CollectiveId: this.id,
+      FromCollectiveId: { [Op.ne]: this.HostCollectiveId },
+      type: 'CREDIT',
     };
+    const attributes: (string | ProjectionAlias)[] = [
+      [Sequelize.fn('COUNT', Sequelize.fn('DISTINCT', Sequelize.col('FromCollectiveId'))), 'count'],
+    ];
 
     if (options.since) {
-      query.where.createdAt = query.where.createdAt || {};
-      query.where.createdAt[Op.gte] = options.since;
+      where.createdAt = where.createdAt || {};
+      where.createdAt[Op.gte] = options.since;
     }
     if (options.until) {
-      query.where.createdAt = query.where.createdAt || {};
-      query.where.createdAt[Op.lt] = options.until;
+      where.createdAt = where.createdAt || {};
+      where.createdAt[Op.lt] = options.until;
     }
 
+    const query: FindOptions = { attributes, where };
     if (options.type) {
       const types = typeof options.type === 'string' ? [options.type] : options.type;
       query.include = [
@@ -1818,7 +1806,7 @@ class Collective extends ModelWithPublicId<
 
     let method;
     if (options.group) {
-      query.attributes.push('fromCollective.type');
+      attributes.push('fromCollective.type');
       query.include = [
         {
           model: Collective,
@@ -1933,7 +1921,8 @@ class Collective extends ModelWithPublicId<
     role,
     defaultAttributes: { TierId?: number; CreatedByUserId?: number; description?: string; since?: Date } = {},
     context: {
-      skipActivity?: any;
+      skipActivity?: boolean;
+      order?: Order;
     } = {},
     transaction = undefined,
   ) {
@@ -2218,6 +2207,8 @@ class Collective extends ModelWithPublicId<
 
   /**
    * Similar to `updateHostFeeAsUser`, but doesn't check for permissions.
+   * Passing `undefined` is a no-op. Any other value must be a number between 0 and 100: hosted collectives
+   * are updated in bulk without hooks, so an invalid value here would be cascaded to all of them.
    */
   updateHostFeeAsSystem = async function (
     hostFeePercent: number,
@@ -2226,7 +2217,16 @@ class Collective extends ModelWithPublicId<
       dropCustomHostedCollectivesFees = false,
     }: { transaction?: SequelizeTransaction; dropCustomHostedCollectivesFees?: boolean } = {},
   ): Promise<Collective> {
-    if (typeof hostFeePercent === 'undefined' || hostFeePercent === this.hostFeePercent) {
+    if (typeof hostFeePercent === 'undefined') {
+      return this;
+    } else if (
+      typeof hostFeePercent !== 'number' ||
+      !Number.isFinite(hostFeePercent) ||
+      hostFeePercent < 0 ||
+      hostFeePercent > 100
+    ) {
+      throw new Error(`Invalid host fee percent: ${hostFeePercent}. It must be a number between 0 and 100.`);
+    } else if (hostFeePercent === this.hostFeePercent) {
       return this;
     } else if (
       [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.FUND, CollectiveType.PROJECT].includes(this.type)
@@ -2414,6 +2414,27 @@ class Collective extends ModelWithPublicId<
       const projects = <Array<Collective>>await this.getProjects({ transaction });
       if (projects.length > 0) {
         await pMap(projects, project => project.setCurrency(currency, { transaction }), { concurrency: 3 });
+      }
+
+      // Update internal payment methods (budget & added funds) as they're expected to be in the account currency.
+      // Payment methods that were already used are left untouched to preserve the history.
+      const paymentMethods = await PaymentMethod.findAll({
+        where: {
+          CollectiveId: this.id,
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: [PAYMENT_METHOD_TYPE.COLLECTIVE, PAYMENT_METHOD_TYPE.HOST],
+          currency: { [Op.ne]: currency },
+        },
+        transaction,
+      });
+      for (const paymentMethod of paymentMethods) {
+        const pmTransactionCount = await Transaction.count({
+          where: { PaymentMethodId: paymentMethod.id },
+          transaction,
+        });
+        if (pmTransactionCount === 0) {
+          await paymentMethod.update({ currency }, { transaction });
+        }
       }
 
       return this.update({ currency }, { transaction });
@@ -2858,7 +2879,7 @@ class Collective extends ModelWithPublicId<
     });
 
     // Load existing data
-    const [oldMembers, oldInvitations] = <[Array<any>, Array<any>]>await Promise.all([
+    const [oldMembers, oldInvitations] = <[Array<Member>, Array<MemberInvitation>]>await Promise.all([
       this.getMembers({ where: { role: { [Op.in]: allowedRoles } } }),
       MemberInvitation.findAll({
         where: { CollectiveId: this.id, role: { [Op.in]: allowedRoles } },
@@ -2867,7 +2888,7 @@ class Collective extends ModelWithPublicId<
 
     // remove the members that are not present anymore
     const { remoteUserCollectiveId } = defaultAttributes;
-    const diff = differenceBy(oldMembers, members, m => m.id);
+    const diff: Member[] = differenceBy(oldMembers, members, (m: Member) => m.id);
     if (diff.length > 0) {
       const nbAdminsBefore = oldMembers.filter(m => m.role === roles.ADMIN && m.id).length;
       const nbAdmins = members.filter(m => m.role === roles.ADMIN && m.id).length;
@@ -2973,7 +2994,7 @@ class Collective extends ModelWithPublicId<
 
   // Where `this` collective is a type == ORGANIZATION collective.
   getExpensesForHost = function (status, startDate, endDate = new Date(), createdByUserId, excludedTypes) {
-    const where: any = {
+    const where: WhereOptions = {
       createdAt: { [Op.lt]: endDate },
     };
     if (status) {
@@ -3003,7 +3024,7 @@ class Collective extends ModelWithPublicId<
   };
 
   getExpenses = function (status, startDate, endDate = new Date(), createdByUserId, excludedTypes) {
-    const where: any = {
+    const where: WhereOptions = {
       createdAt: { [Op.lt]: endDate },
       CollectiveId: this.id,
     };
@@ -3027,7 +3048,7 @@ class Collective extends ModelWithPublicId<
   };
 
   getUpdates = function (status, startDate = 0, endDate = new Date()) {
-    const where: any = {
+    const where: WhereOptions = {
       createdAt: { [Op.lt]: endDate },
       CollectiveId: this.id,
     };
@@ -3045,15 +3066,14 @@ class Collective extends ModelWithPublicId<
   };
 
   // Returns the last payment method that has been confirmed attached to this collective
-  getPaymentMethod = async function (where, mustBeConfirmed = true) {
-    const query: any = {
-      where: {
-        ...where,
-        CollectiveId: this.id,
-      },
-    };
+  getPaymentMethod = async function (where: WhereOptions, mustBeConfirmed = true) {
+    // NB: built with Object.assign (rather than spread) so `whereOptions` keeps a plain
+    // object-literal type that supports dotted mutations below
+    const whereOptions: WhereOptions = { CollectiveId: this.id };
+    Object.assign(whereOptions, where, { CollectiveId: this.id });
+    const query: FindOptions = { where: whereOptions };
     if (mustBeConfirmed) {
-      query.where.confirmedAt = { [Op.ne]: null };
+      whereOptions.confirmedAt = { [Op.ne]: null };
       query.order = [['confirmedAt', 'DESC']];
     } else {
       query.order = [['createdAt', 'DESC']];
@@ -3071,20 +3091,20 @@ class Collective extends ModelWithPublicId<
     return getBalanceAmount(this, { ...options, withBlockedFunds: true });
   };
 
-  getBalanceWithBlockedFunds = function (options: any = {}) {
+  getBalanceWithBlockedFunds = function (options: Record<string, unknown> = {}) {
     return getBalanceAmount(this, { ...options, withBlockedFunds: true }).then(result => result.value);
   };
 
-  getBalanceAmount = function (options: any = {}) {
+  getBalanceAmount = function (options: Record<string, unknown> = {}) {
     return getBalanceAmount(this, options);
   };
 
-  getBalance = function (options: any = {}) {
+  getBalance = function (options: Record<string, unknown> = {}) {
     return getBalanceAmount(this, options).then(result => result.value);
   };
 
-  getYearlyBudgetAmount = function () {
-    return getYearlyBudgetAmount(this);
+  getYearlyBudgetAmount = function (options: Record<string, unknown> = {}) {
+    return getYearlyBudgetAmount(this, options);
   };
 
   getYearlyBudget = function () {
@@ -3117,6 +3137,10 @@ class Collective extends ModelWithPublicId<
 
   getTotalAmountReceivedTimeSeries = function (options) {
     return getTotalAmountReceivedTimeSeries(this, options);
+  };
+
+  getTotalAmountSpentTimeSeries = function (options) {
+    return getTotalAmountSpentTimeSeries(this, options);
   };
 
   getBalanceTimeSeries = function (options) {
@@ -3196,9 +3220,25 @@ class Collective extends ModelWithPublicId<
     includeUsedGiftCardsEmittedByOthers = true,
     includeExpenseTransactions = true,
     excludePrivateAccounts = false,
-  }: any = {}) {
-    // Base query
-    const query: any = { where: this.transactionsWhereQuery(includeUsedGiftCardsEmittedByOthers) };
+  }: {
+    HostCollectiveId?: number;
+    startDate?: Date | string;
+    endDate?: Date | string;
+    type?: string;
+    offset?: number;
+    limit?: number;
+    attributes?: FindAttributeOptions;
+    kinds?: string | string[];
+    order?: Array<[string, string]>;
+    includeUsedGiftCardsEmittedByOthers?: boolean;
+    includeExpenseTransactions?: boolean;
+    excludePrivateAccounts?: boolean;
+  } = {}) {
+    // NB: built with Object.assign (rather than spread) so `where` keeps a plain
+    // object-literal type that supports dotted mutations below
+    const where: WhereOptions = {};
+    Object.assign(where, this.transactionsWhereQuery(includeUsedGiftCardsEmittedByOthers));
+    const query: FindOptions = { where };
 
     // Select attributes
     if (attributes) {
@@ -3207,31 +3247,31 @@ class Collective extends ModelWithPublicId<
 
     // Hide expenses transactions on demand
     if (includeExpenseTransactions === false) {
-      query.where.ExpenseId = null;
+      where.ExpenseId = null;
     }
 
     // Filter on host
     if (HostCollectiveId) {
-      query.where.HostCollectiveId = HostCollectiveId;
+      where.HostCollectiveId = HostCollectiveId;
     }
 
     // Filter on kind
     if (kinds) {
-      query.where.kind = kinds;
+      where.kind = kinds;
     }
 
     // Filter on date
     if (startDate && endDate) {
-      query.where.createdAt = { [Op.gte]: startDate, [Op.lt]: endDate };
+      where.createdAt = { [Op.gte]: startDate, [Op.lt]: endDate };
     } else if (startDate) {
-      query.where.createdAt = { [Op.gte]: startDate };
+      where.createdAt = { [Op.gte]: startDate };
     } else if (endDate) {
-      query.where.createdAt = { [Op.lt]: endDate };
+      where.createdAt = { [Op.lt]: endDate };
     }
 
     // Filter on type
     if (type) {
-      query.where.type = type;
+      where.type = type;
     }
 
     // Pagination
@@ -3248,10 +3288,11 @@ class Collective extends ModelWithPublicId<
     }
 
     if (excludePrivateAccounts) {
-      query.include = query.include || [];
-      query.include.push({ association: 'collective', attributes: [] });
-      query.include.push({ association: 'fromCollective', attributes: [] });
-      query.include.push({ association: 'host', attributes: [] });
+      query.include = [
+        { association: 'collective', attributes: [] },
+        { association: 'fromCollective', attributes: [] },
+        { association: 'host', attributes: [] },
+      ];
       query.where[Op.and] = query.where[Op.and] || [];
       query.where[Op.and].push({
         [Op.and]: [
@@ -3294,7 +3335,7 @@ class Collective extends ModelWithPublicId<
    * @param {*} tags if not null, only takes into account donations made to collectives that contains one of those tags
    */
   getLatestTransactions = function (since, until, tags) {
-    const conditionOnCollective: any = {};
+    const conditionOnCollective: WhereOptions<Attributes<Collective>> = {};
     if (tags) {
       conditionOnCollective.tags = { [Op.overlap]: tags };
     }
@@ -4063,7 +4104,7 @@ Collective.init(
         },
         isValidImage(url) {
           // Only validate for new images
-          if (!url || (this.id && this.previous('image') === undefined)) {
+          if (!url || (this.id && this.previous('backgroundImage') === undefined)) {
             return;
           } else if (!isValidUploadedImage(url, { allowTrustedThirdPartyImages: true })) {
             throw new Error('The background image URL is not valid');

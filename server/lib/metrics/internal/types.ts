@@ -13,8 +13,8 @@ export type EnumValueDef = { value: string; description?: string };
 export type SqlExpressionFn<R extends keyof DatabaseWithViews> = (
   eb: ExpressionBuilder<DatabaseWithViews, R>,
 ) => Expression<unknown>;
-export type Dimension = RelationDimension<any>;
-export type Measure = RelationMeasure<any>;
+export type Dimension = RelationDimension<never>;
+export type Measure = RelationMeasure<never>;
 
 type RelationDimension<R extends keyof DatabaseWithViews, Row = DatabaseWithViews[R]> =
   | {

@@ -6,6 +6,7 @@ import { roles } from '../../../../../../server/constants';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../../../server/constants/transaction-kind';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../../server/graphql/v2/identifiers';
+import type { Transfer } from '../../../../../../server/types/transferwise';
 import {
   fakeAccountingCategory,
   fakeActiveHost,
@@ -648,6 +649,44 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
       expect(result.data.transactions.nodes).to.containSubset([{ merchantId: 'ch_123' }, { merchantId: 'paypov' }]);
     });
 
+    it('by merchantId with an Int64 Wise transfer id, including legacy numeric values', async () => {
+      const bigTransferId = '9223372036854775807';
+      const legacyNumericId = 2147483648;
+      // Dedicated accounts so we don't pollute counts asserted by other tests
+      const merchantHost = await fakeHost({ admin: hostAdmin.collective });
+      const merchantCollective = await fakeCollective({ HostCollectiveId: merchantHost.id });
+      const merchantFromCollective = await fakeCollective();
+      const baseTx = {
+        FromCollectiveId: merchantFromCollective.id,
+        CollectiveId: merchantCollective.id,
+        HostCollectiveId: merchantHost.id,
+        kind: TransactionKind.EXPENSE,
+        type: 'DEBIT' as const,
+        amount: -1000,
+      };
+      const bigTransaction = await fakeTransaction({
+        ...baseTx,
+        data: { transfer: { id: bigTransferId } as unknown as Transfer },
+      });
+      const legacyTransaction = await fakeTransaction({
+        ...baseTx,
+        data: { transfer: { id: legacyNumericId } as unknown as Transfer },
+      });
+
+      const result = await graphqlQueryV2(
+        transactionsCollectionQuery,
+        { slug: merchantCollective.slug, merchantId: [bigTransferId, String(legacyNumericId)] },
+        hostAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.transactions.totalCount).to.eq(2);
+      const nodes = result.data.transactions.nodes;
+      expect(nodes.map(n => n.merchantId).sort()).to.deep.equal([String(legacyNumericId), bigTransferId].sort());
+      expect(nodes[0].id).to.be.a('string');
+      expect(bigTransaction.id).to.exist;
+      expect(legacyTransaction.id).to.exist;
+    });
+
     it('by Accounting Category', async () => {
       const result = await graphqlQueryV2(transactionsCollectionQuery, {
         slug: collective.slug,
@@ -1255,5 +1294,57 @@ describe('Transaction collection visibility for private organizations', () => {
         DESC_TX_PRIVATE_2,
       ]);
     });
+  });
+});
+
+describe('server/graphql/v2/collection/TransactionCollection - archived prepaid payment methods', () => {
+  let collective;
+
+  before(async () => {
+    await resetTestDB();
+
+    const host = await fakeHost();
+    collective = await fakeCollective({ HostCollectiveId: host.id });
+
+    const activePrepaidPm = await fakePaymentMethod({
+      service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+      type: PAYMENT_METHOD_TYPE.PREPAID,
+      CollectiveId: collective.id,
+      name: 'Prepaid Budget',
+      initialBalance: 100000,
+    });
+    const archivedPrepaidPm = await fakePaymentMethod({
+      service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+      type: PAYMENT_METHOD_TYPE.PREPAID,
+      CollectiveId: collective.id,
+      name: 'Spent Prepaid Budget',
+      initialBalance: 0,
+      archivedAt: new Date(),
+    });
+
+    await fakeTransaction({
+      CollectiveId: collective.id,
+      PaymentMethodId: activePrepaidPm.id,
+      kind: TransactionKind.PREPAID_PAYMENT_METHOD,
+      amount: 10000,
+    });
+    await fakeTransaction({
+      CollectiveId: collective.id,
+      PaymentMethodId: archivedPrepaidPm.id,
+      kind: TransactionKind.PREPAID_PAYMENT_METHOD,
+      amount: -5000,
+    });
+  });
+
+  it('still returns their transactions when filtering by payment method type', async () => {
+    const result = await graphqlQueryV2(transactionsCollectionQuery, {
+      slug: collective.slug,
+      paymentMethodType: ['PREPAID'],
+    });
+    expect(result.errors).to.not.exist;
+    expect(result.data.transactions.totalCount).to.eq(2);
+    expect(result.data.transactions.kinds).to.eqInAnyOrder([TransactionKind.PREPAID_PAYMENT_METHOD]);
+    expect(result.data.transactions.paymentMethodTypes).to.eqInAnyOrder(['PREPAID']);
+    expect(result.data.transactions.nodes).to.containSubset([{ paymentMethod: { type: 'PREPAID' } }]);
   });
 });

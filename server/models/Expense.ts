@@ -1,5 +1,5 @@
 import { TaxType } from '@opencollective/taxes';
-import { get, isEmpty, pick, sumBy } from 'lodash';
+import { get, isEmpty, pick, sumBy, uniq } from 'lodash';
 import { isMoment } from 'moment';
 import {
   BelongsToGetAssociationMixin,
@@ -11,7 +11,6 @@ import {
   InferCreationAttributes,
   NonAttribute,
 } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 import Stripe from 'stripe';
 import validator from 'validator';
 
@@ -29,6 +28,7 @@ import SQLQueries from '../lib/queries';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import CustomDataTypes from '../models/DataTypes';
 import { Location } from '../types/Location';
@@ -261,6 +261,7 @@ class Expense extends ModelWithPublicId<
         ...pick(data, [
           'isManualPayout',
           'error',
+          'errorRetrievalFailed',
           'payee',
           'draftKey',
           'inviteUrl',
@@ -273,6 +274,8 @@ class Expense extends ModelWithPublicId<
           'reference',
           'estimatedDelivery',
           'previousData',
+          'newData',
+          'taxForm',
           'payoutResponse',
           'payoutItem',
         ]),
@@ -511,6 +514,71 @@ class Expense extends ModelWithPublicId<
   }
 
   // Static methods
+
+  /**
+   * Creates silent system `COLLECTIVE_EXPENSE_UPDATED` activities for a page of expenses in one insert,
+   * for the tax-form and payout-method fan-out (see opencollective/opencollective#8702). Rows carry the same
+   * columns and summary data as `createActivity`, without its per-expense lookups (items, files, transaction,
+   * payout method).
+   */
+  static createSystemUpdatedActivities = async (
+    expenses: Expense[],
+    user: User | { id: number } | null,
+    getData: (expense: Expense) => Record<string, unknown>,
+  ): Promise<void> => {
+    if (!expenses.length) {
+      return;
+    }
+
+    const submitters = await User.findAll({
+      where: { id: uniq(expenses.map(expense => expense.UserId)) },
+      attributes: ['id', 'CollectiveId'],
+    });
+    const submitterCollectiveIds = new Map(submitters.map(submitter => [submitter.id, submitter.CollectiveId]));
+    const collectiveIds = [
+      ...expenses.flatMap(expense => [expense.CollectiveId, expense.FromCollectiveId]),
+      ...submitters.map(submitter => submitter.CollectiveId),
+    ];
+    const collectives = await Collective.findAll({ where: { id: uniq(collectiveIds) } });
+    const collectivesById = new Map(collectives.map(collective => [collective.id, collective]));
+
+    // Same host as `createActivity`: the expense collective's host while the collective is active
+    const getHostId = (collective?: Collective): number | null =>
+      (collective?.isActive && collective.HostCollectiveId) || null;
+    const missingHostIds = uniq(expenses.map(expense => getHostId(collectivesById.get(expense.CollectiveId)))).filter(
+      hostId => hostId && !collectivesById.has(hostId),
+    );
+    if (missingHostIds.length) {
+      const hosts = await Collective.findAll({ where: { id: missingHostIds } });
+      hosts.forEach(host => collectivesById.set(host.id, host));
+    }
+
+    await Activity.bulkCreate(
+      expenses.map(expense => {
+        const collective = collectivesById.get(expense.CollectiveId);
+        const host = collectivesById.get(getHostId(collective));
+        return {
+          type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
+          UserId: user?.id,
+          CollectiveId: expense.CollectiveId,
+          FromCollectiveId: expense.FromCollectiveId,
+          HostCollectiveId: host?.id,
+          ExpenseId: expense.id,
+          data: {
+            ...pick(expense.data, ['payee', 'bill']),
+            ...getData(expense),
+            isSystem: true,
+            notify: false,
+            host: host?.minimal,
+            collective: collective && { ...collective.minimal, isActive: collective.isActive },
+            user: collectivesById.get(submitterCollectiveIds.get(expense.UserId))?.minimal,
+            fromCollective: collectivesById.get(expense.FromCollectiveId)?.minimal,
+            expense: expense.info,
+          },
+        };
+      }),
+    );
+  };
 
   /**
    * Get the total amount of all expenses filed by the given UserId

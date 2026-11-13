@@ -275,6 +275,11 @@ export const authorizeAuthenticateHandler = {
       throw new UnauthorizedRequestError('You must be signed in');
     }
 
+    // An OAuth or personal token identifies the user, but cannot grant new permissions on their behalf.
+    if (req.userToken || req.personalToken || (req.jwtPayload?.scope && req.jwtPayload.scope !== 'session')) {
+      throw new UnauthorizedRequestError('You must be signed in with a user session to authorize an application');
+    }
+
     return req.remoteUser;
   },
 };

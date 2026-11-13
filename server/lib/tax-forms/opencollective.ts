@@ -59,7 +59,7 @@ enum NFFEStatus {
   NonProfitOrganization = 'NonProfitOrganization',
 }
 
-type W9TaxFormValues = {
+export type W9TaxFormValues = {
   isUSPersonOrEntity?: boolean;
   submitterType?: SubmitterType;
   formType?: TaxFormType;
@@ -82,7 +82,7 @@ type W9TaxFormValues = {
   };
 };
 
-type W8BenTaxFormValues = ({
+export type W8BenTaxFormValues = ({
   isUSPersonOrEntity?: boolean;
   submitterType?: SubmitterType;
   formType?: TaxFormType;
@@ -133,7 +133,7 @@ type W8BenTaxFormValues = ({
   ))) &
   ({ isSignerTheBeneficialOwner?: true } | { isSignerTheBeneficialOwner?: false; signerCapacity?: string });
 
-type W8BenETaxFormValues = ((({
+export type W8BenETaxFormValues = ((({
   isUSPersonOrEntity?: boolean;
   submitterType?: SubmitterType;
   formType?: TaxFormType;
@@ -226,11 +226,56 @@ type W8BenETaxFormValues = ((({
       }
   );
 
-const isW9Data = (data: Record<string, unknown>): data is W9TaxFormValues => data?.formType === TaxFormType.W9;
-const isW8BenData = (data: Record<string, unknown>): data is W8BenTaxFormValues =>
+export const isW9Data = (data: Record<string, unknown>): data is W9TaxFormValues => data?.formType === TaxFormType.W9;
+export const isW8BenData = (data: Record<string, unknown>): data is W8BenTaxFormValues =>
   data?.formType === TaxFormType.W8_BEN;
-const isW8BenEData = (data: Record<string, unknown>): data is W8BenETaxFormValues =>
+export const isW8BenEData = (data: Record<string, unknown>): data is W8BenETaxFormValues =>
   data?.formType === TaxFormType.W8_BEN_E;
+
+/**
+ * Extract the taxable country from a tax form's form data.
+ * The field used depends on the form type:
+ *  - W9: `location.country` (the US person/entity's address)
+ *  - W8_BEN: `residenceAddress.country` (the beneficial owner's tax residency)
+ *  - W8_BEN_E: `businessCountryOfIncorporationOrOrganization` (the entity's country of incorporation)
+ */
+export const getTaxableCountryFromFormData = (
+  formData: W9TaxFormValues | W8BenTaxFormValues | W8BenETaxFormValues,
+): string | null => {
+  if (isW9Data(formData)) {
+    return formData.location?.country || null;
+  } else if (isW8BenData(formData)) {
+    return formData.residenceAddress?.country || null;
+  } else if (isW8BenEData(formData)) {
+    return formData.businessCountryOfIncorporationOrOrganization || formData.businessAddress?.country || null;
+  }
+
+  return null;
+};
+
+/**
+ * Extract the US-entity status from a tax form's form data.
+ * The explicit `isUSPersonOrEntity` answer from the tax information form
+ * is authoritative when present (the user can override the value the form
+ * type implies). Otherwise the form type itself is used: the W-9 is the US
+ * tax form (the filer is a US person or entity), while the W-8BEN /
+ * W-8BEN-E are for non-US individuals / entities.
+ */
+export const getIsUSEntityFromFormData = (
+  formData: W9TaxFormValues | W8BenTaxFormValues | W8BenETaxFormValues,
+): boolean | null => {
+  if (typeof formData?.isUSPersonOrEntity === 'boolean') {
+    return formData.isUSPersonOrEntity;
+  }
+
+  if (isW9Data(formData)) {
+    return true;
+  } else if (isW8BenData(formData) || isW8BenEData(formData)) {
+    return false;
+  }
+
+  return null;
+};
 
 /**
  * Gets the standardized data from the OpenCollective legal document data, except the following fields which are meant

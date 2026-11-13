@@ -27,17 +27,22 @@ export const isFullAccountReIndexRequest = (
 ): request is OpenSearchRequest & { type: OpenSearchRequestType.FULL_ACCOUNT_RE_INDEX } =>
   request?.type === OpenSearchRequestType.FULL_ACCOUNT_RE_INDEX;
 
-export const isValidOpenSearchRequest = (message: any): message is OpenSearchRequest => {
+export const isValidOpenSearchRequest = (message: unknown): message is OpenSearchRequest => {
   if (typeof message !== 'object' || message === null) {
     return false;
   } else {
-    switch (message.type) {
+    const { type, payload, table } = message as {
+      type?: OpenSearchRequestType;
+      payload?: { id?: unknown };
+      table?: string;
+    };
+    switch (type) {
       case OpenSearchRequestType.FULL_ACCOUNT_RE_INDEX:
-        return 'id' in message.payload && typeof message.payload.id === 'number';
+        return typeof payload?.id === 'number';
       case OpenSearchRequestType.UPDATE:
       case OpenSearchRequestType.INSERT:
       case OpenSearchRequestType.DELETE:
-        return 'table' in message && 'id' in message.payload && typeof message.payload.id === 'number';
+        return Boolean(table) && typeof payload?.id === 'number';
       default:
         return false;
     }

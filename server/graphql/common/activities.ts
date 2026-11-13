@@ -19,12 +19,128 @@ const canSeeExpenseCommentActivity = async (req: Express.Request, activity, expe
   return ExpenseLib.canComment(req, expense);
 };
 
+/**
+ * Errors are persisted with provider-specific shapes (PayPal PayoutError, Wise errors, stringified dumps).
+ * Only these fields are ever returned to clients.
+ */
+const sanitizeErrorData = (error): { name?: string; message?: string; details?: { issue: string }[] } => {
+  const sanitized: { name?: string; message?: string; details?: { issue: string }[] } = {};
+  if (typeof error?.name === 'string') {
+    sanitized.name = error.name;
+  }
+  if (typeof error?.message === 'string') {
+    sanitized.message = error.message;
+  }
+  // Batch errors use `details`, payout item errors use `payout_errors_details`
+  const rawDetails = [
+    ...(Array.isArray(error?.details) ? error.details : []),
+    ...(Array.isArray(error?.payout_errors_details) ? error.payout_errors_details : []),
+  ];
+  const details = rawDetails
+    .filter(detail => typeof detail?.issue === 'string')
+    .map(detail => ({ issue: detail.issue }));
+  if (details.length > 0) {
+    sanitized.details = details;
+  }
+  return sanitized;
+};
+
+const getWiseTransferStateMessage = (state: string): string | undefined => {
+  switch (state) {
+    case 'cancelled':
+      return 'Wise transfer cancelled';
+    case 'funds_refunded':
+      return 'Wise transfer refunded';
+    case 'bounced_back':
+      return 'Wise transfer bounced back';
+  }
+};
+
+const getEventErrorMessage = (event): string | undefined => {
+  if (event.event_type === 'transfers#refund') {
+    const refundAmount = event.data?.resource?.refund_amount;
+    const refundCurrency = event.data?.resource?.refund_currency;
+    return typeof refundAmount === 'number' && typeof refundCurrency === 'string'
+      ? `Wise transfer refunded ${refundAmount} ${refundCurrency}`
+      : 'Wise transfer refunded';
+  } else if (event.event_type === 'transfers#state-change') {
+    return getWiseTransferStateMessage(event.data?.current_state) ?? 'Wise transfer failed';
+  }
+};
+
+/**
+ * Provider webhooks (Wise) persist an `event` rather than an `error` when reporting a failure.
+ * Derive a human-readable summary from it, building a fresh object so that provider ids
+ * (`resource.id`, `account_id`, `profile_id`, `subscription_id`) never reach clients
+ * (see opencollective/opencollective#8323).
+ */
+const deriveErrorSummaryFromEvent = (event): { name?: string; message?: string } | undefined => {
+  if (!event || typeof event !== 'object') {
+    return undefined;
+  }
+
+  const name = typeof event.event_type === 'string' ? event.event_type : undefined;
+  const message = getEventErrorMessage(event);
+  if (!name && !message) {
+    return undefined;
+  }
+
+  return { ...(name && { name }), ...(message && { message }) };
+};
+
 export const sanitizeActivityData = async (req: Express.Request, activity): Promise<Partial<Activity['data']>> => {
   const toPick = [];
-  if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_PAID) {
+  if ([ActivityTypes.FISCAL_HOST_NOTE_SET, ActivityTypes.FISCAL_HOST_NOTE_REMOVED].includes(activity.type)) {
+    if (activity.HostCollectiveId && req.remoteUser?.isAdmin(activity.HostCollectiveId)) {
+      toPick.push('note');
+      toPick.push('noteType');
+    }
+  } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_PAID) {
     toPick.push('isManualPayout');
   } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_UPDATED) {
-    toPick.push('previousData.status', 'expense.status');
+    toPick.push('previousData.status', 'expense.status', 'isSystem');
+    // Tax-form and payout-method fan-out (see #8702). Only expose to users who can see
+    // the underlying private details; the activity itself is still surfaced in the thread.
+    if (activity.ExpenseId) {
+      const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
+      if (expense) {
+        if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
+          toPick.push(
+            'previousData.taxFormStatus',
+            'newData.taxFormStatus',
+            'taxForm.id',
+            'taxForm.publicId',
+            'taxForm.year',
+            'taxForm.documentType',
+            'taxForm.requestStatus',
+            'taxForm.service',
+          );
+        }
+        // Authorize each payout-method snapshot independently by its own method id: after an
+        // archive/replace, historical expenses stay on the old method while reassigned ones move
+        // to the new one, so the expense's current method must not authorize the other snapshot.
+        const previousSnapshotId = activity.data?.previousData?.payoutMethod?.id;
+        if (
+          previousSnapshotId !== undefined &&
+          previousSnapshotId !== null &&
+          (await ExpenseLib.canSeeExpensePayoutMethodPrivateDetails(req, expense, {
+            payoutMethodId: previousSnapshotId,
+          }))
+        ) {
+          toPick.push('previousData.payoutMethod');
+        }
+        const newSnapshotId = activity.data?.newData?.payoutMethod?.id;
+        if (
+          newSnapshotId !== undefined &&
+          newSnapshotId !== null &&
+          (await ExpenseLib.canSeeExpensePayoutMethodPrivateDetails(req, expense, {
+            payoutMethodId: newSnapshotId,
+          }))
+        ) {
+          toPick.push('newData.payoutMethod');
+        }
+      }
+    }
   } else if (
     [ActivityTypes.COLLECTIVE_EXPENSE_ERROR, ActivityTypes.COLLECTIVE_EXPENSE_PAYMENT_ERROR].includes(activity.type)
   ) {
@@ -136,5 +252,16 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
       toPick.push('message');
     }
   }
-  return pick(activity.data, toPick);
+  const data = pick(activity.data, toPick);
+  if (data.error) {
+    data.error = sanitizeErrorData(data.error);
+  } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_ERROR) {
+    // Webhook-written rows have no `error`, so the thread would otherwise always read "An unknown
+    // error occurred". The derived summary holds no provider payload, so it is safe for every viewer.
+    const summary = deriveErrorSummaryFromEvent(activity.data?.event);
+    if (summary) {
+      data.error = summary;
+    }
+  }
+  return data;
 };

@@ -32,7 +32,9 @@ class ConnectedAccount extends ModelWithPublicId<
   declare public token: string;
   declare public refreshToken: string;
   declare public hash: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ConnectedAccount.data holds provider-specific OAuth/token payloads (Wise, Stripe, GoCardless) deep-read across payment providers; narrowing it would cascade errors without per-provider schemas
   declare public data: CreationOptional<Record<string, any>>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ConnectedAccount.settings holds provider-specific settings deep-read across payment providers; narrowing it would cascade errors without per-provider schemas
   declare public settings: CreationOptional<Record<string, any>>;
 
   declare public CollectiveId: CreationOptional<number>;
@@ -152,30 +154,32 @@ ConnectedAccount.init(
     sequelize,
     paranoid: true,
     hooks: {
-      async afterCreate(connectedAccount) {
+      async afterCreate(connectedAccount, options) {
         if (connectedAccount.service === 'stripe') {
-          await PayoutMethod.create({
-            CollectiveId: connectedAccount.CollectiveId,
-            CreatedByUserId: connectedAccount.CreatedByUserId,
-            isSaved: true,
-            type: PayoutMethodTypes.STRIPE,
-            data: {
-              connectedAccountId: connectedAccount.id,
-              stripeAccountId: connectedAccount.username,
-              publishableKey: connectedAccount.data?.publishableKey,
+          await PayoutMethod.create(
+            {
+              CollectiveId: connectedAccount.CollectiveId,
+              CreatedByUserId: connectedAccount.CreatedByUserId,
+              ConnectedAccountId: connectedAccount.id,
+              isSaved: true,
+              type: PayoutMethodTypes.STRIPE,
+              data: {
+                stripeAccountId: connectedAccount.username,
+                publishableKey: connectedAccount.data?.publishableKey,
+              },
             },
-          });
+            { transaction: options.transaction },
+          );
         }
       },
-      async afterDestroy(connectedAccount) {
+      async afterDestroy(connectedAccount, options) {
         if (connectedAccount.service === 'stripe') {
           await PayoutMethod.destroy({
+            transaction: options.transaction,
             where: {
               type: PayoutMethodTypes.STRIPE,
               CollectiveId: connectedAccount.CollectiveId,
-              data: {
-                connectedAccountId: connectedAccount.id,
-              },
+              ConnectedAccountId: connectedAccount.id,
             },
           });
         }

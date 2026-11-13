@@ -1,8 +1,10 @@
 /* eslint-disable camelcase */
 
+import * as SentrySdk from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
 import { defaultsDeep } from 'lodash';
+import nock from 'nock';
 import { assert, createSandbox } from 'sinon';
 import request from 'supertest';
 
@@ -12,6 +14,7 @@ import status from '../../../../server/constants/expense-status';
 import app from '../../../../server/index';
 import { getFxRate } from '../../../../server/lib/currency';
 import emailLib from '../../../../server/lib/email';
+import logger from '../../../../server/lib/logger';
 import * as transferwiseLib from '../../../../server/lib/transferwise';
 import models from '../../../../server/models';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
@@ -36,14 +39,22 @@ const RATES = {
 };
 
 describe('server/paymentProviders/transferwise/webhook', () => {
-  let expressApp, api;
+  let expressApp, api, metricsCountStub;
   before(async () => {
     expressApp = await app();
     api = request(expressApp);
     utils.nockFixerRates(RATES);
   });
 
+  after(() => {
+    nock.cleanAll();
+  });
+
   const sandbox = createSandbox();
+  beforeEach(() => {
+    sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+    metricsCountStub = sandbox.stub(SentrySdk.metrics, 'count');
+  });
   afterEach(sandbox.restore);
 
   describe('handleTransferStateChange', () => {
@@ -51,8 +62,8 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       data: {
         resource: {
           id: 1234,
-          profile_id: 0,
-          account_id: 0,
+          profile_id: '0',
+          account_id: '0',
           type: 'transfer',
         },
         current_state: 'outgoing_payment_sent',
@@ -64,15 +75,13 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       schema_version: '2.0.0',
       sent_at: '2020-03-02T13:37:54Z',
     };
-    let verifyEvent, sendMessage;
+    let verifyEvent, getTransfer, sendMessage;
     let expense, host, collective;
 
     beforeEach(utils.resetTestDB);
     beforeEach(() => {
-      verifyEvent = sandbox
-        .stub(transferwiseLib, 'getToken')
-        .callsFake(async connectedAccount => connectedAccount.token);
-      verifyEvent = sandbox.stub(transferwiseLib, 'getTransfer').resolves({ id: event.data.resource.id });
+      sandbox.stub(transferwiseLib, 'getToken').callsFake(async connectedAccount => connectedAccount.token);
+      getTransfer = sandbox.stub(transferwiseLib, 'getTransfer').resolves({ id: event.data.resource.id });
       verifyEvent = sandbox.stub(transferwiseLib, 'verifyEvent').returns(event);
       sendMessage = sandbox.spy(emailLib, 'sendMessage');
       sandbox
@@ -143,6 +152,61 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       expect(debitTransaction).to.be.have.nested.property('data.transfer.id', 1234);
     });
 
+    it('records a successful payment outcome metric when the transfer is sent', async () => {
+      await api.post('/webhooks/transferwise').send(event).expect(200);
+
+      expect(metricsCountStub).to.have.been.calledOnce;
+      expect(metricsCountStub.firstCall.args).to.deep.equal([
+        'thirdparty.wise.payment.succeeded',
+        1,
+        { attributes: { flow: 'payout', method: 'BANK_ACCOUNT' } },
+      ]);
+    });
+
+    it('does not record the metric again when the success event is redelivered', async () => {
+      await api.post('/webhooks/transferwise').send(event).expect(200);
+      await api.post('/webhooks/transferwise').send(event).expect(200);
+
+      expect(metricsCountStub).to.have.been.calledOnce;
+    });
+
+    it('should handle an Int64-maximum transfer id without digit changes', async () => {
+      const MAX_INT64 = '9223372036854775807';
+      const bigEvent = {
+        ...event,
+        data: { ...event.data, resource: { ...event.data.resource, id: MAX_INT64 } },
+      };
+      verifyEvent.returns(bigEvent);
+      getTransfer.resolves({ id: MAX_INT64 });
+      await expense.update({ data: { ...expense.data, transfer: { id: MAX_INT64 } } });
+
+      await api.post('/webhooks/transferwise').send(bigEvent).expect(200);
+
+      await expense.reload();
+      expect(expense).to.have.property('status', status.PAID);
+      expect(expense).to.have.nested.property('data.transfer.id', MAX_INT64);
+      const [debitTransaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
+      expect(debitTransaction).to.have.nested.property('data.transfer.id', MAX_INT64);
+      expect(getTransfer.firstCall.args[1]).to.equal(MAX_INT64);
+    });
+
+    it('should match a canonical string webhook id against a legacy numeric JSONB id', async () => {
+      // Historical rows stored Wise ids as JSON numbers; the numeric 1234 must still match "1234".
+      const mixedEvent = {
+        ...event,
+        data: { ...event.data, resource: { ...event.data.resource, id: '1234' } },
+      };
+      verifyEvent.returns(mixedEvent);
+      getTransfer.resolves({ id: '1234' });
+
+      await api.post('/webhooks/transferwise').send(mixedEvent).expect(200);
+
+      await expense.reload();
+      expect(expense).to.have.property('status', status.PAID);
+      const [debitTransaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
+      expect(debitTransaction).to.have.nested.property('data.transfer.id', '1234');
+    });
+
     it('should ignore payment processor fee if host.settings.transferwise.ignorePaymentProcessorFees is true', async () => {
       await host.update({
         settings: defaultsDeep(host.settings, { transferwise: { ignorePaymentProcessorFees: true } }),
@@ -165,6 +229,30 @@ describe('server/paymentProviders/transferwise/webhook', () => {
 
       await expense.reload();
       expect(expense).to.have.property('status', status.ERROR);
+    });
+
+    it('records a failed payment outcome metric when the transfer is cancelled', async () => {
+      const refundEvent = { ...event, data: { ...event.data, current_state: 'cancelled' } };
+      verifyEvent.returns(refundEvent);
+
+      await api.post('/webhooks/transferwise').send(refundEvent).expect(200);
+
+      expect(metricsCountStub).to.have.been.calledOnce;
+      expect(metricsCountStub.firstCall.args).to.deep.equal([
+        'thirdparty.wise.payment.failed',
+        1,
+        { attributes: { flow: 'payout', method: 'BANK_ACCOUNT', error_type: 'transfer_cancelled' } },
+      ]);
+    });
+
+    it('does not record the metric again when the failure event is redelivered', async () => {
+      const refundEvent = { ...event, data: { ...event.data, current_state: 'cancelled' } };
+      verifyEvent.returns(refundEvent);
+
+      await api.post('/webhooks/transferwise').send(refundEvent).expect(200);
+      await api.post('/webhooks/transferwise').send(refundEvent).expect(200);
+
+      expect(metricsCountStub).to.have.been.calledOnce;
     });
 
     it('should send a notification email to the payee and the host when the transfer fails', async () => {
@@ -190,6 +278,20 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       verifyEvent.returns(refundEvent);
 
       await api.post('/webhooks/transferwise').send(event).expect(200);
+    });
+
+    it('should ignore incoming_payment_waiting events without logging a missing expense', async () => {
+      const loggerStub = sandbox.stub(logger, 'debug');
+      // A transfer waiting for its batch group to be funded is still SCHEDULED_FOR_PAYMENT at this point
+      await expense.update({ status: status.SCHEDULED_FOR_PAYMENT });
+      const incomingEvent = { ...event, data: { ...event.data, current_state: 'incoming_payment_waiting' } };
+      verifyEvent.returns(incomingEvent);
+
+      await api.post('/webhooks/transferwise').send(incomingEvent).expect(200);
+
+      await expense.reload();
+      expect(expense).to.have.property('status', status.SCHEDULED_FOR_PAYMENT);
+      expect(loggerStub.calledWithMatch('Wise: Could not find related Expense')).to.be.false;
     });
 
     it('works with Expenses with feesPayer = PAYEE', async () => {
@@ -280,7 +382,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       now?: string;
       feesPayer?: 'COLLECTIVE' | 'PAYEE';
     }) => {
-      const transferId = randNumber();
+      const transferId = String(randNumber());
       const hostCurrencyFxRate = await getFxRate(collectiveCurrency || 'USD', 'USD');
       const feesDecimal = (fees / 100) * hostCurrencyFxRate;
       const totalDecimal = ((amount + fees) / 100) * hostCurrencyFxRate;
@@ -290,8 +392,8 @@ describe('server/paymentProviders/transferwise/webhook', () => {
         data: {
           resource: {
             id: transferId,
-            profile_id: 0,
-            account_id: 0,
+            profile_id: '0',
+            account_id: '0',
             type: 'transfer',
             refund_amount: refundedDecimal,
             refund_currency: 'USD',
@@ -365,6 +467,36 @@ describe('server/paymentProviders/transferwise/webhook', () => {
         expect(expense.Transactions).to.have.length(0);
       });
 
+      it('records a failed payment outcome metric when the transfer is refunded', async () => {
+        const { event } = await setup({ amount: 10000, fees: 1000, refunded: 11000 });
+
+        await api.post('/webhooks/transferwise').send(event).expect(200);
+
+        expect(metricsCountStub).to.have.been.calledOnce;
+        expect(metricsCountStub.firstCall.args).to.deep.equal([
+          'thirdparty.wise.payment.failed',
+          1,
+          { attributes: { flow: 'payout', method: 'BANK_ACCOUNT', error_type: 'funds_refunded' } },
+        ]);
+      });
+
+      it('should match a canonical string refund event id against a legacy numeric JSONB expense id', async () => {
+        const { expense, event } = await setup({ amount: 10000, fees: 1000, refunded: 11000 });
+        // Historical rows stored Wise ids as JSON numbers; the string event id must still find them.
+        await expense.update({
+          data: {
+            ...expense.data,
+            transfer: { ...expense.data.transfer, id: Number(event.data.resource.id) },
+          },
+        });
+
+        await api.post('/webhooks/transferwise').send(event).expect(200);
+
+        await expense.reload({ include: [{ model: models.Transaction }] });
+        expect(expense).to.have.property('status', status.ERROR);
+        expect(expense).to.have.nested.property('data.refundWiseEventTimestamp', event.data.occurred_at);
+      });
+
       it('should create a Payment Processor Fee debit for the difference if partially refunded', async () => {
         const { expense, event } = await setup({ amount: 10000, fees: 1000, refunded: 10000 });
 
@@ -401,8 +533,8 @@ describe('server/paymentProviders/transferwise/webhook', () => {
           data: {
             resource: {
               id: expense.data.transfer.id,
-              profile_id: 0,
-              account_id: 0,
+              profile_id: '0',
+              account_id: '0',
               type: 'transfer',
             },
             current_state: 'outgoing_payment_sent',
@@ -448,8 +580,8 @@ describe('server/paymentProviders/transferwise/webhook', () => {
           data: {
             resource: {
               id: expense.data.transfer.id,
-              profile_id: 0,
-              account_id: 0,
+              profile_id: '0',
+              account_id: '0',
               type: 'transfer',
             },
             current_state: 'outgoing_payment_sent',
@@ -496,8 +628,8 @@ describe('server/paymentProviders/transferwise/webhook', () => {
             data: {
               resource: {
                 id: expense.data.transfer.id,
-                profile_id: 0,
-                account_id: 0,
+                profile_id: '0',
+                account_id: '0',
                 type: 'transfer',
               },
               current_state: 'outgoing_payment_sent',
@@ -543,8 +675,8 @@ describe('server/paymentProviders/transferwise/webhook', () => {
             data: {
               resource: {
                 id: expense.data.transfer.id,
-                profile_id: 0,
-                account_id: 0,
+                profile_id: '0',
+                account_id: '0',
                 type: 'transfer',
               },
               current_state: 'outgoing_payment_sent',
@@ -592,8 +724,8 @@ describe('server/paymentProviders/transferwise/webhook', () => {
           data: {
             resource: {
               id: event.data.resource.id,
-              profile_id: 0,
-              account_id: 0,
+              profile_id: '0',
+              account_id: '0',
               type: 'transfer',
             },
             current_state: 'outgoing_payment_sent',
@@ -627,8 +759,8 @@ describe('server/paymentProviders/transferwise/webhook', () => {
           data: {
             resource: {
               id: event.data.resource.id,
-              profile_id: 0,
-              account_id: 0,
+              profile_id: '0',
+              account_id: '0',
               type: 'transfer',
             },
             current_state: 'outgoing_payment_sent',
@@ -678,8 +810,8 @@ describe('server/paymentProviders/transferwise/webhook', () => {
           data: {
             resource: {
               id: expense.data.transfer.id,
-              profile_id: 0,
-              account_id: 0,
+              profile_id: '0',
+              account_id: '0',
               type: 'transfer',
             },
             current_state: 'outgoing_payment_sent',

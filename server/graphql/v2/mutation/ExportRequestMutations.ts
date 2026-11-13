@@ -21,7 +21,7 @@ const exportRequestMutations = {
   createExportRequest: {
     type: new GraphQLNonNull(GraphQLExportRequest),
     description:
-      'Create a new export request. Scopes: "exportRequests" (+ "transactions" for TRANSACTIONS exports, "host" for HOSTED_COLLECTIVES exports).',
+      'Create a new export request. Scopes: "exportRequests" (+ "transactions" and "incognito" for TRANSACTIONS exports, "host" for HOSTED_COLLECTIVES exports).',
     args: {
       exportRequest: {
         type: new GraphQLNonNull(GraphQLExportRequestCreateInput),

@@ -22,7 +22,7 @@ function denseBucketSql(dateColumn: string, unit: TimeUnit, tz: string): RawBuil
   return sql<string>`DATE_TRUNC(${unit}, ${sql.id(dateColumn)} AT TIME ZONE ${tz})::date`;
 }
 
-function denseWhereBody<S extends DenseRelationMetricSource<any>>(q: MetricQuery<S>, s: S): RawBuilder<unknown> {
+function denseWhereBody<S extends DenseRelationMetricSource<never>>(q: MetricQuery<S>, s: S): RawBuilder<unknown> {
   const date = sql.id(s.dateColumn);
   const parts: RawBuilder<unknown>[] = [
     sql`${date} >= ${toIsoStringIfDate(q.dateFrom)}`,
@@ -32,7 +32,7 @@ function denseWhereBody<S extends DenseRelationMetricSource<any>>(q: MetricQuery
   return joinAnd(parts);
 }
 
-function denseSelectColumns<S extends DenseRelationMetricSource<any>>(
+function denseSelectColumns<S extends DenseRelationMetricSource<never>>(
   q: MetricQuery<S>,
   s: S,
   shape: QueryShape,
@@ -54,7 +54,7 @@ function denseSelectColumns<S extends DenseRelationMetricSource<any>>(
   return joinComma(cols);
 }
 
-function denseGroupByColumns<S extends DenseRelationMetricSource<any>>(
+function denseGroupByColumns<S extends DenseRelationMetricSource<never>>(
   q: MetricQuery<S>,
   shape: QueryShape,
 ): RawBuilder<unknown> {
@@ -71,7 +71,7 @@ function denseGroupByColumns<S extends DenseRelationMetricSource<any>>(
   return joinComma(cols);
 }
 
-function denseOrderByClause<S extends DenseRelationMetricSource<any>>(
+function denseOrderByClause<S extends DenseRelationMetricSource<never>>(
   q: MetricQuery<S>,
   shape: QueryShape,
 ): RawBuilder<unknown> {
@@ -86,7 +86,7 @@ function denseOrderByClause<S extends DenseRelationMetricSource<any>>(
   return orderByClause(q.source, q.orderBy, fallback);
 }
 
-function buildDenseBaseQuery<S extends DenseRelationMetricSource<any>>(
+function buildDenseBaseQuery<S extends DenseRelationMetricSource<never>>(
   q: MetricQuery<S>,
   s: S,
   shape: QueryShape,
@@ -108,7 +108,7 @@ function buildDenseBaseQuery<S extends DenseRelationMetricSource<any>>(
   `;
 }
 
-function buildDenseTopNQuery<S extends DenseRelationMetricSource<any>>(
+function buildDenseTopNQuery<S extends DenseRelationMetricSource<never>>(
   q: MetricQuery<S>,
   s: S,
   shape: QueryShape,
@@ -150,7 +150,7 @@ function buildDenseTopNQuery<S extends DenseRelationMetricSource<any>>(
   `;
 }
 
-export function buildDenseQuery<S extends DenseRelationMetricSource<any>>(
+export function buildDenseQuery<S extends DenseRelationMetricSource<never>>(
   q: MetricQuery<S>,
   shape: QueryShape,
 ): RawBuilder<Record<string, unknown>> {

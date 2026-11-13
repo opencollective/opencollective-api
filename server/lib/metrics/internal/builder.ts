@@ -11,8 +11,8 @@ export function buildQuery<S extends MetricSource>(q: MetricQuery<S>): RawBuilde
   const shape = getQueryShape(q);
 
   if (q.source.kind === 'range') {
-    return buildRangeQuery(q as unknown as MetricQuery<RangeRelationMetricSource<any>>, shape);
+    return buildRangeQuery(q as unknown as MetricQuery<RangeRelationMetricSource<never>>, shape);
   }
 
-  return buildDenseQuery(q as unknown as MetricQuery<DenseRelationMetricSource<any>>, shape);
+  return buildDenseQuery(q as unknown as MetricQuery<DenseRelationMetricSource<never>>, shape);
 }

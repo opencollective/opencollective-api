@@ -40,7 +40,7 @@ enum ApplicationType {
 }
 
 """
-A field whose value conforms to the standard URL format as specified in RFC3986: https://www.ietf.org/rfc/rfc3986.txt.
+A field whose value is an HTTP or HTTPS URL as specified in RFC3986: https://www.ietf.org/rfc/rfc3986.txt.
 """
 scalar URL
 
@@ -211,6 +211,16 @@ interface Account {
   Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
+
+  """
+  Whether the account is a US person or entity. Scope: "account".
+  """
+  isUSEntity: Boolean
+
+  """
+  The country the account is taxable in (residence for individuals, incorporation for organizations), set from the US tax form (W-9 / W-8BEN / W-8BEN-E) submitted by the account. Scope: "account".
+  """
+  taxableCountry: String
   description: String
   longDescription: String
   tags: [String]
@@ -374,6 +384,11 @@ interface Account {
     Specific account to query the membership of.
     """
     account: AccountReferenceInput
+
+    """
+    Filter members by tier
+    """
+    tier: TierReferenceInput
     orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
 
     """
@@ -383,7 +398,7 @@ interface Account {
   ): MemberOfCollection
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
@@ -713,6 +728,11 @@ interface Account {
     The term to search
     """
     searchTerm: String
+
+    """
+    If set, `totalCount` stops counting at this number: it is then a lower bound and `totalCountIsCapped` is true. Much faster than an exact total when there are many orders, e.g. to paginate with `offset + <a few pages>`.
+    """
+    maxTotalCount: Int
     tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
@@ -752,6 +772,21 @@ interface Account {
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+
+  """
+  Webhooks registered on this account. Only available to admins. Scope: "webhooks".
+  """
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     """
     The number of results to fetch (default 10, max 1000)
@@ -1127,7 +1162,7 @@ interface Account {
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "applications".
   """
   hostApplicationRequests(
     """
@@ -1178,44 +1213,19 @@ interface Account {
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+
+  """
+  A host-private note about this account, only visible to admins of the given fiscal host
+  """
+  fiscalHostNote(
+    """
+    The fiscal host the note belongs to
+    """
+    host: AccountReferenceInput!
+  ): FiscalHostNote
 
   """
   Various stats about how this account is connected to the rest of the community
@@ -1707,6 +1717,11 @@ enum Currency {
   MOP
 
   """
+  Ouguiya
+  """
+  MRU
+
+  """
   Mauritius Rupee
   """
   MUR
@@ -2038,7 +2053,6 @@ enum MemberRole {
   MEMBER
   COMMUNITY_MANAGER
   FUNDRAISER @deprecated(reason: "2022-09-12: This role does not exist anymore")
-  FOLLOWER
   ACCOUNTANT
   CONNECTED_ACCOUNT
 }
@@ -2163,7 +2177,7 @@ type Tier {
   videoUrl: String
 
   """
-  Get all orders
+  Get all orders. Scope: "orders".
   """
   orders(limit: Int! = 100, offset: Int! = 0, status: [OrderStatus]): OrderCollection!
   amount: Amount!
@@ -2214,6 +2228,11 @@ type OrderCollection implements Collection {
   limit: Int
   totalCount: Int
   nodes: [Order]
+
+  """
+  Whether `totalCount` was capped by the `maxTotalCount` argument: there are more orders than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
 
   """
   The accounts that created the orders in this collection (only scoped to the `account`, `hostContext`, `includeChildrenAccounts`, `expectedFundsFilter` and `status` arguments), regardless of pagination. Returns a paginated and searchable collection.
@@ -2269,11 +2288,16 @@ type Order {
   nextChargeDate: DateTime
   lastChargedAt: DateTime
   tier: Tier
+
+  """
+  A tier change waiting for a payment to take effect (e.g. upgrade to a more expensive tier). Only visible to the admins of the contributor, the collective and its host.
+  """
+  pendingTierChange: OrderPendingTierChange
   fromAccount: Account
   toAccount: Account
 
   """
-  Transactions for this order ordered by createdAt ASC
+  Transactions for this order ordered by createdAt ASC. Scope: "transactions".
   """
   transactions: [Transaction]!
   createdAt: DateTime
@@ -2417,6 +2441,17 @@ enum ContributionFrequency {
   MONTHLY
   YEARLY
   ONETIME
+}
+
+"""
+A tier change requested on a recurring contribution. It takes effect once a charge pays for the new tier, typically on the next charge date.
+"""
+type OrderPendingTierChange {
+  """
+  The tier the contribution will move to. Null if the tier was deleted.
+  """
+  tier: Tier
+  requestedAt: DateTime!
 }
 
 """
@@ -3082,6 +3117,16 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
+
+  """
+  Whether the account is a US person or entity. Scope: "account".
+  """
+  isUSEntity: Boolean
+
+  """
+  The country the account is taxable in (residence for individuals, incorporation for organizations), set from the US tax form (W-9 / W-8BEN / W-8BEN-E) submitted by the account. Scope: "account".
+  """
+  taxableCountry: String
   description: String
   longDescription: String
   tags: [String]
@@ -3173,7 +3218,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -3287,7 +3332,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
@@ -3617,6 +3662,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     The term to search
     """
     searchTerm: String
+
+    """
+    If set, `totalCount` stops counting at this number: it is then a lower bound and `totalCountIsCapped` is true. Much faster than an exact total when there are many orders, e.g. to paginate with `offset + <a few pages>`.
+    """
+    maxTotalCount: Int
     tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
@@ -3656,6 +3706,17 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -4015,7 +4076,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "applications".
   """
   hostApplicationRequests(
     """
@@ -4066,44 +4127,19 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+
+  """
+  A host-private note about this account, only visible to admins of the given fiscal host
+  """
+  fiscalHostNote(
+    """
+    The fiscal host the note belongs to
+    """
+    host: AccountReferenceInput!
+  ): FiscalHostNote
 
   """
   Various stats about how this account is connected to the rest of the community
@@ -4134,17 +4170,6 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Number of unique financial contributors.
@@ -4304,7 +4329,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   hostContributionsReport(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): HostExpensesReports
 
   """
-  Applications for this host
+  Applications for this host. Scope: "applications".
   """
   hostApplications(
     """
@@ -4339,7 +4364,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   ): HostApplicationCollection!
 
   """
-  Pending applications for this host
+  Pending applications for this host. Scope: "applications".
   """
   pendingApplications(
     """
@@ -5187,6 +5212,11 @@ type PlatformBilling {
   dueDate: DateTime!
   base: PlatformBillingBase!
   additional: PlatformBillingAdditional!
+
+  """
+  Crowdfunding fee charged on contributions for plans without platform tips
+  """
+  crowdfunding: PlatformBillingCrowdfunding!
   totalAmount: Amount!
   expenses: [Expense!]!
 }
@@ -5248,6 +5278,23 @@ type PlatformBillingAdditional {
 type PlatformBillingAdditionalUtilizationCharges {
   activeCollectives: Amount!
   expensesPaid: Amount!
+}
+
+type PlatformBillingCrowdfunding {
+  """
+  Crowdfunding contributions subject to the fee during the billing period
+  """
+  totalAmount: Amount!
+
+  """
+  The fee percentage applied to crowdfunding contributions
+  """
+  feePercent: Float!
+
+  """
+  The resulting crowdfunding fee
+  """
+  fee: Amount!
 }
 
 input PlatformBillingPeriodInput {
@@ -5860,139 +5907,29 @@ enum OppositeAccountScope {
 }
 
 """
-A collection of "Expenses"
+A collection of webhooks
 """
-type ExpenseCollection implements Collection {
+type WebhookCollection implements Collection {
   offset: Int
   limit: Int
   totalCount: Int
-  nodes: [Expense]
-  totalAmount: ExpenseCollectionTotalAmount
-
-  """
-  The accounts that are payees of the expenses in this collection (scoped to the main query arguments), regardless of pagination. Returns a paginated and searchable collection.
-  """
-  payees(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Search term to filter by name or slug
-    """
-    searchTerm: String
-  ): AccountCollection!
-}
-
-type ExpenseCollectionTotalAmount {
-  amount(currency: Currency = USD): Amount
-  amountsByCurrency: [Amount]
+  nodes: [Webhook]
 }
 
 """
-Describes the role of the filtered account/host in an expense. Controls which side the account, accounts, and host/hostContext arguments apply to.
+An webhook attached to an account
 """
-enum ExpenseDirection {
-  """
-  Submitted: The account is the one who submitted the expense and possibly the beneficiary.
-  """
-  SUBMITTED
+type Webhook {
+  id: String!
 
   """
-  Received: The account is the one who received the expense and the one who's paying for it.
+  The resource public id (ie: not_xxxxxxxx)
   """
-  RECEIVED
-}
-
-"""
-Describes the values allowed to filter expenses, namely all the expense statuses and the special "READY_TO_PAY" value.
-"""
-enum ExpenseStatusFilter {
-  DRAFT
-  UNVERIFIED
-  PENDING
-  INCOMPLETE
-  APPROVED
-  REJECTED
-  PROCESSING
-  ERROR
-  PAID
-  SCHEDULED_FOR_PAYMENT
-  SPAM
-  CANCELED
-  INVITE_DECLINED
-
-  """
-  Only expenses that are ready to be paid (must be approved, have the sufficiant balance and have the tax forms completed)
-  """
-  READY_TO_PAY
-
-  """
-  Only expenses that are on hold
-  """
-  ON_HOLD
-}
-
-enum PayoutMethodType {
-  OTHER
-  PAYPAL
-  BANK_ACCOUNT
-  ACCOUNT_BALANCE
-  CREDIT_CARD
-  STRIPE
-}
-
-"""
-The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
-"""
-scalar JSON
-
-"""
-Defines role of the last comment author
-"""
-enum LastCommentBy {
-  """
-  Expense Submitter
-  """
-  USER
-
-  """
-  Last comment author is not an admin of the expense payee (FromCollectiveId)
-  """
-  NON_FROM_ACCOUNT_ADMIN
-
-  """
-  Fiscal Host Admin
-  """
-  HOST_ADMIN
-
-  """
-  Not a Fiscal Host Admin
-  """
-  NON_HOST_ADMIN
-
-  """
-  Collective Admin
-  """
-  COLLECTIVE_ADMIN
-}
-
-input ExpenseActivityFilter {
-  """
-  Activities triggered by this individual
-  """
-  individual: AccountReferenceInput
-
-  """
-  The type(s) of activities to filter by
-  """
-  type: [ActivityType!]
+  publicId: String!
+  legacyId: Int! @deprecated(reason: "2026-02-25: use publicId")
+  activityType: ActivityType
+  webhookUrl: URL
+  account: Account!
 }
 
 enum ActivityType {
@@ -6133,7 +6070,6 @@ enum ActivityType {
   USER_CARD_INVITED
   WEBHOOK_STRIPE_RECEIVED
   WEBHOOK_PAYPAL_RECEIVED
-  COLLECTIVE_MONTHLY_REPORT
   ACTIVATED_COLLECTIVE_AS_HOST
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT
   DEACTIVATED_COLLECTIVE_AS_HOST
@@ -6141,6 +6077,8 @@ enum ActivityType {
   DEACTIVATED_MONEY_MANAGEMENT
   ACTIVATED_HOSTING
   DEACTIVATED_HOSTING
+  FISCAL_HOST_NOTE_SET
+  FISCAL_HOST_NOTE_REMOVED
   AGREEMENT_CREATED
   AGREEMENT_EDITED
   AGREEMENT_DELETED
@@ -6159,6 +6097,142 @@ enum ActivityType {
   KYC_REQUESTED
   KYC_REVOKED
   KYC_VERIFIED
+}
+
+"""
+A collection of "Expenses"
+"""
+type ExpenseCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [Expense]
+  totalAmount: ExpenseCollectionTotalAmount
+
+  """
+  The accounts that are payees of the expenses in this collection (scoped to the main query arguments), regardless of pagination. Returns a paginated and searchable collection.
+  """
+  payees(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Search term to filter by name or slug
+    """
+    searchTerm: String
+  ): AccountCollection!
+}
+
+type ExpenseCollectionTotalAmount {
+  amount(currency: Currency = USD): Amount
+  amountsByCurrency: [Amount]
+}
+
+"""
+Describes the role of the filtered account/host in an expense. Controls which side the account, accounts, and host/hostContext arguments apply to.
+"""
+enum ExpenseDirection {
+  """
+  Submitted: The account is the one who submitted the expense and possibly the beneficiary.
+  """
+  SUBMITTED
+
+  """
+  Received: The account is the one who received the expense and the one who's paying for it.
+  """
+  RECEIVED
+}
+
+"""
+Describes the values allowed to filter expenses, namely all the expense statuses and the special "READY_TO_PAY" value.
+"""
+enum ExpenseStatusFilter {
+  DRAFT
+  UNVERIFIED
+  PENDING
+  INCOMPLETE
+  APPROVED
+  REJECTED
+  PROCESSING
+  ERROR
+  PAID
+  SCHEDULED_FOR_PAYMENT
+  SPAM
+  CANCELED
+  INVITE_DECLINED
+
+  """
+  Only expenses that are ready to be paid (must be approved, have the sufficiant balance and have the tax forms completed)
+  """
+  READY_TO_PAY
+
+  """
+  Only expenses that are on hold
+  """
+  ON_HOLD
+}
+
+enum PayoutMethodType {
+  OTHER
+  PAYPAL
+  BANK_ACCOUNT
+  ACCOUNT_BALANCE
+  CREDIT_CARD
+  STRIPE
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSON
+
+"""
+Defines role of the last comment author
+"""
+enum LastCommentBy {
+  """
+  Expense Submitter
+  """
+  USER
+
+  """
+  Last comment author is not an admin of the expense payee (FromCollectiveId)
+  """
+  NON_FROM_ACCOUNT_ADMIN
+
+  """
+  Fiscal Host Admin
+  """
+  HOST_ADMIN
+
+  """
+  Not a Fiscal Host Admin
+  """
+  NON_HOST_ADMIN
+
+  """
+  Collective Admin
+  """
+  COLLECTIVE_ADMIN
+}
+
+input ExpenseActivityFilter {
+  """
+  Activities triggered by this individual
+  """
+  individual: AccountReferenceInput
+
+  """
+  The type(s) of activities to filter by
+  """
+  type: [ActivityType!]
 }
 
 """
@@ -6290,11 +6364,19 @@ type HostApplication {
   """
   updatedAt: DateTime!
   status: HostApplicationStatus
+
+  """
+  The application message. Scope: "applications".
+  """
   message: String
+
+  """
+  Application custom data. Unfiltered for admins with scope "applications", allow-listed otherwise.
+  """
   customData: JSON
 
   """
-  Returns the list of comments for this host application, or `null` if user is not allowed to see them
+  Returns the list of comments for this host application, or `null` if user is not allowed to see them. Scope: "applications".
   """
   comments(
     """
@@ -6712,6 +6794,11 @@ type PaymentMethod {
     The term to search
     """
     searchTerm: String
+
+    """
+    If set, `totalCount` stops counting at this number: it is then a lower bound and `totalCountIsCapped` is true. Much faster than an exact total when there are many orders, e.g. to paginate with `offset + <a few pages>`.
+    """
+    maxTotalCount: Int
     tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
@@ -7061,6 +7148,51 @@ type AccountStats {
   Total amount received time series
   """
   totalAmountReceivedTimeSeries(
+    """
+    The start date of the time series
+    """
+    dateFrom: DateTime
+
+    """
+    The end date of the time series
+    """
+    dateTo: DateTime
+
+    """
+    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
+    """
+    timeUnit: TimeUnit
+
+    """
+    Return the net amount (with payment processor fees removed)
+    """
+    net: Boolean = false
+
+    """
+    Filter by kind
+    """
+    kind: [TransactionKind]
+
+    """
+    Calculate amount for the last x months. Cannot be used with startDate/endDate
+    """
+    periodInMonths: Int
+
+    """
+    Include transactions from children (Projects and Events)
+    """
+    includeChildren: Boolean = false
+
+    """
+    An optional currency. If not provided, will use the collective currency.
+    """
+    currency: Currency
+  ): TimeSeriesAmount!
+
+  """
+  Total amount spent time series
+  """
+  totalAmountSpentTimeSeries(
     """
     The start date of the time series
     """
@@ -7546,6 +7678,7 @@ type CollectiveFeatures {
   PROJECTS: CollectiveFeatureStatus
   USE_EXPENSES: CollectiveFeatureStatus
   RECEIVE_EXPENSES: CollectiveFeatureStatus
+  RECEIVE_GRANTS: CollectiveFeatureStatus
   MULTI_CURRENCY_EXPENSES: CollectiveFeatureStatus
   COLLECTIVE_GOALS: CollectiveFeatureStatus
   TOP_FINANCIAL_CONTRIBUTORS: CollectiveFeatureStatus
@@ -7563,7 +7696,6 @@ type CollectiveFeatures {
   ALIPAY: CollectiveFeatureStatus
   STRIPE_PAYMENT_INTENT: CollectiveFeatureStatus
   USE_PAYMENT_METHODS: CollectiveFeatureStatus
-  EMIT_GIFT_CARDS: CollectiveFeatureStatus
   EMAIL_NOTIFICATIONS_PANEL: CollectiveFeatureStatus
   VIRTUAL_CARDS: CollectiveFeatureStatus
   REQUEST_VIRTUAL_CARDS: CollectiveFeatureStatus
@@ -7652,6 +7784,11 @@ type Policies {
   Contribution threshold to enforce contributor info. This resolver can be called from the collective or the host, when resolved through the collective the thresholds are returned in the collective currency
   """
   CONTRIBUTOR_INFO_THRESHOLDS: CONTRIBUTOR_INFO_THRESHOLDS
+
+  """
+  Tax form thresholds for US and non-US entities in cents (0 means always collect)
+  """
+  TAX_FORM_THRESHOLDS: TAX_FORM_THRESHOLDS
 }
 
 type EXPENSE_POLICIES {
@@ -7719,6 +7856,23 @@ enum UseVendorPolicy {
 type CONTRIBUTOR_INFO_THRESHOLDS {
   legalName: Int
   address: Int
+}
+
+type TAX_FORM_THRESHOLDS {
+  """
+  Threshold in cents for US entities (0 means always collect)
+  """
+  US: Int
+
+  """
+  Threshold in cents for non-US entities (0 means always collect)
+  """
+  NON_US: Int
+
+  """
+  Whether expenses paid through PayPal are included in threshold calculations
+  """
+  includePayPalExpenses: Boolean
 }
 
 type ActivitySubscription {
@@ -7904,42 +8058,6 @@ enum ActivityClassType {
   ACTIVITIES_UPDATES
   VIRTUAL_CARDS
   FUND_EVENTS
-  REPORTS
-}
-
-"""
-A collection of Transactions groups
-"""
-type TransactionGroupCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-  nodes: [TransactionGroup!]!
-}
-
-"""
-Transaction group
-"""
-type TransactionGroup {
-  id: String!
-  totalAmount: Amount!
-  host: Account
-
-  """
-  The account on the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)
-  """
-  account: Account
-
-  """
-  The primary transaction in the group
-  """
-  primaryTransaction: Transaction
-
-  """
-  The transactions in the group
-  """
-  transactions: [Transaction]
-  createdAt: DateTime
 }
 
 """
@@ -7989,6 +8107,40 @@ type TransactionsAmountGroup {
   isRefund: Boolean
   isHost: Boolean
   expenseType: ExpenseType
+}
+
+"""
+A host-private note about an account, set by a fiscal host admin
+"""
+type FiscalHostNote {
+  """
+  The gravity of the note
+  """
+  type: FiscalHostNoteType!
+
+  """
+  The note content, as sanitized HTML
+  """
+  note: String!
+
+  """
+  When the note was last updated
+  """
+  updatedAt: DateTime
+
+  """
+  The user who last updated the note
+  """
+  updatedBy: Account
+}
+
+"""
+The gravity of a fiscal host note about an account
+"""
+enum FiscalHostNoteType {
+  WARNING
+  INFO
+  POSITIVE
 }
 
 type CommunityStats {
@@ -8154,32 +8306,6 @@ type KYCVerificationPermissions {
   Whether this KYC Verification can be revoked by the logged in user
   """
   canRevokeKYCVerification: Boolean!
-}
-
-"""
-A collection of webhooks
-"""
-type WebhookCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-  nodes: [Webhook]
-}
-
-"""
-An webhook attached to an account
-"""
-type Webhook {
-  id: String!
-
-  """
-  The resource public id (ie: not_xxxxxxxx)
-  """
-  publicId: String!
-  legacyId: Int! @deprecated(reason: "2026-02-25: use publicId")
-  activityType: ActivityType
-  webhookUrl: URL
-  account: Account!
 }
 
 """
@@ -8373,7 +8499,7 @@ type HostMetricsTimeSeries {
   hostFees: TimeSeriesAmount!
 
   """
-  History of the share of host fees collected owed to Open Collective Inc.
+  History of the share of host fees collected owed to the platform (OFi Technologies LLC).
   """
   hostFeeShare: TimeSeriesAmountWithSettlement!
 
@@ -10082,7 +10208,7 @@ type ExpensePermissions {
   """
   Whether the current user can edit the expense
   """
-  canEdit: Boolean!
+  canEdit: Boolean! @deprecated(reason: "2026-09-15: Use the granular permissions instead.")
 
   """
   Whether the current user can edit the expense title
@@ -10393,6 +10519,7 @@ enum SecurityCheckScope {
   USER
   COLLECTIVE
   PAYEE
+  LEGAL_DOCUMENT
   PAYOUT_METHOD
   ATTACHMENTS
 }
@@ -10637,6 +10764,16 @@ type Bot implements Account {
   Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
+
+  """
+  Whether the account is a US person or entity. Scope: "account".
+  """
+  isUSEntity: Boolean
+
+  """
+  The country the account is taxable in (residence for individuals, incorporation for organizations), set from the US tax form (W-9 / W-8BEN / W-8BEN-E) submitted by the account. Scope: "account".
+  """
+  taxableCountry: String
   description: String
   longDescription: String
   tags: [String]
@@ -10728,7 +10865,7 @@ type Bot implements Account {
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -10842,7 +10979,7 @@ type Bot implements Account {
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
@@ -11172,6 +11309,11 @@ type Bot implements Account {
     The term to search
     """
     searchTerm: String
+
+    """
+    If set, `totalCount` stops counting at this number: it is then a lower bound and `totalCountIsCapped` is true. Much faster than an exact total when there are many orders, e.g. to paginate with `offset + <a few pages>`.
+    """
+    maxTotalCount: Int
     tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
@@ -11211,6 +11353,17 @@ type Bot implements Account {
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -11572,7 +11725,7 @@ type Bot implements Account {
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "applications".
   """
   hostApplicationRequests(
     """
@@ -11623,44 +11776,19 @@ type Bot implements Account {
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+
+  """
+  A host-private note about this account, only visible to admins of the given fiscal host
+  """
+  fiscalHostNote(
+    """
+    The fiscal host the note belongs to
+    """
+    host: AccountReferenceInput!
+  ): FiscalHostNote
 
   """
   Various stats about how this account is connected to the rest of the community
@@ -11691,17 +11819,6 @@ type Bot implements Account {
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 }
 
 """
@@ -11731,6 +11848,16 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
+
+  """
+  Whether the account is a US person or entity. Scope: "account".
+  """
+  isUSEntity: Boolean
+
+  """
+  The country the account is taxable in (residence for individuals, incorporation for organizations), set from the US tax form (W-9 / W-8BEN / W-8BEN-E) submitted by the account. Scope: "account".
+  """
+  taxableCountry: String
   description: String
   longDescription: String
   tags: [String]
@@ -11822,7 +11949,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -11936,7 +12063,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
@@ -12266,6 +12393,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     The term to search
     """
     searchTerm: String
+
+    """
+    If set, `totalCount` stops counting at this number: it is then a lower bound and `totalCountIsCapped` is true. Much faster than an exact total when there are many orders, e.g. to paginate with `offset + <a few pages>`.
+    """
+    maxTotalCount: Int
     tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
@@ -12305,6 +12437,17 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -12666,7 +12809,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "applications".
   """
   hostApplicationRequests(
     """
@@ -12717,44 +12860,19 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+
+  """
+  A host-private note about this account, only visible to admins of the given fiscal host
+  """
+  fiscalHostNote(
+    """
+    The fiscal host the note belongs to
+    """
+    host: AccountReferenceInput!
+  ): FiscalHostNote
 
   """
   Various stats about how this account is connected to the rest of the community
@@ -12785,17 +12903,6 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Returns the Fiscal Host
@@ -13415,6 +13522,16 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
+
+  """
+  Whether the account is a US person or entity. Scope: "account".
+  """
+  isUSEntity: Boolean
+
+  """
+  The country the account is taxable in (residence for individuals, incorporation for organizations), set from the US tax form (W-9 / W-8BEN / W-8BEN-E) submitted by the account. Scope: "account".
+  """
+  taxableCountry: String
   description: String
   longDescription: String
   tags: [String]
@@ -13506,7 +13623,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -13620,7 +13737,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
@@ -13950,6 +14067,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     The term to search
     """
     searchTerm: String
+
+    """
+    If set, `totalCount` stops counting at this number: it is then a lower bound and `totalCountIsCapped` is true. Much faster than an exact total when there are many orders, e.g. to paginate with `offset + <a few pages>`.
+    """
+    maxTotalCount: Int
     tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
@@ -13989,6 +14111,17 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -14350,7 +14483,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "applications".
   """
   hostApplicationRequests(
     """
@@ -14401,44 +14534,19 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+
+  """
+  A host-private note about this account, only visible to admins of the given fiscal host
+  """
+  fiscalHostNote(
+    """
+    The fiscal host the note belongs to
+    """
+    host: AccountReferenceInput!
+  ): FiscalHostNote
 
   """
   Various stats about how this account is connected to the rest of the community
@@ -14469,17 +14577,6 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Returns the Fiscal Host
@@ -14808,6 +14905,16 @@ type Individual implements Account {
   Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
+
+  """
+  Whether the account is a US person or entity. Scope: "account".
+  """
+  isUSEntity: Boolean
+
+  """
+  The country the account is taxable in (residence for individuals, incorporation for organizations), set from the US tax form (W-9 / W-8BEN / W-8BEN-E) submitted by the account. Scope: "account".
+  """
+  taxableCountry: String
   description: String
   longDescription: String
   tags: [String]
@@ -14899,7 +15006,7 @@ type Individual implements Account {
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -15013,7 +15120,7 @@ type Individual implements Account {
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
@@ -15343,6 +15450,11 @@ type Individual implements Account {
     The term to search
     """
     searchTerm: String
+
+    """
+    If set, `totalCount` stops counting at this number: it is then a lower bound and `totalCountIsCapped` is true. Much faster than an exact total when there are many orders, e.g. to paginate with `offset + <a few pages>`.
+    """
+    maxTotalCount: Int
     tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
@@ -15382,6 +15494,17 @@ type Individual implements Account {
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -15741,7 +15864,7 @@ type Individual implements Account {
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "applications".
   """
   hostApplicationRequests(
     """
@@ -15792,44 +15915,19 @@ type Individual implements Account {
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+
+  """
+  A host-private note about this account, only visible to admins of the given fiscal host
+  """
+  fiscalHostNote(
+    """
+    The fiscal host the note belongs to
+    """
+    host: AccountReferenceInput!
+  ): FiscalHostNote
 
   """
   Various stats about how this account is connected to the rest of the community
@@ -15860,17 +15958,6 @@ type Individual implements Account {
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Company slugs the user is part of.
@@ -16227,6 +16314,16 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
+
+  """
+  Whether the account is a US person or entity. Scope: "account".
+  """
+  isUSEntity: Boolean
+
+  """
+  The country the account is taxable in (residence for individuals, incorporation for organizations), set from the US tax form (W-9 / W-8BEN / W-8BEN-E) submitted by the account. Scope: "account".
+  """
+  taxableCountry: String
   description: String
   longDescription: String
   tags: [String]
@@ -16318,7 +16415,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -16432,7 +16529,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
@@ -16762,6 +16859,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     The term to search
     """
     searchTerm: String
+
+    """
+    If set, `totalCount` stops counting at this number: it is then a lower bound and `totalCountIsCapped` is true. Much faster than an exact total when there are many orders, e.g. to paginate with `offset + <a few pages>`.
+    """
+    maxTotalCount: Int
     tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
@@ -16801,6 +16903,17 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -17160,7 +17273,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "applications".
   """
   hostApplicationRequests(
     """
@@ -17211,44 +17324,19 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+
+  """
+  A host-private note about this account, only visible to admins of the given fiscal host
+  """
+  fiscalHostNote(
+    """
+    The fiscal host the note belongs to
+    """
+    host: AccountReferenceInput!
+  ): FiscalHostNote
 
   """
   Various stats about how this account is connected to the rest of the community
@@ -17279,17 +17367,6 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Number of unique financial contributors.
@@ -17723,6 +17800,16 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
+
+  """
+  Whether the account is a US person or entity. Scope: "account".
+  """
+  isUSEntity: Boolean
+
+  """
+  The country the account is taxable in (residence for individuals, incorporation for organizations), set from the US tax form (W-9 / W-8BEN / W-8BEN-E) submitted by the account. Scope: "account".
+  """
+  taxableCountry: String
   description: String
   longDescription: String
   tags: [String]
@@ -17814,7 +17901,7 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -17928,7 +18015,7 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
@@ -18258,6 +18345,11 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
     The term to search
     """
     searchTerm: String
+
+    """
+    If set, `totalCount` stops counting at this number: it is then a lower bound and `totalCountIsCapped` is true. Much faster than an exact total when there are many orders, e.g. to paginate with `offset + <a few pages>`.
+    """
+    maxTotalCount: Int
     tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
@@ -18297,6 +18389,17 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -18658,7 +18761,7 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "applications".
   """
   hostApplicationRequests(
     """
@@ -18709,44 +18812,19 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+
+  """
+  A host-private note about this account, only visible to admins of the given fiscal host
+  """
+  fiscalHostNote(
+    """
+    The fiscal host the note belongs to
+    """
+    host: AccountReferenceInput!
+  ): FiscalHostNote
 
   """
   Various stats about how this account is connected to the rest of the community
@@ -18777,17 +18855,6 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Returns the Fiscal Host
@@ -18893,9 +18960,9 @@ type TransferWise {
   ): [JSONObject]
 
   """
-  Transferwise balances. Returns null if Transferwise account is not connected.
+  Transferwise balances. Returns null if Transferwise account is not connected or if the user is not an admin of the account.
   """
-  balances: [Amount]
+  balances: [Amount!]
   amountBatched: Amount
 }
 
@@ -18926,6 +18993,16 @@ type Vendor implements Account & AccountWithContributions {
   Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
+
+  """
+  Whether the account is a US person or entity. Scope: "account".
+  """
+  isUSEntity: Boolean
+
+  """
+  The country the account is taxable in (residence for individuals, incorporation for organizations), set from the US tax form (W-9 / W-8BEN / W-8BEN-E) submitted by the account. Scope: "account".
+  """
+  taxableCountry: String
   description: String
   longDescription: String
   tags: [String]
@@ -19017,7 +19094,7 @@ type Vendor implements Account & AccountWithContributions {
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -19131,7 +19208,7 @@ type Vendor implements Account & AccountWithContributions {
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
@@ -19461,6 +19538,11 @@ type Vendor implements Account & AccountWithContributions {
     The term to search
     """
     searchTerm: String
+
+    """
+    If set, `totalCount` stops counting at this number: it is then a lower bound and `totalCountIsCapped` is true. Much faster than an exact total when there are many orders, e.g. to paginate with `offset + <a few pages>`.
+    """
+    maxTotalCount: Int
     tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
@@ -19500,6 +19582,17 @@ type Vendor implements Account & AccountWithContributions {
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -19861,7 +19954,7 @@ type Vendor implements Account & AccountWithContributions {
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "applications".
   """
   hostApplicationRequests(
     """
@@ -19912,44 +20005,19 @@ type Vendor implements Account & AccountWithContributions {
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+
+  """
+  A host-private note about this account, only visible to admins of the given fiscal host
+  """
+  fiscalHostNote(
+    """
+    The fiscal host the note belongs to
+    """
+    host: AccountReferenceInput!
+  ): FiscalHostNote
 
   """
   Various stats about how this account is connected to the rest of the community
@@ -19980,17 +20048,6 @@ type Vendor implements Account & AccountWithContributions {
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Number of unique financial contributors.
@@ -20954,6 +21011,10 @@ type Query {
     """
     role: [MemberRole]
   ): [MemberInvitation]
+
+  """
+  Get an order by reference. Scope: "orders".
+  """
   order(
     """
     Identifiers to retrieve the Order
@@ -21095,6 +21156,11 @@ type Query {
     The term to search
     """
     searchTerm: String
+
+    """
+    If set, `totalCount` stops counting at this number: it is then a lower bound and `totalCountIsCapped` is true. Much faster than an exact total when there are many orders, e.g. to paginate with `offset + <a few pages>`.
+    """
+    maxTotalCount: Int
     tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
@@ -21187,12 +21253,17 @@ type Query {
     searchTerm: String!
 
     """
-    Limit the scope of the search to this account and its children
+    The backend to use for this search
+    """
+    backend: SearchBackend! = OPENSEARCH
+
+    """
+    Limit the scope of the search to this account and its children. When used with `host`, results must match both.
     """
     account: AccountReferenceInput
 
     """
-    Limit the scope of the search to this host and its hosted accounts
+    Limit the scope of the search to this host and its hosted accounts. When used with `account`, results must match both.
     """
     host: AccountReferenceInput
 
@@ -21459,61 +21530,6 @@ type Query {
   ): TransactionCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroup(
-    """
-    The public id identifying the transaction group (ie: rvelja97-pkzqbgq7-bbzyx6wd-50o8n4rm)
-    """
-    groupId: String!
-
-    """
-    Account associated to the transaction group
-    """
-    account: AccountReferenceInput!
-  ): TransactionGroup @deprecated(reason: "2026-07-02: Please use PaymentIntents query instead")
-
-  """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    Reference of the account(s) assigned to the main side of the transaction group (CREDIT -> recipient, DEBIT -> sender)
-    """
-    account: AccountReferenceInput!
-
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   Fetch a transactions import
   """
   transactionsImport(
@@ -21647,6 +21663,10 @@ type Query {
     status: [VirtualCardRequestStatus]
     collective: [AccountReferenceInput]
   ): VirtualCardRequestCollection!
+
+  """
+  Fetch a host application. Scope: "applications".
+  """
   hostApplication(hostApplication: HostApplicationReferenceInput): HostApplication
 
   """
@@ -23139,7 +23159,6 @@ enum ActivityAndClassesType {
   USER_CARD_INVITED
   WEBHOOK_STRIPE_RECEIVED
   WEBHOOK_PAYPAL_RECEIVED
-  COLLECTIVE_MONTHLY_REPORT
   ACTIVATED_COLLECTIVE_AS_HOST
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT
   DEACTIVATED_COLLECTIVE_AS_HOST
@@ -23147,6 +23166,8 @@ enum ActivityAndClassesType {
   DEACTIVATED_MONEY_MANAGEMENT
   ACTIVATED_HOSTING
   DEACTIVATED_HOSTING
+  FISCAL_HOST_NOTE_SET
+  FISCAL_HOST_NOTE_REMOVED
   AGREEMENT_CREATED
   AGREEMENT_EDITED
   AGREEMENT_DELETED
@@ -23171,7 +23192,6 @@ enum ActivityAndClassesType {
   ACTIVITIES_UPDATES
   VIRTUAL_CARDS
   FUND_EVENTS
-  REPORTS
 }
 
 """
@@ -23367,6 +23387,16 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
+
+  """
+  Whether the account is a US person or entity. Scope: "account".
+  """
+  isUSEntity: Boolean
+
+  """
+  The country the account is taxable in (residence for individuals, incorporation for organizations), set from the US tax form (W-9 / W-8BEN / W-8BEN-E) submitted by the account. Scope: "account".
+  """
+  taxableCountry: String
   description: String
   longDescription: String
   tags: [String]
@@ -23458,7 +23488,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -23572,7 +23602,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
@@ -23902,6 +23932,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     The term to search
     """
     searchTerm: String
+
+    """
+    If set, `totalCount` stops counting at this number: it is then a lower bound and `totalCountIsCapped` is true. Much faster than an exact total when there are many orders, e.g. to paginate with `offset + <a few pages>`.
+    """
+    maxTotalCount: Int
     tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
@@ -23941,6 +23976,17 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -24302,7 +24348,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "applications".
   """
   hostApplicationRequests(
     """
@@ -24353,44 +24399,19 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+
+  """
+  A host-private note about this account, only visible to admins of the given fiscal host
+  """
+  fiscalHostNote(
+    """
+    The fiscal host the note belongs to
+    """
+    host: AccountReferenceInput!
+  ): FiscalHostNote
 
   """
   Various stats about how this account is connected to the rest of the community
@@ -24421,17 +24442,6 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Returns the Fiscal Host
@@ -24618,6 +24628,16 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
+
+  """
+  Whether the account is a US person or entity. Scope: "account".
+  """
+  isUSEntity: Boolean
+
+  """
+  The country the account is taxable in (residence for individuals, incorporation for organizations), set from the US tax form (W-9 / W-8BEN / W-8BEN-E) submitted by the account. Scope: "account".
+  """
+  taxableCountry: String
   description: String
   longDescription: String
   tags: [String]
@@ -24709,7 +24729,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
-  Get all members (admins, members, backers, followers)
+  Get all members (admins, members, backers)
   """
   members(
     limit: Int! = 100
@@ -24823,7 +24843,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   ): MemberOfCollection!
 
   """
-  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails. Scope: "email".
   """
   emails: [EmailAddress!]
   transactions(
@@ -25153,6 +25173,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     The term to search
     """
     searchTerm: String
+
+    """
+    If set, `totalCount` stops counting at this number: it is then a lower bound and `totalCountIsCapped` is true. Much faster than an exact total when there are many orders, e.g. to paginate with `offset + <a few pages>`.
+    """
+    maxTotalCount: Int
     tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
@@ -25192,6 +25217,17 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
+  webhooks(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): WebhookCollection!
   expenses(
     direction: ExpenseDirection
 
@@ -25553,7 +25589,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   permissions: AccountPermissions!
 
   """
-  Host application requests
+  Host application requests. Scope: "applications".
   """
   hostApplicationRequests(
     """
@@ -25604,44 +25640,19 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   duplicatedAccounts(limit: Int! = 100, offset: Int! = 0): AccountCollection!
 
   """
-  [!] Warning: this query is currently in beta and the API might change
-  """
-  transactionGroups(
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Filter transaction groups by the type of the primary transaction
-    """
-    type: TransactionType
-
-    """
-    Filter transaction groups by the kind of the primary transaction
-    """
-    kind: TransactionKind
-
-    """
-    Only return transaction groups that were created after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return transaction groups that were created before this date
-    """
-    dateTo: DateTime
-  ): TransactionGroupCollection!
-
-  """
   EXPERIMENTAL (this may change or be removed)
   """
   transactionReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): TransactionReports
+
+  """
+  A host-private note about this account, only visible to admins of the given fiscal host
+  """
+  fiscalHostNote(
+    """
+    The fiscal host the note belongs to
+    """
+    host: AccountReferenceInput!
+  ): FiscalHostNote
 
   """
   Various stats about how this account is connected to the rest of the community
@@ -25672,17 +25683,6 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     accounts: [AccountReferenceInput!]
   ): KYCVerificationCollection!
-  webhooks(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): WebhookCollection!
 
   """
   Returns the Fiscal Host
@@ -25986,7 +25986,21 @@ type SearchResults {
 
 type SearchResultsAccounts {
   collection: AccountCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
@@ -25994,9 +26008,38 @@ type SearchResultsAccounts {
   highlights: JSONObject
 }
 
+"""
+The score of a search result
+"""
+type SearchResultScore {
+  """
+  The GraphQL ID of the result (same as the node ID)
+  """
+  id: String!
+
+  """
+  Relevance score. With the PostgreSQL backend, scores are comparable across entity types: band * 1000 (5: exact identifier, 4: exact name/title, 3: all words, 2: account name prefix, 1: account name typo) + 500 for accounts + a bonus below 500.
+  """
+  score: Float!
+}
+
 type SearchResultsComments {
   collection: CommentCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
@@ -26006,7 +26049,21 @@ type SearchResultsComments {
 
 type SearchResultsExpenses {
   collection: ExpenseCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
@@ -26016,7 +26073,21 @@ type SearchResultsExpenses {
 
 type SearchResultsHostApplications {
   collection: HostApplicationCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
@@ -26026,7 +26097,21 @@ type SearchResultsHostApplications {
 
 type SearchResultsOrders {
   collection: OrderCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
@@ -26036,7 +26121,21 @@ type SearchResultsOrders {
 
 type SearchResultsTiers {
   collection: TierCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
@@ -26046,7 +26145,21 @@ type SearchResultsTiers {
 
 type SearchResultsTransactions {
   collection: TransactionCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
@@ -26056,12 +26169,41 @@ type SearchResultsTransactions {
 
 type SearchResultsUpdates {
   collection: UpdateCollection!
+
+  """
+  Whether `collection.totalCount` was capped: there are more matching results than the total, which is a lower bound
+  """
+  totalCountIsCapped: Boolean!
+
+  """
+  Highest score among all the matching results, regardless of the requested page
+  """
   maxScore: Float!
+
+  """
+  Score of each result of the page, in the same order as the collection nodes
+  """
+  scores: [SearchResultScore!]!
 
   """
   Details about the matches typed as: { [id]: { score: number, fields: { [field]: [highlight] } } }
   """
   highlights: JSONObject
+}
+
+"""
+The backend used to run a search
+"""
+enum SearchBackend {
+  """
+  OpenSearch cluster (default)
+  """
+  OPENSEARCH
+
+  """
+  [Preview] PostgreSQL: exact totals and numbered pages (up to 50 results per page and offset 5000), search terms up to 200 characters and 12 words.
+  """
+  POSTGRES
 }
 
 input TransactionReferenceInput {
@@ -26471,7 +26613,7 @@ type Mutation {
   ): Account!
 
   """
-  Create WebAuthn public key registration request options
+  Create WebAuthn public key registration request options. Session only (OAuth/Personal tokens are not allowed).
   """
   createWebAuthnRegistrationOptions(
     """
@@ -26481,7 +26623,7 @@ type Mutation {
   ): JSON!
 
   """
-  Add 2FA to the Individual if it does not have it. Scope: "account".
+  Add 2FA to the Individual if it does not have it. Session only (OAuth/Personal tokens are not allowed).
   """
   addTwoFactorAuthTokenToIndividual(
     """
@@ -26501,7 +26643,7 @@ type Mutation {
   ): AddTwoFactorAuthTokenToIndividualResponse!
 
   """
-  Remove 2FA from the Individual if it has been enabled. Scope: "account".
+  Remove 2FA from the Individual if it has been enabled. Session only (OAuth/Personal tokens are not allowed).
   """
   removeTwoFactorAuthTokenFromIndividual(
     """
@@ -26527,7 +26669,7 @@ type Mutation {
   ): Individual!
 
   """
-  Edit 2FA method
+  Edit 2FA method. Session only (OAuth/Personal tokens are not allowed).
   """
   editTwoFactorAuthenticationMethod(
     """
@@ -26567,6 +26709,26 @@ type Mutation {
   ): Account!
 
   """
+  Archive an account and its children: unhosts it, cancels its active contributions and its unprocessed expenses. Scope: "account".
+  """
+  archiveAccount(
+    """
+    Reference to the Account to be archived.
+    """
+    account: AccountReferenceInput!
+  ): Account!
+
+  """
+  Unarchive an account. Scope: "account".
+  """
+  unarchiveAccount(
+    """
+    Reference to the Account to be unarchived.
+    """
+    account: AccountReferenceInput!
+  ): Account!
+
+  """
   Adds or removes a policy on a given account. Scope: "account".
   """
   deleteAccount(
@@ -26593,7 +26755,7 @@ type Mutation {
   ): SendMessageResult
 
   """
-  Regenerate two factor authentication recovery codes
+  Regenerate two factor authentication recovery codes. Session only (OAuth/Personal tokens are not allowed).
   """
   regenerateRecoveryCodes: [String!]
 
@@ -26801,13 +26963,13 @@ type Mutation {
   deleteApplication(application: ApplicationReferenceInput!): Application
 
   """
-  Edit a comment. Scope: "conversations", "expenses" or "updates".
+  Edit a comment. Scope: "conversations", "expenses", "updates" or "orders".
   """
   editComment(comment: CommentUpdateInput!): Comment
   deleteComment(id: String!): Comment
 
   """
-  Create a comment. Scope: "conversations", "expenses" or "updates".
+  Create a comment. Scope: "conversations", "expenses", "updates" or "orders".
   """
   createComment(comment: CommentCreateInput!): Comment
 
@@ -27116,7 +27278,7 @@ type Mutation {
   ): StripePaymentIntent!
 
   """
-  Create a new export request. Scopes: "exportRequests" (+ "transactions" for TRANSACTIONS exports, "host" for HOSTED_COLLECTIVES exports).
+  Create a new export request. Scopes: "exportRequests" (+ "transactions" and "incognito" for TRANSACTIONS exports, "host" for HOSTED_COLLECTIVES exports).
   """
   createExportRequest(
     """
@@ -27223,6 +27385,11 @@ type Mutation {
     A message to attach as a reason for the action
     """
     message: String
+
+    """
+    Custom data to store on the host application, shallow-merged into its existing `customData` (top-level keys are overwritten). Requires `hostApplication`. Max 50kB. Server-generated keys (validatedRepositoryInfo) cannot be set. Note: admins of the applying account can also read `customData`.
+    """
+    customData: JSON
   ): ProcessHostApplicationResponse!
 
   """
@@ -27266,7 +27433,7 @@ type Mutation {
   createIncognitoProfile: Individual!
 
   """
-  Set password to Individual. Scope: "account". 2FA.
+  Set password to Individual. Session only (OAuth/Personal tokens are not allowed). 2FA.
   """
   setPassword(
     """
@@ -27279,6 +27446,16 @@ type Mutation {
     """
     currentPassword: String
   ): SetPasswordResponse!
+
+  """
+  Request a change of the email address of the logged-in user. A confirmation link is sent to the new address, and the change is applied by `confirmEmail`. The pending address is returned in `emailWaitingForValidation`. Session only (OAuth/Personal tokens are not allowed). 2FA.
+  """
+  requestEmailChange(
+    """
+    The new email address. Sending the current address cancels any pending change.
+    """
+    email: EmailAddress!
+  ): Individual!
 
   """
   Confirm email for Individual. Scope: "account".
@@ -27503,26 +27680,6 @@ type Mutation {
     """
     providers: [ManualPaymentProviderReferenceInput!]!
   ): [ManualPaymentProvider!]!
-
-  """
-  Follows a given Collective. Scope: "account"
-  """
-  followAccount(
-    """
-    user will follow this account
-    """
-    account: AccountReferenceInput!
-  ): FollowAccountResult!
-
-  """
-  Unfollows a given Collective. Scope: "account"
-  """
-  unfollowAccount(
-    """
-    account to unfollow
-    """
-    account: AccountReferenceInput!
-  ): UnfollowAccountResult!
 
   """
   Edit the public message for the given Member of a Collective. Scope: "account".
@@ -27769,6 +27926,11 @@ type Mutation {
     If true, the orders will be moved to the incognito account of "fromAccount"
     """
     makeIncognito: Boolean
+
+    """
+    Bypass the tier amount validation when moving orders to a tier that does not match their amount (root only, for data repair)
+    """
+    force: Boolean
   ): [Order]!
 
   """
@@ -28109,6 +28271,56 @@ type Mutation {
   ): StripeConnectAccountResponse!
 
   """
+  Get the PayPal OAuth URL to initiate the "Log in with PayPal" payout method flow. Scope: "expenses".
+  """
+  getPaypalOAuthUrl(
+    """
+    The account to connect a PayPal payout method for
+    """
+    account: AccountReferenceInput!
+
+    """
+    Currency for the payout method (stored in OAuth state)
+    """
+    currency: Currency
+  ): URL!
+
+  """
+  Complete the PayPal OAuth flow and create or update a verified PayPal payout method. Scope: "expenses".
+  """
+  connectPaypalPayoutMethod(
+    """
+    The authorization code returned by PayPal in the OAuth callback
+    """
+    code: NonEmptyString!
+
+    """
+    The OAuth state token from the PayPal authorize URL
+    """
+    state: NonEmptyString!
+
+    """
+    The account to connect a PayPal payout method for
+    """
+    account: AccountReferenceInput!
+
+    """
+    When verifying an existing payout method, pass its reference here
+    """
+    payoutMethod: PayoutMethodReferenceInput
+
+    """
+    Currency for the payout method
+    """
+    currency: Currency!
+
+    """
+    A friendly name for the payout method
+    """
+    name: String
+  ): PaypalConnectPayoutMethodResponse!
+
+  """
   Get the Wise (TransferWise) OAuth URL to initiate the account connection flow for a host. Scope: "connectedAccounts".
   """
   getTransferwiseOAuthUrl(
@@ -28199,7 +28411,7 @@ type Mutation {
   ): Account!
 
   """
-  [Root only] Merge two accounts, returns the result account
+  [Root only] Merge two accounts, returns the result account. Both accounts must have the same type, except PROJECT accounts that can be merged into a COLLECTIVE hosted by the same host.
   """
   mergeAccounts(
     """
@@ -28806,6 +29018,16 @@ type Mutation {
   ): Agreement!
 
   """
+  Add or update a host-private note about an account. Scope: "host".
+  """
+  setFiscalHostNote(input: SetFiscalHostNoteInput!): FiscalHostNote!
+
+  """
+  Remove a host-private note about an account. Scope: "host".
+  """
+  removeFiscalHostNote(input: RemoveFiscalHostNoteInput!): Boolean!
+
+  """
   Create a new vendor for given host
   """
   createVendor(
@@ -28871,11 +29093,6 @@ type Mutation {
     """
     subscription: PlatformSubscriptionInput
   ): Account!
-
-  """
-  Send In-App Survey response
-  """
-  sendSurveyResponse(surveyKey: String!, responseId: String!, score: Int!, text: String, okToContact: Boolean): Boolean
 
   """
   Requests an account to be verified using a KYC provider
@@ -29142,6 +29359,11 @@ input AccountUpdateInput {
   id: String!
   name: String
   legalName: String
+
+  """
+  Whether the account is a US person or entity.
+  """
+  isUSEntity: Boolean
   slug: String
   description: String
   image: URL
@@ -29217,6 +29439,7 @@ input PoliciesInput {
   USE_VENDOR_POLICY: UseVendorPolicy
   COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS: Boolean
   CONTRIBUTOR_INFO_THRESHOLDS: PoliciesContributorInfoThresholdsInput
+  TAX_FORM_THRESHOLDS: PoliciesTaxFormThresholdsInput
 }
 
 input PoliciesExpensePolicies {
@@ -29247,6 +29470,12 @@ input PoliciesExpenseCategorizationInput {
 input PoliciesContributorInfoThresholdsInput {
   legalName: Int
   address: Int
+}
+
+input PoliciesTaxFormThresholdsInput {
+  US: Int
+  NON_US: Int
+  includePayPalExpenses: Boolean
 }
 
 type SendMessageResult {
@@ -30409,16 +30638,6 @@ input ManualPaymentProviderUpdateInput {
   balanceAccountingCategory: AccountingCategoryReferenceInput
 }
 
-type FollowAccountResult {
-  individual: Individual!
-  member: Member!
-}
-
-type UnfollowAccountResult {
-  individual: Individual!
-  member: Member
-}
-
 input OAuthAuthorizationReferenceInput {
   """
   The id identifying the OAuth Authorization (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, utok_xxxxxxxx)
@@ -31158,6 +31377,18 @@ type StripeConnectAccountResponse {
   redirectUrl: URL
 }
 
+type PaypalConnectPayoutMethodResponse {
+  """
+  The connected account that was created for this PayPal login
+  """
+  connectedAccount: ConnectedAccount!
+
+  """
+  The payout method that was created or updated
+  """
+  payoutMethod: PayoutMethod!
+}
+
 type TransferwiseConnectAccountResponse {
   """
   The connected account that was created
@@ -31621,6 +31852,40 @@ input AgreementReferenceInput {
   The internal id of the agreement (ie: 580)
   """
   legacyId: Int @deprecated(reason: "2026-02-25: use id")
+}
+
+input SetFiscalHostNoteInput {
+  """
+  The fiscal host the note belongs to
+  """
+  host: AccountReferenceInput!
+
+  """
+  The account the note is about
+  """
+  account: AccountReferenceInput!
+
+  """
+  The gravity of the note
+  """
+  type: FiscalHostNoteType!
+
+  """
+  The note content, as rich text with links
+  """
+  note: String!
+}
+
+input RemoveFiscalHostNoteInput {
+  """
+  The fiscal host the note belongs to
+  """
+  host: AccountReferenceInput!
+
+  """
+  The account the note is about
+  """
+  account: AccountReferenceInput!
 }
 
 input VendorCreateInput {

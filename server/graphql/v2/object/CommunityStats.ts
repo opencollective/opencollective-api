@@ -238,6 +238,8 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
                   ActivityTypes.SUBSCRIPTION_CANCELED,
                   ActivityTypes.SUBSCRIPTION_PAUSED,
                   ActivityTypes.SUBSCRIPTION_ACTIVATED,
+                  ActivityTypes.FISCAL_HOST_NOTE_SET,
+                  ActivityTypes.FISCAL_HOST_NOTE_REMOVED,
                 ],
               },
             ]),

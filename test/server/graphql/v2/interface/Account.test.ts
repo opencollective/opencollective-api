@@ -10,6 +10,7 @@ import {
   fakeKYCVerification,
   fakeMember,
   fakeOrganization,
+  fakeTier,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
@@ -247,6 +248,209 @@ describe('server/graphql/v2/interface/Account', () => {
       expect(result.data.account.isIncognito).to.be.true;
       expect(result.data.account.mainProfile).to.exist;
       expect(result.data.account.mainProfile.slug).to.equal(user.collective.slug);
+    });
+  });
+
+  describe('taxableCountry', () => {
+    const query = gql`
+      query TaxableCountryTest($slug: String!) {
+        account(slug: $slug) {
+          taxableCountry
+        }
+      }
+    `;
+
+    it('returns null when not authenticated', async () => {
+      const user = await fakeUser();
+      await user.collective.update({ data: { taxableCountry: 'US' } });
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.taxableCountry).to.be.null;
+    });
+
+    it('returns null when the taxableCountry is not set', async () => {
+      const user = await fakeUser();
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.taxableCountry).to.be.null;
+    });
+
+    it('returns the taxableCountry for the account owner', async () => {
+      const user = await fakeUser();
+      await user.collective.update({ data: { taxableCountry: 'US' } });
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.taxableCountry).to.equal('US');
+    });
+
+    it('returns null for an unrelated user', async () => {
+      const user = await fakeUser();
+      await user.collective.update({ data: { taxableCountry: 'US' } });
+      const otherUser = await fakeUser();
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug }, otherUser);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.taxableCountry).to.be.null;
+    });
+
+    it('returns the taxableCountry of the main profile for an incognito account', async () => {
+      const user = await fakeUser();
+      await user.collective.update({ data: { taxableCountry: 'FR' } });
+      const incognito = await fakeIncognitoProfile(user);
+      const result = await graphqlQueryV2(query, { slug: incognito.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.taxableCountry).to.equal('FR');
+    });
+
+    it('does not expose the taxableCountry of a money-management account to anonymous users', async () => {
+      // `canSeeLegalName` is public for money-management accounts (host legal names are
+      // public), but tax-profile data must not inherit that exemption.
+      const host = await fakeActiveHost();
+      await host.update({ data: { taxableCountry: 'US' } });
+      const result = await graphqlQueryV2(query, { slug: host.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.taxableCountry).to.be.null;
+    });
+
+    it('does not expose the taxableCountry of a money-management account to an unrelated user', async () => {
+      const host = await fakeActiveHost();
+      await host.update({ data: { taxableCountry: 'US' } });
+      const otherUser = await fakeUser();
+      const result = await graphqlQueryV2(query, { slug: host.slug }, otherUser);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.taxableCountry).to.be.null;
+    });
+  });
+
+  describe('isUSEntity', () => {
+    const query = gql`
+      query IsUSEntityTest($slug: String!) {
+        account(slug: $slug) {
+          isUSEntity
+        }
+      }
+    `;
+
+    it('returns the isUSEntity for the account owner', async () => {
+      const user = await fakeUser();
+      await user.collective.update({ data: { isUSEntity: true } });
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isUSEntity).to.be.true;
+    });
+
+    it('does not expose the isUSEntity of a money-management account to anonymous users', async () => {
+      const host = await fakeActiveHost();
+      await host.update({ data: { isUSEntity: true } });
+      const result = await graphqlQueryV2(query, { slug: host.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isUSEntity).to.be.null;
+    });
+
+    it('does not expose the isUSEntity of a money-management account to an unrelated user', async () => {
+      const host = await fakeActiveHost();
+      await host.update({ data: { isUSEntity: false } });
+      const otherUser = await fakeUser();
+      const result = await graphqlQueryV2(query, { slug: host.slug }, otherUser);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isUSEntity).to.be.null;
+    });
+  });
+
+  describe('memberOf', () => {
+    const query = gql`
+      query MemberOfTest($slug: String!, $tier: TierReferenceInput, $account: AccountReferenceInput) {
+        account(slug: $slug) {
+          memberOf(tier: $tier, account: $account) {
+            totalCount
+            nodes {
+              tier {
+                legacyId
+              }
+              account {
+                slug
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    beforeEach(async () => {
+      await resetTestDB();
+    });
+
+    it('returns only the memberships recorded with the given tier', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+      const otherCollective = await fakeCollective();
+      const tier = await fakeTier({ CollectiveId: collective.id });
+      await fakeMember({
+        CollectiveId: collective.id,
+        MemberCollectiveId: user.CollectiveId,
+        role: MemberRoles.BACKER,
+        TierId: tier.id,
+      });
+      await fakeMember({
+        CollectiveId: otherCollective.id,
+        MemberCollectiveId: user.CollectiveId,
+        role: MemberRoles.BACKER,
+      });
+
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug, tier: { legacyId: tier.id } }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.memberOf.totalCount).to.equal(1);
+      expect(result.data.account.memberOf.nodes[0].account.slug).to.equal(collective.slug);
+      expect(result.data.account.memberOf.nodes[0].tier.legacyId).to.equal(tier.id);
+    });
+
+    it('returns only the memberships without tier when tier is null', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+      const otherCollective = await fakeCollective();
+      const tier = await fakeTier({ CollectiveId: collective.id });
+      await fakeMember({
+        CollectiveId: collective.id,
+        MemberCollectiveId: user.CollectiveId,
+        role: MemberRoles.BACKER,
+        TierId: tier.id,
+      });
+      await fakeMember({
+        CollectiveId: otherCollective.id,
+        MemberCollectiveId: user.CollectiveId,
+        role: MemberRoles.BACKER,
+      });
+
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug, tier: null }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.memberOf.totalCount).to.equal(1);
+      expect(result.data.account.memberOf.nodes[0].account.slug).to.equal(otherCollective.slug);
+    });
+
+    it('rejects a tier that belongs to another account when the query is scoped to a single account', async () => {
+      // Note: the account-scoped check is the only place where the tier ownership is asserted: `memberOf` lists
+      // memberships in *other* accounts, so the tier never belongs to the account the memberships are listed for.
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+      const otherCollective = await fakeCollective();
+      const otherTier = await fakeTier({ CollectiveId: otherCollective.id });
+      await fakeMember({
+        CollectiveId: collective.id,
+        MemberCollectiveId: user.CollectiveId,
+        role: MemberRoles.BACKER,
+      });
+
+      const result = await graphqlQueryV2(
+        query,
+        {
+          slug: user.collective.slug,
+          account: { legacyId: collective.id },
+          tier: { legacyId: otherTier.id },
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Tier is not associated with this collective');
     });
   });
 });

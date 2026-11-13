@@ -4,15 +4,15 @@ import { isEmail } from 'validator';
 
 import { roles } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { MemberRolesForPrivateAccounts } from '../../constants/roles';
 import { fetchCollectiveId } from '../../lib/cache';
 import logger from '../../lib/logger';
 import { getConsolidatedInvoicesData } from '../../lib/pdf';
-import { assertCanSeeAccount, assertCanSeeAllAccounts } from '../../lib/private-accounts';
+import { assertCanSeeAccount } from '../../lib/private-accounts';
 import rawQueries from '../../lib/queries';
 import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/sql-search';
 import models, { Op, sequelize } from '../../models';
+import { isRemoteUserRoot } from '../common/scope-check';
 import { NotFound, Unauthorized } from '../errors';
 
 import { CollectiveInterfaceType, CollectiveSearchResultsType, TypeOfCollectiveType } from './CollectiveInterface';
@@ -168,85 +168,6 @@ const queries = {
   },
 
   /*
-   * Given a Transaction id, returns a transaction details
-   * Still used by the REST API v1 endpoints.
-   */
-  Transaction: {
-    type: TransactionInterfaceType,
-    deprecationReason: '2025-07-10: Please use GraphQL V2',
-    args: {
-      id: {
-        type: GraphQLInt,
-      },
-      uuid: {
-        type: GraphQLString,
-      },
-    },
-    async resolve(_, args, req) {
-      const transaction = await models.Transaction.findOne({ where: { ...args } });
-      if (!transaction) {
-        return null;
-      }
-
-      const collectiveIds = [transaction.FromCollectiveId, transaction.CollectiveId, transaction.HostCollectiveId];
-      const uniqIds = uniq(collectiveIds.filter(Boolean));
-      const collectives = await req.loaders.Collective.byId.loadMany(uniqIds);
-      await assertCanSeeAllAccounts(req, collectives.filter(Boolean));
-
-      return transaction;
-    },
-  },
-
-  /*
-   * Still used by "Create Gift Cards" form
-   * Returns all hosts
-   */
-  allHosts: {
-    type: CollectiveSearchResultsType,
-    deprecationReason: '2025-07-10: Please use GraphQL V2',
-    description: 'Returns all public hosts that are open for applications',
-    args: {
-      tags: {
-        type: new GraphQLList(GraphQLString),
-        description: 'Fetch all collectives that match at least one of the tags',
-      },
-      currency: {
-        type: GraphQLString,
-        description: 'Filter hosts by currency',
-      },
-      limit: {
-        defaultValue: 10,
-        type: GraphQLInt,
-      },
-      offset: {
-        defaultValue: 0,
-        type: GraphQLInt,
-      },
-      onlyOpenHosts: {
-        type: GraphQLBoolean,
-        defaultValue: true,
-      },
-      minNbCollectivesHosted: {
-        type: new GraphQLNonNull(GraphQLInt),
-        defaultValue: 0,
-      },
-    },
-    async resolve(_, args) {
-      const { collectives, total } = await rawQueries.getHosts({
-        ...args,
-        orderBy: 'collectives',
-        orderDirection: 'DESC',
-      });
-      return {
-        total,
-        collectives,
-        limit: args.limit,
-        offset: args.offset,
-      };
-    },
-  },
-
-  /*
    * Given a collective slug, returns all members/memberships
    * Still used by the images service + frontend widgets.
    */
@@ -304,7 +225,7 @@ const queries = {
       // logic used in the GraphQL V2 `HasMembers` interface: root users see everything, users
       // with an ADMIN/ACCOUNTANT role see the related private collectives, everyone else only
       // sees public collectives.
-      const canSeeAllPrivateCollectives = Boolean(req.remoteUser?.isRoot());
+      const canSeeAllPrivateCollectives = isRemoteUserRoot(req);
       const privateCollectiveAccessIds =
         req.remoteUser && !canSeeAllPrivateCollectives
           ? Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts))
@@ -461,15 +382,14 @@ const queries = {
   },
 
   /*
-   * Given a prepaid code, return validity and amount
-   * Still used by the "Update Payment Method" page + redeemed gift card page.
+   * Given an id, return a payment method
+   * Still used by the "Update Payment Method" page.
    */
   PaymentMethod: {
     type: PaymentMethodType,
     deprecationReason: '2025-07-10: Please use GraphQL V2',
     args: {
       id: { type: GraphQLInt },
-      code: { type: GraphQLString },
     },
     async resolve(_, args, req) {
       if (args.id) {
@@ -482,23 +402,8 @@ const queries = {
         } else {
           return paymentMethod;
         }
-      } else if (args.code) {
-        const redeemCodeRegex = /^[a-zA-Z0-9]{8}$/;
-        if (!redeemCodeRegex.test(args.code)) {
-          throw Error(`Code "${args.code}" has invalid format`);
-        }
-
-        return models.PaymentMethod.findOne({
-          where: sequelize.and(
-            sequelize.where(sequelize.cast(sequelize.col('uuid'), 'text'), {
-              [Op.like]: `${args.code}%`,
-            }),
-            { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE },
-            { type: PAYMENT_METHOD_TYPE.GIFTCARD },
-          ),
-        });
       } else {
-        return new Error('Please provide an id or a code.');
+        return new Error('Please provide an id.');
       }
     },
   },
@@ -585,7 +490,7 @@ const queries = {
         includeAllVendors,
       } = args;
 
-      if (includeAllVendors && !req.remoteUser?.isRoot()) {
+      if (includeAllVendors && !isRemoteUserRoot(req)) {
         throw new Unauthorized('You must be root to include all vendors');
       }
 

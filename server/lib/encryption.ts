@@ -1,21 +1,28 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes as cryptoRandomBytes } from 'crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes as cryptoRandomBytes,
+  timingSafeEqual,
+} from 'crypto';
 
 import config from 'config';
-import { randomBytes, secretbox as _secretbox } from 'tweetnacl';
-import { decodeBase64, encodeBase64, encodeUTF8 } from 'tweetnacl-util';
+import { secretbox as _secretbox } from 'tweetnacl';
 
 const { nonceLength, keyLength } = _secretbox;
 
-const Nonce = () => randomBytes(nonceLength);
+const Nonce = () => new Uint8Array(cryptoRandomBytes(nonceLength));
 
-export const generateKey = () => encodeBase64(randomBytes(keyLength));
+const decodeKey = (key: string) => new Uint8Array(Buffer.from(key, 'base64'));
+
+export const generateKey = () => cryptoRandomBytes(keyLength).toString('base64');
 
 /**
  * SecretKey based authentication with nonce used for file encryption.
  */
 export const secretbox = {
   encrypt(buff: Buffer, key: string): Buffer {
-    const keyUint8Array = decodeBase64(key);
+    const keyUint8Array = decodeKey(key);
 
     const nonce = Nonce();
     const box = _secretbox(new Uint8Array(buff), nonce, keyUint8Array);
@@ -27,7 +34,7 @@ export const secretbox = {
     return Buffer.from(fullMessage);
   },
   decrypt(buffWithNonce: Buffer, key: string): string {
-    const keyUint8Array = decodeBase64(key);
+    const keyUint8Array = decodeKey(key);
     const nonce = buffWithNonce.slice(0, nonceLength);
     const message = buffWithNonce.slice(nonceLength, buffWithNonce.length);
     const decrypted = _secretbox.open(new Uint8Array(message), new Uint8Array(nonce), keyUint8Array);
@@ -36,13 +43,13 @@ export const secretbox = {
       throw new Error('Could not decrypt message');
     }
 
-    return encodeUTF8(decrypted);
+    return Buffer.from(decrypted).toString('utf8');
   },
   /**
    * Same as decrypt, but returns a Buffer (built from the Int8Array) instead of a UTF8 string.
    */
   decryptRaw(buffWithNonce: Buffer, key: string): Buffer {
-    const keyUint8Array = decodeBase64(key);
+    const keyUint8Array = decodeKey(key);
     const nonce = buffWithNonce.slice(0, nonceLength);
     const message = buffWithNonce.slice(nonceLength, buffWithNonce.length);
     const decrypted = _secretbox.open(new Uint8Array(message), new Uint8Array(nonce), keyUint8Array);
@@ -107,7 +114,7 @@ const getCipherConfig = (cipher: string): CipherConfig => {
  * resistance against brute-forcing the passphrase. It is *not* a new weakness though: crypto-js
  * ran this exact derivation internally for every `encrypt`/`decrypt` call, so this is the format
  * every encrypted column in the database is already stored with. It cannot be changed without
- * re-encrypting all of that data (see `scripts/change_db_encryption_key.js`), which is out of
+ * re-encrypting all of that data (see `scripts/change_db_encryption_key.ts`), which is out of
  * scope for the crypto-js removal. Moving to a modern KDF + authenticated cipher should be done
  * as a follow-up, along with the migration of the existing rows.
  */
@@ -173,6 +180,21 @@ export const decryptWithCipher = (encryptedMessage: string, secretKey: string, c
   const decipheriv = createDecipheriv(algorithm, expandKey ? expandKey(key) : key, iv);
   return Buffer.concat([decipheriv.update(payload.subarray(headerLength)), decipheriv.final()]).toString('utf8');
 };
+
+/**
+ * Compare secrets in constant time. Both sides are hashed first so that
+ * `crypto.timingSafeEqual` never sees inputs of different lengths, which would
+ * make it throw and leak the length of the expected secret.
+ */
+export function timingSafeEqualString(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') {
+    return false;
+  }
+
+  const left = createHash('sha512').update(a).digest();
+  const right = createHash('sha512').update(b).digest();
+  return timingSafeEqual(left, right);
+}
 
 /**
  * SecretKey based authentication.
