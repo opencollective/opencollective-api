@@ -353,6 +353,20 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         }
       });
 
+      it('returns NotFound when the hostApplication reference does not exist', async () => {
+        const result = await graphqlQueryV2(
+          PROCESS_HOST_APPLICATION_BY_APPLICATION_MUTATION,
+          {
+            hostApplication: { id: idEncode(987654, IDENTIFIER_TYPES.HOST_APPLICATION) },
+            action: 'REJECT',
+            message: 'test message',
+          },
+          hostAdmin,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.eq('NotFound');
+      });
+
       it('application must not be already approved', async () => {
         // Initialize the collective as "APPROVED"
         await collective.update({ isActive: true, approvedAt: new Date(), HostCollectiveId: host.id });
@@ -1362,6 +1376,39 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
 
       await virtualCard.reload();
       expect(virtualCard.data.status).to.eq(VirtualCardStatus.CANCELED);
+    });
+
+    it('does not remove hosting from a fiscal host that still hosts collectives', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+
+      const result = await graphqlQueryV2(REMOVE_HOST_MUTATION, { account: { legacyId: host.id } }, hostAdmin);
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        "You can't remove the host of a fiscal host that still hosts 1 other collectives. Unhost them first.",
+      );
+
+      await host.reload();
+      expect(host.HostCollectiveId).to.eq(host.id);
+      expect(host.hasMoneyManagement).to.be.true;
+      expect(host.hasHosting).to.be.true;
+
+      await collective.reload();
+      expect(collective.HostCollectiveId).to.eq(host.id);
+    });
+
+    it('removes the host from an independent collective that hosts itself', async () => {
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin, HostCollectiveId: null, hasMoneyManagement: true });
+      await collective.update({ HostCollectiveId: collective.id, approvedAt: new Date() });
+
+      const result = await graphqlQueryV2(REMOVE_HOST_MUTATION, { account: { legacyId: collective.id } }, admin);
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeHost.host).to.be.null;
     });
   });
 });

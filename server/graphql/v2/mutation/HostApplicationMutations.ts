@@ -244,7 +244,7 @@ const HostApplicationMutations = {
       let hostApplication: HostApplication;
       let account, host: Collective;
       if (args.hostApplication) {
-        hostApplication = await fetchHostApplicationWithReference(args.hostApplication);
+        hostApplication = await fetchHostApplicationWithReference(args.hostApplication, { throwIfMissing: true });
         account = await hostApplication.getCollective();
         host = await hostApplication.getHost();
       } else {
@@ -334,6 +334,24 @@ const HostApplicationMutations = {
       const host = await req.loaders.Collective.host.load(account);
       if (!host) {
         return account;
+      }
+
+      // A fiscal host is its own host: removing it would strip hosting while it still hosts other accounts
+      if (host.id === account.id) {
+        const hostedCollectivesCount = await models.Collective.count({
+          where: {
+            id: { [Op.ne]: account.id },
+            HostCollectiveId: account.id,
+            type: [CollectiveType.COLLECTIVE, CollectiveType.FUND],
+            isActive: true,
+            approvedAt: { [Op.ne]: null },
+          },
+        });
+        if (hostedCollectivesCount > 0) {
+          throw new ValidationFailed(
+            `You can't remove the host of a fiscal host that still hosts ${hostedCollectivesCount} other collectives. Unhost them first.`,
+          );
+        }
       }
 
       const isHostAdmin = req.remoteUser.isAdminOfCollective(host);

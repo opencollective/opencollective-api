@@ -284,6 +284,45 @@ describe('server/models/User', () => {
     });
   });
 
+  describe('safeDestroy', () => {
+    it('soft-deletes the user and frees up the email', async () => {
+      const email = randEmail();
+      const user = await fakeUser({ email });
+      await user.safeDestroy();
+
+      const deletedUser = await User.findByPk(user.id, { paranoid: false });
+      expect(deletedUser.deletedAt).to.not.be.null;
+      expect(deletedUser.email).to.not.eq(email);
+      expect(deletedUser.email.startsWith(`${email.split('@')[0]}-`)).to.be.true;
+      expect(deletedUser.email.endsWith(`@${email.split('@')[1]}`)).to.be.true;
+    });
+
+    it('works when the email local part is close to the 64 characters limit', async () => {
+      const email = `${'a'.repeat(60)}@example.com`;
+      const user = await fakeUser({ email });
+      await user.safeDestroy();
+
+      const deletedUser = await User.findByPk(user.id, { paranoid: false });
+      expect(deletedUser.deletedAt).to.not.be.null;
+      expect(deletedUser.email).to.not.eq(email);
+      expect(deletedUser.email.split('@')[0]).to.have.length.lte(64);
+      expect(deletedUser.email.split('@')[1]).to.eq('example.com');
+    });
+
+    it('works when the email is close to the 128 characters limit', async () => {
+      const domain = `${'b'.repeat(60)}.${'c'.repeat(10)}.com`;
+      const email = `${'a'.repeat(50)}@${domain}`;
+      const user = await fakeUser({ email });
+      await user.safeDestroy();
+
+      const deletedUser = await User.findByPk(user.id, { paranoid: false });
+      expect(deletedUser.deletedAt).to.not.be.null;
+      expect(deletedUser.email).to.not.eq(email);
+      expect(deletedUser.email).to.have.length.lte(128);
+      expect(deletedUser.email.split('@')[1]).to.eq(domain);
+    });
+  });
+
   describe('findRelatedUsersByIp', () => {
     it('returns empty list if there are no other useres sharing the same IP', async () => {
       await fakeUser({ data: { lastSignInRequest: { ip: '201.32.14.2' }, creationRequest: { ip: '201.32.14.2' } } });
