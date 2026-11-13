@@ -1,7 +1,6 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { compact, pick } from 'lodash';
-import { Op } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
 import POLICIES from '../../../constants/policies';
@@ -32,6 +31,33 @@ const isLastAdmin = async (account, memberAccount) => {
   // so check whether any other admin row, including inherited ones from the parent, would remain
   const isChangedRow = admin => admin.CollectiveId === account.id && admin.MemberCollectiveId === memberAccount.id;
   return admins.some(isChangedRow) && admins.every(isChangedRow);
+};
+
+/**
+ * Throws if removing the member's ADMIN rows on `account` would leave fewer admins than the host's
+ * COLLECTIVE_MINIMUM_ADMINS policy requires. Admins are counted once each, including inherited ones from the parent.
+ */
+const checkHostMinimumAdmins = async (account, memberAccount, req) => {
+  const host = await account.getHostCollective({ loaders: req.loaders });
+  if (!host) {
+    return;
+  }
+
+  const policy = await getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+  if (!policy?.numberOfAdmins) {
+    return;
+  }
+
+  const admins = await models.Member.findAll({
+    attributes: ['CollectiveId', 'MemberCollectiveId'],
+    where: { CollectiveId: compact([account.id, account.ParentCollectiveId]), role: MemberRoles.ADMIN },
+  });
+
+  const isChangedRow = admin => admin.CollectiveId === account.id && admin.MemberCollectiveId === memberAccount.id;
+  const remainingAdmins = new Set(admins.filter(admin => !isChangedRow(admin)).map(admin => admin.MemberCollectiveId));
+  if (remainingAdmins.size < policy.numberOfAdmins) {
+    throw new Forbidden(`Your host policy requires at least ${policy.numberOfAdmins} admins for this account.`);
+  }
 };
 
 const memberMutations = {
@@ -167,6 +193,14 @@ const memberMutations = {
         if (await isLastAdmin(account, memberAccount)) {
           throw new Forbidden('There must be at least one admin for the account.');
         }
+
+        // Changing the role of an admin removes an admin, so the host policy applies like in `removeMember`
+        const isAdmin = await models.Member.count({
+          where: { CollectiveId: account.id, MemberCollectiveId: memberAccount.id, role: MemberRoles.ADMIN },
+        });
+        if (isAdmin) {
+          await checkHostMinimumAdmins(account, memberAccount, req);
+        }
       }
 
       // Enforce 2FA if enabled on the account
@@ -256,20 +290,7 @@ const memberMutations = {
           throw new Forbidden('There must be at least one admin for the account.');
         }
 
-        const host = await account.getHostCollective({ loaders: req.loaders });
-        if (host) {
-          const adminCount = await models.Member.count({
-            where: {
-              CollectiveId: { [Op.or]: compact([account.id, account.ParentCollectiveId]) },
-              role: MemberRoles.ADMIN,
-            },
-          });
-
-          const policy = await getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
-          if (policy?.numberOfAdmins && adminCount <= policy.numberOfAdmins) {
-            throw new Forbidden(`Your host policy requires at least ${policy.numberOfAdmins} admins for this account.`);
-          }
-        }
+        await checkHostMinimumAdmins(account, memberAccount, req);
       }
 
       // Check 2FA

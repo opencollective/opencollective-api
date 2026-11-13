@@ -3,10 +3,18 @@ import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 
 import ActivityTypes from '../../../../../server/constants/activities';
+import POLICIES from '../../../../../server/constants/policies';
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import models from '../../../../../server/models';
-import { fakeCollective, fakePersonalToken, fakeProject, fakeUser } from '../../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeHost,
+  fakeMember,
+  fakePersonalToken,
+  fakeProject,
+  fakeUser,
+} from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 let collectiveAdminUser, collectiveMemberUser, collective;
@@ -100,6 +108,91 @@ describe('memberMutations', () => {
       );
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal('There must be at least one admin for the account.');
+    });
+    describe('with a host policy requiring a minimum number of admins', () => {
+      const setupCollectiveWithTwoAdmins = async () => {
+        const host = await fakeHost({
+          data: { policies: { [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 2 } } },
+        });
+        const firstAdmin = await fakeUser();
+        const secondAdmin = await fakeUser();
+        const account = await fakeCollective({ admin: firstAdmin, HostCollectiveId: host.id, isActive: true });
+        await account.addUserWithRole(secondAdmin, roles.ADMIN);
+        return { account, firstAdmin, secondAdmin };
+      };
+
+      const countAdminRows = account => models.Member.count({ where: { CollectiveId: account.id, role: roles.ADMIN } });
+
+      it('must not demote an admin when it would go below the minimum', async () => {
+        const { account, firstAdmin, secondAdmin } = await setupCollectiveWithTwoAdmins();
+        const result = await utils.graphqlQueryV2(
+          editMemberMutation,
+          {
+            memberAccount: { id: idEncode(secondAdmin.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+            account: { id: idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT) },
+            role: roles.MEMBER,
+          },
+          firstAdmin,
+        );
+
+        expect(result.errors).to.have.length(1);
+        expect(result.errors[0].message).to.equal('Your host policy requires at least 2 admins for this account.');
+        expect(await countAdminRows(account)).to.equal(2);
+      });
+
+      it('counts an admin holding several admin rows only once', async () => {
+        const { account, firstAdmin, secondAdmin } = await setupCollectiveWithTwoAdmins();
+        await fakeMember({ CollectiveId: account.id, MemberCollectiveId: firstAdmin.CollectiveId, role: roles.ADMIN }); // Second ADMIN row
+        const result = await utils.graphqlQueryV2(
+          editMemberMutation,
+          {
+            memberAccount: { id: idEncode(firstAdmin.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+            account: { id: idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT) },
+            role: roles.MEMBER,
+          },
+          secondAdmin,
+        );
+
+        expect(result.errors).to.have.length(1);
+        expect(result.errors[0].message).to.equal('Your host policy requires at least 2 admins for this account.');
+        expect(await countAdminRows(account)).to.equal(3);
+      });
+
+      it('can demote an admin when enough admins remain', async () => {
+        const { account, firstAdmin, secondAdmin } = await setupCollectiveWithTwoAdmins();
+        await account.addUserWithRole(await fakeUser(), roles.ADMIN);
+        const result = await utils.graphqlQueryV2(
+          editMemberMutation,
+          {
+            memberAccount: { id: idEncode(secondAdmin.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+            account: { id: idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT) },
+            role: roles.MEMBER,
+          },
+          firstAdmin,
+        );
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.editMember.role).to.equal(roles.MEMBER);
+        expect(await countAdminRows(account)).to.equal(2);
+      });
+
+      it('can change the role of a non-admin member when the account is at the minimum', async () => {
+        const { account, firstAdmin } = await setupCollectiveWithTwoAdmins();
+        const accountant = await fakeUser();
+        await account.addUserWithRole(accountant, roles.ACCOUNTANT);
+        const result = await utils.graphqlQueryV2(
+          editMemberMutation,
+          {
+            memberAccount: { id: idEncode(accountant.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+            account: { id: idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT) },
+            role: roles.MEMBER,
+          },
+          firstAdmin,
+        );
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.editMember.role).to.equal(roles.MEMBER);
+      });
     });
     it('can only update role to accountant, admin, community manager or member', async () => {
       [roles.ADMIN, roles.MEMBER, roles.COMMUNITY_MANAGER, roles.ACCOUNTANT, roles.HOST].forEach(async role => {
@@ -243,6 +336,29 @@ describe('memberMutations', () => {
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal('There must be at least one admin for the account.');
       expect(await models.Member.count({ where: { CollectiveId: account.id, role: roles.ADMIN } })).to.equal(2);
+    });
+    it('counts an admin holding several admin rows only once for the host minimum admins policy', async () => {
+      const host = await fakeHost({
+        data: { policies: { [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 2 } } },
+      });
+      const firstAdmin = await fakeUser();
+      const secondAdmin = await fakeUser();
+      const account = await fakeCollective({ admin: firstAdmin, HostCollectiveId: host.id, isActive: true });
+      await fakeMember({ CollectiveId: account.id, MemberCollectiveId: firstAdmin.CollectiveId, role: roles.ADMIN }); // Second ADMIN row
+      await account.addUserWithRole(secondAdmin, roles.ADMIN);
+
+      const result = await utils.graphqlQueryV2(
+        removeMemberMutation,
+        {
+          memberAccount: { id: idEncode(secondAdmin.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT) },
+          role: roles.ADMIN,
+        },
+        firstAdmin,
+      );
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('Your host policy requires at least 2 admins for this account.');
+      expect(await models.Member.count({ where: { CollectiveId: account.id, role: roles.ADMIN } })).to.equal(3);
     });
     it('can remove the admin role on a project when the member stays admin through the parent', async () => {
       const adminUser = await fakeUser();
