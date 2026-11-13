@@ -353,6 +353,20 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         }
       });
 
+      it('returns NotFound when the hostApplication reference does not exist', async () => {
+        const result = await graphqlQueryV2(
+          PROCESS_HOST_APPLICATION_BY_APPLICATION_MUTATION,
+          {
+            hostApplication: { id: idEncode(987654, IDENTIFIER_TYPES.HOST_APPLICATION) },
+            action: 'REJECT',
+            message: 'test message',
+          },
+          hostAdmin,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.eq('NotFound');
+      });
+
       it('application must not be already approved', async () => {
         // Initialize the collective as "APPROVED"
         await collective.update({ isActive: true, approvedAt: new Date(), HostCollectiveId: host.id });
