@@ -421,6 +421,104 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       );
     });
 
+    it('uses the internal FX rate for a cross-currency expense paid without PayPal conversion', async () => {
+      // Here expense=EUR, collective=USD, host=USD and the host paid from its EUR PayPal balance
+      const expense = await fakeExpense({
+        status: status.PROCESSING,
+        amount: 10000,
+        CollectiveId: collective.id,
+        currency: 'EUR',
+        PayoutMethodId: payoutMethod.id,
+        type: 'INVOICE',
+        description: 'May Invoice',
+        data: { payout_batch_id: 'fake-batch-id-eur' },
+      });
+      expense.collective = collective;
+
+      stubOf(paypalLib.getBatchInfo).resolves({
+        items: [
+          {
+            transaction_status: 'SUCCESS',
+            payout_batch_id: 'fake-batch-id-eur',
+            // Same currency as sent by payExpensesBatch, with no `currency_conversion`
+            payout_item: { sender_item_id: expense.id.toString(), amount: { currency: 'EUR', value: '100.00' } },
+            payout_item_fee: { currency: 'EUR', value: '2.00' },
+          },
+        ],
+      });
+
+      await paypalPayouts.checkBatchStatus([expense]);
+      await expense.reload();
+      const [transaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
+
+      expect(expense).to.have.property('status', 'PAID');
+      expect(transaction).to.have.property('hostCurrency', 'USD');
+      expect(transaction.data.expenseToHostFxRate).to.eq(1.1); // getFxRate(EUR, USD) in the test env
+      expect(transaction).to.have.property('amountInHostCurrency', -11000);
+      expect(transaction).to.have.property('paymentProcessorFeeInHostCurrency', -220);
+    });
+
+    describe('expense data', () => {
+      const taxes = [{ type: 'VAT', rate: 0.2 }];
+      let taxedExpense;
+
+      beforeEach(async () => {
+        taxedExpense = await fakeExpense({
+          status: status.PROCESSING,
+          amount: 12000,
+          CollectiveId: collective.id,
+          currency: 'USD',
+          PayoutMethodId: payoutMethod.id,
+          type: 'INVOICE',
+          data: { payout_batch_id: 'fake-batch-id-taxed', taxes, otherKey: 'preserved' },
+        });
+        taxedExpense.collective = collective;
+      });
+
+      const buildItem = (transaction_status: string, overrides = {}) => ({
+        transaction_status,
+        payout_batch_id: 'fake-batch-id-taxed',
+        payout_item: { sender_item_id: taxedExpense.id.toString() },
+        ...overrides,
+      });
+
+      it('keeps the existing data when the payout item is still PENDING', async () => {
+        stubOf(paypalLib.getBatchInfo).resolves({ items: [buildItem('PENDING')] });
+        await paypalPayouts.checkBatchStatus([taxedExpense]);
+        await taxedExpense.reload();
+
+        expect(taxedExpense).to.have.property('status', 'PROCESSING');
+        expect(taxedExpense.data).to.containSubset({ taxes, otherKey: 'preserved', transaction_status: 'PENDING' });
+      });
+
+      it('records the taxes when a PENDING check comes before SUCCESS', async () => {
+        stubOf(paypalLib.getBatchInfo).resolves({ items: [buildItem('PENDING')] });
+        await paypalPayouts.checkBatchStatus([taxedExpense]);
+        stubOf(paypalLib.getBatchInfo).resolves({
+          items: [buildItem('SUCCESS', { time_processed: '2024-08-15T10:30:00Z' })],
+        });
+        await paypalPayouts.checkBatchStatus([taxedExpense]);
+        await taxedExpense.reload();
+
+        expect(taxedExpense).to.have.property('status', 'PAID');
+        expect(taxedExpense.data).to.containSubset({ taxes, otherKey: 'preserved', transaction_status: 'SUCCESS' });
+        const [debit] = await taxedExpense.getTransactions({ where: { type: 'DEBIT', kind: 'EXPENSE' } });
+        expect(debit).to.have.property('taxAmount', -2000);
+      });
+
+      it('keeps the existing data and drops the batch reference when the payout item FAILED', async () => {
+        stubOf(paypalLib.getBatchInfo).resolves({
+          items: [buildItem('FAILED', { errors: { message: 'Transaction FAILED' } })],
+        });
+        await paypalPayouts.checkBatchStatus([taxedExpense]);
+        await taxedExpense.reload();
+
+        expect(taxedExpense).to.have.property('status', 'ERROR');
+        expect(taxedExpense.data).to.containSubset({ taxes, otherKey: 'preserved', transaction_status: 'FAILED' });
+        expect(taxedExpense.data).to.not.have.property('payout_batch_id');
+      });
+    });
+
     const failedStatuses = ['FAILED', 'BLOCKED', 'REFUNDED', 'RETURNED', 'REVERSED'];
     failedStatuses.map(transaction_status =>
       it(`should set expense status to error if the transaction status is ${transaction_status}`, async () => {

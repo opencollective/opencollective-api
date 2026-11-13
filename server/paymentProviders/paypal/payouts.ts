@@ -180,6 +180,8 @@ const fetchPayoutItemError = async (
   }
 };
 
+const PAYOUT_BATCH_DATA_KEYS = ['payout_batch_id', 'batch_status', 'sender_batch_header'];
+
 export const checkBatchItemStatus = async (
   item: PayoutItemDetails,
   expense: Expense,
@@ -191,6 +193,8 @@ export const checkBatchItemStatus = async (
     throw new Error(`Item does not belongs to expense it claims it does.`);
   }
 
+  // Merged into `expense.data` at the end: it also holds taxes and other keys that must be kept
+  let itemData: Partial<PayoutItemDetails> = item;
   switch (item.transaction_status) {
     case 'SUCCESS':
       if (expense.status !== status.PAID) {
@@ -201,8 +205,7 @@ export const checkBatchItemStatus = async (
         // requested expense currency, PayPal will use that and there will be no currency conversion.
         // But because we record the transactions in the host/collective currency, we need still need to
         // get an FX rate from somewhere. We therefore use our internal system to estimate one.
-        const payoutItemCurrency = item['payout_item']?.['amount']?.['currency'];
-        const isMultiCurrency = payoutItemCurrency && payoutItemCurrency !== expense.currency;
+        const isMultiCurrency = expense.currency !== host.currency;
         if (isMultiCurrency && !item.currency_conversion?.exchange_rate) {
           try {
             fxRate = await getFxRate(expense.currency, host.currency);
@@ -254,8 +257,9 @@ export const checkBatchItemStatus = async (
       if (expense.status !== status.ERROR) {
         const { error: payoutItemError, payoutItem, retrievalFailed } = await fetchPayoutItemError(item, expense, host);
         await expense.setError(expense.lastEditedById);
-        const data = omit(expense.data, ['payout_batch_id', 'batch_status', 'sender_batch_header']);
-        await expense.update({ data });
+        // Drop the batch reference so that the expense can be paid again
+        itemData = omit(item, PAYOUT_BATCH_DATA_KEYS);
+        await expense.update({ data: omit(expense.data, PAYOUT_BATCH_DATA_KEYS) });
         await expense.createActivity(
           activities.COLLECTIVE_EXPENSE_ERROR,
           { id: expense.lastEditedById },
@@ -285,7 +289,7 @@ export const checkBatchItemStatus = async (
       logger.debug(`Expense is still being processed, nothing to do but wait.`);
       break;
   }
-  await expense.update({ data: item });
+  await expense.update({ data: { ...expense.data, ...itemData } });
   return expense;
 };
 
