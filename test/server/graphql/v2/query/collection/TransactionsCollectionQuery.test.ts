@@ -1,11 +1,13 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import sinon from 'sinon';
 import type Stripe from 'stripe';
 
 import { roles } from '../../../../../../server/constants';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../../../server/constants/transaction-kind';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../../server/graphql/v2/identifiers';
+import * as SqlSearchLib from '../../../../../../server/lib/sql-search';
 import type { Transfer } from '../../../../../../server/types/transferwise';
 import {
   fakeAccountingCategory,
@@ -1346,5 +1348,143 @@ describe('server/graphql/v2/collection/TransactionCollection - archived prepaid 
     expect(result.data.transactions.kinds).to.eqInAnyOrder([TransactionKind.PREPAID_PAYMENT_METHOD]);
     expect(result.data.transactions.paymentMethodTypes).to.eqInAnyOrder(['PREPAID']);
     expect(result.data.transactions.nodes).to.containSubset([{ paymentMethod: { type: 'PREPAID' } }]);
+  });
+});
+
+describe('server/graphql/v2/collection/TransactionCollection - searchTerm', () => {
+  const searchQuery = gql`
+    query SearchTransactions($host: AccountReferenceInput, $account: [AccountReferenceInput!], $searchTerm: String) {
+      transactions(host: $host, account: $account, searchTerm: $searchTerm, limit: 100) {
+        totalCount
+        nodes {
+          legacyId
+        }
+      }
+    }
+  `;
+
+  let sandbox, hostAdmin, host, collective, contributor, fromContributor, mentioningContributor, onOtherHost;
+
+  /**
+   * Runs the search with the search arms, then with the regular conditions, and expects the same transactions from
+   * both. `withSearchArms: false` is for searches that never use the search arms.
+   */
+  const expectSearchResults = async (variables, expectedTransactions, { withSearchArms = true } = {}) => {
+    const expectedIds = expectedTransactions.map(transaction => transaction.id).sort();
+    const search = async () => {
+      const result = await graphqlQueryV2(searchQuery, variables, hostAdmin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.transactions.totalCount).to.eq(expectedIds.length);
+      expect(result.data.transactions.nodes.map(node => node.legacyId).sort()).to.deep.eq(expectedIds);
+    };
+
+    const buildSearchArms = sandbox.spy(SqlSearchLib, 'buildSearchArms');
+    await search();
+    if (withSearchArms) {
+      expect(await buildSearchArms.lastCall.returnValue).to.exist;
+    } else {
+      expect(buildSearchArms.called && (await buildSearchArms.lastCall.returnValue)).to.not.be.ok;
+    }
+
+    buildSearchArms.restore();
+    const withoutSearchArms = sandbox.stub(SqlSearchLib, 'buildSearchArms').resolves(null);
+    await search();
+    withoutSearchArms.restore();
+  };
+
+  before(async () => {
+    await resetTestDB();
+    hostAdmin = await fakeUser();
+    host = await fakeActiveHost({ admin: hostAdmin });
+    collective = await fakeCollective({
+      HostCollectiveId: host.id,
+      name: 'Search Recipient',
+      slug: 'search-recipient',
+    });
+    contributor = await fakeUser(null, { name: "Quentin O'Search", slug: 'quentin-search' });
+    const otherContributor = await fakeUser(null, { name: 'Someone Else', slug: 'someone-else' });
+    const otherHost = await fakeActiveHost();
+    const collectiveOnOtherHost = await fakeCollective({ HostCollectiveId: otherHost.id });
+
+    fromContributor = await fakeTransaction({
+      FromCollectiveId: contributor.CollectiveId,
+      CollectiveId: collective.id,
+      HostCollectiveId: host.id,
+      amount: 12300,
+      description: 'Contribution for tooling',
+    });
+    mentioningContributor = await fakeTransaction({
+      FromCollectiveId: otherContributor.CollectiveId,
+      CollectiveId: collective.id,
+      HostCollectiveId: host.id,
+      amount: 4500,
+      description: 'Invoice on behalf of quentin',
+    });
+    onOtherHost = await fakeTransaction({
+      FromCollectiveId: contributor.CollectiveId,
+      CollectiveId: collectiveOnOtherHost.id,
+      HostCollectiveId: otherHost.id,
+      amount: 12300,
+      description: 'Contribution for tooling',
+    });
+
+    await hostAdmin.populateRoles({ force: true });
+  });
+
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  it('searches the name and slug of both accounts and the description, within the host', async () => {
+    const hostScope = { host: { legacyId: host.id } };
+    await expectSearchResults({ ...hostScope, searchTerm: 'quentin' }, [fromContributor, mentioningContributor]);
+    await expectSearchResults({ ...hostScope, searchTerm: "Quentin O'Search" }, [fromContributor]);
+    await expectSearchResults({ ...hostScope, searchTerm: contributor.collective.slug }, [fromContributor]);
+    await expectSearchResults({ ...hostScope, searchTerm: 'search recipient' }, [
+      fromContributor,
+      mentioningContributor,
+    ]);
+    await expectSearchResults({ ...hostScope, searchTerm: 'for tooling' }, [fromContributor]);
+    await expectSearchResults({ ...hostScope, searchTerm: 'no transaction matches this' }, []);
+  });
+
+  it('searches within the accounts', async () => {
+    const accountScope = { account: [{ legacyId: collective.id }] };
+    await expectSearchResults({ ...accountScope, searchTerm: 'quentin' }, [fromContributor, mentioningContributor]);
+    await expectSearchResults({ ...accountScope, searchTerm: 'for tooling' }, [fromContributor]);
+    await expectSearchResults({ account: [{ legacyId: onOtherHost.CollectiveId }], searchTerm: 'quentin' }, [
+      onOtherHost,
+    ]);
+  });
+
+  it('searches exact slugs and public IDs', async () => {
+    const hostScope = { host: { legacyId: host.id } };
+    await expectSearchResults({ ...hostScope, searchTerm: `@${contributor.collective.slug}` }, [fromContributor]);
+    await expectSearchResults({ ...hostScope, searchTerm: '@quentin' }, []);
+    await expectSearchResults({ ...hostScope, searchTerm: contributor.collective.publicId }, [fromContributor]);
+    await expectSearchResults({ ...hostScope, searchTerm: mentioningContributor.publicId }, [mentioningContributor]);
+  });
+
+  it('searches amounts and IDs', async () => {
+    const hostScope = { host: { legacyId: host.id } };
+    await expectSearchResults({ ...hostScope, searchTerm: '123' }, [fromContributor]);
+    await expectSearchResults({ ...hostScope, searchTerm: '123.00' }, [fromContributor]);
+    // Numbers that do not fit in an integer column, as an amount in cents or as an ID
+    await expectSearchResults({ ...hostScope, searchTerm: '40500021' }, []);
+    await expectSearchResults({ ...hostScope, searchTerm: '99999999999' }, []);
+    await expectSearchResults({ ...hostScope, searchTerm: `#${mentioningContributor.id}` }, [mentioningContributor], {
+      withSearchArms: false,
+    });
+  });
+
+  it('uses the regular conditions when the search has no host or account scope', async () => {
+    await expectSearchResults({ searchTerm: "Quentin O'Search" }, [fromContributor, onOtherHost], {
+      withSearchArms: false,
+    });
   });
 });

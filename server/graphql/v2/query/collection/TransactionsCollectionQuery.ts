@@ -4,6 +4,7 @@ import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import { Expression, sql, SqlBool } from 'kysely';
 import { cloneDeep, flatten, intersection, isEmpty, isNil, pick, pickBy, uniq } from 'lodash';
 import { Op, type Order as SequelizeOrder, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
@@ -13,9 +14,10 @@ import { RefundKind } from '../../../../constants/refund-kind';
 import { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import cache, { memoize } from '../../../../lib/cache';
+import { compileToInlineSQL } from '../../../../lib/kysely';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
-import { buildSearchConditions } from '../../../../lib/sql-search';
+import { buildSearchArms, buildSearchConditions } from '../../../../lib/sql-search';
 import { getTransactionKindPriorityCase } from '../../../../lib/transactions/kind-priority';
 import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Collective, Expense, PaymentMethod, sequelize } from '../../../../models';
@@ -318,6 +320,7 @@ export const TransactionsCollectionResolver = async (
   }
 
   let accountsFromAccountParam: Collective[];
+  let searchScopeAccountIds: number[] | null = null; // Set when all results are transactions of these accounts
   if (args.account) {
     const accountCondition = [];
     const attributes = ['id', 'HostCollectiveId', 'isPrivate']; // Include isPrivate for privacy checks
@@ -366,6 +369,7 @@ export const TransactionsCollectionResolver = async (
       });
     } else {
       where.push({ CollectiveId: accountCondition });
+      searchScopeAccountIds = accountCondition;
     }
     if (args.includeEditedReversedTransactions === false) {
       where.push({ [Op.or]: [{ refundKind: { [Op.is]: null } }, { refundKind: { [Op.ne]: RefundKind.EDIT } }] });
@@ -423,21 +427,47 @@ export const TransactionsCollectionResolver = async (
   const baseWhere = cloneDeep(where);
 
   // Handle search query
-  const searchTermConditions = buildSearchConditions(args.searchTerm, {
-    idFields: ['id', 'ExpenseId', 'OrderId'],
-    slugFields: ['$fromCollective.slug$', '$collective.slug$'],
-    textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
-    amountFields: ['amount'],
-    publicIdFields: [
-      { field: 'publicId', prefix: EntityShortIdPrefix.Transaction },
-      { field: ['$fromCollective.publicId$', '$collective.publicId$'], prefix: EntityShortIdPrefix.Collective },
-    ],
-  });
+  // On large hosts, searching through the joined accounts has to visit every transaction of the host. When the search
+  // has a scope that gives each arm an index (the host or the accounts) and the term is selective, look for the
+  // matching transactions first, then apply the other filters to them.
+  const searchScope: Expression<SqlBool>[] = [];
+  if (host) {
+    searchScope.push(sql<SqlBool>`"Transactions"."HostCollectiveId" = ${host.id}`);
+  }
+  if (searchScopeAccountIds?.length) {
+    searchScope.push(sql<SqlBool>`"Transactions"."CollectiveId" IN (${sql.join(searchScopeAccountIds)})`);
+  }
+
+  const searchArms =
+    !args.searchTerm || !searchScope.length
+      ? null
+      : await buildSearchArms(args.searchTerm, {
+          table: 'Transactions',
+          scope: searchScope,
+          accountIdFields: ['Transactions.FromCollectiveId', 'Transactions.CollectiveId'],
+          idFields: ['Transactions.id', 'Transactions.ExpenseId', 'Transactions.OrderId'],
+          textFields: ['Transactions.description'],
+          amountFields: ['Transactions.amount'],
+          publicIdFields: [{ field: 'Transactions.publicId', prefix: EntityShortIdPrefix.Transaction }],
+        });
+
+  const searchTermConditions = searchArms
+    ? [sequelize.literal(`"Transaction"."id" IN (${compileToInlineSQL(searchArms)})`)]
+    : buildSearchConditions(args.searchTerm, {
+        idFields: ['id', 'ExpenseId', 'OrderId'],
+        slugFields: ['$fromCollective.slug$', '$collective.slug$'],
+        textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
+        amountFields: ['amount'],
+        publicIdFields: [
+          { field: 'publicId', prefix: EntityShortIdPrefix.Transaction },
+          { field: ['$fromCollective.publicId$', '$collective.publicId$'], prefix: EntityShortIdPrefix.Collective },
+        ],
+      });
 
   if (searchTermConditions.length) {
     where.push({ [Op.or]: searchTermConditions });
 
-    // Must include associations to search their fields
+    // Must include associations to search their fields (and to only return transactions between existing accounts)
     include.push(
       { association: 'fromCollective', attributes: [], required: true },
       { association: 'collective', attributes: [], required: true },
