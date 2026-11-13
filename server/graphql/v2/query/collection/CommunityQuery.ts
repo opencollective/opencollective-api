@@ -7,6 +7,7 @@ import { isNil } from 'lodash';
 
 import { roles } from '../../../../constants';
 import { CollectiveType } from '../../../../constants/collectives';
+import { findCommunitySearchAccountIds } from '../../../../lib/community-search';
 import { type DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
 import { assertCanSeeAccount } from '../../../../lib/private-accounts';
 import { isPostgresInteger, parseSearchTerm, sanitizeSearchTermForILike } from '../../../../lib/sql-search';
@@ -76,9 +77,17 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
     options?.orderBy?.field === 'TOTAL_CONTRIBUTED' ||
     options?.orderBy?.field === 'TOTAL_EXPENDED';
 
+  // Text search: where it is faster, look for the matching accounts first (see `findCommunitySearchAccountIds`).
+  // `null` means that the regular conditions below apply.
+  const searchAccountIds =
+    parsed?.term && parsed.type === 'text'
+      ? await findCommunitySearchAccountIds(parsed.term.toString(), replacements)
+      : null;
+
   // Determine if we need Users join for search
   const needsUsersJoin =
     parsed?.term &&
+    !searchAccountIds &&
     (parsed.type === 'email' ||
       (parsed.type !== 'slug' && parsed.type !== 'id' && parsed.type !== 'number' && parsed.type !== 'publicId'));
 
@@ -162,6 +171,9 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
         }
       } else if (parsed.type === 'publicId') {
         query = query.where(sql.ref('fc.publicId'), '=', parsed.term);
+      } else if (searchAccountIds) {
+        // Same accounts as the generic text search below. One array parameter, whatever the number of IDs.
+        query = query.where(sql<boolean>`fc.id = ANY(${searchAccountIds}::int[])`);
       } else if (parsed.type !== 'email') {
         // Generic text search (email case is handled by the INNER JOIN above)
         const sanitizedTerm = sanitizeSearchTermForILike(parsed.term.toString());
@@ -229,6 +241,10 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
         query = query.orderBy(sql.raw(`${ob.field} ASC`));
       }
     }
+
+    // Many people have the same name or the same total: without a last key that is unique, PostgreSQL returns them
+    // in an order that depends on the plan, and the same account can come back on two pages.
+    query = query.orderBy(sql.raw('fc.id ASC'));
 
     query = query.limit(replacements.limit).offset(replacements.offset);
 

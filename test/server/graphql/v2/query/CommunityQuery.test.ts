@@ -1,16 +1,20 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import sinon from 'sinon';
 import { v4 as uuid } from 'uuid';
 
 import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
-import { sequelize } from '../../../../../server/models';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import * as CommunitySearchLib from '../../../../../server/lib/community-search';
+import models, { sequelize } from '../../../../../server/models';
 import {
   fakeActiveHost,
   fakeActivity,
   fakeCollective,
   fakeIncognitoProfile,
   fakeMember,
+  fakeOrganization,
   fakeTransaction,
   fakeUser,
   randStr,
@@ -369,6 +373,396 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
       const { community } = result.data;
       expect(community.totalCount).to.equal(1);
       expect(community.nodes[0].slug).to.equal(contributor1.collective.slug);
+    });
+  });
+
+  describe('searchTerm (matching accounts first and regular conditions)', () => {
+    let sandbox, searchHost, searchHostAdmin, searchCollective, otherCollective, collectiveAdmin;
+    let aaron, betty, carla, dora, eve, gina, hank, ivy, zeppelinOrg;
+
+    /** A person of the community, with nothing random in the searched fields */
+    const fakePerson = async (
+      name: string,
+      emailPrefix: string,
+      role = MemberRoles.BACKER,
+      account = searchCollective,
+    ) => {
+      const slug = `${name.toLowerCase().replace(/[^a-z]+/g, '-')}-person`;
+      const user = await fakeUser({ email: `${emailPrefix}@community-search.test` }, { name, slug });
+      await fakeMember({ CollectiveId: account.id, MemberCollectiveId: user.CollectiveId, role });
+      return user;
+    };
+
+    /**
+     * Runs the search with the matching accounts resolved first, then with the regular conditions, and expects the
+     * same accounts in the same order (by name) and the same total from both. `accountsFirst: false` is for the
+     * searches that only use the regular conditions.
+     */
+    const expectSearchResults = async (
+      variables: Record<string, unknown>,
+      expectedPeople,
+      { accountsFirst = true, totalCount = expectedPeople.length, remoteUser = searchHostAdmin } = {},
+    ) => {
+      const search = async () => {
+        const result = await graphqlQueryV2(
+          communityQuery,
+          {
+            host: { legacyId: searchHost.id },
+            orderBy: { field: 'NAME', direction: 'ASC' },
+            limit: 100,
+            offset: 0,
+            ...variables,
+          },
+          remoteUser,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.community.nodes.map(node => node.name)).to.deep.eq(
+          expectedPeople.map(person => (person.collective || person).name),
+        );
+        expect(result.data.community.totalCount).to.eq(totalCount);
+      };
+
+      const findAccountIds = sandbox.spy(CommunitySearchLib, 'findCommunitySearchAccountIds');
+      await search();
+      const accountIds = findAccountIds.called ? await findAccountIds.lastCall.returnValue : null;
+      findAccountIds.restore();
+      expect(Boolean(accountIds)).to.eq(accountsFirst);
+
+      const withRegularConditions = sandbox.stub(CommunitySearchLib, 'findCommunitySearchAccountIds').resolves(null);
+      await search();
+      withRegularConditions.restore();
+      return accountIds;
+    };
+
+    before(async () => {
+      sandbox = sinon.createSandbox();
+      searchHostAdmin = await fakeUser(
+        { email: 'host.admin@community-search.test' },
+        { name: 'Search Host Admin', slug: 'search-host-admin' },
+      );
+      searchHost = await fakeActiveHost({ admin: searchHostAdmin, name: 'Search Host', slug: 'search-host' });
+      searchCollective = await fakeCollective({ HostCollectiveId: searchHost.id, name: 'Searched', slug: 'searched' });
+      otherCollective = await fakeCollective({ HostCollectiveId: searchHost.id, name: 'Other', slug: 'other' });
+
+      aaron = await fakePerson('Aaron Zeppelinsky', 'aaron');
+      betty = await fakePerson('Betty Plain', 'betty');
+      await betty.collective.update({ slug: 'betty-slugonlymatch' });
+      carla = await fakePerson('Carla Plain', 'carla.mailonlymatch');
+      dora = await fakePerson('Dora Plain', 'dora.zeppelin');
+      eve = await fakePerson('Eve Deletedusermatch', 'eve.deletedusermatch');
+      const frank = await fakePerson('Frank Deletedaccountmatch', 'frank.deletedaccountmatch');
+      gina = await fakePerson('Gina Zeppelinadmin', 'gina', MemberRoles.ADMIN);
+      hank = await fakePerson('Hank Zeppelinother', 'hank', MemberRoles.BACKER, otherCollective);
+      ivy = await fakePerson('Ivy 100% Legit', 'ivy_underscore');
+      collectiveAdmin = gina;
+      zeppelinOrg = await fakeOrganization({ name: 'Zeppelin Org', slug: 'zeppelin-org' });
+      await fakeMember({
+        CollectiveId: searchCollective.id,
+        MemberCollectiveId: zeppelinOrg.id,
+        role: MemberRoles.BACKER,
+      });
+
+      // Same name in the community of another host: found by the account lookup, never returned
+      const elsewhere = await fakeCollective({ HostCollectiveId: (await fakeActiveHost()).id });
+      await fakePerson('Zach Zeppelinelsewhere', 'zach', MemberRoles.BACKER, elsewhere);
+
+      await refreshCommunityMaterializedViews();
+
+      // Deleted after the refresh: they both keep their row in the summary, and what made them match
+      await eve.destroy();
+      await frank.collective.destroy();
+    });
+
+    beforeEach(() => {
+      // Fixtures have a handful of rows: far below the size from which matching accounts are resolved first
+      sandbox.stub(CommunitySearchLib.COMMUNITY_SEARCH_LIMITS, 'minScopeRows').value(1);
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('searches by name', async () => {
+      await expectSearchResults({ searchTerm: 'Zeppelinsky' }, [aaron]);
+      await expectSearchResults({ searchTerm: 'zEpPeLiNsKy' }, [aaron]);
+      await expectSearchResults({ searchTerm: 'Aaron Zeppelinsky' }, [aaron]);
+      await expectSearchResults({ searchTerm: '  Plain ' }, [betty, carla, dora]);
+    });
+
+    it('searches by slug', async () => {
+      await expectSearchResults({ searchTerm: 'slugonlymatch' }, [betty]);
+      // `@slug` only looks at the slug, with the regular conditions
+      await expectSearchResults({ searchTerm: '@betty-slugonlymatch' }, [betty], { accountsFirst: false });
+      await expectSearchResults({ searchTerm: '@zeppelinsky' }, [aaron], { accountsFirst: false });
+    });
+
+    it('searches by email', async () => {
+      await expectSearchResults({ searchTerm: 'mailonlymatch' }, [carla]);
+      await expectSearchResults({ searchTerm: 'MAILONLYMATCH@community-search' }, [carla]);
+      // A full email address is an exact match, with the regular conditions
+      await expectSearchResults({ searchTerm: 'carla.mailonlymatch@community-search.test' }, [carla], {
+        accountsFirst: false,
+      });
+      await expectSearchResults({ searchTerm: 'mailonlymatch@community-search.test' }, [], { accountsFirst: false });
+    });
+
+    it('does not search for viewers who are not admins of the host, with either conditions', async () => {
+      for (const resolvedIds of [undefined, null]) {
+        const findAccountIds =
+          resolvedIds === null
+            ? sandbox.stub(CommunitySearchLib, 'findCommunitySearchAccountIds').resolves(null)
+            : sandbox.spy(CommunitySearchLib, 'findCommunitySearchAccountIds');
+        for (const remoteUser of [collectiveAdmin, aaron, undefined]) {
+          const result = await graphqlQueryV2(
+            communityQuery,
+            { host: { legacyId: searchHost.id }, searchTerm: 'mailonlymatch', limit: 100, offset: 0 },
+            remoteUser,
+          );
+          expect(result.errors).to.exist;
+          expect(result.data).to.not.exist;
+        }
+        expect(findAccountIds.called).to.be.false;
+        findAccountIds.restore();
+      }
+    });
+
+    it('returns the accounts matching by name, by slug or by the email of their user', async () => {
+      // Aaron and Gina by name (and slug), Dora by email, Hank through another hosted collective, the organization
+      const everyone = [aaron, dora, gina, hank, zeppelinOrg];
+      const accountIds = await expectSearchResults({ searchTerm: 'zeppelin' }, everyone);
+      // Looked up on the whole platform: one more account, from another host
+      expect(accountIds).to.have.length(everyone.length + 1);
+      expect(accountIds).to.include.members(everyone.map(person => person.CollectiveId || person.id));
+    });
+
+    it('combines with the other filters', async () => {
+      await expectSearchResults({ searchTerm: 'zeppelin', type: ['INDIVIDUAL'] }, [aaron, dora, gina, hank]);
+      await expectSearchResults({ searchTerm: 'zeppelin', type: ['ORGANIZATION'] }, [zeppelinOrg]);
+      await expectSearchResults({ searchTerm: 'zeppelin', relation: ['ADMIN'] }, [gina]);
+      await expectSearchResults({ searchTerm: 'zeppelin', relation: ['CONTRIBUTOR'] }, [
+        aaron,
+        dora,
+        hank,
+        zeppelinOrg,
+      ]);
+      await expectSearchResults({ searchTerm: 'zeppelin', relation: ['ADMIN', 'CONTRIBUTOR'] }, []);
+      await expectSearchResults({ searchTerm: 'zeppelin', account: { legacyId: otherCollective.id } }, [hank]);
+      await expectSearchResults({ searchTerm: 'zeppelin', account: { legacyId: searchCollective.id } }, [
+        aaron,
+        dora,
+        gina,
+        zeppelinOrg,
+      ]);
+      await expectSearchResults(
+        { searchTerm: 'zeppelin', totalContributed: { gte: { valueInCents: 1, currency: 'USD' } } },
+        [],
+      );
+    });
+
+    it('paginates and sorts', async () => {
+      const options = { totalCount: 5 };
+      await expectSearchResults({ searchTerm: 'zeppelin', limit: 2 }, [aaron, dora], options);
+      await expectSearchResults({ searchTerm: 'zeppelin', limit: 2, offset: 2 }, [gina, hank], options);
+      await expectSearchResults({ searchTerm: 'zeppelin', limit: 2, offset: 4 }, [zeppelinOrg], options);
+      await expectSearchResults({ searchTerm: 'zeppelin', limit: 2, offset: 6 }, [], options);
+      // Most recent accounts first
+      await expectSearchResults(
+        { searchTerm: 'zeppelin', limit: 3, orderBy: { field: 'CREATED_AT', direction: 'DESC' } },
+        [zeppelinOrg, hank, gina],
+        options,
+      );
+      await expectSearchResults(
+        { searchTerm: 'zeppelin', limit: 3, offset: 3, orderBy: { field: 'CREATED_AT', direction: 'DESC' } },
+        [dora, aaron],
+        options,
+      );
+    });
+
+    it('returns nothing when nothing matches', async () => {
+      const accountIds = await expectSearchResults({ searchTerm: 'nobodyhasthisname' }, []);
+      expect(accountIds).to.deep.eq([]);
+    });
+
+    it('ignores deleted users and deleted accounts', async () => {
+      // Eve's user is deleted: she does not match by email anymore, her account still matches by name
+      await expectSearchResults({ searchTerm: 'eve.deletedusermatch' }, []);
+      await expectSearchResults({ searchTerm: 'Eve Deletedusermatch' }, [eve]);
+      // Frank's account is deleted: it matches neither by name nor by the email of its user
+      await expectSearchResults({ searchTerm: 'Frank Deletedaccountmatch' }, []);
+      await expectSearchResults({ searchTerm: 'frank.deletedaccountmatch' }, []);
+    });
+
+    it('matches wildcard characters literally', async () => {
+      await expectSearchResults({ searchTerm: '100%' }, [ivy]);
+      await expectSearchResults({ searchTerm: '1__%' }, [], { accountsFirst: false });
+      await expectSearchResults({ searchTerm: 'ivy_underscore' }, [ivy]);
+      await expectSearchResults({ searchTerm: 'ivy_undersc_re' }, []);
+      await expectSearchResults({ searchTerm: 'Aar_n' }, []);
+    });
+
+    it('uses the regular conditions when too many accounts match', async () => {
+      // 6 accounts match on the platform, by name or by email
+      sandbox.stub(CommunitySearchLib.COMMUNITY_SEARCH_LIMITS, 'maxAccounts').value(5);
+      const everyone = [aaron, dora, gina, hank, zeppelinOrg];
+      await expectSearchResults({ searchTerm: 'zeppelin' }, everyone, { accountsFirst: false });
+      await expectSearchResults({ searchTerm: 'zeppelin', relation: ['ADMIN'] }, [gina], { accountsFirst: false });
+      await expectSearchResults({ searchTerm: 'zeppelin', limit: 2, offset: 2 }, [gina, hank], {
+        accountsFirst: false,
+        totalCount: 5,
+      });
+      // 4 by name and 2 others by email: each lookup is below the limit, not their union
+      await expectSearchResults({ searchTerm: 'zeppelin' }, everyone, { accountsFirst: false });
+      // Still used below the limit
+      await expectSearchResults({ searchTerm: 'Plain' }, [betty, carla, dora]);
+      sandbox.restore();
+      sandbox.stub(CommunitySearchLib.COMMUNITY_SEARCH_LIMITS, 'minScopeRows').value(1);
+      sandbox.stub(CommunitySearchLib.COMMUNITY_SEARCH_LIMITS, 'maxAccounts').value(6);
+      await expectSearchResults({ searchTerm: 'zeppelin' }, everyone);
+    });
+
+    it('uses the regular conditions for a term without 3 consecutive letters or digits', async () => {
+      const everyone = [aaron, dora, gina, hank, zeppelinOrg];
+      await expectSearchResults({ searchTerm: 'ze' }, everyone, { accountsFirst: false });
+      await expectSearchResults({ searchTerm: 'zep' }, everyone);
+      await expectSearchResults({ searchTerm: '% L' }, [ivy], { accountsFirst: false });
+      await expectSearchResults({ searchTerm: '% Le' }, [ivy], { accountsFirst: false });
+      await expectSearchResults({ searchTerm: '% Leg' }, [ivy]);
+      await expectSearchResults({ searchTerm: 'C++' }, [], { accountsFirst: false });
+      await expectSearchResults({ searchTerm: '___' }, [], { accountsFirst: false });
+      await expectSearchResults({ searchTerm: 'a-b-c' }, [], { accountsFirst: false });
+    });
+
+    it('uses the regular conditions when the host or the account has few rows', async () => {
+      sandbox.restore();
+      await expectSearchResults({ searchTerm: 'zeppelin', relation: ['ADMIN'] }, [gina], { accountsFirst: false });
+
+      // The host has 11 rows, the other collective has one
+      sandbox.stub(CommunitySearchLib.COMMUNITY_SEARCH_LIMITS, 'minScopeRows').value(11);
+      await expectSearchResults({ searchTerm: 'zeppelin', relation: ['ADMIN'] }, [gina]);
+      await expectSearchResults({ searchTerm: 'zeppelin', account: { legacyId: otherCollective.id } }, [hank], {
+        accountsFirst: false,
+      });
+      sandbox.restore();
+      sandbox.stub(CommunitySearchLib.COMMUNITY_SEARCH_LIMITS, 'minScopeRows').value(12);
+      await expectSearchResults({ searchTerm: 'zeppelin', relation: ['ADMIN'] }, [gina], { accountsFirst: false });
+    });
+  });
+
+  describe('order among accounts with the same name or total', () => {
+    let sandbox, tiedHost, tiedHostAdmin, twins, abeAndZed, everyoneById;
+
+    /** All the pages of a list, as the IDs of their accounts in the order they were returned */
+    const fetchAllPages = async (variables: Record<string, unknown>, limit: number) => {
+      const ids = [];
+      for (let offset = 0; ; offset += limit) {
+        const result = await graphqlQueryV2(
+          communityQuery,
+          { host: { legacyId: tiedHost.id }, ...variables, limit, offset },
+          tiedHostAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        ids.push(...result.data.community.nodes.map(node => node.id));
+        if (result.data.community.nodes.length < limit) {
+          return ids;
+        }
+      }
+    };
+
+    /** Expects every account once across the pages, in this order, with or without the matching accounts first */
+    const expectPages = async (variables: Record<string, unknown>, expectedAccounts, { accountsFirst = true } = {}) => {
+      const expectedIds = expectedAccounts.map(account => idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT));
+      const findAccountIds = sandbox.spy(CommunitySearchLib, 'findCommunitySearchAccountIds');
+      expect(await fetchAllPages(variables, 3)).to.deep.eq(expectedIds);
+      expect(Boolean(findAccountIds.called && (await findAccountIds.lastCall.returnValue))).to.eq(accountsFirst);
+      findAccountIds.restore();
+
+      const withRegularConditions = sandbox.stub(CommunitySearchLib, 'findCommunitySearchAccountIds').resolves(null);
+      expect(await fetchAllPages(variables, 3)).to.deep.eq(expectedIds);
+      expect(await fetchAllPages(variables, 4)).to.deep.eq(expectedIds);
+      withRegularConditions.restore();
+    };
+
+    before(async () => {
+      sandbox = sinon.createSandbox();
+      tiedHostAdmin = await fakeUser({}, { name: 'Zoe Tiedhostadmin' });
+      tiedHost = await fakeActiveHost({ admin: tiedHostAdmin });
+      const tiedCollective = await fakeCollective({ HostCollectiveId: tiedHost.id });
+      const fakeMemberAccount = async (name: string) => {
+        const user = await fakeUser({}, { name });
+        await fakeMember({
+          CollectiveId: tiedCollective.id,
+          MemberCollectiveId: user.CollectiveId,
+          role: MemberRoles.BACKER,
+        });
+        return user.collective;
+      };
+
+      // Created in an order that is not the one of their names, with no transaction: all tied on their totals
+      const zed = await fakeMemberAccount('Zed Alone');
+      twins = [];
+      for (let i = 0; i < 6; i++) {
+        twins.push(await fakeMemberAccount('Tied Twin'));
+      }
+      const abe = await fakeMemberAccount('Abe Alone');
+      for (let i = 0; i < 5; i++) {
+        twins.push(await fakeMemberAccount('Tied Twin'));
+      }
+      abeAndZed = [abe, zed];
+      everyoneById = [tiedHostAdmin.collective, zed, ...twins.slice(0, 6), abe, ...twins.slice(6)];
+      await refreshCommunityMaterializedViews();
+    });
+
+    beforeEach(() => {
+      sandbox.stub(CommunitySearchLib.COMMUNITY_SEARCH_LIMITS, 'minScopeRows').value(1);
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('returns each account once across pages, by account id among the same names', async () => {
+      const byName = { orderBy: { field: 'NAME', direction: 'ASC' } };
+      const everyoneByName = [abeAndZed[0], ...twins, abeAndZed[1], tiedHostAdmin.collective];
+      await expectPages({ ...byName, searchTerm: 'Tied Twin' }, twins);
+      await expectPages({ ...byName, searchTerm: 'Alone' }, abeAndZed);
+      await expectPages(byName, everyoneByName, { accountsFirst: false });
+      await expectPages({}, everyoneByName, { accountsFirst: false });
+    });
+
+    it('uses the regular conditions when a lookup is cut by its limit, also when users share an account', async () => {
+      // Nothing prevents two users from having the same account: 3 users match by email, for 2 accounts
+      const [abe] = abeAndZed;
+      for (const [name, account] of [
+        ['one', twins[0]],
+        ['two', twins[0]],
+        ['three', abe],
+      ]) {
+        await models.User.create({ email: `${name}.sharedmailmatch@community-search.test`, CollectiveId: account.id });
+      }
+
+      const variables = { orderBy: { field: 'NAME', direction: 'ASC' }, searchTerm: 'sharedmailmatch' };
+      for (const maxAccounts of [1, 2]) {
+        // The lookup of users stops after `maxAccounts + 1` rows, which can all be for the same account
+        const limit = sandbox.stub(CommunitySearchLib.COMMUNITY_SEARCH_LIMITS, 'maxAccounts').value(maxAccounts);
+        await expectPages(variables, [abe, twins[0]], { accountsFirst: false });
+        limit.restore();
+      }
+
+      sandbox.stub(CommunitySearchLib.COMMUNITY_SEARCH_LIMITS, 'maxAccounts').value(3);
+      await expectPages(variables, [abe, twins[0]]);
+    });
+
+    it('returns each account once across pages, by account id among the same totals', async () => {
+      for (const field of ['TOTAL_CONTRIBUTED', 'TOTAL_EXPENDED']) {
+        for (const direction of ['ASC', 'DESC']) {
+          const orderBy = { field, direction };
+          await expectPages({ orderBy, searchTerm: 'Tied Twin' }, twins);
+          await expectPages({ orderBy, searchTerm: 'Tied' }, [tiedHostAdmin.collective, ...twins]);
+          await expectPages({ orderBy }, everyoneById, { accountsFirst: false });
+        }
+      }
     });
   });
 
