@@ -244,7 +244,7 @@ const HostApplicationMutations = {
       let hostApplication: HostApplication;
       let account, host: Collective;
       if (args.hostApplication) {
-        hostApplication = await fetchHostApplicationWithReference(args.hostApplication);
+        hostApplication = await fetchHostApplicationWithReference(args.hostApplication, { throwIfMissing: true });
         account = await hostApplication.getCollective();
         host = await hostApplication.getHost();
       } else {
