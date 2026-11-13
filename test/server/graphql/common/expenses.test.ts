@@ -47,10 +47,12 @@ import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import {
   fakeCollective,
   fakeCurrencyExchangeRate,
+  fakeEvent,
   fakeExpense,
   fakeHost,
   fakePayoutMethod,
   fakePlatformSubscription,
+  fakeProject,
   fakeTransaction,
   fakeUser,
   fakeVendor,
@@ -1933,6 +1935,43 @@ describe('server/graphql/common/expenses', () => {
           EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
         );
         expect(await canApprove(makeRequest(dualRoleAdmin), expense)).to.be.false;
+      });
+
+      it('applies the host policy to projects and events using the admins of their parent collective', async () => {
+        const host = await fakeHost();
+        await host.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
+            enabled: true,
+            amountInCents: 0,
+            appliesToHostedCollectives: true,
+            appliesToSingleAdminCollectives: false,
+          },
+        });
+
+        const author = await fakeUser();
+        const otherAdmin = await fakeUser();
+        const parent = await fakeCollective({ HostCollectiveId: host.id, admin: [author, otherAdmin] });
+        await author.populateRoles({ force: true });
+
+        // Projects and events have no admin members of their own: their admins are the ones of the parent
+        const project = await fakeProject({ ParentCollectiveId: parent.id });
+        const event = await fakeEvent({ ParentCollectiveId: parent.id });
+
+        for (const account of [parent, project, event]) {
+          const expense = await fakeExpense({
+            CollectiveId: account.id,
+            FromCollectiveId: author.CollectiveId,
+            UserId: author.id,
+            status: 'PENDING',
+            amount: 10e2,
+          });
+
+          expect(
+            await getApolloErrorCode(canApprove(makeRequest(author), expense, { throw: true })),
+            `${account.type} expense`,
+          ).to.be.equal(EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE);
+          expect(await canApprove(makeRequest(author), expense)).to.be.false;
+        }
       });
     });
 

@@ -1040,6 +1040,23 @@ export const canMarkAsPaid: ExpensePermissionEvaluator = async (
 };
 
 /**
+ * Events and projects inherit their admins from their parent (see `User.isAdminOfCollective`),
+ * so their admins are counted together with the parent's.
+ */
+const countAdminsOfAccount = async (req: express.Request, account: Collective): Promise<number> => {
+  const isChildAccount = [CollectiveType.EVENT, CollectiveType.PROJECT].includes(account.type as CollectiveType);
+  if (!isChildAccount || !account.ParentCollectiveId) {
+    return req.loaders.Member.countAdminMembersOfCollective.load(account.id);
+  }
+
+  return models.Member.count({
+    distinct: true,
+    col: 'MemberCollectiveId',
+    where: { role: roles.ADMIN, CollectiveId: [account.id, account.ParentCollectiveId] },
+  });
+};
+
+/**
  * Returns true if expense can be approved by user.
  * SETTLEMENT expenses are created by the platform but approved by the billed fiscal host (or a platform admin).
  * PLATFORM_BILLING can only be approved by platform admins.
@@ -1101,7 +1118,7 @@ export const canApprove: ExpensePermissionEvaluator = async (
     const userIsCollectiveAdmin = await isCollectiveAdmin(req, expense);
     const hostPolicy = await getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
     const collectivePolicy = await getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
-    const numberOfAdmins = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
+    const numberOfAdmins = await countAdminsOfAccount(req, expense.collective);
     const isExpenseAuthor = req.remoteUser.id === expense.UserId;
 
     const hostPolicyApplies =
