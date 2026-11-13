@@ -4,7 +4,7 @@ Primary GraphQL API: business logic, persistence, and integrations.
 
 ## Stack
 
-Node/Express/TS+Babel, Apollo (V2 `/graphql`, V1 `/graphql/v1`), Sequelize+Kysely, Postgres, Redis sessions, Passport/JWT/WebAuthn. Stripe/PayPal/Wise/Manual. Nodemailer+Handlebars, S3/MinIO. OpenSearch (alpha; prod still Postgres FTS). Helmet/GraphQL Armor, Sentry/Hyperwatch. Mocha/Sinon/Chai. Cron: Heroku scheduler on `cron/`.
+Node/Express/TS+Babel, Apollo (V2 `/graphql`, V1 `/graphql/v1`), Sequelize+Kysely, Postgres, Redis sessions, Passport/JWT/WebAuthn. Stripe/PayPal/Wise/Manual. Nodemailer+Handlebars, S3/MinIO. Helmet/GraphQL Armor, Sentry/Hyperwatch. Mocha/Sinon/Chai. Cron: Heroku scheduler on `cron/`.
 
 Private organizations: `docs/private-organizations.md`.
 

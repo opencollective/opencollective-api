@@ -1,15 +1,10 @@
 {
   "port": "3061",
   "services": {
-    "server": true,
-    "searchSync": false
+    "server": true
   },
   "database": {
     "url": "postgres://opencollective@127.0.0.1:5432/opencollective_test"
-  },
-  "opensearch": {
-    "url": "http://localhost:9200",
-    "indexesPrefix": "test"
   },
   "fees": {
     "default": {
