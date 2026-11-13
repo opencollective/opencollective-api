@@ -4234,6 +4234,29 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         await order.reload();
         expect(order.status).to.equal(OrderStatuses.PENDING);
       });
+
+      it('applies the tax to the existing amount when marking as paid with a tax but no amount', async () => {
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            action: 'MARK_AS_PAID',
+            order: {
+              id: idEncode(order.id, 'order'),
+              tax: { type: 'VAT', rate: 0.2 },
+            },
+          },
+          hostAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
+
+        await order.reload();
+        expect(order.taxAmount).to.equal(2000); // 20% VAT on $100
+        expect(order.totalAmount).to.equal(12000);
+        expect(order.data.tax.percentage).to.equal(20);
+      });
     });
 
     it('should be able to remove platform tips', async () => {
