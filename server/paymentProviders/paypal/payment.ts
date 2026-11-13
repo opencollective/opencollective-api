@@ -246,6 +246,15 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<Transaction | u
   return transaction;
 };
 
+/**
+ * PayPal returns the refunded fee in the capture currency (the transaction currency), but the ledger
+ * expects it in the host currency.
+ */
+export const getRefundedPaypalFeeInHostCurrency = (transaction: Transaction, rawFee: string): number => {
+  const feeInTransactionCurrency = floatAmountToCents(parseFloat(rawFee));
+  return roundCentsAmount(feeInTransactionCurrency * (transaction.hostCurrencyFxRate || 1), transaction.hostCurrency);
+};
+
 export const refundPaypalCapture = async (
   transaction: Transaction,
   captureId: string,
@@ -267,7 +276,7 @@ export const refundPaypalCapture = async (
     const result = await paypalRequestV2(`payments/captures/${captureId}/refund`, host, 'POST', payload);
     const refund = (await paypalRequestV2(`payments/refunds/${result.id}`, host, 'GET')) as PaypalRefund;
     const rawRefundedPaypalFee = <string>get(refund, 'seller_payable_breakdown.paypal_fee.value', '0.00');
-    const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
+    const refundedPaypalFee = getRefundedPaypalFeeInHostCurrency(transaction, rawRefundedPaypalFee);
     return createRefundTransaction(
       transaction,
       refundedPaypalFee,

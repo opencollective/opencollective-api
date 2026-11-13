@@ -325,6 +325,74 @@ describe('lib/security/expense', () => {
       expect(findBalanceCheck(usdChecks)).to.be.undefined;
       expect(findBalanceCheck(eurChecks)).to.be.undefined;
     });
+
+    it('counts all the payments in this collective, across payout methods', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+      const [payoutMethodA, payoutMethodB] = await multiple(fakePayoutMethod, 2, {
+        type: PayoutMethodTypes.PAYPAL,
+        data: { email: `${randStr('paypal-')}@example.com` },
+        CollectiveId: user.CollectiveId,
+      });
+      const expenseData = {
+        UserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        status: 'PAID' as const,
+      };
+
+      // The stats are grouped by payout method, so this gives two rows for the same collective
+      await multiple(fakeExpense, 3, { ...expenseData, PayoutMethodId: payoutMethodA.id });
+      await multiple(fakeExpense, 2, { ...expenseData, PayoutMethodId: payoutMethodB.id });
+      const expense = await fakeExpense({ ...expenseData, PayoutMethodId: payoutMethodB.id, status: 'PENDING' });
+
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+      expect(checks).to.containSubset([
+        {
+          scope: 'USER',
+          message: 'User was successfully paid 5 times by this collective and 5 times on the platform',
+        },
+        {
+          scope: 'PAYOUT_METHOD',
+          message: 'Payout Method was successfully paid 2 times by this collective and 2 times on the platform',
+        },
+      ]);
+    });
+  });
+
+  describe('author membership checks', () => {
+    it('identifies host admins on expenses that are not paid yet', async () => {
+      const host = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const hostAdmin = await fakeUser();
+      await host.addUserWithRole(hostAdmin, 'ADMIN');
+
+      for (const status of ['PENDING', 'APPROVED'] as const) {
+        // `Expenses.HostCollectiveId` is only set when the expense gets paid
+        const expense = await fakeExpense({
+          CollectiveId: collective.id,
+          UserId: hostAdmin.id,
+          HostCollectiveId: null,
+          status,
+        });
+        const checks = await checkExpense(expense, { req: makeRequest() as any });
+        expect(checks, status).to.containSubset([
+          { scope: 'USER', level: 'PASS', message: 'User is the admin of this fiscal host' },
+        ]);
+        expect(checks.find(c => c.message === 'User is the admin of this collective')).to.be.undefined;
+      }
+    });
+
+    it('does not identify admins of a host that has not approved the collective yet', async () => {
+      const host = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id, isActive: false, approvedAt: null });
+      const hostAdmin = await fakeUser();
+      await host.addUserWithRole(hostAdmin, 'ADMIN');
+
+      const expense = await fakeExpense({ CollectiveId: collective.id, UserId: hostAdmin.id, HostCollectiveId: null });
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+      expect(checks.find(c => c.message === 'User is the admin of this fiscal host')).to.be.undefined;
+    });
   });
 
   describe('legal document checks', () => {

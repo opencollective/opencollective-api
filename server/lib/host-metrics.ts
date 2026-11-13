@@ -256,7 +256,9 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
   );
 
   const balanceOptions = { endDate: startDate, collectiveIds, currency: host.currency, loaders: null };
-  const balanceAtStartDate = await getTotalMoneyManagedAmount(host, balanceOptions);
+  // Without a start date the series already sums from the first transaction, so the starting balance is 0
+  // (`getTotalMoneyManagedAmount` treats a null `endDate` as "now").
+  const balanceAtStartDate = startDate ? await getTotalMoneyManagedAmount(host, balanceOptions) : { value: 0 };
   const timeSeries = await convertCurrencyForTimeSeries(results, host.currency);
   let sum: number | undefined;
   return timeSeries.map(point => {

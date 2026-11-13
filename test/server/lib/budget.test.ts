@@ -27,7 +27,14 @@ import {
 } from '../../../server/lib/budget';
 import * as libcurrency from '../../../server/lib/currency';
 import { sequelize } from '../../../server/models';
-import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeExpense,
+  fakeHost,
+  fakeOrder,
+  fakeTransaction,
+  fakeUser,
+} from '../../test-helpers/fake-data';
 import { makeRequest, resetTestDB } from '../../utils';
 
 describe('server/lib/budget', () => {
@@ -1211,6 +1218,37 @@ describe('server/lib/budget', () => {
 
       expect(withoutChildren).to.deep.equal({ contributionsCount: 1, contributorsCount: 1 });
       expect(withChildren).to.deep.equal({ contributionsCount: 2, contributorsCount: 2 });
+    });
+
+    it('counts a contributor once when they contributed under hosts with different currencies', async () => {
+      const sandbox = createSandbox();
+      try {
+        sandbox.stub(libcurrency, 'getFxRate').resolves(1);
+        const usdHost = await fakeHost({ currency: 'USD' });
+        const eurHost = await fakeHost({ currency: 'EUR' });
+        for (const host of [usdHost, eurHost]) {
+          await fakeTransaction(
+            {
+              type: 'CREDIT',
+              kind: TransactionKind.CONTRIBUTION,
+              CollectiveId: collective.id,
+              FromCollectiveId: contributor1.CollectiveId,
+              HostCollectiveId: host.id,
+              currency: host.currency,
+              hostCurrency: host.currency,
+              amount: 10e2,
+            },
+            { createDoubleEntry: true },
+          );
+        }
+
+        const expected = { contributionsCount: 2, contributorsCount: 1 };
+        expect(await getContributionsAndContributorsCount(collective)).to.deep.equal(expected);
+        const loaders = makeRequest().loaders;
+        expect(await getContributionsAndContributorsCount(collective, { loaders })).to.deep.equal(expected);
+      } finally {
+        sandbox.restore();
+      }
     });
   });
 

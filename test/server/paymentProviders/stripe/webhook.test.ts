@@ -935,6 +935,7 @@ describe('webhook', () => {
 
       it('updates order.data.stripePaymentIntent', async () => {
         sandbox.stub(stripe.paymentMethods, 'retrieve').resolves({
+          id: 'pm_123456789abcdef123456789',
           type: 'us_bank_account',
           us_bank_account: {
             name: 'Test Bank',
@@ -1436,6 +1437,7 @@ describe('webhook', () => {
       });
 
       sandbox.stub(stripe.paymentMethods, 'retrieve').resolves({
+        id: 'pm_123456789abcdef123456789',
         type: 'us_bank_account',
         us_bank_account: {
           name: 'Test Bank',

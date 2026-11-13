@@ -6,6 +6,7 @@ import { createSandbox } from 'sinon';
 import type Stripe from 'stripe';
 
 import { activities } from '../../../server/constants';
+import { CollectiveType } from '../../../server/constants/collectives';
 import { SupportedCurrency } from '../../../server/constants/currencies';
 import status from '../../../server/constants/order-status';
 import PaymentIntentStatus from '../../../server/constants/payment-intent-status';
@@ -1443,6 +1444,44 @@ describe('server/lib/payments', () => {
         expect(feePercent).to.equal(0);
       });
 
+      it('returns 0 for events and projects parented by the host itself', async () => {
+        for (const type of [CollectiveType.PROJECT, CollectiveType.EVENT]) {
+          const hostChild = await fakeCollective({
+            type,
+            ParentCollectiveId: testHost.id,
+            HostCollectiveId: testHost.id,
+            hostFeePercent: 10,
+          });
+          const hostChildOrder = await fakeOrder({
+            CollectiveId: hostChild.id,
+            PaymentMethodId: testPaymentMethod.id,
+          });
+          await hostChildOrder.populate();
+
+          const feePercent = await getHostFeePercent(hostChildOrder);
+          expect(feePercent, `expected no host fee for ${type}`).to.equal(0);
+        }
+      });
+
+      it('still charges the configured fee for non-event/project children of the host', async () => {
+        for (const type of [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION]) {
+          const hostChild = await fakeCollective({
+            type,
+            ParentCollectiveId: testHost.id,
+            HostCollectiveId: testHost.id,
+            hostFeePercent: 10,
+          });
+          const hostChildOrder = await fakeOrder({
+            CollectiveId: hostChild.id,
+            PaymentMethodId: testPaymentMethod.id,
+          });
+          await hostChildOrder.populate();
+
+          const feePercent = await getHostFeePercent(hostChildOrder);
+          expect(feePercent, `expected the configured host fee for ${type}`).to.equal(10);
+        }
+      });
+
       it('returns collective hostFeePercent as default', async () => {
         const feePercent = await getHostFeePercent(testOrder);
         expect(feePercent).to.equal(10);
@@ -1844,7 +1883,27 @@ describe('server/lib/payments', () => {
         totalAmount: AMOUNT,
         currency: collective.currency,
       });
-      await order.setPaymentMethod({ paypalToken: 'abc' });
+      await order.setPaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.PAYPAL,
+        type: PAYMENT_METHOD_TYPE.PAYMENT,
+        data: { orderId: 'fake-paypal-order-id' },
+      });
+
+      /* eslint-disable camelcase */
+      const amount = { value: (AMOUNT / 100).toFixed(2), currency_code: collective.currency };
+      sandbox.stub(paypalAPI, 'paypalRequestV2').callsFake(async (url: string) => {
+        if (url.endsWith('/authorize')) {
+          return { purchase_units: [{ amount, payments: { authorizations: [{ id: 'fake-authorization-id' }] } }] };
+        } else if (url.endsWith('/capture')) {
+          return { id: 'fake-capture-id', status: 'COMPLETED' };
+        } else if (url.startsWith('payments/captures/')) {
+          return { id: 'fake-capture-id', status: 'COMPLETED', amount, seller_receivable_breakdown: {} };
+        } else {
+          return { purchase_units: [{ amount }] };
+        }
+      });
+      /* eslint-enable camelcase */
+
       await executeOrder(user, order);
 
       expect(applyContributionAccountingCategoryRulesSpy).to.have.been.calledWith(order);

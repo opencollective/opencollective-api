@@ -147,6 +147,8 @@ type SumCollectivesTransactionsOptions = {
   includeChildren?: boolean;
   groupByAttributes?: GroupByAttribute[];
   extraAttributes?: GroupByAttribute[];
+  /** Set to false when only extraAttributes are read (e.g. COUNT(DISTINCT ...)): amounts in mixed currencies are then summed as-is */
+  groupByCurrency?: boolean;
 };
 
 type GetYearlyBudgetAmountOptions = {
@@ -559,6 +561,7 @@ export async function getContributionsAndContributorsCount(
       startDate,
       endDate,
       includeChildren,
+      groupByCurrency: false, // COUNT(DISTINCT) can't be summed across per-currency rows
       extraAttributes: [
         [sequelize.fn('COUNT', sequelize.col('Transaction.id')), 'count'],
         [
@@ -881,6 +884,7 @@ export async function sumCollectivesTransactions(
     includeChildren = false,
     groupByAttributes = [],
     extraAttributes = [],
+    groupByCurrency = true,
   }: SumCollectivesTransactionsOptions = {},
 ): Promise<TotalsByCollective> {
   const separatePaymentProcessorFees = parseToBoolean(config.ledger.separatePaymentProcessorFees) === true;
@@ -1081,7 +1085,7 @@ export async function sumCollectivesTransactions(
 
   const attributes = [
     [collectiveId, 'CollectiveId'],
-    [currencyColumn, 'currency'],
+    [groupByCurrency ? currencyColumn : sequelize.fn('MAX', currencyColumn), 'currency'],
     [amountColumns[column], column],
     ...extraAttributes,
     ...groupByAttributes,
@@ -1092,7 +1096,9 @@ export async function sumCollectivesTransactions(
   const extra = extraAttributes.map(attr => (Array.isArray(attr) ? attr[1] : attr));
 
   // Sequelize accepts literals in GROUP BY at runtime, but its GroupOption type does not list them
-  const group = [collectiveId, currencyColumn, ...groupBy] as GroupOption;
+  const group = (
+    groupByCurrency ? [collectiveId, currencyColumn, ...groupBy] : [collectiveId, ...groupBy]
+  ) as GroupOption;
 
   const results = await models.Transaction.findAll({
     attributes,

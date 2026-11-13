@@ -591,6 +591,7 @@ export const generateLoaders = req => {
                 includeChildren,
                 kind: ['CONTRIBUTION', 'ADDED_FUNDS'],
                 transactionType: 'CREDIT',
+                groupByCurrency: false, // COUNT(DISTINCT) can't be summed across per-currency rows
                 extraAttributes: [
                   [sequelize.fn('COUNT', sequelize.col('Transaction.id')), 'count'],
                   [
