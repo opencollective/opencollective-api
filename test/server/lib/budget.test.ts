@@ -133,6 +133,39 @@ describe('server/lib/budget', () => {
       expect(sum['value']).to.eq(50e2);
     });
 
+    it('with includeChildren, keys a requested child account under its own id', async () => {
+      const parent = await fakeCollective();
+      const event = await fakeCollective({ type: CollectiveType.EVENT, ParentCollectiveId: parent.id });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: event.id, amount: 100e2 }, { createDoubleEntry: true });
+
+      const txs = await sumCollectivesTransactions([event.id], {
+        column: 'netAmountInHostCurrency',
+        includeChildren: true,
+      });
+      expect(Object.keys(txs).map(Number)).to.deep.eq([event.id]);
+      expect(txs[event.id]['value']).to.eq(100e2);
+    });
+
+    it('with includeChildren, rolls children up to a requested parent', async () => {
+      const parent = await fakeCollective();
+      const project = await fakeCollective({ type: CollectiveType.PROJECT, ParentCollectiveId: parent.id });
+      const otherCollective = await fakeCollective();
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: parent.id, amount: 20e2 }, { createDoubleEntry: true });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: project.id, amount: 30e2 }, { createDoubleEntry: true });
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: otherCollective.id, amount: 40e2 },
+        { createDoubleEntry: true },
+      );
+
+      const txs = await sumCollectivesTransactions([parent.id, otherCollective.id], {
+        column: 'netAmountInHostCurrency',
+        includeChildren: true,
+      });
+      expect(txs[parent.id]['value']).to.eq(50e2);
+      expect(txs[otherCollective.id]['value']).to.eq(40e2);
+      expect(txs[project.id]).to.not.exist;
+    });
+
     describe('when blocked funds are excluded', () => {
       describe('when there are disputed Transactions', () => {
         it('returns the unblocked funds sum', async () => {
@@ -901,6 +934,14 @@ describe('server/lib/budget', () => {
 
       expect(withoutChildren.value).to.equal(20e2);
       expect(withChildren.value).to.equal(50e2);
+    });
+
+    it('returns the child account own amount when called on a child with includeChildren', async () => {
+      const event = await fakeCollective({ type: CollectiveType.EVENT, ParentCollectiveId: collective.id });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: event.id, amount: 30e2 }, { createDoubleEntry: true });
+
+      const result = await getTotalAmountReceivedAmount(event, { includeChildren: true });
+      expect(result.value).to.equal(30e2);
     });
 
     it('filters by transaction kind', async () => {
