@@ -15,11 +15,13 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { groupBy, isNil, pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
+import ActivityTypes from '../../../constants/activities';
 import { Service } from '../../../constants/connected-account';
 import expenseStatus from '../../../constants/expense-status';
 import logger from '../../../lib/logger';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import RateLimit from '../../../lib/rate-limit';
+import { reportErrorToSentry } from '../../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
@@ -471,8 +473,18 @@ const expenseMutations = {
       const accountsFor2FA = [expense.fromCollective, expense.collective, expense.collective.host].filter(Boolean);
       await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
 
+      // Load items before deleting: they get soft-deleted in `afterDestroy`, and we want them in the activity
+      expense.items = await expense.getItems();
+
       // Associations are deleted/updated in `afterDestroy`
       await expense.destroy();
+
+      // Keep a trace of who deleted the expense
+      await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_DELETED, req.remoteUser).catch(e => {
+        logger.error('An error happened when creating the COLLECTIVE_EXPENSE_DELETED activity', e);
+        reportErrorToSentry(e, { req });
+      });
+
       return expense;
     },
   },

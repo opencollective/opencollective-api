@@ -1599,6 +1599,42 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(transactions[0].amount).to.eq(-4200);
         expect(transactions[0].amountInHostCurrency).to.eq(-4200);
       });
+
+      it('must be in the host currency', async () => {
+        const user = await fakeUser();
+        const host = await fakeActiveHost({ admin: user, currency: 'USD' });
+        const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+        const transactionsImport = await fakeTransactionsImport({ CollectiveId: host.id });
+        const transactionsImportRow = await fakeTransactionsImportRow({
+          TransactionsImportId: transactionsImport.id,
+          amount: -1000,
+          currency: 'USD',
+        });
+        const expenseData = {
+          ...getValidExpenseData(),
+          currency: 'JPY',
+          payee: { legacyId: user.CollectiveId },
+          items: [{ description: 'A first item', amountV2: { valueInCents: 100000, currency: 'JPY' } }],
+        };
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          {
+            expense: expenseData,
+            account: { legacyId: collective.id },
+            transactionsImportRow: { id: idEncode(transactionsImportRow.id, 'transactions-import-row') },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq(
+          'Expenses created from a transactions import must be in the host currency',
+        );
+        expect(await models.Expense.count({ where: { CollectiveId: collective.id } })).to.eq(0);
+        await transactionsImportRow.reload();
+        expect(transactionsImportRow.ExpenseId).to.be.null;
+      });
     });
 
     describe('with uploaded files', () => {
@@ -2258,6 +2294,35 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         );
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq('Cannot use accounting categories without a host');
+      });
+
+      it('uses the existing expense type to check the accounting category when editing other fields without type', async () => {
+        const expense = await fakeExpense({ status: 'PENDING', type: 'INVOICE' });
+        await fakePlatformSubscription({
+          CollectiveId: expense.collective.HostCollectiveId,
+          plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } },
+        });
+        const accountingCategory = await fakeAccountingCategory({
+          CollectiveId: expense.collective.HostCollectiveId,
+          kind: 'EXPENSE',
+          expensesTypes: ['INVOICE'],
+        });
+        const accountingCategoryIdV2 = idEncode(accountingCategory.id, 'accounting-category');
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: {
+              id: idEncode(expense.id, 'expense'),
+              description: 'New description', // Editing another field bypasses the tags/category-only edit path
+              accountingCategory: { id: accountingCategoryIdV2 },
+            },
+          },
+          expense.User,
+        );
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.description).to.eq('New description');
+        expect(result.data.editExpense.accountingCategory.id).to.eq(accountingCategoryIdV2);
       });
 
       it('reserves the accounting category changes of paid expenses to host admins', async () => {
@@ -3590,6 +3655,77 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(get(expense.data, 'invoiceFile.url')).to.eql(invoiceUploadedFile.getDataValue('url'));
       });
 
+      it('keeps the items and taxes of a DRAFT when only its description is edited', async () => {
+        const collective = await fakeCollective({ currency: 'USD' });
+        const draftAuthor = await fakeUser();
+        const expense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: ExpenseTypes.INVOICE,
+          currency: 'USD',
+          amount: 11550,
+          CollectiveId: collective.id,
+          UserId: draftAuthor.id,
+          data: {
+            items: [{ description: 'Item', amount: 10000, currency: 'EUR', expenseCurrencyFxRate: 1.1 }],
+            taxes: [{ type: 'VAT', rate: 0.05 }],
+          },
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: 'New description' } },
+          draftAuthor,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await expense.reload();
+        expect(expense.description).to.equal('New description');
+        expect(draftItems(expense)).to.have.length(1);
+        expect(draftItems(expense)[0]).to.deep.include({ amount: 10000, currency: 'EUR', expenseCurrencyFxRate: 1.1 });
+        expect(expense.data.taxes).to.deep.equal([{ type: 'VAT', rate: 0.05 }]);
+        expect(expense.amount).to.equal(11550);
+      });
+
+      it('keeps the taxes of a DRAFT when its items are edited without `tax`', async () => {
+        const collective = await fakeCollective({ currency: 'USD' });
+        const draftAuthor = await fakeUser();
+        const expense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: ExpenseTypes.INVOICE,
+          currency: 'USD',
+          amount: 1050,
+          CollectiveId: collective.id,
+          UserId: draftAuthor.id,
+          data: {
+            items: [{ description: 'Item', amount: 1000, currency: 'USD' }],
+            taxes: [{ type: 'VAT', rate: 0.05 }],
+          },
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: {
+              id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+              items: [
+                {
+                  amountV2: { valueInCents: 2000, currency: 'USD' },
+                  description: 'Item',
+                  incurredAt: '2023-09-26T00:00:00.000Z',
+                },
+              ],
+            },
+          },
+          draftAuthor,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await expense.reload();
+        expect(draftItems(expense)[0]).to.deep.include({ amount: 2000, currency: 'USD' });
+        expect(expense.data.taxes).to.deep.equal([{ type: 'VAT', rate: 0.05 }]);
+        expect(expense.amount).to.equal(2100);
+      });
+
       it('send notification to invited external user when DRAFT is updated', async () => {
         const collective = await fakeCollective({ currency: 'EUR', settings: vatSettings({ type: 'OWN' }) });
         const draftAuthor = await fakeUser();
@@ -4166,6 +4302,17 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq('Expense custom data cannot exceed 10kB. Current size: 10.008kB');
+    });
+
+    it('does not remove attached files if the edit fails', async () => {
+      const expense = await fakeExpense({ status: 'PENDING', type: 'RECEIPT' });
+      const attachedFile = await fakeExpenseAttachedFile({ ExpenseId: expense.id, CreatedByUserId: expense.User.id });
+      const customData = { a: '🌞'.repeat(2500) }; // Each emoji is 4 bytes, 10kB is 2500 emojis
+      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), attachedFiles: [], customData };
+      const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Expense custom data cannot exceed 10kB. Current size: 10.008kB');
+      expect(await models.ExpenseAttachedFile.findByPk(attachedFile.id)).to.exist;
     });
 
     describe('tax form', () => {
@@ -5335,6 +5482,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await expense.reload({ paranoid: false });
         expect(expense.deletedAt).to.exist;
         await expectPaymentIntentSoftDeletedForExpense(expense.id);
+
+        const activity = await models.Activity.findOne({
+          where: { ExpenseId: expense.id, type: activities.COLLECTIVE_EXPENSE_DELETED },
+        });
+        expect(activity).to.exist;
+        expect(activity.UserId).to.eq(expense.User.id);
+        expect(activity.CollectiveId).to.eq(expense.CollectiveId);
+        expect(activity.data.expense.id).to.eq(expense.id);
       });
 
       it('if collective admin', async () => {
@@ -5358,6 +5513,13 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.deleteExpense.legacyId).to.eq(expense.id);
         await expense.reload({ paranoid: false });
         expect(expense.deletedAt).to.exist;
+
+        const activity = await models.Activity.findOne({
+          where: { ExpenseId: expense.id, type: activities.COLLECTIVE_EXPENSE_DELETED },
+        });
+        expect(activity).to.exist;
+        expect(activity.UserId).to.eq(hostAdminUser.id);
+        expect(activity.HostCollectiveId).to.eq(host.id);
       });
 
       it('accepts publicId in ExpenseReferenceInput', async () => {

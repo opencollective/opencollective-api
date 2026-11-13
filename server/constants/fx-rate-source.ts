@@ -1,0 +1,6 @@
+export enum FX_RATE_SOURCE {
+  OPENCOLLECTIVE = 'OPENCOLLECTIVE',
+  PAYPAL = 'PAYPAL',
+  WISE = 'WISE',
+  USER = 'USER',
+}

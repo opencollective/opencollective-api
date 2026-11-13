@@ -120,7 +120,7 @@ export type TransactionData = {
   refund?: Stripe.Refund | Partial<PaypalRefund>;
   refundedFromDoubleTransactionsScript?: boolean;
   refundReason?: string;
-  refundTransactionId?: Transaction['id'];
+  refundTransactionId?: Transaction['id'] | string; // Stripe webhooks store our transaction id, virtual cards the provider's (`ipi_...`)
   review?: Stripe.Event; // Why not Stripe.Review? Who knows
   tax?: Tax;
   taxAmountRemovedFromMigration?: number;
@@ -505,6 +505,10 @@ class Transaction extends ModelWithPublicId<
         }
       }
 
+      // Keep the tax amount: `createTaxTransactions` resets it to 0 after moving the tax to its own transaction,
+      // but the host fee on expenses paid between hosts (below) must still be computed on the tax-exclusive amount.
+      const originalTaxAmount = transaction.taxAmount || 0;
+
       // Create Tax transaction
       if (transaction.taxAmount && parseToBoolean(config.ledger.separateTaxes) === true) {
         const result = await Transaction.createTaxTransactions(transaction, null, { sequelizeTransaction });
@@ -598,19 +602,19 @@ class Transaction extends ModelWithPublicId<
           netAmountInCollectiveCurrency: -roundCentsAmount(transaction.amount, transaction.currency),
           amountInHostCurrency: -roundCentsAmount(
             transaction.netAmountInCollectiveCurrency * hostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           hostFeeInHostCurrency: roundCentsAmount(
             transaction.hostFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           platformFeeInHostCurrency: roundCentsAmount(
             transaction.platformFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           paymentProcessorFeeInHostCurrency: roundCentsAmount(
             transaction.paymentProcessorFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
-            transaction.hostCurrency,
+            hostCurrency,
           ),
           data: { ...omit(transaction.data, ['hostToPlatformFxRate']), oppositeTransactionHostCurrencyFxRate },
         };
@@ -632,10 +636,7 @@ class Transaction extends ModelWithPublicId<
           const collectiveHost = await collective.getHostCollective({ transaction: sequelizeTransaction });
           if (collectiveHost.id !== fromCollectiveHost.id) {
             const hostFeePercent = fromCollective.hasMoneyManagement ? 0 : fromCollective.hostFeePercent;
-            const taxAmountInHostCurrency = roundCentsAmount(
-              (transaction.taxAmount || 0) * hostCurrencyFxRate,
-              transaction.hostCurrency,
-            );
+            const taxAmountInHostCurrency = roundCentsAmount(originalTaxAmount * hostCurrencyFxRate, hostCurrency);
             oppositeTransaction.hostFeeInHostCurrency = calcFee(
               oppositeTransaction.amountInHostCurrency +
                 oppositeTransaction.paymentProcessorFeeInHostCurrency +
@@ -1134,23 +1135,10 @@ class Transaction extends ModelWithPublicId<
     const hostCurrencyFxRate = transaction.hostCurrencyFxRate;
     const amountInHostCurrency = -transaction.taxAmount * hostCurrencyFxRate;
 
-    let FromCollectiveId, CollectiveId;
-    if (!transaction.isRefund) {
-      CollectiveId = vendor.id;
-      if (transaction.kind === EXPENSE) {
-        FromCollectiveId = transaction.FromCollectiveId;
-      } else {
-        FromCollectiveId = transaction.CollectiveId;
-      }
-    } else {
-      // it's not likely to be used like this, as taxes are separated
-      FromCollectiveId = vendor.id;
-      if (transaction.kind === EXPENSE) {
-        CollectiveId = transaction.FromCollectiveId;
-      } else {
-        CollectiveId = transaction.CollectiveId;
-      }
-    }
+    // The direction is carried by the sign of the amount: positive (vendor is credited) for regular transactions,
+    // negative (vendor is debited, tax goes back to the account) for refunds since their taxAmount is already flipped.
+    const CollectiveId = vendor.id;
+    const FromCollectiveId = transaction.kind === EXPENSE ? transaction.FromCollectiveId : transaction.CollectiveId;
 
     const taxTransactionData = {
       type: CREDIT,
@@ -1275,7 +1263,7 @@ class Transaction extends ModelWithPublicId<
     });
 
     let hostFeeShareDebtTransaction;
-    if (!transaction.data.isPlatformRevenueDirectlyCollected) {
+    if (!transaction.data?.isPlatformRevenueDirectlyCollected) {
       hostFeeShareDebtTransaction = await Transaction.createHostFeeShareDebtTransactions(
         { hostFeeShareTransaction },
         { sequelizeTransaction },
@@ -1507,6 +1495,11 @@ class Transaction extends ModelWithPublicId<
       return 1;
     }
 
+    // Without a transaction, there is no stored rate to reuse
+    if (!transaction) {
+      return getFxRate(fromCurrency, toCurrency, 'latest');
+    }
+
     // Simple Case
     if (fromCurrency === transaction.currency && toCurrency === transaction.hostCurrency) {
       return transaction.hostCurrencyFxRate;
@@ -1703,7 +1696,7 @@ class Transaction extends ModelWithPublicId<
       oppositeTransaction.platformFeeInHostCurrency || 0,
       roundCentsAmount(
         (transaction.platformFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate,
-        transaction.hostCurrency,
+        oppositeTransaction.hostCurrency,
       ),
       'platformFeeInHostCurrency in oppositeTransaction should match',
     );
@@ -1712,7 +1705,7 @@ class Transaction extends ModelWithPublicId<
       oppositeTransaction.hostFeeInHostCurrency || 0,
       roundCentsAmount(
         (transaction.hostFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate,
-        transaction.hostCurrency,
+        oppositeTransaction.hostCurrency,
       ),
       'hostFeeInHostCurrency in oppositeTransaction should match',
     );
@@ -1721,7 +1714,7 @@ class Transaction extends ModelWithPublicId<
       oppositeTransaction.paymentProcessorFeeInHostCurrency || 0,
       roundCentsAmount(
         (transaction.paymentProcessorFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate,
-        transaction.hostCurrency,
+        oppositeTransaction.hostCurrency,
       ),
       'paymentProcessorFeeInHostCurrency in oppositeTransaction should match',
     );

@@ -249,6 +249,59 @@ describe('server/paymentProviders/opencollective/collective', () => {
       });
     });
 
+    describe('With a payment method in a different currency than the order', () => {
+      let sandbox;
+
+      before(async () => {
+        sandbox = sinon.createSandbox();
+        sandbox.stub(LibCurrency, 'getFxRate').callsFake((fromCurrency, toCurrency) => {
+          if (fromCurrency === toCurrency) {
+            return Promise.resolve(1);
+          } else if (fromCurrency === 'USD' && toCurrency === 'JPY') {
+            return Promise.resolve(150);
+          } else if (fromCurrency === 'JPY' && toCurrency === 'USD') {
+            return Promise.resolve(1 / 150);
+          }
+          throw new Error(`Unexpected getFxRate call: ${fromCurrency} -> ${toCurrency}`);
+        });
+      });
+
+      after(() => {
+        sandbox.restore();
+      });
+
+      beforeEach('Create initial data', async () => {
+        // Host and recipient are in USD, the contributing Collective (and its payment method) is in JPY
+        await setupHostAndCollectives('USD');
+        await fromCollective.update({ currency: 'JPY' });
+        await models.PaymentMethod.update(
+          { currency: 'JPY' },
+          { where: { CollectiveId: fromCollective.id, service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE } },
+        );
+        await fundCollective(fromCollective, 1000000); // ¥10,000
+      });
+
+      const createUsdOrder = async (amount: number) => {
+        const order = await createOrder(fromCollective, toCollective, amount);
+        await order.update({ currency: 'USD' });
+        return order;
+      };
+
+      it('converts the order amount to the payment method currency before checking the balance', async () => {
+        // $5,000 ~= ¥750,000, way above the ¥10,000 balance even though 500000 < 1000000
+        const order = await createUsdOrder(500000);
+        await expect(processOrder(collectivePaymentProvider, order)).to.be.rejectedWith('Not enough funds available');
+      });
+
+      it('accepts an order whose converted amount fits in the balance', async () => {
+        // $50 ~= ¥7,500
+        const order = await createUsdOrder(5000);
+        const transaction = await processOrder(collectivePaymentProvider, order);
+        expect(transaction.amount).to.equal(5000);
+        expect(transaction.currency).to.equal('USD');
+      });
+    });
+
     describe('With a Host in the same currency (split HOST_FEE transactions)', () => {
       const HOST_FEE_PERCENT = 10;
 

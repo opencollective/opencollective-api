@@ -14,7 +14,8 @@ import {
 } from '../../../../../../server/constants/tax-form';
 import * as libcurrency from '../../../../../../server/lib/currency';
 import { KYCProviderName } from '../../../../../../server/lib/kyc/providers';
-import models from '../../../../../../server/models';
+import * as SqlSearchLib from '../../../../../../server/lib/sql-search';
+import models, { sequelize } from '../../../../../../server/models';
 import { CommentMainRole } from '../../../../../../server/models/Comment';
 import { KYCVerificationStatus } from '../../../../../../server/models/KYCVerification';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../../server/models/LegalDocument';
@@ -2653,5 +2654,322 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       expect(ids).to.not.include(expenseOnHold.id);
       expect(ids).to.not.include(expenseApproved.id);
     });
+  });
+});
+
+describe('server/graphql/v2/collection/ExpenseCollection - searchTerm', () => {
+  const searchQuery = gql`
+    query SearchExpenses(
+      $host: AccountReferenceInput
+      $account: AccountReferenceInput
+      $status: [ExpenseStatusFilter]
+      $hostContext: HostContext
+      $tag: [String]
+      $searchTerm: String
+    ) {
+      expenses(
+        host: $host
+        account: $account
+        status: $status
+        hostContext: $hostContext
+        tag: $tag
+        searchTerm: $searchTerm
+        limit: 100
+      ) {
+        totalCount
+        nodes {
+          legacyId
+        }
+      }
+    }
+  `;
+
+  // Number of expenses a host must have paid for its searches to use the search arms
+  const MIN_HOST_EXPENSES = 5000;
+
+  let sandbox, hostAdmin, randomUser, host, collective, payee, submitter;
+  let fromPayee, fromSubmitter, mentioningSubmitterEmail, onOtherHost;
+
+  /**
+   * Runs the search with the search arms, then with the regular conditions, and expects the same expenses from both.
+   * - `withSearchArms: false` is for searches that never use the search arms.
+   * - `withMinScope: true` keeps the minimum number of expenses of the host, which the fixtures do not reach.
+   */
+  const expectSearchResults = async (
+    variables,
+    expectedExpenses,
+    { withSearchArms = true, withMinScope = false, remoteUser = hostAdmin } = {},
+  ) => {
+    const expectedIds = expectedExpenses.map(expense => expense.id).sort();
+    const search = async () => {
+      const result = await graphqlQueryV2(searchQuery, variables, remoteUser);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(expectedIds.length);
+      expect(result.data.expenses.nodes.map(node => node.legacyId).sort()).to.deep.eq(expectedIds);
+    };
+
+    const originalBuildSearchArms = SqlSearchLib.buildSearchArms;
+    const buildSearchArms = sandbox
+      .stub(SqlSearchLib, 'buildSearchArms')
+      .callsFake((searchTerm, options) =>
+        originalBuildSearchArms(searchTerm, withMinScope ? options : { ...options, minScope: undefined }),
+      );
+    await search();
+    if (withSearchArms) {
+      expect(await buildSearchArms.lastCall.returnValue).to.exist;
+    } else {
+      expect(buildSearchArms.called && (await buildSearchArms.lastCall.returnValue)).to.not.be.ok;
+    }
+
+    buildSearchArms.restore();
+    const withoutSearchArms = sandbox.stub(SqlSearchLib, 'buildSearchArms').resolves(null);
+    await search();
+    withoutSearchArms.restore();
+  };
+
+  before(async () => {
+    await resetTestDB();
+    hostAdmin = await fakeUser();
+    randomUser = await fakeUser();
+    host = await fakeActiveHost({ admin: hostAdmin });
+    collective = await fakeCollective({
+      HostCollectiveId: host.id,
+      name: 'Search Recipient',
+      slug: 'search-recipient',
+    });
+    payee = await fakeUser(
+      { email: 'quentin.payee@example.com' },
+      { name: "Quentin O'Search", slug: 'quentin-search' },
+    );
+    submitter = await fakeUser(
+      { email: 'zoltan.submitter@example.com' },
+      { name: 'Zoltan Submitter', slug: 'zoltan-submitter' },
+    );
+    const vendor = await fakeOrganization({ name: 'Wonderful Vendor', slug: 'wonderful-vendor' });
+    const otherUser = await fakeUser(null, { name: 'Someone Else', slug: 'someone-else' });
+    const otherHost = await fakeActiveHost();
+    const collectiveOnOtherHost = await fakeCollective({ HostCollectiveId: otherHost.id });
+
+    // Submitted by the payee, not paid yet: the expense does not reference the host
+    fromPayee = await fakeExpense({
+      UserId: payee.id,
+      FromCollectiveId: payee.CollectiveId,
+      CollectiveId: collective.id,
+      status: ExpenseStatuses.APPROVED,
+      amount: 98765432,
+      description: 'Flight to the conference',
+      tags: ['travel'],
+    });
+    // Submitted by someone for a vendor, paid by the host
+    fromSubmitter = await fakeExpense({
+      UserId: submitter.id,
+      FromCollectiveId: vendor.id,
+      CollectiveId: collective.id,
+      HostCollectiveId: host.id,
+      status: ExpenseStatuses.PAID,
+      amount: 4500,
+      description: 'Invoice on behalf of quentin',
+      tags: ['hosting'],
+      reference: 'REF2026X',
+      data: { transfer: { id: 40500021 }, transaction_id: 'PAYPALTX42' }, // eslint-disable-line camelcase
+    });
+    mentioningSubmitterEmail = await fakeExpense({
+      UserId: otherUser.id,
+      FromCollectiveId: otherUser.CollectiveId,
+      CollectiveId: collective.id,
+      status: ExpenseStatuses.PENDING,
+      amount: 700,
+      description: 'Refund for zoltan.submitter@example.com',
+      tags: ['refund'],
+      data: { transactionId: 'CARDTX42', batchGroup: { id: 'BATCH42' } },
+    });
+    onOtherHost = await fakeExpense({
+      UserId: payee.id,
+      FromCollectiveId: payee.CollectiveId,
+      CollectiveId: collectiveOnOtherHost.id,
+      status: ExpenseStatuses.APPROVED,
+      amount: 98765432,
+      description: 'Flight to the conference',
+      tags: ['travel'],
+    });
+    const deletedExpense = await fakeExpense({
+      UserId: payee.id,
+      FromCollectiveId: payee.CollectiveId,
+      CollectiveId: collective.id,
+      status: ExpenseStatuses.APPROVED,
+      description: 'Flight to the conference',
+    });
+    await deletedExpense.destroy();
+
+    await hostAdmin.populateRoles({ force: true });
+  });
+
+  beforeEach(() => {
+    sandbox = createSandbox();
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  const hostScope = () => ({ host: { legacyId: host.id } });
+
+  it('searches the name and slug of the payee, of the collective and of the submitter', async () => {
+    await expectSearchResults({ ...hostScope(), searchTerm: 'quentin' }, [fromPayee, fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: "Quentin O'Search" }, [fromPayee]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'quentin-search' }, [fromPayee]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'wonderful vendor' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'zoltan' }, [fromSubmitter, mentioningSubmitterEmail]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'Zoltan Submitter' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'zoltan-submitter' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'search recipient' }, [
+      fromPayee,
+      fromSubmitter,
+      mentioningSubmitterEmail,
+    ]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'search-recipient' }, [
+      fromPayee,
+      fromSubmitter,
+      mentioningSubmitterEmail,
+    ]);
+  });
+
+  it('searches the description, the tags and the structured data', async () => {
+    await expectSearchResults({ ...hostScope(), searchTerm: 'to the conference' }, [fromPayee]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'hosting' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'HOSTING' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'host' }, []); // Tags are matched exactly
+    await expectSearchResults({ ...hostScope(), searchTerm: 'REF2026X' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'PAYPALTX42' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'CARDTX42' }, [mentioningSubmitterEmail]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'BATCH42' }, [mentioningSubmitterEmail]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'BATCH4' }, []); // Structured data is matched exactly
+    await expectSearchResults({ ...hostScope(), searchTerm: 'no expense matches this' }, []);
+  });
+
+  it('searches the email of the submitter for host admins only', async () => {
+    const searchTerm = submitter.email;
+    await expectSearchResults({ ...hostScope(), searchTerm }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'nobody@example.com' }, []);
+    // For other users, an email is a text like any other
+    await expectSearchResults({ ...hostScope(), searchTerm }, [mentioningSubmitterEmail], { remoteUser: randomUser });
+    await expectSearchResults({ ...hostScope(), searchTerm }, [mentioningSubmitterEmail], { remoteUser: null });
+  });
+
+  it('searches exact slugs', async () => {
+    await expectSearchResults({ ...hostScope(), searchTerm: '@quentin-search' }, [fromPayee]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '@zoltan-submitter' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '@wonderful-vendor' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '@search-recipient' }, [
+      fromPayee,
+      fromSubmitter,
+      mentioningSubmitterEmail,
+    ]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '@quentin' }, []);
+  });
+
+  it('searches amounts, IDs and structured data by number', async () => {
+    await expectSearchResults({ ...hostScope(), searchTerm: '987654.32' }, [fromPayee]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '45' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '45.00' }, [fromSubmitter]);
+    // A Wise transfer ID, which does not fit in an integer column as an amount in cents
+    await expectSearchResults({ ...hostScope(), searchTerm: '40500021' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '0040500021' }, [fromSubmitter]);
+    // Too large for an ID and for an amount
+    await expectSearchResults({ ...hostScope(), searchTerm: '99999999999' }, []);
+
+    const withKnownId = await fakeExpense({ id: 987654321, CollectiveId: collective.id, status: 'APPROVED' });
+    await expectSearchResults({ ...hostScope(), searchTerm: '987654321' }, [withKnownId]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '#987654321' }, [withKnownId], { withSearchArms: false });
+    await withKnownId.destroy();
+  });
+
+  it('uses the regular conditions for public IDs', async () => {
+    const options = { withSearchArms: false };
+    await expectSearchResults({ ...hostScope(), searchTerm: fromPayee.publicId }, [fromPayee], options);
+    await expectSearchResults({ ...hostScope(), searchTerm: payee.collective.publicId }, [fromPayee], options);
+    await expectSearchResults({ ...hostScope(), searchTerm: submitter.collective.publicId }, [fromSubmitter], options);
+    await expectSearchResults({ ...hostScope(), searchTerm: submitter.publicId }, [fromSubmitter], options);
+  });
+
+  it('applies the other conditions of the query to the matches', async () => {
+    await expectSearchResults({ ...hostScope(), status: ['PAID'], searchTerm: 'quentin' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), status: ['PAID', 'PENDING'], searchTerm: 'zoltan' }, [
+      fromSubmitter,
+      mentioningSubmitterEmail,
+    ]);
+    await expectSearchResults({ ...hostScope(), hostContext: 'HOSTED', searchTerm: 'quentin' }, [
+      fromPayee,
+      fromSubmitter,
+    ]);
+    // Draft expenses are not listed for unauthenticated users
+    const draft = await fakeExpense({ CollectiveId: collective.id, status: 'DRAFT', description: 'Draft for quentin' });
+    await expectSearchResults({ ...hostScope(), searchTerm: 'quentin' }, [fromPayee, fromSubmitter, draft]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'quentin' }, [fromPayee, fromSubmitter], {
+      remoteUser: null,
+    });
+    await draft.destroy();
+  });
+
+  it('uses the regular conditions when the search is not in all the expenses of a host', async () => {
+    const options = { withSearchArms: false };
+    const searchTerm = 'quentin';
+    await expectSearchResults({ searchTerm: "Quentin O'Search" }, [fromPayee, onOtherHost], options);
+    await expectSearchResults(
+      { account: { legacyId: collective.id }, searchTerm },
+      [fromPayee, fromSubmitter],
+      options,
+    );
+    await expectSearchResults(
+      { ...hostScope(), account: { legacyId: collective.id }, searchTerm },
+      [fromPayee, fromSubmitter],
+      options,
+    );
+    await expectSearchResults({ ...hostScope(), status: ['APPROVED'], searchTerm }, [fromPayee], options);
+    await expectSearchResults({ ...hostScope(), tag: ['travel'], searchTerm }, [fromPayee], options);
+    await expectSearchResults({ ...hostScope(), tag: null, searchTerm }, [], options);
+    await expectSearchResults({ ...hostScope(), hostContext: 'INTERNAL', searchTerm }, [], options);
+  });
+
+  it('uses the regular conditions until the host has paid enough expenses', async () => {
+    const options = { withMinScope: true };
+    const searchTerm = 'quentin';
+    const addPaidExpenses = async (count: number, status = 'PAID') => {
+      await sequelize.query(
+        `
+        INSERT INTO "Expenses" ("UserId", "FromCollectiveId", "CollectiveId", "HostCollectiveId", "status", "currency", "amount", "description", "legacyPayoutMethod", "incurredAt", "createdAt", "updatedAt")
+        SELECT :UserId, :FromCollectiveId, :CollectiveId, :HostCollectiveId, :status, 'USD', 1000, 'Generated expense', 'other', NOW(), NOW(), NOW()
+        FROM generate_series(1, :count)
+        `,
+        {
+          replacements: {
+            UserId: hostAdmin.id,
+            FromCollectiveId: hostAdmin.CollectiveId,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            status,
+            count,
+          },
+        },
+      );
+    };
+
+    // `fromSubmitter` is the only expense paid by the host so far
+    await expectSearchResults({ ...hostScope(), searchTerm }, [fromPayee, fromSubmitter], {
+      ...options,
+      withSearchArms: false,
+    });
+
+    // Draft and spam expenses do not count
+    await addPaidExpenses(MIN_HOST_EXPENSES - 2);
+    await addPaidExpenses(5, 'SPAM');
+    await expectSearchResults({ ...hostScope(), searchTerm }, [fromPayee, fromSubmitter], {
+      ...options,
+      withSearchArms: false,
+    });
+
+    await addPaidExpenses(1);
+    await expectSearchResults({ ...hostScope(), searchTerm }, [fromPayee, fromSubmitter], options);
   });
 });

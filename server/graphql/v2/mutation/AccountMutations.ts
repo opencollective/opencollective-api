@@ -10,7 +10,20 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
-import { cloneDeep, defaultsDeep, isEmpty, isEqual, isNull, isUndefined, keys, omitBy, pick, set, union } from 'lodash';
+import {
+  cloneDeep,
+  defaultsDeep,
+  isEmpty,
+  isEqual,
+  isNil,
+  isNull,
+  isUndefined,
+  keys,
+  omitBy,
+  pick,
+  set,
+  union,
+} from 'lodash';
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
@@ -673,7 +686,8 @@ const accountMutations = {
             break;
           }
           case 'hostFeePercent': {
-            if (args.account.hostFeePercent !== undefined && args.account.hostFeePercent !== account.hostFeePercent) {
+            // `null` means "no change": clients may send it for untouched fields, and a host must always have a fee
+            if (!isNil(args.account.hostFeePercent) && args.account.hostFeePercent !== account.hostFeePercent) {
               previousData['hostFeePercent'] = account.hostFeePercent;
               newData['hostFeePercent'] = args.account.hostFeePercent;
               await account.updateHostFeeAsUser(args.account.hostFeePercent, req.remoteUser);

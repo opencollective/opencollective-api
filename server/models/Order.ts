@@ -283,6 +283,15 @@ class Order extends ModelWithPublicId<
     lockedAt?: Date;
     valuesByRole?: OrderDataValuesByRole;
     previousStatus?: OrderStatus;
+    /** Tier change requested through `updateOrder`, applied once a charge pays for it. See `server/lib/order-tier-change.ts` */
+    pendingTierChange?: {
+      TierId: number;
+      previousTierId: number | null;
+      requestedAt: string;
+      requestedByUserId?: number | null;
+      /** Set when the change wasn't requested by the contributor, e.g. by a data migration */
+      source?: string;
+    };
   };
 
   declare taxAmount?: number;

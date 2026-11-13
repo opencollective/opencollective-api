@@ -8,6 +8,7 @@ import { CollectiveType } from '../../../../server/constants/collectives';
 import FEATURE from '../../../../server/constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../../../server/constants/permissions';
 import POLICIES from '../../../../server/constants/policies';
+import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../../server/graphql/common/context-permissions';
 import {
   canApprove,
@@ -1411,6 +1412,18 @@ describe('server/graphql/common/expenses', () => {
         });
       });
     });
+
+    it('lets collective and host admins delete DRAFT expenses when called with { throw: true }', async () => {
+      await runForAllContexts(async context => {
+        const { expense, req } = context;
+        await expense.update({ status: 'DRAFT' });
+        expect(await canDeleteExpense(req.collectiveAdmin, expense, { throw: true })).to.be.true;
+        expect(await canDeleteExpense(req.hostAdmin, expense, { throw: true })).to.be.true;
+        expect(await getApolloErrorCode(canDeleteExpense(req.randomUser, expense, { throw: true }))).to.equal(
+          'MINIMAL_CONDITION_NOT_MET',
+        );
+      });
+    });
   });
 
   describe('canPayExpense', () => {
@@ -2785,6 +2798,67 @@ describe('server/graphql/common/expenses', () => {
         });
       });
     });
+
+    describe('Paid expenses', () => {
+      it('does not reuse the expense to host FX rate for a currency that is not the host one', async () => {
+        const host = await fakeHost({ currency: 'USD' });
+        const collective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id });
+        const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+        const expense = await fakeExpense({
+          PayoutMethodId: payoutMethod.id,
+          CollectiveId: collective.id,
+          amount: 1000,
+          currency: 'EUR',
+        });
+        await createTransactionsFromPaidExpense(host, expense, undefined, 1.6);
+        await expense.update({ status: 'PAID' });
+
+        const amount = await getExpenseAmountInDifferentCurrency(expense, 'GBP', makeRequest());
+        expect(amount).to.deep.eq({
+          value: 1100, // Falls back on the mocked 1.1 internal rate, not on the 1.6 EUR->USD rate
+          currency: 'GBP',
+          exchangeRate: {
+            date: amount.exchangeRate.date,
+            fromCurrency: 'EUR',
+            isApproximate: true,
+            source: 'OPENCOLLECTIVE',
+            toCurrency: 'GBP',
+            value: 1.1,
+          },
+        });
+      });
+
+      it('converts the expense to host FX rate with the recorded rate when the account currency is requested', async () => {
+        const host = await fakeHost({ currency: 'USD' });
+        const collective = await fakeCollective({ currency: 'GBP', HostCollectiveId: host.id });
+        const expense = await fakeExpense({
+          CollectiveId: collective.id,
+          amount: 10000,
+          currency: 'EUR',
+          status: 'PAID',
+        });
+        const common = {
+          ExpenseId: expense.id,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          kind: TransactionKind.EXPENSE,
+          currency: 'GBP' as const,
+          hostCurrency: 'USD' as const,
+          hostCurrencyFxRate: 1.25, // GBP -> USD
+          data: { expenseToHostFxRate: 1.1 }, // EUR -> USD
+        };
+        await fakeTransaction({ ...common, type: 'DEBIT', amount: -8800, amountInHostCurrency: -11000 });
+        await fakeTransaction({ ...common, type: 'CREDIT', amount: 8800, amountInHostCurrency: 11000 });
+
+        const amount = await getExpenseAmountInDifferentCurrency(expense, 'GBP', makeRequest());
+        expect(amount.value).to.eq(8800);
+        expect(amount.currency).to.eq('GBP');
+        expect(amount.exchangeRate.fromCurrency).to.eq('EUR');
+        expect(amount.exchangeRate.toCurrency).to.eq('GBP');
+        expect(amount.exchangeRate.value).to.be.closeTo(0.88, 0.00001);
+        expect(amount.exchangeRate.isApproximate).to.be.false;
+      });
+    });
   });
 
   describe('checkHasBalanceToPayExpense', () => {
@@ -2799,7 +2873,7 @@ describe('server/graphql/common/expenses', () => {
         HostCollectiveId: host.id,
         amount: 1000 * 100,
       });
-      await models.CurrencyExchangeRate.destroy({ where: { to: ['BRL', 'EUR'] } });
+      await models.UsdExchangeRate.destroy({ where: { currency: ['BRL', 'EUR'] } });
       await Promise.all([
         fakeCurrencyExchangeRate({ from: 'USD', to: 'BRL', rate: 5.0, createdAt: moment().subtract(3, 'days') }),
         fakeCurrencyExchangeRate({ from: 'USD', to: 'BRL', rate: 5.1, createdAt: moment().subtract(2, 'days') }),

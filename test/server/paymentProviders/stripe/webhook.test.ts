@@ -7,6 +7,7 @@ import { set } from 'lodash';
 import sinon, { assert, createSandbox } from 'sinon';
 import Stripe from 'stripe';
 
+import ActivityTypes from '../../../../server/constants/activities';
 import { Service } from '../../../../server/constants/connected-account';
 import ExpenseStatuses from '../../../../server/constants/expense-status';
 import FEATURE from '../../../../server/constants/feature';
@@ -344,7 +345,7 @@ describe('webhook', () => {
   });
 
   describe('reviewClosed()', () => {
-    let order, user;
+    let order, user, chargeTransaction;
 
     beforeEach(async () => {
       const paymentMethod = await fakePaymentMethod({
@@ -360,7 +361,7 @@ describe('webhook', () => {
         },
         { withSubscription: true },
       );
-      const tx = await fakeTransaction(
+      chargeTransaction = await fakeTransaction(
         {
           CreatedByUserId: user.id,
           OrderId: order.id,
@@ -377,7 +378,7 @@ describe('webhook', () => {
         {
           CreatedByUserId: user.id,
           OrderId: order.id,
-          TransactionGroup: tx.TransactionGroup,
+          TransactionGroup: chargeTransaction.TransactionGroup,
           amount: 5,
         },
         { createDoubleEntry: true },
@@ -508,6 +509,22 @@ describe('webhook', () => {
 
         const transactions = await order.getTransactions();
         expect(transactions.every(tx => tx.isInReview === false)).to.eql(true);
+      });
+
+      it('does not refund again when the charge was already refunded in Open Collective', async () => {
+        await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+        // Refund through Open Collective first: refund transactions copy `data.charge` from the original
+        await libPayments.createRefundTransaction(chargeTransaction, 0, { ...chargeTransaction.data }, null);
+
+        await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded);
+
+        const transactions = await order.getTransactions();
+        expect(transactions.filter(tx => tx.isRefund)).to.have.length(2);
+        expect(transactions.every(tx => tx.isInReview === false)).to.eql(true);
+        const activity = await models.Activity.findOne({
+          where: { type: ActivityTypes.ORDER_REVIEW_CLOSED, OrderId: order.id },
+        });
+        expect(activity).to.exist;
       });
     });
   });

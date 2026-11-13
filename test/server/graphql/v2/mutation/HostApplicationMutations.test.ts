@@ -353,6 +353,20 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         }
       });
 
+      it('returns NotFound when the hostApplication reference does not exist', async () => {
+        const result = await graphqlQueryV2(
+          PROCESS_HOST_APPLICATION_BY_APPLICATION_MUTATION,
+          {
+            hostApplication: { id: idEncode(987654, IDENTIFIER_TYPES.HOST_APPLICATION) },
+            action: 'REJECT',
+            message: 'test message',
+          },
+          hostAdmin,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.eq('NotFound');
+      });
+
       it('application must not be already approved', async () => {
         // Initialize the collective as "APPROVED"
         await collective.update({ isActive: true, approvedAt: new Date(), HostCollectiveId: host.id });
@@ -557,6 +571,165 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         expect(body).to.include(`Hello ${collective.name}`);
         expect(body).to.include(`Your application to be fiscally hosted by ${host.name} has been rejected`);
         expect(emailOptions.replyTo).to.eq(hostReplyToEmail);
+      });
+    });
+
+    describe('customData', () => {
+      const PROCESS_WITH_CUSTOM_DATA_MUTATION = gql`
+        mutation ProcessHostApplicationWithCustomData(
+          $host: AccountReferenceInput
+          $account: AccountReferenceInput
+          $hostApplication: HostApplicationReferenceInput
+          $action: ProcessHostApplicationAction!
+          $message: String
+          $customData: JSON
+        ) {
+          processHostApplication(
+            host: $host
+            account: $account
+            hostApplication: $hostApplication
+            action: $action
+            message: $message
+            customData: $customData
+          ) {
+            hostApplication {
+              id
+              status
+              customData
+            }
+          }
+        }
+      `;
+
+      const createPendingApplication = async (customData = null) => {
+        const pendingCollective = await fakeCollective({
+          HostCollectiveId: host.id,
+          admin: collectiveAdmin,
+          isActive: false,
+          approvedAt: null,
+        });
+        return fakeHostApplication({
+          CollectiveId: pendingCollective.id,
+          HostCollectiveId: host.id,
+          status: HostApplicationStatus.PENDING,
+          customData,
+        });
+      };
+
+      it('merges customData into the application when approving', async () => {
+        const pendingApplication = await createPendingApplication({ repositoryUrl: 'https://github.com/test/test' });
+        const result = await graphqlQueryV2(
+          PROCESS_WITH_CUSTOM_DATA_MUTATION,
+          {
+            hostApplication: { id: pendingApplication.publicId },
+            action: 'APPROVE',
+            customData: { reviewScore: 8, notes: '<b>Looks</b> good', checks: { kyc: true } },
+          },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processHostApplication.hostApplication.status).to.eq('APPROVED');
+        expect(result.data.processHostApplication.hostApplication.customData).to.deep.eq({
+          repositoryUrl: 'https://github.com/test/test',
+          reviewScore: 8,
+          notes: 'Looks good', // HTML is stripped
+          checks: { kyc: true },
+        });
+
+        await pendingApplication.reload();
+        expect(pendingApplication.status).to.eq(HostApplicationStatus.APPROVED);
+        expect(pendingApplication.customData).to.deep.eq({
+          repositoryUrl: 'https://github.com/test/test',
+          reviewScore: 8,
+          notes: 'Looks good',
+          checks: { kyc: true },
+        });
+      });
+
+      it('merges customData into the application when rejecting', async () => {
+        const pendingApplication = await createPendingApplication({ typeOfProject: 'CODE', reviewScore: 5 });
+        const result = await graphqlQueryV2(
+          PROCESS_WITH_CUSTOM_DATA_MUTATION,
+          {
+            hostApplication: { id: pendingApplication.publicId },
+            action: 'REJECT',
+            message: 'Not a fit',
+            customData: { reviewScore: 2 },
+          },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await pendingApplication.reload();
+        expect(pendingApplication.status).to.eq(HostApplicationStatus.REJECTED);
+        expect(pendingApplication.customData).to.deep.eq({ typeOfProject: 'CODE', reviewScore: 2 });
+      });
+
+      it('requires a hostApplication reference', async () => {
+        const pendingApplication = await createPendingApplication();
+        const pendingCollective = await models.Collective.findByPk(pendingApplication.CollectiveId);
+        const result = await graphqlQueryV2(
+          PROCESS_WITH_CUSTOM_DATA_MUTATION,
+          {
+            host: { slug: host.slug },
+            account: { slug: pendingCollective.slug },
+            action: 'APPROVE',
+            customData: { reviewScore: 8 },
+          },
+          hostAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You must provide a hostApplication reference to update customData');
+        await pendingApplication.reload();
+        expect(pendingApplication.status).to.eq(HostApplicationStatus.PENDING);
+      });
+
+      it('rejects invalid customData without processing the application', async () => {
+        const pendingApplication = await createPendingApplication({ repositoryUrl: 'https://github.com/test/test' });
+        const callWithCustomData = customData =>
+          graphqlQueryV2(
+            PROCESS_WITH_CUSTOM_DATA_MUTATION,
+            { hostApplication: { id: pendingApplication.publicId }, action: 'APPROVE', customData },
+            hostAdmin,
+          );
+
+        const notAnObject = await callWithCustomData(['a', 'b']);
+        expect(notAnObject.errors[0].message).to.eq('customData must be an object');
+
+        const protectedKey = await callWithCustomData({ validatedRepositoryInfo: { licenseSpdxId: 'MIT' } });
+        expect(protectedKey.errors[0].message).to.eq(
+          'customData cannot include the following keys: validatedRepositoryInfo',
+        );
+
+        const tooLarge = await callWithCustomData({ notes: 'x'.repeat(60e3) });
+        expect(tooLarge.errors[0].message).to.match(/customData cannot exceed 50kB/);
+
+        await pendingApplication.reload();
+        expect(pendingApplication.status).to.eq(HostApplicationStatus.PENDING);
+        expect(pendingApplication.customData).to.deep.eq({ repositoryUrl: 'https://github.com/test/test' });
+      });
+
+      it('must be a host admin', async () => {
+        const pendingApplication = await createPendingApplication();
+        const result = await graphqlQueryV2(
+          PROCESS_WITH_CUSTOM_DATA_MUTATION,
+          {
+            hostApplication: { id: pendingApplication.publicId },
+            action: 'SEND_PRIVATE_MESSAGE',
+            message: 'Hello',
+            customData: { reviewScore: 8 },
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('You need to be authenticated as a host admin to perform this action');
+        await pendingApplication.reload();
+        expect(pendingApplication.customData).to.be.null;
       });
     });
   });
@@ -1203,6 +1376,39 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
 
       await virtualCard.reload();
       expect(virtualCard.data.status).to.eq(VirtualCardStatus.CANCELED);
+    });
+
+    it('does not remove hosting from a fiscal host that still hosts collectives', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+
+      const result = await graphqlQueryV2(REMOVE_HOST_MUTATION, { account: { legacyId: host.id } }, hostAdmin);
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        "You can't remove the host of a fiscal host that still hosts 1 other collectives. Unhost them first.",
+      );
+
+      await host.reload();
+      expect(host.HostCollectiveId).to.eq(host.id);
+      expect(host.hasMoneyManagement).to.be.true;
+      expect(host.hasHosting).to.be.true;
+
+      await collective.reload();
+      expect(collective.HostCollectiveId).to.eq(host.id);
+    });
+
+    it('removes the host from an independent collective that hosts itself', async () => {
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin, HostCollectiveId: null, hasMoneyManagement: true });
+      await collective.update({ HostCollectiveId: collective.id, approvedAt: new Date() });
+
+      const result = await graphqlQueryV2(REMOVE_HOST_MUTATION, { account: { legacyId: collective.id } }, admin);
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeHost.host).to.be.null;
     });
   });
 });

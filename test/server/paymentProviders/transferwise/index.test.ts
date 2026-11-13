@@ -231,6 +231,40 @@ describe('server/paymentProviders/transferwise/index', () => {
       await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, '91828971');
       expect(createQuote.callCount).to.be.equal(1);
     });
+
+    describe('existing quote expiration', () => {
+      const setExistingQuoteExpiration = async (expirationTime: moment.Moment) => {
+        await expense.reload();
+        await expense.update({
+          data: { ...expense.data, quote: { ...expense.data.quote, expirationTime: expirationTime.toISOString() } },
+        });
+        createQuote.resetHistory();
+      };
+
+      it('reuses an existing quote that is valid for more than 60 seconds', async () => {
+        await setExistingQuoteExpiration(moment.utc().add(20, 'minutes'));
+        await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, '123');
+        expect(createQuote.callCount).to.be.equal(0);
+      });
+
+      it('creates a new quote if the existing one expires in less than 60 seconds', async () => {
+        await setExistingQuoteExpiration(moment.utc().add(30, 'seconds'));
+        await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, '123');
+        expect(createQuote.callCount).to.be.equal(1);
+      });
+
+      it('creates a new quote if the existing one has just expired', async () => {
+        await setExistingQuoteExpiration(moment.utc().subtract(30, 'seconds'));
+        await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, '123');
+        expect(createQuote.callCount).to.be.equal(1);
+      });
+
+      it('creates a new quote if the existing one expired a while ago', async () => {
+        await setExistingQuoteExpiration(moment.utc().subtract(5, 'minutes'));
+        await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, '123');
+        expect(createQuote.callCount).to.be.equal(1);
+      });
+    });
   });
 
   describe('payExpense', () => {
@@ -978,6 +1012,33 @@ describe('server/paymentProviders/transferwise/index', () => {
     it('should return blocked currencies if explicitly requested', async () => {
       const otherdata = await transferwise.getAvailableCurrencies(host, false);
       expect(otherdata).to.deep.include({ code: 'BRL', minInvoiceAmount: 1 });
+    });
+  });
+
+  describe('validatePayoutMethod', () => {
+    const makePayoutMethod = currency =>
+      models.PayoutMethod.build({ type: PayoutMethodTypes.BANK_ACCOUNT, data: { currency } });
+    const makeConnectedAccount = data => models.ConnectedAccount.build({ service: 'transferwise', data });
+
+    // Wise v2 `/v2/profiles` returns `BUSINESS`, older connected accounts may have stored `business`
+    ['BUSINESS', 'business'].forEach(type => {
+      it(`blocks currencies for business profiles (type: ${type})`, () => {
+        expect(() =>
+          transferwise.validatePayoutMethod(makeConnectedAccount({ type }), makePayoutMethod('PKR')),
+        ).to.throw("Sorry, this host's business profile can not create a transaction to PKR");
+      });
+
+      it(`allows other currencies for business profiles (type: ${type})`, () => {
+        expect(() =>
+          transferwise.validatePayoutMethod(makeConnectedAccount({ type }), makePayoutMethod('EUR')),
+        ).to.not.throw();
+      });
+    });
+
+    it('does not apply the business block to personal profiles', () => {
+      expect(() =>
+        transferwise.validatePayoutMethod(makeConnectedAccount({ type: 'PERSONAL' }), makePayoutMethod('PKR')),
+      ).to.not.throw();
     });
   });
 

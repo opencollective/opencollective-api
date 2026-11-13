@@ -1,35 +1,30 @@
 import '../../server/env';
 
-import { keys, without } from 'lodash';
-
 import { SUPPORTED_CURRENCIES } from '../../server/constants/currencies';
 import { fetchFxRates } from '../../server/lib/currency';
 import logger from '../../server/lib/logger';
-import { reportMessageToSentry } from '../../server/lib/sentry';
 import models from '../../server/models';
 import { runCronJob } from '../utils';
 
-const PLATFORM_BASE_CURRENCY = 'USD';
-const CURRENCIES_TO_FETCH = without(SUPPORTED_CURRENCIES, PLATFORM_BASE_CURRENCY);
+/**
+ * Stores the rates from USD to every supported currency. The other pairs are computed from them by
+ * `fx_rate`, so one request to the provider covers every pair.
+ */
+export const run = async (): Promise<void> => {
+  logger.info(`Storing FX rates from USD to ${SUPPORTED_CURRENCIES}...`);
 
-const run = async (): Promise<void> => {
-  logger.info(`Storing FX rates for ${CURRENCIES_TO_FETCH}...`);
+  // No DB fallback: saving the stored rates again as today's would hide the failure
+  const rates = await fetchFxRates('USD', [...SUPPORTED_CURRENCIES], 'latest', { fallbackToDb: false });
+  const storedCurrencies = await models.UsdExchangeRate.record(rates);
+  if (!storedCurrencies.length) {
+    throw new Error('Could not fetch the exchange rates from USD');
+  }
 
-  for (const currency of SUPPORTED_CURRENCIES) {
-    const currencyRates = await fetchFxRates(currency, [...SUPPORTED_CURRENCIES]);
-    const targetCurrencies = keys(currencyRates);
-    if (targetCurrencies.length) {
-      const exchangeRates = targetCurrencies.map(to => ({
-        from: currency,
-        to,
-        rate: currencyRates[to],
-      }));
-
-      await models.CurrencyExchangeRate.bulkCreate(exchangeRates);
-    } else {
-      logger.error(`Could not fetch exchange rates for ${currency}`);
-      reportMessageToSentry(`Could not fetch exchange rates for currency`, { extra: { currency } });
-    }
+  const missingCurrencies = SUPPORTED_CURRENCIES.filter(
+    currency => currency !== 'USD' && !storedCurrencies.includes(currency),
+  );
+  if (missingCurrencies.length) {
+    throw new Error(`No valid exchange rate returned for: ${missingCurrencies.join(', ')}`);
   }
 
   logger.info('Done.');

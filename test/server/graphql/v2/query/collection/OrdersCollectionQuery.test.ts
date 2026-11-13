@@ -1,8 +1,10 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import sinon from 'sinon';
 
 import OrderStatuses from '../../../../../../server/constants/order-status';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../../server/graphql/v2/identifiers';
+import * as SqlSearchLib from '../../../../../../server/lib/sql-search';
 import models from '../../../../../../server/models';
 import {
   fakeAccountingCategory,
@@ -1004,6 +1006,19 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       expect(result.data.orders.nodes.map(node => node.legacyId)).to.include(order2.id);
     });
 
+    it('does not fail when searching for numbers that do not fit in a Postgres integer', async () => {
+      for (const searchTerm of ['99999999999', '1'.repeat(400), '#99999999999', `#${'1'.repeat(400)}`]) {
+        const result = await graphqlQueryV2(ordersQuery, {
+          account: { legacyId: collective.id },
+          filter: 'INCOMING',
+          searchTerm,
+        });
+
+        expect(result.errors, searchTerm).to.not.exist;
+        expect(result.data.orders.totalCount).to.eq(0);
+      }
+    });
+
     it('does not return orders when searching by snapshot email without admin access', async () => {
       const result = await graphqlQueryV2(ordersQuery, {
         account: { legacyId: collective.id },
@@ -1155,6 +1170,184 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
 
       expect(result.errors).to.not.exist;
       expect(result.data.orders.totalCount).to.eq(0);
+    });
+  });
+
+  describe('searchTerm argument (search arms and regular conditions)', () => {
+    let sandbox, hostAdmin, host, hostedCollective, contributor, order, mentioningOrder;
+
+    /**
+     * Runs the search with the search arms, then with the regular conditions, and expects the same contributions from
+     * both. `withSearchArms: false` is for searches that never use the search arms.
+     */
+    const expectSearchResults = async (searchTerm, expectedOrders, { withSearchArms = true } = {}) => {
+      const expectedIds = expectedOrders.map(expectedOrder => expectedOrder.id).sort();
+      const search = async () => {
+        const variables = { account: { legacyId: host.id }, hostContext: 'HOSTED', filter: 'INCOMING', searchTerm };
+        const result = await graphqlQueryV2(ordersQuery, variables, hostAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.totalCount).to.eq(expectedIds.length);
+        expect(result.data.orders.nodes.map(node => node.legacyId).sort()).to.deep.eq(expectedIds);
+      };
+
+      const buildSearchArms = sandbox.spy(SqlSearchLib, 'buildSearchArms');
+      await search();
+      expect(Boolean(await buildSearchArms.lastCall.returnValue)).to.eq(withSearchArms);
+
+      buildSearchArms.restore();
+      const withoutSearchArms = sandbox.stub(SqlSearchLib, 'buildSearchArms').resolves(null);
+      await search();
+      withoutSearchArms.restore();
+    };
+
+    before(async () => {
+      hostAdmin = await fakeUser();
+      host = await fakeActiveHost({ admin: hostAdmin });
+      hostedCollective = await fakeCollective({
+        HostCollectiveId: host.id,
+        approvedAt: new Date(),
+        isActive: true,
+        name: `Parity Payee ${randStr()}`,
+      });
+      // parseSearchTerm only treats addresses without hyphens in the local part as emails
+      contributor = await fakeUser(
+        { email: `parity${randStr()}@test.com` },
+        { name: "Ursula O'Parity", slug: `ursula-parity-${randStr().toLowerCase()}` },
+      );
+      order = await fakeOrder({
+        CollectiveId: hostedCollective.id,
+        FromCollectiveId: contributor.CollectiveId,
+        CreatedByUserId: contributor.id,
+        status: OrderStatuses.PAID,
+        description: 'Yearly sponsorship',
+        tags: ['paritytag'],
+      });
+      await order.update({
+        data: {
+          ...order.data,
+          ponumber: 'PO-PARITY-42',
+          fromAccountInfo: { name: 'Snapshot Parity', email: 'Snapshot.Parity@test.com' },
+        },
+      });
+      mentioningOrder = await fakeOrder({
+        CollectiveId: hostedCollective.id,
+        status: OrderStatuses.PAID,
+        description: 'On behalf of ursula',
+      });
+      // Same contributor, on another host
+      await fakeOrder({
+        FromCollectiveId: contributor.CollectiveId,
+        CreatedByUserId: contributor.id,
+        status: OrderStatuses.PAID,
+        description: 'Yearly sponsorship',
+      });
+
+      await hostAdmin.populateRoles({ force: true });
+    });
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('searches the name and slug of both accounts and the description', async () => {
+      await expectSearchResults('ursula', [order, mentioningOrder]);
+      await expectSearchResults("Ursula O'Parity", [order]);
+      await expectSearchResults(contributor.collective.slug, [order]);
+      await expectSearchResults(hostedCollective.name, [order, mentioningOrder]);
+      await expectSearchResults('yearly sponsorship', [order]);
+      await expectSearchResults('no contribution matches this', []);
+    });
+
+    it('searches tags and the fields reserved to administrators', async () => {
+      await expectSearchResults('paritytag', [order]);
+      await expectSearchResults('PO-PARITY', [order]);
+      await expectSearchResults('Snapshot Parity', [order]);
+    });
+
+    it('searches exact slugs, public IDs and emails', async () => {
+      await expectSearchResults(`@${contributor.collective.slug}`, [order]);
+      await expectSearchResults('@ursula-parity', []);
+      await expectSearchResults(contributor.collective.publicId, [order]);
+      await expectSearchResults(mentioningOrder.publicId, [mentioningOrder]);
+      await expectSearchResults('snapshot.parity@test.com', [order]);
+      await expectSearchResults(contributor.email, [order]);
+      await expectSearchResults('nobody@test.com', []);
+    });
+
+    it('searches IDs', async () => {
+      await expectSearchResults(`#${mentioningOrder.id}`, [mentioningOrder], { withSearchArms: false });
+    });
+  });
+
+  describe('maxTotalCount argument', () => {
+    const cappedOrdersQuery = gql`
+      query CappedOrders($account: AccountReferenceInput, $maxTotalCount: Int, $limit: Int, $offset: Int) {
+        orders(account: $account, filter: INCOMING, maxTotalCount: $maxTotalCount, limit: $limit, offset: $offset) {
+          totalCount
+          totalCountIsCapped
+          nodes {
+            id
+          }
+        }
+      }
+    `;
+
+    let collective;
+
+    before(async () => {
+      collective = await fakeCollective();
+      for (let i = 0; i < 5; i++) {
+        await fakeOrder({ CollectiveId: collective.id, status: OrderStatuses.PAID });
+      }
+    });
+
+    const queryOrders = async (variables = {}) => {
+      const result = await graphqlQueryV2(cappedOrdersQuery, { account: { legacyId: collective.id }, ...variables });
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      return result.data.orders;
+    };
+
+    it('returns the exact total by default', async () => {
+      const orders = await queryOrders();
+      expect(orders.totalCount).to.eq(5);
+      expect(orders.totalCountIsCapped).to.be.false;
+    });
+
+    it('caps the total when there are more orders', async () => {
+      const orders = await queryOrders({ maxTotalCount: 3, limit: 2 });
+      expect(orders.totalCount).to.eq(3);
+      expect(orders.totalCountIsCapped).to.be.true;
+      expect(orders.nodes).to.have.length(2);
+    });
+
+    it('returns the exact total when it is not above the maximum', async () => {
+      for (const maxTotalCount of [5, 6, 1000]) {
+        const orders = await queryOrders({ maxTotalCount });
+        expect(orders.totalCount).to.eq(5);
+        expect(orders.totalCountIsCapped).to.be.false;
+      }
+    });
+
+    it('does not depend on the page', async () => {
+      const orders = await queryOrders({ maxTotalCount: 4, limit: 2, offset: 4 });
+      expect(orders.totalCount).to.eq(4);
+      expect(orders.totalCountIsCapped).to.be.true;
+      expect(orders.nodes).to.have.length(1);
+    });
+
+    it('rejects a maximum below 1', async () => {
+      const result = await graphqlQueryV2(cappedOrdersQuery, {
+        account: { legacyId: collective.id },
+        maxTotalCount: 0,
+      });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('maxTotalCount must be at least 1');
     });
   });
 

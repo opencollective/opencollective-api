@@ -131,17 +131,7 @@ const contributorsQuery = `
     AND transactions."kind" NOT IN ('HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT', 'PLATFORM_TIP_DEBT')
     AND transactions."deletedAt" IS NULL
     AND transactions."RefundTransactionId" IS NULL
-  LEFT JOIN LATERAL (
-    SELECT
-      CASE WHEN "from" = "to" THEN 1 ELSE "rate" END AS "rate",
-      "from",
-      "to"
-    FROM "CurrencyExchangeRates"
-    WHERE "from" = transactions."hostCurrency"
-      AND "to" = :currency
-    ORDER BY "createdAt" DESC
-    LIMIT 1
-  ) fx ON true
+  LEFT JOIN LATERAL (SELECT fx_rate(transactions."hostCurrency", :currency) AS "rate") fx ON true
   LEFT JOIN "Tiers" tiers
     ON m."TierId" IS NOT NULL AND m."TierId" = tiers.id 
   LEFT JOIN "Expenses" e

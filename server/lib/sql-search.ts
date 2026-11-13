@@ -7,7 +7,7 @@ import assert from 'assert';
 import config from 'config';
 import type { Request } from 'express';
 import express from 'express';
-import { Expression, RawBuilder, SelectQueryBuilder, sql } from 'kysely';
+import { Expression, RawBuilder, SelectQueryBuilder, sql, SqlBool } from 'kysely';
 import slugify from 'limax';
 import { isEmpty, isNil, isUndefined, toString, words } from 'lodash';
 import { QueryTypes } from 'sequelize';
@@ -32,6 +32,7 @@ import {
   isEntityPublicId,
 } from './permalink/entity-map';
 import { floatAmountToCents } from './currency';
+import { DatabaseWithViews, getKysely } from './kysely';
 import { canSeePrivateAccount } from './private-accounts';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
 import { removeDiacritics } from './string-utils';
@@ -190,6 +191,19 @@ export const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
+// Bounds of the Postgres `integer` type, used by our ID and amount columns.
+const PG_INTEGER_MIN = -2147483648;
+const PG_INTEGER_MAX = 2147483647;
+
+/**
+ * Whether a parsed search number can be compared with an `integer` column. Postgres rejects
+ * out-of-range values ("value ... is out of range for type integer"), and digit strings longer
+ * than ~309 chars parse to `Infinity`, which Sequelize inlines as an (unknown) column name.
+ * Values outside this range can't match any row, so the condition must be skipped instead.
+ */
+export const isPostgresInteger = (value: unknown): value is number =>
+  Number.isInteger(value) && (value as number) >= PG_INTEGER_MIN && (value as number) <= PG_INTEGER_MAX;
+
 // PostgreSQL's tsquery has a fixed internal stack size. Long search terms with many
 // tokens can exceed it and throw "tsquery stack too small". Cap the term to a safe length.
 export const MAX_SEARCH_TERM_LENGTH = 150;
@@ -318,7 +332,7 @@ const getSortSubQuery = (
     [ORDER_BY_PSEUDO_FIELDS.MONEY_MANAGED]: {
       query: `
         COALESCE((SELECT SUM(balance) FROM "CollectiveBalanceCheckpoint" WHERE "HostCollectiveId" = c.id AND "hostCurrency" = c."currency" GROUP BY "HostCollectiveId", "hostCurrency"), 0)
-        * (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = c."currency" AND "to" = 'USD' ORDER BY "createdAt" DESC LIMIT 1)
+        * fx_rate(c."currency", 'USD')
       `,
     },
     [ORDER_BY_PSEUDO_FIELDS.BALANCE]: {
@@ -760,6 +774,9 @@ export const buildSearchConditions = (
   if (parsedTerm.type === 'slug' && slugFields?.length) {
     return slugFields.map(field => ({ [field]: parsedTerm.term }));
   } else if (parsedTerm.type === 'id' && idFields?.length) {
+    if (!isPostgresInteger(parsedTerm.term)) {
+      return [sequelize.literal('FALSE')]; // No row can have this ID
+    }
     return idFields.map(field => ({ [field]: parsedTerm.term }));
   } else if (parsedTerm.type === 'email' && emailFields?.length) {
     return emailFields.map(field => ({ [field]: parsedTerm.term }));
@@ -814,11 +831,12 @@ export const buildSearchConditions = (
 
   // Conditions for numbers (ID, amount)
   if (parsedTerm.type === 'number') {
-    if (!parsedTerm.isFloat && idFields?.length) {
+    if (!parsedTerm.isFloat && idFields?.length && isPostgresInteger(parsedTerm.term)) {
       conditions.push(...idFields.map(field => ({ [field]: parsedTerm.term })));
     }
-    if (amountFields?.length) {
-      conditions.push(...amountFields.map(field => ({ [field]: floatAmountToCents(parsedTerm.term as number) })));
+    const amountInCents = floatAmountToCents(parsedTerm.term);
+    if (amountFields?.length && isPostgresInteger(amountInCents)) {
+      conditions.push(...amountFields.map(field => ({ [field]: amountInCents })));
     }
   }
 
@@ -878,6 +896,9 @@ export const buildKyselySearchConditions =
       return q.where(({ eb, or }) => or(slugFields.map(field => eb(toKyselyReference(field), '=', parsedTerm.term))));
     }
     if (parsedTerm.type === 'id' && idFields?.length) {
+      if (!isPostgresInteger(parsedTerm.term)) {
+        return q.where(sql<boolean>`FALSE`); // No row can have this ID
+      }
       return q.where(({ eb, or }) => or(idFields.map(field => eb(toKyselyReference(field), '=', parsedTerm.term))));
     }
     if (parsedTerm.type === 'email' && emailFields?.length) {
@@ -940,13 +961,12 @@ export const buildKyselySearchConditions =
 
       // Bare numbers (not #id): match integer id columns and/or amount columns (stored in cents).
       if (parsedTerm.type === 'number') {
-        if (!parsedTerm.isFloat && idFields?.length) {
+        if (!parsedTerm.isFloat && idFields?.length && isPostgresInteger(parsedTerm.term)) {
           idFields.forEach(field => conditions.push(eb(toKyselyReference(field), '=', parsedTerm.term)));
         }
-        if (amountFields?.length) {
-          amountFields.forEach(field =>
-            conditions.push(eb(toKyselyReference(field), '=', floatAmountToCents(parsedTerm.term as number))),
-          );
+        const amountInCents = floatAmountToCents(parsedTerm.term);
+        if (amountFields?.length && isPostgresInteger(amountInCents)) {
+          amountFields.forEach(field => conditions.push(eb(toKyselyReference(field), '=', amountInCents)));
         }
       }
 
@@ -958,6 +978,308 @@ export const buildKyselySearchConditions =
       return or(conditions);
     });
   };
+
+/**
+ * `buildSearchArms` only applies to selective searches: its cost grows with the number of matches, where the regular
+ * conditions stop at the first page (but have to visit every row of the scope to count, or when matches are rare).
+ * Above these limits it returns `null` and the regular conditions are used.
+ * - accounts whose name or slug match the term (their IDs are inlined in each account arm)
+ * - matches of all the arms (measured: 0.3 s to 0.7 s for 20k to 70k matches)
+ *
+ * It can also be restricted to large scopes: see `minScope` in `SearchArmsOptions`.
+ */
+const SEARCH_ARMS_MAX_ACCOUNTS = 10_000;
+const SEARCH_ARMS_MAX_MATCHES = 50_000;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- arms select from the table given in the options
+export type SearchArmsQuery = SelectQueryBuilder<DatabaseWithViews, any, { id: number }>;
+
+type SearchArmsOptions = {
+  /** The table to search. Fields must be columns (or expressions on the columns) of this table. */
+  table: 'Orders' | 'Transactions' | 'Expenses';
+  /** Columns that reference an account: searched through the account's name, slug and public ID */
+  accountIdFields?: string[];
+  /** Columns that reference a user: searched through the name, slug and public ID of the user's account */
+  userAccountIdFields?: string[];
+  /** Columns that reference a user: searched through the user's email, for email terms only */
+  userIdFields?: string[];
+  idFields?: KyselySearchField[];
+  textFields?: KyselySearchField[];
+  /**
+   * Structured data (JSON paths, references) matched exactly, for single-word and integer terms. Each field should
+   * have an index: its arm is run once to count its matches (see `countMatchesUpTo`).
+   */
+  dataFields?: KyselySearchField[];
+  amountFields?: KyselySearchField[];
+  /**
+   * `indexPredicate` is for emails stored in a partial index: a condition that every row with an email satisfies,
+   * written like the predicate of the index, without which the planner can't use it.
+   */
+  emailFields?: { field: KyselySearchField; indexPredicate?: Expression<SqlBool> }[];
+  stringArrayFields?: KyselySearchField[];
+  stringArrayTransformFn?: (str: string) => string;
+  /** Public IDs of the table itself. Accounts are searched by public ID through `accountIdFields`. */
+  publicIdFields?: { field: KyselySearchField; prefix: EntityShortIdPrefix }[];
+  /**
+   * Conditions on `table` that every result satisfies anyway (e.g. its host). They are added to every arm so that it
+   * can use the indexes of the scope: they must not be more restrictive than the query the arms are used in.
+   */
+  scope?: Expression<SqlBool>[];
+  /**
+   * An arm that has no index of the scope to use looks for its matches in the whole table, where the regular
+   * conditions only visit the rows that the query is restricted to: they are the faster ones when these rows are few.
+   * With this option, `null` is returned unless at least `rows` rows of `table` satisfy `conditions`. These rows are
+   * counted, up to `rows`: the conditions must be served by an index.
+   */
+  minScope?: { conditions: Expression<SqlBool>[]; rows: number };
+  /** Overrides `SEARCH_ARMS_MAX_ACCOUNTS` and `SEARCH_ARMS_MAX_MATCHES` */
+  limits?: { maxAccounts?: number; maxMatches?: number };
+};
+
+/** Whether a number can be the value of a PostgreSQL `integer` column, the type of IDs and amounts */
+const fitsInIntegerColumn = (value: number): boolean =>
+  Number.isInteger(value) && value >= -(2 ** 31) && value <= 2 ** 31 - 1;
+
+const unionArms = (arms: SearchArmsQuery[]): SearchArmsQuery =>
+  arms.slice(1).reduce((query, arm) => query.union(arm), arms[0]);
+
+/** Planner estimate of the rows returned by these arms, without running them */
+const estimateMatches = async (arms: SearchArmsQuery[]): Promise<number> => {
+  if (!arms.length) {
+    return 0;
+  }
+
+  const { rows } = await sql<{ 'QUERY PLAN': unknown }>`EXPLAIN (FORMAT JSON) ${unionArms(arms)}`.execute(getKysely());
+  const rawPlan = rows[0]?.['QUERY PLAN'];
+  const plan = typeof rawPlan === 'string' ? JSON.parse(rawPlan) : rawPlan;
+  return Number(plan?.[0]?.Plan?.['Plan Rows'] ?? 0);
+};
+
+/** Number of rows returned by these arms, reading at most `max + 1` rows of each */
+const countMatchesUpTo = async (arms: SearchArmsQuery[], max: number): Promise<number> => {
+  if (!arms.length) {
+    return 0;
+  }
+
+  const counts = arms.map(arm => sql<number>`(SELECT count(*) FROM (${arm.limit(max + 1)}) AS arm)`);
+  const { rows } = await sql<{ total: string }>`SELECT ${sql.join(counts, sql` + `)} AS total`.execute(getKysely());
+  return Number(rows[0]?.total ?? 0);
+};
+
+/**
+ * Index-friendly alternative to `buildKyselySearchConditions` / `buildSearchConditions` for searches that also look
+ * at the accounts of a row (opencollective/opencollective#8947). Same matches, built differently.
+ *
+ * The regular conditions are a single `OR` across the searched table and its joined accounts
+ * (`"fromCollective".name ILIKE … OR collective.name ILIKE … OR description ILIKE …`). No index can serve such a
+ * condition: PostgreSQL has to join and test every row of the scope (all the contributions or transactions of a host),
+ * for the page when matches are rare and always for the total.
+ *
+ * Here, the accounts that match the term are resolved first (trigram indexes on their name and slug), then each
+ * searched field becomes its own "arm": a query on `table` alone that returns the IDs matching through that field,
+ * and that can use the index of that field. The result is the `UNION` of the arms, to use as
+ * `WHERE id IN (<result>)` together with the other filters of the query:
+ *
+ *   WITH "searchMatches" AS MATERIALIZED (
+ *     SELECT id FROM "Orders" WHERE "deletedAt" IS NULL AND "FromCollectiveId" = ANY(<accounts>)
+ *     UNION SELECT id FROM "Orders" WHERE "deletedAt" IS NULL AND "CollectiveId" = ANY(<accounts>)
+ *     UNION SELECT id FROM "Orders" WHERE "deletedAt" IS NULL AND description ILIKE '%term%'
+ *     …
+ *   )
+ *   SELECT id FROM "searchMatches"
+ *
+ * Returns `null` when the regular conditions should be used instead: empty term, `#id` (already a condition on the
+ * table alone), a scope that is too small (see `minScope`), or a term that is not selective enough (see
+ * `SEARCH_ARMS_MAX_MATCHES`).
+ */
+export const buildSearchArms = async (
+  searchTerm: string,
+  {
+    table,
+    accountIdFields = [],
+    userAccountIdFields = [],
+    userIdFields = [],
+    idFields = [],
+    textFields = [],
+    dataFields = [],
+    amountFields = [],
+    emailFields = [],
+    stringArrayFields = [],
+    stringArrayTransformFn = null,
+    publicIdFields = [],
+    scope = [],
+    minScope = null,
+    limits = {},
+  }: SearchArmsOptions,
+): Promise<SearchArmsQuery | null> => {
+  const parsedTerm = parseSearchTerm(searchTerm);
+  if (!parsedTerm.term || (parsedTerm.type === 'id' && idFields.length)) {
+    return null;
+  }
+
+  const db = getKysely();
+  const { maxAccounts = SEARCH_ARMS_MAX_ACCOUNTS, maxMatches = SEARCH_ARMS_MAX_MATCHES } = limits;
+  // Arms whose matches are estimated by the planner, and arms whose matches are counted: see the comment below
+  const conditions: Expression<SqlBool>[] = [];
+  const countedConditions: Expression<SqlBool>[] = [];
+  const hasAccountFields = accountIdFields.length + userAccountIdFields.length > 0;
+  const equals = (field: KyselySearchField, value: string | number) =>
+    sql<SqlBool>`${toKyselyReference(field)} = ${value}`;
+  const toArm = (...armConditions: Expression<SqlBool>[]) =>
+    db
+      .selectFrom(table)
+      .select(`${table}.id`)
+      .where(`${table}.deletedAt`, 'is', null)
+      .where(eb => eb.and(armConditions)) as SearchArmsQuery;
+
+  if (minScope && (await countMatchesUpTo([toArm(...minScope.conditions)], minScope.rows - 1)) < minScope.rows) {
+    return null;
+  }
+
+  /**
+   * Adds one arm per account column, for the accounts matching `where`, and one per column that references a user, for
+   * the users of these accounts. Returns false if too many accounts match.
+   */
+  const addAccountArms = async (where: Expression<SqlBool>): Promise<boolean> => {
+    const accounts = await db
+      .selectFrom('Collectives')
+      .select('id')
+      .where('deletedAt', 'is', null)
+      .where(where)
+      .limit(maxAccounts + 1)
+      .execute();
+
+    if (accounts.length > maxAccounts) {
+      return false;
+    } else if (accounts.length) {
+      // IDs are integers from the database: inlined rather than sent as thousands of parameters
+      const ids = sql.lit(`{${accounts.map(account => Number(account.id)).join(',')}}`);
+      accountIdFields.forEach(field => countedConditions.push(sql<SqlBool>`${sql.ref(field)} = ANY(${ids}::int[])`));
+
+      const users = !userAccountIdFields.length
+        ? []
+        : await db
+            .selectFrom('Users')
+            .select('id')
+            .where('deletedAt', 'is', null)
+            .where(sql<SqlBool>`"CollectiveId" = ANY(${ids}::int[])`)
+            .execute();
+
+      if (users.length) {
+        const userIds = sql.lit(`{${users.map(user => Number(user.id)).join(',')}}`);
+        userAccountIdFields.forEach(field =>
+          countedConditions.push(sql<SqlBool>`${sql.ref(field)} = ANY(${userIds}::int[])`),
+        );
+      }
+    }
+
+    return true;
+  };
+
+  const ownPublicIdFields =
+    parsedTerm.type === 'publicId' ? publicIdFields.filter(field => field.prefix === parsedTerm.prefix) : [];
+  const isAccountPublicId =
+    parsedTerm.type === 'publicId' && parsedTerm.prefix === EntityShortIdPrefix.Collective && hasAccountFields;
+
+  if (parsedTerm.type === 'slug' && hasAccountFields) {
+    // Exclusive conditions: if a slug, an email or a public ID is searched, don't search other attributes
+    await addAccountArms(sql<SqlBool>`slug = ${parsedTerm.term}`);
+  } else if (parsedTerm.type === 'email' && (emailFields.length || userIdFields.length)) {
+    emailFields.forEach(({ field, indexPredicate }) =>
+      conditions.push(
+        indexPredicate
+          ? sql<SqlBool>`(${equals(field, parsedTerm.term)} AND ${indexPredicate})`
+          : equals(field, parsedTerm.term),
+      ),
+    );
+    userIdFields.forEach(field =>
+      conditions.push(
+        sql<SqlBool>`${sql.ref(field)} IN (SELECT id FROM "Users" WHERE email = ${parsedTerm.term} AND "deletedAt" IS NULL)`,
+      ),
+    );
+  } else if (parsedTerm.type === 'publicId' && (ownPublicIdFields.length || isAccountPublicId)) {
+    ownPublicIdFields.forEach(({ field }) => conditions.push(equals(field, parsedTerm.term)));
+    if (isAccountPublicId) {
+      await addAccountArms(sql<SqlBool>`"publicId" = ${parsedTerm.term}`);
+    }
+  } else {
+    // Inclusive conditions: one arm per applicable field
+    const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
+    const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
+
+    // Partial match on the name and slug of the accounts, and on the free-text columns
+    if (hasAccountFields) {
+      if (!(await addAccountArms(sql<SqlBool>`(name ILIKE ${iLikeQuery} OR slug ILIKE ${iLikeQuery})`))) {
+        return null;
+      }
+    }
+    textFields.forEach(field => conditions.push(sql<SqlBool>`${toKyselyReference(field)} ILIKE ${iLikeQuery}`));
+
+    // Tag / string-array overlap
+    const preparedTerm = stringArrayTransformFn ? stringArrayTransformFn(strTerm) : strTerm;
+    stringArrayFields.forEach(field =>
+      conditions.push(sql<SqlBool>`${toKyselyReference(field)} && ARRAY[${preparedTerm}]::varchar[]`),
+    );
+
+    // Exact match on structured data, for a single token only: same rule and same term as `buildSearchConditions`
+    if (
+      dataFields.length &&
+      ((parsedTerm.type === 'text' && parsedTerm.words === 1) || (parsedTerm.type === 'number' && !parsedTerm.isFloat))
+    ) {
+      const dataTerm =
+        parsedTerm.type === 'number' ? canonicalizeIntegerSearchText(parsedTerm.text) : toString(parsedTerm.term);
+      dataFields.forEach(field => countedConditions.push(equals(field, dataTerm)));
+    }
+
+    // Bare numbers (not #id): match integer id columns and/or amount columns (stored in cents).
+    // A number that does not fit in an `integer` column cannot match it, and PostgreSQL rejects it as a parameter
+    // compared to such a column ("out of range for type integer"): it gets no arm.
+    if (parsedTerm.type === 'number') {
+      const amountInCents = floatAmountToCents(parsedTerm.term);
+      if (!parsedTerm.isFloat && fitsInIntegerColumn(parsedTerm.term)) {
+        idFields.forEach(field => conditions.push(equals(field, parsedTerm.term)));
+      }
+      if (fitsInIntegerColumn(amountInCents)) {
+        amountFields.forEach(field => conditions.push(equals(field, amountInCents)));
+      }
+    }
+  }
+
+  // Nothing can match (e.g. `@slug` of an account that does not exist): a single arm without results
+  if (!conditions.length && !countedConditions.length) {
+    conditions.push(sql<SqlBool>`FALSE`);
+  }
+
+  const arms = conditions.map(condition => toArm(...scope, condition));
+  const countedArms = countedConditions.map(condition => toArm(...scope, condition));
+
+  // The planner's estimate is good for text matches, but not for:
+  // - the rows of a list of accounts: it assumes that each of them has the average number of rows of an account (1.5M
+  //   contributions estimated for 6,400 accounts that had 19k);
+  // - structured data: without statistics on the expression, a JSON path is estimated at 0.5% of the table, whatever
+  //   the term (5,000 expenses out of 1M for each of the four JSON paths of an expense, for a term that matched one).
+  // Their index entries are cheap to count though, and the count stops at the limit.
+  const [estimatedMatches, countedMatches] = await Promise.all([
+    estimateMatches(arms),
+    countMatchesUpTo(countedArms, maxMatches),
+  ]);
+  if (estimatedMatches + countedMatches > maxMatches) {
+    return null;
+  }
+
+  const union = unionArms([...countedArms, ...arms]);
+
+  // Materialized, so that the query the arms are used in starts from the matches. Otherwise the planner compares
+  // its estimate of the matches with its estimate of the rows in scope, and the latter can be very wrong: a host with
+  // 5,500 collectives and 1.5M contributions was estimated at 250 contributions, so they were all read first.
+  return db
+    .with(
+      wb => wb('searchMatches').materialized(),
+      () => union,
+    )
+    .selectFrom('searchMatches')
+    .select('searchMatches.id') as SearchArmsQuery;
+};
 
 /**
  * Returns tags along with their frequency of use.

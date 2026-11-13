@@ -5,6 +5,7 @@ import sinon from 'sinon';
 import { CollectiveType } from '../../../../server/constants/collectives';
 import { Service } from '../../../../server/constants/connected-account';
 import OrderStatuses from '../../../../server/constants/order-status';
+import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import { checkExpense, checkExpensesBatch } from '../../../../server/lib/security/expense';
 import models from '../../../../server/models';
 import LegalDocument, {
@@ -15,6 +16,7 @@ import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import {
   fakeCollective,
   fakeConnectedAccount,
+  fakeCurrencyExchangeRate,
   fakeExpense,
   fakeExpenseAttachedFile,
   fakeHost,
@@ -23,6 +25,7 @@ import {
   fakeOrder,
   fakePayoutMethod,
   fakeRequiredLegalDocument,
+  fakeTransaction,
   fakeUploadedFile,
   fakeUser,
   multiple,
@@ -189,6 +192,206 @@ describe('lib/security/expense', () => {
           message: 'Same attachment uploaded to multiple expenses',
         },
       ]);
+    });
+  });
+
+  describe('expense stats and amounts', () => {
+    const loadExpenseForChecks = id =>
+      models.Expense.findByPk(id, {
+        include: [
+          { association: 'collective' },
+          { association: 'fromCollective' },
+          { model: models.User, as: 'User', include: [{ association: 'collective' }] },
+          { association: 'PayoutMethod' },
+        ],
+      });
+
+    it('counts payments in this collective separately from payments on the platform', async () => {
+      const user = await fakeUser();
+      const host = await fakeHost();
+      const [collective, otherCollective] = await multiple(fakeCollective, 2, { HostCollectiveId: host.id });
+      const payoutMethod = await fakePayoutMethod({
+        type: PayoutMethodTypes.PAYPAL,
+        data: { email: `${randStr('paypal-')}@example.com` },
+        CollectiveId: user.CollectiveId,
+      });
+      const expenseData = {
+        UserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        PayoutMethodId: payoutMethod.id,
+        status: 'PAID' as const,
+      };
+
+      // The most recent paid expenses are in `collective`, so its stats row comes first
+      await multiple(fakeExpense, 3, {
+        ...expenseData,
+        CollectiveId: otherCollective.id,
+        createdAt: new Date('2020-01-01'),
+      });
+      await multiple(fakeExpense, 2, {
+        ...expenseData,
+        CollectiveId: collective.id,
+        createdAt: new Date('2021-01-01'),
+      });
+      const expense = await fakeExpense({ ...expenseData, CollectiveId: collective.id, status: 'PENDING' });
+
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+      expect(checks).to.containSubset([
+        {
+          scope: 'USER',
+          message: 'User was successfully paid 2 times by this collective and 5 times on the platform',
+        },
+        {
+          scope: 'PAYOUT_METHOD',
+          message: 'Payout Method was successfully paid 2 times by this collective and 5 times on the platform',
+        },
+      ]);
+    });
+
+    it('converts expense amounts with the latest exchange rate before the expense', async () => {
+      const host = await fakeHost({ currency: 'USD' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      // A paid expense, so that the "higher than usual" check is computed
+      await fakeExpense({ CollectiveId: collective.id, currency: 'USD', amount: 100, status: 'PAID' });
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        currency: 'GBP',
+        amount: 10000,
+        status: 'PENDING',
+        createdAt: new Date('2022-06-15'),
+      });
+      const oldExpense = await fakeExpense({
+        CollectiveId: collective.id,
+        currency: 'GBP',
+        amount: 10000,
+        status: 'PENDING',
+        createdAt: new Date('2019-06-15'),
+      });
+
+      for (const [createdAt, rate] of [
+        ['2020-01-01', 1.5],
+        ['2021-01-01', 2],
+        ['2022-01-01', 3],
+      ] as const) {
+        await fakeCurrencyExchangeRate({ from: 'GBP', to: 'USD', rate, createdAt: new Date(createdAt) });
+      }
+
+      const [checks, oldExpenseChecks] = await checkExpensesBatch(makeRequest() as any, [
+        await loadExpenseForChecks(expense.id),
+        await loadExpenseForChecks(oldExpense.id),
+      ]);
+
+      // Latest rate before 2022-06-15 is the 2022 one: £100 * 3 = $300
+      const amountCheck = checks.find(c => c.message === 'Amount is higher than usual');
+      expect(amountCheck.details).to.contain('$300.00');
+
+      // No rate before 2019-06-15: falls back to the oldest one (2020): £100 * 1.5 = $150
+      const oldAmountCheck = oldExpenseChecks.find(c => c.message === 'Amount is higher than usual');
+      expect(oldAmountCheck.details).to.contain('$150.00');
+    });
+
+    it('converts collective balances that are not in the display currency', async () => {
+      await fakeCurrencyExchangeRate({ from: 'EUR', to: 'USD', rate: 1.1 });
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', rate: 1 / 1.1 });
+
+      const createApprovedExpense = async (currency: 'USD' | 'EUR') => {
+        const host = await fakeHost({ currency });
+        const collective = await fakeCollective({ HostCollectiveId: host.id, currency });
+        // Balance of 1000.00
+        await fakeTransaction(
+          {
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100000,
+            currency,
+            hostCurrency: currency,
+            amountInHostCurrency: 100000,
+            netAmountInCollectiveCurrency: 100000,
+            kind: TransactionKind.CONTRIBUTION,
+          },
+          { createDoubleEntry: true },
+        );
+        // An approved expense of 10.00, well below the balance
+        const expense = await fakeExpense({ CollectiveId: collective.id, amount: 1000, currency, status: 'APPROVED' });
+        return loadExpenseForChecks(expense.id);
+      };
+
+      // The display currency comes from the first expense's host (USD), so the EUR balance gets converted
+      const usdExpense = await createApprovedExpense('USD');
+      const eurExpense = await createApprovedExpense('EUR');
+      const [usdChecks, eurChecks] = await checkExpensesBatch(makeRequest() as any, [usdExpense, eurExpense]);
+      const findBalanceCheck = checks =>
+        checks.find(c => c.message === 'The total amount of approved expenses is higher than the collective balance');
+      expect(findBalanceCheck(usdChecks)).to.be.undefined;
+      expect(findBalanceCheck(eurChecks)).to.be.undefined;
+    });
+
+    it('counts all the payments in this collective, across payout methods', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+      const [payoutMethodA, payoutMethodB] = await multiple(fakePayoutMethod, 2, {
+        type: PayoutMethodTypes.PAYPAL,
+        data: { email: `${randStr('paypal-')}@example.com` },
+        CollectiveId: user.CollectiveId,
+      });
+      const expenseData = {
+        UserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        status: 'PAID' as const,
+      };
+
+      // The stats are grouped by payout method, so this gives two rows for the same collective
+      await multiple(fakeExpense, 3, { ...expenseData, PayoutMethodId: payoutMethodA.id });
+      await multiple(fakeExpense, 2, { ...expenseData, PayoutMethodId: payoutMethodB.id });
+      const expense = await fakeExpense({ ...expenseData, PayoutMethodId: payoutMethodB.id, status: 'PENDING' });
+
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+      expect(checks).to.containSubset([
+        {
+          scope: 'USER',
+          message: 'User was successfully paid 5 times by this collective and 5 times on the platform',
+        },
+        {
+          scope: 'PAYOUT_METHOD',
+          message: 'Payout Method was successfully paid 2 times by this collective and 2 times on the platform',
+        },
+      ]);
+    });
+  });
+
+  describe('author membership checks', () => {
+    it('identifies host admins on expenses that are not paid yet', async () => {
+      const host = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const hostAdmin = await fakeUser();
+      await host.addUserWithRole(hostAdmin, 'ADMIN');
+
+      for (const status of ['PENDING', 'APPROVED'] as const) {
+        // `Expenses.HostCollectiveId` is only set when the expense gets paid
+        const expense = await fakeExpense({
+          CollectiveId: collective.id,
+          UserId: hostAdmin.id,
+          HostCollectiveId: null,
+          status,
+        });
+        const checks = await checkExpense(expense, { req: makeRequest() as any });
+        expect(checks, status).to.containSubset([
+          { scope: 'USER', level: 'PASS', message: 'User is the admin of this fiscal host' },
+        ]);
+        expect(checks.find(c => c.message === 'User is the admin of this collective')).to.be.undefined;
+      }
+    });
+
+    it('does not identify admins of a host that has not approved the collective yet', async () => {
+      const host = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id, isActive: false, approvedAt: null });
+      const hostAdmin = await fakeUser();
+      await host.addUserWithRole(hostAdmin, 'ADMIN');
+
+      const expense = await fakeExpense({ CollectiveId: collective.id, UserId: hostAdmin.id, HostCollectiveId: null });
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+      expect(checks.find(c => c.message === 'User is the admin of this fiscal host')).to.be.undefined;
     });
   });
 

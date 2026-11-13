@@ -457,9 +457,11 @@ const verifySubscription = async (order: Order, paypalSubscription: PayPalSubscr
     throw new Error('Subscription must be approved to be activated');
   }
 
+  // The plan is created for the tier the contributor is moving to, which stays pending until PayPal charges it
+  // (see `server/lib/order-tier-change.ts`).
   // If the tier has been deleted, let's make sure we switch to a plan that matches the order
-  let tierId = order.TierId;
-  if (tierId && !order.Tier) {
+  let tierId = order.data?.pendingTierChange?.TierId ?? order.TierId;
+  if (tierId && order.Tier?.id !== tierId) {
     const tier = await models.Tier.findByPk(tierId);
     if (!tier) {
       tierId = null;

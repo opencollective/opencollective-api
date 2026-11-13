@@ -140,6 +140,46 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
   return Promise.all(updateExpenses);
 };
 
+type PayoutItemError = NonNullable<PayoutItemDetails['errors']> | { message: string };
+
+/** Stored when the provider reports a failed item without any error payload. */
+const getStatusDerivedError = (item: PayoutItemDetails): PayoutItemError => ({
+  message: `PayPal payout item ${item.transaction_status}`,
+});
+
+/**
+ * PayPal omits `errors` from some failed batch items, and the webhook that used to fetch them is
+ * disabled (see opencollective/opencollective#8789). Ask the payout item endpoint instead and fall
+ * back to a status-derived message so the stored error is never empty.
+ *
+ * Provider payloads are stored as-is: `sanitizeErrorData` (`server/graphql/common/activities.ts`)
+ * is what filters them before they reach clients, so keeping the raw item and error preserves
+ * debugging data (`debug_id`, error `details`, links, transaction ids).
+ */
+const fetchPayoutItemError = async (
+  item: PayoutItemDetails,
+  expense: Expense,
+  host: Collective,
+): Promise<{ error: PayoutItemError; payoutItem: PayoutItemDetails; retrievalFailed?: boolean }> => {
+  if (item.errors) {
+    return { error: item.errors, payoutItem: item };
+  }
+
+  try {
+    const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
+    const payoutItem = await paypal.getPayoutItem(connectedAccount, item.payout_item_id);
+    return { error: payoutItem?.errors ?? getStatusDerivedError(item), payoutItem: payoutItem ?? item };
+  } catch (e) {
+    logger.error(`PayPal: failed to fetch payout item ${item.payout_item_id} for expense #${expense.id}`, e);
+    reportErrorToSentry(e, {
+      feature: FEATURE.PAYPAL_PAYOUTS,
+      extra: { expenseId: expense.id, payoutItemId: item.payout_item_id },
+    });
+    // Flag the activity so the backfill script retries: the fallback message below is not conclusive
+    return { error: getStatusDerivedError(item), payoutItem: item, retrievalFailed: true };
+  }
+};
+
 export const checkBatchItemStatus = async (
   item: PayoutItemDetails,
   expense: Expense,
@@ -212,13 +252,19 @@ export const checkBatchItemStatus = async (
     case 'RETURNED':
     case 'REVERSED':
       if (expense.status !== status.ERROR) {
+        const { error: payoutItemError, payoutItem, retrievalFailed } = await fetchPayoutItemError(item, expense, host);
         await expense.setError(expense.lastEditedById);
         const data = omit(expense.data, ['payout_batch_id', 'batch_status', 'sender_batch_header']);
         await expense.update({ data });
         await expense.createActivity(
           activities.COLLECTIVE_EXPENSE_ERROR,
           { id: expense.lastEditedById },
-          { error: item.errors, isSystem: true, payoutItem: item },
+          {
+            error: payoutItemError,
+            isSystem: true,
+            payoutItem,
+            ...(retrievalFailed && { errorRetrievalFailed: true }),
+          },
         );
 
         // Terminal failure of the payout attempt (the ERROR guard above makes redeliveries no-ops)
@@ -281,6 +327,7 @@ export const checkBatchStatus = async (batch: Expense[]): Promise<Expense[]> => 
 };
 
 // See https://www.paypal.com/lu/business/paypal-business-fees#statement-10
+// Amounts are in cents (x100), including for zero-decimal currencies like JPY (¥1,200 => 1200_00).
 const PAYPAL_PAYOUT_CAPS_BY_CURRENCY: Partial<
   Record<SupportedCurrency, { domesticMax: number; internationalMax: number }>
 > = {
@@ -293,7 +340,7 @@ const PAYPAL_PAYOUT_CAPS_BY_CURRENCY: Partial<
   HKD: { domesticMax: 110_00, internationalMax: 660_00 },
   HUF: { domesticMax: 3080_00, internationalMax: 18_500_00 },
   ILS: { domesticMax: 50_00, internationalMax: 320_00 },
-  JPY: { domesticMax: 1200, internationalMax: 8000 },
+  JPY: { domesticMax: 1200_00, internationalMax: 8000_00 },
   MYR: { domesticMax: 50_00, internationalMax: 300_00 },
   MXN: { domesticMax: 170_00, internationalMax: 1080_00 },
   TWD: { domesticMax: 440_00, internationalMax: 2700_00 },
@@ -335,11 +382,11 @@ const PAYPAL_PAYOUT_CAPS_BY_CURRENCY: Partial<
 export const estimatePaypalPayoutFeeInExpenseCurrency = async (host: Collective, expense: Expense): Promise<number> => {
   const hostCountry = host.countryISO;
   const payee = expense.fromCollective || (await expense.getFromCollective());
-  const hostCurrency = host.currency;
   const payeeCountry = payee.countryISO;
   const isDomestic = hostCountry === payeeCountry;
   const baseFee = roundCentsAmount(expense.amount * 0.02, expense.currency);
-  const caps = PAYPAL_PAYOUT_CAPS_BY_CURRENCY[hostCurrency];
+  // Payouts are sent (and fees charged) in the expense currency, so the cap must be in that currency too
+  const caps = PAYPAL_PAYOUT_CAPS_BY_CURRENCY[expense.currency];
 
   // No known cap for this currency => best-effort: return 2% uncapped (can overestimate for large payouts).
   if (!caps) {
