@@ -12,6 +12,7 @@ import {
   keyBy,
   keys,
   mapValues,
+  omit,
   omitBy,
   pick,
   uniq,
@@ -26,14 +27,19 @@ import { Service } from '../../../constants/connected-account';
 import FEATURE from '../../../constants/feature';
 import OrderStatuses from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { RefundKind } from '../../../constants/refund-kind';
+import { TransactionKind } from '../../../constants/transaction-kind';
+import { TransactionTypes } from '../../../constants/transactions';
 import { getBalanceAccountingCategoryIdForImportRow } from '../../../lib/accounting/categorization/balance-accounts';
 import { applyContributionAccountingCategoryRules } from '../../../lib/accounting/categorization/contribution-rules';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
 import { roundCentsAmount } from '../../../lib/currency';
+import { getDiffBetweenInstances } from '../../../lib/data';
+import { OrderEditStrategy, replaceOrderTransactions } from '../../../lib/edit-order-transactions';
 import logger from '../../../lib/logger';
-import { isBalanceOnlyCollectiveType } from '../../../lib/payments';
+import { isBalanceOnlyCollectiveType, processOrder } from '../../../lib/payments';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../../lib/sanitize-html';
 import { checkGuestContribution, checkOrdersLimit } from '../../../lib/security/limit';
@@ -57,6 +63,7 @@ import { checkIsValidBalanceAccountingCategory } from '../../common/balance-acco
 import { checkReceiveFinancialContributions } from '../../common/features';
 import * as OrdersLib from '../../common/orders';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
+import { canRefund, refundTransaction } from '../../common/transactions';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
@@ -71,6 +78,7 @@ import {
   getOrderTaxInfoFromTaxInput,
 } from '../../v1/mutations/orders';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
+import { GraphQLOrderEditStrategy } from '../enum/OrderEditStrategy';
 import { GraphQLProcessOrderAction } from '../enum/ProcessOrderAction';
 import { TierFrequencyKey } from '../enum/TierFrequency';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -186,6 +194,89 @@ const getOrderTaxInfo = (taxInput, quantity, orderAmount, fromAccount, toAccount
   }
 
   return { taxInfo, taxAmount };
+};
+
+/**
+ * Sets the amounts, fees, taxes and date provided by a host admin (when confirming or editing a manual
+ * contribution) on the order. The order is not saved.
+ */
+const applyOrderUpdateInput = (order: Order, input, { fromAccount, toAccount, host, clearTaxOnNull = false }): void => {
+  const { amount, paymentProcessorFee, platformTip, hostFeePercent, processedAt, tax } = input;
+
+  // Ensure amounts are provided with the right currency
+  ['amount', 'paymentProcessorFee', 'platformTip', 'tax.amount'].forEach(field => {
+    if (!isNil(get(input, field))) {
+      assertAmountInputCurrency(get(input, field), order.currency, { name: field });
+    }
+  });
+
+  if (!isNil(amount)) {
+    const amountInCents = getValueInCentsFromAmountInput(amount);
+    const platformTipInCents = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+    if (platformTipInCents < 0) {
+      throw new ValidationFailed('Platform tip amount cannot be negative');
+    }
+    const totalAmount = amountInCents + platformTipInCents;
+    order.set('totalAmount', totalAmount);
+  }
+  if (!isNil(paymentProcessorFee)) {
+    if (!order.data) {
+      order.set('data', {});
+    }
+
+    const paymentProcessorFeeInCents = getValueInCentsFromAmountInput(paymentProcessorFee);
+    order.set('data', { ...order.data, paymentProcessorFee: paymentProcessorFeeInCents });
+  }
+  if (!isNil(tax)) {
+    if (!isNil(tax.rate) && (tax.rate < 0 || tax.rate > 1)) {
+      throw new ValidationFailed('Tax rate must be between 0 and 1');
+    }
+    const quantity = 1; // Not supported yet by OrderUpdateInput
+    const { taxInfo, taxAmount } = getOrderTaxInfo(
+      tax,
+      quantity,
+      input.amount,
+      fromAccount,
+      toAccount,
+      host,
+      order.currency,
+    );
+    const previousTax = order.data?.tax;
+    if (isNil(taxInfo.idNumber) && previousTax?.idNumber && previousTax.id === taxInfo.id) {
+      // Clients can't always read the tax ID number to send it back: keep the one already recorded
+      taxInfo.idNumber = previousTax.idNumber;
+    }
+    order.set('taxAmount', taxAmount);
+    order.set('data', { ...order.data, tax: taxInfo });
+  } else if (tax === null && clearTaxOnNull) {
+    order.set('taxAmount', null);
+    order.set('data', omit(order.data, 'tax'));
+  }
+  if (!isNil(platformTip)) {
+    const platformTipInCents = getValueInCentsFromAmountInput(platformTip);
+    if (platformTipInCents < 0) {
+      throw new ValidationFailed('Platform tip amount cannot be negative');
+    }
+    order.set('platformTipAmount', platformTipInCents);
+  }
+  if (!isNil(hostFeePercent)) {
+    order.set('data', { ...order.data, hostFeePercent });
+  }
+
+  if (!isNil(processedAt)) {
+    order.set('processedAt', processedAt);
+  }
+
+  // Re-compute total amount
+  const baseAmount = !isNil(input.amount) ? getValueInCentsFromAmountInput(input.amount) : getOrderBaseAmount(order);
+  if (isNil(tax) && order.data?.tax && !isNil(input.amount)) {
+    // The tax is kept, but its amount depends on the new base amount
+    order.set('taxAmount', getTaxAmount(baseAmount, order.data.tax, order.currency));
+  }
+  order.set(
+    'totalAmount',
+    getTotalAmountForOrderInput(baseAmount, order.platformTipAmount, tax || order.data?.tax, order.currency),
+  );
 };
 
 const orderMutations = {
@@ -799,74 +890,7 @@ const orderMutations = {
 
         const hasChanges = !isEmpty(difference(keys(args.order), ['id', 'legacyId', 'publicId']));
         if (hasChanges) {
-          const { amount, paymentProcessorFee, platformTip, hostFeePercent, processedAt, tax } = args.order;
-
-          // Ensure amounts are provided with the right currency
-          ['amount', 'paymentProcessorFee', 'platformTip', 'tax.amount'].forEach(field => {
-            if (!isNil(get(args.order, field))) {
-              assertAmountInputCurrency(get(args.order, field), order.currency, { name: field });
-            }
-          });
-
-          if (!isNil(amount)) {
-            const amountInCents = getValueInCentsFromAmountInput(amount);
-            const platformTipInCents = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
-            if (platformTipInCents < 0) {
-              throw new ValidationFailed('Platform tip amount cannot be negative');
-            }
-            const totalAmount = amountInCents + platformTipInCents;
-            order.set('totalAmount', totalAmount);
-          }
-          if (!isNil(paymentProcessorFee)) {
-            if (!order.data) {
-              order.set('data', {});
-            }
-
-            const paymentProcessorFeeInCents = getValueInCentsFromAmountInput(paymentProcessorFee);
-            order.set('data', { ...order.data, paymentProcessorFee: paymentProcessorFeeInCents });
-          }
-          if (!isNil(tax)) {
-            const quantity = 1; // Not supported yet by OrderUpdateInput
-            const { taxInfo, taxAmount } = getOrderTaxInfo(
-              args.order.tax,
-              quantity,
-              args.order.amount,
-              fromAccount,
-              toAccount,
-              host,
-              order.currency,
-            );
-            order.set('taxAmount', taxAmount);
-            order.set('data', { ...order.data, tax: taxInfo });
-          }
-          if (!isNil(platformTip)) {
-            const platformTipInCents = getValueInCentsFromAmountInput(platformTip);
-            if (platformTipInCents < 0) {
-              throw new ValidationFailed('Platform tip amount cannot be negative');
-            }
-            order.set('platformTipAmount', platformTipInCents);
-          }
-          if (!isNil(hostFeePercent)) {
-            order.set('data', { ...order.data, hostFeePercent });
-          }
-
-          if (!isNil(processedAt)) {
-            order.set('processedAt', processedAt);
-          }
-
-          // Re-compute total amount
-          const baseAmount = !isNil(args.order.amount)
-            ? getValueInCentsFromAmountInput(args.order.amount)
-            : getOrderBaseAmount(order);
-          order.set(
-            'totalAmount',
-            getTotalAmountForOrderInput(
-              baseAmount,
-              order.platformTipAmount,
-              args.order.tax || order.data?.tax,
-              order.currency,
-            ),
-          );
+          applyOrderUpdateInput(order, args.order, { fromAccount, toAccount, host });
 
           // Link transactions import row
           let transactionsImportRow;
@@ -940,6 +964,123 @@ const orderMutations = {
       } else {
         throw new BadRequest(`Unknown action ${args.action}`);
       }
+    },
+  },
+  editPaidManualOrder: {
+    type: new GraphQLNonNull(GraphQLOrder),
+    description:
+      'Edit the amounts or the date of a contribution that was manually marked as paid by a host admin (bank transfer, expected funds...). Scope: "orders".',
+    args: {
+      order: {
+        type: new GraphQLNonNull(GraphQLOrderUpdateInput),
+        description: 'The order to edit, with its new values. `transactionsImportRow` is not supported.',
+      },
+      strategy: {
+        type: new GraphQLNonNull(GraphQLOrderEditStrategy),
+        description: 'How the ledger should be updated to reflect the changes',
+        defaultValue: OrderEditStrategy.REVERSE,
+      },
+    },
+    async resolve(_, args, req: express.Request) {
+      checkRemoteUserCanUseOrders(req);
+
+      const order = await fetchOrderWithReference(args.order, { throwIfMissing: true });
+      const fromAccount = await req.loaders.Collective.byId.load(order.FromCollectiveId);
+      const toAccount = await req.loaders.Collective.byId.load(order.CollectiveId);
+      const host = await toAccount?.getHostCollective({ loaders: req.loaders });
+      if (!host || !req.remoteUser?.isAdminOfCollective(host)) {
+        throw new Unauthorized('Only host admins can edit paid contributions');
+      } else if (!(await OrdersLib.canEditPaidManualOrder(req, order))) {
+        throw new ValidationFailed(
+          'Only one-time contributions that were manually marked as paid can be edited through this mutation',
+        );
+      } else if (args.order.transactionsImportRow) {
+        throw new ValidationFailed('The transactions import row cannot be changed when editing a contribution');
+      } else if (isNil(args.order.amount)) {
+        throw new ValidationFailed('The amount is required to edit a contribution');
+      }
+
+      await twoFactorAuthLib.enforceForAccount(req, host);
+
+      const creditTransaction = await models.Transaction.findOne({
+        where: {
+          OrderId: order.id,
+          kind: TransactionKind.CONTRIBUTION,
+          type: TransactionTypes.CREDIT,
+          isRefund: { [Op.not]: true },
+          RefundTransactionId: null,
+        },
+        order: [['id', 'DESC']],
+      });
+      if (!creditTransaction) {
+        throw new ValidationFailed('No transaction to edit was found for this contribution');
+      } else if (!(await canRefund(creditTransaction, undefined, req))) {
+        throw new Forbidden('You are not allowed to edit this contribution');
+      }
+
+      // Set new values on the order, without saving them
+      const previousData = order.toJSON();
+      applyOrderUpdateInput(order, args.order, { fromAccount, toAccount, host, clearTaxOnNull: true });
+
+      const paymentProcessorFee = order.data?.paymentProcessorFee || 0;
+      const hostFeePercent = order.data?.hostFeePercent;
+      if (!order.totalAmount || order.totalAmount < 0) {
+        throw new ValidationFailed('Amount should be greater than 0');
+      } else if (order.platformTipAmount > order.totalAmount) {
+        throw new ValidationFailed('Platform tip cannot be higher than the total amount');
+      } else if (paymentProcessorFee < 0 || paymentProcessorFee > order.totalAmount) {
+        throw new ValidationFailed('Payment processor fee must be between 0 and the total amount');
+      } else if (!isNil(hostFeePercent) && (hostFeePercent < 0 || hostFeePercent > 100)) {
+        throw new ValidationFailed('hostFeePercent should be a value between 0 and 100.');
+      }
+
+      const orderData = pick(order.get(), order.changed() || []);
+      const manualPaymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.MANUAL,
+        paid: true,
+      };
+
+      let editedTransactions: number[];
+      if (args.strategy === OrderEditStrategy.IN_PLACE) {
+        // Replace the existing transactions with ones that reflect the new values
+        const replacedTransactions = await replaceOrderTransactions(order, creditTransaction, {
+          orderData,
+          paymentMethod: manualPaymentMethod,
+        });
+        editedTransactions = replacedTransactions.map(t => t.id);
+      } else {
+        // Reverse the existing transactions, then record new ones. We don't go through `order.markAsPaid`
+        // to not notify the contributor a second time.
+        const transactionsToReverse = await creditTransaction.getRelatedTransactions({});
+        await refundTransaction(creditTransaction, req, RefundKind.EDIT, { ignoreBalanceCheck: true });
+        await order.update({ ...orderData, status: OrderStatuses.PAID });
+        Object.assign(order, { paymentMethod: manualPaymentMethod });
+        await order.populate();
+        await processOrder(order);
+        editedTransactions = transactionsToReverse.map(t => t.id);
+      }
+
+      await models.Activity.create({
+        type: activities.ORDER_PAID_MANUALLY_EDITED,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        FromCollectiveId: order.FromCollectiveId,
+        OrderId: order.id,
+        CollectiveId: order.CollectiveId,
+        HostCollectiveId: host.id,
+        data: {
+          ...getDiffBetweenInstances(order.toJSON(), previousData, ['status', 'updatedAt']),
+          editedTransactions,
+          strategy: args.strategy,
+        },
+      });
+
+      // Invalidate Cloudflare cache for the collective pages
+      purgeCacheForCollective(toAccount.slug);
+      purgeCacheForCollective(fromAccount.slug);
+
+      return order;
     },
   },
   moveOrders: {

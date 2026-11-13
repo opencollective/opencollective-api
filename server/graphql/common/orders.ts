@@ -379,6 +379,23 @@ export const canEdit = async (req: express.Request, order: Order): Promise<boole
   );
 };
 
+/**
+ * Whether the user can edit the amounts/date of a contribution that was manually marked as paid by a
+ * host admin (bank transfers, expected funds...). Nothing was charged through a payment processor for
+ * these, so the ledger entries can be safely re-recorded.
+ */
+export const canEditPaidManualOrder = async (req: express.Request, order: Order): Promise<boolean> => {
+  return Boolean(
+    order.status === status.PAID &&
+    !order.interval &&
+    !order.SubscriptionId &&
+    !order.PaymentMethodId &&
+    (order.data?.isManualContribution || order.data?.isPendingContribution) &&
+    validateOrderScope(req) &&
+    (await isOrderHostAdmin(req, order)),
+  );
+};
+
 export const canComment = async (req: express.Request, order: Order): Promise<boolean> => {
   return validateOrderScope(req) && isOrderHostAdmin(req, order);
 };
