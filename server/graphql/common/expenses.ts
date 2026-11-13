@@ -1839,12 +1839,12 @@ export const scheduleExpenseForPayment = async (
 
   expense.PayoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
   await checkHasBalanceToPayExpense(host, expense, expense.PayoutMethod);
-  if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
-    const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
-
-    if (hostHasPayoutTwoFactorAuthenticationEnabled) {
-      await validateExpensePayout2FALimit(req, host, expense);
-    }
+  const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
+  if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL && hostHasPayoutTwoFactorAuthenticationEnabled) {
+    await validateExpensePayout2FALimit(req, host, expense);
+  } else {
+    // Not using rolling limit, but still enforcing 2FA for all admins (same as `payExpense`)
+    await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
   }
 
   // If Wise, add expense to a new batch group
