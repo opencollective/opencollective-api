@@ -10,6 +10,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
+import { sql, type SqlBool } from 'kysely';
 import { isEmpty, isNil, sum, uniq } from 'lodash';
 import { OrderItem, QueryTypes, Sequelize, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
@@ -20,9 +21,16 @@ import { SupportedCurrency } from '../../../../constants/currencies';
 import { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
 import { getBalancesWithVersionPerCollective } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
+import { compileToInlineSQL } from '../../../../lib/kysely';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
-import { buildSearchConditions, getSearchTermSQLConditions } from '../../../../lib/sql-search';
+import {
+  buildSearchArms,
+  buildSearchConditions,
+  getSearchTermSQLConditions,
+  parseSearchTerm,
+  type SearchArmsQuery,
+} from '../../../../lib/sql-search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
 import { AccountingCategory, Activity, Collective, Op, sequelize } from '../../../../models';
 import Expense, { ExpenseType } from '../../../../models/Expense';
@@ -402,6 +410,88 @@ export const ExpensesCollectionQueryArgs = {
   },
 };
 
+/**
+ * A search uses the search arms (see `buildSearchArms`) when it is in all the expenses of a host that paid at least
+ * this number of expenses. Measured with a rare term on hosts of 2.6k, 6k, 11k, 20k, 43k and 297k expenses: the
+ * regular conditions take 0.24 s, 0.30 s, 0.48 s, 0.56 s, 0.75 s and 3.1 s, against 0.01 s to 0.12 s for the search
+ * arms. Below this size, a search costs about the same as the page without a search (0.23 s to 0.25 s).
+ */
+const SEARCH_ARMS_MIN_HOST_EXPENSES = 5_000;
+
+/**
+ * Arguments with which a search still covers all the expenses of a host, or all the ones it paid. Any other argument
+ * is a filter: the regular conditions then only have to visit a part of the expenses of the host.
+ */
+const HOST_WIDE_SEARCH_ARGS = new Set([
+  'host',
+  'hostContext',
+  'searchTerm',
+  'status',
+  'orderBy',
+  'limit',
+  'offset',
+  'includeChildrenExpenses',
+]);
+
+const isHostWideSearch = (args: Record<string, unknown>): boolean => {
+  const isSet = (value: unknown) => value !== undefined && !(Array.isArray(value) && !value.length);
+  const status = args.status as string[] | null | undefined;
+  return (
+    Object.entries(args).every(([name, value]) => HOST_WIDE_SEARCH_ARGS.has(name) || !isSet(value)) &&
+    args.hostContext !== 'INTERNAL' &&
+    (!status?.length || status.includes(expenseStatus.PAID))
+  );
+};
+
+/**
+ * Index-friendly version of the search conditions of `ExpensesCollectionQueryResolver` (see `buildSearchArms`), for a
+ * search in all the expenses of a large host. Returns `null` when the regular conditions should be used:
+ * - with another filter, or on a host that paid few expenses: the regular conditions only visit the expenses that
+ *   pass the other filters, where the search arms first look for the matches of the term in all the expenses of the
+ *   platform. Measured on a host with 297k expenses, for a name that matches 6,400 accounts: 0.19 s with the regular
+ *   conditions and 0.38 s with the search arms among its 7.8k pending expenses, 0.72 s and 0.41 s among all of them.
+ * - for a public ID: the regular conditions also match it as text (description, names, tags), where the search arms
+ *   only match it exactly.
+ */
+const buildExpensesSearchArms = async (
+  args: Record<string, unknown> & { searchTerm?: string },
+  { host, isHostAdmin }: { host?: Collective; isHostAdmin: boolean },
+): Promise<SearchArmsQuery | null> => {
+  if (!host || !isHostWideSearch(args) || parseSearchTerm(args.searchTerm).type === 'publicId') {
+    return null;
+  }
+
+  return buildSearchArms(args.searchTerm, {
+    table: 'Expenses',
+    // The expenses paid by the host, the only ones that reference it: they are counted with `expenses__host_paid_at`,
+    // hence the condition on the status, which is the predicate of this index.
+    minScope: {
+      conditions: [
+        sql<SqlBool>`"Expenses"."HostCollectiveId" = ${host.id}`,
+        sql<SqlBool>`"Expenses"."status" NOT IN ('DRAFT', 'SPAM')`,
+      ],
+      rows: SEARCH_ARMS_MIN_HOST_EXPENSES,
+    },
+    // No `scope`: the arms have no index to use on the host of an expense (unpaid expenses don't reference it), and
+    // the limit on the number of matches then applies to all the rows that the arms read.
+    accountIdFields: ['Expenses.FromCollectiveId', 'Expenses.CollectiveId'],
+    userAccountIdFields: ['Expenses.UserId'],
+    userIdFields: isHostAdmin ? ['Expenses.UserId'] : [],
+    idFields: ['Expenses.id'],
+    textFields: ['Expenses.description'],
+    dataFields: [
+      sql`("Expenses"."data"#>>'{transactionId}')`,
+      sql`("Expenses"."data"#>>'{transfer,id}')`,
+      sql`("Expenses"."data"#>>'{transaction_id}')`,
+      sql`("Expenses"."data"#>>'{batchGroup,id}')`,
+      'Expenses.reference',
+    ],
+    amountFields: ['Expenses.amount'],
+    stringArrayFields: ['Expenses.tags'],
+    stringArrayTransformFn: (str: string) => str.toLowerCase(), // expense tags are stored lowercase
+  });
+};
+
 const loadAllAccountsFromArgs = async (
   args,
   req,
@@ -689,7 +779,16 @@ export const ExpensesCollectionQueryResolver = async (
     ],
   });
 
-  if (searchTermConditions.length) {
+  // These conditions are a single `OR` across the expense, its payee, its collective and its submitter, which no index
+  // can serve: every expense of the host has to be joined to them and tested. When the search arms apply, the matching
+  // expenses are looked up first, and the other conditions of the query apply to them.
+  const searchArms = searchTermConditions.length
+    ? await buildExpensesSearchArms(args, { host, isHostAdmin: Boolean(isHostAdmin) })
+    : null;
+
+  if (searchArms) {
+    where[Op.and].push(sequelize.literal(`"Expense"."id" IN (${compileToInlineSQL(searchArms)})`));
+  } else if (searchTermConditions.length) {
     where[Op.or] = searchTermConditions;
     ensureInclude('fromCollective');
     ensureInclude('collective');

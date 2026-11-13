@@ -966,6 +966,8 @@ export const buildKyselySearchConditions =
  * Above these limits it returns `null` and the regular conditions are used.
  * - accounts whose name or slug match the term (their IDs are inlined in each account arm)
  * - matches of all the arms (measured: 0.3 s to 0.7 s for 20k to 70k matches)
+ *
+ * It can also be restricted to large scopes: see `minScope` in `SearchArmsOptions`.
  */
 const SEARCH_ARMS_MAX_ACCOUNTS = 10_000;
 const SEARCH_ARMS_MAX_MATCHES = 50_000;
@@ -975,13 +977,20 @@ export type SearchArmsQuery = SelectQueryBuilder<DatabaseWithViews, any, { id: n
 
 type SearchArmsOptions = {
   /** The table to search. Fields must be columns (or expressions on the columns) of this table. */
-  table: 'Orders' | 'Transactions';
+  table: 'Orders' | 'Transactions' | 'Expenses';
   /** Columns that reference an account: searched through the account's name, slug and public ID */
   accountIdFields?: string[];
+  /** Columns that reference a user: searched through the name, slug and public ID of the user's account */
+  userAccountIdFields?: string[];
   /** Columns that reference a user: searched through the user's email, for email terms only */
   userIdFields?: string[];
   idFields?: KyselySearchField[];
   textFields?: KyselySearchField[];
+  /**
+   * Structured data (JSON paths, references) matched exactly, for single-word and integer terms. Each field should
+   * have an index: its arm is run once to count its matches (see `countMatchesUpTo`).
+   */
+  dataFields?: KyselySearchField[];
   amountFields?: KyselySearchField[];
   /**
    * `indexPredicate` is for emails stored in a partial index: a condition that every row with an email satisfies,
@@ -997,6 +1006,13 @@ type SearchArmsOptions = {
    * can use the indexes of the scope: they must not be more restrictive than the query the arms are used in.
    */
   scope?: Expression<SqlBool>[];
+  /**
+   * An arm that has no index of the scope to use looks for its matches in the whole table, where the regular
+   * conditions only visit the rows that the query is restricted to: they are the faster ones when these rows are few.
+   * With this option, `null` is returned unless at least `rows` rows of `table` satisfy `conditions`. These rows are
+   * counted, up to `rows`: the conditions must be served by an index.
+   */
+  minScope?: { conditions: Expression<SqlBool>[]; rows: number };
   /** Overrides `SEARCH_ARMS_MAX_ACCOUNTS` and `SEARCH_ARMS_MAX_MATCHES` */
   limits?: { maxAccounts?: number; maxMatches?: number };
 };
@@ -1054,38 +1070,57 @@ const countMatchesUpTo = async (arms: SearchArmsQuery[], max: number): Promise<n
  *   SELECT id FROM "searchMatches"
  *
  * Returns `null` when the regular conditions should be used instead: empty term, `#id` (already a condition on the
- * table alone), or a term that is not selective enough (see `SEARCH_ARMS_MAX_MATCHES`).
+ * table alone), a scope that is too small (see `minScope`), or a term that is not selective enough (see
+ * `SEARCH_ARMS_MAX_MATCHES`).
  */
 export const buildSearchArms = async (
   searchTerm: string,
   {
     table,
     accountIdFields = [],
+    userAccountIdFields = [],
     userIdFields = [],
     idFields = [],
     textFields = [],
+    dataFields = [],
     amountFields = [],
     emailFields = [],
     stringArrayFields = [],
     stringArrayTransformFn = null,
     publicIdFields = [],
     scope = [],
+    minScope = null,
     limits = {},
   }: SearchArmsOptions,
 ): Promise<SearchArmsQuery | null> => {
   const parsedTerm = parseSearchTerm(searchTerm);
-  if (!parsedTerm.term) {
+  if (!parsedTerm.term || (parsedTerm.type === 'id' && idFields.length)) {
     return null;
   }
 
   const db = getKysely();
   const { maxAccounts = SEARCH_ARMS_MAX_ACCOUNTS, maxMatches = SEARCH_ARMS_MAX_MATCHES } = limits;
+  // Arms whose matches are estimated by the planner, and arms whose matches are counted: see the comment below
   const conditions: Expression<SqlBool>[] = [];
-  const accountConditions: Expression<SqlBool>[] = [];
+  const countedConditions: Expression<SqlBool>[] = [];
+  const hasAccountFields = accountIdFields.length + userAccountIdFields.length > 0;
   const equals = (field: KyselySearchField, value: string | number) =>
     sql<SqlBool>`${toKyselyReference(field)} = ${value}`;
+  const toArm = (...armConditions: Expression<SqlBool>[]) =>
+    db
+      .selectFrom(table)
+      .select(`${table}.id`)
+      .where(`${table}.deletedAt`, 'is', null)
+      .where(eb => eb.and(armConditions)) as SearchArmsQuery;
 
-  /** Adds one arm per account column, for the accounts matching `where`. Returns false if too many accounts match. */
+  if (minScope && (await countMatchesUpTo([toArm(...minScope.conditions)], minScope.rows - 1)) < minScope.rows) {
+    return null;
+  }
+
+  /**
+   * Adds one arm per account column, for the accounts matching `where`, and one per column that references a user, for
+   * the users of these accounts. Returns false if too many accounts match.
+   */
   const addAccountArms = async (where: Expression<SqlBool>): Promise<boolean> => {
     const accounts = await db
       .selectFrom('Collectives')
@@ -1100,7 +1135,23 @@ export const buildSearchArms = async (
     } else if (accounts.length) {
       // IDs are integers from the database: inlined rather than sent as thousands of parameters
       const ids = sql.lit(`{${accounts.map(account => Number(account.id)).join(',')}}`);
-      accountIdFields.forEach(field => accountConditions.push(sql<SqlBool>`${sql.ref(field)} = ANY(${ids}::int[])`));
+      accountIdFields.forEach(field => countedConditions.push(sql<SqlBool>`${sql.ref(field)} = ANY(${ids}::int[])`));
+
+      const users = !userAccountIdFields.length
+        ? []
+        : await db
+            .selectFrom('Users')
+            .select('id')
+            .where('deletedAt', 'is', null)
+            .where(sql<SqlBool>`"CollectiveId" = ANY(${ids}::int[])`)
+            .execute();
+
+      if (users.length) {
+        const userIds = sql.lit(`{${users.map(user => Number(user.id)).join(',')}}`);
+        userAccountIdFields.forEach(field =>
+          countedConditions.push(sql<SqlBool>`${sql.ref(field)} = ANY(${userIds}::int[])`),
+        );
+      }
     }
 
     return true;
@@ -1109,13 +1160,9 @@ export const buildSearchArms = async (
   const ownPublicIdFields =
     parsedTerm.type === 'publicId' ? publicIdFields.filter(field => field.prefix === parsedTerm.prefix) : [];
   const isAccountPublicId =
-    parsedTerm.type === 'publicId' &&
-    parsedTerm.prefix === EntityShortIdPrefix.Collective &&
-    accountIdFields.length > 0;
+    parsedTerm.type === 'publicId' && parsedTerm.prefix === EntityShortIdPrefix.Collective && hasAccountFields;
 
-  if (parsedTerm.type === 'id' && idFields.length) {
-    return null;
-  } else if (parsedTerm.type === 'slug' && accountIdFields.length) {
+  if (parsedTerm.type === 'slug' && hasAccountFields) {
     // Exclusive conditions: if a slug, an email or a public ID is searched, don't search other attributes
     await addAccountArms(sql<SqlBool>`slug = ${parsedTerm.term}`);
   } else if (parsedTerm.type === 'email' && (emailFields.length || userIdFields.length)) {
@@ -1142,7 +1189,7 @@ export const buildSearchArms = async (
     const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
 
     // Partial match on the name and slug of the accounts, and on the free-text columns
-    if (accountIdFields.length) {
+    if (hasAccountFields) {
       if (!(await addAccountArms(sql<SqlBool>`(name ILIKE ${iLikeQuery} OR slug ILIKE ${iLikeQuery})`))) {
         return null;
       }
@@ -1154,6 +1201,16 @@ export const buildSearchArms = async (
     stringArrayFields.forEach(field =>
       conditions.push(sql<SqlBool>`${toKyselyReference(field)} && ARRAY[${preparedTerm}]::varchar[]`),
     );
+
+    // Exact match on structured data, for a single token only: same rule and same term as `buildSearchConditions`
+    if (
+      dataFields.length &&
+      ((parsedTerm.type === 'text' && parsedTerm.words === 1) || (parsedTerm.type === 'number' && !parsedTerm.isFloat))
+    ) {
+      const dataTerm =
+        parsedTerm.type === 'number' ? canonicalizeIntegerSearchText(parsedTerm.text) : toString(parsedTerm.term);
+      dataFields.forEach(field => countedConditions.push(equals(field, dataTerm)));
+    }
 
     // Bare numbers (not #id): match integer id columns and/or amount columns (stored in cents).
     // A number that does not fit in an `integer` column cannot match it, and PostgreSQL rejects it as a parameter
@@ -1170,31 +1227,28 @@ export const buildSearchArms = async (
   }
 
   // Nothing can match (e.g. `@slug` of an account that does not exist): a single arm without results
-  if (!conditions.length && !accountConditions.length) {
+  if (!conditions.length && !countedConditions.length) {
     conditions.push(sql<SqlBool>`FALSE`);
   }
 
-  const toArm = (condition: Expression<SqlBool>) =>
-    db
-      .selectFrom(table)
-      .select(`${table}.id`)
-      .where(`${table}.deletedAt`, 'is', null)
-      .where(eb => eb.and([...scope, condition])) as SearchArmsQuery;
-  const arms = conditions.map(toArm);
-  const accountArms = accountConditions.map(toArm);
+  const arms = conditions.map(condition => toArm(...scope, condition));
+  const countedArms = countedConditions.map(condition => toArm(...scope, condition));
 
-  // The planner's estimate is good for text matches, but not for the rows of a list of accounts: it assumes that
-  // each of them has the average number of rows of an account (1.5M contributions estimated for 6,400 accounts that
-  // had 19k). Their index entries are cheap to count though, and the count stops at the limit.
-  const [estimatedMatches, accountMatches] = await Promise.all([
+  // The planner's estimate is good for text matches, but not for:
+  // - the rows of a list of accounts: it assumes that each of them has the average number of rows of an account (1.5M
+  //   contributions estimated for 6,400 accounts that had 19k);
+  // - structured data: without statistics on the expression, a JSON path is estimated at 0.5% of the table, whatever
+  //   the term (5,000 expenses out of 1M for each of the four JSON paths of an expense, for a term that matched one).
+  // Their index entries are cheap to count though, and the count stops at the limit.
+  const [estimatedMatches, countedMatches] = await Promise.all([
     estimateMatches(arms),
-    countMatchesUpTo(accountArms, maxMatches),
+    countMatchesUpTo(countedArms, maxMatches),
   ]);
-  if (estimatedMatches + accountMatches > maxMatches) {
+  if (estimatedMatches + countedMatches > maxMatches) {
     return null;
   }
 
-  const union = unionArms([...accountArms, ...arms]);
+  const union = unionArms([...countedArms, ...arms]);
 
   // Materialized, so that the query the arms are used in starts from the matches. Otherwise the planner compares
   // its estimate of the matches with its estimate of the rows in scope, and the latter can be very wrong: a host with
