@@ -221,7 +221,7 @@ describe('server/graphql/v2/interface/Account', () => {
       expect(result.data.account.mainProfile).to.be.null;
     });
 
-    it('returns the main profile for an admin of a collective who received an incognito contribution', async () => {
+    it('returns null for an admin of a collective who received an incognito contribution', async () => {
       const user = await fakeUser();
       const incognito = await fakeIncognitoProfile(user);
       const collectiveAdmin = await fakeUser();
@@ -231,8 +231,7 @@ describe('server/graphql/v2/interface/Account', () => {
       const result = await graphqlQueryV2(query, { slug: incognito.slug }, collectiveAdmin);
       expect(result.errors).to.not.exist;
       expect(result.data.account.isIncognito).to.be.true;
-      expect(result.data.account.mainProfile).to.exist;
-      expect(result.data.account.mainProfile.slug).to.equal(user.collective.slug);
+      expect(result.data.account.mainProfile).to.be.null;
     });
 
     it('returns the main profile for an admin of a fiscal host the user contributed to', async () => {

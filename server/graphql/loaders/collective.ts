@@ -164,6 +164,26 @@ async function getIncognitoProfileLinksForMainProfiles(mainProfileIds: number[])
   }));
 }
 
+/** Returns the subset of `collectiveIds` that are incognito profiles. */
+async function getIncognitoProfileIds(collectiveIds: number[]): Promise<Set<number>> {
+  const ids = uniq(collectiveIds.filter(Boolean));
+  if (!ids.length) {
+    return new Set();
+  }
+
+  const incognitoProfiles = (await models.Collective.findAll({
+    attributes: ['id'],
+    where: {
+      id: ids,
+      type: CollectiveType.USER,
+      isIncognito: true,
+    },
+    raw: true,
+  })) as unknown as Array<{ id: number }>;
+
+  return new Set(incognitoProfiles.map(profile => profile.id));
+}
+
 type ExpensePayeeRow = {
   matchedId: number;
 };
@@ -210,8 +230,9 @@ type PrivateInfoAccessOptions = {
  * - is an admin of the host of a collective where the account has a processing order;
  * - is an admin of the host that paid an expense to the account.
  *
- * Incognito memberships are only taken into account for host admins: they grant access to the
- * primary profile, which is the account surfaced in the host dashboard.
+ * Incognito profiles are only visible to their owner and host admins: their memberships are not
+ * considered for collective admins. Incognito memberships of primary profiles also only grant host
+ * admins access to the primary profile, which is the account surfaced in the host dashboard.
  */
 async function getAccountIdsWithPrivateInfoAccess(
   req: Pick<express.Request, 'remoteUser'>,
@@ -227,23 +248,39 @@ async function getAccountIdsWithPrivateInfoAccess(
   const adminOfCollectiveIds = remoteUser.getAdministratedCollectiveIds();
   const otherAccountIds = uniq(collectiveIds.filter(id => id && id !== remoteUser.CollectiveId));
 
-  const incognitoProfileLinks = await getIncognitoProfileLinksForMainProfiles(otherAccountIds);
+  // Incognito profiles are only visible to their owner and the fiscal host. Direct memberships in a
+  // collective must not let its admins resolve an incognito profile's primary account.
+  const incognitoTargetIds = hostAdminsOnly ? [] : [...(await getIncognitoProfileIds(otherAccountIds))];
+  const regularTargetIds = hostAdminsOnly
+    ? otherAccountIds
+    : otherAccountIds.filter(id => !incognitoTargetIds.includes(id));
+
+  const incognitoProfileLinks = await getIncognitoProfileLinksForMainProfiles(regularTargetIds);
   const incognitoProfileIds = incognitoProfileLinks.map(link => link.IncognitoCollectiveId);
   const mainIdByIncognitoId = new Map(
     incognitoProfileLinks.map(link => [link.IncognitoCollectiveId, link.MainCollectiveId]),
   );
   const accountIdsWithIncognito = uniq([...otherAccountIds, ...incognitoProfileIds]);
 
-  const [administratedMembers, administratedIncognitoMembers, processingOrderCounterpartyIds, expensePayeeIds] =
-    await Promise.all([
-      getAdministratedMemberRowsForPrivateInfo(req, otherAccountIds, { hostAdminsOnly, adminOfCollectiveIds }),
-      getAdministratedMemberRowsForPrivateInfo(req, incognitoProfileIds, {
-        hostAdminsOnly: true,
-        adminOfCollectiveIds,
-      }),
-      getProcessingOrderCounterpartyIds(otherAccountIds, adminOfCollectiveIds),
-      getExpensePayeeIds(accountIdsWithIncognito, adminOfCollectiveIds),
-    ]);
+  const [
+    administratedMembers,
+    administratedIncognitoTargetMembers,
+    administratedIncognitoMembers,
+    processingOrderCounterpartyIds,
+    expensePayeeIds,
+  ] = await Promise.all([
+    getAdministratedMemberRowsForPrivateInfo(req, regularTargetIds, { hostAdminsOnly, adminOfCollectiveIds }),
+    getAdministratedMemberRowsForPrivateInfo(req, incognitoTargetIds, {
+      hostAdminsOnly: true,
+      adminOfCollectiveIds,
+    }),
+    getAdministratedMemberRowsForPrivateInfo(req, incognitoProfileIds, {
+      hostAdminsOnly: true,
+      adminOfCollectiveIds,
+    }),
+    getProcessingOrderCounterpartyIds(otherAccountIds, adminOfCollectiveIds),
+    getExpensePayeeIds(accountIdsWithIncognito, adminOfCollectiveIds),
+  ]);
 
   const accessibleIds = new Set<number>();
 
@@ -254,6 +291,10 @@ async function getAccountIdsWithPrivateInfoAccess(
   }
 
   for (const member of administratedMembers) {
+    accessibleIds.add(member.MemberCollectiveId);
+  }
+
+  for (const member of administratedIncognitoTargetMembers) {
     accessibleIds.add(member.MemberCollectiveId);
   }
 

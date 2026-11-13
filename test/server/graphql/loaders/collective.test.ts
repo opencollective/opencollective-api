@@ -278,6 +278,26 @@ describe('server/graphql/loaders/collective', () => {
         const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.true;
       });
+
+      it('Cannot see incognito profile infos as a collective admin', async () => {
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: collectiveAdmin });
+        expect(await loader.load(incognitoProfile.id)).to.be.false;
+      });
+
+      it('Can see incognito profile infos as the profile owner', async () => {
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: userWithPrivateInfo });
+        expect(await loader.load(incognitoProfile.id)).to.be.true;
+      });
+
+      it('Can see incognito profile infos as a host admin', async () => {
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: hostAdmin });
+        expect(await loader.load(incognitoProfile.id)).to.be.true;
+      });
+
+      it('Cannot see incognito profile infos as a random user', async () => {
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: randomUser });
+        expect(await loader.load(incognitoProfile.id)).to.be.false;
+      });
     });
 
     describe('Processing orders', () => {
