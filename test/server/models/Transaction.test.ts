@@ -15,6 +15,7 @@ import { createRefundTransaction } from '../../../server/lib/payments';
 import { getHostPlatformTipsAccount } from '../../../server/lib/transactions';
 import type { Transaction as TransactionModel } from '../../../server/models';
 import models, { Op } from '../../../server/models';
+import type { Transfer } from '../../../server/types/transferwise';
 
 type TransactionPayload = Partial<TransactionModel> & { totalAmount?: number; platformTipAmount?: number };
 import {
@@ -676,6 +677,31 @@ describe('server/models/Transaction', () => {
     expect(credit).to.have.property('currency').equal('EUR');
 
     expect(credit).to.have.property('amount').equal(402);
+  });
+
+  it('should use the FX rate of the new currency when converting to a currency other than the host one', async () => {
+    const credit = Transaction.build({
+      type: TransactionTypes.CREDIT,
+      currency: 'EUR',
+      hostCurrency: 'USD',
+      hostCurrencyFxRate: 1.1,
+      amount: 10000,
+      amountInHostCurrency: 11000,
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
+      netAmountInCollectiveCurrency: 10000,
+      data: { transfer: { sourceCurrency: 'JPY', targetCurrency: 'USD', rate: 0.0065 } as Transfer },
+    });
+
+    await Transaction.updateCurrency('JPY', credit);
+
+    expect(credit.currency).to.equal('JPY');
+    expect(credit.amountInHostCurrency).to.equal(11000);
+    expect(credit.hostCurrencyFxRate).to.equal(0.0065);
+    // 11000 / 0.0065 = 1692307.69, rounded to a whole yen
+    expect(credit.amount).to.equal(1692300);
+    expect(credit.netAmountInCollectiveCurrency).to.equal(1692300);
   });
 
   describe('createHostFeeShareTransactions', () => {

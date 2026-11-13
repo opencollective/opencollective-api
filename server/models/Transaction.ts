@@ -1565,12 +1565,10 @@ class Transaction extends ModelWithPublicId<
       transaction.taxAmount = roundCentsAmount(transaction.taxAmount * fxRate, currency);
     }
 
+    // Get the rate before changing `currency`, otherwise `getFxRate` would return the old `hostCurrencyFxRate`
+    const hostCurrencyFxRate = await Transaction.getFxRate(currency, transaction.hostCurrency, transaction);
     transaction.currency = currency;
-    transaction.hostCurrencyFxRate = await Transaction.getFxRate(
-      transaction.currency,
-      transaction.hostCurrency,
-      transaction,
-    );
+    transaction.hostCurrencyFxRate = hostCurrencyFxRate;
 
     // REMINDER: amount * hostCurrencyFxRate = amountInHostCurrency
     // so: amount = amountInHostCurrency / hostCurrencyFxRate
