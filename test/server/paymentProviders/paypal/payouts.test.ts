@@ -7,6 +7,7 @@ import type { SinonStub } from 'sinon';
 import { assert, createSandbox } from 'sinon';
 
 import status from '../../../../server/constants/expense-status';
+import * as libCurrency from '../../../../server/lib/currency';
 import * as paypalLib from '../../../../server/lib/paypal';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import * as paypalPayouts from '../../../../server/paymentProviders/paypal/payouts';
@@ -434,6 +435,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         data: { payout_batch_id: 'fake-batch-id-eur' },
       });
       expense.collective = collective;
+      sandbox.stub(libCurrency, 'getFxRate').callsFake(async (from, to) => (from === to ? 1 : 1.1));
 
       stubOf(paypalLib.getBatchInfo).resolves({
         items: [
@@ -453,7 +455,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
 
       expect(expense).to.have.property('status', 'PAID');
       expect(transaction).to.have.property('hostCurrency', 'USD');
-      expect(transaction.data.expenseToHostFxRate).to.eq(1.1); // getFxRate(EUR, USD) in the test env
+      expect(transaction.data.expenseToHostFxRate).to.eq(1.1);
       expect(transaction).to.have.property('amountInHostCurrency', -11000);
       expect(transaction).to.have.property('paymentProcessorFeeInHostCurrency', -220);
     });
