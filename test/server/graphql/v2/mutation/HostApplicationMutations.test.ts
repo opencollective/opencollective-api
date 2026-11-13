@@ -1058,6 +1058,56 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       expect(collectiveForMultiApply.HostCollectiveId).to.eq(host1.id);
       expect(collectiveForMultiApply.approvedAt).to.not.be.null;
     });
+
+    describe('keeps the current host when the application is rejected', () => {
+      const setupHostedCollective = async () => {
+        const adminUser = await fakeUser();
+        const currentHost = await fakeActiveHost();
+        const collective = await fakeCollective({
+          HostCollectiveId: currentHost.id,
+          admin: adminUser,
+          isActive: true,
+          approvedAt: new Date(),
+        });
+        return { adminUser, currentHost, collective };
+      };
+
+      const expectStillHosted = async (collective, currentHost) => {
+        await collective.reload();
+        const hostMember = await models.Member.findOne({
+          where: { CollectiveId: collective.id, MemberCollectiveId: currentHost.id, role: roles.HOST },
+        });
+        expect(collective.HostCollectiveId).to.eq(currentHost.id);
+        expect(collective.isActive).to.be.true;
+        expect(collective.approvedAt).to.not.be.null;
+        expect(hostMember).to.exist;
+      };
+
+      it('when the new host is not open to applications', async () => {
+        const { adminUser, currentHost, collective } = await setupHostedCollective();
+        const closedHost = await fakeActiveHost({ settings: { apply: false } });
+        const result = await graphqlQueryV2(
+          APPLY_TO_HOST_MUTATION,
+          { host: { slug: closedHost.slug }, collective: { slug: collective.slug } },
+          adminUser,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('This host is not open to applications');
+        await expectStillHosted(collective, currentHost);
+      });
+
+      it('when the new host is a user account', async () => {
+        const { adminUser, currentHost, collective } = await setupHostedCollective();
+        const randomUser = await fakeUser();
+        const result = await graphqlQueryV2(
+          APPLY_TO_HOST_MUTATION,
+          { host: { slug: randomUser.collective.slug }, collective: { slug: collective.slug } },
+          adminUser,
+        );
+        expect(result.errors).to.exist;
+        await expectStillHosted(collective, currentHost);
+      });
+    });
   });
 
   describe('removeHost', () => {
