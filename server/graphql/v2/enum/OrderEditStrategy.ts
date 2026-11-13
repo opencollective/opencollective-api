@@ -4,7 +4,7 @@ import { OrderEditStrategy } from '../../../lib/edit-order-transactions';
 
 export const GraphQLOrderEditStrategy = new GraphQLEnumType({
   name: 'OrderEditStrategy',
-  description: 'How the ledger is updated when editing funds that were recorded manually by a host admin',
+  description: 'How the ledger is updated when editing added funds',
   values: {
     [OrderEditStrategy.REVERSE]: {
       description:

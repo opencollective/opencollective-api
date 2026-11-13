@@ -733,8 +733,7 @@ async function refundTax(
  *  transactions being created.
  */
 /**
- * When funds recorded manually by a host admin (added funds, manual contributions) are reversed because of
- * an edit, the payment processor fee must be reversed in full: nothing was actually refunded through a
+ * When added funds are reversed because of an edit, the payment processor fee must be reversed in full: nothing was actually refunded through a
  * payment processor, so there is no lost fee for the host to cover. The new transactions record their own fee.
  *
  * @returns the payment processor fee to reverse, in host currency. Always 0 for other kinds of refunds, and

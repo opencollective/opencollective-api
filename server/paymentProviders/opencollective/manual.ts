@@ -9,13 +9,12 @@ import {
   createRefundTransaction,
   getHostFee,
   getHostFeeSharePercent,
-  getPaymentProcessorFeeToReverseForManualFunds,
   getPlatformTip,
   isPlatformTipEligible,
 } from '../../lib/payments';
 import type { Order, Transaction, User } from '../../models';
 import models from '../../models';
-import type { BasePaymentProviderService, ProcessOrderOptions } from '../types';
+import type { BasePaymentProviderService } from '../types';
 
 /**
  * Manual Payment method
@@ -36,7 +35,7 @@ async function getBalance(): Promise<number> {
  * @param {models.Order} order The order instance to be processed.
  * @return {models.Transaction} the double entry generated transactions.
  */
-async function processOrder(order: Order, options?: ProcessOrderOptions): Promise<Transaction> {
+async function processOrder(order: Order): Promise<Transaction> {
   // gets the Credit transaction generated
   const host = await order.collective.getHostCollective();
 
@@ -53,8 +52,7 @@ async function processOrder(order: Order, options?: ProcessOrderOptions): Promis
   const amount = order.totalAmount;
   const currency = order.currency;
   const hostCurrency = host.currency;
-  const hostCurrencyFxRate =
-    options?.ledgerOverrides?.hostCurrencyFxRate ?? (await getFxRate(order.currency, hostCurrency));
+  const hostCurrencyFxRate = await getFxRate(order.currency, hostCurrency);
   const amountInHostCurrency = roundCentsAmount(order.totalAmount * hostCurrencyFxRate, hostCurrency);
 
   const hostFee = await getHostFee(order);
@@ -84,7 +82,6 @@ async function processOrder(order: Order, options?: ProcessOrderOptions): Promis
     description: order.description,
     paymentProcessorFeeInHostCurrency,
     clearedAt: order.processedAt || null,
-    createdAt: options?.ledgerOverrides?.createdAt,
     data: {
       hasPlatformTip: platformTip ? true : false,
       isSharedRevenue,
@@ -96,10 +93,7 @@ async function processOrder(order: Order, options?: ProcessOrderOptions): Promis
     },
   };
 
-  const creditTransaction = await models.Transaction.createFromContributionPayload(
-    transactionPayload,
-    options?.ledgerOverrides,
-  );
+  const creditTransaction = await models.Transaction.createFromContributionPayload(transactionPayload);
 
   return creditTransaction;
 }
@@ -112,7 +106,7 @@ async function processOrder(order: Order, options?: ProcessOrderOptions): Promis
 const refundTransaction = async (transaction: Transaction, user: User, reason: string, refundKind: RefundKind) => {
   return createRefundTransaction(
     transaction,
-    await getPaymentProcessorFeeToReverseForManualFunds(transaction, refundKind),
+    0,
     { ...transaction.data, refundReason: reason },
     user,
     null,

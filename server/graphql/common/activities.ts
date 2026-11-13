@@ -153,7 +153,7 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
     toPick.push('update.title', 'update.html');
   } else if (activity.type === ActivityTypes.ACCOUNTING_CATEGORIES_EDITED) {
     toPick.push('added', 'removed', 'edited');
-  } else if ([ActivityTypes.ADDED_FUNDS_EDITED, ActivityTypes.ORDER_PAID_MANUALLY_EDITED].includes(activity.type)) {
+  } else if (activity.type === ActivityTypes.ADDED_FUNDS_EDITED) {
     toPick.push('previousData', 'newData', 'strategy');
   } else if ([ActivityTypes.VENDOR_EDITED, ActivityTypes.VENDOR_CREATED].includes(activity.type)) {
     const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);

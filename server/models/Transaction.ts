@@ -817,7 +817,6 @@ class Transaction extends ModelWithPublicId<
         'CreatedByUserId',
         'PaymentMethodId',
         'UsingGiftCardFromCollectiveId',
-        'createdAt',
         'clearedAt',
       ]),
       type: CREDIT,
