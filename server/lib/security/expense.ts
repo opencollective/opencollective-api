@@ -118,7 +118,7 @@ const checkExpenseStats = (
   { expense, checks, scope, details }: { scope: Scope; details?: string; checks: Array<SecurityCheck>; expense },
 ) => {
   const platformStats = aggregateByStatus(stats);
-  const collectiveStats = filter(stats, { CollectiveId: expense.CollectiveId });
+  const collectiveStats = aggregateByStatus(filter(stats, { CollectiveId: expense.CollectiveId }));
 
   // Checks if there was any SPAM or rejects on the platform
   const spam = find(platformStats, { status: status.SPAM });
@@ -772,7 +772,10 @@ export const checkExpensesBatch = async (
       await handleExpenseKycSecurityChecks(expense, checks, { loaders: req.loaders });
 
       // Author Membership Check: Checks if the user is admin of the fiscal host or the collective paying for the expense
-      const userIsHostAdmin = expense.User.isAdmin(expense.HostCollectiveId);
+      // `Expenses.HostCollectiveId` is only set when the expense gets paid, fall back on the collective's approved host
+      const hostId =
+        expense.HostCollectiveId || (expense.collective?.isActive ? expense.collective.HostCollectiveId : null);
+      const userIsHostAdmin = expense.User.isAdmin(hostId);
       addBooleanCheck(checks, userIsHostAdmin, {
         scope: Scope.USER,
         level: Level.PASS,
