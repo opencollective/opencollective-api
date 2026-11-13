@@ -264,6 +264,15 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
     });
 
     it('error if the collective does not have enough funds', async () => {
+      // Spend part of what the collective received from transaction2, so it can't be fully refunded
+      await fakeTransaction({
+        CollectiveId: collective.id,
+        HostCollectiveId: collective.HostCollectiveId,
+        type: TransactionTypes.DEBIT,
+        kind: TransactionKind.EXPENSE,
+        amount: -100,
+      });
+
       const result = await graphqlQueryV2(
         refundTransactionMutation,
         { transaction: { legacyId: transaction2.id } },
