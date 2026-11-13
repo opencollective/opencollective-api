@@ -90,6 +90,12 @@ describe('server/lib/currency', () => {
       expect(result2.EUR).to.be.closeTo(0.5, 1e-9);
     });
 
+    it('converts from an unsupported currency to a supported one', async () => {
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'BTC', rate: 2 });
+      const result = await CurrencyLib.getRatesFromDb('BTC' as SupportedCurrency, ['USD']);
+      expect(result).to.deep.equal({ USD: 0.5 });
+    });
+
     it('rejects storing a rate between two currencies other than USD', async () => {
       await expect(fakeCurrencyExchangeRate({ from: 'EUR', to: 'NZD' })).to.be.rejectedWith(
         'Only rates from or to USD are stored',

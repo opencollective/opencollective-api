@@ -1487,6 +1487,11 @@ class Transaction extends ModelWithPublicId<
       return 1;
     }
 
+    // Without a transaction, there is no stored rate to reuse
+    if (!transaction) {
+      return getFxRate(fromCurrency, toCurrency, 'latest');
+    }
+
     // Simple Case
     if (fromCurrency === transaction.currency && toCurrency === transaction.hostCurrency) {
       return transaction.hostCurrencyFxRate;

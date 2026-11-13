@@ -887,6 +887,17 @@ describe('server/models/Transaction', () => {
     });
   });
 
+  describe('getFxRate', () => {
+    it('returns 1 for the same currency', async () => {
+      expect(await Transaction.getFxRate('EUR', 'EUR')).to.equal(1);
+    });
+
+    it('returns the latest rate when no transaction is passed', async () => {
+      await utils.seedCachedRates({ EUR: { USD: 1.19 } });
+      expect(await Transaction.getFxRate('EUR', 'USD')).to.equal(1.19);
+    });
+  });
+
   describe('createTaxTransactions', () => {
     it('gives the tax back to the collective when refunding a contribution with embedded tax', async () => {
       // Legacy contribution, tax embedded in the transaction (taxes not separated yet)
