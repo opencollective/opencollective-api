@@ -106,7 +106,10 @@ const noPrimaryLedgerForExpenseSql = `NOT EXISTS (
     AND t."deletedAt" IS NULL
 )`;
 
+// Mirror the live sync, which receives the row passed to `createDoubleEntry`: the CREDIT for everything
+// but expenses. The DEBIT has the lowest id but carries the payer's host, not the host that received the money.
 const pickPrimaryFromGroup = (transactions: Transaction[]): Transaction | null =>
+  transactions.find(t => isPrimaryTransactionKind(t.kind) && !t.ExpenseId && t.type === 'CREDIT') ??
   transactions.find(t => isPrimaryTransactionKind(t.kind)) ??
   transactions.find(t => t.type === 'CREDIT') ??
   transactions[0] ??
@@ -395,95 +398,85 @@ export const backfillLedgerPhase = async (options: BackfillOptions = {}): Promis
   const processOrders = !options.expenseIds?.length || Boolean(options.orderIds?.length);
   const processExpenses = !options.orderIds?.length || Boolean(options.expenseIds?.length);
 
-  if (processOrders) {
-    let afterId = options.afterId ?? 0;
-    let remaining = limit;
+  // Orders and expenses are walked together in ascending id order, so that the single `lastId`
+  // cursor is valid for both tables: everything with an id <= lastId has been visited.
+  let afterId = options.afterId ?? 0;
+  let remaining = limit;
 
-    while (remaining > 0) {
-      const pageSize = Math.min(batchSize, remaining);
-      const orderWhere = {
-        id: { [Op.gt]: afterId, ...(options.orderIds?.length ? { [Op.in]: options.orderIds } : {}) },
-        [Op.and]: [
-          sequelize.literal(noPaymentIntentForOrderSql),
-          sequelize.literal(hasPrimaryLedgerForOrderSql),
-          ...(buildHostCollectiveFilter(options.hostIds) ? [buildHostCollectiveFilter(options.hostIds)] : []),
-        ],
-      };
+  while (remaining > 0) {
+    const pageSize = Math.min(batchSize, remaining);
 
-      const orders = await Order.findAll({
-        where: orderWhere,
-        attributes: ['id'],
-        order: [['id', 'ASC']],
-        limit: pageSize,
-      });
+    const orders = !processOrders
+      ? []
+      : await Order.findAll({
+          where: {
+            id: { [Op.gt]: afterId, ...(options.orderIds?.length ? { [Op.in]: options.orderIds } : {}) },
+            [Op.and]: [
+              sequelize.literal(noPaymentIntentForOrderSql),
+              sequelize.literal(hasPrimaryLedgerForOrderSql),
+              ...(buildHostCollectiveFilter(options.hostIds) ? [buildHostCollectiveFilter(options.hostIds)] : []),
+            ],
+          },
+          attributes: ['id'],
+          order: [['id', 'ASC']],
+          limit: pageSize,
+        });
 
-      if (!orders.length) {
-        break;
-      }
+    const expenses = !processExpenses
+      ? []
+      : await Expense.findAll({
+          where: {
+            id: { [Op.gt]: afterId, ...(options.expenseIds?.length ? { [Op.in]: options.expenseIds } : {}) },
+            [Op.and]: [
+              sequelize.literal(noPaymentIntentForExpenseSql),
+              sequelize.literal(hasPrimaryLedgerForExpenseSql),
+              ...(buildHostCollectiveFilterForExpense(options.hostIds)
+                ? [buildHostCollectiveFilterForExpense(options.hostIds)]
+                : []),
+            ],
+          },
+          attributes: ['id'],
+          order: [['id', 'ASC']],
+          limit: pageSize,
+        });
 
-      await processBatch(
-        orders,
-        stats,
-        orderId => backfillPaymentIntentForOrderLedger(orderId, options),
-        options.concurrency,
-      );
-      afterId = orders[orders.length - 1].id;
-      remaining -= orders.length;
+    const merged = [
+      ...orders.map(order => ({ id: order.id, isOrder: true })),
+      ...expenses.map(expense => ({ id: expense.id, isOrder: false })),
+    ].sort((a, b) => a.id - b.id || Number(b.isOrder) - Number(a.isOrder));
 
-      if (stats.processed % 100 === 0 && stats.processed > 0) {
-        logger.info(`Ledger orders: processed ${stats.processed}, lastId=${stats.lastId}`);
-      }
-
-      if (orders.length < pageSize) {
-        break;
-      }
+    if (!merged.length) {
+      break;
     }
-  }
 
-  if (processExpenses) {
-    let expenseAfterId = options.afterId ?? 0;
-    let expenseRemaining = options.orderIds?.length ? limit : limit - stats.processed;
+    // Never split an order and an expense sharing the same id across two pages, the cursor would skip the second one
+    let pageLength = Math.min(pageSize, merged.length);
+    if (pageLength < merged.length && merged[pageLength].id === merged[pageLength - 1].id) {
+      pageLength++;
+    }
 
-    while (expenseRemaining > 0) {
-      const pageSize = Math.min(batchSize, expenseRemaining);
-      const expenseWhere = {
-        id: { [Op.gt]: expenseAfterId, ...(options.expenseIds?.length ? { [Op.in]: options.expenseIds } : {}) },
-        [Op.and]: [
-          sequelize.literal(noPaymentIntentForExpenseSql),
-          sequelize.literal(hasPrimaryLedgerForExpenseSql),
-          ...(buildHostCollectiveFilterForExpense(options.hostIds)
-            ? [buildHostCollectiveFilterForExpense(options.hostIds)]
-            : []),
-        ],
-      };
+    const page = merged.slice(0, pageLength);
+    await processBatch(
+      page.filter(record => record.isOrder),
+      stats,
+      orderId => backfillPaymentIntentForOrderLedger(orderId, options),
+      options.concurrency,
+    );
+    await processBatch(
+      page.filter(record => !record.isOrder),
+      stats,
+      expenseId => backfillPaymentIntentForExpenseLedger(expenseId, options),
+      options.concurrency,
+    );
+    afterId = page[page.length - 1].id;
+    remaining -= page.length;
 
-      const expenses = await Expense.findAll({
-        where: expenseWhere,
-        attributes: ['id'],
-        order: [['id', 'ASC']],
-        limit: pageSize,
-      });
+    if (stats.processed % 100 === 0 && stats.processed > 0) {
+      logger.info(`Ledger: processed ${stats.processed}, lastId=${stats.lastId}`);
+    }
 
-      if (!expenses.length) {
-        break;
-      }
-
-      await processBatch(
-        expenses,
-        stats,
-        expenseId => backfillPaymentIntentForExpenseLedger(expenseId, options),
-        options.concurrency,
-      );
-      expenseAfterId = expenses[expenses.length - 1].id;
-      expenseRemaining -= expenses.length;
-
-      if (stats.processed % 100 === 0 && stats.processed > 0) {
-        logger.info(`Ledger expenses: processed ${stats.processed}, lastId=${stats.lastId}`);
-      }
-
-      if (expenses.length < pageSize) {
-        break;
-      }
+    if (orders.length < pageSize && expenses.length < pageSize && pageLength === merged.length) {
+      break;
     }
   }
 
@@ -603,6 +596,9 @@ export const runBackfill = async (
   options: BackfillOptions = {},
 ): Promise<Record<string, BackfillPhaseStats>> => {
   const results: Record<string, BackfillPhaseStats> = {};
+  // Same targeting rule as the ledger phase: ids of one kind exclude the other kind
+  const processOrders = !options.expenseIds?.length || Boolean(options.orderIds?.length);
+  const processExpenses = !options.orderIds?.length || Boolean(options.expenseIds?.length);
 
   if (phase === 'ledger' || phase === 'all') {
     logger.info('Starting ledger backfill phase...');
@@ -612,13 +608,13 @@ export const runBackfill = async (
 
   if (phase === 'pending-orders' || phase === 'all') {
     logger.info('Starting pending-orders backfill phase...');
-    results['pending-orders'] = await backfillPendingOrdersPhase(options);
+    results['pending-orders'] = processOrders ? await backfillPendingOrdersPhase(options) : emptyStats();
     logPhaseSummary('pending-orders', results['pending-orders']);
   }
 
   if (phase === 'pending-expenses' || phase === 'all') {
     logger.info('Starting pending-expenses backfill phase...');
-    results['pending-expenses'] = await backfillPendingExpensesPhase(options);
+    results['pending-expenses'] = processExpenses ? await backfillPendingExpensesPhase(options) : emptyStats();
     logPhaseSummary('pending-expenses', results['pending-expenses']);
   }
 
