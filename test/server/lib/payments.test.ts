@@ -6,6 +6,7 @@ import { createSandbox } from 'sinon';
 import type Stripe from 'stripe';
 
 import { activities } from '../../../server/constants';
+import { CollectiveType } from '../../../server/constants/collectives';
 import { SupportedCurrency } from '../../../server/constants/currencies';
 import status from '../../../server/constants/order-status';
 import PaymentIntentStatus from '../../../server/constants/payment-intent-status';
@@ -1441,6 +1442,44 @@ describe('server/lib/payments', () => {
 
         const feePercent = await getHostFeePercent(hostOrder);
         expect(feePercent).to.equal(0);
+      });
+
+      it('returns 0 for events and projects parented by the host itself', async () => {
+        for (const type of [CollectiveType.PROJECT, CollectiveType.EVENT]) {
+          const hostChild = await fakeCollective({
+            type,
+            ParentCollectiveId: testHost.id,
+            HostCollectiveId: testHost.id,
+            hostFeePercent: 10,
+          });
+          const hostChildOrder = await fakeOrder({
+            CollectiveId: hostChild.id,
+            PaymentMethodId: testPaymentMethod.id,
+          });
+          await hostChildOrder.populate();
+
+          const feePercent = await getHostFeePercent(hostChildOrder);
+          expect(feePercent, `expected no host fee for ${type}`).to.equal(0);
+        }
+      });
+
+      it('still charges the configured fee for non-event/project children of the host', async () => {
+        for (const type of [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION]) {
+          const hostChild = await fakeCollective({
+            type,
+            ParentCollectiveId: testHost.id,
+            HostCollectiveId: testHost.id,
+            hostFeePercent: 10,
+          });
+          const hostChildOrder = await fakeOrder({
+            CollectiveId: hostChild.id,
+            PaymentMethodId: testPaymentMethod.id,
+          });
+          await hostChildOrder.populate();
+
+          const feePercent = await getHostFeePercent(hostChildOrder);
+          expect(feePercent, `expected the configured host fee for ${type}`).to.equal(10);
+        }
       });
 
       it('returns collective hostFeePercent as default', async () => {
