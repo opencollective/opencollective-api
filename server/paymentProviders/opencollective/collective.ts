@@ -48,14 +48,16 @@ const paymentMethodProvider: BasePaymentProviderService = {
       );
     }
 
-    const balance = (await paymentMethodProvider.getBalance(order.paymentMethod, {
-      currency: order.currency,
-    })) as number;
-    if (balance < order.totalAmount) {
+    // The balance is returned in the payment method currency, which can differ from the order currency
+    const balance = (await paymentMethodProvider.getBalance(order.paymentMethod)) as number;
+    const paymentMethodCurrency = order.paymentMethod.currency;
+    const fxRate = await getFxRate(order.currency, paymentMethodCurrency);
+    const totalAmountInPaymentMethodCurrency = order.totalAmount * fxRate;
+    if (balance < totalAmountInPaymentMethodCurrency) {
       throw new Error(
         `Not enough funds available (${formatCurrency(
           balance,
-          order.paymentMethod.currency,
+          paymentMethodCurrency,
         )} left) to execute this order (${formatCurrency(order.totalAmount, order.currency)})`,
       );
     }

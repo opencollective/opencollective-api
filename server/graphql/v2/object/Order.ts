@@ -44,6 +44,23 @@ import { GraphQLTaxInfo } from './TaxInfo';
 import { GraphQLTier } from './Tier';
 import { GraphQLTransactionsImportRow } from './TransactionsImportRow';
 
+const GraphQLOrderPendingTierChange = new GraphQLObjectType({
+  name: 'OrderPendingTierChange',
+  description:
+    'A tier change requested on a recurring contribution. It takes effect once a charge pays for the new tier, typically on the next charge date.',
+  fields: () => ({
+    tier: {
+      type: GraphQLTier,
+      description: 'The tier the contribution will move to. Null if the tier was deleted.',
+      resolve: (pendingTierChange, _, req) => req.loaders.Tier.byId.load(pendingTierChange.TierId),
+    },
+    requestedAt: {
+      type: new GraphQLNonNull(GraphQLDateTime),
+      resolve: pendingTierChange => new Date(pendingTierChange.requestedAt),
+    },
+  }),
+});
+
 const GraphQLPendingOrderFromAccountInfo = new GraphQLObjectType({
   name: 'PendingOrderFromAccountInfo',
   fields: () => ({
@@ -180,6 +197,29 @@ export const GraphQLOrder = new GraphQLObjectType({
           if (order.TierId) {
             return req.loaders.Tier.byId.load(order.TierId);
           }
+        },
+      },
+      pendingTierChange: {
+        type: GraphQLOrderPendingTierChange,
+        description:
+          'A tier change waiting for a payment to take effect (e.g. upgrade to a more expensive tier). Only visible to the admins of the contributor, the collective and its host.',
+        async resolve(order, _, req) {
+          if (!order.data?.pendingTierChange || !OrdersLib.validateOrderScope(req)) {
+            return null;
+          }
+
+          const [fromCollective, collective] = await Promise.all([
+            req.loaders.Collective.byId.load(order.FromCollectiveId),
+            req.loaders.Collective.byId.load(order.CollectiveId),
+          ]);
+          if (
+            req.remoteUser?.isAdminOfCollectiveOrHost(fromCollective) ||
+            req.remoteUser?.isAdminOfCollectiveOrHost(collective)
+          ) {
+            return order.data.pendingTierChange;
+          }
+
+          return null;
         },
       },
       fromAccount: {

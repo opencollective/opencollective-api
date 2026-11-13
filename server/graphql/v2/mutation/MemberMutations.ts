@@ -10,7 +10,7 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import { getPolicy } from '../../../lib/policies';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
-import { editPublicMessage } from '../../common/members';
+import { checkCanEditTeam, editPublicMessage } from '../../common/members';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { BadRequest, Forbidden, Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLMemberRole } from '../enum';
@@ -28,7 +28,10 @@ const isLastAdmin = async (account, memberAccount) => {
     },
   });
 
-  return admins.length === 1 && admins[0].MemberCollectiveId === memberAccount.id;
+  // `editMember` and `removeMember` change all of the member's ADMIN rows on this account (there can be several),
+  // so check whether any other admin row, including inherited ones from the parent, would remain
+  const isChangedRow = admin => admin.CollectiveId === account.id && admin.MemberCollectiveId === memberAccount.id;
+  return admins.some(isChangedRow) && admins.every(isChangedRow);
 };
 
 const memberMutations = {
@@ -157,6 +160,8 @@ const memberMutations = {
         throw new Forbidden('You can only edit accountants, admins, members or community managers.');
       }
 
+      await checkCanEditTeam(account, req);
+
       // Make sure we don't edit the role of last admin
       if (args.role !== MemberRoles.ADMIN) {
         if (await isLastAdmin(account, memberAccount)) {
@@ -243,6 +248,8 @@ const memberMutations = {
       ) {
         throw new Forbidden('You can only remove accountants, admins, members, or community managers.');
       }
+
+      await checkCanEditTeam(account, req);
 
       if (args.role === MemberRoles.ADMIN) {
         if (await isLastAdmin(account, memberAccount)) {

@@ -17,6 +17,7 @@ import {
   fakeCollective,
   fakeEvent,
   fakeExpense,
+  fakeHostApplication,
   fakeLegalDocument,
   fakeMember,
   fakePayoutMethod,
@@ -728,6 +729,13 @@ describe('server/graphql/v2/object/Host', () => {
       expect(result.data.host.vendors.nodes[0]).to.include({ slug: vendor.slug });
     });
 
+    it('should search vendor by publicId', async () => {
+      const result = await graphqlQueryV2(accountQuery, { slug: host.slug, searchTerm: vendor.publicId }, hostAdmin);
+
+      expect(result.data.host.vendors.nodes).to.have.length(1);
+      expect(result.data.host.vendors.nodes[0]).to.include({ slug: vendor.slug });
+    });
+
     it('non-admin: applies canBeUsedWithAccounts filter to results', async () => {
       const user = await fakeUser();
 
@@ -855,6 +863,121 @@ describe('server/graphql/v2/object/Host', () => {
       const result = await graphqlQueryV2(accountQuery, { slug: host.slug, searchTerm: 'Bob' }, user);
 
       expect(result.data.host.vendors.nodes).to.be.empty;
+    });
+  });
+
+  describe('hostApplications search', () => {
+    const hostApplicationsQuery = gql`
+      query HostApplicationsSearch($slug: String!, $searchTerm: String) {
+        host(slug: $slug) {
+          hostApplications(searchTerm: $searchTerm, limit: 10, offset: 0) {
+            totalCount
+            nodes {
+              id
+              publicId
+              account {
+                publicId
+                slug
+                name
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    let hostAdmin, host, account, application, otherHostApplication;
+    before(async () => {
+      await resetTestDB();
+      hostAdmin = await fakeUser();
+      host = await fakeActiveHost({ admin: hostAdmin });
+      account = await fakeCollective({ HostCollectiveId: host.id, name: 'Zebra Application Account' });
+      application = await fakeHostApplication({ HostCollectiveId: host.id, CollectiveId: account.id });
+      otherHostApplication = await fakeHostApplication();
+    });
+
+    const search = async searchTerm => {
+      const result = await graphqlQueryV2(hostApplicationsQuery, { slug: host.slug, searchTerm }, hostAdmin);
+      expect(result.errors).to.not.exist;
+      return result.data.host.hostApplications;
+    };
+
+    it('finds applications by publicId', async () => {
+      const hostApplications = await search(application.publicId);
+      expect(hostApplications.totalCount).to.equal(1);
+      expect(hostApplications.nodes[0].publicId).to.equal(application.publicId);
+    });
+
+    it('finds applications by the account publicId', async () => {
+      const hostApplications = await search(account.publicId);
+      expect(hostApplications.totalCount).to.equal(1);
+      expect(hostApplications.nodes[0].publicId).to.equal(application.publicId);
+    });
+
+    it('finds applications by the account name', async () => {
+      const hostApplications = await search('Zebra Application Account');
+      expect(hostApplications.totalCount).to.equal(1);
+      expect(hostApplications.nodes[0].publicId).to.equal(application.publicId);
+    });
+
+    it('finds applications by the account slug', async () => {
+      const hostApplications = await search(`@${account.slug}`);
+      expect(hostApplications.totalCount).to.equal(1);
+      expect(hostApplications.nodes[0].publicId).to.equal(application.publicId);
+    });
+
+    it('finds applications by the account tags', async () => {
+      await account.update({ tags: ['Searchable Tag'] });
+      const hostApplications = await search('searchable tag');
+      expect(hostApplications.totalCount).to.equal(1);
+      expect(hostApplications.nodes[0].publicId).to.equal(application.publicId);
+    });
+
+    it('finds applications by legacy id', async () => {
+      const hostApplications = await search(`#${application.id}`);
+      expect(hostApplications.totalCount).to.equal(1);
+      expect(hostApplications.nodes[0].publicId).to.equal(application.publicId);
+    });
+
+    it('does not find applications from other hosts by publicId', async () => {
+      const hostApplications = await search(otherHostApplication.publicId);
+      expect(hostApplications.totalCount).to.equal(0);
+    });
+  });
+
+  describe('hostedAccounts search', () => {
+    const hostedAccountsQuery = gql`
+      query HostedAccountsSearch($slug: String!, $searchTerm: String) {
+        host(slug: $slug) {
+          hostedAccounts(searchTerm: $searchTerm, accountType: [COLLECTIVE]) {
+            totalCount
+            nodes {
+              publicId
+              slug
+            }
+          }
+        }
+      }
+    `;
+
+    let hostAdmin, host, hostedAccount;
+    before(async () => {
+      await resetTestDB();
+      hostAdmin = await fakeUser();
+      host = await fakeActiveHost({ admin: hostAdmin });
+      hostedAccount = await fakeCollective({ HostCollectiveId: host.id });
+    });
+
+    it('finds hosted accounts by publicId', async () => {
+      const result = await graphqlQueryV2(
+        hostedAccountsQuery,
+        { slug: host.slug, searchTerm: hostedAccount.publicId },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.host.hostedAccounts.totalCount).to.equal(1);
+      expect(result.data.host.hostedAccounts.nodes[0].publicId).to.equal(hostedAccount.publicId);
     });
   });
 

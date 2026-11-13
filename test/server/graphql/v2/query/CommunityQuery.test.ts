@@ -353,6 +353,23 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
       const { community } = result.data;
       expect(community.totalCount).to.be.greaterThan(0);
     });
+
+    it('searches by publicId', async () => {
+      const result = await graphqlQueryV2(
+        communityQuery,
+        {
+          host: { legacyId: host.id },
+          searchTerm: contributor1.collective.publicId,
+          limit: 100,
+          offset: 0,
+        },
+        hostAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      const { community } = result.data;
+      expect(community.totalCount).to.equal(1);
+      expect(community.nodes[0].slug).to.equal(contributor1.collective.slug);
+    });
   });
 
   describe('totalContributed filter', () => {

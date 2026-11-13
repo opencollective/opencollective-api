@@ -181,7 +181,8 @@ async function quoteExpense(
     (targetAccount === undefined || wiseIdsEqual(existingQuote.targetAccount, targetAccount)) &&
     // We can not reuse quotes if a Transfer was already created
     !expense.data.transfer &&
-    moment.utc().subtract(60, 'seconds').isBefore(existingQuote['expirationTime']);
+    // Only reuse quotes that remain valid for at least another 60 seconds
+    moment.utc().add(60, 'seconds').isBefore(existingQuote['expirationTime']);
   if (isExistingQuoteValid) {
     logger.debug(`quoteExpense(): reusing existing quote...`);
     return <ExpenseDataQuoteV3 | ExpenseDataQuoteV2>existingQuote;
@@ -742,7 +743,7 @@ async function getAvailableCurrencies(
 
 function validatePayoutMethod(connectedAccount: ConnectedAccount, payoutMethod: PayoutMethod): void {
   const currency = (<RecipientAccount>payoutMethod.data)?.currency;
-  if (connectedAccount.data?.type === 'business' && blockedCurrenciesForBusinessProfiles.includes(currency)) {
+  if (toLower(connectedAccount.data?.type) === 'business' && blockedCurrenciesForBusinessProfiles.includes(currency)) {
     throw new Error(`Sorry, this host's business profile can not create a transaction to ${currency}`);
   }
   if (

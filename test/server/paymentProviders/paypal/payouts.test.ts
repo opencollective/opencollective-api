@@ -459,6 +459,138 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         ]);
       }),
     );
+
+    describe('payout item errors at batch review', () => {
+      const buildFailedItem = (overrides = {}) => ({
+        transaction_status: 'FAILED',
+        payout_item_id: 'payout-item-1',
+        payout_batch_id: 'fake-batch-id',
+        payout_item: { sender_item_id: expense.id.toString() },
+        ...overrides,
+      });
+
+      const getErrorActivity = async () => {
+        const activities = await expense.getActivities({ where: { type: 'collective.expense.error' } });
+        expect(activities).to.have.length(1);
+        return activities[0];
+      };
+
+      it('uses the errors included in the batch item without fetching the payout item', async () => {
+        sandbox.stub(paypalLib, 'getPayoutItem');
+        stubOf(paypalLib.getBatchInfo).resolves({
+          items: [
+            buildFailedItem({
+              errors: {
+                name: 'RECEIVER_COUNTRY_NOT_ALLOWED',
+                message: 'The receiver country is not allowed.',
+                debug_id: 'debug-1',
+                details: [{ issue: 'RECEIVER_COUNTRY_NOT_ALLOWED', field: 'items[0].receiver' }],
+              },
+            }),
+          ],
+        });
+
+        await paypalPayouts.checkBatchStatus([expense]);
+
+        expect(expense).to.have.property('status', 'ERROR');
+        expect(paypalLib.getPayoutItem).to.not.have.been.called;
+        // The raw payload is persisted (debug data included); `sanitizeErrorData` gates exposure
+        expect((await getErrorActivity()).data.error).to.deep.equal({
+          name: 'RECEIVER_COUNTRY_NOT_ALLOWED',
+          message: 'The receiver country is not allowed.',
+          debug_id: 'debug-1',
+          details: [{ issue: 'RECEIVER_COUNTRY_NOT_ALLOWED', field: 'items[0].receiver' }],
+        });
+      });
+
+      it('fetches the payout item when a failed item has no errors', async () => {
+        const getPayoutItemStub = sandbox.stub(paypalLib, 'getPayoutItem');
+        getPayoutItemStub.resolves({
+          payout_item_id: 'payout-item-1',
+          transaction_id: 'transaction-1',
+          transaction_status: 'FAILED',
+          errors: {
+            name: 'RECEIVING_LIMIT_EXCEEDED',
+            message: 'The receiver has exceeded the receiving limit.',
+            debug_id: 'debug-2',
+            details: [{ issue: 'RECEIVING_LIMIT_EXCEEDED', field: 'items[0].receiver' }],
+          },
+        });
+        stubOf(paypalLib.getBatchInfo).resolves({ items: [buildFailedItem()] });
+
+        await paypalPayouts.checkBatchStatus([expense]);
+
+        expect(expense).to.have.property('status', 'ERROR');
+        expect(getPayoutItemStub).to.have.been.calledOnce;
+        expect(getPayoutItemStub.getCall(0).args[1]).to.equal('payout-item-1');
+        const { data } = await getErrorActivity();
+        expect(data.error).to.deep.equal({
+          name: 'RECEIVING_LIMIT_EXCEEDED',
+          message: 'The receiver has exceeded the receiving limit.',
+          debug_id: 'debug-2',
+          details: [{ issue: 'RECEIVING_LIMIT_EXCEEDED', field: 'items[0].receiver' }],
+        });
+        // The whole payout item detail is kept for debugging
+        expect(data.payoutItem).to.deep.contain({
+          payout_item_id: 'payout-item-1',
+          transaction_id: 'transaction-1',
+          transaction_status: 'FAILED',
+        });
+        expect(data).to.not.have.property('errorRetrievalFailed');
+      });
+
+      it('stores a status-derived message when the payout item endpoint has no errors either', async () => {
+        sandbox.stub(paypalLib, 'getPayoutItem').resolves({
+          payout_item_id: 'payout-item-1',
+          transaction_id: 'transaction-1',
+          transaction_status: 'FAILED',
+        });
+        stubOf(paypalLib.getBatchInfo).resolves({ items: [buildFailedItem()] });
+
+        await paypalPayouts.checkBatchStatus([expense]);
+
+        expect(expense).to.have.property('status', 'ERROR');
+        const { data } = await getErrorActivity();
+        expect(data.error).to.deep.equal({ message: 'PayPal payout item FAILED' });
+        expect(data.payoutItem).to.deep.contain({ transaction_id: 'transaction-1' });
+        // A successful lookup with no errors is conclusive, so it is not retried
+        expect(data).to.not.have.property('errorRetrievalFailed');
+      });
+
+      it('stores a status-derived message when fetching the payout item fails', async () => {
+        sandbox.stub(paypalLib, 'getPayoutItem').rejects(new Error('PayPal is unavailable'));
+        stubOf(paypalLib.getBatchInfo).resolves({ items: [buildFailedItem({ transaction_status: 'BLOCKED' })] });
+
+        await paypalPayouts.checkBatchStatus([expense]);
+
+        expect(expense).to.have.property('status', 'ERROR');
+        const { data } = await getErrorActivity();
+        expect(data.error).to.deep.equal({ message: 'PayPal payout item BLOCKED' });
+        expect(data.payoutItem).to.deep.contain({ payout_item_id: 'payout-item-1' });
+        // Flagged so the backfill script retries the retrieval instead of treating it as conclusive
+        expect(data.errorRetrievalFailed).to.equal(true);
+      });
+
+      it('does not fetch the payout item for successful items', async () => {
+        sandbox.stub(paypalLib, 'getPayoutItem');
+        stubOf(paypalLib.getBatchInfo).resolves({
+          items: [
+            {
+              transaction_status: 'SUCCESS',
+              payout_item_id: 'payout-item-1',
+              payout_item: { sender_item_id: expense.id.toString() },
+              payout_batch_id: 'fake-batch-id',
+              time_processed: '2024-08-15T10:30:00Z',
+            },
+          ],
+        });
+
+        await paypalPayouts.checkBatchStatus([expense]);
+
+        expect(expense).to.have.property('status', 'PAID');
+        expect(paypalLib.getPayoutItem).to.not.have.been.called;
+      });
+    });
   });
 
   describe('estimatePaypalPayoutFee', () => {
@@ -545,6 +677,62 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
 
       expect(fee).to.equal(2000); // 2% of 100000 = 2000 (no cap for INR)
+    });
+
+    it('uses the cap of the expense currency, not the host currency', async () => {
+      const host = await fakeHost({ currency: 'USD', countryISO: 'US' });
+      const payeeUser = await fakeUser({}, { countryISO: 'US' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: payeeUser.CollectiveId,
+        UserId: payeeUser.id,
+        amount: 1000_00,
+        currency: 'EUR',
+      });
+
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
+
+      expect(fee).to.equal(12_00); // EUR domestic cap = €12 (USD cap would be 14_00)
+    });
+
+    it('does not cap the fee with a cap expressed in another currency', async () => {
+      const host = await fakeHost({ currency: 'HUF', countryISO: 'HU' });
+      const payeeUser = await fakeUser({}, { countryISO: 'FR' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'EUR' });
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: payeeUser.CollectiveId,
+        UserId: payeeUser.id,
+        amount: 10_000_00,
+        currency: 'EUR',
+      });
+
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
+
+      expect(fee).to.equal(70_00); // EUR international cap = €70 (HUF cap would allow €200)
+    });
+
+    it('applies JPY caps in cents for zero-decimal currencies', async () => {
+      const host = await fakeHost({ currency: 'JPY', countryISO: 'JP' });
+      const payeeUser = await fakeUser({}, { countryISO: 'JP' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'JPY' });
+      const createJpyExpense = (amount: number) =>
+        fakeExpense({
+          CollectiveId: collective.id,
+          FromCollectiveId: payeeUser.CollectiveId,
+          UserId: payeeUser.id,
+          amount,
+          currency: 'JPY',
+        });
+
+      // ¥10,000 => 2% = ¥200, below the ¥1,200 domestic cap
+      const smallExpense = await createJpyExpense(10_000_00);
+      expect(await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, smallExpense)).to.equal(200_00);
+
+      // ¥1,000,000 => 2% = ¥20,000, capped at ¥1,200
+      const largeExpense = await createJpyExpense(1_000_000_00);
+      expect(await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, largeExpense)).to.equal(1200_00);
     });
 
     it('fetches fromCollective when not pre-loaded', async () => {

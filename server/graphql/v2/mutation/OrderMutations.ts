@@ -12,6 +12,7 @@ import {
   keyBy,
   keys,
   mapValues,
+  omit,
   omitBy,
   pick,
   uniq,
@@ -33,6 +34,7 @@ import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/
 import { checkCaptcha } from '../../../lib/check-captcha';
 import { roundCentsAmount } from '../../../lib/currency';
 import logger from '../../../lib/logger';
+import { createOrderUpdatedActivity, syncBackerMembershipTier } from '../../../lib/order-tier-change';
 import { isBalanceOnlyCollectiveType } from '../../../lib/payments';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../../lib/sanitize-html';
@@ -165,11 +167,16 @@ const getOrderBaseAmount = order => {
 };
 
 /**
- * A wrapper around `getOrderTaxInfoFromTaxInput` that will throw if the tax amount doesn't match the tax percentage.
+ * A wrapper around `getOrderTaxInfoFromTaxInput` that will throw if the tax rate is out of bounds or if the
+ * tax amount doesn't match the tax percentage.
  */
 const getOrderTaxInfo = (taxInput, quantity, orderAmount, fromAccount, toAccount, host, currency) => {
   let taxInfo, taxAmount;
   if (taxInput) {
+    if (taxInput.rate < 0 || taxInput.rate > 1) {
+      throw new ValidationFailed('Tax rate must be between 0 and 1');
+    }
+
     const grossAmount = quantity * getValueInCentsFromAmountInput(orderAmount);
     taxInfo = getOrderTaxInfoFromTaxInput(taxInput, fromAccount, toAccount, host);
     taxAmount = getTaxAmount(grossAmount, taxInput, currency);
@@ -530,23 +537,20 @@ const orderMutations = {
         );
       }
 
-      let previousOrderValues, previousSubscriptionValues;
+      let detailsUpdate: Awaited<ReturnType<typeof updateSubscriptionDetails>> | undefined;
 
       // Update details (eg. amount, tier)
       if (haveDetailsChanged) {
-        // Update details (eg. amount, tier)
+        // When the tier is not provided, keep targeting the current one, or the pending one if an upgrade is waiting
+        // for a payment (see `server/lib/order-tier-change.ts`).
         const tier =
           isNull(args.tier) || args.tier?.isCustom
             ? null
             : args.tier
               ? await fetchTierWithReference(args.tier, { throwIfMissing: true })
-              : order.Tier;
+              : (order.data?.pendingTierChange && (await models.Tier.findByPk(order.data.pendingTierChange.TierId))) ||
+                order.Tier;
 
-        const membership =
-          !isNull(order) &&
-          (await models.Member.findOne({
-            where: { MemberCollectiveId: order.FromCollectiveId, CollectiveId: order.CollectiveId, role: 'BACKER' },
-          }));
         const expectedCurrency = order.currency;
         if (!isUndefined(args.amount)) {
           assertAmountInputCurrency(args.amount, expectedCurrency, { name: 'amount' });
@@ -567,13 +571,9 @@ const orderMutations = {
           throw new ValidationFailed('Platform tip amount cannot be negative');
         }
         const newTotalAmount = amountWithoutTip + platformTipAmount;
-        ({ previousOrderValues, previousSubscriptionValues } = await updateSubscriptionDetails(
-          order,
-          tier,
-          membership,
-          newTotalAmount,
-          platformTipAmount,
-        ));
+        detailsUpdate = await updateSubscriptionDetails(order, tier, newTotalAmount, platformTipAmount, {
+          remoteUser: req.remoteUser,
+        });
       }
 
       if (hasPaymentMethodChanged) {
@@ -588,8 +588,21 @@ const orderMutations = {
             order = await updateSubscriptionWithPaypal(req.remoteUser, order, args.paypalSubscriptionId);
           } catch (error) {
             // Restore original subscription if it was modified
-            if (haveDetailsChanged) {
-              await updateOrderSubscription(order, previousOrderValues, previousSubscriptionValues);
+            if (detailsUpdate) {
+              await updateOrderSubscription(
+                order,
+                detailsUpdate.previousOrderValues,
+                detailsUpdate.previousSubscriptionValues,
+                {
+                  onUpdate:
+                    detailsUpdate.tierChange === 'APPLIED'
+                      ? transaction =>
+                          syncBackerMembershipTier(order, detailsUpdate.requestedTierId, detailsUpdate.previousTierId, {
+                            transaction,
+                          })
+                      : undefined,
+                },
+              );
             }
 
             reportErrorToSentry(error, { req });
@@ -608,6 +621,30 @@ const orderMutations = {
           } catch (error) {
             reportErrorToSentry(error, { req });
           }
+        }
+      }
+
+      // Audit trail for amount/tier changes
+      if (detailsUpdate) {
+        const changedFields = Object.keys(omit(detailsUpdate.previousOrderValues, ['data']));
+        if (changedFields.length || detailsUpdate.tierChange !== 'NONE') {
+          await createOrderUpdatedActivity(order, {
+            user: req.remoteUser,
+            UserTokenId: req.userToken?.id,
+            changes: {
+              previousValues: pick(detailsUpdate.previousOrderValues, changedFields),
+              newValues: pick(order.dataValues, changedFields),
+              tierChange: detailsUpdate.tierChange,
+              previousTierId: detailsUpdate.previousTierId,
+              requestedTierId: detailsUpdate.requestedTierId,
+              pendingTierChange: order.data?.pendingTierChange ?? null,
+              paypalSubscriptionId: args.paypalSubscriptionId ?? null,
+            },
+          });
+        }
+
+        if (detailsUpdate.tierChange === 'APPLIED') {
+          purgeCacheForCollective(order.collective.slug);
         }
       }
 
@@ -823,14 +860,19 @@ const orderMutations = {
             }
 
             const paymentProcessorFeeInCents = getValueInCentsFromAmountInput(paymentProcessorFee);
+            if (paymentProcessorFeeInCents < 0) {
+              throw new ValidationFailed('Payment processor fee cannot be negative');
+            }
             order.set('data', { ...order.data, paymentProcessorFee: paymentProcessorFeeInCents });
           }
+          // Read the base amount before `taxAmount` changes: without a new amount, the tax applies to this one
+          const existingBaseAmount = getOrderBaseAmount(order);
           if (!isNil(tax)) {
             const quantity = 1; // Not supported yet by OrderUpdateInput
             const { taxInfo, taxAmount } = getOrderTaxInfo(
               args.order.tax,
               quantity,
-              args.order.amount,
+              args.order.amount ?? { valueInCents: existingBaseAmount },
               fromAccount,
               toAccount,
               host,
@@ -855,9 +897,14 @@ const orderMutations = {
           }
 
           // Re-compute total amount
-          const baseAmount = !isNil(args.order.amount)
-            ? getValueInCentsFromAmountInput(args.order.amount)
-            : getOrderBaseAmount(order);
+          let baseAmount;
+          if (!isNil(args.order.amount)) {
+            baseAmount = getValueInCentsFromAmountInput(args.order.amount);
+          } else if (!isNil(tax)) {
+            baseAmount = existingBaseAmount;
+          } else {
+            baseAmount = getOrderBaseAmount(order);
+          }
           order.set(
             'totalAmount',
             getTotalAmountForOrderInput(
@@ -867,6 +914,11 @@ const orderMutations = {
               order.currency,
             ),
           );
+
+          // The payment processor fee is taken from the contribution, it cannot be higher than it
+          if (order.data?.paymentProcessorFee > order.totalAmount - (order.platformTipAmount || 0)) {
+            throw new ValidationFailed('Payment processor fee cannot be higher than the contribution amount');
+          }
 
           // Link transactions import row
           let transactionsImportRow;
@@ -1006,7 +1058,7 @@ const orderMutations = {
       const orders = await fetchOrdersWithReferences(args.orders, {
         include: [
           { association: 'paymentMethod' },
-          { association: 'fromCollective', attributes: ['id', 'slug'] },
+          { association: 'fromCollective', attributes: ['id', 'slug', 'HostCollectiveId'] },
           { association: 'collective', attributes: ['id', 'slug', 'HostCollectiveId'] },
         ],
       });
@@ -1151,6 +1203,8 @@ const orderMutations = {
         }
         if (tier) {
           ordersPayload['TierId'] = tier === 'custom' ? null : tier.id;
+          // An explicit move supersedes any tier change still waiting for a payment
+          ordersPayload['data'] = sequelize.literal(`"data" - 'pendingTierChange'`);
         }
 
         const [, updatedOrders] = await models.Order.update(ordersPayload, {
@@ -1419,6 +1473,10 @@ const orderMutations = {
         }
       });
 
+      if (!(getValueInCentsFromAmountInput(args.order.amount) > 0)) {
+        throw new ValidationFailed('Amount should be greater than 0');
+      }
+
       // Get tax info
       const quantity = 1; // Not supported yet by PendingOrderCreateInput
       const { taxInfo, taxAmount } = getOrderTaxInfo(
@@ -1607,6 +1665,10 @@ const orderMutations = {
           assertAmountInputCurrency(amount, expectedCurrency, { name: field });
         }
       });
+
+      if (!(getValueInCentsFromAmountInput(args.order.amount) > 0)) {
+        throw new ValidationFailed('Amount should be greater than 0');
+      }
 
       // Get tax info
       const quantity = 1; // Not supported yet by PendingOrderCreateInput

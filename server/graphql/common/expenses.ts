@@ -959,7 +959,8 @@ export const canDeleteExpense: ExpensePermissionEvaluator = async (
     return false;
   } else if (
     ['DRAFT', 'PENDING', 'INVITE_DECLINED'].includes(expense.status) &&
-    (await remoteUserMeetsOneCondition(req, expense, [isOwner], options))
+    // Don't forward `options`: non-owners must fall through to the admin checks below instead of throwing here
+    (await remoteUserMeetsOneCondition(req, expense, [isOwner]))
   ) {
     return true;
   } else if (!['REJECTED', 'SPAM', 'DRAFT', 'CANCELED'].includes(expense.status)) {
@@ -2660,6 +2661,9 @@ export async function createExpense(req: express.Request, expenseData: ExpenseDa
       throw new Forbidden('You need to be an admin of the collective to import expenses');
     } else if (expenseData.transactionsImportRow.isProcessed()) {
       throw new ValidationFailed('This transaction has already been processed');
+    } else if (expenseCurrency !== collective.host.currency) {
+      // The expense is marked as paid with `expense.amount` booked as a host-currency amount
+      throw new ValidationFailed('Expenses created from a transactions import must be in the host currency');
     }
 
     const transactionsImport = await expenseData.transactionsImportRow.getImport();
@@ -3110,16 +3114,15 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
   }
 
   const currency = expenseData.currency || existingExpense.currency;
-  const items =
-    (await prepareExpenseItemInputs(
-      req,
-      currency,
-      expenseData.items || (existingExpense.data.items as Array<Record<string, unknown> & { url?: string }>),
-      {
+  // Items stored in `data.items` are already prepared. Running them through `prepareExpenseItemInputs` again
+  // would treat them as legacy `amount` inputs and reset their currency and FX rate.
+  const items = expenseData.items
+    ? await prepareExpenseItemInputs(req, currency, expenseData.items, {
         isEditing: true,
         expenseType: expenseData.type || existingExpense.type,
-      },
-    )) || existingExpense.items;
+      })
+    : (existingExpense.data.items as Array<Partial<ExpenseItem>>) || existingExpense.items;
+  const taxes = expenseData.tax !== undefined ? expenseData.tax : existingExpense.data?.taxes;
 
   const attachedFiles =
     (await prepareAttachedFiles(req, expenseData.attachedFiles)) || existingExpense.data.attachedFiles;
@@ -3141,12 +3144,12 @@ export async function editExpenseDraft(req: express.Request, expenseData: Expens
 
   const newExpenseValues = {
     ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
-    amount: models.Expense.computeTotalAmountForExpense(items, expenseData.tax),
+    amount: models.Expense.computeTotalAmountForExpense(items, taxes),
     lastEditedById: req.remoteUser.id,
     UserId: req.remoteUser.id,
     data: {
       items,
-      taxes: expenseData.tax,
+      taxes,
       attachedFiles: attachedFiles,
       invoiceFile: invoiceFileUrl ? { url: invoiceFileUrl } : null,
     },
@@ -3566,7 +3569,7 @@ export async function editExpense(
     } else {
       checkCanUseAccountingCategory(
         remoteUser,
-        expenseData.type,
+        expenseType,
         expenseData.accountingCategory,
         expense.host ?? expense.collective.host,
         expense.collective,
@@ -3700,12 +3703,12 @@ export async function editExpense(
       );
 
       await createAttachedFiles(expense, newAttachedFiles, remoteUser, transaction);
-      await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy()));
+      await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy({ transaction })));
       await Promise.all(
         updatedAttachedFiles.map((file: Record<string, unknown>) =>
           models.ExpenseAttachedFile.update(
             { url: file.url as string },
-            { where: { id: file.id, ExpenseId: expense.id } },
+            { where: { id: file.id, ExpenseId: expense.id }, transaction },
           ),
         ),
       );
@@ -4106,7 +4109,7 @@ export const checkHasBalanceToPayExpense = async (
   }
 
   const exchangeStats =
-    !isSameCurrency && (await models.CurrencyExchangeRate.getPairStats(expense.collective.currency, expense.currency));
+    !isSameCurrency && (await models.UsdExchangeRate.getPairStats(expense.collective.currency, expense.currency));
 
   // Ensure the collective has enough funds to pay the expense, with an error margin of 2σ (standard deviations) the exchange rate of past 5 days
   // to account for fluctuating rates. If no exchange rate is available, fallback to the 20% rule.
@@ -4561,7 +4564,14 @@ export const getExpenseAmountInDifferentCurrency = async (expense: Expense, toCu
     const result = await req.loaders.Expense.expenseToHostTransactionFxRateLoader.load(expense.id);
     // If collective changed their currency since the expense was paid, we can't rely on transaction.currency
     if (!isNil(result?.rate) && (!expense.collective || expense.collective.currency === result.currency)) {
-      return buildAmount(result.rate, OPENCOLLECTIVE, false, expense.createdAt);
+      // `result.rate` converts the expense currency to the host currency: use it as-is only for the host currency,
+      // and go through the recorded collective -> host rate for the collective currency.
+      const debit = find(transactions, { kind: TransactionKind.EXPENSE, isRefund: false, type: 'DEBIT' });
+      if (debit?.hostCurrency === toCurrency) {
+        return buildAmount(result.rate, OPENCOLLECTIVE, false, expense.createdAt);
+      } else if (debit?.currency === toCurrency && debit.hostCurrencyFxRate) {
+        return buildAmount(result.rate / debit.hostCurrencyFxRate, OPENCOLLECTIVE, false, expense.createdAt);
+      }
     }
   }
 

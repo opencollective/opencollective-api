@@ -19,6 +19,7 @@ import { checkCaptcha } from '../../../lib/check-captcha';
 import { roundCentsAmount } from '../../../lib/currency';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import { mustUpdateLocation } from '../../../lib/location';
+import { applyPendingTierChangeAfterCharge } from '../../../lib/order-tier-change';
 import { executeOrder, isBalanceOnlyCollectiveType, isPlatformTipEligible, processOrder } from '../../../lib/payments';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import {
@@ -721,7 +722,7 @@ export async function confirmOrder(order, remoteUser, guestToken) {
       await executeOrder(remoteUser, order);
       // executeOrder is updating the order to PAID
     } else {
-      await processOrder(order);
+      const transaction = await processOrder(order);
 
       order.status = status.ACTIVE;
       order.data = omit(order.data, ['error', 'latestError', 'stripePaymentIntent', 'needsConfirmation']);
@@ -733,6 +734,7 @@ export async function confirmOrder(order, remoteUser, guestToken) {
 
       await order.Subscription.save();
       await order.save();
+      await applyPendingTierChangeAfterCharge(order, transaction);
     }
 
     return order;

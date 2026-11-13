@@ -273,7 +273,12 @@ export function authenticateUser(req: Request, res: Response, next: NextFunction
     return next(e);
   }
 
-  _authenticateUserByJwt(req, res, next);
+  // Tokens signed with our secret for other purposes may have no user ID
+  if (!Number.isInteger(Number(req.jwtPayload.sub))) {
+    return next(new errors.Unauthorized('Invalid token'));
+  }
+
+  _authenticateUserByJwt(req, res, next).catch(next);
 }
 
 export const rateLimitServiceAuthentication = async (req: Request, res: Response, next: NextFunction) => {

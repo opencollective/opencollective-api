@@ -261,6 +261,7 @@ class Expense extends ModelWithPublicId<
         ...pick(data, [
           'isManualPayout',
           'error',
+          'errorRetrievalFailed',
           'payee',
           'draftKey',
           'inviteUrl',
@@ -282,7 +283,8 @@ class Expense extends ModelWithPublicId<
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },
         user: submittedByUserCollective.minimal,
         fromCollective: fromCollective.minimal,
-        expense: this.info,
+        // `this.info.grossAmount` relies on `this.items`, which most callers don't load: use the items resolved above
+        expense: { ...this.info, grossAmount: Expense.computeTotalAmountForExpense(items || [], []) },
         transaction: transaction?.info,
         amountInHostCurrency: Math.abs(transaction?.info?.amountInHostCurrency),
         payoutMethod: payoutMethod && pick(payoutMethod.dataValues, ['id', 'type', 'data']),

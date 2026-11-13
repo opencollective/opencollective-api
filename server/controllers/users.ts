@@ -50,6 +50,7 @@ export const exists = async (req: express.Request, res: express.Response) => {
       res.send({
         error: { message: 'Rate limit exceeded' },
       });
+      return;
     }
     const user = await models.User.findOne({
       attributes: ['id'],
