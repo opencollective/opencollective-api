@@ -1,7 +1,7 @@
 /**
  * Tiers adapter for PostgreSQL search.
  *
- * Coverage (same as OpenSearch): name, slug, description, longDescription (HTML stripped) and identifiers. Tiers are
+ * Coverage: name, slug, description, longDescription (HTML stripped) and identifiers. Tiers are
  * public: every user, including unauthenticated ones, can search the tiers of live, non-private Accounts.
  *
  * Arms (see `scores.ts` for bands):

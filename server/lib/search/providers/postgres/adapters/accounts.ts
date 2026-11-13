@@ -1,7 +1,7 @@
 /**
  * Accounts (`Collectives`) adapter for PostgreSQL search.
  *
- * Coverage (same as OpenSearch): name, slug, description, longDescription (HTML stripped), tags, website, and
+ * Coverage: name, slug, description, longDescription (HTML stripped), tags, website, and
  * legalName for administrators of the account, its parent or its host (or root).
  *
  * Arms (see `scores.ts` for bands):

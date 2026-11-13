@@ -1,7 +1,7 @@
 /**
  * Updates adapter for PostgreSQL search.
  *
- * Coverage (same as OpenSearch): title, slug and HTML body (tags stripped).
+ * Coverage: title, slug and HTML body (tags stripped).
  *
  * Rows: live Updates of Accounts that are not deleted, not private and not hidden from search (even for root), with
  * index-only anti-joins on the small sets of excluded Accounts. Row permission (live, applied in every arm before

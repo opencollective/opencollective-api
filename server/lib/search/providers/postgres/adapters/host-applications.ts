@@ -1,7 +1,7 @@
 /**
  * Host applications adapter for PostgreSQL search.
  *
- * Coverage (same as OpenSearch): message and identifiers. Applications are restricted rows: only root and the
+ * Coverage: message and identifiers. Applications are restricted rows: only root and the
  * administrators of the host or of the applying Account can find them (no access, e.g. unauthenticated or OAuth
  * token without the `applications` scope: nothing to search, no query). The permission applies to every arm, including
  * exact identifiers, so inaccessible applications never affect totals or scores.

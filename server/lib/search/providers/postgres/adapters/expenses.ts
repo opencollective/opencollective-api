@@ -1,7 +1,7 @@
 /**
  * Expenses adapter for PostgreSQL search.
  *
- * Coverage (same as OpenSearch): description, longDescription (HTML stripped), currency, status, item descriptions,
+ * Coverage: description, longDescription (HTML stripped), currency, status, item descriptions,
  * and the restricted private message, invoice information and reference for administrators of the expense's
  * account, its parent, its payee or its host (or root).
  *
@@ -18,8 +18,7 @@
  *
  * Every arm excludes deleted Expenses and the Expenses of deleted or private accounts (anti-join on the small set of
  * excluded Accounts, see `isOwnedByEligibleAccount`). Account-dependent scopes and permissions use small, indexed sets
- * of account IDs (children, hosted accounts): no arm looks up the account of every candidate. The host of an Expense is its own host, or the active host of its account when it has none
- * (same as OpenSearch).
+ * of account IDs (children, hosted accounts): no arm looks up the account of every candidate. The host of an Expense is its own host, or the active host of its account when it has none.
  */
 
 import { Kysely, RawBuilder, sql } from 'kysely';

@@ -1,7 +1,7 @@
 /**
  * PostgreSQL search provider: Expenses and their items (opencollective#8939).
  *
- * Goes through the GraphQL V2 `search` query with real PostgreSQL fixtures, without an OpenSearch cluster.
+ * Goes through the GraphQL V2 `search` query with real PostgreSQL fixtures.
  * Fixtures use made-up words so that tests don't match each other's expenses.
  */
 
@@ -12,7 +12,6 @@ import sinon from 'sinon';
 import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
-import * as OpenSearchClientLib from '../../../../../server/lib/open-search/client';
 import { Collective, Expense, ExpenseItem, User } from '../../../../../server/models';
 import {
   fakeActiveHost,
@@ -91,7 +90,6 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL, Expenses)', () => {
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
-    sandbox.stub(OpenSearchClientLib, 'isOpenSearchConfigured').returns(false);
   });
 
   afterEach(() => {

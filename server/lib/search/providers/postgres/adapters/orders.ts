@@ -1,7 +1,7 @@
 /**
  * Orders (Contributions) adapter for PostgreSQL search.
  *
- * Coverage (same as OpenSearch, on live rows and relationships): ID / `#ID`, public ID (`or_...`), GraphQL ID,
+ * Coverage (on live rows and relationships): ID / `#ID`, public ID (`or_...`), GraphQL ID,
  * description, and the PayPal subscription ID of the Order's Subscription for administrators of the contribution's
  * host (or root).
  *

@@ -4,12 +4,10 @@
 
 import { isNil, omitBy } from 'lodash';
 
-import { OpenSearchProvider } from './providers/opensearch';
 import { PostgresProvider } from './providers/postgres';
 import { SearchEntityRequest, SearchProvider, SearchProviderImplementation, SearchRequest } from './types';
 
 const SearchProviders: Record<SearchProvider, SearchProviderImplementation> = {
-  [SearchProvider.OPENSEARCH]: OpenSearchProvider,
   [SearchProvider.POSTGRES]: PostgresProvider,
 };
 
