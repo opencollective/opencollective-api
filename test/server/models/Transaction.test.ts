@@ -885,6 +885,52 @@ describe('server/models/Transaction', () => {
         await Transaction.validate(debit, { oppositeTransaction: credit });
       });
     });
+
+    describe('expense paid to a collective under another host', () => {
+      const payTaxedExpenseAcrossHosts = async () => {
+        const payeeHost = await fakeHost({ currency: 'USD', CreatedByUserId: user.id });
+        const payee = await fakeCollective({ HostCollectiveId: payeeHost.id, currency: 'USD', hostFeePercent: 10 });
+        await models.Transaction.createDoubleEntry({
+          type: TransactionTypes.DEBIT,
+          kind: TransactionKind.EXPENSE,
+          description: 'Expense with 20% tax paid to a collective under another host',
+          CollectiveId: collective.id,
+          FromCollectiveId: payee.id,
+          HostCollectiveId: host.id,
+          CreatedByUserId: user.id,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          hostCurrencyFxRate: 1,
+          amount: -10000,
+          amountInHostCurrency: -10000,
+          taxAmount: -2000,
+          netAmountInCollectiveCurrency: -12000,
+          hostFeeInHostCurrency: 0,
+          platformFeeInHostCurrency: 0,
+          paymentProcessorFeeInHostCurrency: 0,
+          data: { tax: { id: 'VAT', percentage: 20 } },
+        });
+
+        const hostFee = await models.Transaction.findOne({
+          where: { kind: TransactionKind.HOST_FEE, type: TransactionTypes.CREDIT, CollectiveId: payeeHost.id },
+        });
+        return { hostFee, payee };
+      };
+
+      it('charges the host fee on the tax-exclusive amount with embedded taxes', async () => {
+        sandbox.stub(config.ledger, 'separateTaxes').value(false);
+        const { hostFee, payee } = await payTaxedExpenseAcrossHosts();
+        expect(hostFee.amount).to.equal(1000);
+        expect(await payee.getBalance()).to.equal(9000);
+      });
+
+      it('charges the host fee on the tax-exclusive amount with separated taxes', async () => {
+        sandbox.stub(config.ledger, 'separateTaxes').value(true);
+        const { hostFee, payee } = await payTaxedExpenseAcrossHosts();
+        expect(hostFee.amount).to.equal(1000);
+        expect(await payee.getBalance()).to.equal(9000);
+      });
+    });
   });
 
   describe('getFxRate', () => {
