@@ -167,11 +167,16 @@ const getOrderBaseAmount = order => {
 };
 
 /**
- * A wrapper around `getOrderTaxInfoFromTaxInput` that will throw if the tax amount doesn't match the tax percentage.
+ * A wrapper around `getOrderTaxInfoFromTaxInput` that will throw if the tax rate is out of bounds or if the
+ * tax amount doesn't match the tax percentage.
  */
 const getOrderTaxInfo = (taxInput, quantity, orderAmount, fromAccount, toAccount, host, currency) => {
   let taxInfo, taxAmount;
   if (taxInput) {
+    if (taxInput.rate < 0 || taxInput.rate > 1) {
+      throw new ValidationFailed('Tax rate must be between 0 and 1');
+    }
+
     const grossAmount = quantity * getValueInCentsFromAmountInput(orderAmount);
     taxInfo = getOrderTaxInfoFromTaxInput(taxInput, fromAccount, toAccount, host);
     taxAmount = getTaxAmount(grossAmount, taxInput, currency);
@@ -855,6 +860,9 @@ const orderMutations = {
             }
 
             const paymentProcessorFeeInCents = getValueInCentsFromAmountInput(paymentProcessorFee);
+            if (paymentProcessorFeeInCents < 0) {
+              throw new ValidationFailed('Payment processor fee cannot be negative');
+            }
             order.set('data', { ...order.data, paymentProcessorFee: paymentProcessorFeeInCents });
           }
           if (!isNil(tax)) {
@@ -899,6 +907,11 @@ const orderMutations = {
               order.currency,
             ),
           );
+
+          // The payment processor fee is taken from the contribution, it cannot be higher than it
+          if (order.data?.paymentProcessorFee > order.totalAmount - (order.platformTipAmount || 0)) {
+            throw new ValidationFailed('Payment processor fee cannot be higher than the contribution amount');
+          }
 
           // Link transactions import row
           let transactionsImportRow;
@@ -1453,6 +1466,10 @@ const orderMutations = {
         }
       });
 
+      if (!(getValueInCentsFromAmountInput(args.order.amount) > 0)) {
+        throw new ValidationFailed('Amount should be greater than 0');
+      }
+
       // Get tax info
       const quantity = 1; // Not supported yet by PendingOrderCreateInput
       const { taxInfo, taxAmount } = getOrderTaxInfo(
@@ -1641,6 +1658,10 @@ const orderMutations = {
           assertAmountInputCurrency(amount, expectedCurrency, { name: field });
         }
       });
+
+      if (!(getValueInCentsFromAmountInput(args.order.amount) > 0)) {
+        throw new ValidationFailed('Amount should be greater than 0');
+      }
 
       // Get tax info
       const quantity = 1; // Not supported yet by PendingOrderCreateInput
