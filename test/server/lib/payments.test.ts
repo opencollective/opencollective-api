@@ -1844,7 +1844,27 @@ describe('server/lib/payments', () => {
         totalAmount: AMOUNT,
         currency: collective.currency,
       });
-      await order.setPaymentMethod({ paypalToken: 'abc' });
+      await order.setPaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.PAYPAL,
+        type: PAYMENT_METHOD_TYPE.PAYMENT,
+        data: { orderId: 'fake-paypal-order-id' },
+      });
+
+      /* eslint-disable camelcase */
+      const amount = { value: (AMOUNT / 100).toFixed(2), currency_code: collective.currency };
+      sandbox.stub(paypalAPI, 'paypalRequestV2').callsFake(async (url: string) => {
+        if (url.endsWith('/authorize')) {
+          return { purchase_units: [{ amount, payments: { authorizations: [{ id: 'fake-authorization-id' }] } }] };
+        } else if (url.endsWith('/capture')) {
+          return { id: 'fake-capture-id', status: 'COMPLETED' };
+        } else if (url.startsWith('payments/captures/')) {
+          return { id: 'fake-capture-id', status: 'COMPLETED', amount, seller_receivable_breakdown: {} };
+        } else {
+          return { purchase_units: [{ amount }] };
+        }
+      });
+      /* eslint-enable camelcase */
+
       await executeOrder(user, order);
 
       expect(applyContributionAccountingCategoryRulesSpy).to.have.been.calledWith(order);
