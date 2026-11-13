@@ -5482,6 +5482,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await expense.reload({ paranoid: false });
         expect(expense.deletedAt).to.exist;
         await expectPaymentIntentSoftDeletedForExpense(expense.id);
+
+        const activity = await models.Activity.findOne({
+          where: { ExpenseId: expense.id, type: activities.COLLECTIVE_EXPENSE_DELETED },
+        });
+        expect(activity).to.exist;
+        expect(activity.UserId).to.eq(expense.User.id);
+        expect(activity.CollectiveId).to.eq(expense.CollectiveId);
+        expect(activity.data.expense.id).to.eq(expense.id);
       });
 
       it('if collective admin', async () => {
@@ -5505,6 +5513,13 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.deleteExpense.legacyId).to.eq(expense.id);
         await expense.reload({ paranoid: false });
         expect(expense.deletedAt).to.exist;
+
+        const activity = await models.Activity.findOne({
+          where: { ExpenseId: expense.id, type: activities.COLLECTIVE_EXPENSE_DELETED },
+        });
+        expect(activity).to.exist;
+        expect(activity.UserId).to.eq(hostAdminUser.id);
+        expect(activity.HostCollectiveId).to.eq(host.id);
       });
 
       it('accepts publicId in ExpenseReferenceInput', async () => {
