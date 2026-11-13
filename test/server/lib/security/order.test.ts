@@ -12,11 +12,40 @@ import {
   getIpStats,
   getUserStats,
   orderFraudProtection,
+  validateStat,
 } from '../../../../server/lib/security/order';
 import { fakeOrder, fakePaymentMethod, fakeUser, multiple } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
 describe('lib/security/order', () => {
+  describe('validateStat', () => {
+    const limits = '[["1 hour", 5, 1, 1], ["1 month", 10, 0.8, 0.8]]';
+    const emptyStats = { numberOfOrders: 0, errorRate: 0, paymentMethodRate: 0 };
+
+    it('evaluates each limit on its own interval', async () => {
+      const intervals = [];
+      const statFn = async (_user, interval) => {
+        intervals.push(interval);
+        return emptyStats;
+      };
+      await validateStat(statFn, [{ id: 1 }], limits, 'Fraud');
+      expect(intervals).to.have.members(['1 hour', '1 month']);
+    });
+
+    it('fails when only a later limit is above threshold', async () => {
+      const statFn = async (_user, interval) =>
+        interval === '1 month' ? { numberOfOrders: 12, errorRate: 1, paymentMethodRate: 1 } : emptyStats;
+      let onFailCalled = false;
+      const onFail = async () => {
+        onFailCalled = true;
+      };
+      await expect(validateStat(statFn, [{ id: 1 }], limits, 'Fraud', { onFail })).to.be.rejectedWith(
+        'above threshold 1 month',
+      );
+      expect(onFailCalled).to.be.true;
+    });
+  });
+
   describe('helper functions', () => {
     let user;
     before(resetTestDB);
@@ -129,6 +158,7 @@ describe('lib/security/order', () => {
 
   describe('orderFraudProtection', () => {
     const defaultFraudConfig = config.fraud;
+    const defaultCardLimits = config.fraud.order.card;
 
     after(() => {
       config.fraud = defaultFraudConfig;
@@ -234,6 +264,41 @@ describe('lib/security/order', () => {
 
       it('should throw if user email is already suspended', async () => {
         await expect(orderFraudProtection({} as express.Request, order)).to.be.rejectedWith('CREDIT_CARD is suspended');
+      });
+    });
+
+    describe('credit card verification with default thresholds', () => {
+      before(() => {
+        config.fraud.order.card = defaultCardLimits;
+      });
+
+      const createFailedOrders = async (name, data) => {
+        const pm = await fakePaymentMethod({
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          name,
+          data,
+        });
+        await multiple(fakeOrder, 10, { status: OrderStatuses.ERROR, PaymentMethodId: pm.id });
+        return {
+          paymentMethod: { name, type: PAYMENT_METHOD_TYPE.CREDITCARD, service: PAYMENT_METHOD_SERVICE.STRIPE, data },
+        };
+      };
+
+      it('should throw for a card matched by fingerprint with many failed orders', async () => {
+        const data = { expYear: 2030, expMonth: 11, country: 'US', brand: 'Visa', fingerprint: 'fp_failing_card' };
+        const order = await createFailedOrders('5555', data);
+        await expect(orderFraudProtection({} as express.Request, order)).to.be.rejectedWith(
+          'Credit Card fp_failing_card failed fraud protection',
+        );
+      });
+
+      it('should throw for a card matched by name and expiry with many failed orders', async () => {
+        const data = { expYear: 2031, expMonth: 12, country: 'FR', brand: 'Visa' };
+        const order = await createFailedOrders('1111', data);
+        await expect(orderFraudProtection({} as express.Request, order)).to.be.rejectedWith(
+          'Credit Card 1111-Visa-12-2031 failed fraud protection',
+        );
       });
     });
   });
