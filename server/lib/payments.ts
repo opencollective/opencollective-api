@@ -763,6 +763,19 @@ export async function createRefundTransaction(
       throw new Error('This transaction has already been refunded');
     }
 
+    // The instance we received may have been loaded before another refund was recorded. Lock the row and
+    // re-check it so that refunds of the same transaction are serialized and only the first one goes through.
+    const lockedTransaction = await Transaction.findByPk(transaction.id, {
+      attributes: ['id', 'RefundTransactionId'],
+      transaction: sqlTransaction,
+      lock: sqlTransaction.LOCK.UPDATE,
+    });
+    if (!lockedTransaction) {
+      throw new Error('Cannot find any CREDIT transaction to refund');
+    } else if (lockedTransaction.RefundTransactionId) {
+      throw new Error('This transaction has already been refunded');
+    }
+
     const transactionGroup = transactionGroupId || uuid();
     const buildRefund = transaction => {
       return {

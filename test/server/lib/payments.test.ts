@@ -1090,6 +1090,56 @@ describe('server/lib/payments', () => {
       // TODO(LedgerRefactor)
     });
 
+    describe('refunding the same transaction twice', () => {
+      const createContribution = () =>
+        models.Transaction.createFromContributionPayload({
+          CreatedByUserId: user.id,
+          FromCollectiveId: order.FromCollectiveId,
+          CollectiveId: collective.id,
+          type: 'CREDIT',
+          OrderId: order.id,
+          amount: 5000,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          amountInHostCurrency: 5000,
+          hostCurrencyFxRate: 1,
+          hostFeeInHostCurrency: 250,
+          paymentProcessorFeeInHostCurrency: 175,
+          description: 'Contribution',
+        });
+
+      const countContributionRefunds = () =>
+        models.Transaction.count({
+          where: { OrderId: order.id, kind: TransactionKind.CONTRIBUTION, isRefund: true, type: 'CREDIT' },
+        });
+
+      it('rejects a refund of an instance loaded before the transaction was refunded', async () => {
+        const transaction = await createContribution();
+        const staleTransaction = await models.Transaction.findByPk(transaction.id);
+        await createRefundTransaction(transaction, 0, null, user);
+
+        await expect(createRefundTransaction(staleTransaction, 0, null, user)).to.be.rejectedWith(
+          'This transaction has already been refunded',
+        );
+        expect(await countContributionRefunds()).to.equal(1);
+      });
+
+      it('only refunds once when two refunds run concurrently', async () => {
+        const transaction = await createContribution();
+        const instances = await Promise.all([
+          models.Transaction.findByPk(transaction.id),
+          models.Transaction.findByPk(transaction.id),
+        ]);
+
+        const results = await Promise.allSettled(instances.map(t => createRefundTransaction(t, 0, null, user)));
+
+        expect(results.map(r => r.status).sort()).to.deep.equal(['fulfilled', 'rejected']);
+        const rejected = results.find(r => r.status === 'rejected') as PromiseRejectedResult;
+        expect(rejected.reason.message).to.equal('This transaction has already been refunded');
+        expect(await countContributionRefunds()).to.equal(1);
+      });
+    });
+
     describe('partial refunds', () => {
       it('can be done with a valid amount', async () => {
         // Given the following pair of transactions created
