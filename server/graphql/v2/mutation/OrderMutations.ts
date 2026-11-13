@@ -857,12 +857,14 @@ const orderMutations = {
             const paymentProcessorFeeInCents = getValueInCentsFromAmountInput(paymentProcessorFee);
             order.set('data', { ...order.data, paymentProcessorFee: paymentProcessorFeeInCents });
           }
+          // Read the base amount before `taxAmount` changes: without a new amount, the tax applies to this one
+          const existingBaseAmount = getOrderBaseAmount(order);
           if (!isNil(tax)) {
             const quantity = 1; // Not supported yet by OrderUpdateInput
             const { taxInfo, taxAmount } = getOrderTaxInfo(
               args.order.tax,
               quantity,
-              args.order.amount,
+              args.order.amount ?? { valueInCents: existingBaseAmount },
               fromAccount,
               toAccount,
               host,
@@ -887,9 +889,14 @@ const orderMutations = {
           }
 
           // Re-compute total amount
-          const baseAmount = !isNil(args.order.amount)
-            ? getValueInCentsFromAmountInput(args.order.amount)
-            : getOrderBaseAmount(order);
+          let baseAmount;
+          if (!isNil(args.order.amount)) {
+            baseAmount = getValueInCentsFromAmountInput(args.order.amount);
+          } else if (!isNil(tax)) {
+            baseAmount = existingBaseAmount;
+          } else {
+            baseAmount = getOrderBaseAmount(order);
+          }
           order.set(
             'totalAmount',
             getTotalAmountForOrderInput(
