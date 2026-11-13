@@ -120,7 +120,7 @@ export type TransactionData = {
   refund?: Stripe.Refund | Partial<PaypalRefund>;
   refundedFromDoubleTransactionsScript?: boolean;
   refundReason?: string;
-  refundTransactionId?: Transaction['id'];
+  refundTransactionId?: Transaction['id'] | string; // Stripe webhooks store our transaction id, virtual cards the provider's (`ipi_...`)
   review?: Stripe.Event; // Why not Stripe.Review? Who knows
   tax?: Tax;
   taxAmountRemovedFromMigration?: number;
