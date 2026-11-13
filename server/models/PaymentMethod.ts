@@ -31,6 +31,20 @@ import User from './User';
 
 const debug = debugLib('models:PaymentMethod');
 
+/**
+ * Types that are legitimately created without a token: PayPal one-time payments (identified by
+ * `data.orderId`), Stripe payment intents, manual payments, and the host-side payment methods
+ * attached to expenses (see `Collective.findOrCreatePaymentMethod`).
+ */
+const TOKENLESS_PAYMENT_METHOD_TYPES: readonly string[] = [
+  PAYMENT_METHOD_TYPE.PAYMENT,
+  PAYMENT_METHOD_TYPE.PAYMENT_INTENT,
+  PAYMENT_METHOD_TYPE.MANUAL,
+  PAYMENT_METHOD_TYPE.PAYOUT,
+  PAYMENT_METHOD_TYPE.BANK_TRANSFER,
+  PAYMENT_METHOD_TYPE.VIRTUAL_CARD,
+];
+
 class PaymentMethod extends ModelWithPublicId<
   EntityShortIdPrefix.PaymentMethod,
   InferAttributes<PaymentMethod>,
@@ -285,7 +299,7 @@ PaymentMethod.init(
     hooks: {
       beforeCreate: instance => {
         if (instance.service !== 'opencollective') {
-          if (!instance.token && !instance.isPaypalPayment()) {
+          if (!instance.token && !TOKENLESS_PAYMENT_METHOD_TYPES.includes(instance.type)) {
             throw new Error(`${instance.service} payment method requires a token`);
           }
           if (
