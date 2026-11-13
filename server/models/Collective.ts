@@ -2450,18 +2450,14 @@ class Collective extends ModelWithPublicId<
   };
 
   /**
-   * Add the host in the Members table and updates HostCollectiveId
-   * @param {*} hostCollective instanceof Collective
-   * @param {*} creatorUser { id } (optional, falls back to hostCollective.CreatedByUserId)
-   * @param {object} [options] (optional, to peform specific actions)
+   * Checks that this account can apply to `hostCollective`, without changing anything.
+   * Returns whether the application should be automatically approved.
    */
-  addHost = async function (hostCollective: Collective, creatorUser: User, options = undefined) {
-    if (this.HostCollectiveId) {
-      throw new Error(`This collective already has a host (HostCollectiveId: ${this.HostCollectiveId})`);
-    } else if (this.hasMoneyManagement) {
-      throw new Error(`This collective already is a host`);
-    }
-
+  assertCanApplyToHost = async function (
+    hostCollective: Collective,
+    creatorUser: User,
+    options: { message?: string; shouldAutomaticallyApprove?: boolean } = undefined,
+  ): Promise<boolean> {
     if (options?.message && options?.message.length > 3000) {
       throw new Error('The message is too long');
     }
@@ -2469,13 +2465,6 @@ class Collective extends ModelWithPublicId<
     if (hostCollective.data?.isBlockedForUnpaidPlatformBilling) {
       throw new Error('This host is not open to applications');
     }
-
-    const member = {
-      role: roles.HOST,
-      CreatedByUserId: creatorUser ? creatorUser.id : hostCollective.CreatedByUserId,
-      MemberCollectiveId: hostCollective.id,
-      CollectiveId: this.id,
-    };
 
     let shouldAutomaticallyApprove = options?.shouldAutomaticallyApprove;
 
@@ -2502,6 +2491,31 @@ class Collective extends ModelWithPublicId<
     ) {
       throw new Error('This host is not open to applications');
     }
+
+    return Boolean(shouldAutomaticallyApprove);
+  };
+
+  /**
+   * Add the host in the Members table and updates HostCollectiveId
+   * @param {*} hostCollective instanceof Collective
+   * @param {*} creatorUser { id } (optional, falls back to hostCollective.CreatedByUserId)
+   * @param {object} [options] (optional, to peform specific actions)
+   */
+  addHost = async function (hostCollective: Collective, creatorUser: User, options = undefined) {
+    if (this.HostCollectiveId) {
+      throw new Error(`This collective already has a host (HostCollectiveId: ${this.HostCollectiveId})`);
+    } else if (this.hasMoneyManagement) {
+      throw new Error(`This collective already is a host`);
+    }
+
+    const shouldAutomaticallyApprove = await this.assertCanApplyToHost(hostCollective, creatorUser, options);
+
+    const member = {
+      role: roles.HOST,
+      CreatedByUserId: creatorUser ? creatorUser.id : hostCollective.CreatedByUserId,
+      MemberCollectiveId: hostCollective.id,
+      CollectiveId: this.id,
+    };
 
     const updatedValues = {
       HostCollectiveId: hostCollective.id,
@@ -2725,6 +2739,20 @@ class Collective extends ModelWithPublicId<
       throw new Error(`Unable to change host: there are still ${blockingExpensesCount} expenses in a processing state`);
     }
 
+    // Validate the new host before touching the current one, as the steps below are not transactional
+    let newHostCollective: Collective | null = null;
+    if (newHostCollectiveId) {
+      newHostCollective = await Collective.findByPk(newHostCollectiveId);
+      if (!newHostCollective) {
+        throw new Error('Host not found');
+      } else if (!newHostCollective.hasMoneyManagement && !remoteUser?.isAdminOfCollective(newHostCollective)) {
+        // TODO(hasHosting): simply throw error if account doesn't have hosting activated
+        throw new Error(`You need to be an admin of ${newHostCollective.name} to turn it into a host`);
+      }
+
+      await this.assertCanApplyToHost(newHostCollective, remoteUser, { message, shouldAutomaticallyApprove });
+    }
+
     // Proceed with host removal
     await Member.destroy({
       where: {
@@ -2826,18 +2854,9 @@ class Collective extends ModelWithPublicId<
     });
 
     // Add new host
-    if (newHostCollectiveId) {
-      const newHostCollective = await Collective.findByPk(newHostCollectiveId);
-      if (!newHostCollective) {
-        throw new Error('Host not found');
-      } else if (!newHostCollective.hasMoneyManagement) {
-        // TODO(hasHosting): simply throw error if account doesn't have hosting activated
-        // throw new Error(`{${newHostCollective.name}} is not activated as Host`);
-        if (remoteUser.isAdminOfCollective(newHostCollective)) {
-          await newHostCollective.activateMoneyManagement({ remoteUser });
-        } else {
-          throw new Error(`You need to be an admin of ${newHostCollective.name} to turn it into a host`);
-        }
+    if (newHostCollective) {
+      if (!newHostCollective.hasMoneyManagement) {
+        await newHostCollective.activateMoneyManagement({ remoteUser });
       }
 
       await this.addHost(newHostCollective, remoteUser, {
