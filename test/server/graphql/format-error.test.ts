@@ -35,6 +35,21 @@ describe('server/graphql/format-error', () => {
     }
   });
 
+  it('masks unique violations that carry the raw Postgres message', async () => {
+    // A unique violation without a `Key (...)=(...)` detail makes Sequelize fall back to the driver message
+    const originalError = await sequelize
+      .query(
+        `DO $$ BEGIN RAISE unique_violation USING MESSAGE = 'duplicate key value violates unique constraint "Users_email_key"'; END $$`,
+      )
+      .catch(e => e);
+    expect(originalError).to.be.instanceOf(UniqueConstraintError);
+    expect(originalError.message).to.include('Users_email_key');
+
+    const result = formatGraphQLError(...toApolloArgs(originalError));
+    expect(result.message).to.eq(DATABASE_ERROR_PUBLIC_MESSAGE);
+    expect(JSON.stringify(result)).to.not.include('Users_email_key');
+  });
+
   it('does not mask other errors', () => {
     const forbidden = new GraphQLError('Nope', { extensions: { code: 'Forbidden' } });
     expect(formatGraphQLError(forbidden.toJSON(), forbidden)).to.deep.eq(forbidden.toJSON());

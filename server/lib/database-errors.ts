@@ -1,5 +1,5 @@
 import { DatabaseError as PgDatabaseError } from 'pg';
-import { ConnectionError, DatabaseError } from 'sequelize';
+import { ConnectionError, DatabaseError, UniqueConstraintError } from 'sequelize';
 
 /**
  * Message returned to clients in place of a database error. The original error (Postgres message,
@@ -15,13 +15,19 @@ const MAX_CAUSE_DEPTH = 5;
  * driver: Sequelize `DatabaseError` (also covers Kysely, which runs through Sequelize) and its subclasses,
  * Sequelize `ConnectionError`, or a raw `pg` error.
  *
- * Sequelize `ValidationError`s (including `UniqueConstraintError`) are not considered database errors,
- * as their messages are meant to be user-facing.
+ * Sequelize `ValidationError`s are not considered database errors, as their messages are meant to be user-facing.
+ * The exception is a `UniqueConstraintError` that carries the raw driver message (see below).
  */
 export const isDatabaseError = (error: unknown): boolean => {
   let current = error;
   for (let depth = 0; current && depth < MAX_CAUSE_DEPTH; depth++) {
     if (current instanceof DatabaseError || current instanceof ConnectionError || current instanceof PgDatabaseError) {
+      return true;
+    }
+
+    // For unique violations whose `detail` can't be parsed, Sequelize reuses the raw Postgres message
+    // (which includes the constraint name) instead of a user-facing one.
+    if (current instanceof UniqueConstraintError && current.message === current.parent?.message) {
       return true;
     }
 
