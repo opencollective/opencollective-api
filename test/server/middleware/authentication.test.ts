@@ -2,9 +2,11 @@ import { expect } from 'chai';
 import config from 'config';
 import jwt from 'jsonwebtoken';
 import moment from 'moment';
+import sinon from 'sinon';
 import request from 'supertest';
 
 import { sessionCache } from '../../../server/lib/cache';
+import models from '../../../server/models';
 import { fakePersonalToken, fakeUser, fakeUserToken } from '../../test-helpers/fake-data';
 import { startTestServer, stopTestServer } from '../../test-helpers/server';
 import { resetTestDB } from '../../utils';
@@ -133,6 +135,40 @@ describe('server/middleware/authentication', () => {
 
       expect(response.body.error).to.exist;
       expect(response.body.error.message).to.include('expired');
+    });
+
+    it('should reject signed tokens that have no user ID', async () => {
+      const token = jwt.sign({ foo: 'bar' }, config.keys.opencollective.jwtSecret, { expiresIn: '1h' });
+
+      const response = await request(expressApp)
+        .get('/status')
+        .set('Authorization', `Bearer ${token}`)
+        .timeout(5000)
+        .expect(401);
+
+      expect(response.body.error.message).to.equal('Invalid token');
+    });
+
+    describe('when loading the user fails', () => {
+      let sandbox: sinon.SinonSandbox;
+
+      beforeEach(() => {
+        sandbox = sinon.createSandbox();
+      });
+
+      afterEach(() => {
+        sandbox.restore();
+      });
+
+      it('should respond with an error instead of hanging', async () => {
+        const user = await fakeUser();
+        const token = user.jwt({ scope: 'session' });
+        sandbox.stub(models.User, 'findByPk').rejects(new Error('Database is down'));
+
+        const response = await request(expressApp).get('/status').set('Authorization', `Bearer ${token}`).timeout(5000);
+
+        expect(response.status).to.equal(500);
+      });
     });
   });
 
