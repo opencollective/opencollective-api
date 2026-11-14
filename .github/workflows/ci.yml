@@ -159,7 +159,7 @@ jobs:
         ports:
           - 6379:6379
       postgres:
-        image: postgres:16.15
+        image: postgres:16.16
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -228,7 +228,7 @@ jobs:
         ports:
           - 6379:6379
       postgres:
-        image: postgres:16.15
+        image: postgres:16.16
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -305,7 +305,7 @@ jobs:
         ports:
           - 6379:6379
       postgres:
-        image: postgres:16.15
+        image: postgres:16.16
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
