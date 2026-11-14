@@ -1,6 +1,6 @@
 import { Location } from '../types/Location';
 
-import { CountryCode, formatAddress as libFormatAddress } from './address';
+import { AddressValidationError, CountryCode, formatAddress as libFormatAddress } from './address';
 import { normalizeZoneCode } from './normalize-zone';
 import { reportErrorToSentry } from './sentry';
 
@@ -40,7 +40,11 @@ export async function formatAddress(
       return formatted.split('\n').filter(Boolean).join(lineDivider);
     }
   } catch (error) {
-    reportErrorToSentry(error);
+    // Addresses are not validated on input, so not matching the country's rules (e.g. a zip in an unexpected format or
+    // a missing state) is expected and not worth reporting
+    if (!(error instanceof AddressValidationError)) {
+      reportErrorToSentry(error);
+    }
 
     // Use fallback formatting (US format)
     return [address1, address2, [city, normalizedZone, postalCode].filter(Boolean).join(' ')]

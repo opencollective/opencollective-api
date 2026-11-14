@@ -62,8 +62,19 @@ const REQUIRABLE_FIELDS = {
 } as const;
 
 /**
- * Throws if the address is missing a required field, has a zip that doesn't match the country's (or sub-region's)
- * format, or has an unknown state in a country where the state is required.
+ * Thrown when an address doesn't match its country's rules. This is expected for user-provided addresses, as we don't
+ * enforce these rules on input.
+ */
+export class AddressValidationError extends Error {
+  constructor(readonly errors: string[]) {
+    super(`Address validation failed: ${errors.join(', ')}`);
+    this.name = 'AddressValidationError';
+  }
+}
+
+/**
+ * Throws an `AddressValidationError` if the address is missing a required field, has a zip that doesn't match the
+ * country's (or sub-region's) format, or has an unknown state in a country where the state is required.
  */
 const validateAddress = (address: Address): void => {
   const countryData = getCountryData(address.country);
@@ -95,7 +106,7 @@ const validateAddress = (address: Address): void => {
   }
 
   if (errors.length) {
-    throw new Error(`Address validation failed: ${errors.join(', ')}`);
+    throw new AddressValidationError(errors);
   }
 };
 
