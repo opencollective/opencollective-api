@@ -10,6 +10,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import FEATURE_STATUS from '../../../constants/feature-status';
 import PlatformConstants from '../../../constants/platform';
+import MemberRoles from '../../../constants/roles';
 import { getSupportedExpenseTypes } from '../../../lib/expenses';
 import { canSeeIncognitoProfile } from '../../../lib/incognito';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
@@ -17,7 +18,7 @@ import { buildSearchConditions } from '../../../lib/sql-search';
 import { getCollectiveFeed } from '../../../lib/timeline';
 import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { canSeeLegalName } from '../../../lib/user-permissions';
-import models, { Collective, Op, PayoutMethod, sequelize } from '../../../models';
+import models, { Collective, Op, PayoutMethod, sequelize, User } from '../../../models';
 import Application from '../../../models/Application';
 import { KYCVerification } from '../../../models/KYCVerification';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -1387,6 +1388,30 @@ const accountWebhooks = {
   },
 };
 
+/** Payout method types that can be borrowed from the payee's host, see `getPayoutMethodFromExpenseData` */
+const CROSS_HOST_PAYOUT_METHOD_TYPES = [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.PAYPAL];
+
+/**
+ * Returns true if the user administers an active account hosted by `host` (excluding the host itself).
+ * Admins of events and projects are covered either directly or through their parent, since both share the same host.
+ */
+const isAdminOfAccountHostedBy = async (remoteUser: User, host: Collective): Promise<boolean> => {
+  const adminCollectiveIds = Object.entries(remoteUser.rolesByCollectiveId || {})
+    .filter(([, roles]) => roles.includes(MemberRoles.ADMIN))
+    .map(([collectiveId]) => Number(collectiveId))
+    .filter(collectiveId => collectiveId !== host.id);
+
+  if (!adminCollectiveIds.length) {
+    return false;
+  }
+
+  const count = await models.Collective.count({
+    where: { id: adminCollectiveIds, HostCollectiveId: host.id, isActive: true },
+  });
+
+  return count > 0;
+};
+
 export const AccountFields = {
   ...accountFieldsDefinition(),
   id: {
@@ -1580,7 +1605,21 @@ export const AccountFields = {
       },
     },
     async resolve(collective: Collective, args, req) {
-      if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'expenses')) {
+      if (!req.remoteUser || !checkScope(req, 'expenses')) {
+        return null;
+      } else if (!req.remoteUser.isAdminOfCollective(collective)) {
+        // Expenses across hosts: admins of hosted accounts can submit expenses paid to their host's bank account or
+        // PayPal (see `getPayoutMethodFromExpenseData`), so they need to see these payout methods to pick one.
+        // Their details stay private: `PayoutMethod.data` and `PayoutMethod.name` have their own admin checks.
+        if (collective.hasMoneyManagement && (await isAdminOfAccountHostedBy(req.remoteUser, collective))) {
+          const payoutMethods: PayoutMethod[] = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+          return orderBy(
+            payoutMethods.filter(pm => CROSS_HOST_PAYOUT_METHOD_TYPES.includes(pm.type)),
+            'id',
+            'asc',
+          );
+        }
+
         return null;
       }
 
