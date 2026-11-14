@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import gql from 'fake-tag';
-import { cloneDeep, set } from 'lodash';
+import { cloneDeep, omit, set } from 'lodash';
 import moment from 'moment';
 import { createSandbox, useFakeTimers } from 'sinon';
 
@@ -497,6 +497,16 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           });
           expect(paymentIntent.primaryTransactionGroup).to.exist;
           await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
+        });
+
+        it('defaults to the user profile when fromAccount is omitted and the user has 2FA enabled', async () => {
+          const userWith2FA = await fakeUser({}, {}, { enable2FA: true });
+          const orderWithoutFromAccount = omit(validOrderParams, 'fromAccount');
+
+          const result = await callCreateOrder({ order: orderWithoutFromAccount }, userWith2FA);
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.createOrder.order.fromAccount.legacyId).to.eq(userWith2FA.CollectiveId);
         });
 
         it('rejects order with non-positive quantity', async () => {

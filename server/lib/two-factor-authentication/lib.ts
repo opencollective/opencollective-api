@@ -297,7 +297,7 @@ async function shouldEnforceForAccount(account?: Collective): Promise<boolean> {
  */
 async function enforceForAccount(
   req: Express.Request,
-  account: Collective,
+  account: Collective | undefined | null,
   options: Omit<ValidateRequestOptions, 'requireTwoFactorAuthEnabled'> = undefined,
 ): Promise<boolean | undefined> {
   if (!req.remoteUser) {
@@ -306,7 +306,7 @@ async function enforceForAccount(
 
   // See if we need to enforce 2FA for admins of this account
   if ((await userHasTwoFactorAuthEnabled(req.remoteUser)) || (await shouldEnforceForAccount(account))) {
-    return validateRequest(req, { ...options, requireTwoFactorAuthEnabled: true, FromCollectiveId: account.id });
+    return validateRequest(req, { ...options, requireTwoFactorAuthEnabled: true, FromCollectiveId: account?.id });
   }
 }
 
