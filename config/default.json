@@ -312,7 +312,8 @@
     "collectivesWithManyTransactions": []
   },
   "settlement": {
-    "minimumAmountInUSD": 1000
+    "minimumAmountInUSD": 1000,
+    "maximumStripeAmountInUSD": 100000
   },
   "exports": {
     "expirationDays": {
