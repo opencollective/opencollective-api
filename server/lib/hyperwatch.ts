@@ -8,6 +8,7 @@ import type { Server } from 'http';
 import { get, pick } from 'lodash';
 import type { Socket } from 'net';
 
+import { isSensitiveHeader, redactGraphqlRequest, redactUrl } from './hyperwatch-redaction';
 import { md5, parseToBoolean } from './utils';
 
 const computeMask = (req: Request) => {
@@ -93,11 +94,16 @@ const load = (app: Application, server?: Server) => {
         const executionTime = req.endAt.getTime() - req.startAt.getTime();
         let log = hyperwatch.util.createLog(req, res).set('executionTime', executionTime);
 
-        log = log.deleteIn(['request', 'headers', 'authorization']);
-        log = log.deleteIn(['request', 'headers', 'cookie']);
+        // Redact known sensitive headers, URL values and GraphQL variables before logging: see hyperwatch-redaction.ts
+        log = log.updateIn(['request', 'headers'], headers =>
+          headers
+            .filter((value, name) => !isSensitiveHeader(name))
+            .map((value, name) => (name === 'referer' ? redactUrl(value) : value)),
+        );
+        log = log.updateIn(['request', 'url'], url => redactUrl(url));
 
         if (req.body && req.body.query) {
-          log = log.set('graphql', req.body);
+          log = log.set('graphql', redactGraphqlRequest(req.body));
           if (res.servedFromGraphqlCache) {
             log = log.setIn(['graphql', 'servedFromCache'], true);
           }
@@ -162,7 +168,8 @@ const load = (app: Application, server?: Server) => {
     ];
     const operationName = log.getIn(['graphql', 'operationName'], 'unknown');
     const variables = log.hasIn(['graphql', 'variables']) ? log.getIn(['graphql', 'variables']) : {};
-    return `${operationName} ${JSON.stringify(pick(variables, pickList))}`;
+    // Mutation variables are redacted whole (a string)
+    return `${operationName} ${typeof variables === 'string' ? variables : JSON.stringify(pick(variables, pickList))}`;
   };
 
   lib.logger.defaultFormatter.replaceFormat('request', formatRequest);
