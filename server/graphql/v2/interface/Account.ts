@@ -1,7 +1,15 @@
 import type express from 'express';
-import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLInt,
+  GraphQLInterfaceType,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLResolveInfo,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { assign, get, invert, isEmpty, isNil, omit, orderBy } from 'lodash';
+import { assign, get, invert, isEmpty, isNil, mapValues, omit, once, orderBy } from 'lodash';
 import moment from 'moment';
 import { Order, QueryTypes, Sequelize, WhereOptions } from 'sequelize';
 
@@ -1357,13 +1365,46 @@ export const GraphQLAccount = new GraphQLInterfaceType({
   fields: accountFieldsDefinition,
 });
 
+const accountTransactionsCache = new WeakMap<express.Request, Map<string, Promise<unknown>>>();
+
 const accountTransactions = {
   type: new GraphQLNonNull(GraphQLTransactionCollection),
   args: {
     ...omit(TransactionsCollectionArgs, ['account']),
   },
-  async resolve(collective: Collective, args, req) {
-    return TransactionsCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
+  resolve(collective: Collective, args, req: express.Request, info: GraphQLResolveInfo) {
+    // Mutation fields run one after another and can add transactions in between: never share results there
+    if (info.operation.operation === 'mutation') {
+      return TransactionsCollectionResolver({ ...args, account: { legacyId: collective.id } }, req, {
+        accounts: [collective],
+      });
+    }
+
+    // The same account often appears many times in a single response (e.g. `expenses { nodes { account { transactions } } }`),
+    // so we resolve each (account, args) pair once per request and share the (lazy) nodes/totalCount between parents.
+    let cache = accountTransactionsCache.get(req);
+    if (!cache) {
+      cache = new Map();
+      accountTransactionsCache.set(req, cache);
+    }
+
+    const cacheKey = `${collective.id}:${JSON.stringify(args)}`;
+    if (!cache.has(cacheKey)) {
+      cache.set(
+        cacheKey,
+        TransactionsCollectionResolver({ ...args, account: { legacyId: collective.id } }, req, {
+          accounts: [collective],
+        }).then(
+          result => mapValues(result, value => (typeof value === 'function' ? once(value) : value)),
+          error => {
+            cache.delete(cacheKey); // Don't share transient failures with the other parents
+            throw error;
+          },
+        ),
+      );
+    }
+
+    return cache.get(cacheKey);
   },
 };
 
