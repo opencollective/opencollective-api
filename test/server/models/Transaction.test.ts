@@ -1099,7 +1099,7 @@ describe('server/models/Transaction', () => {
 
       await Transaction.createFromContributionPayload(transactionPayload);
 
-      const allTransactions = await Transaction.findAll({ where: { OrderId: order.id } });
+      const allTransactions = await Transaction.findAll({ where: { OrderId: order.id }, order: [['id', 'ASC']] });
       utils.snapshotTransactions(allTransactions, {
         columns: ['type', 'kind', 'CollectiveId', 'HostCollectiveId', 'amount'],
       });
