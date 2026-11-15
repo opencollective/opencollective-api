@@ -1,7 +1,7 @@
 /**
  * Transactions adapter for PostgreSQL search.
  *
- * Coverage (same fields as OpenSearch, on live rows and relationships): ID / `#ID`, public ID (`tx_...`), UUID (also
+ * Coverage (on live rows and relationships): ID / `#ID`, public ID (`tx_...`), UUID (also
  * the GraphQL ID), transaction group, description, kind and type, and the virtual merchant ID for administrators of
  * the transaction's host (or root).
  *
@@ -12,7 +12,7 @@
  * - PLATFORM_TIP and APPLICATION_FEE: the merchant ID of the related CONTRIBUTION (same group and type), except on
  *   platform rows of revenue collected directly by the platform, where the resolver shows the Stripe application fee
  *   instead (platform-only reconciliation, not searchable)
- * All of them are exact, index-backed lookups on live rows: source edits apply immediately. Like OpenSearch, only
+ * All of them are exact, index-backed lookups on live rows: source edits apply immediately. Only
  * administrators of the host (not accountants) can search them. The platform-only application fee IDs (platform tips,
  * application fees and host fee shares) are not searchable.
  *
@@ -22,7 +22,7 @@
  *   input is one of their values
  *
  * Rules shared by every arm:
- * - eligibility (OpenSearch indexing rules): the transaction is not deleted, its account and counterparty are neither
+ * - eligibility: the transaction is not deleted, its account and counterparty are neither
  *   deleted nor private, and its host, if any, is neither deleted nor private. Applies to root too.
  * - host scope: the transaction's own `HostCollectiveId`
  * - account scope: the ledger of the account and of its children (`CollectiveId`). With double-entry accounting,

@@ -1,8 +1,8 @@
 /**
  * PostgreSQL search provider: Tiers and Host Applications (opencollective#8943).
  *
- * These tests go through the GraphQL V2 `search` query with real PostgreSQL fixtures and never need an OpenSearch
- * cluster. Fixtures use made-up words so that tests don't match each other's rows.
+ * These tests go through the GraphQL V2 `search` query with real PostgreSQL fixtures.
+ * Fixtures use made-up words so that tests don't match each other's rows.
  */
 
 import { expect } from 'chai';
@@ -12,7 +12,6 @@ import sinon from 'sinon';
 import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { idDecode, idEncode } from '../../../../../server/graphql/v2/identifiers';
-import * as OpenSearchClientLib from '../../../../../server/lib/open-search/client';
 import { Collective, HostApplication, Tier, User } from '../../../../../server/models';
 import {
   fakeActiveHost,
@@ -127,7 +126,6 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL): tiers and host appli
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
-    sandbox.stub(OpenSearchClientLib, 'isOpenSearchConfigured').returns(false);
   });
 
   afterEach(() => {

@@ -38,7 +38,7 @@ export const unaccentedValue = (term: string): RawBuilder<string> => sql`public.
  * definitions; queries must select from "Collectives" without another table exposing these column names.
  */
 export const AccountExpressions = {
-  /** Rows that can be searched by anyone, including root (matches the OpenSearch indexing rules) */
+  /** Rows that can be searched by anyone, including root */
   eligible: `"deletedAt" IS NULL AND "isPrivate" = false AND "isIncognito" = false AND "deactivatedAt" IS NULL AND (data ->> 'hideFromSearch')::boolean IS NOT TRUE AND (data ->> 'isGuest')::boolean IS NOT TRUE AND name <> 'incognito' AND name <> 'anonymous'`,
   /** Public searchable fields (index `collectives_pg_search_public`) */
   publicVector: `to_tsvector('public.oc_search_english'::regconfig, coalesce(name, '') || ' ' || replace(coalesce(slug, ''), '-', ' ') || ' ' || coalesce(description, '') || ' ' || coalesce(website, '') || ' ' || public.array_to_string_immutable(coalesce(tags, '{}')::text[], ' ') || ' ' || public.oc_search_html_to_text(coalesce("longDescription", '')))`,

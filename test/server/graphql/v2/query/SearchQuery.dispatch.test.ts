@@ -1,10 +1,9 @@
 /**
  * Provider-independent search orchestration (opencollective#8936).
  *
- * These tests go through the GraphQL V2 `search` query with real PostgreSQL fixtures. OpenSearch is an external
- * system: it is replaced by an in-memory fake client that honors the parts of the OpenSearch contract used by
- * the orchestration (index selection, `from`/`size`, top hits aggregation and `type` term filters), so these
- * tests run without a cluster.
+ * These tests go through the GraphQL V2 `search` query with real PostgreSQL fixtures. The provider's `search` is
+ * replaced by an in-memory fake that honors the parts of the provider contract used by the orchestration (one
+ * result per entity request, `limit`/`offset` and the accounts `type` filter), so that results are deterministic.
  */
 
 import { expect } from 'chai';
@@ -14,9 +13,8 @@ import sinon from 'sinon';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import PlatformConstants from '../../../../../server/constants/platform';
-import * as OpenSearchClientSingletonLib from '../../../../../server/lib/open-search/client';
-import { formatIndexNameForOpenSearch } from '../../../../../server/lib/open-search/common';
-import { OpenSearchIndexName } from '../../../../../server/lib/open-search/constants';
+import { PostgresProvider } from '../../../../../server/lib/search/providers/postgres';
+import { SearchEntity, SearchEntityRequest, SearchEntityResult } from '../../../../../server/lib/search/types';
 import { Collective } from '../../../../../server/models';
 import { fakeCollective, fakeOrganization, fakeTier, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetCaches, resetTestDB } from '../../../../utils';
@@ -24,85 +22,27 @@ import { graphqlQueryV2, resetCaches, resetTestDB } from '../../../../utils';
 type FakeDocument = { id: number; type?: string };
 
 /**
- * Collects every `{ term: { [field]: value } }` filter in an OpenSearch query.
- */
-const collectTermFilters = (node: unknown, field: string, values: unknown[] = []): unknown[] => {
-  if (Array.isArray(node)) {
-    node.forEach(child => collectTermFilters(child, field, values));
-  } else if (node && typeof node === 'object') {
-    for (const [key, child] of Object.entries(node)) {
-      if (key === 'term' && child && typeof child === 'object' && field in child) {
-        values.push(child[field]);
-      } else {
-        collectTermFilters(child, field, values);
-      }
-    }
-  }
-
-  return values;
-};
-
-/**
- * A fake OpenSearch client: every document of a requested index matches, ranked in insertion order with
+ * A fake provider search: every document of a requested entity matches, ranked in insertion order with
  * decreasing scores.
  */
-const makeFakeOpenSearchClient = (documentsByIndex: Partial<Record<OpenSearchIndexName, FakeDocument[]>>) => {
-  const getIndexName = (formattedName: string) =>
-    Object.values(OpenSearchIndexName).find(name => formatIndexNameForOpenSearch(name) === formattedName);
-
-  const getMatches = (index: OpenSearchIndexName, query: unknown) => {
-    const typeFilters = collectTermFilters(query, 'type');
-    return (documentsByIndex[index] || [])
-      .filter(doc => typeFilters.every(type => doc.type === type))
-      .map((doc, rank) => ({
-        _index: formatIndexNameForOpenSearch(index),
-        _id: String(doc.id),
-        _score: 100 - rank,
-        _source: { id: doc.id },
-        highlight: {},
-      }));
-  };
-
-  return {
-    search: sinon.spy(async ({ index, body }) => {
-      const indexes = (index as string).split(',').map(getIndexName);
-      if (body.aggs) {
-        const { size, from } = body.aggs.by_index.aggs.top_hits_by_index.top_hits;
-        const buckets = indexes.map(indexName => {
-          const matches = getMatches(indexName, body.query);
-          return {
-            key: formatIndexNameForOpenSearch(indexName),
-            // eslint-disable-next-line camelcase
-            doc_count: matches.length,
-            // eslint-disable-next-line camelcase
-            top_hits_by_index: {
-              // eslint-disable-next-line camelcase
-              hits: { max_score: matches[0]?._score ?? null, hits: matches.slice(from, from + size) },
-            },
-          };
-        });
-        // eslint-disable-next-line camelcase
-        return { body: { aggregations: { by_index: { buckets: buckets.filter(b => b.doc_count > 0) } } } };
-      } else {
-        const matches = indexes.flatMap(indexName => getMatches(indexName, body.query));
-        return {
-          body: {
-            hits: {
-              total: { value: matches.length, relation: 'eq' },
-              // eslint-disable-next-line camelcase
-              max_score: matches[0]?._score ?? null,
-              hits: matches.slice(body.from, body.from + body.size),
-            },
-          },
-        };
-      }
+const makeFakeProviderSearch = (documentsByEntity: Partial<Record<SearchEntity, FakeDocument[]>>) =>
+  sinon.spy(async (_request, entityRequests: SearchEntityRequest[]): Promise<SearchEntityResult[]> =>
+    entityRequests.map(({ entity, params, limit, offset }) => {
+      const type = (params as { type?: string })?.type;
+      const matches = (documentsByEntity[entity] || [])
+        .filter(doc => !type || doc.type === type)
+        .map((doc, rank) => ({ id: doc.id, score: 100 - rank, highlight: {} }));
+      return {
+        totalCount: matches.length,
+        maxScore: matches[0]?.score ?? 0,
+        hits: matches.slice(offset, offset + limit),
+      };
     }),
-  };
-};
+  );
 
 describe('server/graphql/v2/query/SearchQuery (provider-independent dispatch)', () => {
   let sandbox: sinon.SinonSandbox;
-  let fakeClient: ReturnType<typeof makeFakeOpenSearchClient>;
+  let fakeSearch: ReturnType<typeof makeFakeProviderSearch>;
   let collectives: Collective[];
   let organizations: Collective[];
   let tierIds: number[];
@@ -126,14 +66,14 @@ describe('server/graphql/v2/query/SearchQuery (provider-independent dispatch)', 
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
-    fakeClient = makeFakeOpenSearchClient({
-      [OpenSearchIndexName.COLLECTIVES]: [
+    fakeSearch = makeFakeProviderSearch({
+      [SearchEntity.ACCOUNTS]: [
         ...collectives.map(c => ({ id: c.id, type: CollectiveType.COLLECTIVE })),
         ...organizations.map(c => ({ id: c.id, type: CollectiveType.ORGANIZATION })),
       ],
-      [OpenSearchIndexName.TIERS]: tierIds.map(id => ({ id })),
+      [SearchEntity.TIERS]: tierIds.map(id => ({ id })),
     });
-    sandbox.stub(OpenSearchClientSingletonLib, 'getOpenSearchClient').returns(fakeClient as never);
+    sandbox.stub(PostgresProvider, 'search').callsFake(fakeSearch);
   });
 
   afterEach(() => {
@@ -361,13 +301,13 @@ describe('server/graphql/v2/query/SearchQuery (provider-independent dispatch)', 
       expect(result.errors).to.be.undefined;
       expect(result.data.first.results.accounts.collection.totalCount).to.eq(8);
       expect(result.data.second.results.accounts.collection.totalCount).to.eq(8);
-      expect(fakeClient.search.callCount).to.eq(1);
+      expect(fakeSearch.callCount).to.eq(1);
     });
   });
 
   describe('provider availability and access', () => {
-    it('reports when OpenSearch is not configured', async () => {
-      sandbox.stub(OpenSearchClientSingletonLib, 'isOpenSearchConfigured').returns(false);
+    it('reports when the search is turned off', async () => {
+      sandbox.stub(config.search.postgres, 'enabled').value('false');
       const result = await graphqlQueryV2(searchAccountsQuery, {}, await fakeUser());
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq('The search is temporarily unavailable');

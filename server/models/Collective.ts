@@ -93,7 +93,6 @@ import { isValidUploadedImage } from '../lib/images';
 import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
 import { normalizeZoneCode } from '../lib/normalize-zone';
-import { openSearchFullAccountReIndex } from '../lib/open-search/sync-postgres';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { getPolicy, POLICIES_EDITABLE_BY_HOST_ONLY } from '../lib/policies';
 import queries from '../lib/queries';
@@ -2846,9 +2845,6 @@ class Collective extends ModelWithPublicId<
         shouldAutomaticallyApprove,
       });
     }
-
-    // Update search
-    openSearchFullAccountReIndex(this.id);
 
     return this;
   };

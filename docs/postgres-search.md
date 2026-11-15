@@ -1,9 +1,8 @@
 # PostgreSQL search: benchmark and deployment plan
 
-Status: **team preview only.** OpenSearch is the default search backend and keeps its synchronization and
-infrastructure. Team members opt in to the PostgreSQL backend per user (preview feature `SEARCH_POSTGRES_BACKEND`), and
-every request can use `backend: OPENSEARCH` again. Public launch, switching the default, and retiring OpenSearch are
-out of scope (spec: opencollective/opencollective#8935, this work: #8944).
+Status: **the only search backend.** OpenSearch was removed in opencollective/opencollective#9119: every search runs
+on PostgreSQL, whatever the deprecated `backend` argument says. The search itself is still restricted to the users of
+the `SEARCH_COMMAND` preview (spec: opencollective/opencollective#8935, first implementation: #8944).
 
 **Every number below comes from synthetic data on a single benchmark machine.** No production measurement has been
 made yet. Use these numbers to compare designs and to size risk, not as production response times. See
@@ -45,9 +44,8 @@ Code: `server/lib/search/providers/postgres/` (`index.ts` for the flow). Each re
   the planner's estimated matches with what the adapter can count in the remaining budget
   (`estimatedMatchesPerSecond`). Above it, the search fails with `SearchTooBroad` in milliseconds instead of holding a
   connection until the timeout. Transactions used it before capped totals.
-- **Kill switch.** `SEARCH_POSTGRES_ENABLED=false` makes every `backend: POSTGRES` request fail with a visible error,
-  without a deploy (see [Return to OpenSearch](#return-to-opensearch)). It does not change the default backend, which
-  stays OpenSearch whatever its value; `true` (default) only makes the opt-in backend available.
+- **Kill switch.** `SEARCH_POSTGRES_ENABLED=false` makes every search fail with a visible error ("The search is
+  temporarily unavailable"), without a deploy (see [Turn the search off](#turn-the-search-off)).
 
 ## Adapter contract
 
@@ -64,9 +62,9 @@ Adding an entity = one adapter file + one migration + one registry line + tests.
 3. Migration: `createIndexesConcurrently` / `dropIndexesConcurrently` (`migrations/lib/concurrent-indexes.ts`):
    `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, one statement at a time, then `ANALYZE`. Prefer non-partial text
    indexes: PostgreSQL only keeps statistics for the expressions of non-partial indexes.
-4. Frontend: add the entity to `POSTGRES_SUPPORTED_ENTITIES` (`components/search/backend.tsx`).
+4. Frontend: add the entity to the search filters and queries (`components/search/`).
 5. Tests: `test/server/graphql/v2/query/SearchQuery.postgres.*.test.ts`, through GraphQL with real PostgreSQL
-   fixtures and no OpenSearch cluster.
+   fixtures.
 
 `buildArms(db, context)` returns `SearchArm[]`:
 
@@ -91,12 +89,12 @@ Adding an entity = one adapter file + one migration + one registry line + tests.
 - Optional: `constantScorePerArm` (capped totals, see above: every arm's score must be a constant, no lexical bonus or
   `CASE`), `estimatedMatchesPerSecond` (planner pre-check, see above) and `decorateHits` (extra fields of the page).
 
-## Known differences with OpenSearch
+## Differences with the former OpenSearch backend
 
 - Updates: host administrators only find the published (public or private) Updates of their hosted Accounts, never
-  drafts (same rule as `canSeeUpdate`). OpenSearch still lets them match drafts (`OpenSearchUpdatesAdapter`, unchanged).
+  drafts (same rule as `canSeeUpdate`). OpenSearch let them match drafts.
 - Vendors: only administrators of the vendor's host find them (root has no extra access), and they rank below other
-  Accounts of the same band. OpenSearch indexes them as public Accounts.
+  Accounts of the same band. OpenSearch indexed them as public Accounts.
 
 ## Reproduce the benchmark
 
@@ -344,28 +342,22 @@ Run it outside peak hours: each build uses one backend (plus parallel maintenanc
 `maintenance_work_mem`; GIN builds on Transactions and Comments are the longest. If a build is canceled
 (`pg_cancel_backend`, deploy aborted), re-run the same command.
 
-### Deploy and enable
+### Monitor
 
-1. Deploy the API (OpenSearch stays the default; PostgreSQL search is idle until someone opts in), then the frontend
-   (the backend selector only appears for team members who enable the `SEARCH_POSTGRES_BACKEND` preview). The API
-   rejects `backend: POSTGRES` in production unless the user enabled that preview (and `SEARCH_COMMAND`).
-2. Team members enable the preview in their settings and compare results with OpenSearch.
-3. Watch: database CPU, `pg_stat_statements` for statements starting with `with "arms"`, Sentry `SearchFailed`, the
-   rate of `SearchTooBroad`.
+Watch: database CPU, `pg_stat_statements` for statements starting with `with "arms"`, Sentry `SearchFailed`, the rate
+of `SearchTooBroad`.
 
-### Return to OpenSearch
+### Turn the search off
 
-- Per request: `backend: OPENSEARCH` (the default when omitted); in the frontend, the backend switch or turning the
-  preview off (stored per browser and per user).
-- For everyone, without a deploy: set `SEARCH_POSTGRES_ENABLED=false` on the API app (dynos restart): every
-  `backend: POSTGRES` request then fails with a visible error and OpenSearch keeps working. Other knobs:
-  `SEARCH_POSTGRES_MAX_CONCURRENT_QUERIES`, `SEARCH_POSTGRES_CONCURRENCY_PER_REQUEST`, `SEARCH_POSTGRES_WORK_MEM`.
+- For everyone, without a deploy: set `SEARCH_POSTGRES_ENABLED=false` on the API app (dynos restart): every search
+  then fails with a visible error. Other knobs: `SEARCH_POSTGRES_MAX_CONCURRENT_QUERIES`,
+  `SEARCH_POSTGRES_CONCURRENCY_PER_REQUEST`, `SEARCH_POSTGRES_WORK_MEM`.
 - Removing the indexes (only if they cause write or disk issues): `npm run db:migrate:undo` per migration (each
-  `DROP INDEX CONCURRENTLY`), newest first. OpenSearch never depended on them.
+  `DROP INDEX CONCURRENTLY`), newest first. The search then reads whole tables.
 
 ## Missing production evidence
 
-These must be measured before considering anything beyond a team preview:
+These must be measured before opening the search beyond its preview:
 
 - Production sizes and distributions: real word frequencies (template descriptions, default tier names, common
   comment words), number of deleted/private accounts, largest hosts and accounts, Orders/Expenses/Comments counts.
@@ -375,8 +367,7 @@ These must be measured before considering anything beyond a team preview:
 - Concurrent production traffic: search queries compete with the real workload on the primary (Kysely uses the
   primary). Index builds compete with writes; autovacuum and GIN pending-list flushes on the busiest tables.
 - Extension privileges and schemas, migration duration on the real tables, invalid-index handling on a real failure.
-- Relevance: no comparison with OpenSearch results on real queries yet, and the scores (bands and lexical bonuses)
-  are not calibrated on a judged corpus: they only encode the ordering rules of the spec.
+- Relevance: the scores (bands and lexical bonuses) are not calibrated on a judged corpus: they only encode the ordering rules of the spec.
 - Highlights: PostgreSQL results have no highlighted fields (`highlights[id]` only carries the score); their cost
   (`ts_headline` on the permitted fields of the page) has not been measured.
 - Data sizes: only the Accounts and Transactions sizes of the benchmark dataset come from production; Orders,
