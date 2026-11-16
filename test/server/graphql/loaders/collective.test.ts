@@ -18,6 +18,7 @@ import {
   fakeOrganization,
   fakeTransaction,
   fakeUser,
+  fakeVendor,
   multiple,
 } from '../../../test-helpers/fake-data';
 import { makeRequest, resetTestDB } from '../../../utils';
@@ -298,6 +299,32 @@ describe('server/graphql/loaders/collective', () => {
         const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: randomUser });
         expect(await loader.load(incognitoProfile.id)).to.be.false;
       });
+
+      it('keeps a mixed batch private except for an ordinary collective member', async () => {
+        const regularMember = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdmin, HostCollectiveId: null });
+        await collective.addUserWithRole(regularMember, MemberRoles.BACKER);
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: collectiveAdmin });
+        expect(
+          await loader.loadMany([userWithPrivateInfo.CollectiveId, incognitoProfile.id, regularMember.CollectiveId]),
+        ).to.deep.equal([false, false, true]);
+      });
+
+      it('preserves incognito access for an admin of a self-hosted collective', async () => {
+        const selfHosted = await fakeActiveHost({ admin: collectiveAdmin });
+        await fakeMember({
+          CollectiveId: selfHosted.id,
+          MemberCollectiveId: incognitoProfile.id,
+          role: MemberRoles.BACKER,
+        });
+        for (const factory of [CollectiveLoaders.canSeePrivateProfileInfo, CollectiveLoaders.canSeePrivateLocation]) {
+          const loader = factory({ remoteUser: collectiveAdmin });
+          expect(await loader.loadMany([userWithPrivateInfo.CollectiveId, incognitoProfile.id])).to.deep.equal([
+            true,
+            true,
+          ]);
+        }
+      });
     });
 
     describe('Processing orders', () => {
@@ -452,10 +479,75 @@ describe('server/graphql/loaders/collective', () => {
 
       for (const status of [ExpenseStatuses.PROCESSING, ExpenseStatuses.SCHEDULED_FOR_PAYMENT]) {
         it(`grants access for ${status} expenses`, async () => {
-          await fakeExpenseFor({ status });
+          await fakeExpenseFor({ status, HostCollectiveId: null });
           expect(await canSeeProfileInfo(hostAdmin)).to.be.true;
           expect(await canSeeLocation(hostAdmin)).to.be.true;
         });
+
+        it(`ignores a stale host on ${status} expenses`, async () => {
+          const previousAdmin = await fakeUser();
+          const previousHost = await fakeActiveHost({ admin: previousAdmin });
+          await fakeExpenseFor({ status, HostCollectiveId: previousHost.id });
+
+          for (const loader of [CollectiveLoaders.canSeePrivateProfileInfo, CollectiveLoaders.canSeePrivateLocation]) {
+            expect(await loader({ remoteUser: previousAdmin }).load(target.CollectiveId)).to.be.false;
+            expect(await loader({ remoteUser: hostAdmin }).load(target.CollectiveId)).to.be.true;
+          }
+        });
+
+        it(`does not grant access through an unapproved host for ${status} expenses`, async () => {
+          await collective.update({ approvedAt: null });
+          await fakeExpenseFor({ status, HostCollectiveId: null });
+          expect(await canSeeProfileInfo(hostAdmin)).to.be.false;
+          expect(await canSeeLocation(hostAdmin)).to.be.false;
+        });
+
+        it(`uses the approved parent host for ${status} expenses`, async () => {
+          const child = await fakeCollective({
+            type: CollectiveType.EVENT,
+            HostCollectiveId: null,
+            ParentCollectiveId: collective.id,
+            approvedAt: null,
+          });
+          await fakeExpenseFor({ status, HostCollectiveId: null, CollectiveId: child.id });
+          expect(await canSeeProfileInfo(hostAdmin)).to.be.true;
+          expect(await canSeeLocation(hostAdmin)).to.be.true;
+        });
+
+        it(`does not use an unapproved parent host for ${status} expenses`, async () => {
+          await collective.update({ approvedAt: null });
+          const child = await fakeCollective({
+            type: CollectiveType.EVENT,
+            HostCollectiveId: null,
+            ParentCollectiveId: collective.id,
+            approvedAt: null,
+          });
+          await fakeExpenseFor({ status, HostCollectiveId: null, CollectiveId: child.id });
+          expect(await canSeeProfileInfo(hostAdmin)).to.be.false;
+          expect(await canSeeLocation(hostAdmin)).to.be.false;
+        });
+      }
+
+      for (const type of [CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE, CollectiveType.VENDOR]) {
+        for (const status of [
+          ExpenseStatuses.PAID,
+          ExpenseStatuses.PROCESSING,
+          ExpenseStatuses.SCHEDULED_FOR_PAYMENT,
+        ]) {
+          it(`does not grant private info or location access to a ${type} payee for ${status}`, async () => {
+            const payee =
+              type === CollectiveType.VENDOR
+                ? await fakeVendor({ ParentCollectiveId: host.id })
+                : await fakeCollective({ type, HostCollectiveId: null });
+            await fakeExpenseFor({ FromCollectiveId: payee.id, status });
+            for (const loader of [
+              CollectiveLoaders.canSeePrivateProfileInfo,
+              CollectiveLoaders.canSeePrivateLocation,
+            ]) {
+              expect(await loader({ remoteUser: hostAdmin }).load(payee.id)).to.be.false;
+            }
+          });
+        }
       }
 
       for (const status of [
@@ -497,14 +589,12 @@ describe('server/graphql/loaders/collective', () => {
         const incognitoProfile = await fakeIncognitoProfile(target);
         await fakeExpenseFor({ FromCollectiveId: incognitoProfile.id });
 
-        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: hostAdmin });
-        const [canSeePrimary, canSeeIncognito] = await Promise.all([
-          loader.load(target.collective.id),
-          loader.load(incognitoProfile.id),
-        ]);
-
-        expect(canSeePrimary).to.be.true;
-        expect(canSeeIncognito).to.be.true;
+        for (const factory of [CollectiveLoaders.canSeePrivateProfileInfo, CollectiveLoaders.canSeePrivateLocation]) {
+          expect(await factory({ remoteUser: hostAdmin }).load(incognitoProfile.id)).to.be.true;
+          expect(
+            await factory({ remoteUser: hostAdmin }).loadMany([target.collective.id, incognitoProfile.id]),
+          ).to.deep.equal([true, true]);
+        }
       });
 
       it('does not grant access to collective admins', async () => {

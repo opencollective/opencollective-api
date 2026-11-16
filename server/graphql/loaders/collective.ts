@@ -8,7 +8,8 @@ import { CollectiveType } from '../../constants/collectives';
 import ExpenseStatuses from '../../constants/expense-status';
 import OrderStatuses from '../../constants/order-status';
 import { MemberRolesForPrivateAccounts } from '../../constants/roles';
-import models, { Collective, Op, sequelize } from '../../models';
+import { getExpenseHost } from '../../lib/expenses';
+import models, { Collective, Expense, Op, sequelize } from '../../models';
 import { isRemoteUserRoot } from '../common/scope-check';
 
 import { sortResultsSimple } from './helpers';
@@ -184,7 +185,7 @@ async function getIncognitoProfileIds(collectiveIds: number[]): Promise<Set<numb
   return new Set(incognitoProfiles.map(profile => profile.id));
 }
 
-type ExpensePayeeRow = {
+type ExpensePayeeRow = Pick<Expense, 'CollectiveId' | 'HostCollectiveId' | 'status'> & {
   matchedId: number;
 };
 
@@ -192,8 +193,9 @@ type ExpensePayeeRow = {
  * Returns the account ids (from `targetIds`) of users who received an expense from a host the remote
  * user administers, either paid or in-flight.
  *
- * Matches on `Expense.HostCollectiveId` (the host that paid) rather than the collective's current host,
- * so access is preserved after the collective is unhosted or moves to another host.
+ * Paid expenses use the historical paying host, preserving access after unhosting/rehosting.
+ * In-flight expenses use the same effective-host policy as expense authorization.
+ * Only individual payees qualify; paying an organization must not reveal all of its admins' emails.
  */
 async function getExpensePayeeIds(targetIds: number[], adminOfCollectiveIds: number[]): Promise<Set<number>> {
   const ids = uniq(targetIds.filter(Boolean));
@@ -202,17 +204,42 @@ async function getExpensePayeeIds(targetIds: number[], adminOfCollectiveIds: num
   }
 
   const rows = (await models.Expense.findAll({
-    attributes: [[sequelize.col('FromCollectiveId'), 'matchedId']],
+    attributes: ['CollectiveId', 'HostCollectiveId', 'status', [sequelize.col('FromCollectiveId'), 'matchedId']],
     where: {
       FromCollectiveId: ids,
-      HostCollectiveId: adminOfCollectiveIds,
-      status: [ExpenseStatuses.PAID, ExpenseStatuses.PROCESSING, ExpenseStatuses.SCHEDULED_FOR_PAYMENT],
+      [Op.or]: [
+        { status: ExpenseStatuses.PAID, HostCollectiveId: adminOfCollectiveIds },
+        { status: [ExpenseStatuses.PROCESSING, ExpenseStatuses.SCHEDULED_FOR_PAYMENT] },
+      ],
     },
-    group: [sequelize.col('FromCollectiveId')],
+    include: [{ association: 'fromCollective', attributes: [], required: true, where: { type: CollectiveType.USER } }],
+    group: [
+      sequelize.col('Expense.FromCollectiveId'),
+      sequelize.col('Expense.CollectiveId'),
+      sequelize.col('Expense.HostCollectiveId'),
+      sequelize.col('Expense.status'),
+    ],
     raw: true,
   })) as unknown as ExpensePayeeRow[];
 
-  return new Set(rows.map(row => row.matchedId));
+  const byId = new DataLoader<number, Collective>(async collectiveIds =>
+    sortResultsSimple(collectiveIds, await models.Collective.findAll({ where: { id: collectiveIds } })),
+  );
+  const isApproved = collectiveLoaders.isApproved();
+  const payeeIds = await Promise.all(
+    rows.map(async row => {
+      const expenseHost =
+        row.status === ExpenseStatuses.PAID
+          ? null
+          : await getExpenseHost(row, {
+              getCollectiveById: id => byId.load(id),
+              isApproved: id => isApproved.load(id),
+            });
+      const hostId = row.status === ExpenseStatuses.PAID ? row.HostCollectiveId : expenseHost?.id;
+      return adminOfCollectiveIds.includes(hostId) ? row.matchedId : null;
+    }),
+  );
+  return new Set(payeeIds.filter(Boolean));
 }
 
 type PrivateInfoAccessOptions = {
@@ -321,7 +348,7 @@ async function getAccountIdsWithPrivateInfoAccess(
   return accessibleIds;
 }
 
-export default {
+const collectiveLoaders = {
   /**
    * Returns the collective (account) for this user ID, including incognito profiles
    */
@@ -425,7 +452,7 @@ export default {
   /**
    * To check if remoteUser has access to user's private info (email, legal name, etc). `remoteUser` must either:
    * - be the user himself
-   * - be an admin of a collective where user is a member (even as incognito)
+   * - be an admin of a collective where user is a member (incognito memberships excluded)
    * - be an admin of the host of a collective where user is a member (even as incognito)
    * - be an admin of the host of a collective where user has an order in `PROCESSING`
    * - be an admin of the host that paid an expense to the user
@@ -654,3 +681,5 @@ export default {
     },
   },
 };
+
+export default collectiveLoaders;
