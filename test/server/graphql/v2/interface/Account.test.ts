@@ -3,13 +3,17 @@ import gql from 'fake-tag';
 
 import MemberRoles from '../../../../../server/constants/roles';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
+import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import {
   fakeActiveHost,
   fakeCollective,
+  fakeEvent,
   fakeIncognitoProfile,
   fakeKYCVerification,
   fakeMember,
   fakeOrganization,
+  fakePayoutMethod,
+  fakeProject,
   fakeTier,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
@@ -451,6 +455,125 @@ describe('server/graphql/v2/interface/Account', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('Tier is not associated with this collective');
+    });
+  });
+
+  describe('payoutMethods', () => {
+    const query = gql`
+      query AccountPayoutMethods($slug: String!) {
+        account(slug: $slug) {
+          id
+          payoutMethods {
+            id
+            publicId
+            type
+            name
+            data
+          }
+        }
+      }
+    `;
+
+    let host, otherHost, hostAdmin, bankAccount, paypal, other;
+
+    before(async () => {
+      await resetTestDB();
+      hostAdmin = await fakeUser();
+      host = await fakeActiveHost({ admin: hostAdmin });
+      otherHost = await fakeActiveHost();
+      const bankData = {
+        accountHolderName: 'Host Inc',
+        currency: 'USD',
+        type: 'aba',
+        details: { accountNumber: '123' },
+      };
+      bankAccount = await fakePayoutMethod({
+        CollectiveId: host.id,
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        currency: 'USD',
+        data: bankData,
+      });
+      paypal = await fakePayoutMethod({
+        CollectiveId: host.id,
+        type: PayoutMethodTypes.PAYPAL,
+        currency: 'USD',
+        data: { email: 'host@example.com' },
+      });
+      other = await fakePayoutMethod({
+        CollectiveId: host.id,
+        type: PayoutMethodTypes.OTHER,
+        data: { content: 'Cash' },
+      });
+      await fakePayoutMethod({
+        // Archived, never returned
+        CollectiveId: host.id,
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        isSaved: false,
+        currency: 'USD',
+        data: bankData,
+      });
+    });
+
+    const getPayoutMethods = async user => {
+      const result = await graphqlQueryV2(query, { slug: host.slug }, user);
+      expect(result.errors).to.not.exist;
+      return result.data.account.payoutMethods;
+    };
+
+    it('returns all saved payout methods with their details to host admins', async () => {
+      const payoutMethods = await getPayoutMethods(hostAdmin);
+      expect(payoutMethods.map(pm => pm.publicId)).to.deep.equal([
+        bankAccount.publicId,
+        paypal.publicId,
+        other.publicId,
+      ]);
+      expect(payoutMethods[0].data).to.exist;
+    });
+
+    it('returns null for unauthenticated users and users without a hosted account', async () => {
+      expect(await getPayoutMethods(null)).to.be.null;
+      expect(await getPayoutMethods(await fakeUser())).to.be.null;
+    });
+
+    it('returns null for admins of accounts hosted by another host', async () => {
+      const user = await fakeUser();
+      await fakeCollective({ admin: user, HostCollectiveId: otherHost.id });
+      expect(await getPayoutMethods(user)).to.be.null;
+    });
+
+    it('returns null for admins of accounts that are not approved yet', async () => {
+      const user = await fakeUser();
+      await fakeCollective({ admin: user, HostCollectiveId: host.id, isActive: false, approvedAt: null });
+      expect(await getPayoutMethods(user)).to.be.null;
+    });
+
+    describe('for admins of hosted accounts (expenses across hosts)', () => {
+      const expectCrossHostPayoutMethods = payoutMethods => {
+        expect(payoutMethods.map(pm => pm.publicId)).to.deep.equal([bankAccount.publicId, paypal.publicId]);
+        payoutMethods.forEach(pm => {
+          expect(pm.data).to.be.null;
+          expect(pm.name).to.be.null;
+        });
+      };
+
+      it('returns saved bank accounts and PayPal, without details, to collective admins', async () => {
+        const user = await fakeUser();
+        await fakeCollective({ admin: user, HostCollectiveId: host.id });
+        expectCrossHostPayoutMethods(await getPayoutMethods(user));
+      });
+
+      it('works for admins of a project whose parent is hosted', async () => {
+        const user = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        await fakeProject({ admin: user, ParentCollectiveId: collective.id });
+        expectCrossHostPayoutMethods(await getPayoutMethods(user));
+      });
+
+      it('works for admins of an event whose parent is the host', async () => {
+        const user = await fakeUser();
+        await fakeEvent({ admin: user, ParentCollectiveId: host.id });
+        expectCrossHostPayoutMethods(await getPayoutMethods(user));
+      });
     });
   });
 });
