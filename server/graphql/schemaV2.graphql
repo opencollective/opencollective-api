@@ -5823,6 +5823,11 @@ input PaymentMethodReferenceInput {
   The id assigned to the payment method (ie: pm_xxxxxxxx)
   """
   id: String
+
+  """
+  The internal id of the payment method (ie: 4242)
+  """
+  legacyId: Int
 }
 
 input PayoutMethodReferenceInput {
@@ -21760,6 +21765,16 @@ type Query {
     """
     counterparty: AccountReferenceInput
   ): PaymentIntentCollection!
+
+  """
+  Get a payment method by reference. Returns null if it does not exist or if the logged in user is not an admin of the account that owns it. Scope: "orders".
+  """
+  paymentMethod(
+    """
+    Identifiers to retrieve the payment method
+    """
+    paymentMethod: PaymentMethodReferenceInput!
+  ): PaymentMethod
   platformSubscriptionTiers: [PlatformSubscriptionTier]
 }
 
@@ -28061,6 +28076,26 @@ type Mutation {
   Confirm a credit card is ready for use after strong customer authentication. Scope: "orders".
   """
   confirmCreditCard(paymentMethod: PaymentMethodReferenceInput!): CreditCardWithStripeError!
+
+  """
+  Replace a payment method with a new credit card: active recurring contributions using the old payment method are moved to the new card, and the old payment method is removed. Scope: "orders".
+  """
+  replaceCreditCard(
+    """
+    The payment method to replace
+    """
+    paymentMethod: PaymentMethodReferenceInput!
+
+    """
+    The new credit card info
+    """
+    creditCardInfo: CreditCardCreateInput!
+
+    """
+    Name associated to the new credit card
+    """
+    name: String!
+  ): CreditCardWithStripeError!
 
   """
   Creates a Stripe setup intent

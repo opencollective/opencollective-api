@@ -9,7 +9,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import stripe, { sanitizeStripeError } from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { Op } from '../../../models';
+import models, { Op, sequelize } from '../../../models';
 import { createOrRetrievePaymentMethodFromSetupIntent } from '../../../paymentProviders/stripe/common';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { checkCanUsePaymentMethods } from '../../common/features';
@@ -148,6 +148,117 @@ const addCreditCard = {
   },
 };
 
+const replaceCreditCard = {
+  type: new GraphQLNonNull(GraphQLCreditCardWithStripeError),
+  description:
+    'Replace a payment method with a new credit card: active recurring contributions using the old payment method are moved to the new card, and the old payment method is removed. Scope: "orders".',
+  args: {
+    paymentMethod: {
+      type: new GraphQLNonNull(GraphQLPaymentMethodReferenceInput),
+      description: 'The payment method to replace',
+    },
+    creditCardInfo: {
+      type: new GraphQLNonNull(GraphQLCreditCardCreateInput),
+      description: 'The new credit card info',
+    },
+    name: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'Name associated to the new credit card',
+    },
+  },
+  async resolve(_, args, req) {
+    checkRemoteUserCanUseOrders(req);
+
+    const oldPaymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod);
+    const collective =
+      oldPaymentMethod.CollectiveId && (await req.loaders.Collective.byId.load(oldPaymentMethod.CollectiveId));
+    if (!collective || !req.remoteUser?.isAdminOfCollective(collective)) {
+      throw new Forbidden("This payment method does not exist or you don't have the permission to edit it.");
+    } else if ((await checkCanUsePaymentMethods(collective)) === FEATURE_STATUS.UNSUPPORTED) {
+      throw new Forbidden('This collective cannot use payment methods');
+    }
+
+    // Check 2FA
+    await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
+
+    // Shares the `addCreditCard` rate limit, so replacing cards can't be used to bypass it
+    const rateLimit = new RateLimit(
+      `add-credit-card-user-${req.remoteUser.id}`,
+      config.limits.addCreditCardPerUserPerHour,
+      ONE_HOUR_IN_SECONDS,
+    );
+    if (!(await rateLimit.registerCall())) {
+      throw new RateLimitExceeded('Too many credit cards added. Please try again later.');
+    }
+
+    const token = await stripe.tokens.retrieve(args.creditCardInfo.token);
+    let newPaymentMethod = await models.PaymentMethod.create({
+      service: PAYMENT_METHOD_SERVICE.STRIPE,
+      type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      name: args.name,
+      CreatedByUserId: req.remoteUser.id,
+      currency: collective.currency,
+      saved: true,
+      CollectiveId: collective.id,
+      token: args.creditCardInfo.token,
+      data: {
+        ...pick(token.card, ['brand', 'country', 'fullName', 'funding', 'zip', 'fingerprint']),
+        name: token.card.name,
+        expMonth: token.card.exp_month,
+        expYear: token.card.exp_year,
+      },
+    });
+
+    let stripeError;
+    try {
+      newPaymentMethod = await setupCreditCard(newPaymentMethod, { collective, user: req.remoteUser });
+    } catch (error) {
+      if (error.type === 'StripeCardError') {
+        await newPaymentMethod.update({ saved: false });
+        throw new Error(error.raw?.message || 'An error occurred while processing the card');
+      } else if (!error.stripeResponse) {
+        await newPaymentMethod.update({ saved: false });
+        throw error;
+      }
+
+      // Strong customer authentication required: like the legacy flow, the card replaces the old one right away.
+      // `saveCardOnConfirm` keeps it saved if the client calls `confirmCreditCard` after the authentication.
+      await newPaymentMethod.update({ data: { ...newPaymentMethod.data, saveCardOnConfirm: true } });
+      stripeError = sanitizeStripeError({
+        message: error.message,
+        account: error.stripeAccount,
+        response: error.stripeResponse,
+      });
+    }
+
+    await sequelize.transaction(async transaction => {
+      if (!stripeError) {
+        // Success: delete reference to setupIntent and make it the primary payment method
+        await newPaymentMethod.update(
+          { confirmedAt: new Date(), primary: true, data: omit(newPaymentMethod.data, ['setupIntent']) },
+          { transaction },
+        );
+        await models.PaymentMethod.update(
+          { primary: false },
+          {
+            where: { id: { [Op.ne]: newPaymentMethod.id }, CollectiveId: collective.id, archivedAt: null },
+            transaction,
+          },
+        );
+      }
+
+      // Move the active contributions to the new card, then remove the old payment method
+      await models.Order.update(
+        { PaymentMethodId: newPaymentMethod.id },
+        { where: { PaymentMethodId: oldPaymentMethod.id, status: OrderStatuses.ACTIVE }, transaction },
+      );
+      await oldPaymentMethod.destroy({ transaction });
+    });
+
+    return { paymentMethod: newPaymentMethod, stripeError };
+  },
+};
+
 const confirmCreditCard = {
   type: new GraphQLNonNull(GraphQLCreditCardWithStripeError),
   description: 'Confirm a credit card is ready for use after strong customer authentication. Scope: "orders".',
@@ -179,6 +290,7 @@ const confirmCreditCard = {
 const paymentMethodMutations = {
   addCreditCard,
   confirmCreditCard,
+  replaceCreditCard,
   createSetupIntent: {
     type: new GraphQLNonNull(GraphQLSetupIntent),
     description: 'Creates a Stripe setup intent',
