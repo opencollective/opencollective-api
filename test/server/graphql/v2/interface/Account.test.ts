@@ -4,6 +4,7 @@ import nock from 'nock';
 
 import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import { sequelize } from '../../../../../server/models';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import {
   fakeActiveHost,
@@ -616,7 +617,11 @@ describe('server/graphql/v2/interface/Account', () => {
       const monthlyTier = await fakeTier({ CollectiveId: collective.id, interval: 'month' });
       const oneTimeTier = await fakeTier({ CollectiveId: collective.id, interval: null });
 
-      const addBacker = async ({ tier = null, lastContributionDaysAgo = null } = {}) => {
+      const addBacker = async ({
+        tier = null,
+        lastContributionDaysAgo = null,
+        kind = TransactionKind.CONTRIBUTION,
+      } = {}) => {
         const backer = await fakeOrganization();
         await fakeMember({
           CollectiveId: collective.id,
@@ -628,11 +633,13 @@ describe('server/graphql/v2/interface/Account', () => {
           const order = await fakeOrder({ CollectiveId: collective.id, FromCollectiveId: backer.id, TierId: tier.id });
           const createdAt = new Date(Date.now() - lastContributionDaysAgo * 24 * 60 * 60 * 1000);
           await fakeTransaction({
+            kind,
             CollectiveId: collective.id,
             FromCollectiveId: backer.id,
             OrderId: order.id,
             amount: 1000,
             createdAt,
+            clearedAt: createdAt,
           });
         }
         return backer;
@@ -643,6 +650,12 @@ describe('server/graphql/v2/interface/Account', () => {
       const recentMonthly = await addBacker({ tier: monthlyTier, lastContributionDaysAgo: 10 });
       const lapsedMonthly = await addBacker({ tier: monthlyTier, lastContributionDaysAgo: 90 });
       const neverChargedMonthly = await addBacker({ tier: monthlyTier });
+      // Only contributions count: a recent transaction of another kind on the order does not make the member active
+      const onlyRecentTipMonthly = await addBacker({
+        tier: monthlyTier,
+        lastContributionDaysAgo: 10,
+        kind: TransactionKind.PLATFORM_TIP,
+      });
 
       const active = await graphqlQueryV2(query, { slug: collective.slug, isActive: true });
       expect(active.errors).to.not.exist;
@@ -656,15 +669,16 @@ describe('server/graphql/v2/interface/Account', () => {
 
       const inactive = await graphqlQueryV2(query, { slug: collective.slug, isActive: false });
       expect(inactive.errors).to.not.exist;
-      expect(inactive.data.account.members.totalCount).to.equal(2);
+      expect(inactive.data.account.members.totalCount).to.equal(3);
       expect(inactive.data.account.members.nodes.map(n => n.account.slug)).to.have.members([
         lapsedMonthly.slug,
         neverChargedMonthly.slug,
+        onlyRecentTipMonthly.slug,
       ]);
       expect(inactive.data.account.members.nodes.every(n => !n.isActive)).to.be.true;
 
       const all = await graphqlQueryV2(query, { slug: collective.slug });
-      expect(all.data.account.members.totalCount).to.equal(5);
+      expect(all.data.account.members.totalCount).to.equal(6);
     });
 
     it('breaks ties between equal totals with orderBy', async () => {
@@ -745,6 +759,7 @@ describe('server/graphql/v2/interface/Account', () => {
             amount,
             ...(monthlyDaysAgo !== null && {
               createdAt: new Date(Date.now() - monthlyDaysAgo * 24 * 60 * 60 * 1000),
+              clearedAt: new Date(Date.now() - monthlyDaysAgo * 24 * 60 * 60 * 1000),
             }),
           });
         }
@@ -814,17 +829,22 @@ describe('server/graphql/v2/interface/Account', () => {
 
     it('orders memberships by balance of the account', async () => {
       const user = await fakeUser();
-      const poor = await fakeCollective();
-      const rich = await fakeCollective();
-      for (const collective of [poor, rich]) {
+      const checkpointOnly = await fakeCollective();
+      const withRecentFunds = await fakeCollective();
+      for (const collective of [checkpointOnly, withRecentFunds]) {
         await fakeMember({
           CollectiveId: collective.id,
           MemberCollectiveId: user.CollectiveId,
           role: MemberRoles.BACKER,
         });
       }
-      await fakeTransaction({ CollectiveId: poor.id, amount: 1000 });
-      await fakeTransaction({ CollectiveId: rich.id, amount: 5000 });
+      // The balance is the daily checkpoint plus the transactions created after it
+      const anHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      await fakeTransaction({ CollectiveId: checkpointOnly.id, amount: 5000, createdAt: anHourAgo });
+      await fakeTransaction({ CollectiveId: withRecentFunds.id, amount: 1000, createdAt: anHourAgo });
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+      await fakeTransaction({ CollectiveId: withRecentFunds.id, amount: 6000 }); // 7000 in total
 
       const balanceQuery = gql`
         query MemberOfBalance($slug: String!, $direction: OrderDirection!) {
@@ -841,10 +861,16 @@ describe('server/graphql/v2/interface/Account', () => {
       `;
       let result = await graphqlQueryV2(balanceQuery, { slug: user.collective.slug, direction: 'DESC' }, user);
       expect(result.errors).to.not.exist;
-      expect(result.data.account.memberOf.nodes.map(n => n.account.slug)).to.deep.equal([rich.slug, poor.slug]);
+      expect(result.data.account.memberOf.nodes.map(n => n.account.slug)).to.deep.equal([
+        withRecentFunds.slug,
+        checkpointOnly.slug,
+      ]);
 
       result = await graphqlQueryV2(balanceQuery, { slug: user.collective.slug, direction: 'ASC' }, user);
-      expect(result.data.account.memberOf.nodes.map(n => n.account.slug)).to.deep.equal([poor.slug, rich.slug]);
+      expect(result.data.account.memberOf.nodes.map(n => n.account.slug)).to.deep.equal([
+        checkpointOnly.slug,
+        withRecentFunds.slug,
+      ]);
     });
 
     it('filters active or inactive memberships', async () => {
