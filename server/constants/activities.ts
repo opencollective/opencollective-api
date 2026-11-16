@@ -11,7 +11,7 @@ enum ActivityTypes {
   CONNECTED_ACCOUNT_ERROR = 'connected_account.error', // Not used yet
   CONNECTED_ACCOUNT_REMOVED = 'connected_account.removed',
   // Collective creation & applications
-  COLLECTIVE_CREATED_GITHUB = 'collective.created.github', // Not used since 2020-03-17 (`createCollectiveFromGithub` is only used in e2e tests)
+  COLLECTIVE_CREATED_GITHUB = 'collective.created.github', // Not created since 2020-03-17, kept for existing activities
   COLLECTIVE_APPLY = 'collective.apply',
   COLLECTIVE_APPROVED = 'collective.approved',
   COLLECTIVE_REJECTED = 'collective.rejected',
