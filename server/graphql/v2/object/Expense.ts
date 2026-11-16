@@ -347,7 +347,8 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
             defaultValue: { field: 'createdAt', direction: 'ASC' },
           },
         },
-        async resolve(expense, { limit, offset, orderBy }, req) {
+        async resolve(expense, { limit, offset, orderBy: orderByArg }, req) {
+          const orderBy = orderByArg ?? { field: 'createdAt', direction: 'ASC' }; // An explicit `null` skips the default
           if (orderBy.field !== 'createdAt') {
             throw new BadRequest('Comments can only be ordered by CREATED_AT');
           }
