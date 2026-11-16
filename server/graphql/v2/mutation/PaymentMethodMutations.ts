@@ -151,7 +151,7 @@ const addCreditCard = {
 const replaceCreditCard = {
   type: new GraphQLNonNull(GraphQLCreditCardWithStripeError),
   description:
-    'Replace a payment method with a new credit card: active recurring contributions using the old payment method are moved to the new card, and the old payment method is removed. Scope: "orders".',
+    'Replace a payment method with a new credit card: recurring contributions using the old payment method (active, or failed and still retried) are moved to the new card, and the old payment method is removed. Scope: "orders".',
   args: {
     paymentMethod: {
       type: new GraphQLNonNull(GraphQLPaymentMethodReferenceInput),
@@ -231,29 +231,42 @@ const replaceCreditCard = {
       });
     }
 
-    await sequelize.transaction(async transaction => {
-      if (!stripeError) {
-        // Success: delete reference to setupIntent and make it the primary payment method
-        await newPaymentMethod.update(
-          { confirmedAt: new Date(), primary: true, data: omit(newPaymentMethod.data, ['setupIntent']) },
-          { transaction },
-        );
-        await models.PaymentMethod.update(
-          { primary: false },
+    try {
+      await sequelize.transaction(async transaction => {
+        if (!stripeError) {
+          // Success: delete reference to setupIntent and make it the primary payment method
+          await newPaymentMethod.update(
+            { confirmedAt: new Date(), primary: true, data: omit(newPaymentMethod.data, ['setupIntent']) },
+            { transaction },
+          );
+          await models.PaymentMethod.update(
+            { primary: false },
+            {
+              where: { id: { [Op.ne]: newPaymentMethod.id }, CollectiveId: collective.id, archivedAt: null },
+              transaction,
+            },
+          );
+        }
+
+        // Move the recurring contributions (active, or failed and still retried) to the new card, then remove the old payment method
+        await models.Order.update(
+          { PaymentMethodId: newPaymentMethod.id },
           {
-            where: { id: { [Op.ne]: newPaymentMethod.id }, CollectiveId: collective.id, archivedAt: null },
+            where: {
+              PaymentMethodId: oldPaymentMethod.id,
+              SubscriptionId: { [Op.ne]: null },
+              status: [OrderStatuses.ACTIVE, OrderStatuses.ERROR],
+            },
             transaction,
           },
         );
-      }
-
-      // Move the active contributions to the new card, then remove the old payment method
-      await models.Order.update(
-        { PaymentMethodId: newPaymentMethod.id },
-        { where: { PaymentMethodId: oldPaymentMethod.id, status: OrderStatuses.ACTIVE }, transaction },
-      );
-      await oldPaymentMethod.destroy({ transaction });
-    });
+        await oldPaymentMethod.destroy({ transaction });
+      });
+    } catch (error) {
+      // The rollback can't remove the new card: unsave it, like the Stripe error paths above
+      await newPaymentMethod.update({ saved: false });
+      throw error;
+    }
 
     return { paymentMethod: newPaymentMethod, stripeError };
   },

@@ -28078,7 +28078,7 @@ type Mutation {
   confirmCreditCard(paymentMethod: PaymentMethodReferenceInput!): CreditCardWithStripeError!
 
   """
-  Replace a payment method with a new credit card: active recurring contributions using the old payment method are moved to the new card, and the old payment method is removed. Scope: "orders".
+  Replace a payment method with a new credit card: recurring contributions using the old payment method (active, or failed and still retried) are moved to the new card, and the old payment method is removed. Scope: "orders".
   """
   replaceCreditCard(
     """

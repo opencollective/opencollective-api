@@ -7,7 +7,7 @@ import OrderStatuses from '../../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../../../server/lib/rate-limit';
 import stripe from '../../../../../server/lib/stripe';
-import models from '../../../../../server/models';
+import models, { Op } from '../../../../../server/models';
 import * as StripeCommon from '../../../../../server/paymentProviders/stripe/common';
 import {
   fakeActiveHost,
@@ -219,7 +219,7 @@ describe('server/graphql/v2/mutation/PaymentMethodMutations', () => {
 
   describe('replaceCreditCard', () => {
     let sandbox, setupIntentsCreateStub, adminUser, otherUser, organization, oldPaymentMethod, otherPaymentMethod;
-    let activeOrder, errorOrder, paidOrder;
+    let activeOrder, errorOrder, oneTimeErrorOrder, paidOrder;
 
     const variables = () => ({
       paymentMethod: { legacyId: oldPaymentMethod.id },
@@ -263,13 +263,16 @@ describe('server/graphql/v2/mutation/PaymentMethodMutations', () => {
         { ...orderData, interval: 'month', status: OrderStatuses.ERROR },
         { withSubscription: true },
       );
+      oneTimeErrorOrder = await fakeOrder({ ...orderData, status: OrderStatuses.ERROR });
       paidOrder = await fakeOrder({ ...orderData, status: OrderStatuses.PAID });
     });
 
     const getOrdersPaymentMethodIds = async () =>
-      Promise.all([activeOrder, errorOrder, paidOrder].map(o => o.reload().then(o => o.PaymentMethodId)));
+      Promise.all(
+        [activeOrder, errorOrder, oneTimeErrorOrder, paidOrder].map(o => o.reload().then(o => o.PaymentMethodId)),
+      );
 
-    it('replaces the card, moves the active contributions and removes the old payment method', async () => {
+    it('replaces the card, moves the recurring contributions and removes the old payment method', async () => {
       const result = await graphqlQueryV2(replaceCreditCardMutation, variables(), adminUser);
       expect(result.errors).to.not.exist;
       const { paymentMethod, stripeError } = result.data.replaceCreditCard;
@@ -289,8 +292,9 @@ describe('server/graphql/v2/mutation/PaymentMethodMutations', () => {
       expect(newPaymentMethod.data).to.not.have.property('setupIntent');
       expect(newPaymentMethod.data).to.include({ brand: 'VISA', expMonth: 11, expYear: 2030 });
 
-      // Same as the legacy mutation: only ACTIVE contributions are moved
+      // Active and failed recurring contributions move; one-time contributions keep their payment method
       expect(await getOrdersPaymentMethodIds()).to.deep.equal([
+        newPaymentMethod.id,
         newPaymentMethod.id,
         oldPaymentMethod.id,
         oldPaymentMethod.id,
@@ -299,6 +303,25 @@ describe('server/graphql/v2/mutation/PaymentMethodMutations', () => {
       expect(await models.PaymentMethod.findByPk(oldPaymentMethod.id, { paranoid: false })).to.exist;
       await otherPaymentMethod.reload();
       expect(otherPaymentMethod.primary).to.be.false;
+    });
+
+    it('unsaves the new card and keeps the old one when the replacement fails', async () => {
+      const orderUpdateStub = sandbox.stub(models.Order, 'update').rejects(new Error('Database error'));
+      try {
+        const result = await graphqlQueryV2(replaceCreditCardMutation, variables(), adminUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('Database error');
+      } finally {
+        orderUpdateStub.restore();
+      }
+
+      const newPaymentMethods = await models.PaymentMethod.findAll({
+        where: { CollectiveId: organization.id, id: { [Op.notIn]: [oldPaymentMethod.id, otherPaymentMethod.id] } },
+      });
+      expect(newPaymentMethods).to.have.length(1);
+      expect(newPaymentMethods[0].saved).to.be.false;
+      expect(await models.PaymentMethod.findByPk(oldPaymentMethod.id)).to.exist;
+      expect(await getOrdersPaymentMethodIds()).to.deep.equal(Array(4).fill(oldPaymentMethod.id));
     });
 
     it('accepts the hashed id of the payment method', async () => {
@@ -363,11 +386,7 @@ describe('server/graphql/v2/mutation/PaymentMethodMutations', () => {
       const result = await graphqlQueryV2(replaceCreditCardMutation, variables(), adminUser);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('Your card was declined.');
-      expect(await getOrdersPaymentMethodIds()).to.deep.equal([
-        oldPaymentMethod.id,
-        oldPaymentMethod.id,
-        oldPaymentMethod.id,
-      ]);
+      expect(await getOrdersPaymentMethodIds()).to.deep.equal(Array(4).fill(oldPaymentMethod.id));
       expect(await models.PaymentMethod.findByPk(oldPaymentMethod.id)).to.exist;
     });
 
