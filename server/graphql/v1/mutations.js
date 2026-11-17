@@ -16,7 +16,7 @@ import {
 import { createUser, requestUserEmailChange } from '../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../errors';
 
-import { createCollective, createCollectiveFromGithub, editCollective } from './mutations/collectives';
+import { createCollective, editCollective } from './mutations/collectives';
 import { editWebhooks } from './mutations/notifications';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
 import { CollectiveInterfaceType } from './CollectiveInterface';
@@ -41,17 +41,6 @@ const mutations = {
         signedOutMessage: 'You need to be logged in to create a collective',
       });
       return createCollective(_, args, req);
-    },
-  },
-  createCollectiveFromGithub: {
-    type: CollectiveInterfaceType,
-    deprecationReason: '2022-05-03: This mutation is deprecated and can only be used in test environments.',
-    args: {
-      collective: { type: new GraphQLNonNull(CollectiveInputType) },
-    },
-    // eslint-disable-next-line graphql-mutations/require-scope-check -- deprecated mutation only available in test environments
-    resolve(_, args, req) {
-      return createCollectiveFromGithub(_, args, req);
     },
   },
   editCollective: {
