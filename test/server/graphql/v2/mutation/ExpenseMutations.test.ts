@@ -5391,6 +5391,38 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.editExpense.status).to.equal('PENDING');
       });
 
+      it(`${type}: platform admin can switch the payout method without sending it back to PENDING`, async () => {
+        const stripePayoutMethod = await fakePayoutMethod({
+          CollectiveId: platform.id,
+          type: PayoutMethodTypes.STRIPE,
+          isSaved: true,
+        });
+        const bankPayoutMethod = await fakePayoutMethod({
+          CollectiveId: platform.id,
+          type: PayoutMethodTypes.BANK_ACCOUNT,
+          isSaved: true,
+          data: { currency: 'USD' },
+        });
+        const expense = await createPlatformExpense({ type });
+        await expense.update({ PayoutMethodId: stripePayoutMethod.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: {
+              id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+              payoutMethod: { id: idEncode(bankPayoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD) },
+            },
+          },
+          platformAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('APPROVED');
+        await expense.reload();
+        expect(expense.PayoutMethodId).to.equal(bankPayoutMethod.id);
+      });
+
       it(`${type}: platform admin can approve a pending bill`, async () => {
         const expense = await createPlatformExpense({ type, status: 'PENDING', amount: 100000 });
         const result = await graphqlQueryV2(
