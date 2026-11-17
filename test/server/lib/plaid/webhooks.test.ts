@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { PlaidApi } from 'plaid';
+import { PlaidApi } from 'plaid/legacy';
 import sinon from 'sinon';
 
 import { Service } from '../../../../server/constants/connected-account';

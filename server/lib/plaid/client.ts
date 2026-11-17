@@ -1,5 +1,5 @@
 import config from 'config';
-import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid';
+import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid/legacy';
 
 let plaidClient: PlaidApi | undefined;
 

@@ -1,5 +1,5 @@
 import { GraphQLEnumType, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { AccountType } from 'plaid';
+import { AccountType } from 'plaid/legacy';
 
 const PlaidAccountType = new GraphQLEnumType({
   name: 'PlaidAccountType',

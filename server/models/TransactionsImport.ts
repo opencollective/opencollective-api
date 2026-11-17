@@ -1,5 +1,5 @@
 import { mapValues, omit, uniq } from 'lodash';
-import { AccountSubtype, AccountType } from 'plaid';
+import { AccountSubtype, AccountType } from 'plaid/legacy';
 import type {
   BelongsToGetAssociationMixin,
   ForeignKey,

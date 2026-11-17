@@ -1,7 +1,7 @@
 import assert from 'assert';
 
 import { expect } from 'chai';
-import { PlaidApi } from 'plaid';
+import { PlaidApi } from 'plaid/legacy';
 import sinon from 'sinon';
 
 import * as PlaidClient from '../../../../server/lib/plaid/client';

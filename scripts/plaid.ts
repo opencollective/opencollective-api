@@ -2,7 +2,7 @@ import '../server/env';
 
 import { Command } from 'commander';
 import config from 'config';
-import { SandboxItemFireWebhookRequestWebhookCodeEnum } from 'plaid';
+import { SandboxItemFireWebhookRequestWebhookCodeEnum } from 'plaid/legacy';
 
 import { Service } from '../server/constants/connected-account';
 import { idDecode } from '../server/graphql/v2/identifiers';

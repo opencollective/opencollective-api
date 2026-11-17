@@ -1,6 +1,6 @@
 import config from 'config';
 import { omit, truncate } from 'lodash';
-import { CountryCode, ItemPublicTokenExchangeResponse, LinkTokenCreateRequest, Products } from 'plaid';
+import { CountryCode, ItemPublicTokenExchangeResponse, LinkTokenCreateRequest, Products } from 'plaid/legacy';
 
 import { Service } from '../../constants/connected-account';
 import PlatformConstants from '../../constants/platform';

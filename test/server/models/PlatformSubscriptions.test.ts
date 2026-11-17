@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import moment from 'moment';
-import { PlaidApi } from 'plaid';
+import { PlaidApi } from 'plaid/legacy';
 import sinon from 'sinon';
 
 import { activities } from '../../../server/constants';
