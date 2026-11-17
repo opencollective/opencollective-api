@@ -1,4 +1,5 @@
-import { cloneDeep, get, set, uniq, update } from 'lodash';
+import { cloneDeep, set, uniq, update } from 'lodash';
+import { Plaid, PlaidError } from 'plaid';
 
 import ActivityTypes from '../../constants/activities';
 import { Activity, TransactionsImport, TransactionsImportRow } from '../../models';
@@ -20,14 +21,13 @@ import { getPlaidClient } from './client';
  */
 export const requestPlaidAccountSync = async (connectedAccount: ConnectedAccount): Promise<void> => {
   try {
-    await getPlaidClient().transactionsRefresh({
+    await getPlaidClient().transactions.refresh({
       /* eslint-disable camelcase */
-      client_id: connectedAccount.clientId,
       access_token: connectedAccount.token,
       /* eslint-enable camelcase */
     });
   } catch (e) {
-    if (get(e, 'response.data.error_code') === 'ITEM_LOGIN_REQUIRED') {
+    if (e instanceof PlaidError && (e.body as Plaid.PlaidError | undefined)?.error_code === 'ITEM_LOGIN_REQUIRED') {
       throw new Error('The login details of this item have changed. Please reconnect the account.');
     } else {
       reportErrorToSentry(e, { extra: { connectedAccountId: connectedAccount.id } });
@@ -95,16 +95,13 @@ const syncTransactionsImport = async (
   try {
     while (hasMore) {
       // See https://plaid.com/docs/api/products/transactions/#transactionssync
-      const response = await getPlaidClient().transactionsSync({
+      const data = await getPlaidClient().transactions.sync({
         /* eslint-disable camelcase */
-        client_id: connectedAccount.clientId,
         access_token: connectedAccount.token,
         cursor: cursor,
         count: 500, // Maximum number allowed by Plaid
         /* eslint-enable camelcase */
       });
-
-      const data = response.data;
 
       // Removed transactions
       if (data.removed.length) {

@@ -1,13 +1,13 @@
 import assert from 'assert';
 
 import { expect } from 'chai';
-import { PlaidApi } from 'plaid/legacy';
+import { Plaid } from 'plaid';
 import sinon from 'sinon';
 
 import * as PlaidClient from '../../../../server/lib/plaid/client';
-import { syncPlaidAccount } from '../../../../server/lib/plaid/sync';
+import { requestPlaidAccountSync, syncPlaidAccount } from '../../../../server/lib/plaid/sync';
 import { Activity, ConnectedAccount, TransactionsImport } from '../../../../server/models';
-import { plaidTransactionsSyncResponse } from '../../../mocks/plaid';
+import { makePlaidClientStub, plaidTransactionsSyncResponse } from '../../../mocks/plaid';
 import {
   fakeActiveHost,
   fakeConnectedAccount,
@@ -18,20 +18,55 @@ import { getResumableSleep, sleep } from '../../../utils';
 
 describe('server/lib/plaid/sync', () => {
   let sandbox: sinon.SinonSandbox;
-  let stubPlaidAPI: sinon.SinonStubbedInstance<PlaidApi>;
+  let stubPlaidAPI: ReturnType<typeof makePlaidClientStub>;
 
   before(async () => {
     sandbox = sinon.createSandbox();
   });
 
   beforeEach(() => {
-    stubPlaidAPI = sandbox.createStubInstance(PlaidApi);
-    stubPlaidAPI.transactionsSync = sandbox.stub().resolves(plaidTransactionsSyncResponse);
+    stubPlaidAPI = makePlaidClientStub(sandbox);
+    stubPlaidAPI.transactions.sync = sandbox.stub().resolves(plaidTransactionsSyncResponse);
     sandbox.stub(PlaidClient, 'getPlaidClient').returns(stubPlaidAPI);
   });
 
   afterEach(() => {
     sandbox.restore();
+  });
+
+  describe('requestPlaidAccountSync', () => {
+    it('asks Plaid to refresh the transactions of the item', async () => {
+      const connectedAccount = await fakeConnectedAccount({ service: 'plaid' });
+      stubPlaidAPI.transactions.refresh.resolves({ request_id: 'request-id' }); // eslint-disable-line camelcase
+      await requestPlaidAccountSync(connectedAccount);
+      expect(stubPlaidAPI.transactions.refresh).to.have.been.calledOnceWith({ access_token: connectedAccount.token }); // eslint-disable-line camelcase
+    });
+
+    it('asks to reconnect the account when Plaid answers ITEM_LOGIN_REQUIRED', async () => {
+      const connectedAccount = await fakeConnectedAccount({ service: 'plaid' });
+      /* eslint-disable camelcase */
+      stubPlaidAPI.transactions.refresh.rejects(
+        new Plaid.BadRequestError({
+          error_type: 'ITEM_ERROR',
+          error_code: 'ITEM_LOGIN_REQUIRED',
+          error_message: 'the login details of this item have changed',
+          display_message: null,
+          request_id: 'request-id',
+        }),
+      );
+      /* eslint-enable camelcase */
+      await expect(requestPlaidAccountSync(connectedAccount)).to.be.rejectedWith(
+        'The login details of this item have changed. Please reconnect the account.',
+      );
+    });
+
+    it('reports other errors', async () => {
+      const connectedAccount = await fakeConnectedAccount({ service: 'plaid' });
+      stubPlaidAPI.transactions.refresh.rejects(new Error('fetch failed'));
+      await expect(requestPlaidAccountSync(connectedAccount)).to.be.rejectedWith(
+        'Failed to request a bank account sync: fetch failed',
+      );
+    });
   });
 
   describe('syncPlaidAccount', () => {
@@ -86,16 +121,15 @@ describe('server/lib/plaid/sync', () => {
         await transactionsImport.reload();
         expect(transactionsImport.data.lockedAt).to.not.exist;
         expect(transactionsImport.data.plaid.syncAttempt).to.eq(0);
-        expect(transactionsImport.data.plaid.lastSyncCursor).to.eq(plaidTransactionsSyncResponse.data.next_cursor);
+        expect(transactionsImport.data.plaid.lastSyncCursor).to.eq(plaidTransactionsSyncResponse.next_cursor);
 
         // Insert rows
         const rows = await transactionsImport.getImportRows();
         expect(rows).to.have.length(18); // From `plaidTransactionsSyncResponse`
 
         // Check the call to Plaid API
-        expect(stubPlaidAPI.transactionsSync).to.have.been.calledOnceWith({
+        expect(stubPlaidAPI.transactions.sync).to.have.been.calledOnceWith({
           /* eslint-disable camelcase */
-          client_id: connectedAccount.clientId,
           access_token: connectedAccount.token,
           cursor: undefined,
           count: 500,
@@ -111,16 +145,15 @@ describe('server/lib/plaid/sync', () => {
         await transactionsImport.reload();
         expect(transactionsImport.data.lockedAt).to.not.exist;
         expect(transactionsImport.data.plaid.syncAttempt).to.eq(0);
-        expect(transactionsImport.data.plaid.lastSyncCursor).to.eq(plaidTransactionsSyncResponse.data.next_cursor);
+        expect(transactionsImport.data.plaid.lastSyncCursor).to.eq(plaidTransactionsSyncResponse.next_cursor);
 
         // Keeps the same rows
         const rows = await transactionsImport.getImportRows();
         expect(rows).to.have.length(18);
 
         // Check the call to Plaid API
-        expect(stubPlaidAPI.transactionsSync).to.have.been.calledWith({
+        expect(stubPlaidAPI.transactions.sync).to.have.been.calledWith({
           /* eslint-disable camelcase */
-          client_id: connectedAccount.clientId,
           access_token: connectedAccount.token,
           cursor: undefined,
           count: 500,
@@ -136,18 +169,17 @@ describe('server/lib/plaid/sync', () => {
         await transactionsImport.reload();
         expect(transactionsImport.data.lockedAt).to.not.exist;
         expect(transactionsImport.data.plaid.syncAttempt).to.eq(0);
-        expect(transactionsImport.data.plaid.lastSyncCursor).to.eq(plaidTransactionsSyncResponse.data.next_cursor);
+        expect(transactionsImport.data.plaid.lastSyncCursor).to.eq(plaidTransactionsSyncResponse.next_cursor);
 
         // Keeps the same rows
         const rows = await transactionsImport.getImportRows();
         expect(rows).to.have.length(18);
 
         // Check the call to Plaid API
-        expect(stubPlaidAPI.transactionsSync).to.have.been.calledWith({
+        expect(stubPlaidAPI.transactions.sync).to.have.been.calledWith({
           /* eslint-disable camelcase */
-          client_id: connectedAccount.clientId,
           access_token: connectedAccount.token,
-          cursor: plaidTransactionsSyncResponse.data.next_cursor,
+          cursor: plaidTransactionsSyncResponse.next_cursor,
           count: 500,
           /* eslint-enable camelcase */
         });
@@ -179,16 +211,14 @@ describe('server/lib/plaid/sync', () => {
           /* eslint-enable camelcase */
         };
 
-        stubPlaidAPI.transactionsSync.resolves({
-          data: {
-            added: [],
-            modified: [modifiedTransaction],
-            removed: [],
-            /* eslint-disable camelcase */
-            next_cursor: 'next_cursor',
-            has_more: false,
-            /* eslint-enable camelcase */
-          },
+        stubPlaidAPI.transactions.sync.resolves({
+          added: [],
+          modified: [modifiedTransaction],
+          removed: [],
+          /* eslint-disable camelcase */
+          next_cursor: 'next_cursor',
+          has_more: false,
+          /* eslint-enable camelcase */
         });
 
         // Sync the account
@@ -228,9 +258,9 @@ describe('server/lib/plaid/sync', () => {
         CollectiveId: host.id,
       });
 
-      // Re-stub `transactionsSync` method to block on the network request
+      // Re-stub `transactions.sync` to block on the network request
       const resumableSleep = getResumableSleep();
-      stubPlaidAPI.transactionsSync = sandbox.stub().callsFake(async () => {
+      stubPlaidAPI.transactions.sync = sandbox.stub().callsFake(async () => {
         await resumableSleep.promise;
         return plaidTransactionsSyncResponse;
       });
@@ -254,7 +284,7 @@ describe('server/lib/plaid/sync', () => {
       // the webhook would do.
       await fakeTransactionsImportRow({
         TransactionsImportId: transactionsImport.id,
-        sourceId: plaidTransactionsSyncResponse.data.added[0].transaction_id,
+        sourceId: plaidTransactionsSyncResponse.added[0].transaction_id,
         isUnique: true,
       });
 
@@ -267,7 +297,7 @@ describe('server/lib/plaid/sync', () => {
       // The import should be updated
       await transactionsImport.reload();
       expect(transactionsImport.data.lockedAt).to.not.exist;
-      expect(transactionsImport.data.plaid.lastSyncCursor).to.eq(plaidTransactionsSyncResponse.data.next_cursor);
+      expect(transactionsImport.data.plaid.lastSyncCursor).to.eq(plaidTransactionsSyncResponse.next_cursor);
 
       const rows = await transactionsImport.getImportRows();
       expect(rows).to.have.length(18);
@@ -282,7 +312,7 @@ describe('server/lib/plaid/sync', () => {
         CollectiveId: host.id,
       });
 
-      stubPlaidAPI.transactionsSync = sandbox.stub().callsFake(async () => {
+      stubPlaidAPI.transactions.sync = sandbox.stub().callsFake(async () => {
         throw new Error('Plaid API error');
       });
 

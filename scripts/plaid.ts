@@ -2,7 +2,7 @@ import '../server/env';
 
 import { Command } from 'commander';
 import config from 'config';
-import { SandboxItemFireWebhookRequestWebhookCodeEnum } from 'plaid/legacy';
+import { Plaid } from 'plaid';
 
 import { Service } from '../server/constants/connected-account';
 import { idDecode } from '../server/graphql/v2/identifiers';
@@ -83,7 +83,7 @@ program
   .argument('<id>', 'Connected account ID')
   .argument(
     '<webhookCode>',
-    `Webhook code to fire. Must be one of: (${Object.values(SandboxItemFireWebhookRequestWebhookCodeEnum).join(', ')})`,
+    `Webhook code to fire. Must be one of: (${Object.values(Plaid.SandboxItemFireWebhookRequest.WebhookCode).join(', ')})`,
   )
   .description('[Sandbox only] Fire a Plaid webhook event')
   .action(async (connectedAccountId, webhookCode) => {
@@ -92,22 +92,21 @@ program
     const connectedAccount = await ConnectedAccount.findByPk(connectedAccountId);
     if (!connectedAccount) {
       throw new Error(`Connected account with ID ${connectedAccountId} not found`);
-    } else if (!Object.values(SandboxItemFireWebhookRequestWebhookCodeEnum).includes(webhookCode)) {
+    } else if (!Object.values(Plaid.SandboxItemFireWebhookRequest.WebhookCode).includes(webhookCode)) {
       throw new Error(
-        `Invalid webhook code: ${webhookCode}. Must be one of: (${Object.values(SandboxItemFireWebhookRequestWebhookCodeEnum).join(', ')})`,
+        `Invalid webhook code: ${webhookCode}. Must be one of: (${Object.values(Plaid.SandboxItemFireWebhookRequest.WebhookCode).join(', ')})`,
       );
     }
 
     const PlaidClient = getPlaidClient();
-    const response = await PlaidClient.sandboxItemFireWebhook({
+    const response = await PlaidClient.sandbox.fireItemWebhook({
       /* eslint-disable camelcase */
       access_token: connectedAccount.token,
-      client_id: connectedAccount.clientId,
       webhook_code: webhookCode,
       /* eslint-enable camelcase */
     });
 
-    if (response.data['webhook_fired']) {
+    if (response.webhook_fired) {
       console.log('Webhook fired successfully');
     } else {
       console.error('Failed to fire webhook');
