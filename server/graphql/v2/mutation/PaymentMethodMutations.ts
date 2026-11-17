@@ -151,7 +151,7 @@ const addCreditCard = {
 const replaceCreditCard = {
   type: new GraphQLNonNull(GraphQLCreditCardWithStripeError),
   description:
-    'Replace a payment method with a new credit card: recurring contributions using the old payment method (active, or failed and still retried) are moved to the new card, and the old payment method is removed. Scope: "orders".',
+    'Replace a credit card with a new one: recurring contributions using the old payment method (active, or failed and still retried) are moved to the new card, and the old payment method is removed. Scope: "orders".',
   args: {
     paymentMethod: {
       type: new GraphQLNonNull(GraphQLPaymentMethodReferenceInput),
@@ -174,6 +174,13 @@ const replaceCreditCard = {
       oldPaymentMethod.CollectiveId && (await req.loaders.Collective.byId.load(oldPaymentMethod.CollectiveId));
     if (!collective || !req.remoteUser?.isAdminOfCollective(collective)) {
       throw new Forbidden("This payment method does not exist or you don't have the permission to edit it.");
+    } else if (
+      oldPaymentMethod.service !== PAYMENT_METHOD_SERVICE.STRIPE ||
+      oldPaymentMethod.type !== PAYMENT_METHOD_TYPE.CREDITCARD
+    ) {
+      // Other payment methods have their own lifecycle that moving their contributions here would skip:
+      // a PayPal subscription, for instance, would keep billing alongside the new card
+      throw new BadRequest('Only credit cards can be replaced');
     } else if ((await checkCanUsePaymentMethods(collective)) === FEATURE_STATUS.UNSUPPORTED) {
       throw new Forbidden('This collective cannot use payment methods');
     }

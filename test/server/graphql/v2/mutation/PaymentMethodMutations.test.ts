@@ -409,6 +409,36 @@ describe('server/graphql/v2/mutation/PaymentMethodMutations', () => {
       expect(await models.PaymentMethod.findByPk(oldPaymentMethod.id)).to.exist;
     });
 
+    it('rejects a payment method that is not a credit card, such as a PayPal subscription', async () => {
+      const paypalSubscription = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.PAYPAL,
+        type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
+        CollectiveId: organization.id,
+      });
+      const paypalOrder = await fakeOrder(
+        {
+          PaymentMethodId: paypalSubscription.id,
+          FromCollectiveId: organization.id,
+          CollectiveId: activeOrder.CollectiveId,
+          interval: 'month',
+          status: OrderStatuses.ACTIVE,
+        },
+        { withSubscription: true },
+      );
+
+      const result = await graphqlQueryV2(
+        replaceCreditCardMutation,
+        { ...variables(), paymentMethod: { legacyId: paypalSubscription.id } },
+        adminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Only credit cards can be replaced');
+      expect(setupIntentsCreateStub.called).to.be.false;
+      expect((await paypalOrder.reload()).PaymentMethodId).to.equal(paypalSubscription.id);
+      expect(await models.PaymentMethod.findByPk(paypalSubscription.id)).to.exist;
+    });
+
     it('rejects a payment method that was already replaced', async () => {
       await oldPaymentMethod.destroy();
       const result = await graphqlQueryV2(replaceCreditCardMutation, variables(), adminUser);
