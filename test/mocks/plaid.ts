@@ -1,17 +1,17 @@
-import { PlaidClient } from 'plaid';
+import { Plaid, PlaidClient } from 'plaid';
 import type sinon from 'sinon';
 
 export const plaidLinkTokenCreateResponse = {
   link_token: 'valid-link-token',
   expiration: '2075-01-01T00:00:00Z',
   request_id: 'valid-request-id',
-} as const;
+} satisfies Plaid.LinkTokenCreateResponse;
 
 export const plaidItemPublicTokenExchangeResponse = {
   access_token: 'access-sandbox-valid',
   item_id: 'bvjz3wy2E6CGMPe5XDDxuD1ANmZvv7fVP47Gb',
   request_id: 'ZhOSI9YVze6ZLWx',
-} as const;
+} satisfies Plaid.ItemPublicTokenExchangeResponse;
 
 export const plaidTransactionsSyncResponse = {
   accounts: [
@@ -1001,7 +1001,7 @@ export const plaidTransactionsSyncResponse = {
   removed: [],
   request_id: 'JToRiqqthHciC2I',
   transactions_update_status: 'HISTORICAL_UPDATE_COMPLETE',
-} as const;
+} satisfies Plaid.TransactionsSyncResponse;
 
 /**
  * A Plaid client whose methods are all sinon stubs, for `sandbox.stub(PlaidClient, 'getPlaidClient').returns(...)`.

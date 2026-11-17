@@ -18,6 +18,10 @@ const getPlaidEnvironment = (env: string): PlaidEnvironment => {
   }
 };
 
+export const createPlaidClient = ({ clientId, secret, env }: { clientId: string; secret: string; env: string }) => {
+  return new PlaidClient({ clientId, secret, version: '2020-09-14', environment: getPlaidEnvironment(env) });
+};
+
 export const getPlaidClient = ({ throwIfMissing = true } = {}) => {
   // Check config
   if (!config.plaid || !config.plaid.clientId || !config.plaid.secret) {
@@ -30,12 +34,7 @@ export const getPlaidClient = ({ throwIfMissing = true } = {}) => {
 
   // Initialize as a singleton
   if (!plaidClient) {
-    plaidClient = new PlaidClient({
-      clientId: config.plaid.clientId,
-      secret: config.plaid.secret,
-      version: '2020-09-14',
-      environment: getPlaidEnvironment(config.plaid.env),
-    });
+    plaidClient = createPlaidClient(config.plaid);
   }
 
   return plaidClient;
