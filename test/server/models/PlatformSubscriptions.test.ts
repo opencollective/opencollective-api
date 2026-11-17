@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import moment from 'moment';
-import { PlaidApi } from 'plaid/legacy';
 import sinon from 'sinon';
 
 import { activities } from '../../../server/constants';
@@ -21,6 +20,7 @@ import {
   consolidateSubscriptionsForBillingPeriod,
   UtilizationType,
 } from '../../../server/models/PlatformSubscription';
+import { makePlaidClientStub } from '../../mocks/plaid';
 import {
   fakeActiveHost,
   fakeActivity,
@@ -583,10 +583,10 @@ describe('server/models/PlatformSubscriptions', () => {
         let admin, host, connectedAccount, transactionsImport, row;
 
         describe('Plaid', () => {
-          let stubPlaidAPI: sinon.SinonStubbedInstance<PlaidApi>;
+          let stubPlaidAPI: ReturnType<typeof makePlaidClientStub>;
 
           beforeEach(async () => {
-            stubPlaidAPI = sandbox.createStubInstance(PlaidApi);
+            stubPlaidAPI = makePlaidClientStub(sandbox);
             sandbox.stub(PlaidClient, 'getPlaidClient').returns(stubPlaidAPI);
 
             admin = await fakeUser();
@@ -619,8 +619,8 @@ describe('server/models/PlatformSubscriptions', () => {
             await row.reload({ paranoid: false });
             expect(row.deletedAt).to.be.null; // Rows should be preserved
 
-            expect(stubPlaidAPI.itemRemove).to.have.been.calledOnce;
-            expect(stubPlaidAPI.itemRemove).to.have.been.calledWith({
+            expect(stubPlaidAPI.item.remove).to.have.been.calledOnce;
+            expect(stubPlaidAPI.item.remove).to.have.been.calledWith({
               /* eslint-disable camelcase */
               access_token: connectedAccount.token,
               /* eslint-enable camelcase */
@@ -641,7 +641,7 @@ describe('server/models/PlatformSubscriptions', () => {
             await row.reload({ paranoid: false });
             expect(row.deletedAt).to.be.null; // Rows should be preserved
 
-            expect(stubPlaidAPI.itemRemove).to.not.have.been.called;
+            expect(stubPlaidAPI.item.remove).to.not.have.been.called;
           });
         });
 

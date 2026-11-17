@@ -1,7 +1,22 @@
 import config from 'config';
-import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid/legacy';
+import { PlaidClient, PlaidEnvironment } from 'plaid';
 
-let plaidClient: PlaidApi | undefined;
+let plaidClient: PlaidClient | undefined;
+
+/**
+ * A client created without an environment sends requests to Production, so an unknown
+ * `PLAID_ENV` is an error rather than a fallback.
+ */
+const getPlaidEnvironment = (env: string): PlaidEnvironment => {
+  switch (env) {
+    case 'production':
+      return PlaidEnvironment.Production;
+    case 'sandbox':
+      return PlaidEnvironment.Sandbox;
+    default:
+      throw new Error(`Unsupported Plaid environment: ${env}`);
+  }
+};
 
 export const getPlaidClient = ({ throwIfMissing = true } = {}) => {
   // Check config
@@ -15,18 +30,12 @@ export const getPlaidClient = ({ throwIfMissing = true } = {}) => {
 
   // Initialize as a singleton
   if (!plaidClient) {
-    plaidClient = new PlaidApi(
-      new Configuration({
-        basePath: PlaidEnvironments[config.plaid.env],
-        baseOptions: {
-          headers: {
-            'PLAID-CLIENT-ID': config.plaid.clientId,
-            'PLAID-SECRET': config.plaid.secret,
-            'Plaid-Version': '2020-09-14',
-          },
-        },
-      }),
-    );
+    plaidClient = new PlaidClient({
+      clientId: config.plaid.clientId,
+      secret: config.plaid.secret,
+      version: '2020-09-14',
+      environment: getPlaidEnvironment(config.plaid.env),
+    });
   }
 
   return plaidClient;

@@ -1,10 +1,12 @@
 import { GraphQLEnumType, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { AccountType } from 'plaid/legacy';
+import { Plaid } from 'plaid';
 
 const PlaidAccountType = new GraphQLEnumType({
   name: 'PlaidAccountType',
   values: () =>
-    Object.fromEntries(Object.entries(AccountType).map(([name, type]) => [type, { value: type, description: name }])),
+    Object.fromEntries(
+      Object.entries(Plaid.AccountType).map(([name, type]) => [type, { value: type, description: name }]),
+    ),
 });
 
 export const GraphQLPlaidAccount = new GraphQLObjectType({
