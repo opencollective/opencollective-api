@@ -4,7 +4,6 @@ import nock from 'nock';
 
 import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
-import { sequelize } from '../../../../../server/models';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import {
   fakeActiveHost,
@@ -825,52 +824,6 @@ describe('server/graphql/v2/interface/Account', () => {
 
     beforeEach(async () => {
       await resetTestDB();
-    });
-
-    it('orders memberships by balance of the account', async () => {
-      const user = await fakeUser();
-      const checkpointOnly = await fakeCollective();
-      const withRecentFunds = await fakeCollective();
-      for (const collective of [checkpointOnly, withRecentFunds]) {
-        await fakeMember({
-          CollectiveId: collective.id,
-          MemberCollectiveId: user.CollectiveId,
-          role: MemberRoles.BACKER,
-        });
-      }
-      // The balance is the daily checkpoint plus the transactions created after it
-      const anHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-      await fakeTransaction({ CollectiveId: checkpointOnly.id, amount: 5000, createdAt: anHourAgo });
-      await fakeTransaction({ CollectiveId: withRecentFunds.id, amount: 1000, createdAt: anHourAgo });
-      await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
-      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
-      await fakeTransaction({ CollectiveId: withRecentFunds.id, amount: 6000 }); // 7000 in total
-
-      const balanceQuery = gql`
-        query MemberOfBalance($slug: String!, $direction: OrderDirection!) {
-          account(slug: $slug) {
-            memberOf(orderBy: { field: BALANCE, direction: $direction }) {
-              nodes {
-                account {
-                  slug
-                }
-              }
-            }
-          }
-        }
-      `;
-      let result = await graphqlQueryV2(balanceQuery, { slug: user.collective.slug, direction: 'DESC' }, user);
-      expect(result.errors).to.not.exist;
-      expect(result.data.account.memberOf.nodes.map(n => n.account.slug)).to.deep.equal([
-        withRecentFunds.slug,
-        checkpointOnly.slug,
-      ]);
-
-      result = await graphqlQueryV2(balanceQuery, { slug: user.collective.slug, direction: 'ASC' }, user);
-      expect(result.data.account.memberOf.nodes.map(n => n.account.slug)).to.deep.equal([
-        checkpointOnly.slug,
-        withRecentFunds.slug,
-      ]);
     });
 
     it('filters active or inactive memberships', async () => {

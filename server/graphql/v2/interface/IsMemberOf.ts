@@ -244,21 +244,6 @@ export const IsMemberOfFields = {
                 )`),
             'totalAmountDonated',
           ]);
-        } else if (field === ORDER_BY_PSEUDO_FIELDS.BALANCE) {
-          // Current balance of the account the membership is on, in host currency, from the balance checkpoints
-          // (`CurrentCollectiveBalance`, like `Account.stats.balance`): summing each account's whole transaction
-          // history took over 7 seconds on the largest hosts. Accounts without a checkpoint sort as 0: no host, not
-          // active, or hosted since the last daily refresh.
-          // Many accounts share the same balance (often 0): break ties on the membership id for a stable pagination
-          order.push([sequelize.literal('"collective.balance"'), direction], ['id', direction]);
-          collectiveAttributesInclude.push([
-            sequelize.literal(`(
-                    SELECT COALESCE(SUM(ccb."netAmountInHostCurrency"), 0)
-                    FROM "CurrentCollectiveBalance" ccb
-                    WHERE ccb."CollectiveId" = collective.id
-                )`),
-            'balance',
-          ]);
         } else if (field === ORDER_BY_PSEUDO_FIELDS.CREATED_AT) {
           order.push(['createdAt', direction]);
         } else {
