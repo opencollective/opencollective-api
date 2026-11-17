@@ -382,6 +382,46 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       expect(result.data.addFunds.amount.currency).to.equal('USD');
     });
 
+    it('returns fresh account transactions after each addFunds of the same request', async () => {
+      const result = await graphqlQueryV2(
+        gql`
+          mutation TwoAddFunds($account: AccountReferenceInput!, $fromAccount: AccountReferenceInput!) {
+            first: addFunds(
+              account: $account
+              fromAccount: $fromAccount
+              amount: { valueInCents: 1000, currency: USD }
+              description: "first"
+              hostFeePercent: 0
+            ) {
+              toAccount {
+                transactions(kind: [ADDED_FUNDS], type: CREDIT) {
+                  totalCount
+                }
+              }
+            }
+            second: addFunds(
+              account: $account
+              fromAccount: $fromAccount
+              amount: { valueInCents: 1000, currency: USD }
+              description: "second"
+              hostFeePercent: 0
+            ) {
+              toAccount {
+                transactions(kind: [ADDED_FUNDS], type: CREDIT) {
+                  totalCount
+                }
+              }
+            }
+          }
+        `,
+        { account: { legacyId: collective.id }, fromAccount: { legacyId: randomUser.CollectiveId } },
+        hostAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      const first = result.data.first.toAccount.transactions.totalCount;
+      expect(result.data.second.toAccount.transactions.totalCount).to.equal(first + 1);
+    });
+
     it('can add funds from a vendor specified by publicId', async () => {
       const host = collective.host;
       const vendor = await fakeVendor({ HostCollectiveId: host.id, ParentCollectiveId: host.id });
