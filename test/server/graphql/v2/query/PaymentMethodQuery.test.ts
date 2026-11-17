@@ -88,6 +88,36 @@ describe('server/graphql/v2/query/PaymentMethodQuery', () => {
     }
   });
 
+  it('lists the contributions made from the incognito profile of the owner', async () => {
+    const user = await fakeUser();
+    const incognitoProfile = await user.collective.getOrCreateIncognitoProfile();
+    const userPaymentMethod = await fakePaymentMethod({
+      CollectiveId: user.CollectiveId,
+      service: PAYMENT_METHOD_SERVICE.STRIPE,
+      type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      saved: true,
+    });
+    const incognitoOrder = await fakeOrder(
+      {
+        PaymentMethodId: userPaymentMethod.id,
+        FromCollectiveId: incognitoProfile.id,
+        CollectiveId: (await fakeCollective()).id,
+        CreatedByUserId: user.id,
+        interval: 'month',
+        status: OrderStatuses.ACTIVE,
+      },
+      { withSubscription: true },
+    );
+
+    const result = await graphqlQueryV2(
+      paymentMethodQuery,
+      { paymentMethod: { legacyId: userPaymentMethod.id } },
+      user,
+    );
+    expect(result.errors).to.not.exist;
+    expect(result.data.paymentMethod.orders.nodes.map(o => o.legacyId)).to.deep.equal([incognitoOrder.id]);
+  });
+
   it('returns null for a non-admin', async () => {
     const result = await graphqlQueryV2(
       paymentMethodQuery,
