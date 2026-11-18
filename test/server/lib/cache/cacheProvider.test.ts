@@ -225,10 +225,10 @@ describe('server/lib/cache/cacheProvider', () => {
       } else {
         it('refreshes the expiry on every increment', async () => {
           const redis = await createRedisClient();
-          await cache.incrementWithSlidingExpiration('increment_sliding_ttl', 1, 60);
+          await cache.incrementWithSlidingExpiration('increment_sliding_ttl', 1, 10);
           await redis.expire('increment_sliding_ttl', 5);
-          await cache.incrementWithSlidingExpiration('increment_sliding_ttl', 1, 60);
-          assert.isAbove(await redis.ttl('increment_sliding_ttl'), 55);
+          assert.strictEqual(await cache.incrementWithSlidingExpiration('increment_sliding_ttl', 1, 10), 2);
+          assert.isAbove(await redis.ttl('increment_sliding_ttl'), 5);
         });
       }
     });
