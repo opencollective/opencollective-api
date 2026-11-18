@@ -68,3 +68,12 @@ $CMD_PSQL -w -U postgres -h $PG_HOST $LOCALDBNAME -c "CREATE EXTENSION IF NOT EX
 
 echo "Enabling pg_trgm"
 $CMD_PSQL -w -U postgres -h $PG_HOST $LOCALDBNAME -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+
+echo "Enabling unaccent"
+$CMD_PSQL -w -U postgres -h $PG_HOST $LOCALDBNAME -c "CREATE EXTENSION IF NOT EXISTS unaccent;"
+
+echo "Enabling pgcrypto"
+$CMD_PSQL -w -U postgres -h $PG_HOST $LOCALDBNAME -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+
+echo "Enabling btree_gin"
+$CMD_PSQL -w -U postgres -h $PG_HOST $LOCALDBNAME -c "CREATE EXTENSION IF NOT EXISTS btree_gin;"
