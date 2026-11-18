@@ -137,7 +137,14 @@ describe('server/lib/cache/cacheProvider', () => {
       });
 
       beforeEach(async () => {
-        await cache.delete(['increment_total', 'increment_concurrent', 'increment_existing', 'increment_ttl']);
+        await cache.delete([
+          'increment_total',
+          'increment_concurrent',
+          'increment_existing',
+          'increment_ttl',
+          'increment_sliding_concurrent',
+          'increment_sliding_ttl',
+        ]);
       });
 
       it('returns the running total', async () => {
@@ -181,6 +188,47 @@ describe('server/lib/cache/cacheProvider', () => {
           await redis.persist('increment_ttl');
           await cache.increment('increment_ttl', 1, 60);
           assert.isAbove(await redis.ttl('increment_ttl'), 55);
+        });
+      }
+    });
+
+    describe(`${provider} provider sliding increment`, () => {
+      let cache;
+      before(async () => {
+        cache = await getProvider(provider);
+      });
+
+      beforeEach(async () => {
+        await cache.delete(['increment_sliding_concurrent', 'increment_sliding_ttl']);
+      });
+
+      it('does not lose concurrent increments', async () => {
+        const results = await Promise.all(
+          range(50).map(() => cache.incrementWithSlidingExpiration('increment_sliding_concurrent', 1, 60)),
+        );
+        assert.sameMembers(results, range(1, 51));
+        assert.strictEqual(await cache.get('increment_sliding_concurrent'), 50);
+      });
+
+      if (provider === PROVIDER_TYPES.MEMORY) {
+        it('refreshes the expiry on every increment', async () => {
+          let now = 1000; // lru-cache ignores the TTL of entries created at time 0
+          const memoryCache = makeMemoryProvider({ max: 10, ttlResolution: 0, perf: { now: () => now } });
+          assert.strictEqual(await memoryCache.incrementWithSlidingExpiration('increment_sliding_ttl', 1, 60), 1);
+          now += 59 * 1000;
+          assert.strictEqual(await memoryCache.incrementWithSlidingExpiration('increment_sliding_ttl', 1, 60), 2);
+          now += 2 * 1000;
+          assert.strictEqual(await memoryCache.get('increment_sliding_ttl'), 2);
+          now += 58 * 1000 + 1;
+          assert.strictEqual(await memoryCache.incrementWithSlidingExpiration('increment_sliding_ttl', 1, 60), 1);
+        });
+      } else {
+        it('refreshes the expiry on every increment', async () => {
+          const redis = await createRedisClient();
+          await cache.incrementWithSlidingExpiration('increment_sliding_ttl', 1, 60);
+          await redis.expire('increment_sliding_ttl', 5);
+          await cache.incrementWithSlidingExpiration('increment_sliding_ttl', 1, 60);
+          assert.isAbove(await redis.ttl('increment_sliding_ttl'), 55);
         });
       }
     });
