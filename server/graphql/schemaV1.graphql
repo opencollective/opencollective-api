@@ -4310,26 +4310,10 @@ type Mutation {
   ): CreateUserResult
 
   """
-  Update the email address for logged in user
-  """
-  updateUserEmail(
-    """
-    The new email address for user
-    """
-    email: String!
-  ): UserDetails
-
-  """
   Updates all the core contributors (role = ADMIN or MEMBER) for this collective.
   """
   editCoreContributors(collectiveId: Int!, members: [MemberInputType!]!): CollectiveInterface
     @deprecated(reason: "2021-07-02: Please use inviteMember, editMember or removeMember mutations from GraphQLV2")
-
-  """
-  A mutation to edit the public message of all matching members.
-  """
-  editPublicMessage(FromCollectiveId: Int!, CollectiveId: Int!, message: String): [Member]
-    @deprecated(reason: "2021-01-27: Please use editPublicMessage from GraphQLV2")
 
   """
   Replace a payment method
@@ -4341,21 +4325,6 @@ type Mutation {
     token: String!
     data: StripeCreditCardDataInputType!
   ): PaymentMethodType
-
-  """
-  Edits (by replacing) the admin-level webhooks for a collective.
-  """
-  editWebhooks(
-    """
-    ID of the collective whose webhooks are edited.
-    """
-    collectiveId: Int!
-
-    """
-    New notifications for the collective.
-    """
-    notifications: [NotificationInputType]
-  ): [NotificationType]
 }
 
 """

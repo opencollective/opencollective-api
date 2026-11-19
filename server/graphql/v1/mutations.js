@@ -7,28 +7,22 @@ import { reportMessageToSentry } from '../../lib/sentry';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { parseToBoolean } from '../../lib/utils';
 import models from '../../models';
-import { checkCanEditTeam, editPublicMessage } from '../common/members';
-import {
-  checkRemoteUserCanUseAccount,
-  checkRemoteUserCanUseOrders,
-  checkRemoteUserCanUseWebhooks,
-} from '../common/scope-check';
-import { createUser, requestUserEmailChange } from '../common/user';
+import { checkCanEditTeam } from '../common/members';
+import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseOrders } from '../common/scope-check';
+import { createUser } from '../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../errors';
 
 import { createCollective, editCollective } from './mutations/collectives';
-import { editWebhooks } from './mutations/notifications';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
 import { CollectiveInterfaceType } from './CollectiveInterface';
 import {
   CaptchaInputType,
   CollectiveInputType,
   MemberInputType,
-  NotificationInputType,
   StripeCreditCardDataInputType,
   UserInputType,
 } from './inputTypes';
-import { MemberType, NotificationType, PaymentMethodType, UserType } from './types';
+import { PaymentMethodType, UserType } from './types';
 
 const mutations = {
   createCollective: {
@@ -153,21 +147,6 @@ const mutations = {
       });
     },
   },
-  updateUserEmail: {
-    type: UserType,
-    description: 'Update the email address for logged in user',
-    args: {
-      email: {
-        type: new GraphQLNonNull(GraphQLString),
-        description: 'The new email address for user',
-      },
-    },
-    resolve: async (_, { email }, req) => {
-      checkRemoteUserCanUseAccount(req);
-      await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
-      return requestUserEmailChange(req.remoteUser, email);
-    },
-  },
   editCoreContributors: {
     type: CollectiveInterfaceType,
     description: 'Updates all the core contributors (role = ADMIN or MEMBER) for this collective.',
@@ -195,17 +174,6 @@ const mutations = {
       }
     },
   },
-  editPublicMessage: {
-    type: new GraphQLList(MemberType),
-    description: 'A mutation to edit the public message of all matching members.',
-    deprecationReason: '2021-01-27: Please use editPublicMessage from GraphQLV2',
-    args: {
-      FromCollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      message: { type: GraphQLString },
-    },
-    resolve: editPublicMessage,
-  },
   replaceCreditCard: {
     type: PaymentMethodType,
     description: 'Replace a payment method',
@@ -219,24 +187,6 @@ const mutations = {
     resolve: async (_, args, req) => {
       checkRemoteUserCanUseOrders(req);
       return paymentMethodsMutation.replaceCreditCard(args, req);
-    },
-  },
-  editWebhooks: {
-    type: new GraphQLList(NotificationType),
-    description: 'Edits (by replacing) the admin-level webhooks for a collective.',
-    args: {
-      collectiveId: {
-        type: new GraphQLNonNull(GraphQLInt),
-        description: 'ID of the collective whose webhooks are edited.',
-      },
-      notifications: {
-        type: new GraphQLList(NotificationInputType),
-        description: 'New notifications for the collective.',
-      },
-    },
-    resolve(_, args, req) {
-      checkRemoteUserCanUseWebhooks(req);
-      return editWebhooks(args, req);
     },
   },
 };
