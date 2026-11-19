@@ -4608,6 +4608,18 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
   // -- Move expenses --
   const expenseIds: number[] = uniq(expenses.map(expense => expense.id));
   const recurringExpenseIds: number[] = uniq(expenses.map(expense => expense.RecurringExpenseId).filter(Boolean));
+
+  // Accounting categories belong to a host: they don't follow an expense to another host, or to an account without one
+  const expenseIdsChangingHost: number[] = uniq(
+    expenses
+      .filter(
+        expense =>
+          !destinationAccount.HostCollectiveId ||
+          expense.collective.HostCollectiveId !== destinationAccount.HostCollectiveId,
+      )
+      .map(expense => expense.id),
+  );
+
   const result = await sequelize.transaction(async dbTransaction => {
     const associatedTransactionsCount = await models.Transaction.count({
       where: { ExpenseId: expenseIds },
@@ -4616,6 +4628,17 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
 
     if (associatedTransactionsCount > 0) {
       throw new ValidationFailed('Cannot move expenses with associated transactions');
+    }
+
+    if (expenseIdsChangingHost.length) {
+      await models.Expense.update(
+        { AccountingCategoryId: null },
+        {
+          transaction: dbTransaction,
+          where: { id: expenseIdsChangingHost },
+          hooks: false,
+        },
+      );
     }
 
     // Moving associated models
@@ -4674,6 +4697,9 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
             expense: expense.info,
             movedFromCollective: originalExpense.collective.info,
             collective: destinationAccount.info,
+            ...(originalExpense.AccountingCategoryId !== expense.AccountingCategoryId && {
+              previousAccountingCategoryId: originalExpense.AccountingCategoryId,
+            }),
           },
         };
       }),
