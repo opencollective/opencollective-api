@@ -52,12 +52,6 @@ export const ACCOUNT_BALANCE_QUERY = sequelize.literal(
 );
 
 /**
- * Rounds an amount converted with `fx_rate` (a double) to whole cents, so that a sum of converted
- * balances and a converted bound compare equal when they should (6 x 0.1 is not 0.6 in doubles).
- */
-export const roundToCents = (amount: string) => `ROUND((${amount})::numeric)`;
-
-/**
  * Balance of an account and its active children. In host currency by default, which only compares
  * within one host; `inUsd` converts each balance so accounts of different hosts can be compared.
  */
@@ -65,8 +59,7 @@ export const makeConsolidatedBalanceSubquery = (collectiveTableName: string, { i
   const amount = inUsd
     ? `"CurrentCollectiveBalance"."netAmountInHostCurrency" * fx_rate("CurrentCollectiveBalance"."hostCurrency", 'USD')`
     : `"CurrentCollectiveBalance"."netAmountInHostCurrency"`;
-  const sum = `COALESCE(SUM(COALESCE(${amount}, 0)), 0)`;
-  return `(SELECT ${inUsd ? roundToCents(sum) : sum} FROM "CurrentCollectiveBalance" WHERE "CurrentCollectiveBalance"."CollectiveId" IN (SELECT id FROM "Collectives" WHERE "deletedAt" IS NULL AND "isActive" IS TRUE AND ("ParentCollectiveId" = ${collectiveTableName}."id" OR id = ${collectiveTableName}."id")))`;
+  return `(SELECT COALESCE(SUM(COALESCE(${amount}, 0)), 0) FROM "CurrentCollectiveBalance" WHERE "CurrentCollectiveBalance"."CollectiveId" IN (SELECT id FROM "Collectives" WHERE "deletedAt" IS NULL AND "isActive" IS TRUE AND ("ParentCollectiveId" = ${collectiveTableName}."id" OR id = ${collectiveTableName}."id")))`;
 };
 
 export const ACCOUNT_CONSOLIDATED_BALANCE_QUERY = sequelize.literal(makeConsolidatedBalanceSubquery('"Collective"'));
