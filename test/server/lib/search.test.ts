@@ -443,6 +443,32 @@ describe('server/lib/search', () => {
         });
         expect(results.map(c => c.id)).to.deep.eq([nokCollective.id]);
       });
+
+      it('keeps amounts smaller than a USD cent apart', async () => {
+        // ¥1 and ¥2 are 0.67 and 1.33 USD cents: they must not compare equal
+        const yenTag = `balance-${randStr()}`;
+        const jpyHost = await fakeHost({ currency: 'JPY' });
+        const yenCollective = await fakeCollective({ HostCollectiveId: jpyHost.id, currency: 'JPY', tags: [yenTag] });
+        await fakeTransaction({
+          type: 'CREDIT',
+          CollectiveId: yenCollective.id,
+          HostCollectiveId: jpyHost.id,
+          amount: 2e2,
+          netAmountInHostCurrency: 2e2,
+          currency: 'JPY',
+          hostCurrency: 'JPY',
+        });
+        await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
+        await sequelize.query('REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"');
+
+        const search = async consolidatedBalance => {
+          const [results] = await searchCollectivesInDB(publicReq, '', 0, 10, { tags: [yenTag], consolidatedBalance });
+          return results.map(c => c.id);
+        };
+        expect(await search({ lte: { valueInCents: 1e2, currency: 'JPY' } })).to.deep.eq([]);
+        expect(await search({ gte: { valueInCents: 3e2, currency: 'JPY' } })).to.deep.eq([]);
+        expect(await search({ gte: { valueInCents: 2e2, currency: 'JPY' } })).to.deep.eq([yenCollective.id]);
+      });
     });
 
     describe('Private collectives', () => {
