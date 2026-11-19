@@ -31,6 +31,8 @@ export enum PAYMENT_METHOD_TYPE {
   PAYOUT = 'payout',
   VIRTUAL_CARD = 'virtual_card',
   SWISH = 'swish',
+  /** @deprecated but we still have ledger entries with this value */
+  BITCOIN = 'bitcoin',
 }
 
 export const PAYMENT_METHOD_TYPES = Object.values(PAYMENT_METHOD_TYPE);
