@@ -6,7 +6,7 @@ import { defaults, get, intersection, isEmpty, pick, uniq } from 'lodash';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute, Transaction } from 'sequelize';
 
 import activities from '../constants/activities';
-import { CollectiveType } from '../constants/collectives';
+import { CollectiveType, PLACEHOLDER_USER_NAME } from '../constants/collectives';
 import { Service } from '../constants/connected-account';
 import FEATURE from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
@@ -594,8 +594,11 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     }
     const sequelizeParams = transaction ? { transaction } : undefined;
     let collectiveName = userData.name;
+    let slug: string;
     if (!collectiveName || collectiveName.trim().length === 0) {
-      collectiveName = 'incognito';
+      // A neutral placeholder with a `user-…` slug: `editAccount` derives the slug from the name once it is set
+      collectiveName = PLACEHOLDER_USER_NAME;
+      slug = await Collective.generateSlug(null);
     } else if (slugify(collectiveName).length === 0) {
       collectiveName = 'user';
     }
@@ -603,6 +606,7 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     const userCollectiveData = {
       type: CollectiveType.USER,
       name: collectiveName,
+      slug,
       legalName: userData.legalName,
       image: userData.image,
       description: userData.description,
