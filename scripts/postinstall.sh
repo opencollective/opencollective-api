@@ -21,18 +21,11 @@ if [ "$SEQUELIZE_ENV" = "staging" ] || [ "$SEQUELIZE_ENV" = "production" ]; then
   exit $?; # exit with return code of previous command
 fi
 
-if command -v psql > /dev/null; then
-  echo "✓ PostgreSQL installed"
-else
-  echo "𐄂 psql command doesn't exist. Make sure you have PostgreSQL installed."
-  echo ""
-  echo "See: https://github.com/opencollective/opencollective-api/blob/main/docs/postgres.md"
-  echo ""
-  exit 1
-fi
+. ./scripts/common/pg-tools.sh
+
 # List databases first, so that a connection/auth failure is not mistaken for a missing database
 # (which would trigger db:restore and drop opencollective_dvl). `-w` never prompts for a password.
-if DB_LIST=$(psql -w -h $PG_HOST -U postgres -lqt); then
+if DB_LIST=$(pg_tool psql -w -h $PG_HOST -U postgres -lqt); then
   if echo "$DB_LIST" | cut -d \| -f 1 | grep -qw opencollective_dvl; then
     echo "✓ opencollective_dvl exists"
     ./scripts/db_restore_extensions.sh -d opencollective_dvl -U opencollective -h $PG_HOST

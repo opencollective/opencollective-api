@@ -15,9 +15,6 @@
       "platformPercent": 5
     }
   },
-  "maintenancedb": {
-    "url": "postgres://postgres@localhost:5432/postgres"
-  },
   "redis": {
     "serverUrl": "redis://localhost"
   },
