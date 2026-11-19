@@ -51,7 +51,15 @@ export const ACCOUNT_BALANCE_QUERY = sequelize.literal(
   '(SELECT COALESCE("CurrentCollectiveBalance"."netAmountInHostCurrency", 0) FROM "CurrentCollectiveBalance" WHERE "CurrentCollectiveBalance"."CollectiveId" = "Collective"."id")',
 );
 
-export const makeConsolidatedBalanceSubquery = (collectiveTableName: string) =>
-  `(SELECT COALESCE(SUM(COALESCE("CurrentCollectiveBalance"."netAmountInHostCurrency", 0)), 0) FROM "CurrentCollectiveBalance" WHERE "CurrentCollectiveBalance"."CollectiveId" IN (SELECT id FROM "Collectives" WHERE "deletedAt" IS NULL AND "isActive" IS TRUE AND ("ParentCollectiveId" = ${collectiveTableName}."id" OR id = ${collectiveTableName}."id")))`;
+/**
+ * Balance of an account and its active children. In host currency by default, which only compares
+ * within one host; `inUsd` converts each balance so accounts of different hosts can be compared.
+ */
+export const makeConsolidatedBalanceSubquery = (collectiveTableName: string, { inUsd = false } = {}) => {
+  const amount = inUsd
+    ? `"CurrentCollectiveBalance"."netAmountInHostCurrency" * fx_rate("CurrentCollectiveBalance"."hostCurrency", 'USD')`
+    : `"CurrentCollectiveBalance"."netAmountInHostCurrency"`;
+  return `(SELECT COALESCE(SUM(COALESCE(${amount}, 0)), 0) FROM "CurrentCollectiveBalance" WHERE "CurrentCollectiveBalance"."CollectiveId" IN (SELECT id FROM "Collectives" WHERE "deletedAt" IS NULL AND "isActive" IS TRUE AND ("ParentCollectiveId" = ${collectiveTableName}."id" OR id = ${collectiveTableName}."id")))`;
+};
 
 export const ACCOUNT_CONSOLIDATED_BALANCE_QUERY = sequelize.literal(makeConsolidatedBalanceSubquery('"Collective"'));

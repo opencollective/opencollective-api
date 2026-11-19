@@ -18,11 +18,8 @@ import { MemberRolesForPrivateAccounts } from '../constants/roles';
 import { isRemoteUserRoot } from '../graphql/common/scope-check';
 import { BadRequest, RateLimitExceeded } from '../graphql/errors';
 import { ORDER_BY_PSEUDO_FIELDS } from '../graphql/v2/enum/OrderByFieldType';
-import {
-  AmountRangeInputType,
-  getAmountRangeQuery,
-  makeConsolidatedBalanceSubquery,
-} from '../graphql/v2/input/AmountRangeInput';
+import { getValueInCentsFromAmountInput } from '../graphql/v2/input/AmountInput';
+import { AmountRangeInputType, makeConsolidatedBalanceSubquery } from '../graphql/v2/input/AmountRangeInput';
 import models, { Collective, Op, sequelize } from '../models';
 
 import {
@@ -40,7 +37,26 @@ import { removeDiacritics } from './string-utils';
 // Returned when there's no result for a search
 const EMPTY_SEARCH_RESULT = [[], 0] as const;
 
-const CONSOLIDATED_BALANCE_SUBQUERY = makeConsolidatedBalanceSubquery('c');
+// In USD: accounts of different hosts hold different currencies (1,000,000 JPY is not more than $500,000)
+const CONSOLIDATED_BALANCE_SUBQUERY = makeConsolidatedBalanceSubquery('c', { inUsd: true });
+
+/** `consolidatedBalance` bounds, converted to USD from their own currency (USD when not set) */
+const getConsolidatedBalanceCondition = (range: AmountRangeInputType) => {
+  const bounds = [
+    ['>=', 'consolidatedBalanceGte', range.gte],
+    ['<=', 'consolidatedBalanceLte', range.lte],
+  ] as const;
+  const conditions = [];
+  const replacements: Record<string, unknown> = {};
+  for (const [operator, key, amount] of bounds) {
+    if (amount) {
+      conditions.push(`AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${operator} :${key} * fx_rate(:${key}Currency, 'USD')`);
+      replacements[key] = getValueInCentsFromAmountInput(amount);
+      replacements[`${key}Currency`] = amount.currency || 'USD';
+    }
+  }
+  return { sql: conditions.join(' '), replacements };
+};
 
 /**
  * Returns SQL conditions to filter collectives based on private account visibility rules.
@@ -578,14 +594,18 @@ export const buildSearchCollectivesQuery = async (
       ? `AND ((c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE OR c."HostCollectiveId" IN (:hideFromSearchBypassHostIds))`
       : `AND (c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE`;
 
+  const consolidatedBalanceCondition = isEmpty(args.consolidatedBalance)
+    ? { sql: '', replacements: {} }
+    : getConsolidatedBalanceCondition(args.consolidatedBalance);
   const whereClause = `
     WHERE c."deletedAt" IS NULL
     ${hideFromSearchCondition}
     AND c.name NOT IN ('incognito', 'anonymous')
     AND c."isIncognito" = FALSE ${dynamicConditions}
-    ${!isEmpty(args.consolidatedBalance) ? `AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${getAmountRangeQuery(args.consolidatedBalance)}` : ''}`;
+    ${consolidatedBalanceCondition.sql}`;
 
   const replacements = {
+    ...consolidatedBalanceCondition.replacements,
     types,
     term: term,
     slugifiedTerm: term ? slugify(term) : '',

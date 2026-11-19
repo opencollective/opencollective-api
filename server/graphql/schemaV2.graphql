@@ -20541,7 +20541,7 @@ type Query {
     includeVendorsForHost: AccountReferenceInput
 
     """
-    Filter by the balance of the account and its children accounts (events and projects)
+    Filter by the balance of the account and its children accounts (events and projects), compared in USD: balances and bounds are converted from their currency
     """
     consolidatedBalance: AmountRangeInput
 
