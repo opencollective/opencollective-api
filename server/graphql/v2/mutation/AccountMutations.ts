@@ -784,12 +784,11 @@ const accountMutations = {
 
       if (account.data?.requiresProfileCompletion === true) {
         updateParams.data = Object.assign({}, account.data, updateParams.data, { requiresProfileCompletion: false });
-        // Update slug if either the name is updated or if this is a previous guest account that already had a name
-        if (
-          (updateParams.name || ![DEFAULT_GUEST_NAME, 'Incognito'].includes(account.name)) &&
-          !updateParams.slug &&
-          (account.slug.startsWith('guest-') || account.slug.startsWith('user-'))
-        ) {
+        // Update slug if either the name is updated or if this is a previous guest account that already had a name.
+        // Profiles created without a name (guest contributions, `/users/signup`) have a placeholder name and slug.
+        const hasPlaceholderName = [DEFAULT_GUEST_NAME, 'Incognito', 'incognito'].includes(account.name);
+        const hasPlaceholderSlug = ['guest-', 'user-', 'incognito-'].some(prefix => account.slug.startsWith(prefix));
+        if ((updateParams.name || !hasPlaceholderName) && !updateParams.slug && hasPlaceholderSlug) {
           updateParams.slug = await Collective.generateSlug((updateParams.name as string) || account.name);
           previousData.slug = account.slug;
           newData.slug = updateParams.slug;
