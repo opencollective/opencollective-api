@@ -28,6 +28,7 @@ import {
   fakeExpense,
   fakeHost,
   fakePlatformSubscription,
+  fakeTransaction,
   fakeUser,
   randStr,
 } from '../../test-helpers/fake-data';
@@ -356,6 +357,60 @@ describe('server/lib/search', () => {
 
         const searchPromise = searchCollectivesByEmail(searchedUser.email, user);
         await expect(searchPromise).to.be.eventually.rejectedWith('Rate limit exceeded');
+      });
+    });
+
+    describe('Consolidated balance across currencies', () => {
+      let tag, usdCollective, jpyCollective;
+
+      before(async () => {
+        // 1 USD = 150 JPY: ¥100,000 is about $667
+        await models.UsdExchangeRate.record({ USD: 1, JPY: 150 });
+        tag = `balance-${randStr()}`;
+        const usdHost = await fakeHost({ currency: 'USD' });
+        const jpyHost = await fakeHost({ currency: 'JPY' });
+        usdCollective = await fakeCollective({ HostCollectiveId: usdHost.id, currency: 'USD', tags: [tag] });
+        jpyCollective = await fakeCollective({ HostCollectiveId: jpyHost.id, currency: 'JPY', tags: [tag] });
+        for (const [collective, host, currency, amount] of [
+          [usdCollective, usdHost, 'USD', 5000e2],
+          [jpyCollective, jpyHost, 'JPY', 100000e2],
+        ]) {
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount,
+            netAmountInHostCurrency: amount,
+            currency,
+            hostCurrency: currency,
+          });
+        }
+        // Balances are read from "CurrentCollectiveBalance", which starts from these checkpoints
+        await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
+        await sequelize.query('REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"');
+      });
+
+      it('sorts by balance converted to USD', async () => {
+        const [results] = await searchCollectivesInDB(publicReq, '', 0, 10, {
+          tags: [tag],
+          orderBy: { field: 'BALANCE', direction: 'DESC' },
+        });
+        expect(results.map(c => c.id)).to.deep.eq([usdCollective.id, jpyCollective.id]);
+      });
+
+      it('filters by balance, converting the bound from its currency', async () => {
+        const search = async consolidatedBalance => {
+          const [results] = await searchCollectivesInDB(publicReq, '', 0, 10, { tags: [tag], consolidatedBalance });
+          return results.map(c => c.id).sort();
+        };
+        // $1,000: only the USD collective, the yen balance is worth less
+        expect(await search({ gte: { valueInCents: 1000e2, currency: 'USD' } })).to.deep.eq([usdCollective.id]);
+        // ¥50,000 (about $333): both
+        expect(await search({ gte: { valueInCents: 50000e2, currency: 'JPY' } })).to.deep.eq(
+          [usdCollective.id, jpyCollective.id].sort(),
+        );
+        // Up to $1,000: only the yen balance
+        expect(await search({ lte: { valueInCents: 1000e2, currency: 'USD' } })).to.deep.eq([jpyCollective.id]);
       });
     });
 
