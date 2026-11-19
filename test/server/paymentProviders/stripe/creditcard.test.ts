@@ -3,6 +3,7 @@
 import { expect } from 'chai';
 import type { SinonStub } from 'sinon';
 import { assert, createSandbox } from 'sinon';
+import Stripe from 'stripe';
 
 import { Service } from '../../../../server/constants/connected-account';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
@@ -108,6 +109,22 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         { payment_method: stripePaymentMethodId },
         { stripeAccount: 'acc_test' },
       );
+    });
+
+    it('passes on a known card error with the message Stripe returned, without the request id', async () => {
+      const cardError = new Stripe.errors.StripeCardError({
+        type: 'card_error',
+        code: 'card_declined',
+        message: 'Your card was declined.',
+        requestId: 'req_test',
+      });
+      expect(cardError.message).to.equal('[req_test] Your card was declined.');
+      stubOf(stripe.paymentIntents.confirm).rejects(cardError);
+
+      const error = await creditcard.processOrder(order).catch(e => e);
+      expect(error).to.be.instanceOf(Stripe.errors.StripeCardError);
+      expect(error.message).to.equal('Your card was declined.');
+      expect(error.requestId).to.equal('req_test');
     });
 
     it('has tax information stored in transaction', async () => {

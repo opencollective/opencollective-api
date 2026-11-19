@@ -29,6 +29,13 @@ export type PaymentIntentCreateParams = Stripe.PaymentIntentCreateParams & {
   payment_method_types?: string[];
 };
 
+/**
+ * The message of an error as Stripe returned it. Since stripe-node 23.2, `StripeError#message` starts with
+ * the request id (`[req_…] Your card was declined.`), which stays available as `error.requestId`.
+ */
+export const getStripeErrorMessage = (error: { message?: string; raw?: { message?: string } }): string =>
+  error?.raw?.message ?? error?.message ?? '';
+
 export const StripeCustomToken = token => {
   // Starting on stripe@v12, the default API version is set by the stripe package.
   // We need to hardcode the API version that we are compatible with.
