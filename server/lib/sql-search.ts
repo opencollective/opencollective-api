@@ -44,8 +44,8 @@ const CONSOLIDATED_BALANCE_SUBQUERY = makeConsolidatedBalanceSubquery('c', { inU
  * `consolidatedBalance` bounds, converted to USD from their own currency (USD when not set).
  *
  * Converted amounts are doubles: a sum of converted balances and a converted bound that should be
- * equal can differ in the last bits (six 0.1-cent balances sum to 0.6, 6 x 0.1 is 0.6000000000000001).
- * Each bound is widened by a relative 1e-12, far above that noise and far below the smallest
+ * equal can differ in the last bits (0.1 + 0.1 + ... is not 6 x 0.1). Each bound is widened by a
+ * relative 1e-12, plus 1e-9 cent for a bound of 0: far above that noise, far below the smallest
  * difference between two amounts (1 cent of any currency, even at 1e9 cents).
  */
 const getConsolidatedBalanceCondition = (range: AmountRangeInputType) => {
@@ -58,7 +58,9 @@ const getConsolidatedBalanceCondition = (range: AmountRangeInputType) => {
   for (const [operator, widen, key, amount] of bounds) {
     if (amount) {
       const bound = `(:${key} * fx_rate(:${key}Currency, 'USD'))`;
-      conditions.push(`AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${operator} ${bound} ${widen} ABS(${bound}) * 1e-12`);
+      conditions.push(
+        `AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${operator} ${bound} ${widen} (ABS(${bound}) * 1e-12 + 1e-9)`,
+      );
       replacements[key] = getValueInCentsFromAmountInput(amount);
       replacements[`${key}Currency`] = amount.currency || 'USD';
     }
