@@ -380,6 +380,35 @@ describe('server/lib/search', () => {
         expect(results.map(c => c.id)).to.deep.eq([nokCollective.id]);
       });
 
+      it('matches a zero bound when balances cancel out', async () => {
+        // -6 NOK cents and six +1 NOK cents, converted one by one, sum to about -1.4e-16 USD cents
+        const zeroTag = `balance-${randStr()}`;
+        const nokHost = await fakeHost({ currency: 'NOK' });
+        const nokCollective = await fakeCollective({ HostCollectiveId: nokHost.id, currency: 'NOK', tags: [zeroTag] });
+        const projects = await Promise.all(
+          times(6, () => fakeProject({ ParentCollectiveId: nokCollective.id, currency: 'NOK' })),
+        );
+        for (const [account, amount] of [[nokCollective, -6], ...projects.map(p => [p, 1])]) {
+          await fakeTransaction({
+            type: amount > 0 ? 'CREDIT' : 'DEBIT',
+            CollectiveId: account.id,
+            HostCollectiveId: nokHost.id,
+            amount,
+            netAmountInHostCurrency: amount,
+            currency: 'NOK',
+            hostCurrency: 'NOK',
+          });
+        }
+        await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
+        await sequelize.query('REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"');
+
+        const [results] = await searchCollectivesInDB(publicReq, '', 0, 10, {
+          tags: [zeroTag],
+          consolidatedBalance: { gte: { valueInCents: 0, currency: 'USD' }, lte: { valueInCents: 0, currency: 'USD' } },
+        });
+        expect(results.map(c => c.id)).to.deep.eq([nokCollective.id]);
+      });
+
       it('keeps amounts smaller than a USD cent apart', async () => {
         // ¥1 and ¥2 are 0.67 and 1.33 USD cents: they must not compare equal
         const yenTag = `balance-${randStr()}`;
