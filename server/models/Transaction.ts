@@ -26,7 +26,6 @@ import { shouldGenerateTransactionActivities } from '../lib/activities';
 import { getFxRate, roundCentsAmount } from '../lib/currency';
 import logger from '../lib/logger';
 import { toNegative } from '../lib/math';
-import { syncPaymentIntentFromLedgerTransaction } from '../lib/payment-intents/sync';
 import { calcFee, getHostFeeSharePercent } from '../lib/payments';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { stripHTML } from '../lib/sanitize-html';
@@ -44,7 +43,6 @@ import type Expense from './Expense';
 import type { ExpenseTaxDefinition } from './Expense';
 import { ModelWithPublicId } from './ModelWithPublicId';
 import Order, { OrderTax } from './Order';
-import type PaymentIntent from './PaymentIntent';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import TransactionSettlement, { TransactionSettlementStatus } from './TransactionSettlement';
@@ -198,7 +196,6 @@ class Transaction extends ModelWithPublicId<
   declare PayoutMethodId: number;
   declare PaymentMethodId: number;
   declare RefundTransactionId: number;
-  declare PaymentIntentId: number;
 
   // Associations
   declare createdByUser?: User;
@@ -209,7 +206,6 @@ class Transaction extends ModelWithPublicId<
   declare PaymentMethod?: PaymentMethod;
   declare PayoutMethod?: PayoutMethod;
   declare Order?: Order;
-  declare PaymentIntent?: PaymentIntent;
 
   // Getter Methods
   declare info?: Partial<Transaction>;
@@ -431,11 +427,6 @@ class Transaction extends ModelWithPublicId<
     { sequelizeTransaction }: { sequelizeTransaction?: SequelizeTransaction } = {},
   ): Promise<Transaction> {
     const runInTransaction = async sequelizeTransaction => {
-      const finalizeLedgerWrite = async (writtenTransaction: Transaction): Promise<Transaction> => {
-        await syncPaymentIntentFromLedgerTransaction(writtenTransaction, sequelizeTransaction);
-        return writtenTransaction;
-      };
-
       // Force transaction type based on amount sign
       if (transaction.amount > 0) {
         transaction.type = CREDIT;
@@ -534,9 +525,7 @@ class Transaction extends ModelWithPublicId<
 
       // If FromCollectiveId = CollectiveId, we only create one transaction (DEBIT or CREDIT)
       if (transaction.FromCollectiveId === transaction.CollectiveId) {
-        return finalizeLedgerWrite(
-          (await Transaction.create(transaction, { transaction: sequelizeTransaction })) as Transaction,
-        );
+        return Transaction.create(transaction, { transaction: sequelizeTransaction }) as Promise<Transaction>;
       }
 
       if (!isUndefined(transaction.amountInHostCurrency)) {
@@ -658,10 +647,10 @@ class Transaction extends ModelWithPublicId<
       if (transaction.type === DEBIT) {
         const t = await Transaction.create(transaction, { transaction: sequelizeTransaction });
         await Transaction.create(oppositeTransaction, { transaction: sequelizeTransaction });
-        return finalizeLedgerWrite(t);
+        return t;
       } else {
         await Transaction.create(oppositeTransaction, { transaction: sequelizeTransaction });
-        return finalizeLedgerWrite(await Transaction.create(transaction, { transaction: sequelizeTransaction }));
+        return Transaction.create(transaction, { transaction: sequelizeTransaction });
       }
     };
 
@@ -1847,17 +1836,6 @@ Transaction.init(
       type: DataTypes.INTEGER,
       references: {
         model: 'Expenses',
-        key: 'id',
-      },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-      allowNull: true,
-    },
-
-    PaymentIntentId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: 'PaymentIntents',
         key: 'id',
       },
       onDelete: 'SET NULL',

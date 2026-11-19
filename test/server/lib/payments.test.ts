@@ -9,8 +9,6 @@ import { activities } from '../../../server/constants';
 import { CollectiveType } from '../../../server/constants/collectives';
 import { SupportedCurrency } from '../../../server/constants/currencies';
 import status from '../../../server/constants/order-status';
-import PaymentIntentStatus from '../../../server/constants/payment-intent-status';
-import PaymentIntentType from '../../../server/constants/payment-intent-type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../server/constants/platform';
 import roles from '../../../server/constants/roles';
@@ -44,10 +42,6 @@ import {
   fakeUser,
   randStr,
 } from '../../test-helpers/fake-data';
-import {
-  expectPaymentIntentForOrder,
-  expectTransactionsLinkedToPaymentIntent,
-} from '../../test-helpers/payment-intent';
 import * as utils from '../../utils';
 
 /** `newPlatformTipsLedger` is an internal settings flag that is not part of the `Settings` type. */
@@ -281,13 +275,6 @@ describe('server/lib/payments', () => {
               expect(order).to.have.property('currency', CURRENCY);
               expect(order).to.have.property('totalAmount', AMOUNT);
               expect(order).to.have.property('status', status.PAID);
-
-              const paymentIntent = await expectPaymentIntentForOrder(order.id, {
-                status: PaymentIntentStatus.PAID,
-                type: PaymentIntentType.Contribution,
-              });
-              expect(paymentIntent.primaryTransactionGroup).to.exist;
-              await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
             });
 
             it('records a thirdparty payment outcome metric for the successful charge', () => {
@@ -525,14 +512,6 @@ describe('server/lib/payments', () => {
 
       expect(refundTaxTransactions.find(t => t.type === 'DEBIT').amount).to.equal(-100);
       expect(refundTaxTransactions.find(t => t.type === 'CREDIT').amount).to.equal(100);
-
-      const paymentIntent = await expectPaymentIntentForOrder(order.id, {
-        status: PaymentIntentStatus.REVERSED,
-        type: PaymentIntentType.Contribution,
-      });
-      expect(paymentIntent.primaryTransactionGroup).to.exist;
-      const refundContribution = refundTransactions.find(t => t.type === 'CREDIT');
-      await expectTransactionsLinkedToPaymentIntent(refundContribution.TransactionGroup, paymentIntent.id);
     });
 
     it('should refund platform fees on top when refunding original transaction', async () => {

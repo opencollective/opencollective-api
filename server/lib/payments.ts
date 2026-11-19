@@ -37,7 +37,6 @@ import {
 import { applyBalanceAccountingCategory } from './accounting/categorization/balance-accounts';
 import { applyContributionAccountingCategoryRules } from './accounting/categorization/contribution-rules';
 import { notify } from './notifications/email';
-import { syncPaymentIntentFromRefund } from './payment-intents/sync';
 import {
   MetricEvent,
   MetricFlow,
@@ -918,7 +917,6 @@ export async function createRefundTransaction(
     const refundTransaction = await Transaction.createDoubleEntry(creditTransactionRefund, {
       sequelizeTransaction: sqlTransaction,
     });
-    await syncPaymentIntentFromRefund(refundTransaction, sqlTransaction);
     return associateTransactionRefundId(transaction, refundTransaction, sqlTransaction, refundKind);
   };
 
