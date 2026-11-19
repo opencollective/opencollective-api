@@ -2,7 +2,7 @@ import config from 'config';
 import { get, result, toUpper } from 'lodash';
 import moment from 'moment';
 import assert from 'node:assert';
-import type { CreateOptions } from 'sequelize';
+import type { CreateOptions, Transaction as SequelizeTransaction } from 'sequelize';
 import Stripe from 'stripe';
 
 import { Service } from '../../constants/connected-account';
@@ -149,8 +149,10 @@ export const createChargeTransactions = async (
   charge: Stripe.Charge,
   {
     order,
+    sqlTransaction,
   }: {
     order: Order;
+    sqlTransaction?: SequelizeTransaction;
   },
 ) => {
   const host = await order.collective.getHostCollective();
@@ -246,7 +248,7 @@ export const createChargeTransactions = async (
     clearedAt,
   } as TransactionCreationAttributes;
 
-  return models.Transaction.createFromContributionPayload(transactionPayload);
+  return models.Transaction.createFromContributionPayload(transactionPayload, { sequelizeTransaction: sqlTransaction });
 };
 
 /**
