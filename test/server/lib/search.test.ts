@@ -21,7 +21,7 @@ import {
   searchCollectivesInDB,
 } from '../../../server/lib/sql-search';
 import { getOrCreateHostPlatformTipsAccount } from '../../../server/lib/transactions';
-import models, { Op, sequelize } from '../../../server/models';
+import models, { Collective, Op, sequelize } from '../../../server/models';
 import { newUser } from '../../stores';
 import {
   fakeCollective,
@@ -452,7 +452,11 @@ describe('server/lib/search', () => {
         const projects = await Promise.all(
           times(6, () => fakeProject({ ParentCollectiveId: nokCollective.id, currency: 'NOK' })),
         );
-        for (const [account, amount] of [[nokCollective, -6], ...projects.map(p => [p, 1])]) {
+        const balances: [Collective, number][] = [
+          [nokCollective, -6],
+          ...projects.map(p => [p, 1] as [Collective, number]),
+        ];
+        for (const [account, amount] of balances) {
           await fakeTransaction({
             type: amount > 0 ? 'CREDIT' : 'DEBIT',
             CollectiveId: account.id,
