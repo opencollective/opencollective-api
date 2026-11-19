@@ -918,7 +918,7 @@ export async function createRefundTransaction(
     const refundTransaction = await Transaction.createDoubleEntry(creditTransactionRefund, {
       sequelizeTransaction: sqlTransaction,
     });
-    await syncPaymentIntentFromRefund(refundTransaction, sqlTransaction);
+    await syncPaymentIntentFromRefund(refundTransaction, sqlTransaction, transaction.TransactionGroup);
     return associateTransactionRefundId(transaction, refundTransaction, sqlTransaction, refundKind);
   };
 

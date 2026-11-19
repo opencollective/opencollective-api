@@ -1,6 +1,7 @@
 import { Transaction as SequelizeTransaction } from 'sequelize';
 
 import PaymentIntentStatus from '../../constants/payment-intent-status';
+import { TransactionKind } from '../../constants/transaction-kind';
 import models from '../../models';
 import Collective from '../../models/Collective';
 import Expense from '../../models/Expense';
@@ -34,6 +35,8 @@ type UpsertPaymentIntentOptions = {
   trigger: PaymentIntentSyncTrigger;
   /** Backfill only: set createdAt to match the source order/expense */
   createdAt?: Date;
+  /** Refund only: TransactionGroup of the charge being refunded */
+  refundedTransactionGroup?: string;
 };
 
 const loadOrderForTransaction = async (
@@ -117,8 +120,12 @@ const findPrimaryTransactionForGroup = async (
     order: [['id', 'ASC']],
   });
 
+  // Prefer the row the ledger sync uses (the one `createDoubleEntry` is initiated with): the DEBIT for expenses,
+  // the CREDIT otherwise. The opposite row carries the other party's host.
+  const primaryKindTransactions = transactions.filter(t => isPrimaryTransactionKind(t.kind));
   return (
-    transactions.find(t => isPrimaryTransactionKind(t.kind)) ??
+    primaryKindTransactions.find(t => t.type === (t.kind === TransactionKind.EXPENSE ? 'DEBIT' : 'CREDIT')) ??
+    primaryKindTransactions[0] ??
     transactions.find(t => t.type === 'CREDIT') ??
     transactions[0] ??
     null
@@ -151,7 +158,7 @@ export const deletePaymentIntentForSource = async (
 
 const _upsertPaymentIntentFor = async (
   source: UpsertPaymentIntentSource,
-  { sequelizeTransaction, trigger, createdAt }: UpsertPaymentIntentOptions,
+  { sequelizeTransaction, trigger, createdAt, refundedTransactionGroup }: UpsertPaymentIntentOptions,
 ): Promise<PaymentIntent | null> => {
   if (trigger === 'soft-delete') {
     await deletePaymentIntentForSource(source, sequelizeTransaction);
@@ -208,13 +215,24 @@ const _upsertPaymentIntentFor = async (
     sequelizeTransaction,
   );
 
-  const isReversed = trigger === 'refund' || existing?.status === PaymentIntentStatus.REVERSED;
+  // A reversal only applies to the primary charge it refunded. A new primary charge (next charge of a recurring
+  // order, expense paid again after being marked as unpaid) is a new payment.
+  const isReversed =
+    trigger === 'refund' ||
+    (existing?.status === PaymentIntentStatus.REVERSED && existing.primaryTransactionGroup === primaryTransactionGroup);
 
   if (trigger === 'refund') {
     if (!existing) {
       return null;
     }
-    await existing.update({ status: PaymentIntentStatus.REVERSED }, { transaction: sequelizeTransaction });
+    // Recurring orders have several charges: refunding a charge other than the primary one does not reverse the intent
+    const refundsAnotherCharge =
+      Boolean(refundedTransactionGroup) &&
+      Boolean(existing.primaryTransactionGroup) &&
+      refundedTransactionGroup !== existing.primaryTransactionGroup;
+    if (!refundsAnotherCharge) {
+      await existing.update({ status: PaymentIntentStatus.REVERSED }, { transaction: sequelizeTransaction });
+    }
     if (transaction?.TransactionGroup) {
       await linkTransactionsToPaymentIntent(existing.id, transaction.TransactionGroup, sequelizeTransaction);
     }
@@ -279,10 +297,10 @@ const _upsertPaymentIntentFor = async (
 // Better error handling should be implemented in the future.
 const upsertPaymentIntentFor = async (
   source: UpsertPaymentIntentSource,
-  { sequelizeTransaction, trigger }: UpsertPaymentIntentOptions,
+  { sequelizeTransaction, trigger, refundedTransactionGroup }: UpsertPaymentIntentOptions,
 ): Promise<PaymentIntent | null> => {
   try {
-    return await _upsertPaymentIntentFor(source, { sequelizeTransaction, trigger });
+    return await _upsertPaymentIntentFor(source, { sequelizeTransaction, trigger, refundedTransactionGroup });
   } catch (error) {
     reportErrorToSentry(error, { extra: { source, trigger } });
     return null;
@@ -308,8 +326,9 @@ export const syncPaymentIntentFromLedgerTransaction = async (
 export const syncPaymentIntentFromRefund = async (
   transaction: Transaction,
   sequelizeTransaction?: SequelizeTransaction,
+  refundedTransactionGroup?: string,
 ): Promise<PaymentIntent | null> =>
-  upsertPaymentIntentFor({ transaction }, { sequelizeTransaction, trigger: 'refund' });
+  upsertPaymentIntentFor({ transaction }, { sequelizeTransaction, trigger: 'refund', refundedTransactionGroup });
 
 /** Backfill entrypoint: propagates errors (unlike production sync wrappers). */
 export const backfillPaymentIntentFromSource = async (
