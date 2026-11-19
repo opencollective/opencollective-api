@@ -1,7 +1,7 @@
 # A developer environment for TypeScript/Node.js,
 services:
   dev:
-    image: mcr.microsoft.com/devcontainers/typescript-node:24
+    image: mcr.microsoft.com/devcontainers/typescript-node:26
     # Mount the API repo root (parent of this folder), not docker-compose/
     volumes:
       - ..:/workspace
