@@ -28,6 +28,7 @@ import {
   fakeExpense,
   fakeHost,
   fakePlatformSubscription,
+  fakeProject,
   fakeTransaction,
   fakeUser,
   randStr,
@@ -364,8 +365,8 @@ describe('server/lib/search', () => {
       let tag, usdCollective, jpyCollective;
 
       before(async () => {
-        // 1 USD = 150 JPY: ¥100,000 is about $667
-        await models.UsdExchangeRate.record({ USD: 1, JPY: 150 });
+        // 1 USD = 150 JPY: ¥100,000 is about $667. 1 USD = 10 NOK: 1 NOK cent is 0.1 USD cent
+        await models.UsdExchangeRate.record({ USD: 1, JPY: 150, NOK: 10 });
         tag = `balance-${randStr()}`;
         const usdHost = await fakeHost({ currency: 'USD' });
         const jpyHost = await fakeHost({ currency: 'JPY' });
@@ -411,6 +412,36 @@ describe('server/lib/search', () => {
         );
         // Up to $1,000: only the yen balance
         expect(await search({ lte: { valueInCents: 1000e2, currency: 'USD' } })).to.deep.eq([jpyCollective.id]);
+      });
+
+      it('matches an inclusive bound equal to a sum of converted balances', async () => {
+        // Six 1-cent NOK balances (a collective and its 5 projects) sum to 0.6 USD cent in doubles,
+        // while the 6 NOK cents bound converts to 0.6000000000000001
+        const nokTag = `balance-${randStr()}`;
+        const nokHost = await fakeHost({ currency: 'NOK' });
+        const nokCollective = await fakeCollective({ HostCollectiveId: nokHost.id, currency: 'NOK', tags: [nokTag] });
+        const projects = await Promise.all(
+          times(5, () => fakeProject({ ParentCollectiveId: nokCollective.id, currency: 'NOK' })),
+        );
+        for (const account of [nokCollective, ...projects]) {
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: account.id,
+            HostCollectiveId: nokHost.id,
+            amount: 1,
+            netAmountInHostCurrency: 1,
+            currency: 'NOK',
+            hostCurrency: 'NOK',
+          });
+        }
+        await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
+        await sequelize.query('REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"');
+
+        const [results] = await searchCollectivesInDB(publicReq, '', 0, 10, {
+          tags: [nokTag],
+          consolidatedBalance: { gte: { valueInCents: 6, currency: 'NOK' }, lte: { valueInCents: 6, currency: 'NOK' } },
+        });
+        expect(results.map(c => c.id)).to.deep.eq([nokCollective.id]);
       });
     });
 

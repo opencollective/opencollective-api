@@ -19,7 +19,11 @@ import { isRemoteUserRoot } from '../graphql/common/scope-check';
 import { BadRequest, RateLimitExceeded } from '../graphql/errors';
 import { ORDER_BY_PSEUDO_FIELDS } from '../graphql/v2/enum/OrderByFieldType';
 import { getValueInCentsFromAmountInput } from '../graphql/v2/input/AmountInput';
-import { AmountRangeInputType, makeConsolidatedBalanceSubquery } from '../graphql/v2/input/AmountRangeInput';
+import {
+  AmountRangeInputType,
+  makeConsolidatedBalanceSubquery,
+  roundToCents,
+} from '../graphql/v2/input/AmountRangeInput';
 import models, { Collective, Op, sequelize } from '../models';
 
 import {
@@ -50,7 +54,9 @@ const getConsolidatedBalanceCondition = (range: AmountRangeInputType) => {
   const replacements: Record<string, unknown> = {};
   for (const [operator, key, amount] of bounds) {
     if (amount) {
-      conditions.push(`AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${operator} :${key} * fx_rate(:${key}Currency, 'USD')`);
+      conditions.push(
+        `AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${operator} ${roundToCents(`:${key} * fx_rate(:${key}Currency, 'USD')`)}`,
+      );
       replacements[key] = getValueInCentsFromAmountInput(amount);
       replacements[`${key}Currency`] = amount.currency || 'USD';
     }
