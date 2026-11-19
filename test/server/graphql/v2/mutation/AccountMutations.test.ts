@@ -2494,7 +2494,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         }
       `;
 
-      // As `/users/signup` does: no name, so the profile is "incognito" with an `incognito-…` slug
+      // As `/users/signup` does: no name, so the profile gets a placeholder name and a `user-…` slug
       const createUserWithoutName = async () => {
         const user = await models.User.create({ email: randEmail(), confirmedAt: new Date() });
         const collective = await user.createCollective({ data: { requiresProfileCompletion: true } });
@@ -2502,8 +2502,29 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         return { user, collective };
       };
 
+      // Profiles created before the placeholder changed are named "incognito", with an `incognito-…` slug
+      const createLegacyUserWithoutName = async () => {
+        const { user, collective } = await createUserWithoutName();
+        await collective.update({ name: 'incognito', slug: `incognito-${randStr().toLowerCase().slice(0, 8)}` });
+        return { user, collective };
+      };
+
       it('derives the slug from the name when the profile is completed', async () => {
         const { user, collective } = await createUserWithoutName();
+        expect(collective.name).to.equal('New user');
+        expect(collective.slug).to.match(/^user-/);
+
+        const result = await graphqlQueryV2(
+          completeProfileMutation,
+          { account: { id: idEncode(collective.id, 'account'), name: 'Jane Newslug' } },
+          user,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.editAccount.slug).to.match(/^jane-newslug/);
+      });
+
+      it('derives the slug from the name for a legacy "incognito" profile', async () => {
+        const { user, collective } = await createLegacyUserWithoutName();
         expect(collective.slug).to.match(/^incognito-/);
 
         const result = await graphqlQueryV2(
@@ -2519,16 +2540,18 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       });
 
       it('keeps the slug when the name is not set', async () => {
-        const { user, collective } = await createUserWithoutName();
-        const initialSlug = collective.slug;
+        for (const create of [createUserWithoutName, createLegacyUserWithoutName]) {
+          const { user, collective } = await create();
+          const initialSlug = collective.slug;
 
-        const result = await graphqlQueryV2(
-          completeProfileMutation,
-          { account: { id: idEncode(collective.id, 'account'), legalName: 'Jane Legal Slugtest' } },
-          user,
-        );
-        expect(result.errors).to.not.exist;
-        expect(result.data.editAccount.slug).to.equal(initialSlug);
+          const result = await graphqlQueryV2(
+            completeProfileMutation,
+            { account: { id: idEncode(collective.id, 'account'), legalName: 'Jane Legal Slugtest' } },
+            user,
+          );
+          expect(result.errors).to.not.exist;
+          expect(result.data.editAccount.slug).to.equal(initialSlug);
+        }
       });
     });
 

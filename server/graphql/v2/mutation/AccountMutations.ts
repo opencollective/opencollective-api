@@ -27,7 +27,7 @@ import {
 } from 'lodash';
 
 import activities from '../../../constants/activities';
-import { CollectiveType } from '../../../constants/collectives';
+import { CollectiveType, PLACEHOLDER_USER_NAME } from '../../../constants/collectives';
 import POLICIES from '../../../constants/policies';
 import { assertSettingsChangeAllowed } from '../../../lib/account-settings';
 import { checkFeatureAccess, FEATURE } from '../../../lib/allowed-features';
@@ -787,7 +787,9 @@ const accountMutations = {
         updateParams.data = Object.assign({}, account.data, updateParams.data, { requiresProfileCompletion: false });
         // Update slug if either the name is updated or if this is a previous guest account that already had a name.
         // Profiles created without a name (guest contributions, `/users/signup`) have a placeholder name and slug.
-        const hasPlaceholderName = [DEFAULT_GUEST_NAME, 'Incognito', 'incognito'].includes(account.name);
+        const hasPlaceholderName = [DEFAULT_GUEST_NAME, PLACEHOLDER_USER_NAME, 'Incognito', 'incognito'].includes(
+          account.name,
+        );
         const hasPlaceholderSlug = ['guest-', 'user-', 'incognito-'].some(prefix => account.slug.startsWith(prefix));
         if ((updateParams.name || !hasPlaceholderName) && !updateParams.slug && hasPlaceholderSlug) {
           updateParams.slug = await Collective.generateSlug((updateParams.name as string) || account.name);
