@@ -482,7 +482,7 @@ export const notifyByEmail = async (activity: Activity) => {
         ) {
           const user = await payee.getUser();
           // Make sure payee hasn't been notified as part of other roles
-          if (user && !notifiedUserIds.has(payeeCollectiveId)) {
+          if (user && !notifiedUserIds.has(user.id)) {
             await notify.user(activity, {
               user,
               from: config.email.noReply,
