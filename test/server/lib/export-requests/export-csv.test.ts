@@ -89,6 +89,25 @@ describe('server/lib/export-requests/export-csv', () => {
       expect(url.searchParams.get('paymentMethodType')).to.equal('creditcard');
     });
 
+    it('maps manual payment provider references to a comma-joined list of ids', () => {
+      const url = parseUrl({
+        account: { slug: 'my-host' },
+        isHostReport: true,
+        variables: {
+          paymentMethodService: ['OPENCOLLECTIVE'],
+          paymentMethodType: ['MANUAL'],
+          manualPaymentProvider: [{ id: 'mpp_abc123' }, { id: 'mpp_def456' }],
+        },
+      });
+      expect(url.searchParams.get('paymentMethodType')).to.equal('MANUAL');
+      expect(url.searchParams.get('manualPaymentProvider')).to.equal('mpp_abc123,mpp_def456');
+    });
+
+    it('omits the manual payment provider filter when empty', () => {
+      const url = parseUrl({ account: { slug: 'my-collective' }, variables: { manualPaymentProvider: [] } });
+      expect(url.searchParams.has('manualPaymentProvider')).to.be.false;
+    });
+
     it('maps amount bounds to min/maxAmount', () => {
       const url = parseUrl({
         account: { slug: 'my-collective' },
