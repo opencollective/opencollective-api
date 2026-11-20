@@ -10,7 +10,6 @@ import OrderStatus from '../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE } from '../../constants/paymentMethods';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
-import { floatAmountToCents } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { applyPendingTierChangeAfterCharge } from '../../lib/order-tier-change';
 import { createRefundTransaction, pauseOrderInDb } from '../../lib/payments';
@@ -22,7 +21,12 @@ import models from '../../models';
 import { PayoutWebhookRequest, PaypalCapture, PaypalRefund } from '../../types/paypal';
 
 import { paypalRequestV2 } from './api';
-import { findTransactionByPaypalId, recordPaypalCapture, recordPaypalSale } from './payment';
+import {
+  findTransactionByPaypalId,
+  getRefundedPaypalFeeInHostCurrency,
+  recordPaypalCapture,
+  recordPaypalSale,
+} from './payment';
 import { checkBatchItemStatus } from './payouts';
 import { CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON, markPaypalSubscriptionAsCancelledInDb } from './subscription';
 
@@ -317,7 +321,7 @@ async function handleSaleRefunded(req: Request): Promise<void> {
     }
 
     const rawRefundedPaypalFee = <string>get(refund, 'transaction_fee.value', '0.00');
-    const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
+    const refundedPaypalFee = getRefundedPaypalFeeInHostCurrency(transaction, rawRefundedPaypalFee);
     await createRefundTransaction(
       transaction,
       refundedPaypalFee,
@@ -432,7 +436,7 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
 
     // Record the refund transactions
     const rawRefundedPaypalFee = <string>get(refundDetails, 'seller_payable_breakdown.paypal_fee.value', '0.00');
-    const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
+    const refundedPaypalFee = getRefundedPaypalFeeInHostCurrency(transaction, rawRefundedPaypalFee);
     const dataPayload = {
       ...transaction.data,
       refund: refundDetails,
