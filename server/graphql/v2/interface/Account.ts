@@ -1072,7 +1072,7 @@ const accountFieldsDefinition = () => ({
       },
       limit: {
         type: GraphQLInt,
-        default: { value: 20 },
+        defaultValue: 20,
         description: 'Number of activities to retrieve',
       },
       classes: {
@@ -1085,7 +1085,7 @@ const accountFieldsDefinition = () => ({
         throw new Unauthorized('You need to be logged in as an admin of this collective to see its activity');
       }
 
-      if (args.classes.length === 0) {
+      if (!args.classes?.length) {
         return [];
       }
 
