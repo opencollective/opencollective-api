@@ -814,6 +814,11 @@ describe('server/graphql/v2/interface/Account', () => {
             nodes {
               description
             }
+            payees {
+              nodes {
+                slug
+              }
+            }
           }
           submitted: expenses(direction: SUBMITTED) {
             totalCount
@@ -825,14 +830,16 @@ describe('server/graphql/v2/interface/Account', () => {
       }
     `;
 
-    let collective, adminUser;
+    let collective, adminUser, user, unrelatedPayee;
 
     before(async () => {
       await resetTestDB();
       adminUser = await fakeUser();
-      const user = await fakeUser();
+      user = await fakeUser();
       collective = await fakeCollective({ admin: adminUser });
       const otherCollective = await fakeCollective();
+      unrelatedPayee = await fakeCollective();
+      await fakeExpense({ CollectiveId: otherCollective.id, FromCollectiveId: unrelatedPayee.id });
       const privateHost = await fakePrivateHost();
       const privateCollective = await fakeCollective({
         HostCollectiveId: privateHost.id,
@@ -860,6 +867,14 @@ describe('server/graphql/v2/interface/Account', () => {
       expect(result.data.account.submitted.totalCount).to.eq(1);
       expect(result.data.account.all.totalCount).to.eq(2);
       expect(result.data.account.all.nodes.map(n => n.description)).to.have.members(['Received', 'Submitted']);
+    });
+
+    it('scopes payees to expenses submitted or received by the account', async () => {
+      const result = await graphqlQueryV2(query, { slug: collective.slug });
+      expect(result.errors).to.not.exist;
+      const payeeSlugs = result.data.account.all.payees.nodes.map(n => n.slug);
+      expect(payeeSlugs).to.have.members([user.collective.slug, collective.slug]);
+      expect(payeeSlugs).to.not.include(unrelatedPayee.slug);
     });
 
     it('includes expenses submitted to private accounts only for those who can see them', async () => {

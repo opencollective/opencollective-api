@@ -622,6 +622,7 @@ export const ExpensesCollectionQueryResolver = async (
     where['FromCollectiveId'] = uniq(fromAccountIds);
   }
 
+  let scopedAccountIds: number[] | undefined;
   if (accounts.length > 0) {
     if (host) {
       assertCollectivesMatchFiscalHostFilter(accounts, host, args.hostContext);
@@ -634,11 +635,12 @@ export const ExpensesCollectionQueryResolver = async (
       );
       accountIds.push(...childIds.flat());
     }
+    scopedAccountIds = uniq(accountIds);
     if (args.includeSubmittedByAccount) {
       // Internal flag set by `Account.expenses` when no direction is given: match expenses received OR submitted
-      where[Op.and].push({ [Op.or]: [{ CollectiveId: uniq(accountIds) }, { FromCollectiveId: uniq(accountIds) }] });
+      where[Op.and].push({ [Op.or]: [{ CollectiveId: scopedAccountIds }, { FromCollectiveId: scopedAccountIds }] });
     } else {
-      where['CollectiveId'] = uniq(accountIds);
+      where['CollectiveId'] = scopedAccountIds;
     }
   }
 
@@ -1218,10 +1220,7 @@ export const ExpensesCollectionQueryResolver = async (
     limit: args.limit,
     offset: args.offset,
     payees: (subArgs: { limit?: number; offset?: number; searchTerm?: string } = {}) =>
-      fetchExpensesPayees(
-        { args, host, fromHost, collectiveIds: where['CollectiveId'] as number[] | undefined },
-        subArgs,
-      ),
+      fetchExpensesPayees({ args, host, fromHost, collectiveIds: scopedAccountIds }, subArgs),
   };
 };
 
@@ -1250,7 +1249,12 @@ const fetchExpensesPayees = async (
 
   // Account filter (collectiveIds already includes children when includeChildrenExpenses is set)
   if (collectiveIds?.length > 0) {
-    expenseConditions.push('e."CollectiveId" IN (:collectiveIds)');
+    if (args.includeSubmittedByAccount) {
+      // Same received-or-submitted scope as the main query
+      expenseConditions.push('(e."CollectiveId" IN (:collectiveIds) OR e."FromCollectiveId" IN (:collectiveIds))');
+    } else {
+      expenseConditions.push('e."CollectiveId" IN (:collectiveIds)');
+    }
     replacements.collectiveIds = collectiveIds;
   }
 
