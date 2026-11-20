@@ -613,5 +613,53 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
         expect(result.data.expense.comments.nodes[index].html).to.equal(`comment ${index + 1}`);
       });
     });
+
+    it('rejects an order by a field comments do not have', async () => {
+      const result = await graphqlQueryV2(
+        gql`
+          query ExpenseCommentsOrder($id: Int!) {
+            expense(expense: { legacyId: $id }) {
+              comments(orderBy: { field: EFFECTIVE_DATE, direction: DESC }) {
+                nodes {
+                  id
+                }
+              }
+            }
+          }
+        `,
+        { id: expense.id },
+        collectiveAdmin,
+      );
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('Comments can only be ordered by CREATED_AT');
+    });
+
+    it('uses the default order when orderBy is explicitly null', async () => {
+      const result = await graphqlQueryV2(
+        gql`
+          query ExpenseCommentsNullOrder($id: Int!) {
+            expense(expense: { legacyId: $id }) {
+              countOnly: comments(orderBy: null) {
+                totalCount
+              }
+              comments(orderBy: null, limit: 50) {
+                totalCount
+                nodes {
+                  createdAt
+                }
+              }
+            }
+          }
+        `,
+        { id: expense.id },
+        collectiveAdmin,
+      );
+      expectNoErrorsFromResult(result);
+      const { countOnly, comments } = result.data.expense;
+      expect(countOnly.totalCount).to.be.above(0);
+      expect(comments.nodes).to.have.length(comments.totalCount);
+      const dates = comments.nodes.map(node => new Date(node.createdAt).getTime());
+      expect(dates).to.deep.equal([...dates].sort((a, b) => a - b));
+    });
   });
 });
