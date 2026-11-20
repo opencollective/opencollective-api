@@ -1459,7 +1459,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       };
       const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
       expect(result.errors).to.have.lengthOf(1);
-      expect(result.errors[0].message).to.include('You are not allowed to edit the following policies');
+      expect(result.errors[0].message).to.include('You need to be an admin of the account or of its host');
 
       // The policy must be retained
       await host.reload();
@@ -1489,6 +1489,30 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       // The policy must be retained
       await collective.reload();
       expect(collective.data.policies[POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]).to.be.true;
+    });
+
+    describe('should fail for a user who is not an admin, even when the policies do not change', () => {
+      const countEditedActivities = () =>
+        models.Activity.count({ where: { type: ACTIVITY.COLLECTIVE_EDITED, CollectiveId: collective.id } });
+
+      const cases = {
+        'no policies': () => ({}),
+        'an unchanged value': () => ({
+          [POLICIES.EXPENSE_POLICIES]: collective.data.policies[POLICIES.EXPENSE_POLICIES],
+        }),
+        'null for a policy that is not set': () => ({ [POLICIES.COLLECTIVE_ADMINS_CAN_REFUND]: null }),
+      };
+
+      for (const [name, getPolicies] of Object.entries(cases)) {
+        it(`with ${name}`, async () => {
+          const activitiesBefore = await countEditedActivities();
+          const mutationParams = { account: { legacyId: collective.id }, policies: getPolicies() };
+          const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, randomUser);
+          expect(result.errors).to.have.lengthOf(1);
+          expect(result.errors[0].extensions.code).to.equal('Forbidden');
+          expect(await countEditedActivities()).to.equal(activitiesBefore);
+        });
+      }
     });
 
     describe('TAX_FORM_THRESHOLDS policy', () => {

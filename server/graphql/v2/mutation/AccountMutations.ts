@@ -834,6 +834,9 @@ const accountMutations = {
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+      if (!req.remoteUser.isAdminOfCollectiveOrHost(account)) {
+        throw new Forbidden('You need to be an admin of the account or of its host to edit its policies');
+      }
 
       // Check host only policies
       const previousPolicies = account.data?.policies || {};
