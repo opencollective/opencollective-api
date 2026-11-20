@@ -105,7 +105,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: GraphQLBoolean,
         async resolve(account: Collective, _, req) {
           const user = await req.loaders.User.byCollectiveId.load(account.id);
-          if (req.remoteUser?.id === user.id) {
+          if (user && req.remoteUser?.id === user.id) {
             return Boolean(account.data?.requiresProfileCompletion);
           }
         },
@@ -174,7 +174,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: GraphQLBoolean,
         async resolve(collective, args, req) {
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
-          if (req.remoteUser?.id === user.id) {
+          if (user && req.remoteUser?.id === user.id) {
             return twoFactorAuthLib.userHasTwoFactorAuthEnabled(user);
           }
         },
@@ -207,7 +207,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: GraphQLBoolean,
         async resolve(collective, args, req) {
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
-          if (req.remoteUser?.id !== user.id) {
+          if (!user || req.remoteUser?.id !== user.id) {
             return null;
           }
           return hasSeenLatestChangelogEntry(user);
@@ -225,6 +225,9 @@ export const GraphQLIndividual = new GraphQLObjectType({
           requireSessionToken(req);
 
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
+          if (!user) {
+            return { nodes: [], totalCount: 0, limit, offset };
+          }
 
           const query = { where: { UserId: user.id } };
 
