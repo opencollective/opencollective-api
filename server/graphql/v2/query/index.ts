@@ -33,6 +33,7 @@ import OffPlatformTransactionsInstitutionsQuery from './OffPlatformTransactionsI
 import OrderQuery from './OrderQuery';
 import OrganizationQuery from './OrganizationQuery';
 import PaymentIntentQuery from './PaymentIntentQuery';
+import PaymentMethodQuery from './PaymentMethodQuery';
 import PaypalPlanQuery from './PaypalPlanQuery';
 import PersonalTokenQuery from './PersonalTokenQuery';
 import platformSubscriptionTiers from './PlatformSubscriptionTiers';
@@ -106,6 +107,7 @@ const query = {
   },
   paymentIntent: PaymentIntentQuery,
   paymentIntents: PaymentIntentCollectionQuery,
+  paymentMethod: PaymentMethodQuery,
   platformSubscriptionTiers,
 };
 
