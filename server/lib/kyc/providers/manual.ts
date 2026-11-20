@@ -60,7 +60,7 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCSubmit, M
       status: KYCVerificationStatus.PENDING,
     });
 
-    await this.handleKycRequested(kycVerification, manualParams);
+    await this.handleKycRequested(kycVerification, params);
 
     return kycVerification;
   }
@@ -119,7 +119,7 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCSubmit, M
       });
     }
 
-    await this.handleKycVerified(verification);
+    await this.handleKycVerified(verification, params);
 
     return verification;
   }
