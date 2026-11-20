@@ -697,9 +697,10 @@ const accountMutations = {
           case 'settings': {
             previousData['settings'] = pick(account.settings, keys(args.account.settings));
             newData['settings'] = args.account.settings;
-            // `defaultsDeep` merges arrays index by index. That is safe here: `AccountUpdateSettingsInput` only accepts
-            // scalar settings (and VAT/GST objects), never arrays. Revisit this merge before adding an array field to
-            // that input.
+            // `defaultsDeep` merges arrays index by index. `AccountUpdateSettingsInput` has no typed array field, but
+            // `VAT` and `GST` are untyped JSON and may carry anything; `filterCollectiveSettings` (Collective `settings`
+            // setter) then reduces them to their known keys before saving. Revisit this merge before adding an array
+            // field to that input.
             const settings = defaultsDeep(cloneDeep(args.account.settings), cloneDeep(account.settings));
             await assertSettingsChangeAllowed(req, account, account.settings, settings);
             updateParams.settings = settings;
