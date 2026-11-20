@@ -687,8 +687,9 @@ export const ExpensesCollectionQueryResolver = async (
 
   // Restrict expenses whose payer collective is private unless the viewer may see that account (or submitted the expense).
   // When `accounts` / `account` / `host` is set, visibility was already enforced via assertCanSeeAllAccounts on those collectives.
-  // With `includeSubmittedByAccount`, only the received side was checked: submitted expenses still go through this filter.
-  if (!isRemoteUserRoot(req) && (accounts.length === 0 || args.includeSubmittedByAccount) && !host) {
+  // With `includeSubmittedByAccount`, only the received side was checked: submitted expenses still go through this filter,
+  // even when `host` is set.
+  if (!isRemoteUserRoot(req) && (args.includeSubmittedByAccount || (accounts.length === 0 && !host))) {
     ensureInclude('collective', { required: true });
 
     const orConditions: WhereOptions[] = [{ '$collective.isPrivate$': false }];

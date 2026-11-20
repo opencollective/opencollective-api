@@ -877,6 +877,53 @@ describe('server/graphql/v2/interface/Account', () => {
       expect(payeeSlugs).to.not.include(unrelatedPayee.slug);
     });
 
+    it('keeps expenses submitted to private accounts hidden when filtering by host', async () => {
+      const host = await fakeActiveHost();
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
+      const privateHostedCollective = await fakeCollective({
+        HostCollectiveId: host.id,
+        isPrivate: true,
+        approvedAt: new Date(),
+      });
+      await fakeExpense({
+        CollectiveId: privateHostedCollective.id,
+        FromCollectiveId: hostedCollective.id,
+        HostCollectiveId: host.id,
+        description: 'Submitted to private',
+      });
+      await fakeExpense({
+        CollectiveId: hostedCollective.id,
+        FromCollectiveId: user.CollectiveId,
+        HostCollectiveId: host.id,
+        description: 'Received',
+      });
+
+      const hostQuery = gql`
+        query AccountExpensesHostTest($slug: String!, $host: AccountReferenceInput!) {
+          account(slug: $slug) {
+            expenses(host: $host) {
+              nodes {
+                description
+              }
+            }
+          }
+        }
+      `;
+      const variables = { slug: hostedCollective.slug, host: { slug: host.slug } };
+      const result = await graphqlQueryV2(hostQuery, variables);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.expenses.nodes.map(n => n.description)).to.deep.eq(['Received']);
+
+      const hostAdmin = await fakeUser();
+      await host.addUserWithRole(hostAdmin, 'ADMIN');
+      const adminResult = await graphqlQueryV2(hostQuery, variables, hostAdmin);
+      expect(adminResult.errors).to.not.exist;
+      expect(adminResult.data.account.expenses.nodes.map(n => n.description)).to.have.members([
+        'Received',
+        'Submitted to private',
+      ]);
+    });
+
     it('includes expenses submitted to private accounts only for those who can see them', async () => {
       const result = await graphqlQueryV2(query, { slug: collective.slug }, adminUser);
       expect(result.errors).to.not.exist;
