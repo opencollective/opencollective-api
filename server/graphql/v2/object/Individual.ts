@@ -239,6 +239,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
           const nodes = result.rows.map(row => {
             return {
               id: row.id,
+              publicId: row.publicId,
               account: collective,
               application: row.application,
               expiresAt: row.accessTokenExpiresAt,
