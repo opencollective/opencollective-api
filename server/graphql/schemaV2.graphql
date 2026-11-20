@@ -20705,17 +20705,22 @@ type Query {
     """
     searchTerm: String
     relation: [CommunityRelationType!]
+
+    """
+    Filter accounts missing any of the given information
+    """
+    missingInformation: [MissingInformationField!]
     orderBy: OrderByInput
 
     """
-    Only return accounts that contributed within this amount range
+    Only return accounts that contributed within this amount range (optionally in a given year). Also scopes the TOTAL_CONTRIBUTED ordering.
     """
-    totalContributed: AmountRangeInput
+    totalContributed: AmountRangeWithYearInput
 
     """
-    Only return accounts that expended within this amount range
+    Only return accounts that were paid (received) within this amount range through expenses (optionally in a given year). Also scopes the TOTAL_EXPENDED ordering.
     """
-    totalExpended: AmountRangeInput
+    totalExpended: AmountRangeWithYearInput
 
     """
     The number of results to fetch (default 100, max 1000)
@@ -23327,6 +23332,56 @@ enum ActivityAndClassesType {
   ACTIVITIES_UPDATES
   VIRTUAL_CARDS
   FUND_EVENTS
+}
+
+"""
+Information fields that can be missing on an account
+"""
+enum MissingInformationField {
+  """
+  The account has no legal name
+  """
+  LEGAL_NAME
+
+  """
+  The account has no address
+  """
+  ADDRESS
+
+  """
+  A US tax form is required for the account for the current year (UTC) but has not been received
+  """
+  US_TAX_FORM_CURRENT_YEAR
+
+  """
+  A US tax form is required for the account for the previous year (UTC) but has not been received
+  """
+  US_TAX_FORM_PREVIOUS_YEAR
+
+  """
+  The account has no country of incorporation (country of residence for individuals)
+  """
+  COUNTRY_OF_INCORPORATION
+}
+
+"""
+Input type for an amount range, optionally restricted to a calendar year
+"""
+input AmountRangeWithYearInput {
+  """
+  The minimum amount (inclusive)
+  """
+  gte: AmountInput
+
+  """
+  The maximum amount (inclusive)
+  """
+  lte: AmountInput
+
+  """
+  Only consider the amounts of this calendar year (UTC). Defaults to all time.
+  """
+  year: Int
 }
 
 """
