@@ -26,11 +26,14 @@ export const GraphQLAmountRangeInput = new GraphQLInputObjectType({
 
 export const getAmountRangeValueAndOperator = (args: AmountRangeInputType) => {
   const operator = args.gte && args.lte ? Op.between : args.gte ? Op.gte : Op.lte;
+  // Beware of zero amounts: `valueInCents: 0` is a valid bound, it must not be skipped by a truthiness check
+  const singleAmount = operator === Op.gte ? args.gte : args.lte;
   const value =
     operator === Op.between
       ? [getValueInCentsFromAmountInput(args.gte), getValueInCentsFromAmountInput(args.lte)]
-      : (args.gte && getValueInCentsFromAmountInput(args.gte)) ||
-        (args.lte && getValueInCentsFromAmountInput(args.lte));
+      : singleAmount
+        ? getValueInCentsFromAmountInput(singleAmount)
+        : undefined;
   return { operator, value };
 };
 

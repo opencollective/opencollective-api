@@ -548,9 +548,12 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
   async safeDestroy({ transaction }: { transaction?: Transaction } = {}) {
     // Update user email in order to free up for future reuse
     // Split the email, username from host domain
-    const splitedEmail = this.email.split('@');
-    // Add the current timestamp to email username
-    const newEmail = `${splitedEmail[0]}-${Date.now()}@${splitedEmail[1]}`;
+    const [localPart, domain] = this.email.split('@');
+    // Add the current timestamp to email username. Truncate the local part so the new address still
+    // passes the email validators (64 characters max for the local part, 128 for the whole address).
+    const suffix = `-${Date.now()}`;
+    const maxLocalPartLength = Math.min(64, 128 - domain.length - 1) - suffix.length;
+    const newEmail = `${localPart.slice(0, Math.max(0, maxLocalPartLength))}${suffix}@${domain}`;
 
     const destroyInTransaction = async transaction => {
       await this.update({ email: newEmail }, { transaction });

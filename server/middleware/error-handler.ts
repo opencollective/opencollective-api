@@ -2,6 +2,7 @@ import debugLib from 'debug';
 import type { NextFunction, Request, Response } from 'express';
 import { map } from 'lodash';
 
+import { DATABASE_ERROR_PUBLIC_MESSAGE, isDatabaseError } from '../lib/database-errors';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
 import { HandlerType, reportErrorToSentry } from '../lib/sentry';
@@ -78,5 +79,7 @@ export default (err: ExpressError, req: Request, res: Response, next: NextFuncti
     }
   }
 
-  res.status(err.code).send({ error: err });
+  // Never leak database errors (Postgres message, SQL, parameters) to clients
+  const publicError = isDatabaseError(err) ? new errors.ServerError(DATABASE_ERROR_PUBLIC_MESSAGE) : err;
+  res.status(err.code).send({ error: publicError });
 };

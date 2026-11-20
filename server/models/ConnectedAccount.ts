@@ -172,6 +172,10 @@ ConnectedAccount.init(
           );
         }
       },
+      // Bulk `ConnectedAccount.destroy({ where })` skips `afterDestroy` unless individual hooks are enabled
+      beforeBulkDestroy(options) {
+        options.individualHooks = true;
+      },
       async afterDestroy(connectedAccount, options) {
         if (connectedAccount.service === 'stripe') {
           await PayoutMethod.destroy({

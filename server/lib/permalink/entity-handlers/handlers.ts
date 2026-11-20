@@ -9,6 +9,22 @@ import { handleAccessDenied, handleNotFound, handleUnauthorized } from './common
 import { getCollectivePageRoute, getDashboardRoute, type Handler, redirect } from './utils';
 
 /**
+ * Collective attributes needed by the handlers below: permission checks (`id`, `isPrivate`, `ParentCollectiveId`,
+ * `HostCollectiveId`, `approvedAt`) and route generation (`slug`, `type`, `publicId`). Permalinks only need to resolve
+ * a few IDs and slugs to redirect, so we avoid loading full models (and their large JSON columns) in memory.
+ */
+const COLLECTIVE_ATTRIBUTES = [
+  'id',
+  'publicId',
+  'slug',
+  'type',
+  'isPrivate',
+  'ParentCollectiveId',
+  'HostCollectiveId',
+  'approvedAt',
+];
+
+/**
  * When a permalink would expose or resolve against a private account, block viewers who are not
  * allowed to see that account (same rules as GraphQL / handleCollective).
  * @returns true when the response was already sent (caller should return).
@@ -61,7 +77,8 @@ async function blockUnlessCanSeeAllPrivateCollectives(
 export const handleCollective: Handler = async (req, res) => {
   const collective = await models.Collective.findOne({
     where: { publicId: req.params.id },
-    include: [{ model: models.Collective, as: 'host' }],
+    attributes: COLLECTIVE_ATTRIBUTES,
+    include: [{ model: models.Collective, as: 'host', attributes: COLLECTIVE_ATTRIBUTES }],
   });
   if (!collective) {
     return handleNotFound(req, res);
@@ -80,7 +97,7 @@ export const handleCollective: Handler = async (req, res) => {
   }
 
   if (isVendor) {
-    const parent = await models.Collective.findByPk(collective.ParentCollectiveId);
+    const parent = await models.Collective.findByPk(collective.ParentCollectiveId, { attributes: ['id', 'slug'] });
     if (!parent) {
       return handleNotFound(req, res);
     }
@@ -103,7 +120,8 @@ export const handleCollective: Handler = async (req, res) => {
 export const handleUser: Handler = async (req, res) => {
   const user = await models.User.findOne({
     where: { publicId: req.params.id },
-    include: [{ model: models.Collective, as: 'collective', required: true }],
+    attributes: ['id', 'CollectiveId'],
+    include: [{ model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true }],
   });
   if (!user) {
     return handleNotFound(req, res);
@@ -130,9 +148,10 @@ export const handleMember: Handler = async (req, res) => {
 
   const member = await models.Member.findOne({
     where: { publicId: req.params.id },
+    attributes: ['id'],
     include: [
-      { model: models.Collective, as: 'collective', required: true },
-      { model: models.Collective, as: 'memberCollective', required: true },
+      { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
+      { model: models.Collective, as: 'memberCollective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
     ],
   });
 
@@ -160,9 +179,10 @@ export const handleMemberInvitation: Handler = async (req, res) => {
 
   const invitation = await models.MemberInvitation.findOne({
     where: { publicId: req.params.id },
+    attributes: ['id'],
     include: [
-      { model: models.Collective, as: 'collective', required: true },
-      { model: models.Collective, as: 'memberCollective', required: true },
+      { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
+      { model: models.Collective, as: 'memberCollective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
     ],
   });
   if (!invitation) {
@@ -190,7 +210,8 @@ export const handlePersonalToken: Handler = async (req, res) => {
 
   const token = await models.PersonalToken.findOne({
     where: { publicId: req.params.id },
-    include: { model: models.Collective, as: 'collective', required: true },
+    attributes: ['id', 'publicId'],
+    include: { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
   });
   if (!token) {
     return handleNotFound(req, res);
@@ -211,7 +232,10 @@ export const handleUserToken: Handler = async (req, res) => {
     return handleUnauthorized(req, res);
   }
 
-  const token = await models.UserToken.findOne({ where: { publicId: req.params.id } });
+  const token = await models.UserToken.findOne({
+    where: { publicId: req.params.id },
+    attributes: ['id', 'UserId'],
+  });
   if (!token) {
     return handleNotFound(req, res);
   }
@@ -228,7 +252,10 @@ export const handleUserTwoFactorMethod: Handler = async (req, res) => {
     return handleUnauthorized(req, res);
   }
 
-  const twoFactorMethod = await models.UserTwoFactorMethod.findOne({ where: { publicId: req.params.id } });
+  const twoFactorMethod = await models.UserTwoFactorMethod.findOne({
+    where: { publicId: req.params.id },
+    attributes: ['id', 'UserId'],
+  });
   if (!twoFactorMethod) {
     return handleNotFound(req, res);
   }
@@ -238,7 +265,8 @@ export const handleUserTwoFactorMethod: Handler = async (req, res) => {
   }
 
   const user = await models.User.findByPk(twoFactorMethod.UserId, {
-    include: { model: models.Collective, as: 'collective', required: true },
+    attributes: ['id'],
+    include: { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
   });
   if (!user) {
     return handleNotFound(req, res);
@@ -250,7 +278,8 @@ export const handleUserTwoFactorMethod: Handler = async (req, res) => {
 export const handleUpdate: Handler = async (req, res) => {
   const update = await models.Update.findOne({
     where: { publicId: req.params.id },
-    include: { model: models.Collective, as: 'collective', required: true },
+    attributes: ['id', 'publicId', 'slug'],
+    include: { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
   });
   if (!update) {
     return handleNotFound(req, res);
@@ -272,7 +301,8 @@ export const handleUpdate: Handler = async (req, res) => {
 export const handleConversation: Handler = async (req, res) => {
   const conversation = await models.Conversation.findOne({
     where: { publicId: req.params.id },
-    include: { model: models.Collective, as: 'collective', required: true },
+    attributes: ['id', 'publicId', 'title'], // `slug` is a virtual field computed from `title`
+    include: { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
   });
   if (!conversation) {
     return handleNotFound(req, res);
@@ -289,9 +319,10 @@ export const handleConversation: Handler = async (req, res) => {
 export const handleComment: Handler = async (req, res) => {
   const comment = await models.Comment.findOne({
     where: { publicId: req.params.id },
+    attributes: ['id', 'ConversationId', 'UpdateId', 'ExpenseId', 'HostApplicationId', 'OrderId'],
     include: [
-      { model: models.Collective, as: 'collective', required: true },
-      { model: models.Collective, as: 'fromCollective', required: true },
+      { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
+      { model: models.Collective, as: 'fromCollective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
     ],
   });
   if (!comment) {
@@ -301,23 +332,29 @@ export const handleComment: Handler = async (req, res) => {
   }
 
   if (comment.ConversationId) {
-    req.params.id = await models.Conversation.findByPk(comment.ConversationId).then(
+    req.params.id = await models.Conversation.findByPk(comment.ConversationId, { attributes: ['id', 'publicId'] }).then(
       conversation => conversation.publicId,
     );
     return handleConversation(req, res);
   } else if (comment.UpdateId) {
-    req.params.id = await models.Update.findByPk(comment.UpdateId).then(update => update.publicId);
+    req.params.id = await models.Update.findByPk(comment.UpdateId, { attributes: ['id', 'publicId'] }).then(
+      update => update.publicId,
+    );
     return handleUpdate(req, res);
   } else if (comment.ExpenseId) {
-    req.params.id = await models.Expense.findByPk(comment.ExpenseId).then(expense => expense.publicId);
+    req.params.id = await models.Expense.findByPk(comment.ExpenseId, { attributes: ['id', 'publicId'] }).then(
+      expense => expense.publicId,
+    );
     return handleExpense(req, res);
   } else if (comment.HostApplicationId) {
-    req.params.id = await models.HostApplication.findByPk(comment.HostApplicationId).then(
-      hostApplication => hostApplication.publicId,
-    );
+    req.params.id = await models.HostApplication.findByPk(comment.HostApplicationId, {
+      attributes: ['id', 'publicId'],
+    }).then(hostApplication => hostApplication.publicId);
     return handleHostApplication(req, res);
   } else if (comment.OrderId) {
-    req.params.id = await models.Order.findByPk(comment.OrderId).then(order => order.publicId);
+    req.params.id = await models.Order.findByPk(comment.OrderId, { attributes: ['id', 'publicId'] }).then(
+      order => order.publicId,
+    );
     return handleOrder(req, res);
   }
 
@@ -329,7 +366,10 @@ export const handleActivity: Handler = async (req, res) => {
     return handleUnauthorized(req, res);
   }
 
-  const activity = await models.Activity.findOne({ where: { publicId: req.params.id } });
+  const activity = await models.Activity.findOne({
+    where: { publicId: req.params.id },
+    attributes: ['id', 'CollectiveId', 'FromCollectiveId', 'HostCollectiveId'],
+  });
   if (!activity) {
     return handleNotFound(req, res);
   }
@@ -360,7 +400,8 @@ export const handleActivity: Handler = async (req, res) => {
 export const handleTier: Handler = async (req, res) => {
   const tier = await models.Tier.findOne({
     where: { publicId: req.params.id },
-    include: { model: models.Collective, as: 'Collective', required: true },
+    attributes: ['id', 'slug'],
+    include: { model: models.Collective, as: 'Collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
   });
   if (!tier) {
     return handleNotFound(req, res);
@@ -378,7 +419,8 @@ export const handleApplication: Handler = async (req, res) => {
 
   const application = await models.Application.findOne({
     where: { publicId: req.params.id },
-    include: { model: models.Collective, as: 'collective', required: true },
+    attributes: ['id', 'publicId', 'type'],
+    include: { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
   });
   if (!application) {
     return handleNotFound(req, res);
@@ -409,9 +451,10 @@ export const handleHostApplication: Handler = async (req, res) => {
 
   const application = await models.HostApplication.findOne({
     where: { publicId: req.params.id },
+    attributes: ['id', 'publicId'],
     include: [
-      { model: models.Collective, as: 'collective', required: true },
-      { model: models.Collective, as: 'host', required: true },
+      { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
+      { model: models.Collective, as: 'host', attributes: COLLECTIVE_ATTRIBUTES, required: true },
     ],
   });
   if (!application) {
@@ -441,7 +484,8 @@ export const handleExportRequest: Handler = async (req, res) => {
 
   const exportRequest = await models.ExportRequest.findOne({
     where: { publicId: req.params.id },
-    include: { model: models.Collective, as: 'collective', required: true },
+    attributes: ['id', 'publicId'],
+    include: { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
   });
   if (!exportRequest) {
     return handleNotFound(req, res);
@@ -474,10 +518,10 @@ export const preserveExpensePagePermalinkParameters = (url: string, query): stri
 export const handleExpense: Handler = async (req, res) => {
   const expense = await models.Expense.findOne({
     where: { publicId: req.params.id },
+    attributes: ['id', 'publicId', 'HostCollectiveId'],
     include: [
-      { model: models.Collective, as: 'collective', required: true },
-      { model: models.Collective, as: 'fromCollective' },
-      { model: models.Collective, as: 'host' },
+      { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
+      { model: models.Collective, as: 'fromCollective', attributes: COLLECTIVE_ATTRIBUTES },
     ],
   });
   if (!expense) {
@@ -507,7 +551,7 @@ export const handleExpense: Handler = async (req, res) => {
 
   const hostCollectiveId = expense.HostCollectiveId || expense.collective?.HostCollectiveId;
 
-  const host = await models.Collective.findByPk(hostCollectiveId);
+  const host = await models.Collective.findByPk(hostCollectiveId, { attributes: ['id', 'slug'] });
   if (host && req.remoteUser.isAdmin(host.id)) {
     return redirect(
       res,
@@ -547,9 +591,10 @@ export const handleExpense: Handler = async (req, res) => {
 export const handleOrder: Handler = async (req, res) => {
   const order = await models.Order.findOne({
     where: { publicId: req.params.id },
+    attributes: ['id', 'publicId'],
     include: [
-      { model: models.Collective, as: 'fromCollective', required: true },
-      { model: models.Collective, as: 'collective', required: true },
+      { model: models.Collective, as: 'fromCollective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
+      { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
     ],
   });
   if (!order) {
@@ -571,7 +616,7 @@ export const handleOrder: Handler = async (req, res) => {
   }
 
   const hostCollectiveId = order.collective?.HostCollectiveId;
-  const host = await models.Collective.findByPk(hostCollectiveId);
+  const host = await models.Collective.findByPk(hostCollectiveId, { attributes: ['id', 'slug'] });
 
   if (host && req.remoteUser.isAdmin(host.id)) {
     return redirect(res, getDashboardRoute(host, 'incoming-contributions', { orderId: order.id }));
@@ -583,10 +628,10 @@ export const handleOrder: Handler = async (req, res) => {
 export const handleTransaction: Handler = async (req, res) => {
   const transaction = await models.Transaction.findOne({
     where: { publicId: req.params.id },
+    attributes: ['id', 'ExpenseId', 'OrderId'],
     include: [
-      { model: models.Collective, as: 'collective', required: true },
-      { model: models.Collective, as: 'host', required: false },
-      { model: models.Collective, as: 'fromCollective' },
+      { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
+      { model: models.Collective, as: 'host', attributes: COLLECTIVE_ATTRIBUTES, required: false },
     ],
   });
   if (!transaction) {
@@ -603,10 +648,14 @@ export const handleTransaction: Handler = async (req, res) => {
   }
 
   if (transaction.ExpenseId) {
-    req.params.id = await models.Expense.findByPk(transaction.ExpenseId).then(expense => expense?.publicId);
+    req.params.id = await models.Expense.findByPk(transaction.ExpenseId, { attributes: ['id', 'publicId'] }).then(
+      expense => expense?.publicId,
+    );
     return handleExpense(req, res);
   } else if (transaction.OrderId) {
-    req.params.id = await models.Order.findByPk(transaction.OrderId).then(order => order?.publicId);
+    req.params.id = await models.Order.findByPk(transaction.OrderId, { attributes: ['id', 'publicId'] }).then(
+      order => order?.publicId,
+    );
     return handleOrder(req, res);
   }
 
@@ -620,7 +669,8 @@ export const handleAccountingCategory: Handler = async (req, res) => {
 
   const category = await models.AccountingCategory.findOne({
     where: { publicId: req.params.id },
-    include: [{ model: models.Collective, as: 'collective', required: true }],
+    attributes: ['id'],
+    include: [{ model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true }],
   });
   if (!category) {
     return handleNotFound(req, res);
@@ -642,7 +692,8 @@ export const handleAccountingCategoryRule: Handler = async (req, res) => {
 
   const rule = await models.AccountingCategoryRule.findOne({
     where: { publicId: req.params.id },
-    include: [{ model: models.Collective, as: 'collective', required: true }],
+    attributes: ['id'],
+    include: [{ model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true }],
   });
   if (!rule) {
     return handleNotFound(req, res);
@@ -664,7 +715,8 @@ export const handleConnectedAccount: Handler = async (req, res) => {
 
   const connectedAccount = await models.ConnectedAccount.findOne({
     where: { publicId: req.params.id },
-    include: [{ model: models.Collective, as: 'collective', required: true }],
+    attributes: ['id'],
+    include: [{ model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true }],
   });
   if (!connectedAccount) {
     return handleNotFound(req, res);
@@ -686,7 +738,8 @@ export const handlePaymentMethod: Handler = async (req, res) => {
 
   const paymentMethod = await models.PaymentMethod.findOne({
     where: { publicId: req.params.id },
-    include: [{ model: models.Collective, as: 'Collective', required: true }],
+    attributes: ['id'],
+    include: [{ model: models.Collective, as: 'Collective', attributes: COLLECTIVE_ATTRIBUTES, required: true }],
   });
   if (!paymentMethod) {
     return handleNotFound(req, res);
@@ -708,7 +761,8 @@ export const handlePayoutMethod: Handler = async (req, res) => {
 
   const payoutMethod = await models.PayoutMethod.findOne({
     where: { publicId: req.params.id },
-    include: [{ model: models.Collective, as: 'Collective', required: true }],
+    attributes: ['id'],
+    include: [{ model: models.Collective, as: 'Collective', attributes: COLLECTIVE_ATTRIBUTES, required: true }],
   });
   if (!payoutMethod) {
     return handleNotFound(req, res);
@@ -730,7 +784,8 @@ export const handleLegalDocument: Handler = async (req, res) => {
 
   const legalDocument = await models.LegalDocument.findOne({
     where: { publicId: req.params.id },
-    include: [{ model: models.Collective, as: 'collective', required: true }],
+    attributes: ['id'],
+    include: [{ model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true }],
   });
   if (!legalDocument) {
     return handleNotFound(req, res);
@@ -752,9 +807,10 @@ export const handleVirtualCard: Handler = async (req, res) => {
 
   const virtualCard = await models.VirtualCard.findOne({
     where: { publicId: req.params.id },
+    attributes: ['id'],
     include: [
-      { model: models.Collective, as: 'collective', required: true },
-      { model: models.Collective, as: 'host', required: true },
+      { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
+      { model: models.Collective, as: 'host', attributes: COLLECTIVE_ATTRIBUTES, required: true },
     ],
   });
   if (!virtualCard) {
@@ -781,9 +837,10 @@ export const handleVirtualCardRequest: Handler = async (req, res) => {
 
   const virtualCardRequest = await models.VirtualCardRequest.findOne({
     where: { publicId: req.params.id },
+    attributes: ['id'],
     include: [
-      { model: models.Collective, as: 'collective', required: true },
-      { model: models.Collective, as: 'host', required: true },
+      { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
+      { model: models.Collective, as: 'host', attributes: COLLECTIVE_ATTRIBUTES, required: true },
     ],
   });
   if (!virtualCardRequest) {
@@ -812,8 +869,9 @@ export const handleAgreement: Handler = async (req, res) => {
 
   const agreement = await models.Agreement.findOne({
     where: { publicId: req.params.id },
+    attributes: ['id'],
     include: [
-      { model: models.Collective, as: 'Host', required: true },
+      { model: models.Collective, as: 'Host', attributes: COLLECTIVE_ATTRIBUTES, required: true },
       { model: models.Collective, as: 'Collective', attributes: ['id', 'isPrivate'] },
     ],
   });
@@ -839,7 +897,8 @@ export const handleExpenseAttachedFile: Handler = async (req, res) => {
 
   const expenseAttachedFile = await models.ExpenseAttachedFile.findOne({
     where: { publicId: req.params.id },
-    include: [{ model: models.Expense, as: 'Expense', required: true }],
+    attributes: ['id'],
+    include: [{ model: models.Expense, as: 'Expense', attributes: ['id', 'publicId'], required: true }],
   });
   if (!expenseAttachedFile) {
     return handleNotFound(req, res);
@@ -856,7 +915,8 @@ export const handleExpenseItem: Handler = async (req, res) => {
 
   const expenseItem = await models.ExpenseItem.findOne({
     where: { publicId: req.params.id },
-    include: [{ model: models.Expense, as: 'Expense', required: true }],
+    attributes: ['id'],
+    include: [{ model: models.Expense, as: 'Expense', attributes: ['id', 'publicId'], required: true }],
   });
   if (!expenseItem) {
     return handleNotFound(req, res);
@@ -873,9 +933,10 @@ export const handleKYCVerification: Handler = async (req, res) => {
 
   const kycVerification = await models.KYCVerification.findOne({
     where: { publicId: req.params.id },
+    attributes: ['id', 'RequestedByCollectiveId'],
     include: [
-      { model: models.Collective, as: 'collective', required: true },
-      { model: models.Collective, as: 'requestedByCollective', required: true },
+      { model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
+      { model: models.Collective, as: 'requestedByCollective', attributes: COLLECTIVE_ATTRIBUTES, required: true },
     ],
   });
   if (!kycVerification) {
@@ -903,7 +964,8 @@ export const handleManualPaymentProvider: Handler = async (req, res) => {
 
   const manualPaymentProvider = await models.ManualPaymentProvider.findOne({
     where: { publicId: req.params.id },
-    include: [{ model: models.Collective, as: 'collective', required: true }],
+    attributes: ['id'],
+    include: [{ model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true }],
   });
   if (!manualPaymentProvider) {
     return handleNotFound(req, res);
@@ -925,7 +987,8 @@ export const handleTransactionsImport: Handler = async (req, res) => {
 
   const transactionsImport = await models.TransactionsImport.findOne({
     where: { publicId: req.params.id },
-    include: [{ model: models.Collective, as: 'collective', required: true }],
+    attributes: ['id', 'publicId'],
+    include: [{ model: models.Collective, as: 'collective', attributes: COLLECTIVE_ATTRIBUTES, required: true }],
   });
   if (!transactionsImport) {
     return handleNotFound(req, res);
@@ -950,7 +1013,8 @@ export const handleTransactionsImportRow: Handler = async (req, res) => {
 
   const transactionsImportRow = await models.TransactionsImportRow.findOne({
     where: { publicId: req.params.id },
-    include: [{ model: models.TransactionsImport, as: 'import', required: true }],
+    attributes: ['id'],
+    include: [{ model: models.TransactionsImport, as: 'import', attributes: ['id', 'publicId'], required: true }],
   });
   if (!transactionsImportRow) {
     return handleNotFound(req, res);

@@ -56,6 +56,7 @@ import {
 } from '../../lib/currency';
 import { simulateDBEntriesDiff } from '../../lib/data';
 import { getExpenseUrl } from '../../lib/email-urls';
+import { getExpenseHost } from '../../lib/expenses';
 import { formatAddress } from '../../lib/format-address';
 import { handleExpensePayoutMethodChange } from '../../lib/kyc/expenses/kyc-expenses-check';
 import logger from '../../lib/logger';
@@ -142,32 +143,10 @@ const loadHostForExpense = async (req: express.Request, expense: Expense): Promi
     }
   }
 
-  // Address the exceptional case where the expense host id would be stale after a collective rehost
-  const hasStaleExpenseHostId =
-    expense.HostCollectiveId &&
-    expense.HostCollectiveId !== expense.collective.HostCollectiveId &&
-    expense.status !== expenseStatus.PAID;
-
-  if (expense.HostCollectiveId && !hasStaleExpenseHostId) {
-    expense.host = await loadCollectiveById(expense.HostCollectiveId);
-    return expense.host;
-  }
-
-  // `collective.host` => `collective.parent.host`, only once approved. Accounts with a parent inherit their
-  // host from it, so a child without its own host resolves to its parent's.
-  const getApprovedHost = async (account: Collective | null): Promise<Collective | null> => {
-    if (!account?.HostCollectiveId || !(await req.loaders.Collective.isApproved.load(account.id))) {
-      return null;
-    }
-
-    return account.host || (await loadCollectiveById(account.HostCollectiveId));
-  };
-
-  expense.host =
-    (await getApprovedHost(expense.collective)) ||
-    (expense.collective.ParentCollectiveId
-      ? await getApprovedHost(await loadCollectiveById(expense.collective.ParentCollectiveId))
-      : null);
+  expense.host = await getExpenseHost(expense, {
+    getCollectiveById: loadCollectiveById,
+    isApproved: id => req.loaders.Collective.isApproved.load(id),
+  });
 
   return expense.host;
 };
@@ -2791,7 +2770,11 @@ export const changesRequireStatusUpdate = (
     // Receipts are attached to card charges after the money moved, so those edits never need a new review
     return false;
   }
-  return hasItemsChanges || hasAmountChanges || hasPayoutChanges || hasCurrencyChanges;
+  // On platform settlements and bills, the payee is the platform and the payout method only says how the payer pays
+  // it (Stripe, bank transfer...): switching it is not a change the payer has to approve again
+  const isPlatformExpense = [ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type);
+  const hasPayoutChangesToReview = hasPayoutChanges && !isPlatformExpense;
+  return hasItemsChanges || hasAmountChanges || hasPayoutChangesToReview || hasCurrencyChanges;
 };
 
 /** Returns infos about the changes made to items */
@@ -3690,7 +3673,10 @@ export async function editExpense(
 
     const isChangingPayee =
       expenseData.fromCollective?.id && expenseData.fromCollective.id !== expense.FromCollectiveId;
-    if (cleanExpenseData.data?.stripePaymentIntent && (shouldUpdateStatus || isChangingCurrency || isChangingPayee)) {
+    if (
+      cleanExpenseData.data?.stripePaymentIntent &&
+      (shouldUpdateStatus || hasPayoutMethodChanges || isChangingCurrency || isChangingPayee)
+    ) {
       cleanExpenseData.data = omit(cleanExpenseData.data, ['stripePaymentIntent']);
     }
 
@@ -4564,7 +4550,14 @@ export const getExpenseAmountInDifferentCurrency = async (expense: Expense, toCu
     const result = await req.loaders.Expense.expenseToHostTransactionFxRateLoader.load(expense.id);
     // If collective changed their currency since the expense was paid, we can't rely on transaction.currency
     if (!isNil(result?.rate) && (!expense.collective || expense.collective.currency === result.currency)) {
-      return buildAmount(result.rate, OPENCOLLECTIVE, false, expense.createdAt);
+      // `result.rate` converts the expense currency to the host currency: use it as-is only for the host currency,
+      // and go through the recorded collective -> host rate for the collective currency.
+      const debit = find(transactions, { kind: TransactionKind.EXPENSE, isRefund: false, type: 'DEBIT' });
+      if (debit?.hostCurrency === toCurrency) {
+        return buildAmount(result.rate, OPENCOLLECTIVE, false, expense.createdAt);
+      } else if (debit?.currency === toCurrency && debit.hostCurrencyFxRate) {
+        return buildAmount(result.rate / debit.hostCurrencyFxRate, OPENCOLLECTIVE, false, expense.createdAt);
+      }
     }
   }
 

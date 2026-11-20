@@ -3,7 +3,7 @@
  * live in `server/lib/open-search/search.ts`.
  */
 
-import { ResponseBody } from '@opensearch-project/opensearch/api/_types/_core.search.js';
+import { Search_ResponseBody as SearchResponseBody } from '@opensearch-project/opensearch/api/index.js';
 import config from 'config';
 import { max } from 'lodash';
 
@@ -103,7 +103,7 @@ const searchWithTopHits = async (
       offset: queryRequests[0].offset,
     });
 
-    const body: ResponseBody = response?.body;
+    const body: SearchResponseBody = response?.body;
     if (body?._shards?.failures) {
       failures.push({ request, indexes: indexesRequests, items: body._shards.failures });
     }

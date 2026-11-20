@@ -10,6 +10,7 @@ import {
   buildKyselySearchConditions,
   buildSearchConditions,
   canonicalizeIntegerSearchText,
+  isPostgresInteger,
   MAX_SEARCH_TERM_LENGTH,
   parseSearchTerm,
   sanitizeSearchTermForILike,
@@ -17,7 +18,7 @@ import {
   searchCollectivesInDB,
 } from '../../../server/lib/sql-search';
 import { getOrCreateHostPlatformTipsAccount } from '../../../server/lib/transactions';
-import { Op } from '../../../server/models';
+import models, { Op, sequelize } from '../../../server/models';
 import { newUser } from '../../stores';
 import { fakeCollective, fakeHost, fakeUser, randStr } from '../../test-helpers/fake-data';
 import { createPrivateAccountFixture } from '../../test-helpers/private-account-fixture';
@@ -546,6 +547,25 @@ describe('server/lib/search', () => {
     });
   });
 
+  describe('isPostgresInteger', () => {
+    it('accepts integers within the Postgres integer range', () => {
+      expect(isPostgresInteger(0)).to.be.true;
+      expect(isPostgresInteger(4242)).to.be.true;
+      expect(isPostgresInteger(2147483647)).to.be.true;
+      expect(isPostgresInteger(-2147483648)).to.be.true;
+    });
+
+    it('rejects out-of-range, non-integer and non-finite values', () => {
+      expect(isPostgresInteger(2147483648)).to.be.false;
+      expect(isPostgresInteger(-2147483649)).to.be.false;
+      expect(isPostgresInteger(parseFloat('9'.repeat(20)))).to.be.false;
+      expect(isPostgresInteger(parseFloat('1'.repeat(400)))).to.be.false; // Infinity
+      expect(isPostgresInteger(NaN)).to.be.false;
+      expect(isPostgresInteger(42.5)).to.be.false;
+      expect(isPostgresInteger('42')).to.be.false;
+    });
+  });
+
   describe('canonicalizeIntegerSearchText', () => {
     it('removes leading zeros', () => {
       expect(canonicalizeIntegerSearchText('007')).to.eq('7');
@@ -586,6 +606,40 @@ describe('server/lib/search', () => {
 
     it('build conditions for IDs', () => {
       expect(testBuildSearchConditions('#4242')).to.deep.eq([{ id: 4242 }, { '$fromCollective.id$': 4242 }]);
+    });
+
+    describe('numbers that do not fit in a Postgres integer', () => {
+      const HUGE_NUMBER = '1'.repeat(400); // parseFloat => Infinity
+      const BIG_NUMBER = '99999999999'; // > 2^31 - 1
+
+      it('match nothing when searched as an #ID', () => {
+        for (const term of [`#${BIG_NUMBER}`, `#${HUGE_NUMBER}`]) {
+          const conditions = testBuildSearchConditions(term);
+          expect(conditions).to.have.length(1);
+          expect(conditions[0]).to.deep.eq(sequelize.literal('FALSE'));
+        }
+      });
+
+      it('skip ID and amount conditions but keep text conditions', () => {
+        for (const term of [BIG_NUMBER, HUGE_NUMBER, `${HUGE_NUMBER}.5`]) {
+          const conditions = testBuildSearchConditions(term);
+          const fields = conditions.flatMap(condition => Object.keys(condition));
+          expect(fields).to.include('name');
+          expect(fields).to.not.include.members(['id', '$fromCollective.id$', 'amount', '$order.totalAmount$']);
+        }
+      });
+
+      it('do not make the query fail', async () => {
+        for (const term of [BIG_NUMBER, HUGE_NUMBER, `#${BIG_NUMBER}`, `#${HUGE_NUMBER}`]) {
+          const conditions = buildSearchConditions(term, {
+            idFields: ['id'],
+            amountFields: ['amount'],
+            textFields: ['description'],
+          });
+          const count = await models.Expense.count({ where: { [Op.or]: conditions } });
+          expect(count).to.eq(0);
+        }
+      });
     });
 
     it('builds dataFields conditions from the exact decimal text for large integers', () => {
@@ -837,6 +891,45 @@ describe('server/lib/search', () => {
       expect(compiledSql).to.include('"Orders"."id"');
       expect(compiledSql).to.not.include('ilike');
       expect(parameters).to.include(4242);
+    });
+
+    describe('numbers that do not fit in a Postgres integer', () => {
+      const HUGE_NUMBER = '1'.repeat(400); // parseFloat => Infinity
+      const BIG_NUMBER = '99999999999'; // > 2^31 - 1
+      const config = {
+        idFields: ['Orders.id'],
+        amountFields: ['Orders.totalAmount'],
+        textFields: ['Orders.description'],
+      };
+
+      it('match nothing when searched as an #ID', () => {
+        for (const term of [`#${BIG_NUMBER}`, `#${HUGE_NUMBER}`]) {
+          const { sql: compiledSql, parameters } = compileWithSearch(term, config);
+          expect(compiledSql).to.include('FALSE');
+          expect(compiledSql).to.not.include('"Orders"."id"');
+          expect(parameters).to.be.empty;
+        }
+      });
+
+      it('skip ID and amount conditions but keep text conditions', () => {
+        for (const term of [BIG_NUMBER, HUGE_NUMBER, `${HUGE_NUMBER}.5`]) {
+          const { sql: compiledSql } = compileWithSearch(term, config);
+          expect(compiledSql).to.include('ilike');
+          expect(compiledSql).to.not.include('"Orders"."id"');
+          expect(compiledSql).to.not.include('"Orders"."totalAmount"');
+        }
+      });
+
+      it('do not make the query fail', async () => {
+        const kysely = getKysely();
+        for (const term of [BIG_NUMBER, HUGE_NUMBER, `#${BIG_NUMBER}`, `#${HUGE_NUMBER}`]) {
+          const results = await buildKyselySearchConditions(
+            term,
+            config,
+          )(kysely.selectFrom('Orders').select('Orders.id')).execute();
+          expect(results).to.be.empty;
+        }
+      });
     });
 
     it('builds exclusive slug condition for @slug', () => {

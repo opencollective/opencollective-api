@@ -103,7 +103,7 @@ export const getRatesFromDb = async (
   }
 
   // Make sure we got all currencies
-  missingCurrencies = to.filter(currency => !has(result, currency));
+  missingCurrencies = toCurrencies.filter(currency => !has(result, currency));
   if (missingCurrencies.length > 0) {
     // When doing 1 on 1 conversion with supported currencies, try to fetch the opposite if it fails
     if (
