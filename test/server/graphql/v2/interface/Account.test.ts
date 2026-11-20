@@ -7,6 +7,7 @@ import { TransactionKind } from '../../../../../server/constants/transaction-kin
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import {
   fakeActiveHost,
+  fakeActivity,
   fakeCollective,
   fakeIncognitoProfile,
   fakeKYCVerification,
@@ -937,6 +938,36 @@ describe('server/graphql/v2/interface/Account', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('Tier is not associated with this collective');
+    });
+  });
+
+  describe('feed', () => {
+    const feedQuery = gql`
+      query AccountFeed($slug: String!, $classes: [ActivityClassType!], $limit: Int) {
+        account(slug: $slug) {
+          id
+          feed(classes: $classes, limit: $limit) {
+            id
+          }
+        }
+      }
+    `;
+
+    it('does not throw when classes is omitted', async () => {
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin });
+      await fakeActivity({ CollectiveId: collective.id, type: 'collective.expense.created' });
+      const result = await graphqlQueryV2(feedQuery, { slug: collective.slug }, admin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.feed).to.be.an('array');
+    });
+
+    it('returns an empty list when classes is empty', async () => {
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin });
+      const result = await graphqlQueryV2(feedQuery, { slug: collective.slug, classes: [] }, admin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.feed).to.deep.equal([]);
     });
   });
 });
