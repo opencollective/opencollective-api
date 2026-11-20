@@ -16,6 +16,7 @@ import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import { crypto } from '../../../../../server/lib/encryption';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
+import * as webauthn from '../../../../../server/lib/two-factor-authentication/webauthn';
 import * as yubikeyOtp from '../../../../../server/lib/two-factor-authentication/yubikey-otp';
 import models, { sequelize } from '../../../../../server/models';
 import {
@@ -636,6 +637,40 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.addTwoFactorAuthTokenToIndividual.account.hasTwoFactorAuth).to.eq(true);
       expect(result.data.addTwoFactorAuthTokenToIndividual.recoveryCodes).to.be.null;
+    });
+
+    it('truncates the name of WebAuthn devices with a long description', async () => {
+      const user = await fakeUser();
+      // No network: metadata refresh fails and the bundled cached-metadata.json is used
+      sandbox.stub(global, 'fetch').rejects(new Error('No network in tests'));
+      sandbox.stub(webauthn, 'verifyRegistrationResponse').resolves({
+        verified: true,
+        registrationInfo: {
+          aaguid: 'b90e7dc1-316e-4fee-a25a-56a666a670fe', // "YubiKey 5 Series with Lightning (Enterprise Profile)" (52 chars)
+          credential: { id: 'cred-id', publicKey: new Uint8Array([1, 2, 3]), counter: 0 },
+          credentialDeviceType: 'singleDevice',
+          credentialType: 'public-key',
+          fmt: 'packed',
+          attestationObject: new Uint8Array([4, 5, 6]),
+        },
+      } as Awaited<ReturnType<typeof webauthn.verifyRegistrationResponse>>);
+
+      const result = await graphqlQueryV2(
+        addTwoFactorAuthTokenMutation,
+        {
+          account: { id: idEncode(user.collective.id, 'account') },
+          token: Buffer.from(JSON.stringify({ id: 'cred-id' })).toString('base64'),
+          type: 'WEBAUTHN',
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.addTwoFactorAuthTokenToIndividual.account.hasTwoFactorAuth).to.eq(true);
+      const method = await models.UserTwoFactorMethod.findOne({ where: { UserId: user.id } });
+      expect(method.method).to.eq('webauthn');
+      expect(method.name).to.have.lengthOf(50);
+      expect(method.name).to.match(/^YubiKey 5 Series with Lightning/);
     });
   });
 
