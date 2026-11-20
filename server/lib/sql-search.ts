@@ -120,7 +120,7 @@ export const searchCollectivesByEmail = async (
     throw new RateLimitExceeded();
   }
 
-  const replacements = { offset, limit, email };
+  const replacements = { offset, limit, email: email.toLowerCase().trim() };
   const fromAndWhere = `
     FROM "Collectives" c
     INNER JOIN "Users" u ON u."CollectiveId" = c.id
@@ -180,7 +180,7 @@ export const canonicalizeIntegerSearchText = (text: string): string => {
  */
 const sanitizeSearchTermForTSQuery = term => {
   return removeDiacritics(term)
-    .replace(/[^a-zA-Z0-9-\/_. ]/g, '')
+    .replace(/[^\p{L}\p{M}\p{N}\-/_. ]/gu, '')
     .trim();
 };
 
@@ -423,11 +423,8 @@ export const buildSearchCollectivesQuery = async (
 ): Promise<BuildSearchCollectivesQueryResult> => {
   const privateAccountVisibility = await buildPrivateAccountSearchVisibilitySQL(req);
   let dynamicConditions = privateAccountVisibility.sql;
-  let countryCodes = null;
+  const countryCodes = countries?.length ? countries : null;
   let searchedTags = [''];
-  if (countries) {
-    countryCodes = `${countries.join(',')}`;
-  }
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
     dynamicConditions += 'AND c."HostCollectiveId" IN (:hostCollectiveIds) ';
@@ -465,7 +462,7 @@ export const buildSearchCollectivesQuery = async (
   }
 
   if (!isNil(args.isPlatformSubscriber)) {
-    dynamicConditions += `AND EXISTS (SELECT 1 FROM "PlatformSubscriptions" WHERE "CollectiveId" = c.id AND period @> NOW() AND "deletedAt" IS NULL) `;
+    dynamicConditions += `AND ${args.isPlatformSubscriber ? '' : 'NOT '}EXISTS (SELECT 1 FROM "PlatformSubscriptions" WHERE "CollectiveId" = c.id AND period @> NOW() AND "deletedAt" IS NULL) `;
   }
 
   if (!isUndefined(args.plan)) {
@@ -539,11 +536,11 @@ export const buildSearchCollectivesQuery = async (
   if (!isNil(args.isVerified) || !isNil(args.isFirstPartyHost)) {
     const verifiedConditions = [];
     if (!isNil(args.isVerified)) {
-      verifiedConditions.push(`(c."data" ->> 'isVerified')::boolean IS ${args.isVerified ? 'TRUE' : 'FALSE'}`);
+      verifiedConditions.push(`(c."data" ->> 'isVerified')::boolean IS ${args.isVerified ? 'TRUE' : 'NOT TRUE'}`);
     }
     if (!isNil(args.isFirstPartyHost)) {
       verifiedConditions.push(
-        `(c."data" ->> 'isFirstPartyHost')::boolean IS ${args.isFirstPartyHost ? 'TRUE' : 'FALSE'}`,
+        `(c."data" ->> 'isFirstPartyHost')::boolean IS ${args.isFirstPartyHost ? 'TRUE' : 'NOT TRUE'}`,
       );
     }
     if (verifiedConditions.length > 0) {
@@ -709,7 +706,7 @@ export const parseSearchTerm = (
   if (searchTerm.match(/^@.[^\s]+$/)) {
     // Searching for slugs (e.g. `@babel`). Won't match if there are whitespace chars (eg. `@babel expense from last month`)
     return { type: 'slug', term: searchTerm.replace(/^@/, '') };
-  } else if (searchTerm.match(/^[\w\.]+@([\w-]+\.)+[\w-]{2,4}$/)) {
+  } else if (isEmail(searchTerm)) {
     return { type: 'email', term: searchTerm.toLowerCase() };
   } else if (searchTerm.match(/^#\d+$/)) {
     // Searching for integer IDs (e.g. `#123`)
@@ -765,7 +762,7 @@ export const buildSearchConditions = (
   const parsedTerm = parseSearchTerm(searchTerm);
 
   // Empty search => no condition
-  if (!parsedTerm.term) {
+  if (parsedTerm.term === '') {
     return [];
   }
 
@@ -798,7 +795,7 @@ export const buildSearchConditions = (
     conditions.push(...fields.map(field => ({ [field]: parsedTerm.term })));
   }
   // Conditions for text fields
-  const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
+  const strTerm = parsedTerm.type === 'number' ? parsedTerm.text : parsedTerm.term.toString(); // Numbers: the typed text, not the `parseFloat`-rounded value
   const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
   const allTextFields = [...(slugFields || []), ...(textFields || [])];
   allTextFields.forEach(field => conditions.push({ [field]: { [Op.iLike]: iLikeQuery } }));
@@ -887,7 +884,7 @@ export const buildKyselySearchConditions =
     const parsedTerm = parseSearchTerm(searchTerm);
 
     // Empty search => no condition
-    if (!parsedTerm.term) {
+    if (parsedTerm.term === '') {
       return q;
     }
 
@@ -924,7 +921,7 @@ export const buildKyselySearchConditions =
       const conditions = [];
 
       // Conditions for text fields
-      const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
+      const strTerm = parsedTerm.type === 'number' ? parsedTerm.text : parsedTerm.term.toString(); // Numbers: the typed text, not the `parseFloat`-rounded value
       const allTextFields = [...(slugFields || []), ...(textFields || [])];
 
       // Partial match on slug + free-text columns (also used for multi-word queries).
@@ -1113,7 +1110,7 @@ export const buildSearchArms = async (
   }: SearchArmsOptions,
 ): Promise<SearchArmsQuery | null> => {
   const parsedTerm = parseSearchTerm(searchTerm);
-  if (!parsedTerm.term || (parsedTerm.type === 'id' && idFields.length)) {
+  if (parsedTerm.term === '' || (parsedTerm.type === 'id' && idFields.length)) {
     return null;
   }
 
@@ -1204,7 +1201,7 @@ export const buildSearchArms = async (
     }
   } else {
     // Inclusive conditions: one arm per applicable field
-    const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
+    const strTerm = parsedTerm.type === 'number' ? parsedTerm.text : parsedTerm.term.toString(); // Numbers: the typed text, not the `parseFloat`-rounded value
     const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
 
     // Partial match on the name and slug of the accounts, and on the free-text columns
@@ -1287,7 +1284,8 @@ export const buildSearchArms = async (
 export const getColletiveTagFrequencies = async args => {
   // If no searchTerm is provided, we can use the pre-computed stats in the materialized view
   if (!args.searchTerm) {
-    const { sanitizedTermForILike } = getSearchTermSQLConditions(args.tagSearchTerm);
+    // Tags are matched with ILIKE, so only escape the ILIKE wildcards (the tsquery sanitizer would strip symbols and non-ASCII letters)
+    const sanitizedTermForILike = sanitizeSearchTermForILike(trimSearchTerm(args.tagSearchTerm) || '');
     // Note: The CollectiveTagStats materialized view will return tag stats for all collectives, with or without host, when HostCollectiveId is NULL
     return sequelize.query(
       `SELECT tag AS id, tag, count
@@ -1360,7 +1358,7 @@ export const getExpenseTagFrequencies = async args => {
   }
 
   if (args.tagSearchTerm) {
-    const { sanitizedTermForILike } = getSearchTermSQLConditions(args.tagSearchTerm);
+    const sanitizedTermForILike = sanitizeSearchTermForILike(trimSearchTerm(args.tagSearchTerm));
     whereConditions.push(`"tag" ILIKE :sanitizedTermForILike`);
     replacements['sanitizedTermForILike'] = `%${sanitizedTermForILike}%`;
   }
