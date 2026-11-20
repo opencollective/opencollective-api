@@ -87,6 +87,8 @@ export default class RateLimit {
       return false;
     }
 
+    // Accepts a batch as long as the counter was under the limit before it, so the overshoot is at most one batch.
+    // Callers cap their batch size (15 files per upload, maxRows per import).
     return count - nbCalls < this.limit;
   }
 

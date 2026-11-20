@@ -3719,6 +3719,9 @@ export async function editExpense(
     let status = expense.status;
     if (status === 'INCOMPLETE') {
       // When dealing with expenses marked as INCOMPLETE, only return to PENDING if the expense change requires Collective review
+      // Payout method changes are left out on purpose: hosts mark expenses INCOMPLETE mostly to ask the payee to fix
+      // their payout details. The payee can only pick their own payout methods (`getPayoutMethodFromExpenseData`), so
+      // the expense can go back to APPROVED without a new review.
       status = changesRequireStatusUpdate(expense, expenseDataForStatusUpdate, hasItemChanges) ? 'PENDING' : 'APPROVED';
     } else if (shouldUpdateStatus) {
       status = 'PENDING';
@@ -4276,6 +4279,9 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       await validateExpensePayout2FALimit(req, host, expense);
     } else {
       // Not using rolling limit, but still enforcing 2FA for all admins
+      // `onlyAskOnLogin` is intentional here: the second factor was already checked at sign-in, and the host's
+      // REQUIRE_2FA_FOR_ADMINS policy is still enforced. Fresh tokens are only asked for PayPal/bank payouts through the
+      // host's opt-in `payoutsTwoFactorAuth` rolling limit above.
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
     }
 
