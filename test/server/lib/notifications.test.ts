@@ -555,6 +555,36 @@ describe('server/lib/notification', () => {
       expect(recipients.filter(email => email === admin.email)).to.have.length(1);
     });
 
+    it('still notifies an admin of both host and collective who unsubscribed on the host only', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, admin });
+      await fakeNotification({
+        channel: channels.EMAIL,
+        type: activities.EXPENSE_COMMENT_CREATED,
+        active: false,
+        CollectiveId: host.id,
+        UserId: admin.id,
+      });
+      await fakeNotification({
+        channel: channels.EMAIL,
+        type: activities.EXPENSE_COMMENT_CREATED,
+        active: true,
+        CollectiveId: collective.id,
+        UserId: admin.id,
+      });
+      const author = await fakeUser();
+      const commenter = await fakeUser();
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        UserId: author.id,
+        FromCollectiveId: author.CollectiveId,
+      });
+
+      const recipients = await notifyExpenseComment(collective, commenter, expense);
+      expect(recipients.filter(email => email === admin.email)).to.have.length(1);
+    });
+
     it('notifies the admins only once for an expense on the host own account', async () => {
       const commenter = await fakeUser();
       const otherAdmin = await fakeUser();
