@@ -115,7 +115,8 @@ export const GraphQLPolicies = new GraphQLObjectType({
             (acc, policyKey: string) => ({
               ...acc,
               [policyKey]: {
-                value: policy[policyKey],
+                // Policy limits are stored in whole currency units (see VirtualCardMutations), Amount expects cents
+                value: isNil(policy[policyKey]) ? null : policy[policyKey] * 100,
                 currency: account.currency,
               },
             }),
