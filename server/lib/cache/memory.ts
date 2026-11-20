@@ -38,6 +38,16 @@ const makeMemoryProvider = opts => {
       cache.set(key, count, { ttl: expirationInSeconds * 1000, noUpdateTTL: true });
       return count;
     },
+    /** Atomic: no await between the read and write, and the TTL is refreshed on every increment (sliding window). */
+    incrementWithSlidingExpiration: async (
+      key: string,
+      amount: number,
+      expirationInSeconds: number,
+    ): Promise<number | undefined> => {
+      const count = (Number(cache.get(key)) || 0) + amount;
+      cache.set(key, count, { ttl: expirationInSeconds * 1000 });
+      return count;
+    },
     /** Atomic. Only decrements an existing key (an expired window is never recreated), never below zero, keeping its TTL. */
     decrement: async (key: string, amount: number): Promise<number | undefined> => {
       if (!cache.has(key)) {

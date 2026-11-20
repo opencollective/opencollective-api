@@ -6,11 +6,20 @@ import validator from 'validator';
 import { BadRequest } from '../../graphql/errors';
 import type { Order } from '../../models';
 import cache from '../cache';
+import logger from '../logger';
 import { md5, sleep } from '../utils';
 
 const debug = debugLib('security/limit');
 
 const ONE_HOUR_IN_SECONDS = 60 * 60;
+
+const incrementOrderLimit = async (key: string): Promise<number | undefined> => {
+  try {
+    return await cache.incrementWithSlidingExpiration(key, 1, ONE_HOUR_IN_SECONDS);
+  } catch (err) {
+    logger.warn(`Error while incrementing cache: ${err.message}`);
+  }
+};
 
 const getOrdersLimit = (
   order: {
@@ -106,10 +115,9 @@ export const checkOrdersLimit = async (
 
   const limits = getOrdersLimit(order, reqIp, reqMask);
   for (const limit of limits) {
-    const count = (await cache.get(limit.key)) || 0;
-    debug(`${count} orders for limit '${limit.key}'`);
-    const limitReached = count >= limit.value;
-    cache.set(limit.key, count + 1, ONE_HOUR_IN_SECONDS);
+    const count = await incrementOrderLimit(limit.key);
+    debug(`${count ?? 0} orders for limit '${limit.key}'`);
+    const limitReached = count === undefined ? limit.value <= 0 : count > limit.value;
     if (limitReached) {
       debug(`Order limit reached for limit '${limit.key}'`);
       // Slow down
@@ -148,10 +156,9 @@ export const checkManualOrdersLimit = async (remoteUser: { id: number } | null, 
   }
 
   for (const limit of limits) {
-    const count = (await cache.get(limit.key)) || 0;
-    debug(`${count} manual orders for limit '${limit.key}'`);
-    cache.set(limit.key, count + 1, ONE_HOUR_IN_SECONDS);
-    if (count >= limit.value) {
+    const count = await incrementOrderLimit(limit.key);
+    debug(`${count ?? 0} manual orders for limit '${limit.key}'`);
+    if (count === undefined ? limit.value <= 0 : count > limit.value) {
       debug(`Manual orders limit reached for limit '${limit.key}'`);
       throw new Error('Too many contributions in the last hour, please try again later.');
     }

@@ -15,6 +15,13 @@ const INCREMENT_SCRIPT = `
   return count
 `;
 
+/** Increments a counter and refreshes its expiry in the same Redis operation (sliding window). */
+const INCREMENT_WITH_SLIDING_EXPIRATION_SCRIPT = `
+  local count = redis.call('INCRBY', KEYS[1], ARGV[1])
+  redis.call('EXPIRE', KEYS[1], ARGV[2])
+  return count
+`;
+
 /**
  * Decrements a counter, only if it still exists (so an expired window is never recreated) and never below zero. The
  * key keeps its expiry. Returns the new value, or 0 if the key doesn't exist.
@@ -71,6 +78,18 @@ const makeRedisProvider = async (instanceType = RedisInstanceType.DEFAULT) => {
       if (redisClient) {
         const args = [String(amount), String(expirationInSeconds)];
         return Number(await redisClient.eval(INCREMENT_SCRIPT, { keys: [key], arguments: args }));
+      }
+    },
+    incrementWithSlidingExpiration: async (
+      key: string,
+      amount: number,
+      expirationInSeconds: number,
+    ): Promise<number | undefined> => {
+      if (redisClient) {
+        const args = [String(amount), String(expirationInSeconds)];
+        return Number(
+          await redisClient.eval(INCREMENT_WITH_SLIDING_EXPIRATION_SCRIPT, { keys: [key], arguments: args }),
+        );
       }
     },
     decrement: async (key: string, amount: number): Promise<number | undefined> => {
