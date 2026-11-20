@@ -29,6 +29,7 @@ import {
   fakeHost,
   fakeIncognitoProfile,
   fakeMember,
+  fakeMemberInvitation,
   fakeOrder,
   fakeOrganization,
   fakePaymentMethod,
@@ -1398,6 +1399,53 @@ describe('server/models/Collective', () => {
         expect(members.length).to.equal(2);
         expect(members.find(m => m.MemberCollectiveId === user1.CollectiveId).role).to.equal('ADMIN');
         expect(members.find(m => m.MemberCollectiveId === user2.CollectiveId).role).to.equal('MEMBER');
+      });
+
+      it('does not change members or invitations when the call fails', async () => {
+        const admin = await fakeUser();
+        const memberUser = await fakeUser();
+        const invitedUser = await fakeUser();
+        const newUser = await fakeUser();
+        const testCollective = await fakeCollective({ admin });
+        await fakeMember({
+          CollectiveId: testCollective.id,
+          MemberCollectiveId: memberUser.CollectiveId,
+          role: roles.MEMBER,
+        });
+        await fakeMemberInvitation({
+          CollectiveId: testCollective.id,
+          MemberCollectiveId: invitedUser.CollectiveId,
+          role: roles.MEMBER,
+        });
+        const adminMember = await models.Member.findOne({
+          where: { CollectiveId: testCollective.id, MemberCollectiveId: admin.CollectiveId, role: 'ADMIN' },
+        });
+
+        // The last entry fails because the admin already has the ADMIN role
+        await expect(
+          testCollective.editMembers(
+            [
+              { id: adminMember.id, role: 'ADMIN' },
+              { member: { id: newUser.CollectiveId }, role: 'MEMBER' },
+              { member: { id: admin.CollectiveId }, role: 'ADMIN' },
+            ],
+            { CreatedByUserId: admin.id },
+          ),
+        ).to.be.rejectedWith('This user already have the ADMIN role on this Collective');
+
+        // Removed member and invitation are still there
+        const memberCount = await models.Member.count({
+          where: { CollectiveId: testCollective.id, MemberCollectiveId: memberUser.CollectiveId, role: 'MEMBER' },
+        });
+        expect(memberCount).to.eq(1);
+        const invitations = await models.MemberInvitation.findAll({ where: { CollectiveId: testCollective.id } });
+        expect(invitations.map(i => i.MemberCollectiveId)).to.deep.eq([invitedUser.CollectiveId]);
+
+        // No invitation activity was recorded for the rolled back invitation
+        const activities = await models.Activity.count({
+          where: { CollectiveId: testCollective.id, FromCollectiveId: newUser.CollectiveId },
+        });
+        expect(activities).to.eq(0);
       });
     });
   });
