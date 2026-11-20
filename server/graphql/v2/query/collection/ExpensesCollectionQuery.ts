@@ -634,7 +634,12 @@ export const ExpensesCollectionQueryResolver = async (
       );
       accountIds.push(...childIds.flat());
     }
-    where['CollectiveId'] = uniq(accountIds);
+    if (args.includeSubmittedByAccount) {
+      // Internal flag set by `Account.expenses` when no direction is given: match expenses received OR submitted
+      where[Op.and].push({ [Op.or]: [{ CollectiveId: uniq(accountIds) }, { FromCollectiveId: uniq(accountIds) }] });
+    } else {
+      where['CollectiveId'] = uniq(accountIds);
+    }
   }
 
   if (host) {
@@ -680,10 +685,14 @@ export const ExpensesCollectionQueryResolver = async (
 
   // Restrict expenses whose payer collective is private unless the viewer may see that account (or submitted the expense).
   // When `accounts` / `account` / `host` is set, visibility was already enforced via assertCanSeeAllAccounts on those collectives.
-  if (!isRemoteUserRoot(req) && accounts.length === 0 && !host) {
+  // With `includeSubmittedByAccount`, only the received side was checked: submitted expenses still go through this filter.
+  if (!isRemoteUserRoot(req) && (accounts.length === 0 || args.includeSubmittedByAccount) && !host) {
     ensureInclude('collective', { required: true });
 
     const orConditions: WhereOptions[] = [{ '$collective.isPrivate$': false }];
+    if (args.includeSubmittedByAccount) {
+      orConditions.push({ CollectiveId: accounts.map(account => account.id) });
+    }
 
     if (req.remoteUser) {
       const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));

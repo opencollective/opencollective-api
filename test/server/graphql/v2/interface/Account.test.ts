@@ -8,11 +8,13 @@ import { KYCVerificationStatus } from '../../../../../server/models/KYCVerificat
 import {
   fakeActiveHost,
   fakeCollective,
+  fakeExpense,
   fakeIncognitoProfile,
   fakeKYCVerification,
   fakeMember,
   fakeOrder,
   fakeOrganization,
+  fakePrivateHost,
   fakeProject,
   fakeTier,
   fakeTransaction,
@@ -800,6 +802,71 @@ describe('server/graphql/v2/interface/Account', () => {
       expect(page2.data.account.members.nodes.map(n => n.account.slug)).to.deep.equal([activeSmall.slug]);
       expect([...page1.data.account.members.nodes, ...page2.data.account.members.nodes].every(n => n.isActive)).to.be
         .true;
+    });
+  });
+
+  describe('expenses', () => {
+    const query = gql`
+      query AccountExpensesTest($slug: String!) {
+        account(slug: $slug) {
+          all: expenses {
+            totalCount
+            nodes {
+              description
+            }
+          }
+          submitted: expenses(direction: SUBMITTED) {
+            totalCount
+          }
+          received: expenses(direction: RECEIVED) {
+            totalCount
+          }
+        }
+      }
+    `;
+
+    let collective, adminUser;
+
+    before(async () => {
+      await resetTestDB();
+      adminUser = await fakeUser();
+      const user = await fakeUser();
+      collective = await fakeCollective({ admin: adminUser });
+      const otherCollective = await fakeCollective();
+      const privateHost = await fakePrivateHost();
+      const privateCollective = await fakeCollective({
+        HostCollectiveId: privateHost.id,
+        isPrivate: true,
+        approvedAt: new Date(),
+      });
+
+      await fakeExpense({ CollectiveId: collective.id, FromCollectiveId: user.CollectiveId, description: 'Received' });
+      await fakeExpense({
+        CollectiveId: otherCollective.id,
+        FromCollectiveId: collective.id,
+        description: 'Submitted',
+      });
+      await fakeExpense({
+        CollectiveId: privateCollective.id,
+        FromCollectiveId: collective.id,
+        description: 'Submitted to private',
+      });
+    });
+
+    it('returns both submitted and received expenses when no direction is given', async () => {
+      const result = await graphqlQueryV2(query, { slug: collective.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.received.totalCount).to.eq(1);
+      expect(result.data.account.submitted.totalCount).to.eq(1);
+      expect(result.data.account.all.totalCount).to.eq(2);
+      expect(result.data.account.all.nodes.map(n => n.description)).to.have.members(['Received', 'Submitted']);
+    });
+
+    it('includes expenses submitted to private accounts only for those who can see them', async () => {
+      const result = await graphqlQueryV2(query, { slug: collective.slug }, adminUser);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.submitted.totalCount).to.eq(2);
+      expect(result.data.account.all.totalCount).to.eq(3);
     });
   });
 
