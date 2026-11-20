@@ -16,6 +16,7 @@ import {
   fakeActivity,
   fakeCollective,
   fakeEvent,
+  fakeExpense,
   fakeMember,
   fakeNotification,
   fakeOrganization,
@@ -490,6 +491,85 @@ describe('server/lib/notification', () => {
         expect(hostAdminEmailCall).to.exist;
         expect(getReplyToFromSendCall(hostAdminEmailCall)).to.equal(applicant.email);
       });
+    });
+  });
+
+  describe('notifyByEmail EXPENSE_COMMENT_CREATED', () => {
+    let sendEmailSpy;
+
+    beforeEach(() => {
+      sendEmailSpy = sandbox.stub(emailLib, 'send').resolves();
+    });
+
+    const notifyExpenseComment = async (collective, commenter, expense) => {
+      const activity = await fakeActivity(
+        {
+          type: activities.EXPENSE_COMMENT_CREATED,
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.HostCollectiveId,
+          FromCollectiveId: commenter.CollectiveId,
+          UserId: commenter.id,
+          ExpenseId: expense.id,
+          data: {
+            comment: { id: 1, html: 'Hello', type: CommentType.COMMENT },
+            FromCollectiveId: commenter.CollectiveId,
+            expense: expense.info, // Same shape as `createComment`
+          },
+        },
+        { hooks: false },
+      );
+      await notifyByEmail(activity);
+      return sendEmailSpy.getCalls().map(call => call.args[1]);
+    };
+
+    it('notifies the author of a self-submitted expense only once', async () => {
+      const host = await fakeActiveHost({ admin: await fakeUser() });
+      const collectiveAdmin = await fakeUser();
+      const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+      await fakeUser(); // Shift user ids so that `User.id` and `User.CollectiveId` don't match by coincidence
+      const author = await fakeUser();
+      expect(author.id).to.not.equal(author.CollectiveId);
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        UserId: author.id,
+        FromCollectiveId: author.CollectiveId,
+      });
+
+      const recipients = await notifyExpenseComment(collective, collectiveAdmin, expense);
+      expect(recipients.filter(email => email === author.email)).to.have.length(1);
+    });
+
+    it('notifies a user who is admin of both the host and the collective only once', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, admin });
+      const author = await fakeUser();
+      const commenter = await fakeUser();
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        UserId: author.id,
+        FromCollectiveId: author.CollectiveId,
+      });
+
+      const recipients = await notifyExpenseComment(collective, commenter, expense);
+      expect(recipients.filter(email => email === admin.email)).to.have.length(1);
+    });
+
+    it('notifies the admins only once for an expense on the host own account', async () => {
+      const commenter = await fakeUser();
+      const otherAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: commenter });
+      await host.addUserWithRole(otherAdmin, roles.ADMIN);
+      expect(host.HostCollectiveId).to.eq(host.id);
+      const author = await fakeUser();
+      const expense = await fakeExpense({
+        CollectiveId: host.id,
+        UserId: author.id,
+        FromCollectiveId: author.CollectiveId,
+      });
+
+      const recipients = await notifyExpenseComment(host, commenter, expense);
+      expect(recipients.filter(email => email === otherAdmin.email)).to.have.length(1);
     });
   });
 });

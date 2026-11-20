@@ -459,7 +459,8 @@ export const notifyByEmail = async (activity: Activity) => {
         activityForCollective.data.recipientName = collective.name || collective.slug;
         const notifiedCollectiveAdminsUserIds = await notify.collective(activityForCollective, {
           from: config.email.noReply,
-          exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
+          // Don't notify the person who commented, the expense author, nor the host admins notified above
+          exclude: [activity.UserId, activity.data.UserId, ...notifiedUserIds],
           customEmailHeaders,
         });
         notifiedCollectiveAdminsUserIds.forEach(userId => notifiedUserIds.add(userId));
