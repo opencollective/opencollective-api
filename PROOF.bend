@@ -6,6 +6,7 @@
 import Base
 import ./server/bend/expense-payments.bend as Pay
 import ./server/bend/graphql-v1-auth.bend as V1
+import ./server/bend/payout-rolling-limit.bend as Limit
 import ./LAWS.bend as Laws
 
 # Contradictions
@@ -356,3 +357,94 @@ def Laws.requests_without_tokens_pass_the_v1_gate(r, no_oauth, no_personal):
       Empty.absurd({V1.gate(V1.Request{False{}, app_allowed, True{}, token_allowed}) == V1.Accept{} : V1.Verdict}, true_is_not_false(no_personal))
     case V1.Request{True{}, app_allowed, personal, token_allowed}:
       Empty.absurd({V1.gate(V1.Request{True{}, app_allowed, personal, token_allowed}) == V1.Accept{} : V1.Verdict}, true_is_not_false(no_oauth))
+
+# Payouts: the two-factor rolling limit
+# =====================================
+#
+# Amounts are natural numbers, built from 0n by adding one. A fact about every
+# amount is proven for 0n, then for 1n+p given that it holds for p: the recursive
+# call is that assumption. A fact about every sequence of payouts is proven the
+# same way: for the empty sequence, then for one more payout in front.
+
+def zero_is_within(limit: Nat) -> {Nat.is_le(0n, limit) == True{} : Bool}:
+  match limit:
+    case 0n:
+      {==}
+    case 1n+p:
+      {==}
+
+# Whether the new total fits or not, what is remembered is within the limit:
+# the new total when it fits, and zero when it does not.
+def count_or_ask_stays_within(limit: Nat, total: Nat, fits: Bool) -> {Nat.is_le(total, limit) == fits : Bool} -> {Nat.is_le(Limit.paid_since_token(Limit.count_or_ask(fits, total)), limit) == True{} : Bool}:
+  match fits:
+    case True{}:
+      e => e
+    case False{}:
+      e => zero_is_within(limit)
+
+# One payout: whatever was remembered before, what is remembered after is within the limit.
+def decide_stays_within(+limit: Nat, +paid: +Maybe<Nat>, +amount: Nat) -> {Nat.is_le(Limit.paid_since_token(Limit.decide(limit, paid, amount)), limit) == True{} : Bool}:
+  match paid:
+    case None{}:
+      zero_is_within(limit)
+    case Some{total}:
+      count_or_ask_stays_within(limit, Nat.add(total, amount), Nat.is_le(Nat.add(total, amount), limit))({==})
+
+# Any number of payouts, by induction on the sequence. The first payout leaves
+# the memory within the limit (above), and the rest of the sequence starts from there.
+def Laws.no_sequence_of_payouts_exceeds_the_rolling_limit(amounts, limit, paid, starts_within):
+  match amounts:
+    case Nil{}:
+      starts_within
+    case Con{amount, rest}:
+      Laws.no_sequence_of_payouts_exceeds_the_rolling_limit(rest, limit, Some{Limit.paid_since_token(Limit.decide(limit, paid, amount))}, decide_stays_within(limit, paid, amount))
+
+def counted_in_full(fits: Bool, total: Nat) -> {Limit.asks_for_token(Limit.count_or_ask(fits, total)) == False{} : Bool} -> {Limit.paid_since_token(Limit.count_or_ask(fits, total)) == total : Nat}:
+  match fits:
+    case True{}:
+      e => {==}
+    case False{}:
+      e => Empty.absurd({0n == total : Nat}, true_is_not_false(e))
+
+def Laws.payouts_without_a_token_are_counted_in_full(limit, total, amount, no_token):
+  counted_in_full(Nat.is_le(Nat.add(total, amount), limit), Nat.add(total, amount))(no_token)
+
+def Laws.the_first_payout_always_needs_a_token(limit, amount):
+  {==}
+
+def Laws.payouts_within_the_limit_need_no_token(limit, total, amount, fits):
+  %Equal.sym(Bool, Nat.is_le(Nat.add(total, amount), limit), True{}, fits) : {Limit.asks_for_token(Limit.count_or_ask(_, Nat.add(total, amount))) == False{} : Bool}
+  {==}
+
+# An amount above limit + 1 is above limit.
+def above_the_next_is_above(amount: Nat, limit: Nat) -> {Nat.is_le(amount, 1n+limit) == False{} : Bool} -> {Nat.is_le(amount, limit) == False{} : Bool}:
+  match amount limit:
+    case 0n 0n:
+      e => Empty.absurd({True{} == False{} : Bool}, true_is_not_false(e))
+    case 0n 1n+l:
+      e => Empty.absurd({True{} == False{} : Bool}, true_is_not_false(e))
+    case 1n+a 0n:
+      e => {==}
+    case 1n+a 1n+l:
+      above_the_next_is_above(a, l)
+
+# Adding to an amount that is above the limit leaves it above the limit, by
+# induction on what is added.
+def sum_above_the_limit(total: Nat, +limit: Nat, +amount: Nat) -> {Nat.is_le(amount, limit) == False{} : Bool} -> {Nat.is_le(Nat.add(total, amount), limit) == False{} : Bool}:
+  match total limit:
+    case 0n 0n:
+      e => e
+    case 0n 1n+l:
+      e => e
+    case 1n+p 0n:
+      e => {==}
+    case 1n+p 1n+l:
+      e => sum_above_the_limit(p, l, amount)(above_the_next_is_above(amount, l)(e))
+
+def Laws.payouts_above_the_limit_always_need_a_token(limit, paid, amount, above):
+  match paid:
+    case None{}:
+      {==}
+    case Some{total}:
+      %Equal.sym(Bool, Nat.is_le(Nat.add(total, amount), limit), False{}, sum_above_the_limit(total, limit, amount)(above)) : {Limit.asks_for_token(Limit.count_or_ask(_, Nat.add(total, amount))) == True{} : Bool}
+      {==}

@@ -34,6 +34,11 @@ import {
   PaymentDenialReason,
   screenExpensePayment,
 } from '../../bend/expense-payments';
+import {
+  decidePayoutRollingLimit,
+  parsePaidSinceToken,
+  parsePayoutRollingLimit,
+} from '../../bend/payout-rolling-limit';
 import { activities, expenseStatus, roles } from '../../constants';
 import ActivityTypes from '../../constants/activities';
 import { CollectiveType } from '../../constants/collectives';
@@ -1790,11 +1795,15 @@ async function validateExpensePayout2FALimit(req, host, expense) {
   const currentPaidExpenseAmount = Number(currentPaidExpenseAmountCache) || 0;
   const expenseAmountInHostCurrency = Number(await convertToCurrency(expense.amount, expense.currency, host.currency));
 
-  // requires a 2FA token to be present if there is no value in the cache (first payout by user)
-  // or the this payout would put the user over the rolling limit.
-  const use2FAToken =
-    isNil(currentPaidExpenseAmountCache) ||
-    currentPaidExpenseAmount + expenseAmountInHostCurrency > hostPayoutTwoFactorAuthenticationRollingLimit;
+  // Requires a 2FA token to be present if there is no value in the cache (first payout by user) or if this payout
+  // would put the user over the rolling limit. The rule lives in `server/bend/payout-rolling-limit.bend`, bound by
+  // the laws in `LAWS.bend`: do not add a condition here, it would escape them.
+  const decision = decidePayoutRollingLimit({
+    limit: parsePayoutRollingLimit(hostPayoutTwoFactorAuthenticationRollingLimit),
+    paidSinceToken: parsePaidSinceToken(currentPaidExpenseAmountCache),
+    amount: expenseAmountInHostCurrency,
+  });
+  const use2FAToken = decision.askForToken;
 
   if (!(await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
     throw new Error('Host has two-factor authentication enabled for large payouts.');
@@ -1817,16 +1826,8 @@ async function validateExpensePayout2FALimit(req, host, expense) {
     },
   });
 
-  if (use2FAToken) {
-    // if a 2fa token was used, reset rolling limit
-    cache.set(expensePaidAmountKey, 0, ROLLING_LIMIT_CACHE_VALIDITY);
-  } else {
-    cache.set(
-      expensePaidAmountKey,
-      currentPaidExpenseAmount + expenseAmountInHostCurrency,
-      ROLLING_LIMIT_CACHE_VALIDITY,
-    );
-  }
+  // If a 2FA token was used, the count restarts. Otherwise this payout is added to it.
+  cache.set(expensePaidAmountKey, decision.paidSinceToken, ROLLING_LIMIT_CACHE_VALIDITY);
 }
 
 export const validateExpenseCustomData = (value: Record<string, unknown> | null): void => {

@@ -8,6 +8,7 @@
 import Base
 import ./server/bend/expense-payments.bend as Pay
 import ./server/bend/graphql-v1-auth.bend as V1
+import ./server/bend/payout-rolling-limit.bend as Limit
 
 # Expense payments
 # ================
@@ -130,3 +131,48 @@ law requests_without_tokens_pass_the_v1_gate:
   for no_oauth: {V1.uses_oauth_token(r) == False{} : Bool}
   for no_personal: {V1.uses_personal_token(r) == False{} : Bool}
   {V1.gate(r) == V1.Accept{} : V1.Verdict}
+
+# Payouts: the two-factor rolling limit
+# =====================================
+#
+# These laws have no bound on their inputs: any amounts, any number of payouts.
+
+# LAW: however many payouts are made, and whatever their amounts, the total paid
+# without a 2FA token since the last one never exceeds the host's rolling limit.
+law no_sequence_of_payouts_exceeds_the_rolling_limit:
+  for +amounts: +List<Nat>
+  for +limit: Nat
+  for +paid: +Maybe<Nat>
+  for starts_within: {Limit.is_within(limit, paid) == True{} : Bool}
+  {Limit.is_within(limit, Limit.replay(amounts, limit, paid)) == True{} : Bool}
+
+# LAW: a payout made without a token is counted in full: no amount escapes the total.
+law payouts_without_a_token_are_counted_in_full:
+  for +limit: Nat
+  for +total: Nat
+  for +amount: Nat
+  for no_token: {Limit.asks_for_token(Limit.decide(limit, Some{total}, amount)) == False{} : Bool}
+  {Limit.paid_since_token(Limit.decide(limit, Some{total}, amount)) == Nat.add(total, amount) : Nat}
+
+# LAW: a payout above the limit always needs a token, whatever was paid before.
+law payouts_above_the_limit_always_need_a_token:
+  for +limit: Nat
+  for +paid: +Maybe<Nat>
+  for +amount: Nat
+  for above: {Nat.is_le(amount, limit) == False{} : Bool}
+  {Limit.asks_for_token(Limit.decide(limit, paid, amount)) == True{} : Bool}
+
+# LAW: the first payout always needs a token.
+law the_first_payout_always_needs_a_token:
+  for +limit: Nat
+  for +amount: Nat
+  {Limit.asks_for_token(Limit.decide(limit, None{}, amount)) == True{} : Bool}
+
+# LAW: a token is not asked for nothing. A payout that fits in what remains of
+# the limit goes through without one.
+law payouts_within_the_limit_need_no_token:
+  for +limit: Nat
+  for +total: Nat
+  for +amount: Nat
+  for fits: {Nat.is_le(Nat.add(total, amount), limit) == True{} : Bool}
+  {Limit.asks_for_token(Limit.decide(limit, Some{total}, amount)) == False{} : Bool}
