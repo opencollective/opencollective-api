@@ -1,12 +1,30 @@
 import { expect } from 'chai';
 
 import FEATURE from '../../../server/constants/feature';
-import { getSupportedExpenseTypes } from '../../../server/lib/expenses';
-import { fakeActiveHost, fakeCollective, fakeProject } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import { getExpenseHost, getSupportedExpenseTypes } from '../../../server/lib/expenses';
+import { fakeActiveHost, fakeCollective, fakeExpense, fakeProject } from '../../test-helpers/fake-data';
+import { makeRequest, resetTestDB } from '../../utils';
 
 describe('server/lib/expenses', () => {
   before(resetTestDB);
+
+  describe('getExpenseHost', () => {
+    it('falls back to the approved parent if the current host is no longer available', async () => {
+      const parentHost = await fakeActiveHost();
+      const parent = await fakeCollective({ HostCollectiveId: parentHost.id });
+      const removedHost = await fakeActiveHost();
+      const child = await fakeProject({ ParentCollectiveId: parent.id, HostCollectiveId: removedHost.id });
+      await removedHost.destroy();
+      const expense = await fakeExpense({ CollectiveId: child.id, status: 'PROCESSING' });
+      const req = makeRequest();
+
+      const host = await getExpenseHost(expense, {
+        getCollectiveById: id => req.loaders.Collective.byId.load(id),
+        isApproved: id => req.loaders.Collective.isApproved.load(id),
+      });
+      expect(host.id).to.equal(parentHost.id);
+    });
+  });
 
   describe('getSupportedExpenseTypes', () => {
     it('returns default expense types (INVOICE, RECEIPT) when no settings are configured', async () => {
