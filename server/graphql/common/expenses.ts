@@ -155,9 +155,17 @@ const isOwner = async (req: express.Request, expense: Expense): Promise<boolean>
   expense.fromCollective = expense.fromCollective || (await req.loaders.Collective.byId.load(expense.FromCollectiveId));
   if (!req.remoteUser) {
     return false;
-  } else if (req.remoteUser.id === expense.UserId && expense.fromCollective.type !== CollectiveType.VENDOR) {
-    return true;
-  } else if (!expense.fromCollective) {
+  } else if (req.remoteUser.id === expense.UserId) {
+    // The payee can be missing (e.g. soft-deleted): look up its type anyway so vendors stay excluded
+    const payeeType =
+      expense.fromCollective?.type ??
+      (await models.Collective.findByPk(expense.FromCollectiveId, { paranoid: false, attributes: ['type'] }))?.type;
+    if (payeeType && payeeType !== CollectiveType.VENDOR) {
+      return true;
+    }
+  }
+
+  if (!expense.fromCollective) {
     return false;
   }
 

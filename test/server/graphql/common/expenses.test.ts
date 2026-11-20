@@ -447,6 +447,28 @@ describe('server/graphql/common/expenses', () => {
         });
       });
     });
+
+    describe('when the payee account was deleted', () => {
+      it('still recognises the submitter, but not the former payee admins', async () => {
+        const submitter = await fakeUser();
+        const payeeAdmin = await fakeUser();
+        const payee = await fakeCollective({ type: CollectiveType.ORGANIZATION, admin: payeeAdmin });
+        const expense = await fakeExpense({ UserId: submitter.id, FromCollectiveId: payee.id });
+        await payee.destroy();
+        const reloadedExpense = await models.Expense.findByPk(expense.id);
+        expect(await canSeeExpenseInvoiceInfo(makeRequest(submitter), reloadedExpense)).to.be.true;
+        expect(await canSeeExpenseInvoiceInfo(makeRequest(payeeAdmin), reloadedExpense)).to.be.false;
+      });
+
+      it('does not recognise the submitter when the deleted payee was a vendor', async () => {
+        const submitter = await fakeUser();
+        const vendor = await fakeVendor();
+        const expense = await fakeExpense({ UserId: submitter.id, FromCollectiveId: vendor.id });
+        await vendor.destroy();
+        const reloadedExpense = await models.Expense.findByPk(expense.id);
+        expect(await canSeeExpenseInvoiceInfo(makeRequest(submitter), reloadedExpense)).to.be.false;
+      });
+    });
   });
 
   describe('canSeeExpensePayeeLocation', () => {
