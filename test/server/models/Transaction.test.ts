@@ -15,6 +15,7 @@ import { createRefundTransaction } from '../../../server/lib/payments';
 import { getHostPlatformTipsAccount } from '../../../server/lib/transactions';
 import type { Transaction as TransactionModel } from '../../../server/models';
 import models, { Op } from '../../../server/models';
+import type { Transfer } from '../../../server/types/transferwise';
 
 type TransactionPayload = Partial<TransactionModel> & { totalAmount?: number; platformTipAmount?: number };
 import {
@@ -678,6 +679,31 @@ describe('server/models/Transaction', () => {
     expect(credit).to.have.property('amount').equal(402);
   });
 
+  it('should use the FX rate of the new currency when converting to a currency other than the host one', async () => {
+    const credit = Transaction.build({
+      type: TransactionTypes.CREDIT,
+      currency: 'EUR',
+      hostCurrency: 'USD',
+      hostCurrencyFxRate: 1.1,
+      amount: 10000,
+      amountInHostCurrency: 11000,
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
+      netAmountInCollectiveCurrency: 10000,
+      data: { transfer: { sourceCurrency: 'JPY', targetCurrency: 'USD', rate: 0.0065 } as Transfer },
+    });
+
+    await Transaction.updateCurrency('JPY', credit);
+
+    expect(credit.currency).to.equal('JPY');
+    expect(credit.amountInHostCurrency).to.equal(11000);
+    expect(credit.hostCurrencyFxRate).to.equal(0.0065);
+    // 11000 / 0.0065 = 1692307.69, rounded to a whole yen
+    expect(credit.amount).to.equal(1692300);
+    expect(credit.netAmountInCollectiveCurrency).to.equal(1692300);
+  });
+
   describe('createHostFeeShareTransactions', () => {
     it('applies different host fees share based on the payment method / host plan', async () => {
       await host.update({
@@ -883,6 +909,52 @@ describe('server/models/Transaction', () => {
 
         // Validation of the opposite side must agree with the stored rounding
         await Transaction.validate(debit, { oppositeTransaction: credit });
+      });
+    });
+
+    describe('expense paid to a collective under another host', () => {
+      const payTaxedExpenseAcrossHosts = async () => {
+        const payeeHost = await fakeHost({ currency: 'USD', CreatedByUserId: user.id });
+        const payee = await fakeCollective({ HostCollectiveId: payeeHost.id, currency: 'USD', hostFeePercent: 10 });
+        await models.Transaction.createDoubleEntry({
+          type: TransactionTypes.DEBIT,
+          kind: TransactionKind.EXPENSE,
+          description: 'Expense with 20% tax paid to a collective under another host',
+          CollectiveId: collective.id,
+          FromCollectiveId: payee.id,
+          HostCollectiveId: host.id,
+          CreatedByUserId: user.id,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          hostCurrencyFxRate: 1,
+          amount: -10000,
+          amountInHostCurrency: -10000,
+          taxAmount: -2000,
+          netAmountInCollectiveCurrency: -12000,
+          hostFeeInHostCurrency: 0,
+          platformFeeInHostCurrency: 0,
+          paymentProcessorFeeInHostCurrency: 0,
+          data: { tax: { id: 'VAT', percentage: 20 } },
+        });
+
+        const hostFee = await models.Transaction.findOne({
+          where: { kind: TransactionKind.HOST_FEE, type: TransactionTypes.CREDIT, CollectiveId: payeeHost.id },
+        });
+        return { hostFee, payee };
+      };
+
+      it('charges the host fee on the tax-exclusive amount with embedded taxes', async () => {
+        sandbox.stub(config.ledger, 'separateTaxes').value(false);
+        const { hostFee, payee } = await payTaxedExpenseAcrossHosts();
+        expect(hostFee.amount).to.equal(1000);
+        expect(await payee.getBalance()).to.equal(9000);
+      });
+
+      it('charges the host fee on the tax-exclusive amount with separated taxes', async () => {
+        sandbox.stub(config.ledger, 'separateTaxes').value(true);
+        const { hostFee, payee } = await payTaxedExpenseAcrossHosts();
+        expect(hostFee.amount).to.equal(1000);
+        expect(await payee.getBalance()).to.equal(9000);
       });
     });
   });

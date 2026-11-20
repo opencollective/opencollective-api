@@ -505,6 +505,10 @@ class Transaction extends ModelWithPublicId<
         }
       }
 
+      // Keep the tax amount: `createTaxTransactions` resets it to 0 after moving the tax to its own transaction,
+      // but the host fee on expenses paid between hosts (below) must still be computed on the tax-exclusive amount.
+      const originalTaxAmount = transaction.taxAmount || 0;
+
       // Create Tax transaction
       if (transaction.taxAmount && parseToBoolean(config.ledger.separateTaxes) === true) {
         const result = await Transaction.createTaxTransactions(transaction, null, { sequelizeTransaction });
@@ -632,10 +636,7 @@ class Transaction extends ModelWithPublicId<
           const collectiveHost = await collective.getHostCollective({ transaction: sequelizeTransaction });
           if (collectiveHost.id !== fromCollectiveHost.id) {
             const hostFeePercent = fromCollective.hasMoneyManagement ? 0 : fromCollective.hostFeePercent;
-            const taxAmountInHostCurrency = roundCentsAmount(
-              (transaction.taxAmount || 0) * hostCurrencyFxRate,
-              hostCurrency,
-            );
+            const taxAmountInHostCurrency = roundCentsAmount(originalTaxAmount * hostCurrencyFxRate, hostCurrency);
             oppositeTransaction.hostFeeInHostCurrency = calcFee(
               oppositeTransaction.amountInHostCurrency +
                 oppositeTransaction.paymentProcessorFeeInHostCurrency +
@@ -1564,12 +1565,10 @@ class Transaction extends ModelWithPublicId<
       transaction.taxAmount = roundCentsAmount(transaction.taxAmount * fxRate, currency);
     }
 
+    // Get the rate before changing `currency`, otherwise `getFxRate` would return the old `hostCurrencyFxRate`
+    const hostCurrencyFxRate = await Transaction.getFxRate(currency, transaction.hostCurrency, transaction);
     transaction.currency = currency;
-    transaction.hostCurrencyFxRate = await Transaction.getFxRate(
-      transaction.currency,
-      transaction.hostCurrency,
-      transaction,
-    );
+    transaction.hostCurrencyFxRate = hostCurrencyFxRate;
 
     // REMINDER: amount * hostCurrencyFxRate = amountInHostCurrency
     // so: amount = amountInHostCurrency / hostCurrencyFxRate

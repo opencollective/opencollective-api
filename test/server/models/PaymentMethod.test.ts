@@ -35,6 +35,39 @@ describe('server/models/PaymentMethod', () => {
         done();
       });
     });
+
+    it('requires a token for payment methods that need one', async () => {
+      const tokenRequired = [
+        { service: PAYMENT_METHOD_SERVICE.STRIPE, type: PAYMENT_METHOD_TYPE.CREDITCARD },
+        { service: PAYMENT_METHOD_SERVICE.STRIPE, type: PAYMENT_METHOD_TYPE.US_BANK_ACCOUNT },
+        { service: PAYMENT_METHOD_SERVICE.STRIPE, type: PAYMENT_METHOD_TYPE.SEPA_DEBIT },
+        { service: PAYMENT_METHOD_SERVICE.PAYPAL, type: PAYMENT_METHOD_TYPE.ADAPTIVE },
+        { service: PAYMENT_METHOD_SERVICE.PAYPAL, type: PAYMENT_METHOD_TYPE.SUBSCRIPTION },
+      ];
+
+      for (const { service, type } of tokenRequired) {
+        await expect(models.PaymentMethod.create({ service, type, token: null })).to.be.rejectedWith(
+          `${service} payment method requires a token`,
+        );
+      }
+    });
+
+    it('allows payment methods that are legitimately created without a token', async () => {
+      const tokenless = [
+        { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.COLLECTIVE },
+        { service: PAYMENT_METHOD_SERVICE.PAYPAL, type: PAYMENT_METHOD_TYPE.PAYMENT },
+        { service: PAYMENT_METHOD_SERVICE.PAYPAL, type: PAYMENT_METHOD_TYPE.PAYOUT },
+        { service: PAYMENT_METHOD_SERVICE.WISE, type: PAYMENT_METHOD_TYPE.BANK_TRANSFER },
+        { service: PAYMENT_METHOD_SERVICE.STRIPE, type: PAYMENT_METHOD_TYPE.VIRTUAL_CARD },
+        { service: PAYMENT_METHOD_SERVICE.STRIPE, type: PAYMENT_METHOD_TYPE.MANUAL },
+        { service: PAYMENT_METHOD_SERVICE.STRIPE, type: PAYMENT_METHOD_TYPE.PAYMENT_INTENT },
+      ];
+
+      for (const { service, type } of tokenless) {
+        const pm = await models.PaymentMethod.create({ service, type, token: null, currency: 'USD' });
+        expect(pm.id).to.exist;
+      }
+    });
   });
 
   describe('instance methods', () => {
