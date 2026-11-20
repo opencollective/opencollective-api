@@ -2888,14 +2888,19 @@ class Collective extends ModelWithPublicId<
 
     // remove the members that are not present anymore
     const { remoteUserCollectiveId } = defaultAttributes;
+
+    // At least one admin must remain once the edit is applied. Pending invitations don't count,
+    // only existing members and the remote user adding themselves (which creates a membership directly).
+    const nbAdminsBefore = oldMembers.filter(m => m.role === roles.ADMIN).length;
+    const nbAdmins = members.filter(
+      m => m.role === roles.ADMIN && (m.id || (remoteUserCollectiveId && m.member?.id === remoteUserCollectiveId)),
+    ).length;
+    if (nbAdminsBefore && !nbAdmins) {
+      throw new Error('There must be at least one admin for the account');
+    }
+
     const diff: Member[] = differenceBy(oldMembers, members, (m: Member) => m.id);
     if (diff.length > 0) {
-      const nbAdminsBefore = oldMembers.filter(m => m.role === roles.ADMIN && m.id).length;
-      const nbAdmins = members.filter(m => m.role === roles.ADMIN && m.id).length;
-      if (nbAdminsBefore && !nbAdmins) {
-        throw new Error('There must be at least one admin for the account');
-      }
-
       debug('editMembers', 'delete', diff);
       const diffMemberIds = diff.map(m => m.id);
       await Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diffMemberIds } } });
