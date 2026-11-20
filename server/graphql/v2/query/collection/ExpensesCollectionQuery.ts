@@ -694,7 +694,8 @@ export const ExpensesCollectionQueryResolver = async (
 
     const orConditions: WhereOptions[] = [{ '$collective.isPrivate$': false }];
     if (args.includeSubmittedByAccount) {
-      orConditions.push({ CollectiveId: accounts.map(account => account.id) });
+      // Received side (account and its children when `includeChildrenExpenses` is set), same as `direction: RECEIVED`
+      orConditions.push({ CollectiveId: scopedAccountIds });
     }
 
     if (req.remoteUser) {

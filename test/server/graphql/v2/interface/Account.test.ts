@@ -877,6 +877,29 @@ describe('server/graphql/v2/interface/Account', () => {
       expect(payeeSlugs).to.not.include(unrelatedPayee.slug);
     });
 
+    it('returns the same received expenses as direction RECEIVED when including children', async () => {
+      const parent = await fakeCollective();
+      const privateChild = await fakeProject({ ParentCollectiveId: parent.id, isPrivate: true });
+      await fakeExpense({ CollectiveId: privateChild.id, FromCollectiveId: user.CollectiveId });
+
+      const childrenQuery = gql`
+        query AccountExpensesChildrenTest($slug: String!) {
+          account(slug: $slug) {
+            all: expenses(includeChildrenExpenses: true) {
+              totalCount
+            }
+            received: expenses(direction: RECEIVED, includeChildrenExpenses: true) {
+              totalCount
+            }
+          }
+        }
+      `;
+      const result = await graphqlQueryV2(childrenQuery, { slug: parent.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.received.totalCount).to.eq(1);
+      expect(result.data.account.all.totalCount).to.eq(1);
+    });
+
     it('keeps expenses submitted to private accounts hidden when filtering by host', async () => {
       const host = await fakeActiveHost();
       const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
