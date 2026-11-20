@@ -148,6 +148,34 @@ jobs:
       - name: Build
         run: npm run build
 
+  bend-laws:
+    name: Bend laws
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Pinned version, verified against its sha256 (see the script)
+      - name: Install Bend
+        run: ./scripts/bend/install.sh
+
+      # Fails unless every law in LAWS.bend is proven against server/bend/
+      - name: Check laws
+        run: ./scripts/bend/run.sh check
+
+      # The API runs the compiled files: they must be the ones the proven sources compile to
+      - name: Check that compiled files are up to date
+        run: |
+          ./scripts/bend/run.sh build
+          if [ -n "$(git status --porcelain -- server/bend/generated)" ]; then
+            git status --short -- server/bend/generated
+            git diff -- server/bend/generated
+            echo "server/bend/generated is out of date: run 'npm run bend:build' and commit the result"
+            exit 1
+          fi
+
   test:
     runs-on: ubuntu-26.04
     timeout-minutes: 30

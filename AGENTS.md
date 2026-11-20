@@ -23,6 +23,12 @@ Private organizations: `docs/private-organizations.md`.
 3. **2FA** - `twoFactorAuthLib` from `server/lib/two-factor-authentication`: `enforceForAccount`, `enforceForAccountsUserIsAdminOf`, `validateRequest`. Clients send `x-two-factor-authentication`; reuse `TWO_FACTOR_SESSIONS_PARAMS` for short sessions.
 4. **OAuth scopes** - mutations must call a helper from `server/graphql/common/scope-check.ts` (ESLint `graphql-mutations/require-scope-check`). Prefer domain helpers (`checkRemoteUserCanUseExpenses`, …) or `enforceScope` / `checkScope` (`server/constants/oauth-scopes.ts`). Session-only: `rejectOAuthAndPersonalTokenAuth(req)`. Public/guest mutations: ESLint opt-out plus a comment explaining why.
 
+**Laws (Bend)** - rules that must hold in every case live in `LAWS.bend` and are proven by `PROOF.bend` against the decisions in `server/bend/*.bend` (see `docs/bend-laws.md`; `bend guide` prints the language guide):
+
+- Do not edit `LAWS.bend` unless asked: a law is a promise, weakening one needs a human decision. If a change breaks a law, fix the code.
+- After changing `server/bend/*.bend`: `npm run bend:check` must print `ALL PROOFS CHECK`, then `npm run bend:build` and commit `server/bend/generated/` (never edit it by hand).
+- Keep `server/bend/*.ts` and the callers free of logic: a condition added in TypeScript around a Bend decision escapes the laws.
+
 **Not defects:** public GraphQL introspection, permissive API CORS.
 
 **Security label:** If a PR has a security aspect (permissions, auth, 2FA, OAuth scopes, members, private accounts, payments, user input handling, a security fix, or simply if you think the security of it needs a second pair of eyes), add the `security` label to the PR. The label triggers automated security reviews.

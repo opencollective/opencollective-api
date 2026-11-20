@@ -27,6 +27,13 @@ import {
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
+import {
+  decideMarkExpenseAsPaid,
+  decidePayExpense,
+  ExpensePaymentFacts,
+  PaymentDenialReason,
+  screenExpensePayment,
+} from '../../bend/expense-payments';
 import { activities, expenseStatus, roles } from '../../constants';
 import ActivityTypes from '../../constants/activities';
 import { CollectiveType } from '../../constants/collectives';
@@ -961,22 +968,92 @@ export const canDeleteExpense: ExpensePermissionEvaluator = async (
 };
 
 /**
- * Returns true if expense can be paid by user
+ * How each denial of a payment is reported when the caller asks for an error. `null` means the denial is
+ * silent: the evaluator returns `false` even then.
+ */
+const PAYMENT_DENIAL_ERRORS: Record<
+  PaymentDenialReason,
+  { message: string; code: EXPENSE_PERMISSION_ERROR_CODES } | null
+> = {
+  InvalidScope: {
+    message: 'You do not have the necessary scope to perform this action',
+    code: EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+  },
+  // Charges are meant to represent a payment that happened elsewhere already
+  ChargeNotPayable: null,
+  UnsupportedStatus: {
+    message: 'Can not pay expense in current status',
+    code: EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+  },
+  UserFeatureDisabled: {
+    message: 'User cannot pay expenses',
+    code: EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+  },
+  HostBlocked: {
+    message: 'Host cannot pay expenses',
+    code: EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+  },
+  UserRequired: {
+    message: 'User is required',
+    code: EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+  },
+  NotHostAdmin: {
+    message: 'You do not have the necessary permissions to perform this action',
+    code: EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+  },
+};
+
+/**
+ * Loads the facts about a payment and lets the Bend kernel decide (`server/bend/expense-payments.bend`). The rules
+ * live there, bound by the laws in `LAWS.bend`: do not add a condition here, it would escape them.
+ */
+const evaluateExpensePayment = async (
+  req: express.Request,
+  expense: Expense,
+  decide: typeof decidePayExpense | typeof decideMarkExpenseAsPaid,
+  options: { throw?: boolean } = { throw: false },
+): Promise<boolean> => {
+  // The kernel refuses anything but booleans. Helpers such as `isAdmin` do not strictly return one.
+  const facts: ExpensePaymentFacts = {
+    hasExpensesScope: Boolean(checkScope(req, 'expenses')),
+    type: expense.type,
+    isManuallyCreatedCharge: Boolean(isManuallyCreatedCharge(expense)),
+    status: expense.status,
+    canUseExpenses: Boolean(canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)),
+  };
+
+  // A denial at this stage is final, which spares loading the host for the many expenses that are not payable
+  let verdict = screenExpensePayment(facts);
+  if (verdict.allowed) {
+    const host = await loadHostForExpense(req, expense);
+    verdict = decide(facts, {
+      isBlockedForUnpaidBilling: Boolean(isBlockedForUnpaidPlatformBilling(host)),
+      isAuthenticated: Boolean(req.remoteUser),
+      isHostAdmin: Boolean(await isHostAdmin(req, expense)),
+    });
+  }
+
+  if (verdict.allowed === true) {
+    return true;
+  }
+
+  const error = PAYMENT_DENIAL_ERRORS[verdict.reason];
+  if (options?.throw && error) {
+    throw new Forbidden(error.message, error.code);
+  }
+
+  return false;
+};
+
+/**
+ * Returns true if expense can be paid by user. Charges can never be paid, even manually created ones.
  */
 export const canPayExpense: ExpensePermissionEvaluator = async (
   req: express.Request,
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (!(await canMarkAsPaid(req, expense, options))) {
-    return false;
-  } else if (expense.type === ExpenseType.CHARGE) {
-    // Can never pay charges, even manually created ones. Charges are meant to represent a payment that happened elsewhere
-    // already, so it makes no sense to pay them again.
-    return false;
-  } else {
-    return true;
-  }
+  return evaluateExpensePayment(req, expense, decidePayExpense, options);
 };
 
 /**
@@ -989,33 +1066,7 @@ export const canMarkAsPaid: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (!validateExpenseScope(req, options)) {
-    return false;
-  } else if (expense.type === ExpenseType.CHARGE && !isManuallyCreatedCharge(expense)) {
-    return false;
-  } else if (!['APPROVED', 'ERROR'].includes(expense.status)) {
-    if (options?.throw) {
-      throw new Forbidden('Can not pay expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
-    }
-    return false;
-  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
-    if (options?.throw) {
-      throw new Forbidden('User cannot pay expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
-    }
-    return false;
-  } else {
-    const host = await loadHostForExpense(req, expense);
-    if (
-      isBlockedForUnpaidPlatformBilling(host) &&
-      ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)
-    ) {
-      if (options?.throw) {
-        throw new Forbidden('Host cannot pay expenses', EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET);
-      }
-      return false;
-    }
-    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
-  }
+  return evaluateExpensePayment(req, expense, decideMarkExpenseAsPaid, options);
 };
 
 /**

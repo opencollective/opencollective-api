@@ -171,6 +171,9 @@
     "ws": "^8.18.3"
   },
   "scripts": {
+    "bend:build": "./scripts/bend/run.sh build",
+    "bend:check": "./scripts/bend/run.sh check",
+    "bend:install": "./scripts/bend/install.sh",
     "build": "npm run build:clean && npm run build:server && npm run build:updates",
     "build:clean": "rm -rf dist && mkdir dist",
     "build:e2e": "npm run build && babel server --source-maps true --extensions .js,.ts --only \"server/e2e/**\" -d ./dist",

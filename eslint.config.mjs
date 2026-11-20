@@ -30,6 +30,8 @@ export default [
       '**/.vscode',
       '**/.history',
       'config/collective-spam-bayes.json',
+      // Compiled from Bend (npm run bend:build)
+      'server/bend/generated/',
     ],
   },
   {

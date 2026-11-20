@@ -11,6 +11,7 @@ import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.mjs';
 import { get } from 'lodash';
 import multer from 'multer';
 
+import { decideGraphqlV1Auth } from './bend/graphql-v1-auth';
 import * as connectedAccounts from './controllers/connectedAccounts';
 import * as ecosystems from './controllers/ecosystems';
 import * as filesController from './controllers/files';
@@ -182,22 +183,25 @@ export default async (app: express.Application) => {
     withTiming('graphqlScope', async (req, res, next) => {
       // 1) We don't have proper "scope" handling in GraphQL v1, easy call is to restrict for OAuth
       // 2) GraphQL v1 is not officially supported and should not be used by third party developers
-      if (req.userToken && req.userToken.type === 'OAUTH') {
-        // We need exceptions for prototype and internal tools
-        if (!req.userToken.application?.data?.enableGraphqlV1) {
-          const errorMessage = 'OAuth access tokens are not accepted on GraphQL v1';
-          logger.warn(errorMessage);
-          return next(new errors.Unauthorized(errorMessage));
-        }
+      // The rule itself lives in `server/bend/graphql-v1-auth.bend`, bound by the laws in `LAWS.bend`. We need
+      // exceptions for prototype and internal tools: these are the allow-lists.
+      const verdict = decideGraphqlV1Auth({
+        hasOAuthToken: Boolean(req.userToken && req.userToken.type === 'OAUTH'),
+        isOAuthApplicationAllowListed: Boolean(req.userToken?.application?.data?.enableGraphqlV1),
+        hasPersonalToken: Boolean(req.personalToken),
+        isPersonalTokenAllowListed: Boolean(req.personalToken?.data?.allowGraphQLV1),
+      });
+
+      if (verdict === 'RejectOAuthToken') {
+        const errorMessage = 'OAuth access tokens are not accepted on GraphQL v1';
+        logger.warn(errorMessage);
+        return next(new errors.Unauthorized(errorMessage));
+      } else if (verdict === 'RejectPersonalToken') {
+        return next(new errors.Unauthorized('Personal Tokens are not accepted on GraphQL v1'));
+      } else if (req.personalToken) {
+        logger.warn(`Personal Token using GraphQL v1: ${req.personalToken.id}`);
       }
 
-      if (req.personalToken) {
-        if (req.personalToken.data?.allowGraphQLV1) {
-          logger.warn(`Personal Token using GraphQL v1: ${req.personalToken.id}`);
-        } else {
-          return next(new errors.Unauthorized('Personal Tokens are not accepted on GraphQL v1'));
-        }
-      }
       next();
     }),
   );

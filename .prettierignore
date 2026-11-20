@@ -13,3 +13,6 @@ coverage/
 
 config/collective-spam-bayes.json
 test/stories/transferwise.test.ts.responses.json
+
+# Compiled from Bend (npm run bend:build)
+server/bend/generated/
