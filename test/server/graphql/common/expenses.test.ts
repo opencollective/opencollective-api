@@ -1993,6 +1993,11 @@ describe('server/graphql/common/expenses', () => {
           // 1500 JPY = 10 USD, below the 1000 USD limit
           const jpyExpense = await createExpense(1500e2, 'JPY');
           expect(await canApprove(makeRequest(collectiveAdmin), jpyExpense)).to.be.true;
+
+          // A failed conversion returns false instead of throwing
+          const failingReq = makeRequest(collectiveAdmin);
+          failingReq.loaders.CurrencyExchangeRate.convert.load = () => Promise.reject(new Error('FX unavailable'));
+          expect(await canApprove(failingReq, jpyExpense)).to.be.false;
         });
       });
     });
