@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import gql from 'fake-tag';
-import { AccountSubtype, AccountType, PlaidApi } from 'plaid';
+import { AccountSubtype, AccountType, PlaidApi } from 'plaid/legacy';
 import sinon from 'sinon';
 
 import { Service } from '../../../../../server/constants/connected-account';

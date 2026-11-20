@@ -3,7 +3,7 @@ import * as crypto from 'crypto';
 import { Request } from 'express';
 import * as jwt from 'jsonwebtoken';
 import { uniq } from 'lodash';
-import { JWKPublicKey } from 'plaid';
+import { JWKPublicKey } from 'plaid/legacy';
 
 import { sessionCache } from '../cache';
 import { reportErrorToSentry } from '../sentry';
