@@ -4,6 +4,7 @@ import { sql } from 'kysely';
 import { groupBy, isNil, keyBy } from 'lodash';
 
 import { SupportedCurrency } from '../../constants/currencies';
+import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getKysely } from '../../lib/kysely';
 import models from '../../models';
@@ -134,12 +135,17 @@ const loadPaymentIntentAmountPledged = async (
     .execute();
 };
 
+/** Fees and taxes that the ledger can record as their own DEBIT transactions on the charged account */
+const SEPARATE_FEE_KINDS = [TransactionKind.HOST_FEE, TransactionKind.PAYMENT_PROCESSOR_FEE, TransactionKind.TAX];
+
 /**
  * Aggregates linked transaction amounts in host currency for a payment intent.
  *
  * - `type` DEBIT + PayerCollectiveId: money sent by the payer (amountSent)
  * - `type` CREDIT + PayeeCollectiveId: money received by the payee (amountReceived)
- * - `net`: when true, includes platform, host, payment processor fees and taxes on top of amountInHostCurrency
+ * - `net`: when true, includes platform, host, payment processor fees and taxes on top of amountInHostCurrency,
+ *   whether they are recorded on the same row (legacy) or as separate HOST_FEE / PAYMENT_PROCESSOR_FEE / TAX DEBITs.
+ *   Without `net`, these separate fee rows are excluded.
  *
  * Only non-refunded, non-deleted transactions whose CollectiveId matches the payer or payee are included.
  */
@@ -178,7 +184,10 @@ const loadPaymentIntentTransactionAmountsInHostCurrency = async (
               COALESCE(${eb.ref('Transactions.taxAmount')} * ${eb.ref('Transactions.hostCurrencyFxRate')}, 0)
             `;
 
-        return eb.fn.sum<number>(eb.fn<number>('abs', [amountFieldSql])).as('value');
+        // Net uses a signed sum, so that separate fee DEBITs reduce a CREDIT total and increase a DEBIT one
+        return net
+          ? eb.fn<number>('abs', [eb.fn.sum<number>(amountFieldSql)]).as('value')
+          : eb.fn.sum<number>(eb.fn<number>('abs', [amountFieldSql])).as('value');
       },
       'Transactions.hostCurrency as currency',
       'HostCollective.currency as hostCollectiveCurrency',
@@ -188,7 +197,20 @@ const loadPaymentIntentTransactionAmountsInHostCurrency = async (
     .where('Transactions.isRefund', 'is not', true)
     .where('Transactions.PaymentIntentId', 'in', paymentIntentIds)
     .where('PaymentIntents.id', 'in', paymentIntentIds)
-    .where('Transactions.type', '=', type)
+    .where(eb => {
+      const isSeparateFee = eb('Transactions.kind', 'in', SEPARATE_FEE_KINDS);
+      if (net) {
+        return eb.or([
+          eb('Transactions.type', '=', type),
+          eb.and([eb('Transactions.type', '=', TransactionTypes.DEBIT), isSeparateFee]),
+        ]);
+      } else {
+        return eb.and([
+          eb('Transactions.type', '=', type),
+          eb.or([eb('Transactions.kind', 'is', null), eb.not(isSeparateFee)]),
+        ]);
+      }
+    })
     .where(({ eb }) => {
       const paymentIntentCollectiveId =
         collectiveIdColumn === 'PayerCollectiveId'
@@ -212,7 +234,7 @@ export const generatePaymentIntentAmountPledgedLoader = (): DataLoader<number, G
 
 /**
  * Loader for the total amount sent by the payer, expressed in host currency.
- * Pass `net: true` to include fees and taxes recorded on linked debit transactions.
+ * Pass `net: true` to include fees and taxes paid by the payer, on its DEBIT rows or as separate fee transactions.
  */
 export const generatePaymentIntentAmountSentInHostCurrencyLoader = (
   req: express.Request,
@@ -229,7 +251,7 @@ export const generatePaymentIntentAmountSentInHostCurrencyLoader = (
 
 /**
  * Loader for the total amount received by the payee, expressed in host currency.
- * Pass `net: true` to include fees and taxes recorded on linked credit transactions.
+ * Pass `net: true` to deduct fees and taxes, on the CREDIT rows or as separate fee transactions on the payee.
  */
 export const generatePaymentIntentAmountReceivedInHostCurrencyLoader = (
   req: express.Request,

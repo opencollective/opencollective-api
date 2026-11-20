@@ -1,10 +1,13 @@
 import { expect } from 'chai';
+import config from 'config';
 import express from 'express';
+import { createSandbox } from 'sinon';
 import { v4 as uuid } from 'uuid';
 
 import { SupportedCurrency } from '../../../../server/constants/currencies';
 import PaymentIntentStatus from '../../../../server/constants/payment-intent-status';
 import PaymentIntentType from '../../../../server/constants/payment-intent-type';
+import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import { generateConvertToCurrencyLoader } from '../../../../server/graphql/loaders/currency-exchange-rate';
 import {
   generatePaymentIntentAmountPledgedLoader,
@@ -13,15 +16,18 @@ import {
   generatePaymentIntentByIdLoader,
   generatePaymentIntentTransactionsLoader,
 } from '../../../../server/graphql/loaders/payment-intents';
+import { createTransactionsFromPaidExpense } from '../../../../server/lib/transactions';
 import models from '../../../../server/models';
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeCurrencyExchangeRate,
   fakeExpense,
   fakeOrder,
   fakeTransaction,
+  fakeUser,
 } from '../../../test-helpers/fake-data';
-import { resetTestDB } from '../../../utils';
+import { resetTestDB, seedDefaultVendors } from '../../../utils';
 
 const convertLoader = generateConvertToCurrencyLoader();
 const mockReq = {
@@ -488,6 +494,109 @@ describe('server/graphql/loaders/payment-intents', () => {
       const results = await loader.loadMany([second.id, first.id]);
 
       expect(results.map(result => (result as typeof first).id)).to.deep.eq([second.id, first.id]);
+    });
+  });
+
+  describe('with fees recorded as separate transactions', () => {
+    const sandbox = createSandbox();
+
+    beforeEach(async () => {
+      await seedDefaultVendors();
+    });
+
+    afterEach(() => sandbox.restore());
+
+    const contribute = async () => {
+      const host = await fakeActiveHost({ currency: 'USD' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      const user = await fakeUser();
+      const order = await fakeOrder({
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        totalAmount: 10000,
+        currency: 'USD',
+      });
+      await models.Transaction.createFromContributionPayload({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        PaymentMethodId: order.PaymentMethodId,
+        type: 'CREDIT',
+        OrderId: order.id,
+        amount: 10000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        amountInHostCurrency: 10000,
+        hostCurrencyFxRate: 1,
+        hostFeeInHostCurrency: -1000,
+        paymentProcessorFeeInHostCurrency: -320,
+        description: 'Contribution',
+      });
+      return models.PaymentIntent.findOne({ where: { OrderId: order.id } });
+    };
+
+    it('deducts the separate host fee from the net amount received', async () => {
+      const paymentIntent = await contribute();
+      const gross = await generatePaymentIntentAmountReceivedInHostCurrencyLoader(mockReq, false).load(
+        paymentIntent.id,
+      );
+      const net = await generatePaymentIntentAmountReceivedInHostCurrencyLoader(mockReq, true).load(paymentIntent.id);
+      expect(gross).to.deep.eq({ value: 10000, currency: 'USD' });
+      expect(net).to.deep.eq({ value: 8680, currency: 'USD' });
+    });
+
+    it('deducts separate host and payment processor fees from the net amount received', async () => {
+      sandbox
+        .stub(config, 'ledger')
+        .value({ ...config.ledger, separatePaymentProcessorFees: true, separateTaxes: true });
+      const paymentIntent = await contribute();
+      const gross = await generatePaymentIntentAmountReceivedInHostCurrencyLoader(mockReq, false).load(
+        paymentIntent.id,
+      );
+      const net = await generatePaymentIntentAmountReceivedInHostCurrencyLoader(mockReq, true).load(paymentIntent.id);
+      expect(gross).to.deep.eq({ value: 10000, currency: 'USD' });
+      expect(net).to.deep.eq({ value: 8680, currency: 'USD' });
+    });
+
+    it('excludes the separate payment processor fee from the gross amount sent and adds it to the net', async () => {
+      sandbox
+        .stub(config, 'ledger')
+        .value({ ...config.ledger, separatePaymentProcessorFees: true, separateTaxes: true });
+      const host = await fakeActiveHost({ currency: 'USD' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        amount: 10000,
+        currency: 'USD',
+        status: 'APPROVED',
+      });
+      await createTransactionsFromPaidExpense(host, expense, { paymentProcessorFeeInHostCurrency: 320 }, 1);
+      const paymentIntent = await models.PaymentIntent.findOne({ where: { ExpenseId: expense.id } });
+
+      const gross = await generatePaymentIntentAmountSentInHostCurrencyLoader(mockReq, false).load(paymentIntent.id);
+      const net = await generatePaymentIntentAmountSentInHostCurrencyLoader(mockReq, true).load(paymentIntent.id);
+      expect(gross).to.deep.eq({ value: 10000, currency: 'USD' });
+      expect(net).to.deep.eq({ value: 10320, currency: 'USD' });
+    });
+
+    it('does not count a HOST_FEE CREDIT received by the payer in the net amount sent', async () => {
+      const { paymentIntent, payer, payee } = await createPaymentIntentWithLedger({ debitAmountInHostCurrency: -5000 });
+      await fakeTransaction({
+        PaymentIntentId: paymentIntent.id,
+        kind: TransactionKind.HOST_FEE,
+        type: 'CREDIT',
+        CollectiveId: payer.id,
+        FromCollectiveId: payee.id,
+        amount: 500,
+        amountInHostCurrency: 500,
+        hostCurrency: 'USD',
+        currency: 'USD',
+        TransactionGroup: uuid(),
+      });
+
+      const net = await generatePaymentIntentAmountSentInHostCurrencyLoader(mockReq, true).load(paymentIntent.id);
+      expect(net).to.deep.eq({ value: 5000, currency: 'USD' });
     });
   });
 });
