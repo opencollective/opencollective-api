@@ -688,6 +688,37 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
 
       await snapshotTransactionsForRefund(orderTransactions);
     });
+
+    it('records a Stripe refund only once when two refunds of the same transaction run at the same time', async () => {
+      const stripeCollective = await fakeCollective();
+      await stripeCollective.host.addUserWithRole(hostAdminUser, 'ADMIN');
+      await hostAdminUser.populateRoles();
+      await models.ConnectedAccount.create({
+        service: 'stripe',
+        token: 'abc',
+        CollectiveId: stripeCollective.host.id,
+        username: 'stripeAccount',
+      });
+      let order = await fakeOrder({ CollectiveId: stripeCollective.id, totalAmount: stripeMocks.balance.amount });
+      order = await order.setPaymentMethod({ token: STRIPE_TOKEN });
+      await executeOrder(randomUser, order);
+      const transaction = await models.Transaction.findOne({
+        where: { OrderId: order.id, type: 'CREDIT', kind: 'CONTRIBUTION' },
+      });
+
+      // The collective cannot cover the processor fee, so the host admin skips the balance check
+      const variables = { transaction: { legacyId: transaction.id }, ignoreBalanceCheck: true };
+      const results = await Promise.all([
+        graphqlQueryV2(refundTransactionMutation, variables, hostAdminUser),
+        graphqlQueryV2(refundTransactionMutation, variables, hostAdminUser),
+      ]);
+
+      expect(results.filter(r => !r.errors)).to.have.length(1);
+      const refunds = await models.Transaction.findAll({
+        where: { OrderId: order.id, kind: 'CONTRIBUTION', isRefund: true },
+      });
+      expect(refunds).to.have.length(2); // One CREDIT and one DEBIT
+    });
   });
 
   describe('rejectTransaction', () => {
