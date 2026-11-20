@@ -2895,10 +2895,6 @@ class Collective extends ModelWithPublicId<
       if (nbAdminsBefore && !nbAdmins) {
         throw new Error('There must be at least one admin for the account');
       }
-
-      debug('editMembers', 'delete', diff);
-      const diffMemberIds = diff.map(m => m.id);
-      await Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diffMemberIds } } });
     }
 
     // Remove the invitations that are not present anymore
@@ -2908,75 +2904,98 @@ class Collective extends ModelWithPublicId<
       );
     });
 
-    if (invitationsDiff.length > 0) {
-      await MemberInvitation.update(
-        { deletedAt: new Date() },
-        {
-          where: {
-            id: { [Op.in]: invitationsDiff.map(i => i.id) },
-            CollectiveId: this.id,
-          },
-        },
-      );
-    }
-
-    // Add new members
-    for (const member of members) {
-      const memberAttributes = {
-        ...defaultAttributes,
-        description: member.description,
-        since: member.since,
-        role: member.role,
-      };
-
-      if (member.id) {
-        // Edit an existing membership (edit the role/description)
-        const editableAttributes = pick(member, ['role', 'description', 'since']);
-        debug('editMembers', 'update member', member.id, editableAttributes);
-        await Member.update(editableAttributes, {
-          where: {
-            id: member.id,
-            CollectiveId: this.id,
-            role: { [Op.in]: allowedRoles },
-          },
-        });
-      } else if (remoteUserCollectiveId && member.member?.id === remoteUserCollectiveId) {
-        // When users try to add themselves (ie. when creating a collective) we don't need to send an invitation
-        await Member.create({
-          ...memberAttributes,
-          MemberCollectiveId: member.member.id,
-          CollectiveId: this.id,
-        });
-      } else if (member.member?.id) {
-        // Create new membership invitation
-        await MemberInvitation.invite(this, { ...memberAttributes, MemberCollectiveId: member.member.id });
-      } else if (member.member?.email) {
-        // Add user by email
-        const user = await User.findOne({
-          include: {
-            model: Collective,
-            as: 'collective',
-            where: { type: CollectiveType.USER, isIncognito: false },
-          },
-          where: { email: member.member.email },
-        });
-
-        if (user) {
-          // If user exists for this email, send an invitation
-          await MemberInvitation.invite(this, { ...memberAttributes, MemberCollectiveId: user.collective.id });
-        } else {
-          // Otherwise create and add the user directly
-          const userFields = ['email', 'name', 'company', 'website'];
-          const user = await User.createUserWithCollective(pick(member.member, userFields));
-          await this.addUserWithRole(user, member.role, {
-            ...memberAttributes,
-            MemberCollectiveId: user.collective.id,
-          });
-        }
-      } else {
-        throw new Error('Invited member collective has not been set');
+    // Run all the writes in one transaction, so that an error (e.g. a failed invitation) does not leave
+    // members or invitations removed
+    await sequelize.transaction(async transaction => {
+      if (diff.length > 0) {
+        debug('editMembers', 'delete', diff);
+        const diffMemberIds = diff.map(m => m.id);
+        await Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diffMemberIds } }, transaction });
       }
-    }
+
+      if (invitationsDiff.length > 0) {
+        await MemberInvitation.update(
+          { deletedAt: new Date() },
+          {
+            where: {
+              id: { [Op.in]: invitationsDiff.map(i => i.id) },
+              CollectiveId: this.id,
+            },
+            transaction,
+          },
+        );
+      }
+
+      // Add new members
+      for (const member of members) {
+        const memberAttributes = {
+          ...defaultAttributes,
+          description: member.description,
+          since: member.since,
+          role: member.role,
+        };
+
+        if (member.id) {
+          // Edit an existing membership (edit the role/description)
+          const editableAttributes = pick(member, ['role', 'description', 'since']);
+          debug('editMembers', 'update member', member.id, editableAttributes);
+          await Member.update(editableAttributes, {
+            where: {
+              id: member.id,
+              CollectiveId: this.id,
+              role: { [Op.in]: allowedRoles },
+            },
+            transaction,
+          });
+        } else if (remoteUserCollectiveId && member.member?.id === remoteUserCollectiveId) {
+          // When users try to add themselves (ie. when creating a collective) we don't need to send an invitation
+          await Member.create(
+            { ...memberAttributes, MemberCollectiveId: member.member.id, CollectiveId: this.id },
+            { transaction },
+          );
+        } else if (member.member?.id) {
+          // Create new membership invitation
+          await MemberInvitation.invite(
+            this,
+            { ...memberAttributes, MemberCollectiveId: member.member.id },
+            { transaction },
+          );
+        } else if (member.member?.email) {
+          // Add user by email
+          const user = await User.findOne({
+            include: {
+              model: Collective,
+              as: 'collective',
+              where: { type: CollectiveType.USER, isIncognito: false },
+            },
+            where: { email: member.member.email },
+            transaction,
+          });
+
+          if (user) {
+            // If user exists for this email, send an invitation
+            await MemberInvitation.invite(
+              this,
+              { ...memberAttributes, MemberCollectiveId: user.collective.id },
+              { transaction },
+            );
+          } else {
+            // Otherwise create and add the user directly
+            const userFields = ['email', 'name', 'company', 'website'];
+            const user = await User.createUserWithCollective(pick(member.member, userFields), transaction);
+            await this.addUserWithRole(
+              user,
+              member.role,
+              { ...memberAttributes, MemberCollectiveId: user.collective.id },
+              {},
+              transaction,
+            );
+          }
+        } else {
+          throw new Error('Invited member collective has not been set');
+        }
+      }
+    });
 
     /**
      * Because we don't update the model directly (we use Model.update(..., {where}))
