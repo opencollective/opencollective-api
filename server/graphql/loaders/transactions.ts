@@ -20,29 +20,27 @@ export const generateHostFeeAmountForTransactionLoader = (): DataLoader<Transact
         raw: true,
         where: {
           kind: TransactionKind.HOST_FEE,
-          // The host fee leg charged to an account always comes from its host. Matching on `FromCollectiveId` prevents
-          // picking the host's own HOST_FEE CREDIT when the host is also the contributor.
           [Op.or]: transactionsWithoutHostFee.map(transaction => ({
             TransactionGroup: transaction.TransactionGroup,
             CollectiveId: transaction.CollectiveId,
-            FromCollectiveId: transaction.HostCollectiveId,
           })),
         },
       });
 
-      const keyBuilder = (TransactionGroup: string, CollectiveId: number, HostCollectiveId: number) =>
-        `${TransactionGroup}-${CollectiveId}-${HostCollectiveId}`;
-      const groupedTransactions: Record<string, Transaction[]> = groupBy(hostFeeTransactions, t =>
-        keyBuilder(t.TransactionGroup, t.CollectiveId, t.FromCollectiveId),
-      );
+      const keyBuilder = (transaction: Transaction) => `${transaction.TransactionGroup}-${transaction.CollectiveId}`;
+      const groupedTransactions: Record<string, Transaction[]> = groupBy(hostFeeTransactions, keyBuilder);
       return transactions.map(transaction => {
         if (transaction.hostFeeInHostCurrency) {
           return transaction.hostFeeInHostCurrency;
         } else {
-          const key = keyBuilder(transaction.TransactionGroup, transaction.CollectiveId, transaction.HostCollectiveId);
-          const hostFeeTransactions = groupedTransactions[key];
-          if (hostFeeTransactions && Transaction.canHaveFees(transaction)) {
-            return hostFeeTransactions[0].amountInHostCurrency;
+          const key = keyBuilder(transaction);
+          // The host fee leg charged to an account comes from its host. Matching on `FromCollectiveId` prevents
+          // picking the host's own HOST_FEE CREDIT when the host is also the contributor.
+          const hostFeeTransaction = transaction.HostCollectiveId
+            ? groupedTransactions[key]?.find(t => t.FromCollectiveId === transaction.HostCollectiveId)
+            : groupedTransactions[key]?.[0];
+          if (hostFeeTransaction && Transaction.canHaveFees(transaction)) {
+            return hostFeeTransaction.amountInHostCurrency;
           } else {
             return 0;
           }
