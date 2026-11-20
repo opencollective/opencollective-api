@@ -15,7 +15,7 @@ export const generateHostFeeAmountForTransactionLoader = (): DataLoader<Transact
       });
 
       const hostFeeTransactions = await models.Transaction.findAll({
-        attributes: ['TransactionGroup', 'CollectiveId', 'amountInHostCurrency'],
+        attributes: ['TransactionGroup', 'CollectiveId', 'FromCollectiveId', 'amountInHostCurrency'],
         mapToModel: false,
         raw: true,
         where: {
@@ -34,9 +34,13 @@ export const generateHostFeeAmountForTransactionLoader = (): DataLoader<Transact
           return transaction.hostFeeInHostCurrency;
         } else {
           const key = keyBuilder(transaction);
-          const hostFeeTransactions = groupedTransactions[key];
-          if (hostFeeTransactions && Transaction.canHaveFees(transaction)) {
-            return hostFeeTransactions[0].amountInHostCurrency;
+          // The host fee leg charged to an account comes from its host. Matching on `FromCollectiveId` prevents
+          // picking the host's own HOST_FEE CREDIT when the host is also the contributor.
+          const hostFeeTransaction = transaction.HostCollectiveId
+            ? groupedTransactions[key]?.find(t => t.FromCollectiveId === transaction.HostCollectiveId)
+            : groupedTransactions[key]?.[0];
+          if (hostFeeTransaction && Transaction.canHaveFees(transaction)) {
+            return hostFeeTransaction.amountInHostCurrency;
           } else {
             return 0;
           }
