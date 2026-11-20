@@ -11,6 +11,9 @@
  * The file is written compact and then formatted with Prettier, which keeps short objects on a single line: each
  * sub-region is one line, so the monthly refresh (`.github/workflows/update-address-metadata.yml`) produces small diffs.
  *
+ * A few local deviations from the source are applied on every run, see `COUNTRY_OVERRIDES` and
+ * `LEGACY_SUB_REGION_KEYS`.
+ *
  * Two sources are supported:
  *
  * - Google's address metadata service (https://chromium-i18n.appspot.com/ssl-address, the data behind
@@ -44,6 +47,107 @@ type Country = {
   require?: string;
   zip?: string;
   sub_regions?: SubRegion[];
+};
+
+// ---- Local overrides ----
+
+/** Fields replaced in the source data. Each entry says why; drop it once the reason no longer holds. */
+const COUNTRY_OVERRIDES: Record<string, Pick<Country, 'zip'>> = {
+  // Google now only accepts the full 8-character CPA (C1043AAZ), but most people still write the 4-digit code (1043)
+  // or the letter + 4-digit one (C1043). Keep accepting all three.
+  AR: { zip: '((?:[A-HJ-NP-Z])?\\d{4})([A-Z]{3})?' },
+};
+
+/**
+ * Sub-region keys kept at their previous value when the source renames them, as `{ country: { newKey: keptKey } }`.
+ *
+ * Zone codes are shared with the frontend, which still picks them from lib-address 0.7.0 (`lib/address.ts` in
+ * opencollective-frontend) and clears a stored zone it does not know. `Collective.setLocation` stores what
+ * `normalizeZoneCode` returns, so switching to the new keys here alone would wipe the zone of these locations the
+ * next time they are edited. Rename on both sides at once, and migrate stored locations with
+ * `scripts/fixes/normalize-location-zones.ts`, before removing an entry.
+ */
+const LEGACY_SUB_REGION_KEYS: Record<string, Record<string, string>> = {
+  // ISO 3166-2:CN moved from numeric to letter codes
+  CN: {
+    AH: '34',
+    MO: '92',
+    BJ: '11',
+    CQ: '50',
+    FJ: '35',
+    GS: '62',
+    GD: '44',
+    GX: '45',
+    GZ: '52',
+    HI: '46',
+    HE: '13',
+    HA: '41',
+    HL: '23',
+    HB: '42',
+    HN: '43',
+    JL: '22',
+    JS: '32',
+    JX: '36',
+    LN: '21',
+    NM: '15',
+    NX: '64',
+    QH: '63',
+    SD: '37',
+    SX: '14',
+    SN: '61',
+    SH: '31',
+    SC: '51',
+    TW: '71',
+    TJ: '12',
+    XZ: '54',
+    HK: '91',
+    XJ: '65',
+    YN: '53',
+    ZJ: '33',
+  },
+  // ISO 3166-2:IN renamed Chhattisgarh, Odisha, Telangana and Uttarakhand
+  IN: { CG: 'CT', OD: 'OR', TS: 'TG', UK: 'UT' },
+};
+
+/**
+ * Applies `COUNTRY_OVERRIDES` and `LEGACY_SUB_REGION_KEYS`.
+ * Throws when an override no longer matches the data, so that a change in the source gets reviewed rather than
+ * silently shadowed or reintroduced.
+ */
+export const applyOverrides = (countries: Country[]): Country[] => {
+  const byKey = new Map(countries.map(country => [country.key, country]));
+  for (const countryCode of [...Object.keys(COUNTRY_OVERRIDES), ...Object.keys(LEGACY_SUB_REGION_KEYS)]) {
+    if (!byKey.has(countryCode)) {
+      throw new Error(`Override for ${countryCode}: country not found in the source data`);
+    }
+  }
+
+  return countries.map(country => {
+    const legacyKeys = LEGACY_SUB_REGION_KEYS[country.key];
+    if (!legacyKeys) {
+      return { ...country, ...COUNTRY_OVERRIDES[country.key] };
+    }
+
+    const sourceKeys = new Set(country.sub_regions?.map(subRegion => subRegion.key));
+    for (const [newKey, keptKey] of Object.entries(legacyKeys)) {
+      if (!sourceKeys.has(newKey) && !sourceKeys.has(keptKey)) {
+        throw new Error(`Legacy key override ${country.key}/${newKey} -> ${keptKey}: no sub-region with either key`);
+      }
+      if (sourceKeys.has(newKey) && sourceKeys.has(keptKey)) {
+        throw new Error(`Legacy key override ${country.key}/${newKey} -> ${keptKey}: both keys exist in the source`);
+      }
+    }
+
+    return {
+      ...country,
+      ...COUNTRY_OVERRIDES[country.key],
+      // eslint-disable-next-line camelcase
+      sub_regions: country.sub_regions?.map(subRegion => ({
+        ...subRegion,
+        key: legacyKeys[subRegion.key] ?? subRegion.key,
+      })),
+    };
+  });
 };
 
 const trimCountry = (country: Country) => ({
@@ -133,7 +237,7 @@ const main = async () => {
   const { source, countries } = libAddressDir ? loadFromLibAddress(libAddressDir) : await loadFromGoogle();
   const output = {
     source,
-    countries: Object.fromEntries(countries.map(country => [country.key, trimCountry(country)])),
+    countries: Object.fromEntries(applyOverrides(countries).map(country => [country.key, trimCountry(country)])),
   };
 
   const prettierConfig = await resolveConfig(OUTPUT);
@@ -141,7 +245,9 @@ const main = async () => {
   console.log(`Wrote ${countries.length} countries to ${OUTPUT}`);
 };
 
-main().catch(error => {
-  console.error(error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch(error => {
+    console.error(error);
+    process.exit(1);
+  });
+}
