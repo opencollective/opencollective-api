@@ -182,7 +182,7 @@ export const legalDocumentsMutations = {
           UserId: req.remoteUser.id,
           CollectiveId: account.id,
           FromCollectiveId: req.remoteUser.CollectiveId,
-          UserTokenId: req.useToken?.id,
+          UserTokenId: req.userToken?.id,
           data: {
             service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
             type: formType,
