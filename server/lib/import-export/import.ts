@@ -320,6 +320,9 @@ export const mergeRecords = async (dataFile: string, pkMap: PKMap, transaction) 
 
     record = populateDefaultValues(record);
 
+    // Despite `ignoreDuplicates`, a duplicate primary key is not skipped here: Sequelize throws EmptyResultError
+    // when an instance insert affects 0 rows, so the import aborts and the caller (`scripts/smart-dump.ts`)
+    // rolls back the transaction.
     await model.create(record, {
       transaction,
       validate: false,
