@@ -1,4 +1,4 @@
-Subject: {{#ifCond payee.type "===" "USER"}}{{{collective.name}}} wants to pay you{{else if isCrossHostExpense}}{{{collective.name}}} wants to send funds to one of your hosted collectives{{else}}{{{payee.name}}} wants to send funds to {{{collective.name}}}{{/ifCond}} on Open Collective
+Subject: {{#ifCond payee.type "===" "USER"}}{{{collective.name}}} wants to pay you{{else if isCrossHostExpense}}{{{collective.name}}} wants to send funds to one of your hosted collectives{{else}}{{{collective.name}}} wants to send funds to {{{payee.name}}}{{/ifCond}} on Open Collective
 
 {{> header}}
 
