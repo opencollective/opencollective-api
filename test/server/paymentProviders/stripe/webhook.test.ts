@@ -386,6 +386,24 @@ describe('webhook', () => {
     });
 
     describe('when review is "approved"', () => {
+      it('does not revive a cancelled recurring contribution', async () => {
+        await order.update({ status: OrderStatuses.CANCELLED });
+        await (await order.getSubscription()).deactivate();
+
+        await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+        await order.reload();
+        expect(order.status).to.eql(OrderStatuses.CANCELLED);
+
+        await webhook.reviewClosed(stripeMocks.webhook_review_closed_approved);
+        await order.reload();
+        expect(order.status).to.eql(OrderStatuses.CANCELLED);
+        const subscription = await order.getSubscription();
+        expect(subscription.isActive).to.eql(false);
+
+        const transactions = await order.getTransactions();
+        expect(transactions.map(tx => tx.isInReview)).to.eql([false, false, false, false]);
+      });
+
       it('updates isInReview status of all Transactions connected to the charge', async () => {
         await webhook.reviewOpened(stripeMocks.webhook_review_opened);
         await webhook.reviewClosed(stripeMocks.webhook_review_closed_approved);
