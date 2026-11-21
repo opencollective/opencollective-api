@@ -255,7 +255,7 @@ class Transaction extends ModelWithPublicId<
   ) => Promise<Transaction | null>;
 
   declare getPaymentProcessorFeeTransaction: (
-    options?: null,
+    options?: Pick<Transaction, 'type'> | null,
     params?: { sqlTransaction?: SequelizeTransaction },
   ) => Promise<Transaction | null>;
 
