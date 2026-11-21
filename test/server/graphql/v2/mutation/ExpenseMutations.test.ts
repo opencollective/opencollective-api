@@ -23,6 +23,7 @@ import { TransactionKind } from '../../../../../server/constants/transaction-kin
 import VirtualCardProviders from '../../../../../server/constants/virtual-card-providers';
 import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import cache from '../../../../../server/lib/cache';
 import * as LibCurrency from '../../../../../server/lib/currency';
 import { getFxRate } from '../../../../../server/lib/currency';
 import emailLib from '../../../../../server/lib/email';
@@ -8091,6 +8092,179 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result3.errors).to.exist;
       expect(result3.errors[0].message).to.eq('Two-factor authentication required');
       expect(result3.errors[0].extensions.code).to.eq('2FA_REQUIRED');
+    });
+
+    describe('when payments fail', () => {
+      let admin, twoFactorHeaders;
+
+      const fakeBankAccountExpense = amount =>
+        fakeExpense({
+          payoutMethod: 'transferwise',
+          status: expenseStatus.APPROVED,
+          amount,
+          CollectiveId: collective.id,
+          UserId: user.id,
+          currency: 'USD',
+          PayoutMethodId: payoutMethod.id,
+          type: 'INVOICE',
+        });
+
+      // "Pay" is always rejected for PayPal, once the rolling limit has been checked
+      const fakePaypalExpense = async amount => {
+        const paypalPayoutMethod = await fakePayoutMethod({
+          type: PayoutMethodTypes.PAYPAL,
+          CollectiveId: user.CollectiveId,
+        });
+        return fakeExpense({
+          status: expenseStatus.APPROVED,
+          amount,
+          CollectiveId: collective.id,
+          UserId: user.id,
+          FromCollectiveId: user.CollectiveId,
+          currency: 'USD',
+          PayoutMethodId: paypalPayoutMethod.id,
+          type: 'INVOICE',
+        });
+      };
+
+      const pay = (expense, headers = undefined) =>
+        graphqlQueryV2(processExpenseMutation, { expenseId: expense.id, action: 'PAY' }, admin, null, headers);
+
+      const expectPaid = result => {
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('PROCESSING');
+      };
+
+      const expectFailedAfterRollingLimitCheck = result => {
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.not.eq('2FA_REQUIRED');
+      };
+
+      const expectTwoFactorRequired = result => {
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.eq('2FA_REQUIRED');
+      };
+
+      // Each test gets its own admin, as the amount paid since the last 2FA token is remembered per admin and host
+      beforeEach(async () => {
+        admin = await fakeUser();
+        await host.addUserWithRole(admin, 'ADMIN');
+        await admin.populateRoles();
+        const secret = generateSecret({ length: 64 });
+        await UserTwoFactorMethod.create({
+          UserId: admin.id,
+          method: TwoFactorMethod.TOTP,
+          name: 'TOTP',
+          data: { secret: crypto.encrypt(secret) },
+        });
+        twoFactorHeaders = { [TwoFactorAuthenticationHeader]: `totp ${generateSync({ secret })}` };
+      });
+
+      it('does not lower the amount counted towards the rolling limit', async () => {
+        // Rolling limit is 500.00. Pay 100.00 with a 2FA token, then 300.00 without: 300.00 counted
+        expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
+        expectPaid(await pay(await fakeBankAccountExpense(30000)));
+
+        // Failed attempts must leave the count as it was
+        const paypalExpense = await fakePaypalExpense(5000);
+        for (let i = 0; i < 4; i++) {
+          expectFailedAfterRollingLimitCheck(await pay(paypalExpense));
+        }
+
+        // 300.00 + 250.00 is over the limit
+        expectTwoFactorRequired(await pay(await fakeBankAccountExpense(25000)));
+      });
+
+      it('does not count the failed payments towards the rolling limit', async () => {
+        expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
+        expectPaid(await pay(await fakeBankAccountExpense(30000)));
+
+        const paypalExpense = await fakePaypalExpense(5000);
+        for (let i = 0; i < 4; i++) {
+          expectFailedAfterRollingLimitCheck(await pay(paypalExpense));
+        }
+
+        // 300.00 + 200.00 is exactly the limit: the 4 failed attempts of 50.00 are not part of the count
+        expectPaid(await pay(await fakeBankAccountExpense(20000)));
+      });
+
+      it('does not let a failed payment larger than the amount counted so far open the limit', async () => {
+        expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
+        expectPaid(await pay(await fakeBankAccountExpense(5000)));
+
+        // 50.00 counted, each failed attempt is for 400.00
+        const paypalExpense = await fakePaypalExpense(40000);
+        for (let i = 0; i < 4; i++) {
+          expectFailedAfterRollingLimitCheck(await pay(paypalExpense));
+        }
+
+        // 50.00 + 480.00 is over the limit
+        expectTwoFactorRequired(await pay(await fakeBankAccountExpense(48000)));
+      });
+
+      it('requires a 2FA token when the amount remembered cannot be an amount paid', async () => {
+        expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
+        expectPaid(await pay(await fakeBankAccountExpense(5000)));
+
+        for (const invalidAmount of [-80000, 100.5, 'not a number']) {
+          await cache.set(`${admin.id}_2fa_payment_limit_${host.id}`, invalidAmount, 3600);
+          expectTwoFactorRequired(await pay(await fakeBankAccountExpense(5000)));
+        }
+      });
+    });
+
+    describe('when payments are made at the same time', () => {
+      let admin, twoFactorHeaders;
+
+      const fakeBankAccountExpense = amount =>
+        fakeExpense({
+          payoutMethod: 'transferwise',
+          status: expenseStatus.APPROVED,
+          amount,
+          CollectiveId: collective.id,
+          UserId: user.id,
+          currency: 'USD',
+          PayoutMethodId: payoutMethod.id,
+          type: 'INVOICE',
+        });
+
+      const pay = (expense, headers = undefined) =>
+        graphqlQueryV2(processExpenseMutation, { expenseId: expense.id, action: 'PAY' }, admin, null, headers);
+
+      before(async () => {
+        admin = await fakeUser();
+        await host.addUserWithRole(admin, 'ADMIN');
+        await admin.populateRoles();
+        const secret = generateSecret({ length: 64 });
+        await UserTwoFactorMethod.create({
+          UserId: admin.id,
+          method: TwoFactorMethod.TOTP,
+          name: 'TOTP',
+          data: { secret: crypto.encrypt(secret) },
+        });
+        twoFactorHeaders = { [TwoFactorAuthenticationHeader]: `totp ${generateSync({ secret })}` };
+      });
+
+      it('counts them all towards the rolling limit', async () => {
+        const firstResult = await pay(await fakeBankAccountExpense(10000), twoFactorHeaders);
+        expect(firstResult.errors).to.not.exist;
+
+        // Rolling limit is 500.00: only one payout of 300.00 fits without a new 2FA token
+        const expenses = await Promise.all([30000, 30000, 30000, 30000].map(fakeBankAccountExpense));
+        const results = await Promise.all(expenses.map(expense => pay(expense)));
+
+        const paid = results.filter(result => !result.errors);
+        const refused = results.filter(result => result.errors);
+        expect(paid).to.have.length(1);
+        expect(refused).to.have.length(3);
+        refused.forEach(result => expect(result.errors[0].extensions.code).to.eq('2FA_REQUIRED'));
+
+        // The refused payouts are not part of the count: 300.00 + 200.00 is exactly the limit
+        const lastResult = await pay(await fakeBankAccountExpense(20000));
+        lastResult.errors && console.error(lastResult.errors);
+        expect(lastResult.errors).to.not.exist;
+      });
     });
   });
 
