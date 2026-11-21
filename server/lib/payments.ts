@@ -505,7 +505,11 @@ async function refundPaymentProcessorFee(
     // Load processor fee transaction if using separate transactions
     let processorFeeTransaction;
     if (!transaction.paymentProcessorFeeInHostCurrency) {
-      processorFeeTransaction = await transaction.getPaymentProcessorFeeTransaction(null, { sqlTransaction });
+      // Always refund the CREDIT leg (vendor side): `transaction` stays a DEBIT for expenses paid to the collective itself
+      processorFeeTransaction = await transaction.getPaymentProcessorFeeTransaction(
+        { type: CREDIT },
+        { sqlTransaction },
+      );
       if (!processorFeeTransaction) {
         // If there is no processor fee on the original transaction and no separate processor fee transaction, there is nothing to refund
         reportMessageToSentry('No processor fee found for refund with refundedPaymentProcessorFee set', {
