@@ -381,6 +381,7 @@ export const collectiveSlugReservedList = [
   'tos',
   'transactions',
   'updates',
+  'user', // Placeholder name of profiles without a usable name (PLACEHOLDER_USER_NAME): their slugs are `user-<hash>`
   'virtualcards',
   'virtual-cards',
   'website',
