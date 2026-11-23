@@ -9,11 +9,13 @@ import {
   fakeActiveHost,
   fakeActivity,
   fakeCollective,
+  fakeExpense,
   fakeIncognitoProfile,
   fakeKYCVerification,
   fakeMember,
   fakeOrder,
   fakeOrganization,
+  fakePrivateHost,
   fakeProject,
   fakeTier,
   fakeTransaction,
@@ -801,6 +803,156 @@ describe('server/graphql/v2/interface/Account', () => {
       expect(page2.data.account.members.nodes.map(n => n.account.slug)).to.deep.equal([activeSmall.slug]);
       expect([...page1.data.account.members.nodes, ...page2.data.account.members.nodes].every(n => n.isActive)).to.be
         .true;
+    });
+  });
+
+  describe('expenses', () => {
+    const query = gql`
+      query AccountExpensesTest($slug: String!) {
+        account(slug: $slug) {
+          all: expenses {
+            totalCount
+            nodes {
+              description
+            }
+            payees {
+              nodes {
+                slug
+              }
+            }
+          }
+          submitted: expenses(direction: SUBMITTED) {
+            totalCount
+          }
+          received: expenses(direction: RECEIVED) {
+            totalCount
+          }
+        }
+      }
+    `;
+
+    let collective, adminUser, user, unrelatedPayee;
+
+    before(async () => {
+      await resetTestDB();
+      adminUser = await fakeUser();
+      user = await fakeUser();
+      collective = await fakeCollective({ admin: adminUser });
+      const otherCollective = await fakeCollective();
+      unrelatedPayee = await fakeCollective();
+      await fakeExpense({ CollectiveId: otherCollective.id, FromCollectiveId: unrelatedPayee.id });
+      const privateHost = await fakePrivateHost();
+      const privateCollective = await fakeCollective({
+        HostCollectiveId: privateHost.id,
+        isPrivate: true,
+        approvedAt: new Date(),
+      });
+
+      await fakeExpense({ CollectiveId: collective.id, FromCollectiveId: user.CollectiveId, description: 'Received' });
+      await fakeExpense({
+        CollectiveId: otherCollective.id,
+        FromCollectiveId: collective.id,
+        description: 'Submitted',
+      });
+      await fakeExpense({
+        CollectiveId: privateCollective.id,
+        FromCollectiveId: collective.id,
+        description: 'Submitted to private',
+      });
+    });
+
+    it('returns both submitted and received expenses when no direction is given', async () => {
+      const result = await graphqlQueryV2(query, { slug: collective.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.received.totalCount).to.eq(1);
+      expect(result.data.account.submitted.totalCount).to.eq(1);
+      expect(result.data.account.all.totalCount).to.eq(2);
+      expect(result.data.account.all.nodes.map(n => n.description)).to.have.members(['Received', 'Submitted']);
+    });
+
+    it('scopes payees to expenses submitted or received by the account', async () => {
+      const result = await graphqlQueryV2(query, { slug: collective.slug });
+      expect(result.errors).to.not.exist;
+      const payeeSlugs = result.data.account.all.payees.nodes.map(n => n.slug);
+      expect(payeeSlugs).to.have.members([user.collective.slug, collective.slug]);
+      expect(payeeSlugs).to.not.include(unrelatedPayee.slug);
+    });
+
+    it('returns the same received expenses as direction RECEIVED when including children', async () => {
+      const parent = await fakeCollective();
+      const privateChild = await fakeProject({ ParentCollectiveId: parent.id, isPrivate: true });
+      await fakeExpense({ CollectiveId: privateChild.id, FromCollectiveId: user.CollectiveId });
+
+      const childrenQuery = gql`
+        query AccountExpensesChildrenTest($slug: String!) {
+          account(slug: $slug) {
+            all: expenses(includeChildrenExpenses: true) {
+              totalCount
+            }
+            received: expenses(direction: RECEIVED, includeChildrenExpenses: true) {
+              totalCount
+            }
+          }
+        }
+      `;
+      const result = await graphqlQueryV2(childrenQuery, { slug: parent.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.received.totalCount).to.eq(1);
+      expect(result.data.account.all.totalCount).to.eq(1);
+    });
+
+    it('keeps expenses submitted to private accounts hidden when filtering by host', async () => {
+      const host = await fakeActiveHost();
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
+      const privateHostedCollective = await fakeCollective({
+        HostCollectiveId: host.id,
+        isPrivate: true,
+        approvedAt: new Date(),
+      });
+      await fakeExpense({
+        CollectiveId: privateHostedCollective.id,
+        FromCollectiveId: hostedCollective.id,
+        HostCollectiveId: host.id,
+        description: 'Submitted to private',
+      });
+      await fakeExpense({
+        CollectiveId: hostedCollective.id,
+        FromCollectiveId: user.CollectiveId,
+        HostCollectiveId: host.id,
+        description: 'Received',
+      });
+
+      const hostQuery = gql`
+        query AccountExpensesHostTest($slug: String!, $host: AccountReferenceInput!) {
+          account(slug: $slug) {
+            expenses(host: $host) {
+              nodes {
+                description
+              }
+            }
+          }
+        }
+      `;
+      const variables = { slug: hostedCollective.slug, host: { slug: host.slug } };
+      const result = await graphqlQueryV2(hostQuery, variables);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.expenses.nodes.map(n => n.description)).to.deep.eq(['Received']);
+
+      const hostAdmin = await fakeUser();
+      await host.addUserWithRole(hostAdmin, 'ADMIN');
+      const adminResult = await graphqlQueryV2(hostQuery, variables, hostAdmin);
+      expect(adminResult.errors).to.not.exist;
+      expect(adminResult.data.account.expenses.nodes.map(n => n.description)).to.have.members([
+        'Received',
+        'Submitted to private',
+      ]);
+    });
+
+    it('includes expenses submitted to private accounts only for those who can see them', async () => {
+      const result = await graphqlQueryV2(query, { slug: collective.slug }, adminUser);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.submitted.totalCount).to.eq(2);
+      expect(result.data.account.all.totalCount).to.eq(3);
     });
   });
 
