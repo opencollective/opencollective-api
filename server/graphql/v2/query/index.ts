@@ -31,6 +31,7 @@ import MemberInvitationsQuery from './MemberInvitationsQuery';
 import OffPlatformTransactionsInstitutionsQuery from './OffPlatformTransactionsInstitutionsQuery';
 import OrderQuery from './OrderQuery';
 import OrganizationQuery from './OrganizationQuery';
+import PaymentMethodQuery from './PaymentMethodQuery';
 import PaypalPlanQuery from './PaypalPlanQuery';
 import PersonalTokenQuery from './PersonalTokenQuery';
 import platformSubscriptionTiers from './PlatformSubscriptionTiers';
@@ -102,6 +103,7 @@ const query = {
       }
     },
   },
+  paymentMethod: PaymentMethodQuery,
   platformSubscriptionTiers,
 };
 

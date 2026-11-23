@@ -86,7 +86,7 @@ export const MemberInputType = new GraphQLInputObjectType({
   }),
 });
 
-export const NotificationInputType = new GraphQLInputObjectType({
+const NotificationInputType = new GraphQLInputObjectType({
   name: 'NotificationInputType',
   description: 'Input type for NotificationType',
   fields: () => ({

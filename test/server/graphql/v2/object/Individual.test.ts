@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
+import ExpenseStatuses from '../../../../../server/constants/expense-status';
 import FEATURE from '../../../../../server/constants/feature';
 import MemberRoles from '../../../../../server/constants/roles';
 import { KYCProviderName } from '../../../../../server/lib/kyc/providers';
@@ -11,6 +12,8 @@ import {
   fakeActiveHost,
   fakeCollective,
   fakeEvent,
+  fakeExpense,
+  fakeIncognitoProfile,
   fakeKYCVerification,
   fakeMember,
   fakeOrganization,
@@ -169,6 +172,128 @@ describe('server/graphql/v2/object/Individual', () => {
     });
   });
 
+  describe('email', () => {
+    const emailQuery = gql`
+      query IndividualEmail($slug: String!) {
+        account(slug: $slug) {
+          ... on Individual {
+            email
+          }
+        }
+      }
+    `;
+
+    it('returns null when not logged in', async () => {
+      const result = await graphqlQueryV2(emailQuery, { slug: user.collective.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.email).to.be.null;
+    });
+
+    it('returns null for another user', async () => {
+      const otherUser = await fakeUser();
+      const result = await graphqlQueryV2(emailQuery, { slug: user.collective.slug }, otherUser);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.email).to.be.null;
+    });
+
+    it('returns the email for the user themselves', async () => {
+      const result = await graphqlQueryV2(emailQuery, { slug: user.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.email).to.equal(user.email);
+    });
+
+    it('returns the primary email for a host admin when the user contributed incognito', async () => {
+      const hostAdmin = await fakeUser();
+      await host.addUserWithRole(hostAdmin, MemberRoles.ADMIN);
+      const incognitoProfile = await fakeIncognitoProfile(user);
+      await fakeMember({
+        CollectiveId: collective.id,
+        MemberCollectiveId: incognitoProfile.id,
+        role: MemberRoles.BACKER,
+      });
+
+      const result = await graphqlQueryV2(emailQuery, { slug: user.collective.slug }, hostAdmin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.email).to.equal(user.email);
+    });
+
+    it('always returns null for an incognito account email, even to a host admin', async () => {
+      const hostAdmin = await fakeUser();
+      await host.addUserWithRole(hostAdmin, MemberRoles.ADMIN);
+      const incognitoProfile = await fakeIncognitoProfile(user);
+      await fakeMember({
+        CollectiveId: collective.id,
+        MemberCollectiveId: incognitoProfile.id,
+        role: MemberRoles.BACKER,
+      });
+
+      const result = await graphqlQueryV2(emailQuery, { slug: incognitoProfile.slug }, hostAdmin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.email).to.be.null;
+    });
+
+    it('does not leak an incognito account email to an admin of the incognito profile outside a host relationship', async () => {
+      const caller = await fakeUser();
+      const incognitoProfile = await fakeIncognitoProfile(user);
+      await fakeMember({
+        CollectiveId: incognitoProfile.id,
+        MemberCollectiveId: caller.CollectiveId,
+        role: MemberRoles.ADMIN,
+      });
+
+      const result = await graphqlQueryV2(emailQuery, { slug: incognitoProfile.slug }, caller);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.email).to.be.null;
+    });
+
+    it('does not return the primary email to a collective admin through an incognito membership', async () => {
+      const collectiveAdmin = await fakeUser();
+      await collective.addUserWithRole(collectiveAdmin, MemberRoles.ADMIN);
+      const incognitoProfile = await fakeIncognitoProfile(user);
+      await fakeMember({
+        CollectiveId: collective.id,
+        MemberCollectiveId: incognitoProfile.id,
+        role: MemberRoles.BACKER,
+      });
+
+      const result = await graphqlQueryV2(emailQuery, { slug: user.collective.slug }, collectiveAdmin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.email).to.be.null;
+    });
+
+    it('returns the email for a host admin when the user received a paid expense after their collective was unhosted', async () => {
+      const hostAdmin = await fakeUser();
+      await host.addUserWithRole(hostAdmin, MemberRoles.ADMIN);
+      const formerCollective = await fakeCollective({ HostCollectiveId: null });
+      await fakeExpense({
+        HostCollectiveId: host.id,
+        CollectiveId: formerCollective.id,
+        FromCollectiveId: user.collective.id,
+        status: ExpenseStatuses.PAID,
+      });
+
+      const result = await graphqlQueryV2(emailQuery, { slug: user.collective.slug }, hostAdmin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.email).to.equal(user.email);
+    });
+
+    it('does not return the email to a host accountant after the collective was unhosted', async () => {
+      const accountant = await fakeUser();
+      await host.addUserWithRole(accountant, MemberRoles.ACCOUNTANT);
+      const formerCollective = await fakeCollective({ HostCollectiveId: null });
+      await fakeExpense({
+        HostCollectiveId: host.id,
+        CollectiveId: formerCollective.id,
+        FromCollectiveId: user.collective.id,
+        status: ExpenseStatuses.PAID,
+      });
+
+      const result = await graphqlQueryV2(emailQuery, { slug: user.collective.slug }, accountant);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.email).to.be.null;
+    });
+  });
+
   describe('emailWaitingForValidation', () => {
     const emailWaitingForValidationQuery = gql`
       query Individual($slug: String!) {
@@ -320,6 +445,54 @@ describe('server/graphql/v2/object/Individual', () => {
       const result = await graphqlQueryV2(isRootQuery, { slug: rootUser.collective.slug }, rootUser);
       expect(result.errors).to.not.exist;
       expect(result.data.account.isRoot).to.be.true;
+    });
+  });
+
+  describe('user-specific fields on an account without a user (incognito profile)', () => {
+    const fieldsQuery = gql`
+      query Individual($slug: String!) {
+        account(slug: $slug) {
+          ... on Individual {
+            hasTwoFactorAuth
+            requiresProfileCompletion
+            hasSeenLatestChangelogEntry
+          }
+        }
+      }
+    `;
+
+    const oAuthAuthorizationsQuery = gql`
+      query Individual($slug: String!) {
+        account(slug: $slug) {
+          ... on Individual {
+            oAuthAuthorizations {
+              totalCount
+              nodes {
+                id
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    it('returns null for anonymous users and for the owner', async () => {
+      const incognitoProfile = await fakeIncognitoProfile(user);
+      for (const remoteUser of [undefined, user]) {
+        const result = await graphqlQueryV2(fieldsQuery, { slug: incognitoProfile.slug }, remoteUser);
+        expect(result.errors).to.not.exist;
+        expect(result.data.account.hasTwoFactorAuth).to.be.null;
+        expect(result.data.account.requiresProfileCompletion).to.be.null;
+        expect(result.data.account.hasSeenLatestChangelogEntry).to.be.null;
+      }
+    });
+
+    it('returns an empty oAuthAuthorizations collection for the owner', async () => {
+      const incognitoProfile = await fakeIncognitoProfile(user);
+      const result = await graphqlQueryV2(oAuthAuthorizationsQuery, { slug: incognitoProfile.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.oAuthAuthorizations.totalCount).to.equal(0);
+      expect(result.data.account.oAuthAuthorizations.nodes).to.be.empty;
     });
   });
 

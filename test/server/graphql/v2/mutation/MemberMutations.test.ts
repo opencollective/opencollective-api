@@ -1,12 +1,20 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
+import sinon from 'sinon';
 
 import ActivityTypes from '../../../../../server/constants/activities';
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import cache from '../../../../../server/lib/cache';
 import models from '../../../../../server/models';
-import { fakeCollective, fakePersonalToken, fakeProject, fakeUser } from '../../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeMember,
+  fakePersonalToken,
+  fakeProject,
+  fakeUser,
+} from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 let collectiveAdminUser, collectiveMemberUser, collective;
@@ -491,6 +499,122 @@ describe('memberMutations', () => {
       expect(mutations).to.not.include('followAccount');
       expect(mutations).to.not.include('unfollowAccount');
       expect(memberRoles).to.not.include('FOLLOWER');
+    });
+  });
+
+  describe('editPublicMessage', () => {
+    const editPublicMessageMutation = gql`
+      mutation EditPublicMessage(
+        $fromAccount: AccountReferenceInput!
+        $toAccount: AccountReferenceInput!
+        $message: String
+      ) {
+        editPublicMessage(fromAccount: $fromAccount, toAccount: $toAccount, message: $message) {
+          id
+          publicMessage
+        }
+      }
+    `;
+
+    let contributorUser, receivingCollective, sandbox, cacheDeleteSpy;
+
+    const accountRef = account => ({ id: idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT) });
+    const membersOfContributor = () =>
+      models.Member.findAll({
+        where: { MemberCollectiveId: contributorUser.CollectiveId, CollectiveId: receivingCollective.id },
+      });
+
+    beforeEach(async () => {
+      contributorUser = await fakeUser();
+      receivingCollective = await fakeCollective();
+      // A contributor can have several rows on the same account, all edited at once
+      await fakeMember({
+        MemberCollectiveId: contributorUser.CollectiveId,
+        CollectiveId: receivingCollective.id,
+        role: roles.BACKER,
+      });
+      await fakeMember({
+        MemberCollectiveId: contributorUser.CollectiveId,
+        CollectiveId: receivingCollective.id,
+        role: roles.ATTENDEE,
+      });
+      sandbox = sinon.createSandbox();
+      cacheDeleteSpy = sandbox.spy(cache, 'delete');
+    });
+
+    afterEach(() => sandbox.restore());
+
+    it('edits the public message on every membership and clears the contributors cache', async () => {
+      const message = 'I am happy to support this collective!';
+      const result = await utils.graphqlQueryV2(
+        editPublicMessageMutation,
+        { fromAccount: accountRef(contributorUser.collective), toAccount: accountRef(receivingCollective), message },
+        contributorUser,
+      );
+
+      utils.expectNoErrorsFromResult(result);
+      expect(result.data.editPublicMessage.publicMessage).to.equal(message);
+      const members = await membersOfContributor();
+      expect(members).to.have.length(2);
+      members.forEach(member => expect(member.publicMessage).to.equal(message));
+      expect(cacheDeleteSpy.callCount).to.equal(1);
+      expect(cacheDeleteSpy.firstCall.args[0]).to.equal(`collective_contributors_${receivingCollective.id}`);
+    });
+
+    it('deletes the public message', async () => {
+      await models.Member.update(
+        { publicMessage: 'I am happy to contribute to this collective!' },
+        { where: { MemberCollectiveId: contributorUser.CollectiveId, CollectiveId: receivingCollective.id } },
+      );
+
+      const result = await utils.graphqlQueryV2(
+        editPublicMessageMutation,
+        {
+          fromAccount: accountRef(contributorUser.collective),
+          toAccount: accountRef(receivingCollective),
+          message: null,
+        },
+        contributorUser,
+      );
+
+      utils.expectNoErrorsFromResult(result);
+      expect(result.data.editPublicMessage.publicMessage).to.be.null;
+      const members = await membersOfContributor();
+      expect(members).to.have.length(2);
+      members.forEach(member => expect(member.publicMessage).to.be.null);
+      expect(cacheDeleteSpy.callCount).to.equal(1);
+    });
+
+    it('rejects a user who is not an admin of the contributing account', async () => {
+      const otherUser = await fakeUser();
+      const result = await utils.graphqlQueryV2(
+        editPublicMessageMutation,
+        {
+          fromAccount: accountRef(contributorUser.collective),
+          toAccount: accountRef(receivingCollective),
+          message: 'Not mine',
+        },
+        otherUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal("You don't have the permission to edit member public message");
+      const members = await membersOfContributor();
+      members.forEach(member => expect(member.publicMessage).to.be.null);
+      expect(cacheDeleteSpy.callCount).to.equal(0);
+    });
+
+    it('fails when the account has no membership on the receiving account', async () => {
+      const otherUser = await fakeUser();
+      const result = await utils.graphqlQueryV2(
+        editPublicMessageMutation,
+        { fromAccount: accountRef(otherUser.collective), toAccount: accountRef(receivingCollective), message: 'Hello' },
+        otherUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('No member found');
+      expect(cacheDeleteSpy.callCount).to.equal(0);
     });
   });
 });

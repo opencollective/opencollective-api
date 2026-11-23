@@ -10,6 +10,7 @@ import { buildSearchConditions } from '../../../lib/sql-search';
 import models, { type Collective, type Member, Op, sequelize } from '../../../models';
 import { checkScope, isRemoteUserRoot } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
+import { getMemberIsActiveSQLCondition } from '../../loaders/members';
 import { GraphQLMemberOfCollection } from '../collection/MemberCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../enum/AccountType';
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
@@ -24,6 +25,7 @@ type MemberWhereOptions = {
   role?: { [Op.in]: string[] };
   TierId?: number | { [Op.is]: null };
   [Op.or]?: unknown[];
+  [Op.and]?: unknown[];
 };
 
 type CollectiveWhereOptions = {
@@ -90,6 +92,11 @@ export const IsMemberOfFields = {
       tier: {
         type: GraphQLTierReferenceInput,
         description: 'Filter members by tier',
+      },
+      isActive: {
+        type: GraphQLBoolean,
+        description:
+          'Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.',
       },
     },
     async resolve(collective: Collective, args, req: Request) {
@@ -188,6 +195,11 @@ export const IsMemberOfFields = {
 
       if (searchTermConditions.length) {
         where[Op.or] = searchTermConditions;
+      }
+
+      if (!isNil(args.isActive)) {
+        const isActiveCondition = getMemberIsActiveSQLCondition('Member');
+        where[Op.and] = [sequelize.literal(args.isActive ? isActiveCondition : `NOT ${isActiveCondition}`)];
       }
 
       if (!isEmpty(collectiveDataConditions)) {

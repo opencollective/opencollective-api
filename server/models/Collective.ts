@@ -3474,6 +3474,12 @@ class Collective extends ModelWithPublicId<
     },
   ) {
     const where: WhereOptions<ConnectedAccount> = { service: provider, CollectiveId: this.id };
+    if (provider === Service.PAYPAL) {
+      // "Log in with PayPal" payee accounts (see `connectPaypalPayoutMethod`) share the 'paypal' service but have no
+      // `clientId`: they must never be used as the host's payments/payouts credentials.
+      where.clientId = { [Op.ne]: null };
+      where.token = { [Op.ne]: null };
+    }
     if (options.CreatedByUserId) {
       where.CreatedByUserId = options.CreatedByUserId;
     }
