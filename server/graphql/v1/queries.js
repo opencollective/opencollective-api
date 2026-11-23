@@ -63,6 +63,10 @@ const queries = {
       const tier = await models.Tier.findByPk(args.id);
       if (tier) {
         const collective = await req.loaders.Collective.byId.load(tier.CollectiveId);
+        if (!collective) {
+          // The tier's collective was deleted: treat the tier as not found
+          return null;
+        }
         await assertCanSeeAccount(req, collective);
       }
       return tier;
