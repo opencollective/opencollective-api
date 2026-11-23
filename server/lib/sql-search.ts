@@ -13,7 +13,7 @@ import { isEmpty, isNil, isUndefined, toString, words } from 'lodash';
 import { QueryTypes } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
-import { CollectiveType } from '../constants/collectives';
+import { CollectiveType, PLACEHOLDER_USER_NAME } from '../constants/collectives';
 import { MemberRolesForPrivateAccounts } from '../constants/roles';
 import { isRemoteUserRoot } from '../graphql/common/scope-check';
 import { BadRequest, RateLimitExceeded } from '../graphql/errors';
@@ -578,7 +578,7 @@ export const buildSearchCollectivesQuery = async (
   const whereClause = `
     WHERE c."deletedAt" IS NULL
     ${hideFromSearchCondition}
-    AND c.name NOT IN ('incognito', 'anonymous')
+    AND c.name NOT IN ('incognito', 'anonymous', '${PLACEHOLDER_USER_NAME}')
     AND c."isIncognito" = FALSE ${dynamicConditions}
     ${!isEmpty(args.consolidatedBalance) ? `AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${getAmountRangeQuery(args.consolidatedBalance)}` : ''}`;
 
@@ -1316,6 +1316,7 @@ export const getColletiveTagFrequencies = async args => {
       AND ((data ->> 'hideFromSearch'::text)::boolean) IS NOT TRUE
       AND name::text <> 'incognito'::text
       AND name::text <> 'anonymous'::text
+      AND name::text <> '${PLACEHOLDER_USER_NAME}'::text
       AND "isIncognito" = false
       ${args.hostCollectiveId ? `AND "HostCollectiveId" = :hostCollectiveId` : ``}
       ${searchConditions.sqlConditions}
