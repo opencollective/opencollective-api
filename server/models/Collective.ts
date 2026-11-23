@@ -1922,6 +1922,8 @@ class Collective extends ModelWithPublicId<
     defaultAttributes: { TierId?: number; CreatedByUserId?: number; description?: string; since?: Date } = {},
     context: {
       skipActivity?: boolean;
+      /** Do not send the "new member" email. The caller is responsible for calling `sendNewMemberEmail` */
+      skipNewMemberEmail?: boolean;
       order?: Order;
     } = {},
     transaction = undefined,
@@ -1968,7 +1970,7 @@ class Collective extends ModelWithPublicId<
       case roles.MEMBER:
       case roles.ACCOUNTANT:
       case roles.ADMIN: {
-        if (![CollectiveType.FUND, CollectiveType.PROJECT, CollectiveType.EVENT].includes(this.type)) {
+        if (!context.skipNewMemberEmail) {
           await this.sendNewMemberEmail(user, role, member, sequelizeParams);
         }
 
@@ -2039,7 +2041,11 @@ class Collective extends ModelWithPublicId<
     );
   };
 
-  sendNewMemberEmail = async function (user, role, member, sequelizeParams) {
+  sendNewMemberEmail = async function (user, role, member, sequelizeParams = undefined) {
+    if ([CollectiveType.FUND, CollectiveType.PROJECT, CollectiveType.EVENT].includes(this.type)) {
+      return;
+    }
+
     const remoteUser = await User.findByPk(member.CreatedByUserId, {
       ...sequelizeParams,
       include: [{ model: Collective, as: 'collective' }],
@@ -2905,7 +2911,8 @@ class Collective extends ModelWithPublicId<
     });
 
     // Run all the writes in one transaction, so that an error (e.g. a failed invitation) does not leave
-    // members or invitations removed
+    // members or invitations removed. "New member" emails are only sent once the transaction is committed.
+    const newMemberEmails: Array<{ user: User; role: string; member: Member }> = [];
     await sequelize.transaction(async transaction => {
       if (diff.length > 0) {
         debug('editMembers', 'delete', diff);
@@ -2983,13 +2990,14 @@ class Collective extends ModelWithPublicId<
             // Otherwise create and add the user directly
             const userFields = ['email', 'name', 'company', 'website'];
             const user = await User.createUserWithCollective(pick(member.member, userFields), transaction);
-            await this.addUserWithRole(
+            const newMember = await this.addUserWithRole(
               user,
               member.role,
               { ...memberAttributes, MemberCollectiveId: user.collective.id },
-              {},
+              { skipNewMemberEmail: true },
               transaction,
             );
+            newMemberEmails.push({ user, role: member.role, member: newMember });
           }
         } else {
           throw new Error('Invited member collective has not been set');
@@ -3005,6 +3013,19 @@ class Collective extends ModelWithPublicId<
      */
     invalidateContributorsCache(this.id);
     purgeCacheForCollective(this.slug);
+
+    // Send all the emails, then report the first failure (if any). Memberships are already committed.
+    let emailError;
+    for (const { user, role, member } of newMemberEmails) {
+      try {
+        await this.sendNewMemberEmail(user, role, member);
+      } catch (e) {
+        emailError = emailError || e;
+      }
+    }
+    if (emailError) {
+      throw emailError;
+    }
 
     return this.getMembers({
       where: { role: { [Op.in]: allowedRoles } },

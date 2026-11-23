@@ -20,6 +20,7 @@ import type { Transaction as TransactionModel } from '../../../server/models';
 import models, { Op, sequelize } from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import type { Location } from '../../../server/types/Location';
+import { randEmail } from '../../stores';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -1446,6 +1447,67 @@ describe('server/models/Collective', () => {
           where: { CollectiveId: testCollective.id, FromCollectiveId: newUser.CollectiveId },
         });
         expect(activities).to.eq(0);
+      });
+
+      describe('new members added by email', () => {
+        let emailSandbox;
+        beforeEach(() => {
+          emailSandbox = createSandbox();
+        });
+        afterEach(() => emailSandbox.restore());
+
+        it('keeps the new membership when the email fails to send', async () => {
+          const sendStub = emailSandbox.stub(emailLib, 'send').rejects(new Error('SMTP error'));
+          const admin = await fakeUser();
+          const testCollective = await fakeCollective({ admin, type: CollectiveType.ORGANIZATION });
+          const adminMember = await models.Member.findOne({
+            where: { CollectiveId: testCollective.id, MemberCollectiveId: admin.CollectiveId, role: 'ADMIN' },
+          });
+          const email = randEmail();
+
+          await expect(
+            testCollective.editMembers(
+              [
+                { id: adminMember.id, role: 'ADMIN' },
+                { member: { email, name: 'New member' }, role: 'MEMBER' },
+              ],
+              { CreatedByUserId: admin.id },
+            ),
+          ).to.be.rejectedWith("The member was invited, but we couldn't send the email");
+
+          expect(sendStub.callCount).to.eq(1);
+          const newUser = await models.User.findOne({ where: { email } });
+          expect(newUser).to.exist;
+          const memberCount = await models.Member.count({
+            where: { CollectiveId: testCollective.id, MemberCollectiveId: newUser.CollectiveId, role: 'MEMBER' },
+          });
+          expect(memberCount).to.eq(1);
+        });
+
+        it('does not send the email when the call fails', async () => {
+          const sendStub = emailSandbox.stub(emailLib, 'send').resolves();
+          const admin = await fakeUser();
+          const testCollective = await fakeCollective({ admin, type: CollectiveType.ORGANIZATION });
+          const adminMember = await models.Member.findOne({
+            where: { CollectiveId: testCollective.id, MemberCollectiveId: admin.CollectiveId, role: 'ADMIN' },
+          });
+          const email = randEmail();
+
+          // The last entry fails because the admin already has the ADMIN role
+          await expect(
+            testCollective.editMembers(
+              [
+                { id: adminMember.id, role: 'ADMIN' },
+                { member: { email, name: 'New member' }, role: 'MEMBER' },
+                { member: { id: admin.CollectiveId }, role: 'ADMIN' },
+              ],
+              { CreatedByUserId: admin.id },
+            ),
+          ).to.be.rejectedWith('This user already have the ADMIN role on this Collective');
+
+          expect(sendStub.called).to.be.false;
+          expect(await models.User.count({ where: { email } })).to.eq(0);
+        });
       });
     });
   });
