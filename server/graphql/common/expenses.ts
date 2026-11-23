@@ -1,6 +1,7 @@
 import assert from 'assert';
 
 import * as LibTaxes from '@opencollective/taxes';
+import { Mutex } from 'async-mutex';
 import config from 'config';
 import type express from 'express';
 import {
@@ -61,6 +62,7 @@ import { formatAddress } from '../../lib/format-address';
 import { handleExpensePayoutMethodChange } from '../../lib/kyc/expenses/kyc-expenses-check';
 import logger from '../../lib/logger';
 import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
+import { lockUntilResolved } from '../../lib/mutex';
 import { createRefundTransaction } from '../../lib/payments';
 import { isBlockedForUnpaidPlatformBilling } from '../../lib/platform-subscriptions';
 import { getPolicy } from '../../lib/policies';
@@ -1729,6 +1731,9 @@ const getExpensePayout2FALimitCacheKey = (userId: number, hostId: number) => `${
 /** A payout that was added to a count of the amount paid, and what it must take back if it does not go through */
 type ExpensePayout2FALimitCount = { countKey: string; amount: number };
 
+/** Locks for the checks of the rolling limit running on this server, by cache key of the admin and host */
+const expensePayout2FALimitLocks = new Map<string, Mutex>();
+
 /**
  * Hosts can require 2FA for payouts. A 2FA token opens a session: the admin can then pay without a token until the
  * payouts add up to more than the host's rolling limit, at which point a new token is required and the count
@@ -1742,10 +1747,39 @@ type ExpensePayout2FALimitCount = { countKey: string; amount: number };
  * - A payout only adds to a count that exists. Without one (first payout, expired, not valid) a token is required.
  * - A payout takes its amount back if it is refused here, or if the payment fails later on. It takes it back from
  *   the count it was added to: a payout that fails after a new token restarted the count leaves the new one alone.
+ * - Only one payout of an admin on a host is checked at a time, here and across servers. A payout is then counted
+ *   in the count that goes with the 2FA session that authorizes it, and two tokens presented at the same time
+ *   restart the count one after the other.
  *
  * @returns what was counted for this payout, to pass to `releaseExpensePayout2FALimit` if the payment fails
  */
 async function validateExpensePayout2FALimit(req, host, expense): Promise<ExpensePayout2FALimitCount | null> {
+  const lockKey = getExpensePayout2FALimitCacheKey(req.remoteUser.id, host.id);
+  const expenseAmountInHostCurrency = Number(await convertToCurrency(expense.amount, expense.currency, host.currency));
+
+  // The mutex orders the checks of this server without polling. The Redis lock coordinates them across servers:
+  // it expires by itself if a server dies while holding it, well after the time a check can take.
+  const mutex = expensePayout2FALimitLocks.get(lockKey) || new Mutex();
+  expensePayout2FALimitLocks.set(lockKey, mutex);
+  try {
+    return await mutex.runExclusive(() =>
+      lockUntilResolved(lockKey, () => checkExpensePayout2FALimit(req, host, expense, expenseAmountInHostCurrency), {
+        unlockTimeoutMs: 60 * 1000,
+      }),
+    );
+  } finally {
+    if (!mutex.isLocked()) {
+      expensePayout2FALimitLocks.delete(lockKey);
+    }
+  }
+}
+
+async function checkExpensePayout2FALimit(
+  req,
+  host,
+  expense,
+  expenseAmountInHostCurrency: number,
+): Promise<ExpensePayout2FALimitCount | null> {
   const expensePaidAmountKey = getExpensePayout2FALimitCacheKey(req.remoteUser.id, host.id);
   const hostPayoutTwoFactorAuthenticationRollingLimit = Number(
     get(host, 'settings.payoutsTwoFactorAuth.rollingLimit', 10_000_00),
@@ -1753,8 +1787,6 @@ async function validateExpensePayout2FALimit(req, host, expense): Promise<Expens
 
   const twoFactorSession =
     req.jwtPayload?.sessionId || (req.personalToken?.id && `personalToken_${req.personalToken.id}`);
-
-  const expenseAmountInHostCurrency = Number(await convertToCurrency(expense.amount, expense.currency, host.currency));
 
   // Add this payout to the current count, if there is one. Anything else than the key of a count is ignored, which
   // includes the amounts that used to be stored under this key.
@@ -4329,15 +4361,17 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     }
 
     let balanceAccountingCategory = null;
-    if (args.balanceAccountingCategory) {
-      balanceAccountingCategory = await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
-        throwIfMissing: true,
-        loaders: req.loaders,
-      });
-      checkIsValidBalanceAccountingCategory(balanceAccountingCategory, host);
-    }
 
     try {
+      // Checked here rather than before the `try`, so that an invalid category releases the 2FA rolling limit
+      if (args.balanceAccountingCategory) {
+        balanceAccountingCategory = await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        });
+        checkIsValidBalanceAccountingCategory(balanceAccountingCategory, host);
+      }
+
       if (forceManual) {
         const paymentMethod = args.paymentMethodService
           ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)

@@ -8095,7 +8095,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     describe('amount counted towards the rolling limit', () => {
-      let admin, twoFactorHeaders, countKey;
+      let admin, twoFactorHeaders, cacheKey;
 
       const fakeBankAccountExpense = amount =>
         fakeExpense({
@@ -8127,8 +8127,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         });
       };
 
-      const pay = (expense, headers = undefined) =>
-        graphqlQueryV2(processExpenseMutation, { expenseId: expense.id, action: 'PAY' }, admin, null, headers);
+      const pay = (expense, headers = undefined, paymentParams = undefined) =>
+        graphqlQueryV2(
+          processExpenseMutation,
+          { expenseId: expense.id, action: 'PAY', paymentParams },
+          admin,
+          null,
+          headers,
+        );
 
       const expectPaid = result => {
         result.errors && console.error(result.errors);
@@ -8160,7 +8166,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           data: { secret: crypto.encrypt(secret) },
         });
         twoFactorHeaders = { [TwoFactorAuthenticationHeader]: `totp ${generateSync({ secret })}` };
-        countKey = `${admin.id}_2fa_payment_limit_${host.id}`;
+        // What is remembered for this admin and host: the cache key of the current count
+        cacheKey = `${admin.id}_2fa_payment_limit_${host.id}`;
       });
 
       describe('when payments fail', () => {
@@ -8209,14 +8216,16 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         it('is not lowered by a payment that fails after a new 2FA token restarted the count', async () => {
           const payWithWise = paymentProviders.transferwise.payExpense as SinonStub;
           const slowExpense = await fakeBankAccountExpense(30000);
-          let hasReachedWise = false;
-          let failSlowPayment;
+          let signalReachedWise, failSlowWisePayment, slowPayment;
+          const hasReachedWise = new Promise<void>(resolve => {
+            signalReachedWise = resolve;
+          });
           const slowWisePayment = new Promise((_, reject) => {
-            failSlowPayment = reject;
+            failSlowWisePayment = reject;
           });
           payWithWise.callsFake(async (_connectedAccount, _payoutMethod, expense) => {
             if (expense.id === slowExpense.id) {
-              hasReachedWise = true;
+              signalReachedWise();
               return slowWisePayment;
             }
             return { quote };
@@ -8225,10 +8234,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           try {
             // 300.00 counted for a payment that stays in flight
             expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
-            const slowPayment = pay(slowExpense);
-            while (!hasReachedWise) {
-              await sleep(10);
-            }
+            slowPayment = pay(slowExpense);
+            const returnedEarly = slowPayment.then(result => {
+              throw new Error(`The payout returned before reaching Wise: ${JSON.stringify(result.errors)}`);
+            });
+            await Promise.race([hasReachedWise, returnedEarly]);
 
             // 300.00 more is over the limit: a new 2FA token restarts the count, then 300.00 is counted again
             const expense = await fakeBankAccountExpense(30000);
@@ -8237,16 +8247,32 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             expectPaid(await pay(await fakeBankAccountExpense(30000)));
 
             // The payment in flight fails: what it takes back was counted before the new token
-            failSlowPayment(new Error('Wise is down'));
+            failSlowWisePayment(new Error('Wise is down'));
             const slowResult = await slowPayment;
             expect(slowResult.errors[0].message).to.contain('Wise is down');
 
             // 300.00 + 250.00 is over the limit
             expectTwoFactorRequired(await pay(await fakeBankAccountExpense(25000)));
           } finally {
+            // Let the payment in flight end, whatever happened above, before the next test uses the stub
+            failSlowWisePayment(new Error('Wise is down'));
+            await slowPayment;
             payWithWise.resetBehavior();
             payWithWise.resolves({ quote });
           }
+        });
+
+        it('does not include a payment refused for its accounting category', async () => {
+          expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
+          expectPaid(await pay(await fakeBankAccountExpense(30000)));
+
+          const missingCategory = { id: idEncode(999999999, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY) };
+          expectFailedAfterRollingLimitCheck(
+            await pay(await fakeBankAccountExpense(20000), undefined, { balanceAccountingCategory: missingCategory }),
+          );
+
+          // 300.00 + 200.00 is exactly the limit: the refused payment of 200.00 is not part of the count
+          expectPaid(await pay(await fakeBankAccountExpense(20000)));
         });
       });
 
@@ -8274,7 +8300,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
           expectPaid(await pay(await fakeBankAccountExpense(40000)));
 
-          await cache.delete(await cache.keys(`${countKey}*`));
+          await cache.delete(await cache.get(cacheKey));
 
           // The 2FA session is still valid, but nothing says how much was paid in it
           expectTwoFactorRequired(await pay(await fakeBankAccountExpense(5000)));
@@ -8284,25 +8310,28 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
           expectPaid(await pay(await fakeBankAccountExpense(40000)));
 
-          // Make the count expire right after the payout has read what is remembered
+          // Make the count expire right after the payout has read which one is the current count
           const sandbox = createSandbox();
           const getFromCache = cache.get;
+          let expiredCountKey;
           sandbox.stub(cache, 'get').callsFake(async (key, ...args) => {
             const value = await getFromCache(key, ...args);
-            if (key === countKey) {
-              await cache.delete(await cache.keys(`${countKey}*`));
+            if (key === cacheKey) {
+              expiredCountKey = value;
+              await cache.delete(expiredCountKey);
             }
             return value;
           });
 
           try {
-            const result = await pay(await fakePaypalExpense(5000));
-            expect(result.errors).to.exist;
+            expectTwoFactorRequired(await pay(await fakeBankAccountExpense(5000)));
           } finally {
             sandbox.restore();
           }
 
-          // The count must not have restarted from zero without a token: 480.00 would then fit
+          // The count must not have been recreated from zero: 480.00 would then fit without a token
+          expect(expiredCountKey).to.be.a('string');
+          expect(await cache.get(expiredCountKey)).to.be.undefined;
           expectTwoFactorRequired(await pay(await fakeBankAccountExpense(48000)));
         });
 
@@ -8312,7 +8341,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
           // Including the amounts that were stored under this key before the count had its own key
           for (const invalidValue of [0, 20000, -80000, 100.5, 'not a count', true, { amount: 0 }]) {
-            await cache.set(countKey, invalidValue, 3600);
+            await cache.set(cacheKey, invalidValue, 3600);
             expectTwoFactorRequired(await pay(await fakeBankAccountExpense(5000)));
           }
         });

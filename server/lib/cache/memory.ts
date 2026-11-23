@@ -40,10 +40,12 @@ const makeMemoryProvider = opts => {
     },
     /** Atomic. Like `increment`, but only for an existing key, which keeps its TTL: an expired counter is never recreated. */
     incrementIfExists: async (key: string, amount: number): Promise<number | undefined> => {
-      if (!cache.has(key)) {
+      // A single read decides whether the key is live: it could expire between `has` and `get`
+      const value = cache.get(key);
+      if (value === undefined) {
         return undefined;
       }
-      const count = (Number(cache.get(key)) || 0) + amount;
+      const count = (Number(value) || 0) + amount;
       cache.set(key, count, { noUpdateTTL: true });
       return count;
     },

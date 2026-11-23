@@ -229,8 +229,11 @@ describe('server/lib/cache/cacheProvider', () => {
           const redis = await createRedisClient();
           await cache.set('increment_if_exists_ttl', 0, 60);
           await redis.expire('increment_if_exists_ttl', 5);
-          await cache.incrementIfExists('increment_if_exists_ttl', 1);
-          assert.isAtMost(await redis.ttl('increment_if_exists_ttl'), 5);
+          assert.strictEqual(await cache.incrementIfExists('increment_if_exists_ttl', 1), 1);
+          // -2 would mean that the key is gone, -1 that it lost its expiry
+          const ttl = await redis.ttl('increment_if_exists_ttl');
+          assert.isAbove(ttl, 0);
+          assert.isAtMost(ttl, 5);
         });
       }
     });
