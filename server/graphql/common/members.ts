@@ -26,19 +26,8 @@ export const checkCanEditTeam = async (account: Collective, req: express.Request
 };
 
 /** A mutation to edit the public message of all matching members. */
-export async function editPublicMessage(
-  _,
-  { fromAccount, toAccount, FromCollectiveId = null, CollectiveId = null, message },
-  req,
-) {
+export async function editPublicMessage(_, { fromAccount, toAccount, message }, req) {
   checkRemoteUserCanUseAccount(req);
-
-  if (!fromAccount && FromCollectiveId) {
-    fromAccount = await req.loaders.Collective.byId.load(FromCollectiveId);
-  }
-  if (!toAccount && CollectiveId) {
-    toAccount = await req.loaders.Collective.byId.load(CollectiveId);
-  }
 
   if (!req.remoteUser.isAdminOfCollective(fromAccount)) {
     throw new Unauthorized("You don't have the permission to edit member public message");

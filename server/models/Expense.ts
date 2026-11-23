@@ -22,7 +22,6 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import roles from '../constants/roles';
 import { reduceArrayToCurrency } from '../lib/currency';
 import logger from '../lib/logger';
-import { deletePaymentIntentForSource, syncPaymentIntentFromExpense } from '../lib/payment-intents/sync';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import SQLQueries from '../lib/queries';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
@@ -283,7 +282,8 @@ class Expense extends ModelWithPublicId<
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },
         user: submittedByUserCollective.minimal,
         fromCollective: fromCollective.minimal,
-        expense: this.info,
+        // `this.info.grossAmount` relies on `this.items`, which most callers don't load: use the items resolved above
+        expense: { ...this.info, grossAmount: Expense.computeTotalAmountForExpense(items || [], []) },
         transaction: transaction?.info,
         amountInHostCurrency: Math.abs(transaction?.info?.amountInHostCurrency),
         payoutMethod: payoutMethod && pick(payoutMethod.dataValues, ['id', 'type', 'data']),
@@ -1123,18 +1123,6 @@ Expense.init(
     paranoid: true,
     tableName: 'Expenses',
     hooks: {
-      async afterCreate(expense: Expense, options) {
-        await syncPaymentIntentFromExpense(expense, options.transaction);
-      },
-      async afterUpdate(expense: Expense, options) {
-        if (expense.changed('status')) {
-          // PAID is finalized by the ledger hook in Transaction.createDoubleEntry
-          if (expense.status === ExpenseStatus.PAID) {
-            return;
-          }
-          await syncPaymentIntentFromExpense(expense, options.transaction);
-        }
-      },
       async afterDestroy(expense: Expense, options) {
         // Not considering ExpensesAttachedFiles because they don't support soft delete (they should)
         const promises = [
@@ -1158,7 +1146,6 @@ Expense.init(
         }
 
         await Promise.all(promises);
-        await deletePaymentIntentForSource({ expense }, options.transaction);
       },
     },
   },

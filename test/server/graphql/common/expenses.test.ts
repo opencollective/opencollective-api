@@ -8,6 +8,7 @@ import { CollectiveType } from '../../../../server/constants/collectives';
 import FEATURE from '../../../../server/constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../../../server/constants/permissions';
 import POLICIES from '../../../../server/constants/policies';
+import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../../server/graphql/common/context-permissions';
 import {
   canApprove,
@@ -47,10 +48,12 @@ import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import {
   fakeCollective,
   fakeCurrencyExchangeRate,
+  fakeEvent,
   fakeExpense,
   fakeHost,
   fakePayoutMethod,
   fakePlatformSubscription,
+  fakeProject,
   fakeTransaction,
   fakeUser,
   fakeVendor,
@@ -444,6 +447,19 @@ describe('server/graphql/common/expenses', () => {
           limitedHostAdmin: false,
           platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
+      });
+    });
+
+    describe('when the payee account was deleted', () => {
+      it('does not recognise the submitter nor the former payee admins as owners, without crashing', async () => {
+        const submitter = await fakeUser();
+        const payeeAdmin = await fakeUser();
+        const payee = await fakeCollective({ type: CollectiveType.ORGANIZATION, admin: payeeAdmin });
+        const expense = await fakeExpense({ UserId: submitter.id, FromCollectiveId: payee.id });
+        await payee.destroy();
+        const reloadedExpense = await models.Expense.findByPk(expense.id);
+        expect(await canSeeExpenseInvoiceInfo(makeRequest(submitter), reloadedExpense)).to.be.false;
+        expect(await canSeeExpenseInvoiceInfo(makeRequest(payeeAdmin), reloadedExpense)).to.be.false;
       });
     });
   });
@@ -1934,6 +1950,43 @@ describe('server/graphql/common/expenses', () => {
         );
         expect(await canApprove(makeRequest(dualRoleAdmin), expense)).to.be.false;
       });
+
+      it('applies the host policy to projects and events using the admins of their parent collective', async () => {
+        const host = await fakeHost();
+        await host.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
+            enabled: true,
+            amountInCents: 0,
+            appliesToHostedCollectives: true,
+            appliesToSingleAdminCollectives: false,
+          },
+        });
+
+        const author = await fakeUser();
+        const otherAdmin = await fakeUser();
+        const parent = await fakeCollective({ HostCollectiveId: host.id, admin: [author, otherAdmin] });
+        await author.populateRoles({ force: true });
+
+        // Projects and events have no admin members of their own: their admins are the ones of the parent
+        const project = await fakeProject({ ParentCollectiveId: parent.id });
+        const event = await fakeEvent({ ParentCollectiveId: parent.id });
+
+        for (const account of [parent, project, event]) {
+          const expense = await fakeExpense({
+            CollectiveId: account.id,
+            FromCollectiveId: author.CollectiveId,
+            UserId: author.id,
+            status: 'PENDING',
+            amount: 10e2,
+          });
+
+          expect(
+            await getApolloErrorCode(canApprove(makeRequest(author), expense, { throw: true })),
+            `${account.type} expense`,
+          ).to.be.equal(EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE);
+          expect(await canApprove(makeRequest(author), expense)).to.be.false;
+        }
+      });
     });
 
     describe('manually created virtual card charges', () => {
@@ -2795,6 +2848,67 @@ describe('server/graphql/common/expenses', () => {
             exchangeRate: null,
           });
         });
+      });
+    });
+
+    describe('Paid expenses', () => {
+      it('does not reuse the expense to host FX rate for a currency that is not the host one', async () => {
+        const host = await fakeHost({ currency: 'USD' });
+        const collective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id });
+        const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+        const expense = await fakeExpense({
+          PayoutMethodId: payoutMethod.id,
+          CollectiveId: collective.id,
+          amount: 1000,
+          currency: 'EUR',
+        });
+        await createTransactionsFromPaidExpense(host, expense, undefined, 1.6);
+        await expense.update({ status: 'PAID' });
+
+        const amount = await getExpenseAmountInDifferentCurrency(expense, 'GBP', makeRequest());
+        expect(amount).to.deep.eq({
+          value: 1100, // Falls back on the mocked 1.1 internal rate, not on the 1.6 EUR->USD rate
+          currency: 'GBP',
+          exchangeRate: {
+            date: amount.exchangeRate.date,
+            fromCurrency: 'EUR',
+            isApproximate: true,
+            source: 'OPENCOLLECTIVE',
+            toCurrency: 'GBP',
+            value: 1.1,
+          },
+        });
+      });
+
+      it('converts the expense to host FX rate with the recorded rate when the account currency is requested', async () => {
+        const host = await fakeHost({ currency: 'USD' });
+        const collective = await fakeCollective({ currency: 'GBP', HostCollectiveId: host.id });
+        const expense = await fakeExpense({
+          CollectiveId: collective.id,
+          amount: 10000,
+          currency: 'EUR',
+          status: 'PAID',
+        });
+        const common = {
+          ExpenseId: expense.id,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          kind: TransactionKind.EXPENSE,
+          currency: 'GBP' as const,
+          hostCurrency: 'USD' as const,
+          hostCurrencyFxRate: 1.25, // GBP -> USD
+          data: { expenseToHostFxRate: 1.1 }, // EUR -> USD
+        };
+        await fakeTransaction({ ...common, type: 'DEBIT', amount: -8800, amountInHostCurrency: -11000 });
+        await fakeTransaction({ ...common, type: 'CREDIT', amount: 8800, amountInHostCurrency: 11000 });
+
+        const amount = await getExpenseAmountInDifferentCurrency(expense, 'GBP', makeRequest());
+        expect(amount.value).to.eq(8800);
+        expect(amount.currency).to.eq('GBP');
+        expect(amount.exchangeRate.fromCurrency).to.eq('EUR');
+        expect(amount.exchangeRate.toCurrency).to.eq('GBP');
+        expect(amount.exchangeRate.value).to.be.closeTo(0.88, 0.00001);
+        expect(amount.exchangeRate.isApproximate).to.be.false;
       });
     });
   });

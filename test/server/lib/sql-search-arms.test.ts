@@ -6,7 +6,7 @@ import { compileToInlineSQL, getKysely } from '../../../server/lib/kysely';
 import { EntityShortIdPrefix } from '../../../server/lib/permalink/entity-map';
 import { buildSearchArms } from '../../../server/lib/sql-search';
 import { sequelize } from '../../../server/models';
-import { fakeCollective, fakeOrder, fakeUser } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeExpense, fakeOrder, fakeOrganization, fakeUser } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('server/lib/sql-search (search arms)', () => {
@@ -126,6 +126,137 @@ describe('server/lib/sql-search (search arms)', () => {
         order.id,
         otherOrder.id,
       ]);
+    });
+
+    it('finds rows through the account of a user they reference', async () => {
+      // `order` was created by the contributor. Without `accountIdFields`, its accounts are not searched.
+      const options = { accountIdFields: [], textFields: [], userAccountIdFields: ['Orders.CreatedByUserId'] };
+      expect(await search('zebulon', options)).to.deep.eq([order.id]);
+      expect(await search('Zebulon Contrib', options)).to.deep.eq([order.id]);
+      expect(await search('@zebulon', options)).to.deep.eq([order.id]);
+      expect(await search('@zebu', options)).to.deep.eq([]);
+      expect(await search(contributor.collective.publicId, options)).to.deep.eq([order.id]);
+      expect(await search('unrelated', options)).to.deep.eq([]);
+      expect(await search('zebulon', { ...options, userAccountIdFields: [] })).to.deep.eq([]);
+      expect(await search('zebulon', { ...options, limits: { maxAccounts: 0 } })).to.be.null;
+    });
+
+    it('ignores deleted users', async () => {
+      const options = { accountIdFields: [], userAccountIdFields: ['Orders.CreatedByUserId'] };
+      const creator = await fakeUser(null, { name: 'Vanished Creator' });
+      const orderOfCreator = await fakeOrder({ CreatedByUserId: creator.id, status: OrderStatuses.PAID });
+      expect(await search('Vanished Creator', options)).to.deep.eq([orderOfCreator.id]);
+      await creator.destroy();
+      expect(await search('Vanished Creator', options)).to.deep.eq([]);
+    });
+
+    it('finds rows by exact structured data, for a single word or an integer', async () => {
+      const dataFields = [sql`("Orders"."data"#>>'{ponumber}')`, sql`("Orders"."data"#>>'{customData,batch}')`];
+      const data = { ponumber: 'REF2026X', customData: { batch: 40500021 } };
+      const orderWithData = await fakeOrder({ CollectiveId: otherCollective.id, status: OrderStatuses.PAID, data });
+      expect(await search('REF2026X', { dataFields })).to.deep.eq([orderWithData.id]);
+      expect(await search('40500021', { dataFields })).to.deep.eq([orderWithData.id]);
+      expect(await search('0040500021', { dataFields })).to.deep.eq([orderWithData.id]); // Leading zeros are ignored
+      expect(await search('REF2026X')).to.deep.eq([]);
+      // Not partially, not case-insensitively, and not for several words or a decimal number
+      expect(await search('REF2026', { dataFields })).to.deep.eq([]);
+      expect(await search('ref2026x', { dataFields })).to.deep.eq([]);
+      expect(await search('REF2026X paid', { dataFields })).to.deep.eq([]);
+      expect(await search('40500021.0', { dataFields })).to.deep.eq([]);
+    });
+
+    it('counts the matches of structured data, up to the limit', async () => {
+      const data = { ponumber: 'SHAREDREF' };
+      const orders = [
+        await fakeOrder({ CollectiveId: otherCollective.id, status: OrderStatuses.PAID, data }),
+        await fakeOrder({ CollectiveId: otherCollective.id, status: OrderStatuses.PAID, data }),
+      ];
+
+      // Only structured data is searched: no arm is estimated by the planner
+      const options = {
+        dataFields: [sql`("Orders"."data"#>>'{ponumber}')`],
+        accountIdFields: [],
+        idFields: [],
+        textFields: [],
+        stringArrayFields: [],
+      };
+      expect(await search('SHAREDREF', { ...options, limits: { maxMatches: 2 } })).to.deep.eq(orders.map(o => o.id));
+      expect(await search('SHAREDREF', { ...options, limits: { maxMatches: 1 } })).to.be.null;
+    });
+
+    it('returns null when the scope is too small', async () => {
+      // `collective` has one order (and a deleted one), `otherCollective` has others
+      const inCollective = [sql<SqlBool>`"Orders"."CollectiveId" = ${collective.id}`];
+      const inBothCollectives = [
+        sql<SqlBool>`"Orders"."CollectiveId" IN (${sql.join([collective.id, otherCollective.id])})`,
+      ];
+
+      // The scope is only measured: it does not filter the matches
+      expect(await search('zebulon', { minScope: { conditions: inCollective, rows: 1 } })).to.deep.eq([
+        order.id,
+        otherOrder.id,
+      ]);
+      expect(await search('zebulon', { minScope: { conditions: inCollective, rows: 2 } })).to.be.null;
+      expect(await search('@zebulon', { minScope: { conditions: inCollective, rows: 2 } })).to.be.null;
+      expect(await search('zebulon', { minScope: { conditions: inBothCollectives, rows: 2 } })).to.deep.eq([
+        order.id,
+        otherOrder.id,
+      ]);
+      expect(await search('zebulon', { minScope: { conditions: inBothCollectives, rows: 1000 } })).to.be.null;
+    });
+
+    it('searches expenses', async () => {
+      const submitter = await fakeUser(
+        { email: 'yolanda.submitter@example.com' },
+        { name: 'Yolanda Submitter', slug: 'yolanda-submitter' },
+      );
+      const payee = await fakeOrganization({ name: 'Wonderful Vendor', slug: 'wonderful-vendor' });
+      const expense = await fakeExpense({
+        UserId: submitter.id,
+        FromCollectiveId: payee.id,
+        CollectiveId: collective.id,
+        description: 'Printing of the stickers',
+        tags: ['swag'],
+        amount: 98765432,
+        reference: 'PO778899',
+        data: { transfer: { id: 40500021 } },
+      });
+      await fakeExpense({ CollectiveId: otherCollective.id, description: 'Something else' });
+      const deletedExpense = await fakeExpense({ UserId: submitter.id, CollectiveId: collective.id });
+      await deletedExpense.destroy();
+
+      const searchExpenses = async (searchTerm: string) => {
+        const arms = await buildSearchArms(searchTerm, {
+          table: 'Expenses',
+          accountIdFields: ['Expenses.FromCollectiveId', 'Expenses.CollectiveId'],
+          userAccountIdFields: ['Expenses.UserId'],
+          userIdFields: ['Expenses.UserId'],
+          idFields: ['Expenses.id'],
+          textFields: ['Expenses.description'],
+          dataFields: [sql`("Expenses"."data"#>>'{transfer,id}')`, 'Expenses.reference'],
+          amountFields: ['Expenses.amount'],
+          stringArrayFields: ['Expenses.tags'],
+        });
+
+        return (await arms.execute()).map(row => row.id);
+      };
+
+      for (const searchTerm of [
+        'wonderful vendor', // Payee
+        "Arms O'Collective", // Collective
+        'yolanda', // Submitter
+        '@yolanda-submitter',
+        'yolanda.submitter@example.com',
+        'the stickers',
+        'swag',
+        '987654.32',
+        '40500021',
+        'PO778899',
+      ]) {
+        expect(await searchExpenses(searchTerm), searchTerm).to.deep.eq([expense.id]);
+      }
+
+      expect(await searchExpenses('nothing matches this')).to.deep.eq([]);
     });
   });
 

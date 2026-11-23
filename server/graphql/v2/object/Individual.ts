@@ -55,6 +55,8 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: GraphQLString,
         description: 'Email for the account. For authenticated user: scope: "email".',
         async resolve(userCollective, args, req: Request) {
+          // Incognito profiles have no email of their own. Dashboards deduplicate them to the primary
+          // profile, so the incognito account itself always stays hidden here.
           if (!req.remoteUser || userCollective.isIncognito || !checkScope(req, 'email')) {
             return null;
           } else if (await req.loaders.Collective.canSeePrivateProfileInfo.load(userCollective.id)) {
@@ -103,7 +105,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: GraphQLBoolean,
         async resolve(account: Collective, _, req) {
           const user = await req.loaders.User.byCollectiveId.load(account.id);
-          if (req.remoteUser?.id === user.id) {
+          if (user && req.remoteUser?.id === user.id) {
             return Boolean(account.data?.requiresProfileCompletion);
           }
         },
@@ -172,7 +174,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: GraphQLBoolean,
         async resolve(collective, args, req) {
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
-          if (req.remoteUser?.id === user.id) {
+          if (user && req.remoteUser?.id === user.id) {
             return twoFactorAuthLib.userHasTwoFactorAuthEnabled(user);
           }
         },
@@ -205,7 +207,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: GraphQLBoolean,
         async resolve(collective, args, req) {
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
-          if (req.remoteUser?.id !== user.id) {
+          if (!user || req.remoteUser?.id !== user.id) {
             return null;
           }
           return hasSeenLatestChangelogEntry(user);
@@ -223,6 +225,9 @@ export const GraphQLIndividual = new GraphQLObjectType({
           requireSessionToken(req);
 
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
+          if (!user) {
+            return { nodes: [], totalCount: 0, limit, offset };
+          }
 
           const query = { where: { UserId: user.id } };
 
@@ -237,6 +242,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
           const nodes = result.rows.map(row => {
             return {
               id: row.id,
+              publicId: row.publicId,
               account: collective,
               application: row.application,
               expiresAt: row.accessTokenExpiresAt,

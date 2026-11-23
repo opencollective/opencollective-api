@@ -4,10 +4,12 @@ import { expect } from 'chai';
 import config from 'config';
 import type { SinonStub } from 'sinon';
 import { assert, createSandbox } from 'sinon';
+import type Stripe from 'stripe';
 
 import { Service } from '../../../../server/constants/connected-account';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import stripe from '../../../../server/lib/stripe';
+import models from '../../../../server/models';
 import * as common from '../../../../server/paymentProviders/stripe/common';
 import {
   fakeCollective,
@@ -383,6 +385,86 @@ describe('server/paymentProviders/stripe/common', () => {
 
       assert.notCalled(stripe.paymentMethods.create);
       assert.notCalled(stripe.paymentMethods.attach);
+    });
+  });
+
+  describe('#createOrRetrievePaymentMethodFromSetupIntent()', () => {
+    beforeEach(() => utils.resetTestDB());
+
+    const sandbox = createSandbox();
+    afterEach(sandbox.restore);
+
+    let collective, otherAccountPaymentMethod;
+    beforeEach(async () => {
+      collective = await fakeCollective();
+      await fakeConnectedAccount({
+        CollectiveId: collective.id,
+        service: Service.STRIPE_CUSTOMER,
+        username: 'cus_test',
+        clientId: 'acc_host',
+      });
+
+      // A payment method from another account, with no Stripe payment method id
+      otherAccountPaymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+        data: {},
+      });
+
+      sandbox.stub(stripe.paymentMethods, 'retrieve').callsFake(async (id: string) => {
+        if (id === 'pm_bancontact') {
+          return { id, type: 'bancontact', bancontact: {}, customer: 'cus_test' };
+        } else if (id === 'pm_sepa') {
+          return { id, type: 'sepa_debit', sepa_debit: { bank_code: '123', last4: '4242' }, customer: 'cus_test' };
+        }
+        throw new Error(`Unexpected payment method ${id}`);
+      });
+      sandbox.stub(stripe.setupIntents, 'retrieve');
+    });
+
+    const bancontactSetupIntent = (status: string, generatedSepaDebit: string | null) =>
+      ({
+        id: 'seti_test',
+        status,
+        usage: 'off_session',
+        customer: 'cus_test',
+        payment_method: 'pm_bancontact',
+        latest_attempt: {
+          id: 'setatt_test',
+          payment_method_details: {
+            type: 'bancontact',
+            bancontact: { generated_sepa_debit: generatedSepaDebit },
+          },
+        },
+      }) as unknown as Stripe.SetupIntent;
+
+    it('rejects a Bancontact setup intent that has no generated SEPA debit yet', async () => {
+      await expect(
+        common.createOrRetrievePaymentMethodFromSetupIntent(bancontactSetupIntent('requires_action', null)),
+      ).to.be.rejectedWith(Error, 'Bancontact setup intent is not completed yet');
+    });
+
+    it('refreshes a stored Bancontact payment method that has no generated SEPA debit yet', async () => {
+      await expect(common.createOrRetrievePaymentMethodFromSetupIntent(bancontactSetupIntent('requires_action', null)))
+        .to.be.rejected;
+      const bancontactPaymentMethod = await models.PaymentMethod.findOne({
+        where: { data: { stripePaymentMethodId: 'pm_bancontact' } },
+      });
+      expect(bancontactPaymentMethod.CollectiveId).to.equal(collective.id);
+
+      // Still not completed: rejected again
+      await expect(
+        common.createOrRetrievePaymentMethodFromSetupIntent(bancontactSetupIntent('requires_action', null)),
+      ).to.be.rejectedWith(Error, 'Bancontact setup intent is not completed yet');
+
+      // Once completed, returns the generated SEPA debit payment method of the account
+      const paymentMethod = await common.createOrRetrievePaymentMethodFromSetupIntent(
+        bancontactSetupIntent('succeeded', 'pm_sepa'),
+      );
+      expect(paymentMethod.id).to.not.equal(otherAccountPaymentMethod.id);
+      expect(paymentMethod.CollectiveId).to.equal(collective.id);
+      expect(paymentMethod.type).to.equal(PAYMENT_METHOD_TYPE.SEPA_DEBIT);
+      expect(paymentMethod.data.stripePaymentMethodId).to.equal('pm_sepa');
     });
   });
 });
