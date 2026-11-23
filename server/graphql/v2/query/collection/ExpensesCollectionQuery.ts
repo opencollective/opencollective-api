@@ -32,7 +32,7 @@ import {
   type SearchArmsQuery,
 } from '../../../../lib/sql-search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
-import { AccountingCategory, Activity, Collective, Op, sequelize } from '../../../../models';
+import { AccountingCategory, Collective, Op, sequelize } from '../../../../models';
 import Expense, { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
@@ -622,6 +622,7 @@ export const ExpensesCollectionQueryResolver = async (
     where['FromCollectiveId'] = uniq(fromAccountIds);
   }
 
+  let scopedAccountIds: number[] | undefined;
   if (accounts.length > 0) {
     if (host) {
       assertCollectivesMatchFiscalHostFilter(accounts, host, args.hostContext);
@@ -634,7 +635,13 @@ export const ExpensesCollectionQueryResolver = async (
       );
       accountIds.push(...childIds.flat());
     }
-    where['CollectiveId'] = uniq(accountIds);
+    scopedAccountIds = uniq(accountIds);
+    if (args.includeSubmittedByAccount) {
+      // Internal flag set by `Account.expenses` when no direction is given: match expenses received OR submitted
+      where[Op.and].push({ [Op.or]: [{ CollectiveId: scopedAccountIds }, { FromCollectiveId: scopedAccountIds }] });
+    } else {
+      where['CollectiveId'] = scopedAccountIds;
+    }
   }
 
   if (host) {
@@ -680,10 +687,16 @@ export const ExpensesCollectionQueryResolver = async (
 
   // Restrict expenses whose payer collective is private unless the viewer may see that account (or submitted the expense).
   // When `accounts` / `account` / `host` is set, visibility was already enforced via assertCanSeeAllAccounts on those collectives.
-  if (!isRemoteUserRoot(req) && accounts.length === 0 && !host) {
+  // With `includeSubmittedByAccount`, only the received side was checked: submitted expenses still go through this filter,
+  // even when `host` is set.
+  if (!isRemoteUserRoot(req) && (args.includeSubmittedByAccount || (accounts.length === 0 && !host))) {
     ensureInclude('collective', { required: true });
 
     const orConditions: WhereOptions[] = [{ '$collective.isPrivate$': false }];
+    if (args.includeSubmittedByAccount) {
+      // Received side (account and its children when `includeChildrenExpenses` is set), same as `direction: RECEIVED`
+      orConditions.push({ CollectiveId: scopedAccountIds });
+    }
 
     if (req.remoteUser) {
       const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
@@ -1023,14 +1036,16 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   if (args.activity) {
-    const activitiesConditions: WhereOptions<Activity> = {};
+    // Use EXISTS rather than joining the hasMany `activities` association: a join returns one row per
+    // matching activity, which inflates totalCount/totalAmount and breaks pagination.
+    const activitiesConditions = ['"act"."ExpenseId" = "Expense"."id"'];
     if (args.activity.individual) {
       const account = await fetchAccountWithReference(args.activity.individual, { throwIfMissing: true });
       const user = await req.loaders.User.byCollectiveId.load(account.id);
       if (!user) {
         throw new NotFound('User not found');
       }
-      activitiesConditions.UserId = user.id;
+      activitiesConditions.push(`"act"."UserId" = ${sequelize.escape(user.id)}`);
     }
     if (args.activity.type && args.activity.type.length > 0) {
       const allowedActivityTypes = new Set([
@@ -1062,10 +1077,14 @@ export const ExpensesCollectionQueryResolver = async (
         throw new Forbidden(`Invalid activity type: ${invalidActivityTypes.join(', ')}`);
       }
 
-      activitiesConditions.type = { [Op.in]: args.activity.type };
+      activitiesConditions.push(
+        `"act"."type" IN (${args.activity.type.map(type => sequelize.escape(type)).join(', ')})`,
+      );
     }
 
-    include.push({ association: 'activities', required: true, attributes: [], where: activitiesConditions });
+    where[Op.and].push(
+      sequelize.literal(`EXISTS (SELECT 1 FROM "Activities" AS "act" WHERE ${activitiesConditions.join(' AND ')})`),
+    );
   }
 
   const kycStatusFilter: 'VERIFIED' | 'PENDING' | undefined = args.kycStatus;
@@ -1209,10 +1228,7 @@ export const ExpensesCollectionQueryResolver = async (
     limit: args.limit,
     offset: args.offset,
     payees: (subArgs: { limit?: number; offset?: number; searchTerm?: string } = {}) =>
-      fetchExpensesPayees(
-        { args, host, fromHost, collectiveIds: where['CollectiveId'] as number[] | undefined },
-        subArgs,
-      ),
+      fetchExpensesPayees({ args, host, fromHost, collectiveIds: scopedAccountIds }, subArgs),
   };
 };
 
@@ -1241,7 +1257,12 @@ const fetchExpensesPayees = async (
 
   // Account filter (collectiveIds already includes children when includeChildrenExpenses is set)
   if (collectiveIds?.length > 0) {
-    expenseConditions.push('e."CollectiveId" IN (:collectiveIds)');
+    if (args.includeSubmittedByAccount) {
+      // Same received-or-submitted scope as the main query
+      expenseConditions.push('(e."CollectiveId" IN (:collectiveIds) OR e."FromCollectiveId" IN (:collectiveIds))');
+    } else {
+      expenseConditions.push('e."CollectiveId" IN (:collectiveIds)');
+    }
     replacements.collectiveIds = collectiveIds;
   }
 

@@ -6,7 +6,7 @@ import { defaults, get, intersection, isEmpty, pick, uniq } from 'lodash';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute, Transaction } from 'sequelize';
 
 import activities from '../constants/activities';
-import { CollectiveType } from '../constants/collectives';
+import { CollectiveType, PLACEHOLDER_USER_NAME } from '../constants/collectives';
 import { Service } from '../constants/connected-account';
 import FEATURE from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
@@ -594,15 +594,17 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     }
     const sequelizeParams = transaction ? { transaction } : undefined;
     let collectiveName = userData.name;
-    if (!collectiveName || collectiveName.trim().length === 0) {
-      collectiveName = 'incognito';
-    } else if (slugify(collectiveName).length === 0) {
-      collectiveName = 'user';
+    let slug: string;
+    if (!collectiveName || collectiveName.trim().length === 0 || slugify(collectiveName).length === 0) {
+      // No usable name: a neutral placeholder with a `user-…` slug. `editAccount` derives the slug from the name once set
+      collectiveName = PLACEHOLDER_USER_NAME;
+      slug = await Collective.generateSlug(null);
     }
 
     const userCollectiveData = {
       type: CollectiveType.USER,
       name: collectiveName,
+      slug,
       legalName: userData.legalName,
       image: userData.image,
       description: userData.description,
@@ -643,7 +645,12 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     // It's difficult to predict when the image will be updated by findImageForUser
     // So we skip that in test environment to make it more predictable
     if (!['ci', 'test'].includes(config.env)) {
-      user.collective.findImageForUser(user);
+      // The image update runs outside of the transaction, so wait for the profile to be committed
+      if (transaction) {
+        transaction.afterCommit(() => void user.collective.findImageForUser(user));
+      } else {
+        user.collective.findImageForUser(user);
+      }
     }
     user.CollectiveId = user.collective.id;
     await user.save(sequelizeParams);

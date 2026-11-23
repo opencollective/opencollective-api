@@ -111,8 +111,7 @@ const makeStatLimitChecker =
   (statFn: (...any) => Promise<FraudStats>, args: Parameters<typeof statFn>) =>
   async (limitParams: [string, number, number, number]) => {
     const [interval, ...limits] = limitParams;
-    args.push(interval);
-    const stat = await statFn(...args);
+    const stat = await statFn(...args, interval);
     const statArray = [stat.numberOfOrders, stat.errorRate, stat.paymentMethodRate];
     const fail = limits.every((limit, index) => limit <= statArray[index]);
     debug(`Checking ${statArray.join()} below threshold ${limitParams.join()}: ${fail ? 'FAIL' : 'PASS'}`);

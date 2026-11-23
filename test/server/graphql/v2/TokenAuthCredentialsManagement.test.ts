@@ -56,6 +56,34 @@ const REVOKE_OAUTH_AUTHORIZATION_MUTATION = gql`
   }
 `;
 
+const ACCOUNT_OAUTH_AUTHORIZATIONS_FIELDS_QUERY = gql`
+  query AccountOAuthAuthorizationsFields($slug: String!) {
+    account(slug: $slug) {
+      ... on Individual {
+        oAuthAuthorizations {
+          nodes {
+            id
+            publicId
+            scope
+            preAuthorize2FA
+          }
+        }
+      }
+    }
+  }
+`;
+
+const REVOKE_OAUTH_AUTHORIZATION_FIELDS_MUTATION = gql`
+  mutation RevokeOAuthAuthorizationFields($oAuthAuthorization: OAuthAuthorizationReferenceInput!) {
+    revokeOAuthAuthorization(oAuthAuthorization: $oAuthAuthorization) {
+      id
+      publicId
+      scope
+      preAuthorize2FA
+    }
+  }
+`;
+
 describe('server/graphql/v2/TokenAuthCredentialsManagement', () => {
   before(resetTestDB);
 
@@ -213,6 +241,38 @@ describe('server/graphql/v2/TokenAuthCredentialsManagement', () => {
 
       expect(result.errors).to.not.exist;
       expect(result.data.account.personalTokens.totalCount).to.equal(1);
+    });
+
+    it('can list OAuth authorizations with their publicId, scope and preAuthorize2FA', async () => {
+      const user = await fakeUser();
+      const userToken = await fakeUserToken({ user, scope: [OAuthScopes.account], preAuthorize2FA: true });
+      const result = await graphqlQueryV2(
+        ACCOUNT_OAUTH_AUTHORIZATIONS_FIELDS_QUERY,
+        { slug: user.collective.slug },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      const [node] = result.data.account.oAuthAuthorizations.nodes;
+      expect(node.publicId).to.equal(userToken.publicId);
+      expect(node.scope).to.deep.equal([OAuthScopes.account]);
+      expect(node.preAuthorize2FA).to.be.true;
+    });
+
+    it('returns the publicId, scope and preAuthorize2FA of a revoked OAuth authorization', async () => {
+      const user = await fakeUser();
+      const userToken = await fakeUserToken({ user, scope: [OAuthScopes.account], preAuthorize2FA: true });
+      const result = await graphqlQueryV2(
+        REVOKE_OAUTH_AUTHORIZATION_FIELDS_MUTATION,
+        { oAuthAuthorization: { id: userToken.publicId } },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      const revoked = result.data.revokeOAuthAuthorization;
+      expect(revoked.publicId).to.equal(userToken.publicId);
+      expect(revoked.scope).to.deep.equal([OAuthScopes.account]);
+      expect(revoked.preAuthorize2FA).to.be.true;
     });
   });
 });

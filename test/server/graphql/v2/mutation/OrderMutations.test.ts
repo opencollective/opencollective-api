@@ -7,8 +7,6 @@ import { createSandbox, useFakeTimers } from 'sinon';
 
 import { activities, roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order-status';
-import PaymentIntentStatus from '../../../../../server/constants/payment-intent-status';
-import PaymentIntentType from '../../../../../server/constants/payment-intent-type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../../../server/constants/platform';
 import MemberRoles from '../../../../../server/constants/roles';
@@ -42,10 +40,6 @@ import {
   fakeVendor,
   randStr,
 } from '../../../../test-helpers/fake-data';
-import {
-  expectPaymentIntentForOrder,
-  expectTransactionsLinkedToPaymentIntent,
-} from '../../../../test-helpers/payment-intent';
 import {
   generateValid2FAHeader,
   graphqlQueryV2,
@@ -490,13 +484,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(order.frequency).to.eq('ONETIME');
           expect(order.fromAccount.legacyId).to.eq(fromUser.CollectiveId);
           expect(order.toAccount.legacyId).to.eq(toCollective.id);
-
-          const paymentIntent = await expectPaymentIntentForOrder(order.legacyId, {
-            status: PaymentIntentStatus.PAID,
-            type: PaymentIntentType.Contribution,
-          });
-          expect(paymentIntent.primaryTransactionGroup).to.exist;
-          await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
         });
 
         it('rejects order with non-positive quantity', async () => {
@@ -2052,13 +2039,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(resultOrder.fromAccount.legacyId).to.equal(validOrderPrams.fromAccount.legacyId);
       expect(resultOrder.toAccount.legacyId).to.equal(validOrderPrams.toAccount.legacyId);
       expect(resultOrder.accountingCategory.id).to.equal(validOrderPrams.accountingCategory.id);
-
-      await expectPaymentIntentForOrder(resultOrder.legacyId, {
-        status: PaymentIntentStatus.PENDING,
-        type: PaymentIntentType.Contribution,
-        primaryTransactionGroup: null,
-        paidAt: null,
-      });
     });
 
     it('creates a pending order with a custom tier', async () => {
@@ -4173,13 +4153,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         expect(result.errors).to.not.exist;
         expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
-
-        const paymentIntent = await expectPaymentIntentForOrder(order.id, {
-          status: PaymentIntentStatus.PAID,
-          type: PaymentIntentType.Contribution,
-        });
-        expect(paymentIntent.primaryTransactionGroup).to.exist;
-        await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
       });
 
       it('should stamp the balance accounting category from the manual payment provider when marked as paid', async () => {

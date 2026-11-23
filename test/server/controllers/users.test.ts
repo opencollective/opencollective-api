@@ -325,6 +325,42 @@ describe('server/controllers/users', () => {
         errorCode: 'EMAIL_AWAITING_VERIFICATION',
       });
     });
+
+    it('should drop the OTP session when the OTP email fails to send, so a retry can succeed', async () => {
+      sandbox.stub(sentryLib, 'reportErrorToSentry');
+      const sendStub = sandbox.stub(emailLib, 'send');
+      sendStub.onFirstCall().rejects(new Error('SMTP unavailable'));
+      sendStub.resolves();
+      const email = randEmail();
+
+      const failedResponse = await makeSignupRequest(email, randIPV4());
+      expect(failedResponse._getStatusCode()).to.eql(500);
+      expect(failedResponse._getData()).to.eql({
+        error: { message: 'Error sending OTP email', type: 'EMAIL_SEND_ERROR' },
+      });
+      // The sessionId was never returned, so a cached session could only lock the caller out
+      expect(await sessionCache.get(`otp_signup_${email}`)).to.be.undefined;
+
+      const retryResponse = await makeSignupRequest(email, randIPV4());
+      expect(retryResponse._getStatusCode()).to.eql(200);
+      expect(retryResponse._getData().sessionId).to.be.a('string');
+      expect(sendStub).to.have.been.calledTwice;
+    });
+
+    it('should not let resend-otp calls without a valid session spend the per-email budget', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+
+      const ip = randIPV4();
+      for (let i = 0; i < OTP_RATE_LIMIT_MAX_ATTEMPTS; i++) {
+        const resendResponse = await makeResendOtpRequest(email, undefined, ip);
+        expect(resendResponse._getStatusCode()).to.eql(401);
+      }
+
+      const response = await makeSignupRequest(email, randIPV4());
+      expect(response._getStatusCode()).to.eql(200);
+      expect(response._getData().sessionId).to.be.a('string');
+    });
   });
 
   describe('resendEmailVerificationOTP', () => {
@@ -476,6 +512,29 @@ describe('server/controllers/users', () => {
 
       const remaining = await sessionCache.get(otpSessionKey);
       expect(remaining).to.be.undefined;
+    });
+
+    it('should resend an OTP to an existing unconfirmed user that does not carry requiresVerification', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      // Shaped like the users created by `server/lib/guest-accounts.ts`
+      const user = await fakeUser({ confirmedAt: null, data: { creationRequest: { ip: randIPV4() } } });
+      expect(user.data.requiresVerification).to.be.undefined;
+
+      const otpResponse = await makeSignupRequest(user.email, randIPV4());
+      expect(otpResponse._getStatusCode()).to.eql(200);
+      const { sessionId } = otpResponse._getData();
+
+      const resendResponse = await makeResendOtpRequest(user.email, sessionId, randIPV4());
+      expect(resendResponse._getStatusCode()).to.eql(200);
+      expect(resendResponse._getData()).to.eql({ success: true });
+      expect(emailLib.send).to.have.been.calledTwice;
+
+      // The session survives and the new code verifies the email
+      const otpSession = await sessionCache.get(`otp_signup_${user.email}`);
+      expect(otpSession?.sessionId).to.equal(sessionId);
+      const otp = (emailLib.send as sinon.SinonStub).getCall(1).args[2].otp;
+      const verifyResponse = await makeVerifyOtpRequest(user.email, otp, sessionId, randIPV4());
+      expect(verifyResponse._getStatusCode()).to.eql(200);
     });
   });
 
@@ -783,6 +842,26 @@ describe('server/controllers/users', () => {
       expect(user.collective.data.wasGuest).to.be.true;
       expect(user.collective.data.requiresProfileCompletion).to.be.true;
       expect(user.collective.data.isSuspended).to.be.undefined;
+    });
+
+    it('should not let calls without the sessionId spend the per-email budget', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+
+      const otpResponse = await makeSignupRequest(email, randIPV4());
+      expect(otpResponse._getStatusCode()).to.eql(200);
+      const { sessionId } = otpResponse._getData();
+      const otp = (emailLib.send as sinon.SinonStub).getCall(0).args[2].otp;
+
+      const strangerIp = randIPV4();
+      for (let i = 0; i < OTP_RATE_LIMIT_MAX_ATTEMPTS; i++) {
+        const strangerResponse = await makeVerifyOtpRequest(email, '023456', 'not-my-session', strangerIp);
+        expect(strangerResponse._getData()).to.eql({ error: { message: 'Not found', type: 'NOT_FOUND' } });
+      }
+
+      const verifyResponse = await makeVerifyOtpRequest(email, otp, sessionId, randIPV4());
+      expect(verifyResponse._getStatusCode()).to.eql(200);
+      expect(verifyResponse._getData().success).to.be.true;
     });
   });
 

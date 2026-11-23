@@ -1039,7 +1039,3 @@ export const handleNotification: Handler = async (req, res) => {
 export const handleOAuthAuthorizationCode: Handler = async (req, res) => {
   return handleNotFound(req, res);
 };
-
-export const handlePaymentIntent: Handler = async (req, res) => {
-  return handleNotFound(req, res);
-};

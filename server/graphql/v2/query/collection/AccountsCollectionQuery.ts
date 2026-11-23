@@ -97,7 +97,8 @@ const AccountsCollectionQuery = {
     },
     consolidatedBalance: {
       type: GraphQLAmountRangeInput,
-      description: 'Filter by the balance of the account and its children accounts (events and projects)',
+      description:
+        'Filter by the balance of the account and its children accounts (events and projects), compared in USD: balances and bounds are converted from their currency',
     },
     plan: {
       type: new GraphQLList(GraphQLString),

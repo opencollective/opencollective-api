@@ -46,8 +46,8 @@ export abstract class KYCProvider<
     providerParams: ProviderKYCSubmit,
   ): Promise<ProviderKYCVerification>;
 
-  protected async handleKycRequested(kycVerification: ProviderKYCVerification, providerParams: ProviderKYCRequest) {
-    await this.createRequestedActivity(kycVerification, providerParams.UserTokenId);
+  protected async handleKycRequested(kycVerification: ProviderKYCVerification, params: KYCRequest) {
+    await this.createRequestedActivity(kycVerification, params.UserTokenId);
     try {
       await handleExpenseKycRequested(kycVerification);
     } catch (error) {
@@ -55,12 +55,14 @@ export abstract class KYCProvider<
     }
   }
 
-  protected async handleKycVerified(kycVerification: ProviderKYCVerification) {
+  protected async handleKycVerified(kycVerification: ProviderKYCVerification, params: KYCRequest) {
     await Activity.create({
       type: ActivityTypes.KYC_VERIFIED,
       CollectiveId: kycVerification.CollectiveId,
       FromCollectiveId: kycVerification.RequestedByCollectiveId,
       HostCollectiveId: kycVerification.RequestedByCollectiveId,
+      UserId: params.CreatedByUserId,
+      UserTokenId: params.UserTokenId,
       data: this.activityData(kycVerification),
     });
 
