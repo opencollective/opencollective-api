@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import moment from 'moment';
 import { createSandbox } from 'sinon';
 
 import { CollectiveType } from '../../../server/constants/collectives';
@@ -119,14 +118,22 @@ describe('server/lib/budget', () => {
     it('sums correctly', async () => {
       const collective = await fakeCollective();
 
-      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 20e2 }, { createDoubleEntry: true });
+      // Fixed dates: `endDate` is exclusive, so a transaction created in the same millisecond as a
+      // "now" end date would be left out of the sum.
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: collective.id, amount: 20e2, createdAt: new Date('2024-01-10') },
+        { createDoubleEntry: true },
+      );
 
-      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 30e2 }, { createDoubleEntry: true });
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: collective.id, amount: 30e2, createdAt: new Date('2024-01-20') },
+        { createDoubleEntry: true },
+      );
 
       const txs = await sumCollectivesTransactions([collective.id], {
         column: 'netAmountInHostCurrency',
-        startDate: moment().subtract(1, 'day').toDate(),
-        endDate: moment().toDate(),
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-02-01'),
         kind: null,
       });
       const sum = txs[collective.id];
