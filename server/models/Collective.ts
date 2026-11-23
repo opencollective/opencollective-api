@@ -1970,7 +1970,7 @@ class Collective extends ModelWithPublicId<
       case roles.MEMBER:
       case roles.ACCOUNTANT:
       case roles.ADMIN: {
-        if (!context.skipNewMemberEmail) {
+        if (!context?.skipNewMemberEmail) {
           await this.sendNewMemberEmail(user, role, member, sequelizeParams);
         }
 
