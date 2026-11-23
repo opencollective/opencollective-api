@@ -448,6 +448,54 @@ describe('server/graphql/v2/object/Individual', () => {
     });
   });
 
+  describe('user-specific fields on an account without a user (incognito profile)', () => {
+    const fieldsQuery = gql`
+      query Individual($slug: String!) {
+        account(slug: $slug) {
+          ... on Individual {
+            hasTwoFactorAuth
+            requiresProfileCompletion
+            hasSeenLatestChangelogEntry
+          }
+        }
+      }
+    `;
+
+    const oAuthAuthorizationsQuery = gql`
+      query Individual($slug: String!) {
+        account(slug: $slug) {
+          ... on Individual {
+            oAuthAuthorizations {
+              totalCount
+              nodes {
+                id
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    it('returns null for anonymous users and for the owner', async () => {
+      const incognitoProfile = await fakeIncognitoProfile(user);
+      for (const remoteUser of [undefined, user]) {
+        const result = await graphqlQueryV2(fieldsQuery, { slug: incognitoProfile.slug }, remoteUser);
+        expect(result.errors).to.not.exist;
+        expect(result.data.account.hasTwoFactorAuth).to.be.null;
+        expect(result.data.account.requiresProfileCompletion).to.be.null;
+        expect(result.data.account.hasSeenLatestChangelogEntry).to.be.null;
+      }
+    });
+
+    it('returns an empty oAuthAuthorizations collection for the owner', async () => {
+      const incognitoProfile = await fakeIncognitoProfile(user);
+      const result = await graphqlQueryV2(oAuthAuthorizationsQuery, { slug: incognitoProfile.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.oAuthAuthorizations.totalCount).to.equal(0);
+      expect(result.data.account.oAuthAuthorizations.nodes).to.be.empty;
+    });
+  });
+
   describe('kycVerifications', () => {
     beforeEach(async () => {
       await resetTestDB();
