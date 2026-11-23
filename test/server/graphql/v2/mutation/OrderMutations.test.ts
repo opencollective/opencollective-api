@@ -7,8 +7,6 @@ import { createSandbox, useFakeTimers } from 'sinon';
 
 import { activities, roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order-status';
-import PaymentIntentStatus from '../../../../../server/constants/payment-intent-status';
-import PaymentIntentType from '../../../../../server/constants/payment-intent-type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../../../server/constants/platform';
 import MemberRoles from '../../../../../server/constants/roles';
@@ -42,10 +40,6 @@ import {
   fakeVendor,
   randStr,
 } from '../../../../test-helpers/fake-data';
-import {
-  expectPaymentIntentForOrder,
-  expectTransactionsLinkedToPaymentIntent,
-} from '../../../../test-helpers/payment-intent';
 import {
   generateValid2FAHeader,
   graphqlQueryV2,
@@ -490,13 +484,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(order.frequency).to.eq('ONETIME');
           expect(order.fromAccount.legacyId).to.eq(fromUser.CollectiveId);
           expect(order.toAccount.legacyId).to.eq(toCollective.id);
-
-          const paymentIntent = await expectPaymentIntentForOrder(order.legacyId, {
-            status: PaymentIntentStatus.PAID,
-            type: PaymentIntentType.Contribution,
-          });
-          expect(paymentIntent.primaryTransactionGroup).to.exist;
-          await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
         });
 
         it('rejects order with non-positive quantity', async () => {
@@ -2052,13 +2039,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(resultOrder.fromAccount.legacyId).to.equal(validOrderPrams.fromAccount.legacyId);
       expect(resultOrder.toAccount.legacyId).to.equal(validOrderPrams.toAccount.legacyId);
       expect(resultOrder.accountingCategory.id).to.equal(validOrderPrams.accountingCategory.id);
-
-      await expectPaymentIntentForOrder(resultOrder.legacyId, {
-        status: PaymentIntentStatus.PENDING,
-        type: PaymentIntentType.Contribution,
-        primaryTransactionGroup: null,
-        paidAt: null,
-      });
     });
 
     it('creates a pending order with a custom tier', async () => {
@@ -2085,6 +2065,22 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(result.errors[0].message).to.equal(
         `Tier #${foreignTier.id} is not part of collective #${validOrderPrams.toAccount.legacyId}`,
       );
+    });
+
+    it('rejects a tax rate outside of 0 and 1', async () => {
+      for (const rate of [5, -0.5]) {
+        const orderInput = { ...validOrderPrams, tax: { type: 'VAT', rate, country: 'FR' } };
+        const result = await callCreatePendingOrder({ order: orderInput }, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('Tax rate must be between 0 and 1');
+      }
+    });
+
+    it('rejects an amount that is not greater than 0', async () => {
+      const orderInput = { ...validOrderPrams, amount: { valueInCents: 0, currency: 'USD' } };
+      const result = await callCreatePendingOrder({ order: orderInput }, hostAdmin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Amount should be greater than 0');
     });
 
     it('creates a pending order with tax', async () => {
@@ -2465,6 +2461,33 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('Only host admins can edit pending orders');
+    });
+
+    it('rejects a tax rate outside of 0 and 1', async () => {
+      const result = await callEditPendingOrder(
+        { order: { ...validEditOrderParams, tax: { ...validEditOrderParams.tax, rate: 5, amount: undefined } } },
+        hostAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Tax rate must be between 0 and 1');
+    });
+
+    it('rejects an amount that is not greater than 0', async () => {
+      const orderWithoutTier = await fakeOrder({
+        status: OrderStatuses.PENDING,
+        FromCollectiveId: (await fakeCollective({ currency: 'USD', HostCollectiveId: host.id })).id,
+        CollectiveId: order.CollectiveId,
+        TierId: null,
+        totalAmount: 1000,
+        currency: 'USD',
+        data: { isPendingContribution: true },
+      });
+      const result = await callEditPendingOrder(
+        { order: { legacyId: orderWithoutTier.id, amount: { valueInCents: 0, currency: 'USD' } } },
+        hostAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Amount should be greater than 0');
     });
 
     it('must be a PENDING order', async () => {
@@ -3085,6 +3108,41 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(result.errors[0].message).to.equal(
         `Moving Added Funds when the current source Account has a different Fiscal Host than the new source Account is not supported.`,
       );
+    });
+
+    describe('Added Funds from a hosted Collective', () => {
+      let host, order;
+
+      beforeEach(async () => {
+        host = await fakeActiveHost();
+        const sourceCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.HOST,
+        });
+        order = await fakeOrder(
+          { PaymentMethodId: paymentMethod.id, FromCollectiveId: sourceCollective.id },
+          { withTransactions: true, withBackerMember: true },
+        );
+      });
+
+      it('can be moved to another Collective under the same host', async () => {
+        const newProfile = await fakeCollective({ HostCollectiveId: host.id });
+        const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
+        expect(result.errors).to.not.exist;
+        expect(result.data.moveOrders[0].fromAccount.legacyId).to.eq(newProfile.id);
+      });
+
+      it('cannot be moved to an unhosted User profile', async () => {
+        const newProfile = (await fakeUser({}, { name: 'New profile' })).collective;
+        const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal(
+          `Moving Added Funds when the current source Account has a different Fiscal Host than the new source Account is not supported.`,
+        );
+        await order.reload();
+        expect(order.FromCollectiveId).to.not.eq(newProfile.id);
+      });
     });
   });
 
@@ -4095,13 +4153,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         expect(result.errors).to.not.exist;
         expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
-
-        const paymentIntent = await expectPaymentIntentForOrder(order.id, {
-          status: PaymentIntentStatus.PAID,
-          type: PaymentIntentType.Contribution,
-        });
-        expect(paymentIntent.primaryTransactionGroup).to.exist;
-        await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
       });
 
       it('should stamp the balance accounting category from the manual payment provider when marked as paid', async () => {
@@ -4196,6 +4247,33 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(tip).to.have.property('amount').equal(100);
       });
 
+      it('rejects a payment processor fee that is negative or above the contribution amount', async () => {
+        const balanceBefore = await collective.getBalance();
+        for (const [valueInCents, message] of [
+          [-5000, 'Payment processor fee cannot be negative'],
+          [25000, 'Payment processor fee cannot be higher than the contribution amount'],
+        ]) {
+          const result = await graphqlQueryV2(
+            processPendingOrderMutation,
+            {
+              action: 'MARK_AS_PAID',
+              order: {
+                id: idEncode(order.id, 'order'),
+                paymentProcessorFee: { valueInCents, currency: order.currency },
+              },
+            },
+            hostAdminUser,
+          );
+
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.equal(message);
+          await order.reload();
+          expect(order.status).to.equal(OrderStatuses.PENDING);
+        }
+
+        expect(await collective.getBalance()).to.equal(balanceBefore);
+      });
+
       it('rejects a negative platform tip when marking as paid', async () => {
         const result = await graphqlQueryV2(
           processPendingOrderMutation,
@@ -4233,6 +4311,29 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.errors[0].message).to.include('Platform tip amount cannot be negative');
         await order.reload();
         expect(order.status).to.equal(OrderStatuses.PENDING);
+      });
+
+      it('applies the tax to the existing amount when marking as paid with a tax but no amount', async () => {
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            action: 'MARK_AS_PAID',
+            order: {
+              id: idEncode(order.id, 'order'),
+              tax: { type: 'VAT', rate: 0.2 },
+            },
+          },
+          hostAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
+
+        await order.reload();
+        expect(order.taxAmount).to.equal(2000); // 20% VAT on $100
+        expect(order.totalAmount).to.equal(12000);
+        expect(order.data.tax.percentage).to.equal(20);
       });
     });
 

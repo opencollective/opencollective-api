@@ -10,6 +10,10 @@ import {
   buildKyselySearchConditions,
   buildSearchConditions,
   canonicalizeIntegerSearchText,
+  getColletiveTagFrequencies,
+  getExpenseTagFrequencies,
+  getSearchTermSQLConditions,
+  isPostgresInteger,
   MAX_SEARCH_TERM_LENGTH,
   parseSearchTerm,
   sanitizeSearchTermForILike,
@@ -17,9 +21,18 @@ import {
   searchCollectivesInDB,
 } from '../../../server/lib/sql-search';
 import { getOrCreateHostPlatformTipsAccount } from '../../../server/lib/transactions';
-import { Op } from '../../../server/models';
+import models, { Collective, Op, sequelize } from '../../../server/models';
 import { newUser } from '../../stores';
-import { fakeCollective, fakeHost, fakeUser, randStr } from '../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeExpense,
+  fakeHost,
+  fakePlatformSubscription,
+  fakeProject,
+  fakeTransaction,
+  fakeUser,
+  randStr,
+} from '../../test-helpers/fake-data';
 import { createPrivateAccountFixture } from '../../test-helpers/private-account-fixture';
 import { makeRequest, resetTestDB } from '../../utils';
 
@@ -269,6 +282,65 @@ describe('server/lib/search', () => {
       // });
     });
 
+    describe('Filters', () => {
+      // A unique tag isolates the accounts created by each test from the rest of the DB
+      const searchWithTag = async (tag, options = {}) => {
+        const [results] = await searchCollectivesInDB(publicReq, '', 0, 100, { tags: [tag], ...options });
+        return results.map(c => c.id);
+      };
+
+      it('filters on several countries', async () => {
+        const tag = randStr('countries-');
+        const us = await fakeCollective({ countryISO: 'US', tags: [tag] });
+        const fr = await fakeCollective({ countryISO: 'FR', tags: [tag] });
+        const de = await fakeCollective({ countryISO: 'DE', tags: [tag] });
+        expect(await searchWithTag(tag, { countries: ['US'] })).to.deep.eq([us.id]);
+        const results = await searchWithTag(tag, { countries: ['US', 'FR'] });
+        expect(results).to.have.members([us.id, fr.id]);
+        expect(results).to.not.include(de.id);
+      });
+
+      it('filters on isPlatformSubscriber', async () => {
+        const tag = randStr('subscriber-');
+        const subscriber = await fakeCollective({ tags: [tag] });
+        const notSubscriber = await fakeCollective({ tags: [tag] });
+        await fakePlatformSubscription({ CollectiveId: subscriber.id });
+        expect(await searchWithTag(tag, { isPlatformSubscriber: true })).to.deep.eq([subscriber.id]);
+        expect(await searchWithTag(tag, { isPlatformSubscriber: false })).to.deep.eq([notSubscriber.id]);
+      });
+
+      it('treats a missing isVerified / isFirstPartyHost flag as false', async () => {
+        const tag = randStr('verified-');
+        const noKey = await fakeCollective({ tags: [tag], data: {} });
+        const explicitFalse = await fakeCollective({
+          tags: [tag],
+          data: { isVerified: false, isFirstPartyHost: false },
+        });
+        const flagged = await fakeCollective({ tags: [tag], data: { isVerified: true, isFirstPartyHost: true } });
+        for (const filter of ['isVerified', 'isFirstPartyHost']) {
+          expect(await searchWithTag(tag, { [filter]: false })).to.have.members([noKey.id, explicitFalse.id]);
+          expect(await searchWithTag(tag, { [filter]: true })).to.deep.eq([flagged.id]);
+        }
+      });
+    });
+
+    describe('Non-ASCII single-word terms', () => {
+      it('searches on the term', async () => {
+        const japanese = await fakeCollective({ name: '日本語 コミュニティ' });
+        const russian = await fakeCollective({ name: 'Привет Community' });
+        const [japaneseResults] = await searchCollectivesInDB(publicReq, '日本語');
+        expect(japaneseResults.map(c => c.id)).to.deep.eq([japanese.id]);
+        const [russianResults] = await searchCollectivesInDB(publicReq, 'Привет');
+        expect(russianResults.map(c => c.id)).to.deep.eq([russian.id]);
+      });
+
+      it('keeps the letters in the tsquery term', () => {
+        expect(getSearchTermSQLConditions('Привет', 'c').sanitizedTerm).to.eq('Привет');
+        expect(getSearchTermSQLConditions('crème', 'c').sanitizedTerm).to.eq('creme');
+        expect(getSearchTermSQLConditions("foo'&|!():*<>bar", 'c').sanitizedTerm).to.eq('foobar');
+      });
+    });
+
     describe('By email', async () => {
       it('returns exact match', async () => {
         const user = await fakeUser();
@@ -286,6 +358,149 @@ describe('server/lib/search', () => {
 
         const searchPromise = searchCollectivesByEmail(searchedUser.email, user);
         await expect(searchPromise).to.be.eventually.rejectedWith('Rate limit exceeded');
+      });
+    });
+
+    describe('Consolidated balance across currencies', () => {
+      let tag, usdCollective, jpyCollective;
+
+      before(async () => {
+        // 1 USD = 150 JPY: ¥100,000 is about $667. 1 USD = 10 NOK: 1 NOK cent is 0.1 USD cent
+        await models.UsdExchangeRate.record({ USD: 1, JPY: 150, NOK: 10 });
+        tag = `balance-${randStr()}`;
+        const usdHost = await fakeHost({ currency: 'USD' });
+        const jpyHost = await fakeHost({ currency: 'JPY' });
+        usdCollective = await fakeCollective({ HostCollectiveId: usdHost.id, currency: 'USD', tags: [tag] });
+        jpyCollective = await fakeCollective({ HostCollectiveId: jpyHost.id, currency: 'JPY', tags: [tag] });
+        for (const [collective, host, currency, amount] of [
+          [usdCollective, usdHost, 'USD', 5000e2],
+          [jpyCollective, jpyHost, 'JPY', 100000e2],
+        ]) {
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount,
+            netAmountInHostCurrency: amount,
+            currency,
+            hostCurrency: currency,
+          });
+        }
+        // Balances are read from "CurrentCollectiveBalance", which starts from these checkpoints
+        await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
+        await sequelize.query('REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"');
+      });
+
+      it('sorts by balance converted to USD', async () => {
+        const [results] = await searchCollectivesInDB(publicReq, '', 0, 10, {
+          tags: [tag],
+          orderBy: { field: 'BALANCE', direction: 'DESC' },
+        });
+        expect(results.map(c => c.id)).to.deep.eq([usdCollective.id, jpyCollective.id]);
+      });
+
+      it('filters by balance, converting the bound from its currency', async () => {
+        const search = async consolidatedBalance => {
+          const [results] = await searchCollectivesInDB(publicReq, '', 0, 10, { tags: [tag], consolidatedBalance });
+          return results.map(c => c.id).sort();
+        };
+        // $1,000: only the USD collective, the yen balance is worth less
+        expect(await search({ gte: { valueInCents: 1000e2, currency: 'USD' } })).to.deep.eq([usdCollective.id]);
+        // ¥50,000 (about $333): both
+        expect(await search({ gte: { valueInCents: 50000e2, currency: 'JPY' } })).to.deep.eq(
+          [usdCollective.id, jpyCollective.id].sort(),
+        );
+        // Up to $1,000: only the yen balance
+        expect(await search({ lte: { valueInCents: 1000e2, currency: 'USD' } })).to.deep.eq([jpyCollective.id]);
+      });
+
+      it('matches an inclusive bound equal to a sum of converted balances', async () => {
+        // Six 1-cent NOK balances (a collective and its 5 projects) sum to 0.6 USD cent in doubles,
+        // while the 6 NOK cents bound converts to 0.6000000000000001
+        const nokTag = `balance-${randStr()}`;
+        const nokHost = await fakeHost({ currency: 'NOK' });
+        const nokCollective = await fakeCollective({ HostCollectiveId: nokHost.id, currency: 'NOK', tags: [nokTag] });
+        const projects = await Promise.all(
+          times(5, () => fakeProject({ ParentCollectiveId: nokCollective.id, currency: 'NOK' })),
+        );
+        for (const account of [nokCollective, ...projects]) {
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: account.id,
+            HostCollectiveId: nokHost.id,
+            amount: 1,
+            netAmountInHostCurrency: 1,
+            currency: 'NOK',
+            hostCurrency: 'NOK',
+          });
+        }
+        await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
+        await sequelize.query('REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"');
+
+        const [results] = await searchCollectivesInDB(publicReq, '', 0, 10, {
+          tags: [nokTag],
+          consolidatedBalance: { gte: { valueInCents: 6, currency: 'NOK' }, lte: { valueInCents: 6, currency: 'NOK' } },
+        });
+        expect(results.map(c => c.id)).to.deep.eq([nokCollective.id]);
+      });
+
+      it('matches a zero bound when balances cancel out', async () => {
+        // -6 NOK cents and six +1 NOK cents, converted one by one, sum to about -1.4e-16 USD cents
+        const zeroTag = `balance-${randStr()}`;
+        const nokHost = await fakeHost({ currency: 'NOK' });
+        const nokCollective = await fakeCollective({ HostCollectiveId: nokHost.id, currency: 'NOK', tags: [zeroTag] });
+        const projects = await Promise.all(
+          times(6, () => fakeProject({ ParentCollectiveId: nokCollective.id, currency: 'NOK' })),
+        );
+        const balances: [Collective, number][] = [
+          [nokCollective, -6],
+          ...projects.map(p => [p, 1] as [Collective, number]),
+        ];
+        for (const [account, amount] of balances) {
+          await fakeTransaction({
+            type: amount > 0 ? 'CREDIT' : 'DEBIT',
+            CollectiveId: account.id,
+            HostCollectiveId: nokHost.id,
+            amount,
+            netAmountInHostCurrency: amount,
+            currency: 'NOK',
+            hostCurrency: 'NOK',
+          });
+        }
+        await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
+        await sequelize.query('REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"');
+
+        const [results] = await searchCollectivesInDB(publicReq, '', 0, 10, {
+          tags: [zeroTag],
+          consolidatedBalance: { gte: { valueInCents: 0, currency: 'USD' }, lte: { valueInCents: 0, currency: 'USD' } },
+        });
+        expect(results.map(c => c.id)).to.deep.eq([nokCollective.id]);
+      });
+
+      it('keeps amounts smaller than a USD cent apart', async () => {
+        // ¥1 and ¥2 are 0.67 and 1.33 USD cents: they must not compare equal
+        const yenTag = `balance-${randStr()}`;
+        const jpyHost = await fakeHost({ currency: 'JPY' });
+        const yenCollective = await fakeCollective({ HostCollectiveId: jpyHost.id, currency: 'JPY', tags: [yenTag] });
+        await fakeTransaction({
+          type: 'CREDIT',
+          CollectiveId: yenCollective.id,
+          HostCollectiveId: jpyHost.id,
+          amount: 2e2,
+          netAmountInHostCurrency: 2e2,
+          currency: 'JPY',
+          hostCurrency: 'JPY',
+        });
+        await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
+        await sequelize.query('REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"');
+
+        const search = async consolidatedBalance => {
+          const [results] = await searchCollectivesInDB(publicReq, '', 0, 10, { tags: [yenTag], consolidatedBalance });
+          return results.map(c => c.id);
+        };
+        expect(await search({ lte: { valueInCents: 1e2, currency: 'JPY' } })).to.deep.eq([]);
+        expect(await search({ gte: { valueInCents: 3e2, currency: 'JPY' } })).to.deep.eq([]);
+        expect(await search({ gte: { valueInCents: 2e2, currency: 'JPY' } })).to.deep.eq([yenCollective.id]);
       });
     });
 
@@ -495,6 +710,36 @@ describe('server/lib/search', () => {
       expect(count).to.eq(1);
       expect(results.find(collective => collective.id === userCollective.id)).to.exist;
     });
+
+    it('Ignores the case of the email', async () => {
+      const searcher = await fakeUser();
+      const email = `${randStr('John.Doe-')}@Example.com`;
+      const target = await fakeUser({ email });
+      const [results, count] = await searchCollectivesByEmail(email, searcher);
+      expect(count).to.eq(1);
+      expect(results[0].id).to.eq(target.CollectiveId);
+    });
+  });
+
+  describe('Tag frequencies', () => {
+    const tags = ['café', 'c++', '日本', 'r&d', 'music'];
+    let collective;
+
+    before(async () => {
+      collective = await fakeCollective({ tags });
+      await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED', tags });
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTagStats"`);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "ExpenseTagStats"`);
+    });
+
+    it('matches tags with accents, symbols and non-latin characters', async () => {
+      for (const tag of ['café', 'c++', '日本', 'r&d']) {
+        const collectiveTags = await getColletiveTagFrequencies({ tagSearchTerm: tag, limit: 100, offset: 0 });
+        expect((collectiveTags as { tag: string }[]).map(t => t.tag)).to.deep.eq([tag]);
+        const expenseTags = await getExpenseTagFrequencies({ accountId: collective.id, tagSearchTerm: tag });
+        expect(expenseTags.map(t => t.tag)).to.deep.eq([tag]);
+      }
+    });
   });
 
   describe('parseSearchTerm', () => {
@@ -554,6 +799,19 @@ describe('server/lib/search', () => {
       expect(parseSearchTerm('unknown_a1B2c3D4e5F6g7H8i9J0k').type).to.eq('text');
     });
 
+    it('detects emails', () => {
+      for (const email of [
+        'john.doe@example.com',
+        'john+tag@example.com',
+        'john-doe@example.com',
+        "o'brien@example.com",
+        'john@example.technology',
+      ]) {
+        expect(parseSearchTerm(email)).to.deep.equal({ type: 'email', term: email });
+      }
+      expect(parseSearchTerm('John.Doe@Example.com')).to.deep.equal({ type: 'email', term: 'john.doe@example.com' });
+    });
+
     it('goes back to text for everything else', () => {
       expect(parseSearchTerm('')).to.deep.equal({ type: 'text', term: '' });
       expect(parseSearchTerm('test')).to.deep.equal({ type: 'text', term: 'test', words: 1 });
@@ -561,6 +819,25 @@ describe('server/lib/search', () => {
       expect(parseSearchTerm('test-hyphen')).to.deep.equal({ type: 'text', term: 'test-hyphen', words: 2 });
       expect(parseSearchTerm('#4242 not an id')).to.deep.equal({ type: 'text', term: '#4242 not an id', words: 4 });
       expect(parseSearchTerm('@slug not a slug')).to.deep.equal({ type: 'text', term: '@slug not a slug', words: 4 });
+    });
+  });
+
+  describe('isPostgresInteger', () => {
+    it('accepts integers within the Postgres integer range', () => {
+      expect(isPostgresInteger(0)).to.be.true;
+      expect(isPostgresInteger(4242)).to.be.true;
+      expect(isPostgresInteger(2147483647)).to.be.true;
+      expect(isPostgresInteger(-2147483648)).to.be.true;
+    });
+
+    it('rejects out-of-range, non-integer and non-finite values', () => {
+      expect(isPostgresInteger(2147483648)).to.be.false;
+      expect(isPostgresInteger(-2147483649)).to.be.false;
+      expect(isPostgresInteger(parseFloat('9'.repeat(20)))).to.be.false;
+      expect(isPostgresInteger(parseFloat('1'.repeat(400)))).to.be.false; // Infinity
+      expect(isPostgresInteger(NaN)).to.be.false;
+      expect(isPostgresInteger(42.5)).to.be.false;
+      expect(isPostgresInteger('42')).to.be.false;
     });
   });
 
@@ -602,8 +879,57 @@ describe('server/lib/search', () => {
       expect(testBuildSearchConditions('')).to.deep.eq([]);
     });
 
+    it('does not treat zero as an empty search', () => {
+      expect(testBuildSearchConditions('#0')).to.deep.eq([{ id: 0 }, { '$fromCollective.id$': 0 }]);
+      for (const term of ['0', '0.0', '00']) {
+        expect(testBuildSearchConditions(term)).to.deep.include({ name: { [Op.iLike]: `%${term}%` } });
+      }
+    });
+
+    it('matches numbers on text fields with the typed text', () => {
+      const pattern = term => buildSearchConditions(term, { textFields: ['description'] })[0]['description'][Op.iLike];
+      expect(pattern('12345678901234567890')).to.eq('%12345678901234567890%');
+      expect(pattern('007')).to.eq('%007%');
+      expect(pattern('100.00')).to.eq('%100.00%');
+      expect(pattern('9876543210987654321098765')).to.eq('%9876543210987654321098765%');
+    });
+
     it('build conditions for IDs', () => {
       expect(testBuildSearchConditions('#4242')).to.deep.eq([{ id: 4242 }, { '$fromCollective.id$': 4242 }]);
+    });
+
+    describe('numbers that do not fit in a Postgres integer', () => {
+      const HUGE_NUMBER = '1'.repeat(400); // parseFloat => Infinity
+      const BIG_NUMBER = '99999999999'; // > 2^31 - 1
+
+      it('match nothing when searched as an #ID', () => {
+        for (const term of [`#${BIG_NUMBER}`, `#${HUGE_NUMBER}`]) {
+          const conditions = testBuildSearchConditions(term);
+          expect(conditions).to.have.length(1);
+          expect(conditions[0]).to.deep.eq(sequelize.literal('FALSE'));
+        }
+      });
+
+      it('skip ID and amount conditions but keep text conditions', () => {
+        for (const term of [BIG_NUMBER, HUGE_NUMBER, `${HUGE_NUMBER}.5`]) {
+          const conditions = testBuildSearchConditions(term);
+          const fields = conditions.flatMap(condition => Object.keys(condition));
+          expect(fields).to.include('name');
+          expect(fields).to.not.include.members(['id', '$fromCollective.id$', 'amount', '$order.totalAmount$']);
+        }
+      });
+
+      it('do not make the query fail', async () => {
+        for (const term of [BIG_NUMBER, HUGE_NUMBER, `#${BIG_NUMBER}`, `#${HUGE_NUMBER}`]) {
+          const conditions = buildSearchConditions(term, {
+            idFields: ['id'],
+            amountFields: ['amount'],
+            textFields: ['description'],
+          });
+          const count = await models.Expense.count({ where: { [Op.or]: conditions } });
+          expect(count).to.eq(0);
+        }
+      });
     });
 
     it('builds dataFields conditions from the exact decimal text for large integers', () => {
@@ -767,6 +1093,13 @@ describe('server/lib/search', () => {
       expect(parameters).to.be.empty;
     });
 
+    it('does not treat zero as an empty search', () => {
+      for (const term of ['0', '#0', '0.0', '00']) {
+        const { sql: compiledSql } = compileWithSearch(term, { idFields: ['id'], textFields: ['description'] });
+        expect(compiledSql).to.match(/where/i);
+      }
+    });
+
     it('applies no search filter when no fields apply to the parsed term', () => {
       const { sql: compiledSql, parameters } = compileWithSearch('#4242', {});
       expect(compiledSql).to.not.include('ilike');
@@ -780,6 +1113,45 @@ describe('server/lib/search', () => {
       expect(compiledSql).to.include('"Orders"."id"');
       expect(compiledSql).to.not.include('ilike');
       expect(parameters).to.include(4242);
+    });
+
+    describe('numbers that do not fit in a Postgres integer', () => {
+      const HUGE_NUMBER = '1'.repeat(400); // parseFloat => Infinity
+      const BIG_NUMBER = '99999999999'; // > 2^31 - 1
+      const config = {
+        idFields: ['Orders.id'],
+        amountFields: ['Orders.totalAmount'],
+        textFields: ['Orders.description'],
+      };
+
+      it('match nothing when searched as an #ID', () => {
+        for (const term of [`#${BIG_NUMBER}`, `#${HUGE_NUMBER}`]) {
+          const { sql: compiledSql, parameters } = compileWithSearch(term, config);
+          expect(compiledSql).to.include('FALSE');
+          expect(compiledSql).to.not.include('"Orders"."id"');
+          expect(parameters).to.be.empty;
+        }
+      });
+
+      it('skip ID and amount conditions but keep text conditions', () => {
+        for (const term of [BIG_NUMBER, HUGE_NUMBER, `${HUGE_NUMBER}.5`]) {
+          const { sql: compiledSql } = compileWithSearch(term, config);
+          expect(compiledSql).to.include('ilike');
+          expect(compiledSql).to.not.include('"Orders"."id"');
+          expect(compiledSql).to.not.include('"Orders"."totalAmount"');
+        }
+      });
+
+      it('do not make the query fail', async () => {
+        const kysely = getKysely();
+        for (const term of [BIG_NUMBER, HUGE_NUMBER, `#${BIG_NUMBER}`, `#${HUGE_NUMBER}`]) {
+          const results = await buildKyselySearchConditions(
+            term,
+            config,
+          )(kysely.selectFrom('Orders').select('Orders.id')).execute();
+          expect(results).to.be.empty;
+        }
+      });
     });
 
     it('builds exclusive slug condition for @slug', () => {

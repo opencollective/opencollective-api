@@ -1,4 +1,4 @@
-import { GraphQLInputObjectType, GraphQLString } from 'graphql';
+import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import { partition, uniq } from 'lodash';
 import { FindOptions, InferAttributes } from 'sequelize';
 
@@ -15,6 +15,10 @@ export const GraphQLPaymentMethodReferenceInput = new GraphQLInputObjectType({
       type: GraphQLString,
       description: `The id assigned to the payment method (ie: ${EntityShortIdPrefix.PaymentMethod}_xxxxxxxx)`,
     },
+    legacyId: {
+      type: GraphQLInt,
+      description: 'The internal id of the payment method (ie: 4242)',
+    },
   }),
 });
 
@@ -25,6 +29,7 @@ export const GraphQLPaymentMethodReferenceInput = new GraphQLInputObjectType({
  */
 type PaymentMethodReferenceInput = {
   id?: string;
+  legacyId?: number;
 };
 
 export const fetchPaymentMethodWithReference = async (
@@ -50,8 +55,10 @@ export const fetchPaymentMethodWithReference = async (
   } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.PAYMENT_METHOD);
     paymentMethod = await loadPaymentById(id);
+  } else if (input.legacyId) {
+    paymentMethod = await loadPaymentById(input.legacyId);
   } else {
-    throw new Error('Please provide an id');
+    throw new Error('Please provide an id or a legacyId');
   }
   if (!paymentMethod) {
     throw new NotFound('Payment Method Not Found');
@@ -74,7 +81,17 @@ export const fetchPaymentMethodWithReferences = async (
     isEntityPublicId(input.id, EntityShortIdPrefix.PaymentMethod),
   );
 
-  const ids = uniq(inputsWithoutPublicId.map(input => idDecode(input.id, IDENTIFIER_TYPES.PAYMENT_METHOD)));
+  const ids = uniq(
+    inputsWithoutPublicId.map(input => {
+      if (input.id) {
+        return idDecode(input.id, IDENTIFIER_TYPES.PAYMENT_METHOD);
+      } else if (input.legacyId) {
+        return input.legacyId;
+      } else {
+        throw new Error('Please provide an id or a legacyId');
+      }
+    }),
+  );
   const publicIds = uniq(inputsWithPublicId.map(input => input.id));
 
   const where: { id?: number[]; publicId?: string[]; [Op.or]?: Array<{ id: number[] } | { publicId: string[] }> } = {};

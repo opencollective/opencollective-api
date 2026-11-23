@@ -11,8 +11,8 @@ import type { Collective } from '../models';
  * Returns true when the remote user is allowed to see the given account.
  * Always returns true for non-private accounts.
  */
-export async function canSeePrivateAccount(req: Request, account: Collective): Promise<boolean> {
-  if (!account.isPrivate) {
+export async function canSeePrivateAccount(req: Request, account: Collective | null): Promise<boolean> {
+  if (!account?.isPrivate) {
     return true;
   }
   return req.loaders.Collective.canSeePrivateAccount.load(account.id);
@@ -33,8 +33,9 @@ export async function canSeeAllPrivateAccounts(req: Request, accounts: Collectiv
  * The error deliberately states that the account exists but is not accessible, so the
  * frontend can distinguish "not found" from "access denied".
  */
-export async function assertCanSeeAccount(req: Request, account: Collective): Promise<void> {
-  if (!account.isPrivate) {
+export async function assertCanSeeAccount(req: Request, account: Collective | null): Promise<void> {
+  // A missing (e.g. soft-deleted) account has no private data to protect
+  if (!account?.isPrivate) {
     return;
   }
   const canSee = await req.loaders.Collective.canSeePrivateAccount.load(account.id);

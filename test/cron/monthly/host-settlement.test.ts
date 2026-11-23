@@ -1669,4 +1669,142 @@ describe('cron/monthly/host-settlement', () => {
       expect(attachedFiles, 'no CSV attachment without transactions').to.have.length(0);
     });
   });
+
+  describe('last Platform Share write-off for migrated hosts below the threshold', () => {
+    const cronModulePath = Object.keys(require.cache).find(path => path.endsWith('/cron/monthly/host-settlement.ts'));
+
+    /**
+     * `DRY` is read when the cron module is loaded, so a dry run needs a fresh copy of the module
+     * loaded with `DRY` set. The cached copy is put back afterwards for the other tests.
+     */
+    const runDry = async () => {
+      const cachedModule = require.cache[cronModulePath];
+      const previousDry = process.env.DRY;
+      delete require.cache[cronModulePath];
+      process.env.DRY = '1';
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports, n/no-missing-require -- the resolver does not see .ts files; mocha loads it through Babel
+        const { run } = require('../../../cron/monthly/host-settlement');
+        await run();
+      } finally {
+        if (previousDry === undefined) {
+          delete process.env.DRY;
+        } else {
+          process.env.DRY = previousDry;
+        }
+        require.cache[cronModulePath] = cachedModule;
+      }
+    };
+
+    const createHostFeeShareDebt = async (host, collective, TransactionGroup: string) => {
+      const contribution = await fakeTransaction({
+        type: 'CREDIT',
+        kind: TransactionKind.CONTRIBUTION,
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        amount: 100,
+        hostFeeInHostCurrency: -10,
+        createdAt: lastMonth.toDate(),
+        data: { hostFeeSharePercent: 15 },
+        TransactionGroup,
+      });
+      const { transaction, hostFeeTransaction } = (await models.Transaction.createHostFeeTransactions(
+        contribution,
+      )) as HostFeeResult;
+      await models.Transaction.createHostFeeShareTransactions({ transaction, hostFeeTransaction });
+      return contribution;
+    };
+
+    const getSettlementStatus = async (TransactionGroup: string, kind: TransactionKind) => {
+      const settlement = await models.TransactionSettlement.findOne({ where: { TransactionGroup, kind } });
+      return settlement.status;
+    };
+
+    let host, owedContribution, invoicedContribution;
+
+    beforeEach(async () => {
+      await utils.resetTestDB();
+      const user = await fakeUser({ id: PlatformConstants.PlatformUserId }, { slug: 'ofitech-admin' });
+      const oc = await fakeHost({
+        id: PlatformConstants.PlatformCollectiveId,
+        slug: randStr('platform-'),
+        CreatedByUserId: user.id,
+      });
+      await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
+      await fakePayoutMethod({
+        CollectiveId: oc.id,
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
+      });
+      await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 4000`);
+      await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 90`);
+
+      host = await fakeHost({
+        name: 'small-migrated-host',
+        currency: 'USD',
+        settings: { automaticBillingMigration: lastMonth.toDate() } as Parameters<typeof fakeHost>[0]['settings'],
+      });
+      await fakePlatformSubscription({ CollectiveId: host.id });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+
+      // A Platform Share debt that is still owed: the one the write-off is about.
+      owedContribution = await createHostFeeShareDebt(host, collective, fakeUUID('00000041'));
+
+      // A Platform Share debt that was already invoiced, in a contribution whose legacy platform tip
+      // debt is still owed. The tip debt brings this group into the settlement run.
+      invoicedContribution = await createHostFeeShareDebt(host, collective, fakeUUID('00000042'));
+      await models.TransactionSettlement.update(
+        { status: TransactionSettlementStatus.INVOICED },
+        {
+          where: { TransactionGroup: invoicedContribution.TransactionGroup, kind: TransactionKind.HOST_FEE_SHARE_DEBT },
+        },
+      );
+      const tipDebt = await fakeTransaction({
+        type: 'CREDIT',
+        kind: TransactionKind.PLATFORM_TIP_DEBT,
+        FromCollectiveId: PlatformConstants.PlatformCollectiveId,
+        CollectiveId: host.id,
+        HostCollectiveId: host.id,
+        amount: 100,
+        amountInHostCurrency: 100,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        isDebt: true,
+        createdAt: lastMonth.toDate(),
+        TransactionGroup: invoicedContribution.TransactionGroup,
+      });
+      await models.TransactionSettlement.createForTransaction(tipDebt);
+    });
+
+    after(async () => {
+      await utils.resetTestDB();
+    });
+
+    it('does not write off anything on a dry run', async () => {
+      await runDry();
+
+      expect(await host.getExpenses()).to.have.length(0);
+      const { HOST_FEE_SHARE_DEBT, PLATFORM_TIP_DEBT } = TransactionKind;
+      expect(await getSettlementStatus(owedContribution.TransactionGroup, HOST_FEE_SHARE_DEBT)).to.equal('OWED');
+      expect(await getSettlementStatus(invoicedContribution.TransactionGroup, HOST_FEE_SHARE_DEBT)).to.equal(
+        'INVOICED',
+      );
+      expect(await getSettlementStatus(invoicedContribution.TransactionGroup, PLATFORM_TIP_DEBT)).to.equal('OWED');
+    });
+
+    it('only writes off Platform Share debts that are still owed', async () => {
+      await invoicePlatformFees();
+
+      expect(await host.getExpenses()).to.have.length(0);
+      const { HOST_FEE_SHARE_DEBT, PLATFORM_TIP_DEBT } = TransactionKind;
+      expect(await getSettlementStatus(owedContribution.TransactionGroup, HOST_FEE_SHARE_DEBT)).to.equal('SETTLED');
+      expect(
+        await getSettlementStatus(invoicedContribution.TransactionGroup, HOST_FEE_SHARE_DEBT),
+        'an invoiced debt must wait for its expense to be paid',
+      ).to.equal('INVOICED');
+      expect(await getSettlementStatus(invoicedContribution.TransactionGroup, PLATFORM_TIP_DEBT)).to.equal('OWED');
+    });
+  });
 });

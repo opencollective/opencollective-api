@@ -26,7 +26,6 @@ import { shouldGenerateTransactionActivities } from '../lib/activities';
 import { getFxRate, roundCentsAmount } from '../lib/currency';
 import logger from '../lib/logger';
 import { toNegative } from '../lib/math';
-import { syncPaymentIntentFromLedgerTransaction } from '../lib/payment-intents/sync';
 import { calcFee, getHostFeeSharePercent } from '../lib/payments';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { stripHTML } from '../lib/sanitize-html';
@@ -44,7 +43,6 @@ import type Expense from './Expense';
 import type { ExpenseTaxDefinition } from './Expense';
 import { ModelWithPublicId } from './ModelWithPublicId';
 import Order, { OrderTax } from './Order';
-import type PaymentIntent from './PaymentIntent';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import TransactionSettlement, { TransactionSettlementStatus } from './TransactionSettlement';
@@ -120,7 +118,7 @@ export type TransactionData = {
   refund?: Stripe.Refund | Partial<PaypalRefund>;
   refundedFromDoubleTransactionsScript?: boolean;
   refundReason?: string;
-  refundTransactionId?: Transaction['id'];
+  refundTransactionId?: Transaction['id'] | string; // Stripe webhooks store our transaction id, virtual cards the provider's (`ipi_...`)
   review?: Stripe.Event; // Why not Stripe.Review? Who knows
   tax?: Tax;
   taxAmountRemovedFromMigration?: number;
@@ -198,7 +196,6 @@ class Transaction extends ModelWithPublicId<
   declare PayoutMethodId: number;
   declare PaymentMethodId: number;
   declare RefundTransactionId: number;
-  declare PaymentIntentId: number;
 
   // Associations
   declare createdByUser?: User;
@@ -209,7 +206,6 @@ class Transaction extends ModelWithPublicId<
   declare PaymentMethod?: PaymentMethod;
   declare PayoutMethod?: PayoutMethod;
   declare Order?: Order;
-  declare PaymentIntent?: PaymentIntent;
 
   // Getter Methods
   declare info?: Partial<Transaction>;
@@ -431,11 +427,6 @@ class Transaction extends ModelWithPublicId<
     { sequelizeTransaction }: { sequelizeTransaction?: SequelizeTransaction } = {},
   ): Promise<Transaction> {
     const runInTransaction = async sequelizeTransaction => {
-      const finalizeLedgerWrite = async (writtenTransaction: Transaction): Promise<Transaction> => {
-        await syncPaymentIntentFromLedgerTransaction(writtenTransaction, sequelizeTransaction);
-        return writtenTransaction;
-      };
-
       // Force transaction type based on amount sign
       if (transaction.amount > 0) {
         transaction.type = CREDIT;
@@ -505,6 +496,10 @@ class Transaction extends ModelWithPublicId<
         }
       }
 
+      // Keep the tax amount: `createTaxTransactions` resets it to 0 after moving the tax to its own transaction,
+      // but the host fee on expenses paid between hosts (below) must still be computed on the tax-exclusive amount.
+      const originalTaxAmount = transaction.taxAmount || 0;
+
       // Create Tax transaction
       if (transaction.taxAmount && parseToBoolean(config.ledger.separateTaxes) === true) {
         const result = await Transaction.createTaxTransactions(transaction, null, { sequelizeTransaction });
@@ -530,9 +525,7 @@ class Transaction extends ModelWithPublicId<
 
       // If FromCollectiveId = CollectiveId, we only create one transaction (DEBIT or CREDIT)
       if (transaction.FromCollectiveId === transaction.CollectiveId) {
-        return finalizeLedgerWrite(
-          (await Transaction.create(transaction, { transaction: sequelizeTransaction })) as Transaction,
-        );
+        return Transaction.create(transaction, { transaction: sequelizeTransaction }) as Promise<Transaction>;
       }
 
       if (!isUndefined(transaction.amountInHostCurrency)) {
@@ -632,10 +625,7 @@ class Transaction extends ModelWithPublicId<
           const collectiveHost = await collective.getHostCollective({ transaction: sequelizeTransaction });
           if (collectiveHost.id !== fromCollectiveHost.id) {
             const hostFeePercent = fromCollective.hasMoneyManagement ? 0 : fromCollective.hostFeePercent;
-            const taxAmountInHostCurrency = roundCentsAmount(
-              (transaction.taxAmount || 0) * hostCurrencyFxRate,
-              hostCurrency,
-            );
+            const taxAmountInHostCurrency = roundCentsAmount(originalTaxAmount * hostCurrencyFxRate, hostCurrency);
             oppositeTransaction.hostFeeInHostCurrency = calcFee(
               oppositeTransaction.amountInHostCurrency +
                 oppositeTransaction.paymentProcessorFeeInHostCurrency +
@@ -657,10 +647,10 @@ class Transaction extends ModelWithPublicId<
       if (transaction.type === DEBIT) {
         const t = await Transaction.create(transaction, { transaction: sequelizeTransaction });
         await Transaction.create(oppositeTransaction, { transaction: sequelizeTransaction });
-        return finalizeLedgerWrite(t);
+        return t;
       } else {
         await Transaction.create(oppositeTransaction, { transaction: sequelizeTransaction });
-        return finalizeLedgerWrite(await Transaction.create(transaction, { transaction: sequelizeTransaction }));
+        return Transaction.create(transaction, { transaction: sequelizeTransaction });
       }
     };
 
@@ -1487,6 +1477,11 @@ class Transaction extends ModelWithPublicId<
       return 1;
     }
 
+    // Without a transaction, there is no stored rate to reuse
+    if (!transaction) {
+      return getFxRate(fromCurrency, toCurrency, 'latest');
+    }
+
     // Simple Case
     if (fromCurrency === transaction.currency && toCurrency === transaction.hostCurrency) {
       return transaction.hostCurrencyFxRate;
@@ -1559,12 +1554,10 @@ class Transaction extends ModelWithPublicId<
       transaction.taxAmount = roundCentsAmount(transaction.taxAmount * fxRate, currency);
     }
 
+    // Get the rate before changing `currency`, otherwise `getFxRate` would return the old `hostCurrencyFxRate`
+    const hostCurrencyFxRate = await Transaction.getFxRate(currency, transaction.hostCurrency, transaction);
     transaction.currency = currency;
-    transaction.hostCurrencyFxRate = await Transaction.getFxRate(
-      transaction.currency,
-      transaction.hostCurrency,
-      transaction,
-    );
+    transaction.hostCurrencyFxRate = hostCurrencyFxRate;
 
     // REMINDER: amount * hostCurrencyFxRate = amountInHostCurrency
     // so: amount = amountInHostCurrency / hostCurrencyFxRate
@@ -1843,17 +1836,6 @@ Transaction.init(
       type: DataTypes.INTEGER,
       references: {
         model: 'Expenses',
-        key: 'id',
-      },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-      allowNull: true,
-    },
-
-    PaymentIntentId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: 'PaymentIntents',
         key: 'id',
       },
       onDelete: 'SET NULL',

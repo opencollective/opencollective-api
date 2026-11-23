@@ -8,7 +8,7 @@ import VirtualCardProviders from '../../../../server/constants/virtual-card-prov
 import * as budget from '../../../../server/lib/budget';
 import emailLib from '../../../../server/lib/email';
 import stripe from '../../../../server/lib/stripe';
-import models from '../../../../server/models';
+import models, { sequelize } from '../../../../server/models';
 import {
   processAuthorization,
   processCardUpdate,
@@ -16,7 +16,13 @@ import {
   updateVirtualCardLimit,
 } from '../../../../server/paymentProviders/stripe/virtual-cards';
 import * as utils from '../../../../server/paymentProviders/utils';
-import { fakeCollective, fakeConnectedAccount, fakeUser, fakeVirtualCard } from '../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeConnectedAccount,
+  fakeTransaction,
+  fakeUser,
+  fakeVirtualCard,
+} from '../../../test-helpers/fake-data';
 import * as testUtils from '../../../utils';
 
 describe('server/paymentProviders/stripe/virtual-cards', () => {
@@ -189,6 +195,79 @@ describe('server/paymentProviders/stripe/virtual-cards', () => {
       } as unknown as Stripe.Event);
       await virtualCard.reload();
       expect(virtualCard.spendingLimitAmount).to.equal(1000000);
+    });
+  });
+
+  describe('refunds', () => {
+    const makeRefund = (id: string) =>
+      ({
+        id,
+        card: 'card_refund',
+        amount: 1500,
+        currency: 'usd',
+        type: 'refund',
+        authorization: null,
+        /* eslint-disable-next-line camelcase */
+        merchant_data: { network_id: '3433223', name: 'Refunding Store' },
+        created: Math.floor(Date.now() / 1000),
+      }) as unknown as Stripe.Issuing.Transaction;
+
+    beforeEach(async () => {
+      await fakeVirtualCard({
+        id: 'card_refund',
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        provider: VirtualCardProviders.STRIPE,
+        UserId: user.id,
+      });
+    });
+
+    it('records a refund only once when Stripe sends it again', async () => {
+      await processTransaction(makeRefund('ipi_refund_1'));
+      await processTransaction(makeRefund('ipi_refund_1'));
+      await processTransaction(makeRefund('ipi_refund_2'));
+
+      const credits = await models.Transaction.findAll({
+        where: { CollectiveId: collective.id, type: 'CREDIT', isRefund: true },
+        order: [['id', 'ASC']],
+      });
+      expect(credits.map(t => t.data.refundTransactionId)).to.deep.equal(['ipi_refund_1', 'ipi_refund_2']);
+      expect(credits.map(t => t.amount)).to.deep.equal([1500, 1500]);
+    });
+
+    it('finds the same refund transactions as the former JSON path query, through the indexed expression', async () => {
+      const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
+      const matching = await fakeTransaction({ CollectiveId: collective.id, data: { refundTransactionId: 'ipi_a' } });
+      await fakeTransaction({ CollectiveId: otherCollective.id, data: { refundTransactionId: 'ipi_b' } });
+      const deleted = await fakeTransaction({ CollectiveId: collective.id, data: { refundTransactionId: 'ipi_c' } });
+      await deleted.destroy();
+      await fakeTransaction({ CollectiveId: collective.id, data: { transaction: { refundTransactionId: 'ipi_d' } } });
+      await fakeTransaction({ CollectiveId: collective.id, data: null });
+
+      const formerQuery = (CollectiveId: number, refundTransactionId: string) =>
+        models.Transaction.findOne({ where: { CollectiveId, data: { refundTransactionId } } });
+
+      const cases: Array<[number, string]> = [
+        [collective.id, 'ipi_a'],
+        [otherCollective.id, 'ipi_a'],
+        [otherCollective.id, 'ipi_b'],
+        [collective.id, 'ipi_b'],
+        [collective.id, 'ipi_c'],
+        [collective.id, 'ipi_d'],
+        [collective.id, 'ipi_missing'],
+        [collective.id, "ipi_' OR 1=1 --"],
+      ];
+      for (const [CollectiveId, refundTransactionId] of cases) {
+        const expected = await formerQuery(CollectiveId, refundTransactionId);
+        const actual = await utils.findVirtualCardRefundTransaction(CollectiveId, refundTransactionId);
+        expect(actual?.id ?? null, `${CollectiveId} ${refundTransactionId}`).to.equal(expected?.id ?? null);
+      }
+      expect((await utils.findVirtualCardRefundTransaction(collective.id, 'ipi_a')).id).to.equal(matching.id);
+
+      // The condition must keep the expression of the `transactions__data_refund_txn_id` index
+      const querySpy = sandbox.spy(sequelize, 'query');
+      await utils.findVirtualCardRefundTransaction(collective.id, 'ipi_a');
+      expect(querySpy.firstCall.args[0]).to.include(`"Transaction"."data" ->> 'refundTransactionId' = 'ipi_a'`);
     });
   });
 });

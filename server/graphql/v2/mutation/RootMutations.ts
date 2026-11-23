@@ -464,7 +464,7 @@ export default {
       }
       const hostCurrency = host.currency;
 
-      const balance = await fromAccount.getBalance();
+      const balance = await fromAccount.getBalance({ currency: hostCurrency });
       let transferAmount: number;
       if (args.amount) {
         transferAmount = getValueInCentsFromAmountInput(args.amount, {

@@ -64,6 +64,7 @@ import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
 import { GraphQLKYCVerificationStatus } from '../enum/KYCVerificationStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
+import { GraphQLOrderDirectionType } from '../enum/OrderDirectionType';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
@@ -406,6 +407,16 @@ const accountFieldsDefinition = () => ({
         defaultValue: { field: 'createdAt', direction: 'ASC' },
         description: 'Order of the results',
       },
+      orderByTotalContributed: {
+        type: GraphQLOrderDirectionType,
+        description:
+          'Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.',
+      },
+      isActive: {
+        type: GraphQLBoolean,
+        description:
+          'Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.',
+      },
       accountType: {
         type: new GraphQLList(GraphQLAccountType),
         description: 'Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
@@ -491,6 +502,11 @@ const accountFieldsDefinition = () => ({
       orderByRoles: {
         type: GraphQLBoolean,
         description: 'Order the query by requested role order',
+      },
+      isActive: {
+        type: GraphQLBoolean,
+        description:
+          'Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.',
       },
     },
   },
@@ -1056,7 +1072,7 @@ const accountFieldsDefinition = () => ({
       },
       limit: {
         type: GraphQLInt,
-        default: { value: 20 },
+        defaultValue: 20,
         description: 'Number of activities to retrieve',
       },
       classes: {
@@ -1069,7 +1085,7 @@ const accountFieldsDefinition = () => ({
         throw new Unauthorized('You need to be logged in as an admin of this collective to see its activity');
       }
 
-      if (args.classes.length === 0) {
+      if (!args.classes?.length) {
         return [];
       }
 
@@ -1512,11 +1528,14 @@ export const AccountFields = {
     },
     resolve(collective: Collective, args, req) {
       const accountConditions = {};
-      if (!args.direction || args.direction === 'SUBMITTED') {
+      if (args.direction === 'SUBMITTED') {
         accountConditions['fromAccount'] = { legacyId: collective.id };
-      }
-      if (!args.direction || args.direction === 'RECEIVED') {
+      } else if (args.direction === 'RECEIVED') {
         accountConditions['account'] = { legacyId: collective.id };
+      } else {
+        // No direction: expenses submitted by OR received by the account
+        accountConditions['account'] = { legacyId: collective.id };
+        accountConditions['includeSubmittedByAccount'] = true;
       }
 
       args = omit({ ...args, ...accountConditions }, ['direction']);

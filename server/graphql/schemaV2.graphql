@@ -330,6 +330,16 @@ interface Account {
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
 
     """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
+
+    """
     Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)
     """
     accountType: [AccountType]
@@ -395,6 +405,11 @@ interface Account {
     Order the query by requested role order
     """
     orderByRoles: Boolean
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection
 
   """
@@ -3235,6 +3250,16 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -3329,6 +3354,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -5823,6 +5853,11 @@ input PaymentMethodReferenceInput {
   The id assigned to the payment method (ie: pm_xxxxxxxx)
   """
   id: String
+
+  """
+  The internal id of the payment method (ie: 4242)
+  """
+  legacyId: Int
 }
 
 input PayoutMethodReferenceInput {
@@ -10882,6 +10917,16 @@ type Bot implements Account {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -10976,6 +11021,11 @@ type Bot implements Account {
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -11966,6 +12016,16 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -12060,6 +12120,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -13640,6 +13705,16 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -13734,6 +13809,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -15023,6 +15103,16 @@ type Individual implements Account {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -15117,6 +15207,11 @@ type Individual implements Account {
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -16432,6 +16527,16 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -16526,6 +16631,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -17918,6 +18028,16 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -18012,6 +18132,11 @@ type Platform implements Account & AccountWithHost & AccountWithParent {
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -19111,6 +19236,16 @@ type Vendor implements Account & AccountWithContributions {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -19205,6 +19340,11 @@ type Vendor implements Account & AccountWithContributions {
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -20406,7 +20546,7 @@ type Query {
     includeVendorsForHost: AccountReferenceInput
 
     """
-    Filter by the balance of the account and its children accounts (events and projects)
+    Filter by the balance of the account and its children accounts (events and projects), compared in USD: balances and bounds are converted from their currency
     """
     consolidatedBalance: AmountRangeInput
 
@@ -20570,17 +20710,22 @@ type Query {
     """
     searchTerm: String
     relation: [CommunityRelationType!]
+
+    """
+    Filter accounts missing any of the given information
+    """
+    missingInformation: [MissingInformationField!]
     orderBy: OrderByInput
 
     """
-    Only return accounts that contributed within this amount range
+    Only return accounts that contributed within this amount range (optionally in a given year). Also scopes the TOTAL_CONTRIBUTED ordering.
     """
-    totalContributed: AmountRangeInput
+    totalContributed: AmountRangeWithYearInput
 
     """
-    Only return accounts that expended within this amount range
+    Only return accounts that were paid (received) within this amount range through expenses (optionally in a given year). Also scopes the TOTAL_EXPENDED ordering.
     """
-    totalExpended: AmountRangeInput
+    totalExpended: AmountRangeWithYearInput
 
     """
     The number of results to fetch (default 100, max 1000)
@@ -21687,79 +21832,14 @@ type Query {
   me: Individual
 
   """
-  Returns a single payment intent identified by its public id
+  Get a payment method by reference. Returns null if it does not exist or if the logged in user is not an admin of the account that owns it. Scope: "orders".
   """
-  paymentIntent(
+  paymentMethod(
     """
-    The public id identifying the payment intent (ie: pi_xxxxxxxx)
+    Identifiers to retrieve the payment method
     """
-    publicId: String!
-  ): PaymentIntent
-
-  """
-  Returns a list of payment intents
-  """
-  paymentIntents(
-    """
-    Filter payment intents involving this account
-    """
-    account: AccountReferenceInput
-
-    """
-    The number of results to fetch (default 100, max 1000)
-    """
-    limit: Int! = 100
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-
-    """
-    Only return payment intents for this host
-    """
-    host: AccountReferenceInput
-
-    """
-    When `host` is provided, select whether to include ALL payment intents, only those involving the host organization internal accounts (INTERNAL) or only those involving hosted collectives (HOSTED)
-    """
-    hostContext: HostContext
-
-    """
-    Filter by direction relative to the account (INCOMING = payee, OUTGOING = payer)
-    """
-    direction: PaymentIntentDirection
-
-    """
-    Include payment intents for child accounts (Events, Projects)
-    """
-    includeChildrenPaymentIntents: Boolean! = false
-
-    """
-    Filter payment intents by status
-    """
-    status: [PaymentIntentStatus!]
-
-    """
-    Filter payment intents by type
-    """
-    type: [PaymentIntentType!]
-
-    """
-    Only return payment intents with an effective date after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Only return payment intents with an effective date before this date
-    """
-    dateTo: DateTime
-
-    """
-    Only return payment intents involving this account as the other party
-    """
-    counterparty: AccountReferenceInput
-  ): PaymentIntentCollection!
+    paymentMethod: PaymentMethodReferenceInput!
+  ): PaymentMethod
   platformSubscriptionTiers: [PlatformSubscriptionTier]
 }
 
@@ -23195,6 +23275,56 @@ enum ActivityAndClassesType {
 }
 
 """
+Information fields that can be missing on an account
+"""
+enum MissingInformationField {
+  """
+  The account has no legal name
+  """
+  LEGAL_NAME
+
+  """
+  The account has no address
+  """
+  ADDRESS
+
+  """
+  A US tax form is required for the account for the current year (UTC) but has not been received
+  """
+  US_TAX_FORM_CURRENT_YEAR
+
+  """
+  A US tax form is required for the account for the previous year (UTC) but has not been received
+  """
+  US_TAX_FORM_PREVIOUS_YEAR
+
+  """
+  The account has no country of incorporation (country of residence for individuals)
+  """
+  COUNTRY_OF_INCORPORATION
+}
+
+"""
+Input type for an amount range, optionally restricted to a calendar year
+"""
+input AmountRangeWithYearInput {
+  """
+  The minimum amount (inclusive)
+  """
+  gte: AmountInput
+
+  """
+  The maximum amount (inclusive)
+  """
+  lte: AmountInput
+
+  """
+  Only consider the amounts of this calendar year (UTC). Defaults to all time.
+  """
+  year: Int
+}
+
+"""
 Request for a currency exchange rate
 """
 input CurrencyExchangeRateRequest {
@@ -23505,6 +23635,16 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -23599,6 +23739,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -24746,6 +24891,16 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+
+    """
+    Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.
+    """
+    orderByTotalContributed: OrderDirection
+
+    """
+    Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
     includeInherited: Boolean = true
 
     """
@@ -24840,6 +24995,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Filter members by tier
     """
     tier: TierReferenceInput
+
+    """
+    Only return active (true) or inactive (false) memberships, as defined by `Member.isActive`: memberships of a monthly or yearly tier need a recent contribution.
+    """
+    isActive: Boolean
   ): MemberOfCollection!
 
   """
@@ -26263,133 +26423,6 @@ enum OffPlatformTransactionsProvider {
   Plaid bank account data provider
   """
   PLAID
-}
-
-"""
-A payment intent representing a charge, transfer, or pending payment
-"""
-type PaymentIntent {
-  id: String!
-
-  """
-  The resource public id (ie: pi_xxxxxxxx)
-  """
-  publicId: String!
-  legacyId: Int! @deprecated(reason: "2026-07-02: use publicId")
-  type: PaymentIntentType!
-  status: PaymentIntentStatus!
-  payer: Account
-  payee: Account
-  host: Account
-  description: String
-  createdAt: DateTime!
-  paidAt: DateTime
-  order: Order
-  expense: Expense
-
-  """
-  Transactions linked to this payment intent
-  """
-  transactions: [Transaction!]
-
-  """
-  Intended amount from the linked order or expense
-  """
-  amountPledged(
-    """
-    Source of the currency to express the amount. Defaults to the account currency
-    """
-    currencySource: PaymentIntentAccountRole! = HOST
-  ): Amount
-
-  """
-  Total amount sent by the payer, computed from linked transactions
-  """
-  amountSent(
-    """
-    When true, includes payment processor fees, host fees, platform fees, and taxes recorded on linked transactions
-    """
-    net: Boolean! = false
-
-    """
-    Source of the currency to express the amount. Defaults to the account currency
-    """
-    currencySource: PaymentIntentAccountRole! = HOST
-  ): Amount
-
-  """
-  Total amount received by the payee, computed from linked transactions
-  """
-  amountReceived(
-    """
-    When true, includes payment processor fees, host fees, platform fees, and taxes recorded on linked transactions
-    """
-    net: Boolean! = false
-
-    """
-    Source of the currency to express the amount. Defaults to the account currency
-    """
-    currencySource: PaymentIntentAccountRole! = HOST
-  ): Amount
-}
-
-enum PaymentIntentType {
-  PlatformBilling
-  PlatformBillingTipSettlement
-  GrantRequest
-  PaymentRequest
-  CardCharge
-  Contribution
-  AddedMoney
-  BalanceTransfer
-  InternalTransfer
-  Other
-}
-
-enum PaymentIntentStatus {
-  PENDING
-  PAID
-  REVERSED
-  ERROR
-  CANCELED
-}
-
-"""
-Role of the account in the payment intent
-"""
-enum PaymentIntentAccountRole {
-  """
-  The host in which ledger entries are recorded
-  """
-  HOST
-
-  """
-  The account that is paying
-  """
-  PAYER
-
-  """
-  The account that is receiving the money
-  """
-  PAYEE
-}
-
-"""
-A collection of Payment Intents
-"""
-type PaymentIntentCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-  nodes: [PaymentIntent!]!
-}
-
-"""
-Payment intent direction relative to the filtered account (INCOMING = payee, OUTGOING = payer)
-"""
-enum PaymentIntentDirection {
-  INCOMING
-  OUTGOING
 }
 
 """

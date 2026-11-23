@@ -32,6 +32,7 @@ describe('server/graphql/loaders/members', () => {
           type: 'CREDIT',
           OrderId: order.id,
           createdAt: lastTransactionDate,
+          clearedAt: lastTransactionDate,
         },
         { createDoubleEntry: true },
       );

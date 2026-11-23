@@ -562,6 +562,58 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       expect(toBalanceAfter).to.equal(3000);
     });
 
+    it('uses the balance in host currency when the source account currency differs', async () => {
+      const host = await fakeHost({ currency: 'USD' });
+      const fromCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'EUR' });
+      const toCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'EUR' });
+
+      // Give fromCollective a balance of $100 in host currency
+      await fakeTransaction(
+        {
+          CollectiveId: fromCollective.id,
+          FromCollectiveId: fromCollective.id,
+          HostCollectiveId: host.id,
+          amount: 10000,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          amountInHostCurrency: 10000,
+          netAmountInCollectiveCurrency: 10000,
+          kind: TransactionKind.CONTRIBUTION,
+        },
+        { createDoubleEntry: true },
+      );
+
+      const balanceInHostCurrency = await fromCollective.getBalance({ currency: 'USD' });
+      expect(balanceInHostCurrency).to.equal(10000);
+      expect(await fromCollective.getBalance()).to.not.equal(balanceInHostCurrency); // Balance in EUR differs
+
+      // An amount above the host-currency balance is rejected
+      const tooMuchResult = await callTransferBalance(
+        {
+          fromAccount: { legacyId: fromCollective.id },
+          toAccount: { legacyId: toCollective.id },
+          amount: { valueInCents: 10500, currency: 'USD' },
+        },
+        rootUser,
+      );
+      expect(tooMuchResult.errors).to.exist;
+      expect(tooMuchResult.errors[0].message).to.include('exceeds available balance');
+
+      // The default transfer moves exactly the host-currency balance
+      const result = await callTransferBalance(
+        {
+          fromAccount: { legacyId: fromCollective.id },
+          toAccount: { legacyId: toCollective.id },
+        },
+        rootUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.rootTransferBalance.amount).to.deep.equal({ valueInCents: 10000, currency: 'USD' });
+      expect(await fromCollective.getBalance({ currency: 'USD' })).to.equal(0);
+    });
+
     it('fails when amount exceeds balance', async () => {
       const host = await fakeHost();
       const fromCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
