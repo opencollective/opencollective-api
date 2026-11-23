@@ -347,6 +347,29 @@ describe('server/models/Notification', () => {
       expect(unsubscribers).to.not.containSubset([{ id: host.CreatedByUserId }]);
       expect(unsubscribers).to.containSubset([{ id: otherNotification.UserId }]);
     });
+
+    it('should return user who unsubscribed globally (no CollectiveId) when the activity has a collective', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+      await fakeNotification({
+        channel: channels.EMAIL,
+        type: ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
+        active: false,
+        CollectiveId: null,
+        UserId: user.id,
+      });
+
+      for (const UserId of [user.id, [user.id]]) {
+        const unsubscribers = await models.Notification.getUnsubscribers({
+          type: ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
+          UserId,
+          CollectiveId: collective.id,
+          channel: channels.EMAIL,
+          attributes: ['id'],
+        });
+        expect(unsubscribers.map(u => u.id)).to.deep.eq([user.id]);
+      }
+    });
   });
 
   describe('notifySubscribers', () => {

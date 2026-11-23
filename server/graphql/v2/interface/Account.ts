@@ -1072,7 +1072,7 @@ const accountFieldsDefinition = () => ({
       },
       limit: {
         type: GraphQLInt,
-        default: { value: 20 },
+        defaultValue: 20,
         description: 'Number of activities to retrieve',
       },
       classes: {
@@ -1085,7 +1085,7 @@ const accountFieldsDefinition = () => ({
         throw new Unauthorized('You need to be logged in as an admin of this collective to see its activity');
       }
 
-      if (args.classes.length === 0) {
+      if (!args.classes?.length) {
         return [];
       }
 
@@ -1528,11 +1528,14 @@ export const AccountFields = {
     },
     resolve(collective: Collective, args, req) {
       const accountConditions = {};
-      if (!args.direction || args.direction === 'SUBMITTED') {
+      if (args.direction === 'SUBMITTED') {
         accountConditions['fromAccount'] = { legacyId: collective.id };
-      }
-      if (!args.direction || args.direction === 'RECEIVED') {
+      } else if (args.direction === 'RECEIVED') {
         accountConditions['account'] = { legacyId: collective.id };
+      } else {
+        // No direction: expenses submitted by OR received by the account
+        accountConditions['account'] = { legacyId: collective.id };
+        accountConditions['includeSubmittedByAccount'] = true;
       }
 
       args = omit({ ...args, ...accountConditions }, ['direction']);

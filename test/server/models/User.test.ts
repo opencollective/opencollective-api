@@ -48,16 +48,18 @@ describe('server/models/User', () => {
   });
 
   describe('#createUserWithCollective', () => {
-    it('uses "incognito" slug if name is not provided', () => {
+    it('uses a placeholder name and a "user" slug if name is not provided', () => {
       const userParams = { email: 'frank@zappa.com' };
       return User.createUserWithCollective(userParams).then(user => {
-        expect(user.collective.slug.startsWith('incognito')).to.equal(true);
+        expect(user.collective.name).to.equal('user');
+        expect(user.collective.slug).to.match(/^user-[0-9a-f]{8}$/);
       });
     });
 
     it('uses "user" slug if name is not sluggifyable', () => {
       return User.createUserWithCollective({ email: randEmail('user@domain.com'), name: '????...' }).then(user => {
-        expect(user.collective.slug.startsWith('user')).to.equal(true);
+        expect(user.collective.name).to.equal('user');
+        expect(user.collective.slug).to.match(/^user-[0-9a-f]{8}$/);
       });
     });
 

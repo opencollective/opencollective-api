@@ -185,6 +185,59 @@ describe('server/lib/cache/cacheProvider', () => {
       }
     });
 
+    describe(`${provider} provider incrementIfExists`, () => {
+      let cache;
+      before(async () => {
+        cache = await getProvider(provider);
+      });
+
+      beforeEach(async () => {
+        await cache.delete(['increment_if_exists', 'increment_if_exists_missing', 'increment_if_exists_ttl']);
+      });
+
+      it('increments an existing counter and returns the running total', async () => {
+        await cache.set('increment_if_exists', 0, 60);
+        assert.strictEqual(await cache.incrementIfExists('increment_if_exists', 3), 3);
+        assert.strictEqual(await cache.incrementIfExists('increment_if_exists', 2), 5);
+        assert.strictEqual(await cache.get('increment_if_exists'), 5);
+      });
+
+      it('returns undefined, not zero, and creates nothing when the key is missing', async () => {
+        assert.strictEqual(await cache.incrementIfExists('increment_if_exists_missing', 3), undefined);
+        assert.strictEqual(await cache.get('increment_if_exists_missing'), undefined);
+      });
+
+      it('does not lose concurrent increments', async () => {
+        await cache.set('increment_if_exists', 0, 60);
+        const results = await Promise.all(range(50).map(() => cache.incrementIfExists('increment_if_exists', 1)));
+        assert.sameMembers(results, range(1, 51));
+      });
+
+      if (provider === PROVIDER_TYPES.MEMORY) {
+        it('keeps the expiry of the key and does not recreate it once expired', async () => {
+          let now = 1000; // lru-cache ignores the TTL of entries created at time 0
+          const memoryCache = makeMemoryProvider({ max: 10, ttlResolution: 0, perf: { now: () => now } });
+          await memoryCache.set('increment_if_exists_ttl', 0, 60);
+          now += 59 * 1000;
+          assert.strictEqual(await memoryCache.incrementIfExists('increment_if_exists_ttl', 1), 1);
+          now += 2 * 1000;
+          assert.strictEqual(await memoryCache.incrementIfExists('increment_if_exists_ttl', 1), undefined);
+          assert.strictEqual(await memoryCache.get('increment_if_exists_ttl'), undefined);
+        });
+      } else {
+        it('keeps the expiry of the key', async () => {
+          const redis = await createRedisClient();
+          await cache.set('increment_if_exists_ttl', 0, 60);
+          await redis.expire('increment_if_exists_ttl', 5);
+          assert.strictEqual(await cache.incrementIfExists('increment_if_exists_ttl', 1), 1);
+          // -2 would mean that the key is gone, -1 that it lost its expiry
+          const ttl = await redis.ttl('increment_if_exists_ttl');
+          assert.isAbove(ttl, 0);
+          assert.isAtMost(ttl, 5);
+        });
+      }
+    });
+
     describe(`${provider} provider decrement`, () => {
       let cache;
       before(async () => {

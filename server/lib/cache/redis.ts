@@ -16,6 +16,17 @@ const INCREMENT_SCRIPT = `
 `;
 
 /**
+ * Increments a counter, only if it still exists (so an expired counter is never recreated). The key keeps its expiry.
+ * Returns whether the key exists and the new value, as a pair: a missing key must not be mistaken for a count of 0.
+ */
+const INCREMENT_IF_EXISTS_SCRIPT = `
+  if redis.call('EXISTS', KEYS[1]) == 0 then
+    return {0, 0}
+  end
+  return {1, redis.call('INCRBY', KEYS[1], ARGV[1])}
+`;
+
+/**
  * Decrements a counter, only if it still exists (so an expired window is never recreated) and never below zero. The
  * key keeps its expiry. Returns the new value, or 0 if the key doesn't exist.
  */
@@ -71,6 +82,13 @@ const makeRedisProvider = async (instanceType = RedisInstanceType.DEFAULT) => {
       if (redisClient) {
         const args = [String(amount), String(expirationInSeconds)];
         return Number(await redisClient.eval(INCREMENT_SCRIPT, { keys: [key], arguments: args }));
+      }
+    },
+    incrementIfExists: async (key: string, amount: number): Promise<number | undefined> => {
+      if (redisClient) {
+        const args = { keys: [key], arguments: [String(amount)] };
+        const [exists, count] = (await redisClient.eval(INCREMENT_IF_EXISTS_SCRIPT, args)) as [number, number];
+        return exists ? Number(count) : undefined;
       }
     },
     decrement: async (key: string, amount: number): Promise<number | undefined> => {

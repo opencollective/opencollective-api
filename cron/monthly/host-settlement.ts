@@ -498,15 +498,27 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
         );
         if (isLastPlatformShareExpense) {
           // Settle the transactions, we don't want to carry them over to the new billing.
-          await models.TransactionSettlement.update(
-            { status: TransactionSettlementStatus.SETTLED },
-            {
-              where: {
-                TransactionGroup: transactions.map(t => t.TransactionGroup),
-                kind: [HOST_FEE_SHARE_DEBT],
+          // `transactions` can also hold PLATFORM_TIP_DEBT rows whose group has an already INVOICED
+          // Platform Share debt: only write off the ones that are still OWED.
+          const hostFeeShareGroups = transactions
+            .filter(t => t.kind === HOST_FEE_SHARE_DEBT)
+            .map(t => t.TransactionGroup);
+          if (DRY) {
+            console.info(
+              `${host.name} (#${host.id}): would settle ${hostFeeShareGroups.length} carried-over HOST_FEE_SHARE_DEBT row(s) (DRY).`,
+            );
+          } else {
+            await models.TransactionSettlement.update(
+              { status: TransactionSettlementStatus.SETTLED },
+              {
+                where: {
+                  TransactionGroup: hostFeeShareGroups,
+                  kind: HOST_FEE_SHARE_DEBT,
+                  status: TransactionSettlementStatus.OWED,
+                },
               },
-            },
-          );
+            );
+          }
         }
       } else {
         let extraDescription = '';

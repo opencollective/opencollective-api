@@ -99,6 +99,11 @@ const doFormatMessage = (activity, format): string | { message: string; options:
   }
 
   // get member data
+  // Only `COLLECTIVE_MEMBER_CREATED` (see `Collective.addUserWithRole` / `createMemberCreatedActivity`) reaches this
+  // with `data.member`, and it always includes `memberCollective`. The core member activities carry a bare
+  // `member.info`, but they are created with `notify: false` and are not dispatched automatically (see the
+  // `afterCreate` hook in `server/models/Activity.ts`). Only a manual `--force` resend through
+  // `scripts/notifications/resend-activity-webhook.ts` can bypass this, which would make this formatter throw.
   let member;
   if (activity.data.member) {
     const memberCollective = activity.data.member.memberCollective;

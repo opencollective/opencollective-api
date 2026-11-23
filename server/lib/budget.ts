@@ -1,6 +1,6 @@
 import config from 'config';
 import { difference, groupBy } from 'lodash';
-import type { FindAttributeOptions } from 'sequelize';
+import type { FindAttributeOptions, GroupOption } from 'sequelize';
 import { QueryTypes } from 'sequelize';
 
 import { CollectiveType } from '../constants/collectives';
@@ -898,8 +898,15 @@ export async function sumCollectivesTransactions(
     throw new Error('includeChildren is not supported together with includeGiftCards');
   }
 
+  // With includeChildren, only roll a child up to its parent when the parent was requested.
+  // Otherwise a requested child (event, project) would be keyed under a parent nobody asked for.
+  const requestedIds = (ids || []).map(Number).filter(Number.isInteger);
   const collectiveId = includeChildren
-    ? sequelize.fn('COALESCE', sequelize.col('collective.ParentCollectiveId'), sequelize.col('collective.id'))
+    ? requestedIds.length
+      ? sequelize.literal(
+          `CASE WHEN "collective"."ParentCollectiveId" IN (${requestedIds.join(',')}) THEN "collective"."ParentCollectiveId" ELSE "collective"."id" END`,
+        )
+      : sequelize.fn('COALESCE', sequelize.col('collective.ParentCollectiveId'), sequelize.col('collective.id'))
     : includeGiftCards
       ? sequelize.fn(
           'COALESCE',
@@ -1088,7 +1095,10 @@ export async function sumCollectivesTransactions(
   const groupBy = groupByAttributes.map(attr => (Array.isArray(attr) ? attr[1] : attr));
   const extra = extraAttributes.map(attr => (Array.isArray(attr) ? attr[1] : attr));
 
-  const group = groupByCurrency ? [collectiveId, currencyColumn, ...groupBy] : [collectiveId, ...groupBy];
+  // Sequelize accepts literals in GROUP BY at runtime, but its GroupOption type does not list them
+  const group = (
+    groupByCurrency ? [collectiveId, currencyColumn, ...groupBy] : [collectiveId, ...groupBy]
+  ) as GroupOption;
 
   const results = await models.Transaction.findAll({
     attributes,

@@ -13,16 +13,13 @@ import { isEmpty, isNil, isUndefined, toString, words } from 'lodash';
 import { QueryTypes } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
-import { CollectiveType } from '../constants/collectives';
+import { CollectiveType, PLACEHOLDER_USER_NAME } from '../constants/collectives';
 import { MemberRolesForPrivateAccounts } from '../constants/roles';
 import { isRemoteUserRoot } from '../graphql/common/scope-check';
 import { BadRequest, RateLimitExceeded } from '../graphql/errors';
 import { ORDER_BY_PSEUDO_FIELDS } from '../graphql/v2/enum/OrderByFieldType';
-import {
-  AmountRangeInputType,
-  getAmountRangeQuery,
-  makeConsolidatedBalanceSubquery,
-} from '../graphql/v2/input/AmountRangeInput';
+import { getValueInCentsFromAmountInput } from '../graphql/v2/input/AmountInput';
+import { AmountRangeInputType, makeConsolidatedBalanceSubquery } from '../graphql/v2/input/AmountRangeInput';
 import models, { Collective, Op, sequelize } from '../models';
 
 import {
@@ -40,7 +37,36 @@ import { removeDiacritics } from './string-utils';
 // Returned when there's no result for a search
 const EMPTY_SEARCH_RESULT = [[], 0] as const;
 
-const CONSOLIDATED_BALANCE_SUBQUERY = makeConsolidatedBalanceSubquery('c');
+// In USD: accounts of different hosts hold different currencies (1,000,000 JPY is not more than $500,000)
+const CONSOLIDATED_BALANCE_SUBQUERY = makeConsolidatedBalanceSubquery('c', { inUsd: true });
+
+/**
+ * `consolidatedBalance` bounds, converted to USD from their own currency (USD when not set).
+ *
+ * Converted amounts are doubles: a sum of converted balances and a converted bound that should be
+ * equal can differ in the last bits (0.1 + 0.1 + ... is not 6 x 0.1). Each bound is widened by a
+ * relative 1e-12, plus 1e-9 cent for a bound of 0: far above that noise, far below the smallest
+ * difference between two amounts (1 cent of any currency, even at 1e9 cents).
+ */
+const getConsolidatedBalanceCondition = (range: AmountRangeInputType) => {
+  const bounds = [
+    ['>=', '-', 'consolidatedBalanceGte', range.gte],
+    ['<=', '+', 'consolidatedBalanceLte', range.lte],
+  ] as const;
+  const conditions = [];
+  const replacements: Record<string, unknown> = {};
+  for (const [operator, widen, key, amount] of bounds) {
+    if (amount) {
+      const bound = `(:${key} * fx_rate(:${key}Currency, 'USD'))`;
+      conditions.push(
+        `AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${operator} ${bound} ${widen} (ABS(${bound}) * 1e-12 + 1e-9)`,
+      );
+      replacements[key] = getValueInCentsFromAmountInput(amount);
+      replacements[`${key}Currency`] = amount.currency || 'USD';
+    }
+  }
+  return { sql: conditions.join(' '), replacements };
+};
 
 /**
  * Returns SQL conditions to filter collectives based on private account visibility rules.
@@ -120,7 +146,7 @@ export const searchCollectivesByEmail = async (
     throw new RateLimitExceeded();
   }
 
-  const replacements = { offset, limit, email };
+  const replacements = { offset, limit, email: email.toLowerCase().trim() };
   const fromAndWhere = `
     FROM "Collectives" c
     INNER JOIN "Users" u ON u."CollectiveId" = c.id
@@ -180,7 +206,7 @@ export const canonicalizeIntegerSearchText = (text: string): string => {
  */
 const sanitizeSearchTermForTSQuery = term => {
   return removeDiacritics(term)
-    .replace(/[^a-zA-Z0-9-\/_. ]/g, '')
+    .replace(/[^\p{L}\p{M}\p{N}\-/_. ]/gu, '')
     .trim();
 };
 
@@ -423,11 +449,8 @@ export const buildSearchCollectivesQuery = async (
 ): Promise<BuildSearchCollectivesQueryResult> => {
   const privateAccountVisibility = await buildPrivateAccountSearchVisibilitySQL(req);
   let dynamicConditions = privateAccountVisibility.sql;
-  let countryCodes = null;
+  const countryCodes = countries?.length ? countries : null;
   let searchedTags = [''];
-  if (countries) {
-    countryCodes = `${countries.join(',')}`;
-  }
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
     dynamicConditions += 'AND c."HostCollectiveId" IN (:hostCollectiveIds) ';
@@ -465,7 +488,7 @@ export const buildSearchCollectivesQuery = async (
   }
 
   if (!isNil(args.isPlatformSubscriber)) {
-    dynamicConditions += `AND EXISTS (SELECT 1 FROM "PlatformSubscriptions" WHERE "CollectiveId" = c.id AND period @> NOW() AND "deletedAt" IS NULL) `;
+    dynamicConditions += `AND ${args.isPlatformSubscriber ? '' : 'NOT '}EXISTS (SELECT 1 FROM "PlatformSubscriptions" WHERE "CollectiveId" = c.id AND period @> NOW() AND "deletedAt" IS NULL) `;
   }
 
   if (!isUndefined(args.plan)) {
@@ -539,11 +562,11 @@ export const buildSearchCollectivesQuery = async (
   if (!isNil(args.isVerified) || !isNil(args.isFirstPartyHost)) {
     const verifiedConditions = [];
     if (!isNil(args.isVerified)) {
-      verifiedConditions.push(`(c."data" ->> 'isVerified')::boolean IS ${args.isVerified ? 'TRUE' : 'FALSE'}`);
+      verifiedConditions.push(`(c."data" ->> 'isVerified')::boolean IS ${args.isVerified ? 'TRUE' : 'NOT TRUE'}`);
     }
     if (!isNil(args.isFirstPartyHost)) {
       verifiedConditions.push(
-        `(c."data" ->> 'isFirstPartyHost')::boolean IS ${args.isFirstPartyHost ? 'TRUE' : 'FALSE'}`,
+        `(c."data" ->> 'isFirstPartyHost')::boolean IS ${args.isFirstPartyHost ? 'TRUE' : 'NOT TRUE'}`,
       );
     }
     if (verifiedConditions.length > 0) {
@@ -578,14 +601,18 @@ export const buildSearchCollectivesQuery = async (
       ? `AND ((c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE OR c."HostCollectiveId" IN (:hideFromSearchBypassHostIds))`
       : `AND (c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE`;
 
+  const consolidatedBalanceCondition = isEmpty(args.consolidatedBalance)
+    ? { sql: '', replacements: {} }
+    : getConsolidatedBalanceCondition(args.consolidatedBalance);
   const whereClause = `
     WHERE c."deletedAt" IS NULL
     ${hideFromSearchCondition}
-    AND c.name NOT IN ('incognito', 'anonymous')
+    AND c.name NOT IN ('incognito', 'anonymous', '${PLACEHOLDER_USER_NAME}')
     AND c."isIncognito" = FALSE ${dynamicConditions}
-    ${!isEmpty(args.consolidatedBalance) ? `AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${getAmountRangeQuery(args.consolidatedBalance)}` : ''}`;
+    ${consolidatedBalanceCondition.sql}`;
 
   const replacements = {
+    ...consolidatedBalanceCondition.replacements,
     types,
     term: term,
     slugifiedTerm: term ? slugify(term) : '',
@@ -670,6 +697,12 @@ export const searchCollectivesInDB = async (
 /**
  * Parse and clean a user search query
  */
+/**
+ * A public ID as generated by `oc_nanoid` in the database: `<prefix>_` followed by 21 alphanumeric characters.
+ * Public IDs are matched exactly, so a term that only starts like one (`ex_gratia`) must remain a text search.
+ */
+const PUBLIC_ID_SEARCH_TERM_REGEX = /^[a-z0-9]+_[0-9a-zA-Z]{21}$/;
+
 export const parseSearchTerm = (
   fullSearchTerm: string,
 ):
@@ -709,14 +742,14 @@ export const parseSearchTerm = (
   if (searchTerm.match(/^@.[^\s]+$/)) {
     // Searching for slugs (e.g. `@babel`). Won't match if there are whitespace chars (eg. `@babel expense from last month`)
     return { type: 'slug', term: searchTerm.replace(/^@/, '') };
-  } else if (searchTerm.match(/^[\w\.]+@([\w-]+\.)+[\w-]{2,4}$/)) {
+  } else if (isEmail(searchTerm)) {
     return { type: 'email', term: searchTerm.toLowerCase() };
   } else if (searchTerm.match(/^#\d+$/)) {
     // Searching for integer IDs (e.g. `#123`)
     return { type: 'id', term: parseInt(searchTerm.replace(/^#/, '')) };
   } else if (searchTerm.match(/^\d+\.?\d*$/)) {
     return { type: 'number', term: parseFloat(searchTerm), isFloat: searchTerm.includes('.'), text: searchTerm };
-  } else if (isAnyEntityPublicId(searchTerm)) {
+  } else if (isAnyEntityPublicId(searchTerm) && PUBLIC_ID_SEARCH_TERM_REGEX.test(searchTerm)) {
     return { type: 'publicId', term: searchTerm, prefix: getEntityShortIdPrefix(searchTerm) };
   } else {
     // We use a custom pattern here because Lodash will split A123 to ['A', '123']
@@ -765,7 +798,7 @@ export const buildSearchConditions = (
   const parsedTerm = parseSearchTerm(searchTerm);
 
   // Empty search => no condition
-  if (!parsedTerm.term) {
+  if (parsedTerm.term === '') {
     return [];
   }
 
@@ -782,9 +815,7 @@ export const buildSearchConditions = (
     return emailFields.map(field => ({ [field]: parsedTerm.term }));
   }
 
-  // Inclusive conditions, search all fields except
-  const conditions = [];
-
+  // A public ID of a searched entity matches exactly too. With another prefix, the term is searched like a text.
   if (parsedTerm.type === 'publicId' && publicIdFields?.length) {
     const fields = publicIdFields
       .filter(field => field.prefix === parsedTerm.prefix)
@@ -795,10 +826,16 @@ export const buildSearchConditions = (
         return [...acc, field.field];
       }, []);
 
-    conditions.push(...fields.map(field => ({ [field]: parsedTerm.term })));
+    if (fields.length) {
+      return fields.map(field => ({ [field]: parsedTerm.term }));
+    }
   }
+
+  // Inclusive conditions, search all fields except
+  const conditions = [];
+
   // Conditions for text fields
-  const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
+  const strTerm = parsedTerm.type === 'number' ? parsedTerm.text : parsedTerm.term.toString(); // Numbers: the typed text, not the `parseFloat`-rounded value
   const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
   const allTextFields = [...(slugFields || []), ...(textFields || [])];
   allTextFields.forEach(field => conditions.push({ [field]: { [Op.iLike]: iLikeQuery } }));
@@ -887,7 +924,7 @@ export const buildKyselySearchConditions =
     const parsedTerm = parseSearchTerm(searchTerm);
 
     // Empty search => no condition
-    if (!parsedTerm.term) {
+    if (parsedTerm.term === '') {
       return q;
     }
 
@@ -924,7 +961,7 @@ export const buildKyselySearchConditions =
       const conditions = [];
 
       // Conditions for text fields
-      const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
+      const strTerm = parsedTerm.type === 'number' ? parsedTerm.text : parsedTerm.term.toString(); // Numbers: the typed text, not the `parseFloat`-rounded value
       const allTextFields = [...(slugFields || []), ...(textFields || [])];
 
       // Partial match on slug + free-text columns (also used for multi-word queries).
@@ -1113,7 +1150,7 @@ export const buildSearchArms = async (
   }: SearchArmsOptions,
 ): Promise<SearchArmsQuery | null> => {
   const parsedTerm = parseSearchTerm(searchTerm);
-  if (!parsedTerm.term || (parsedTerm.type === 'id' && idFields.length)) {
+  if (parsedTerm.term === '' || (parsedTerm.type === 'id' && idFields.length)) {
     return null;
   }
 
@@ -1204,7 +1241,7 @@ export const buildSearchArms = async (
     }
   } else {
     // Inclusive conditions: one arm per applicable field
-    const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
+    const strTerm = parsedTerm.type === 'number' ? parsedTerm.text : parsedTerm.term.toString(); // Numbers: the typed text, not the `parseFloat`-rounded value
     const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
 
     // Partial match on the name and slug of the accounts, and on the free-text columns
@@ -1287,7 +1324,8 @@ export const buildSearchArms = async (
 export const getColletiveTagFrequencies = async args => {
   // If no searchTerm is provided, we can use the pre-computed stats in the materialized view
   if (!args.searchTerm) {
-    const { sanitizedTermForILike } = getSearchTermSQLConditions(args.tagSearchTerm);
+    // Tags are matched with ILIKE, so only escape the ILIKE wildcards (the tsquery sanitizer would strip symbols and non-ASCII letters)
+    const sanitizedTermForILike = sanitizeSearchTermForILike(trimSearchTerm(args.tagSearchTerm) || '');
     // Note: The CollectiveTagStats materialized view will return tag stats for all collectives, with or without host, when HostCollectiveId is NULL
     return sequelize.query(
       `SELECT tag AS id, tag, count
@@ -1318,6 +1356,7 @@ export const getColletiveTagFrequencies = async args => {
       AND ((data ->> 'hideFromSearch'::text)::boolean) IS NOT TRUE
       AND name::text <> 'incognito'::text
       AND name::text <> 'anonymous'::text
+      AND name::text <> '${PLACEHOLDER_USER_NAME}'::text
       AND "isIncognito" = false
       ${args.hostCollectiveId ? `AND "HostCollectiveId" = :hostCollectiveId` : ``}
       ${searchConditions.sqlConditions}
@@ -1360,7 +1399,7 @@ export const getExpenseTagFrequencies = async args => {
   }
 
   if (args.tagSearchTerm) {
-    const { sanitizedTermForILike } = getSearchTermSQLConditions(args.tagSearchTerm);
+    const sanitizedTermForILike = sanitizeSearchTermForILike(trimSearchTerm(args.tagSearchTerm));
     whereConditions.push(`"tag" ILIKE :sanitizedTermForILike`);
     replacements['sanitizedTermForILike'] = `%${sanitizedTermForILike}%`;
   }
