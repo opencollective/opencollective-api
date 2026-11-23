@@ -35,6 +35,7 @@ import {
   fakeUser,
   fakeUserToken,
   fakeUserTwoFactorMethod,
+  randEmail,
   randStr,
 } from '../../../../test-helpers/fake-data';
 import {
@@ -2481,6 +2482,55 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         }
       }
     `;
+
+    describe('profile created without a name (`/users/signup`)', () => {
+      const completeProfileMutation = gql`
+        mutation CompleteProfile($account: AccountUpdateInput!) {
+          editAccount(account: $account) {
+            id
+            slug
+            name
+          }
+        }
+      `;
+
+      // As `/users/signup` does: no name, so the profile is "incognito" with an `incognito-…` slug
+      const createUserWithoutName = async () => {
+        const user = await models.User.create({ email: randEmail(), confirmedAt: new Date() });
+        const collective = await user.createCollective({ data: { requiresProfileCompletion: true } });
+        await user.update({ CollectiveId: collective.id });
+        return { user, collective };
+      };
+
+      it('derives the slug from the name when the profile is completed', async () => {
+        const { user, collective } = await createUserWithoutName();
+        expect(collective.slug).to.match(/^incognito-/);
+
+        const result = await graphqlQueryV2(
+          completeProfileMutation,
+          { account: { id: idEncode(collective.id, 'account'), name: 'Jane Slugtest' } },
+          user,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.editAccount.slug).to.match(/^jane-slugtest/);
+        await collective.reload();
+        expect(collective.slug).to.match(/^jane-slugtest/);
+        expect(collective.data.requiresProfileCompletion).to.be.false;
+      });
+
+      it('keeps the slug when the name is not set', async () => {
+        const { user, collective } = await createUserWithoutName();
+        const initialSlug = collective.slug;
+
+        const result = await graphqlQueryV2(
+          completeProfileMutation,
+          { account: { id: idEncode(collective.id, 'account'), legalName: 'Jane Legal Slugtest' } },
+          user,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.editAccount.slug).to.equal(initialSlug);
+      });
+    });
 
     it('requires root scope to edit an unrelated account', async () => {
       const root = await fakeUser({ data: { isRoot: true } });
