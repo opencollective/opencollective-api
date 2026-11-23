@@ -645,7 +645,12 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     // It's difficult to predict when the image will be updated by findImageForUser
     // So we skip that in test environment to make it more predictable
     if (!['ci', 'test'].includes(config.env)) {
-      user.collective.findImageForUser(user);
+      // The image update runs outside of the transaction, so wait for the profile to be committed
+      if (transaction) {
+        transaction.afterCommit(() => void user.collective.findImageForUser(user));
+      } else {
+        user.collective.findImageForUser(user);
+      }
     }
     user.CollectiveId = user.collective.id;
     await user.save(sequelizeParams);
