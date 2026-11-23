@@ -1049,11 +1049,11 @@ const countAdminsOfAccount = async (req: express.Request, account: Collective): 
     return req.loaders.Member.countAdminMembersOfCollective.load(account.id);
   }
 
-  return models.Member.count({
-    distinct: true,
-    col: 'MemberCollectiveId',
-    where: { role: roles.ADMIN, CollectiveId: [account.id, account.ParentCollectiveId] },
-  });
+  const [childAdminIds, parentAdminIds] = await Promise.all([
+    req.loaders.Member.adminMemberCollectiveIdsOfCollective.load(account.id),
+    req.loaders.Member.adminMemberCollectiveIdsOfCollective.load(account.ParentCollectiveId),
+  ]);
+  return new Set([...childAdminIds, ...parentAdminIds]).size;
 };
 
 /**
