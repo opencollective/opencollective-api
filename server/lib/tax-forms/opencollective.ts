@@ -314,7 +314,7 @@ export const getStandardizedDataFromOCLegalDocumentData = (
       [TaxFormCSVColumns.STATUS]: data.submitterType,
       [TaxFormCSVColumns.TAX_ID_TYPE]:
         (data.taxpayerIdentificationNumberForeign && 'Foreign') || data.taxpayerIdentificationNumberTypeUS,
-      [TaxFormCSVColumns.TAX_ID]: data.taxpayerIdentificationNumberUS || data.taxpayerIdentificationNumberForeign,
+      [TaxFormCSVColumns.TAX_ID]: data.taxpayerIdentificationNumberForeign || data.taxpayerIdentificationNumberUS,
       [TaxFormCSVColumns.RECIPIENT_ADDRESS_1]: data.residenceAddress?.structured?.address1,
       [TaxFormCSVColumns.RECIPIENT_ADDRESS_2]: formatAddress2FromStructured(data.residenceAddress?.structured),
       [TaxFormCSVColumns.RECIPIENT_COUNTRY]: data.residenceAddress?.country,
