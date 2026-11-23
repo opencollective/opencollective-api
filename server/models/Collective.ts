@@ -421,7 +421,10 @@ class Collective extends ModelWithPublicId<
    * Generates a unique slug based on the provided base, appending a random suffix if needed.
    * E.g. "Hello World" -> "hello-world". If taken: "hello-world-agb5d6".
    */
-  static generateSlug = async (nameOrSlug: string): Promise<string> => {
+  static generateSlug = async (
+    nameOrSlug: string,
+    { transaction }: { transaction?: SequelizeTransaction } = {},
+  ): Promise<string> => {
     const getRandomHash = () => uuid().split('-')[0];
     const generateRandomSlug = () => `user-${getRandomHash()}`;
     if (!nameOrSlug) {
@@ -439,6 +442,7 @@ class Collective extends ModelWithPublicId<
       attributes: ['id'],
       where: { slug: baseSlug },
       paranoid: false,
+      transaction,
     });
 
     if (!slugExists) {
@@ -4386,7 +4390,7 @@ Collective.init(
     paranoid: true,
     sequelize,
     hooks: {
-      beforeValidate: instance => {
+      beforeValidate: (instance, options) => {
         if (instance.slug) {
           return Promise.resolve();
         }
@@ -4405,7 +4409,9 @@ Collective.init(
         ];
 
         const baseSlug = compact(potentialSlugs)[0];
-        return Collective.generateSlug(baseSlug).then(slug => {
+        // Sequelize passes the save options (including the transaction) to validation hooks, but does not type it
+        const { transaction } = (options || {}) as { transaction?: SequelizeTransaction };
+        return Collective.generateSlug(baseSlug, { transaction }).then(slug => {
           if (!slug) {
             return Promise.reject(new Error("We couldn't generate a unique slug for this collective"));
           }

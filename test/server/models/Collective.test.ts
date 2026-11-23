@@ -1508,6 +1508,40 @@ describe('server/models/Collective', () => {
           expect(sendStub.called).to.be.false;
           expect(await models.User.count({ where: { email } })).to.eq(0);
         });
+
+        it('creates two new users whose names produce the same slug', async () => {
+          emailSandbox.stub(emailLib, 'send').resolves();
+          const admin = await fakeUser();
+          const testCollective = await fakeCollective({ admin, type: CollectiveType.ORGANIZATION });
+          const adminMember = await models.Member.findOne({
+            where: { CollectiveId: testCollective.id, MemberCollectiveId: admin.CollectiveId, role: 'ADMIN' },
+          });
+          const suffix = randStr();
+          const email1 = randEmail();
+          const email2 = randEmail();
+
+          await testCollective.editMembers(
+            [
+              { id: adminMember.id, role: 'ADMIN' },
+              { member: { email: email1, name: `Review Person ${suffix}` }, role: 'MEMBER' },
+              { member: { email: email2, name: `Review-Person-${suffix}` }, role: 'MEMBER' },
+            ],
+            { CreatedByUserId: admin.id },
+          );
+
+          const users = await Promise.all(
+            [email1, email2].map(email =>
+              models.User.findOne({ where: { email }, include: [{ association: 'collective' }] }),
+            ),
+          );
+          const slugs = users.map(u => u.collective.slug);
+          expect(slugs[0]).to.eq(`review-person-${suffix}`.toLowerCase());
+          expect(slugs[1]).to.not.eq(slugs[0]);
+          const memberCount = await models.Member.count({
+            where: { CollectiveId: testCollective.id, MemberCollectiveId: users.map(u => u.CollectiveId) },
+          });
+          expect(memberCount).to.eq(2);
+        });
       });
     });
   });
