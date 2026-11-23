@@ -3,7 +3,7 @@ import config from 'config';
 import nodemailer, { SMTPTransportOptions } from 'nodemailer';
 import sinon, { stub } from 'sinon';
 
-import emailLib from '../../../server/lib/email';
+import emailLib, { getTemplateAttributes } from '../../../server/lib/email';
 import * as utils from '../../utils';
 
 const emailData = utils.data('emailData');
@@ -150,6 +150,17 @@ describe('server/lib/email', () => {
       expect(result.html).to.matchSnapshot();
       expect(result.text).to.matchSnapshot();
       expect(result.html).to.match(/class="btn blue"[^>]*style="/);
+    });
+
+    it('names the paying collective first in the expense invitation subject for a payee without host', () => {
+      const result = emailLib.render('collective.expense.invite.drafted', {
+        collective: { name: 'Paying Collective', type: 'COLLECTIVE' },
+        fromCollective: { name: 'Paying Collective', type: 'COLLECTIVE' },
+        payee: { name: 'Payee Org', type: 'ORGANIZATION' },
+      });
+      expect(getTemplateAttributes(result.html).subject).to.eq(
+        'Paying Collective wants to send funds to Payee Org on Open Collective',
+      );
     });
 
     it('rejects unknown templates and inherited object properties', () => {
