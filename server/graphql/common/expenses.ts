@@ -3720,9 +3720,9 @@ export async function editExpense(
     if (status === 'INCOMPLETE') {
       // When dealing with expenses marked as INCOMPLETE, only return to PENDING if the expense change requires Collective review
       // Payout method changes are left out on purpose: hosts mark expenses INCOMPLETE mostly to ask the payee to fix
-      // their payout details. `getPayoutMethodFromExpenseData` only accepts the payee's own payout methods or one the
-      // payee's host allows (e.g. the host's bank account or PayPal), so the expense can go back to APPROVED without a
-      // new review.
+      // their payout details. `getPayoutMethodFromExpenseData` only accepts the payee's own payout methods or one owned
+      // by the payee's host when it is a bank account or PayPal, so the expense can go back to APPROVED without a new
+      // review.
       status = changesRequireStatusUpdate(expense, expenseDataForStatusUpdate, hasItemChanges) ? 'PENDING' : 'APPROVED';
     } else if (shouldUpdateStatus) {
       status = 'PENDING';
