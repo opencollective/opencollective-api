@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
-import { PlaidApi } from 'plaid';
+import { PlaidApi } from 'plaid/legacy';
 import sinon from 'sinon';
 
 import PlatformConstants from '../../../../../server/constants/platform';
