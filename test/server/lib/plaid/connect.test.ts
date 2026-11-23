@@ -1,9 +1,10 @@
 import { expect } from 'chai';
-import { AccountBase, AccountSubtype, AccountType, PlaidApi } from 'plaid';
+import { Plaid } from 'plaid';
 import sinon from 'sinon';
 
 import * as PlaidClient from '../../../../server/lib/plaid/client';
 import { refreshPlaidSubAccounts } from '../../../../server/lib/plaid/connect';
+import { makePlaidClientStub } from '../../../mocks/plaid';
 import { fakeConnectedAccount, fakeTransactionsImport } from '../../../test-helpers/fake-data';
 
 describe('server/lib/plaid/connect', () => {
@@ -14,18 +15,18 @@ describe('server/lib/plaid/connect', () => {
       sandbox.restore();
     });
 
-    const baseAccount: Partial<AccountBase> = {
+    const baseAccount: Partial<Plaid.AccountBase> = {
       account_id: 'acc-1', // eslint-disable-line camelcase
       name: 'Checking',
       official_name: 'Official Checking', // eslint-disable-line camelcase
       mask: '0000',
-      subtype: AccountSubtype.Checking,
-      type: AccountType.Depository,
+      subtype: Plaid.AccountSubtype.Checking,
+      type: Plaid.AccountType.Depository,
     };
 
-    const refresh = async (accounts: Partial<AccountBase>[], importData = undefined) => {
-      const stubPlaidAPI = sandbox.createStubInstance(PlaidApi);
-      stubPlaidAPI.accountsGet = sandbox.stub().resolves({ data: { accounts } });
+    const refresh = async (accounts: Partial<Plaid.AccountBase>[], importData = undefined) => {
+      const stubPlaidAPI = makePlaidClientStub(sandbox);
+      stubPlaidAPI.accounts.get = sandbox.stub().resolves({ accounts });
       sandbox.stub(PlaidClient, 'getPlaidClient').returns(stubPlaidAPI);
       const connectedAccount = await fakeConnectedAccount({ service: 'plaid' });
       const transactionsImport = await fakeTransactionsImport({

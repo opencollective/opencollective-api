@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { PlaidApi } from 'plaid';
 import sinon from 'sinon';
 
 import { Service } from '../../../../server/constants/connected-account';
@@ -8,20 +7,20 @@ import * as PlaidClient from '../../../../server/lib/plaid/client';
 import * as WebhookVerify from '../../../../server/lib/plaid/webhook-verify';
 import { handlePlaidWebhookEvent } from '../../../../server/lib/plaid/webhooks';
 import * as SentryLib from '../../../../server/lib/sentry';
-import { plaidTransactionsSyncResponse } from '../../../mocks/plaid';
+import { makePlaidClientStub, PlaidClientStub, plaidTransactionsSyncResponse } from '../../../mocks/plaid';
 import { fakeConnectedAccount, fakeTransactionsImport, randStr } from '../../../test-helpers/fake-data';
 import { makeRequest, sleep } from '../../../utils';
 
 describe('server/lib/plaid/webhooks', () => {
   let sandbox: sinon.SinonSandbox;
-  let stubPlaidAPI: sinon.SinonStubbedInstance<PlaidApi>;
+  let stubPlaidAPI: PlaidClientStub;
 
   before(() => {
     sandbox = sinon.createSandbox();
   });
 
   beforeEach(() => {
-    stubPlaidAPI = sandbox.createStubInstance(PlaidApi);
+    stubPlaidAPI = makePlaidClientStub(sandbox);
     sandbox.stub(PlaidClient, 'getPlaidClient').returns(stubPlaidAPI);
   });
 
@@ -81,7 +80,7 @@ describe('server/lib/plaid/webhooks', () => {
     it('gracefully handles parallel sync requests', async () => {
       // Stubs
       sandbox.stub(WebhookVerify, 'verifyPlaidWebhookRequest').resolves(true);
-      stubPlaidAPI.transactionsSync = sandbox.stub().callsFake(async () => {
+      stubPlaidAPI.transactions.sync = sandbox.stub().callsFake(async () => {
         sleep(100); // Just to make sure the first request that arrives will stay there long enough for the other to get blocked
         return plaidTransactionsSyncResponse;
       });
@@ -110,7 +109,7 @@ describe('server/lib/plaid/webhooks', () => {
 
       expect(result.filter(value => value === true).length).to.equal(1);
       expect(result.filter(value => value === false).length).to.equal(3);
-      expect(stubPlaidAPI.transactionsSync).to.have.been.calledOnce;
+      expect(stubPlaidAPI.transactions.sync).to.have.been.calledOnce;
     });
   });
 });

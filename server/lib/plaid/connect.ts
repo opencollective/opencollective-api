@@ -1,6 +1,6 @@
 import config from 'config';
 import { omit, truncate } from 'lodash';
-import { AccountSubtype, CountryCode, ItemPublicTokenExchangeResponse, LinkTokenCreateRequest, Products } from 'plaid';
+import { Plaid } from 'plaid';
 
 import { Service } from '../../constants/connected-account';
 import PlatformConstants from '../../constants/platform';
@@ -8,7 +8,7 @@ import { Collective, ConnectedAccount, sequelize, TransactionsImport, User } fro
 import { sessionCache } from '../cache';
 import { reportErrorToSentry } from '../sentry';
 
-import { getPlaidClient } from './client';
+import { getPlaidClient, getPlaidErrorData } from './client';
 import { getPlaidWebhookUrl } from './webhooks';
 
 // See https://plaid.com/docs/api/link/#link-token-create-request-language
@@ -107,8 +107,8 @@ export const generatePlaidLinkToken = async (
   remoteUser: User,
   host: Collective,
   params: {
-    products: readonly (Products | `${Products}`)[];
-    countries: readonly (CountryCode | `${CountryCode}`)[];
+    products: readonly Plaid.Products[];
+    countries: readonly Plaid.CountryCode[];
     locale: string;
     accessToken?: string;
     /** If `accessToken` is provided, this flag will enable the account selection flow */
@@ -116,12 +116,12 @@ export const generatePlaidLinkToken = async (
   },
 ) => {
   /* eslint-disable camelcase */
-  const linkTokenConfig: LinkTokenCreateRequest = {
+  const linkTokenConfig: Plaid.LinkTokenCreateRequest = {
     user: { client_user_id: remoteUser.id.toString() },
     client_name: PlatformConstants.PlatformName,
     language: getPlaidLanguage(params.locale),
-    products: params.products as Products[],
-    country_codes: params.countries as CountryCode[],
+    products: [...params.products],
+    country_codes: [...params.countries],
     webhook: getPlaidWebhookUrl(),
     redirect_uri: `${config.host.website}/services/plaid/oauth/callback`, // Redirect URL must be listed in https://dashboard.plaid.com/developers/api
   };
@@ -136,17 +136,17 @@ export const generatePlaidLinkToken = async (
 
   try {
     const PlaidClient = getPlaidClient();
-    const tokenResponse = await PlaidClient.linkTokenCreate(linkTokenConfig);
+    const tokenResponse = await PlaidClient.link.createToken(linkTokenConfig);
 
     // Bind the link token to whoever initiated it, so that nobody else can claim the resulting
     // public token for a different host. See `assertPlaidLinkTokenWasInitiatedBy`.
     await recordPlaidLinkSession(
-      tokenResponse.data['link_token'],
+      tokenResponse.link_token,
       { CollectiveId: host.id, UserId: remoteUser.id },
-      tokenResponse.data['expiration'],
+      tokenResponse.expiration,
     );
 
-    return tokenResponse.data;
+    return tokenResponse;
   } catch (e) {
     reportErrorToSentry(e, { extra: { linkTokenConfig }, user: remoteUser });
     throw new Error('Failed to generate Plaid link token');
@@ -171,18 +171,16 @@ export const connectPlaidAccount = async (
   await assertPlaidLinkTokenWasInitiatedBy(remoteUser, host.id, linkToken);
 
   // Exchange Plaid public token
-  let exchangeTokenResponse: ItemPublicTokenExchangeResponse;
+  let exchangeTokenResponse: Plaid.ItemPublicTokenExchangeResponse;
   try {
     const PlaidClient = getPlaidClient();
-    const exchangeTokenAxiosResponse = await PlaidClient.itemPublicTokenExchange({
+    exchangeTokenResponse = await PlaidClient.item.exchangePublicToken({
       /* eslint-disable camelcase */
       public_token: publicToken,
       /* eslint-enable camelcase */
     });
-
-    exchangeTokenResponse = exchangeTokenAxiosResponse.data;
   } catch (error) {
-    const errorData = error.response?.data;
+    const errorData = getPlaidErrorData(error);
     if (!errorData) {
       throw new Error('A network occurred while connecting Plaid');
     } else if (errorData.error_code === 'INVALID_PUBLIC_TOKEN') {
@@ -252,13 +250,13 @@ export const disconnectPlaidAccount = async (connectedAccount: ConnectedAccount)
 
   const PlaidClient = getPlaidClient();
   try {
-    await PlaidClient.itemRemove({
+    await PlaidClient.item.remove({
       /* eslint-disable camelcase */
       access_token: connectedAccount.token,
       /* eslint-enable camelcase */
     });
   } catch (error) {
-    const errorData = error.response?.data;
+    const errorData = getPlaidErrorData(error);
     if (!errorData) {
       throw new Error('A network error occurred while disconnecting the Plaid account');
     } else if (errorData.error_code === 'INVALID_ACCESS_TOKEN') {
@@ -283,14 +281,14 @@ export const refreshPlaidSubAccounts = async (
   }
 
   const PlaidClient = getPlaidClient();
-  const { data } = await PlaidClient.accountsGet({ access_token: connectedAccount.token }); // eslint-disable-line camelcase
+  const data = await PlaidClient.accounts.get({ access_token: connectedAccount.token }); // eslint-disable-line camelcase
   const availableAccounts = data.accounts.map(account => ({
     accountId: account.account_id,
     // `mask`, `official_name` and `subtype` are nullable in Plaid's API, but required in our data schema
     mask: account.mask ?? '',
     name: account.name,
     officialName: account.official_name ?? account.name,
-    subtype: account.subtype ?? AccountSubtype.Other,
+    subtype: account.subtype ?? Plaid.AccountSubtype.Other,
     type: account.type,
   }));
 

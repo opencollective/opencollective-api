@@ -1,7 +1,22 @@
 import config from 'config';
-import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid';
+import { PlaidClient, PlaidEnvironment, PlaidError, PlaidTimeoutError } from 'plaid';
 
-let plaidClient: PlaidApi | undefined;
+let plaidClient: PlaidClient | undefined;
+
+/**
+ * Maps `config.plaid.env` to a Plaid environment. The new SDK defaults to Production when no
+ * environment is given, so we resolve it explicitly and refuse unknown values.
+ */
+export const getPlaidEnvironment = (env: string = config.plaid?.env): PlaidEnvironment => {
+  switch (env) {
+    case 'sandbox':
+      return PlaidEnvironment.Sandbox;
+    case 'production':
+      return PlaidEnvironment.Production;
+    default:
+      throw new Error(`Invalid Plaid environment: ${env}`);
+  }
+};
 
 export const getPlaidClient = ({ throwIfMissing = true } = {}) => {
   // Check config
@@ -15,19 +30,31 @@ export const getPlaidClient = ({ throwIfMissing = true } = {}) => {
 
   // Initialize as a singleton
   if (!plaidClient) {
-    plaidClient = new PlaidApi(
-      new Configuration({
-        basePath: PlaidEnvironments[config.plaid.env],
-        baseOptions: {
-          headers: {
-            'PLAID-CLIENT-ID': config.plaid.clientId,
-            'PLAID-SECRET': config.plaid.secret,
-            'Plaid-Version': '2020-09-14',
-          },
-        },
-      }),
-    );
+    plaidClient = new PlaidClient({
+      environment: getPlaidEnvironment(config.plaid.env),
+      clientId: config.plaid.clientId,
+      secret: config.plaid.secret,
+      version: '2020-09-14',
+      timeoutInSeconds: 60,
+    });
   }
 
   return plaidClient;
+};
+
+/**
+ * Returns the error payload Plaid sent back (`error_code`, `error_type`, `error_message`...), or `undefined`
+ * if the request never got a response from Plaid (network error, timeout, non-JSON body).
+ * See https://plaid.com/docs/errors/.
+ */
+export const getPlaidErrorData = (
+  error: unknown,
+): { error_code?: string; error_type?: string; error_message?: string } | undefined => {
+  if (!(error instanceof PlaidError) || error instanceof PlaidTimeoutError || !error.statusCode) {
+    return undefined;
+  } else if (!error.body || typeof error.body !== 'object') {
+    return undefined;
+  } else {
+    return error.body;
+  }
 };

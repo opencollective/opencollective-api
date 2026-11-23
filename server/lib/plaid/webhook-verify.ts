@@ -3,7 +3,7 @@ import * as crypto from 'crypto';
 import { Request } from 'express';
 import * as jwt from 'jsonwebtoken';
 import { uniq } from 'lodash';
-import { JWKPublicKey } from 'plaid';
+import { Plaid } from 'plaid';
 
 import { sessionCache } from '../cache';
 import { reportErrorToSentry } from '../sentry';
@@ -12,16 +12,15 @@ import { sha256 } from '../utils';
 import { getPlaidClient } from './client';
 import { PlaidWebhookDecodedJWTToken } from './types';
 
-const updateKeysCache = async (keys: readonly string[]): Promise<Record<string, JWKPublicKey>> => {
+const updateKeysCache = async (keys: readonly string[]): Promise<Record<string, Plaid.JwkPublicKey>> => {
   const PlaidClient = getPlaidClient();
-  const newCache: Record<string, JWKPublicKey> = {};
+  const newCache: Record<string, Plaid.JwkPublicKey> = {};
 
   // Fetch valid keys
   const results = await Promise.allSettled(
-    uniq(keys).map(async (keyID: string): Promise<[string, JWKPublicKey] | undefined> => {
+    uniq(keys).map(async (keyID: string): Promise<[string, Plaid.JwkPublicKey] | undefined> => {
       // eslint-disable-next-line camelcase
-      const response = await PlaidClient.webhookVerificationKeyGet({ key_id: keyID });
-      const key = response.data.key;
+      const { key } = await PlaidClient.webhook.getVerificationKey({ key_id: keyID });
       if (!key.expired_at) {
         return [keyID, key];
       }
@@ -76,7 +75,7 @@ export const verifyPlaidWebhookRequest = async (req: Request) => {
   }
 
   // If key not in cache, update the key cache. Do not throw if the cache is unavailable.
-  let keysFromCache: Record<string, JWKPublicKey> = {};
+  let keysFromCache: Record<string, Plaid.JwkPublicKey> = {};
   try {
     keysFromCache = (await sessionCache.get('plaid:webhook-keys')) || {};
   } catch (e) {
