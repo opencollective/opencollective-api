@@ -103,6 +103,8 @@ Subscription.init(
 Subscription.prototype.activate = function () {
   this.isActive = true;
   this.activatedAt = new Date();
+  // `ordersWithPendingCharges` skips subscriptions with a `deactivatedAt`, so a stale one would never be charged again
+  this.deactivatedAt = null;
 
   return this.save();
 };
