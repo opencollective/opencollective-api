@@ -1,6 +1,7 @@
 import type { IndexSettings } from '@opensearch-project/opensearch/api/_types/indices._common.js';
 import { omit } from 'lodash';
 
+import { PLACEHOLDER_USER_NAME } from '../../../constants/collectives';
 import models, { Op } from '../../../models';
 import { stripHTMLOrEmpty } from '../../sanitize-html';
 import { OpenSearchIndexName } from '../constants';
@@ -104,7 +105,7 @@ export class OpenSearchCollectivesAdapter implements OpenSearchModelAdapter {
         isPrivate: false,
         deactivatedAt: { [Op.is]: null },
         data: { hideFromSearch: { [Op.not]: true }, isGuest: { [Op.not]: true } },
-        name: { [Op.notIn]: ['incognito', 'anonymous'] },
+        name: { [Op.notIn]: ['incognito', 'anonymous', PLACEHOLDER_USER_NAME] },
         ...(options.fromDate ? { updatedAt: options.fromDate } : null),
         ...(options.maxId ? { id: { [Op.lte]: options.maxId } } : null),
         ...(options.ids?.length ? { id: options.ids } : null),

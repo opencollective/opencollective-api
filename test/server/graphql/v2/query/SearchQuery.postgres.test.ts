@@ -515,6 +515,7 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
       await fakeCollective({ name: 'Capybara Quagga Private', slug: 'quagga-private', isPrivate: true });
       await fakeCollective({ name: 'Capybara Quagga Hidden', slug: 'quagga-hidden', data: { hideFromSearch: true } });
       await fakeCollective({ name: 'Capybara Quagga Guest', slug: 'quagga-guest', data: { isGuest: true } });
+      await fakeCollective({ type: 'USER', name: 'New user', slug: 'quagga-placeholder' });
       await fakeCollective({ name: 'Capybara Quagga Incognito', slug: 'quagga-incognito', isIncognito: true });
       await fakeCollective({ name: 'Capybara Quagga Archived', slug: 'quagga-archived', deactivatedAt: new Date() });
       await (await fakeCollective({ name: 'Capybara Quagga Deleted', slug: 'quagga-deleted' })).destroy();
@@ -524,7 +525,7 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
       const expected = [host.slug, collective.slug, project.slug, withLegalName.slug];
       expect(await getSlugs('capybara')).to.have.members(expected);
       expect(await getSlugs('capybara', {}, rootUser)).to.have.members(expected);
-      for (const term of ['quagga', 'quagga-private', 'quagga-guest', 'capybara quagga hidden']) {
+      for (const term of ['quagga', 'quagga-private', 'quagga-guest', 'quagga-placeholder', 'capybara quagga hidden']) {
         expect(await getSlugs(term, {}, rootUser), term).to.deep.eq([]);
       }
     });
