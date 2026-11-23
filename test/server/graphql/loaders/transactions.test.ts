@@ -1,10 +1,17 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import { generateHostFeeAmountForTransactionLoader } from '../../../../server/graphql/loaders/transactions';
 import models from '../../../../server/models';
-import { fakeActiveHost, fakeCollective, fakeOrganization, fakeUser } from '../../../test-helpers/fake-data';
+import {
+  fakeActiveHost,
+  fakeCollective,
+  fakeOrganization,
+  fakePaymentMethod,
+  fakeUser,
+} from '../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../utils';
 
 const addFundsMutation = gql`
@@ -68,6 +75,43 @@ describe('server/graphql/loaders/transactions', () => {
 
     it('does not pick up the host fee received by the host when the host is the contributor', async () => {
       const hostFees = await loadHostFees(await addFunds(host));
+      expect(hostFees).to.deep.eq({ credit: -1000, debit: 0 });
+    });
+
+    it('does not pick up the host fee received by the host when it contributes with Stripe (no host id on its debit)', async () => {
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        CollectiveId: host.id,
+      });
+      const credit = await models.Transaction.createDoubleEntry({
+        type: 'CREDIT',
+        kind: TransactionKind.CONTRIBUTION,
+        description: 'Contribution from the host',
+        amount: 10000,
+        amountInHostCurrency: 10000,
+        netAmountInCollectiveCurrency: 9000,
+        hostFeeInHostCurrency: -1000,
+        platformFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        hostCurrencyFxRate: 1,
+        CollectiveId: collective.id,
+        FromCollectiveId: host.id,
+        HostCollectiveId: host.id,
+        CreatedByUserId: hostAdmin.id,
+        PaymentMethodId: paymentMethod.id,
+        PaymentMethod: paymentMethod,
+      });
+
+      const transactions = await models.Transaction.findAll({
+        where: { TransactionGroup: credit.TransactionGroup, kind: TransactionKind.CONTRIBUTION },
+      });
+      const debit = transactions.find(t => t.type === 'DEBIT');
+      expect(debit.HostCollectiveId).to.be.null;
+      expect(debit.CollectiveId).to.eq(host.id);
+      const hostFees = await loadHostFees(transactions);
       expect(hostFees).to.deep.eq({ credit: -1000, debit: 0 });
     });
   });
