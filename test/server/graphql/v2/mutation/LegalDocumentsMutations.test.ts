@@ -25,8 +25,9 @@ import {
   fakePaidExpense,
   fakePayoutMethod,
   fakeUser,
+  fakeUserToken,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, waitForCondition } from '../../../../utils';
+import { graphqlQueryV2, oAuthGraphqlQueryV2, waitForCondition } from '../../../../utils';
 
 describe('LegalDocumentsMutations', () => {
   let sandbox, sendEmailSpy, host, hostAdmin, collective, collectiveAdmin;
@@ -176,6 +177,27 @@ describe('LegalDocumentsMutations', () => {
       expect(sendEmailSpy.firstCall.args[3].attachments).to.have.length(1);
       expect(sendEmailSpy.firstCall.args[3].attachments[0].filename).to.equal('filename.pdf');
       expect(sendEmailSpy.firstCall.args[3].attachments[0].content.toString()).to.equal('PDF_CONTENT');
+    });
+
+    it('records the OAuth token on the activity', async () => {
+      await models.LegalDocument.create({
+        CollectiveId: collective.id,
+        documentType: 'US_TAX_FORM',
+        requestStatus: 'REQUESTED',
+        year: new Date().getFullYear(),
+      });
+
+      const userToken = await fakeUserToken({ user: collectiveAdmin, scope: ['account'] });
+      const result = await oAuthGraphqlQueryV2(submitLegalDocumentMutation, validParams, userToken);
+      expect(result.errors).to.not.exist;
+
+      const activity = await models.Activity.findOne({
+        where: { type: 'taxform.received', CollectiveId: collective.id },
+        order: [['id', 'DESC']],
+      });
+      expect(activity).to.exist;
+      expect(activity.UserId).to.equal(collectiveAdmin.id);
+      expect(activity.UserTokenId).to.equal(userToken.id);
     });
 
     it('works if the previous legal document is expired', async () => {
