@@ -87,6 +87,9 @@ export default class RateLimit {
       return false;
     }
 
+    // Accepts a batch when the counter was under the limit before it, so accepted calls exceed the limit by at most one batch.
+    // Rejected batches are still added to the stored counter, so the counter can exceed the limit by more than one batch.
+    // Callers cap their batch size (15 files per upload, maxRows per import).
     return count - nbCalls < this.limit;
   }
 
