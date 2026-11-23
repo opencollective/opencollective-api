@@ -1054,6 +1054,15 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
   }
 };
 
+// ERROR is live: a failed recurring charge keeps the subscription active for retries, which must stop during the review
+const REVIEWABLE_ORDER_STATUSES = [
+  OrderStatuses.NEW,
+  OrderStatuses.PROCESSING,
+  OrderStatuses.PAID,
+  OrderStatuses.ACTIVE,
+  OrderStatuses.ERROR,
+];
+
 // Charge on Stripe had a fraud review opened
 export const reviewOpened = async (event: Stripe.Event) => {
   const review = event.data.object as Stripe.Review;
@@ -1097,7 +1106,9 @@ export const reviewOpened = async (event: Stripe.Event) => {
     transactions.map(async transaction => {
       await transaction.update({ isInReview: true });
       const order = transaction.Order;
-      if (order.status !== OrderStatuses.IN_REVIEW) {
+      // Only put live orders in review: approving the review restores them as ACTIVE/PAID, which must not
+      // revive an order that was cancelled, refunded, disputed or paused in the meantime
+      if (REVIEWABLE_ORDER_STATUSES.includes(order.status)) {
         await order.update({ status: OrderStatuses.IN_REVIEW });
 
         if (order.SubscriptionId) {
