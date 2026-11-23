@@ -136,8 +136,11 @@ export const backfillAccountTaxData = async (
     // Order by receipt time, not by tax year: `updatedAt` is the submission
     // update for form-flow documents, while a document's `year` can be recorded
     // from its request (historical rows predate the "year = submission year"
-    // stamp) and would then pick a stale form.
-    order: [['updatedAt', 'DESC']],
+    // stamp) and would then pick a stale form. `id` breaks ties between rows updated in the same millisecond.
+    order: [
+      ['updatedAt', 'DESC'],
+      ['id', 'DESC'],
+    ],
   });
 
   const skippedReasons: TaxDataSkipReason[] = [];
