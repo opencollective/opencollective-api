@@ -42,4 +42,28 @@ describe('server/graphql/v1/editCoreContributors', () => {
     expect(await models.Member.count({ where: { CollectiveId: collective.id, role: roles.ADMIN } })).to.equal(1);
     expect(await models.MemberInvitation.count({ where: { CollectiveId: collective.id } })).to.equal(0);
   });
+
+  it('cannot demote the only admin when the only other admin is a pending invitation', async () => {
+    const admin = await fakeUser();
+    const collective = await fakeCollective({ admin });
+    const [adminMember] = await models.Member.findAll({ where: { CollectiveId: collective.id, role: roles.ADMIN } });
+    const invitedUser = await fakeUser();
+
+    const result = await utils.graphqlQuery(
+      editCoreContributorsMutation,
+      {
+        collectiveId: collective.id,
+        members: [
+          { id: adminMember.id, role: roles.MEMBER, member: { id: admin.CollectiveId } },
+          { role: roles.ADMIN, member: { id: invitedUser.CollectiveId } },
+        ],
+      },
+      admin,
+    );
+
+    expect(result.errors).to.have.length(1);
+    expect(result.errors[0].message).to.equal('There must be at least one admin for the account');
+    expect(await models.Member.count({ where: { CollectiveId: collective.id, role: roles.ADMIN } })).to.equal(1);
+    expect(await models.MemberInvitation.count({ where: { CollectiveId: collective.id } })).to.equal(0);
+  });
 });

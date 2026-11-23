@@ -20,7 +20,7 @@
 import { Kysely, RawBuilder, sql } from 'kysely';
 import { isEmpty, isNil } from 'lodash';
 
-import { CollectiveType } from '../../../../../constants/collectives';
+import { CollectiveType, PLACEHOLDER_USER_NAME } from '../../../../../constants/collectives';
 import { IDENTIFIER_TYPES } from '../../../../../graphql/v2/identifiers';
 import type { DatabaseWithViews } from '../../../../kysely';
 import { EntityShortIdPrefix } from '../../../../permalink/entity-map';
@@ -51,7 +51,12 @@ const getVendorsPermission = ({ access }: AccountsContext): RawBuilder<unknown> 
 /** Eligibility + vendors permission + scope + entity filters, shared by every arm */
 const getBaseConditions = (context: AccountsContext): RawBuilder<unknown>[] => {
   const { scope, params } = context;
-  const conditions: RawBuilder<unknown>[] = [sql.raw(Exp.eligible), getVendorsPermission(context)];
+  const conditions: RawBuilder<unknown>[] = [
+    sql.raw(Exp.eligible),
+    // Not in `Exp.eligible`: that predicate must stay identical to the one of the partial indexes
+    sql`name <> ${PLACEHOLDER_USER_NAME}`,
+    getVendorsPermission(context),
+  ];
   if (scope.accountId) {
     conditions.push(sql`(id = ${scope.accountId} OR "ParentCollectiveId" = ${scope.accountId})`);
   }

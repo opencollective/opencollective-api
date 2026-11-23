@@ -12,8 +12,6 @@ import { CollectiveType } from '../../../../../server/constants/collectives';
 import ExpenseTypes from '../../../../../server/constants/expense-type';
 import FEATURE from '../../../../../server/constants/feature';
 import OAuthScopes from '../../../../../server/constants/oauth-scopes';
-import PaymentIntentStatus from '../../../../../server/constants/payment-intent-status';
-import PaymentIntentType from '../../../../../server/constants/payment-intent-type';
 import { UseVendorPolicyValue } from '../../../../../server/constants/policies';
 import {
   US_TAX_FORM_THRESHOLD_POST_2026,
@@ -75,11 +73,6 @@ import {
   randStr,
 } from '../../../../test-helpers/fake-data';
 import { fakeGraphQLAmountInput } from '../../../../test-helpers/fake-graphql-data';
-import {
-  expectPaymentIntentForExpense,
-  expectPaymentIntentSoftDeletedForExpense,
-  expectTransactionsLinkedToPaymentIntent,
-} from '../../../../test-helpers/payment-intent';
 import {
   getOrCreatePlatformAccount,
   graphqlQueryV2,
@@ -662,13 +655,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(createdExpense.customData.myCustomField).to.eq('myCustomValue');
       expect(createdExpense.accountingCategory.id).to.eq(encodedAccountingCategoryId);
       expect(createdExpense.valuesByRole.submitter.accountingCategory.id).to.eq(encodedAccountingCategoryId);
-
-      await expectPaymentIntentForExpense(createdExpense.legacyId, {
-        status: PaymentIntentStatus.PENDING,
-        type: PaymentIntentType.PaymentRequest,
-        primaryTransactionGroup: null,
-        paidAt: null,
-      });
 
       // Should have updated collective's location
       await payee.reload({ include: [{ association: 'location' }] });
@@ -5513,7 +5499,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.deleteExpense.legacyId).to.eq(expense.id);
         await expense.reload({ paranoid: false });
         expect(expense.deletedAt).to.exist;
-        await expectPaymentIntentSoftDeletedForExpense(expense.id);
 
         const activity = await models.Activity.findOne({
           where: { ExpenseId: expense.id, type: activities.COLLECTIVE_EXPENSE_DELETED },
@@ -6188,7 +6173,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'REJECT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.data.processExpense.status).to.eq('REJECTED');
-        await expectPaymentIntentForExpense(expense.id, { status: PaymentIntentStatus.CANCELED });
       });
 
       it('Expense needs to be pending', async () => {
@@ -6477,14 +6461,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(await collective.getBalanceWithBlockedFunds()).to.equal(initialBalance);
         result.errors && console.error(result.errors);
         expect(result.data.processExpense.status).to.eq('PAID');
-
-        const paymentIntent = await expectPaymentIntentForExpense(expense.id, {
-          status: PaymentIntentStatus.PAID,
-          type: PaymentIntentType.PaymentRequest,
-        });
-        expect(paymentIntent.primaryTransactionGroup).to.exist;
-        expect(paymentIntent.paidAt).to.exist;
-        await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
 
         // Check paidAt is set
         await expense.reload();
@@ -7758,6 +7734,74 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq('Expense is already scheduled for payment');
+      });
+
+      describe('when the host requires 2FA for admins', () => {
+        let hostWith2FAPolicy, hostWith2FAPolicyAdmin, hostedCollective;
+
+        before(async () => {
+          hostWith2FAPolicyAdmin = await fakeUser();
+          hostWith2FAPolicy = await fakeActiveHost({
+            admin: hostWith2FAPolicyAdmin.collective,
+            currency: 'USD',
+            settings: { features: { paypalPayouts: true } },
+            data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+          });
+          await fakePlatformSubscription({
+            CollectiveId: hostWith2FAPolicy.id,
+            plan: { features: { [FEATURE.PAYPAL_PAYOUTS]: true } },
+          });
+          await fakeConnectedAccount({ CollectiveId: hostWith2FAPolicy.id, service: 'paypal', token: 'faketoken' });
+          hostedCollective = await fakeCollective({ HostCollectiveId: hostWith2FAPolicy.id, currency: 'USD' });
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: hostedCollective.id,
+            HostCollectiveId: hostWith2FAPolicy.id,
+            amount: 1000e2,
+            currency: 'USD',
+          });
+          await hostWith2FAPolicyAdmin.populateRoles();
+        });
+
+        const fakeApprovedPaypalExpense = async () => {
+          const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.PAYPAL });
+          return fakeExpense({
+            amount: 1000,
+            currency: 'USD',
+            CollectiveId: hostedCollective.id,
+            status: 'APPROVED',
+            PayoutMethodId: payoutMethod.id,
+          });
+        };
+
+        it('rejects host admins who have not configured 2FA', async () => {
+          const expense = await fakeApprovedPaypalExpense();
+          const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
+          const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostWith2FAPolicyAdmin);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].extensions.code).to.eq('2FA_REQUIRED');
+          await expense.reload();
+          expect(expense.status).to.eq('APPROVED');
+        });
+
+        it('schedules the expense when the host admin provides a 2FA code', async () => {
+          const secret = generateSecret({ length: 64 });
+          await UserTwoFactorMethod.create({
+            UserId: hostWith2FAPolicyAdmin.id,
+            method: TwoFactorMethod.TOTP,
+            name: 'TOTP',
+            data: { secret: crypto.encrypt(secret) },
+          });
+
+          const expense = await fakeApprovedPaypalExpense();
+          const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
+          const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostWith2FAPolicyAdmin, null, {
+            [TwoFactorAuthenticationHeader]: `totp ${generateSync({ secret })}`,
+          });
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.processExpense.status).to.eq('SCHEDULED_FOR_PAYMENT');
+        });
       });
     });
 

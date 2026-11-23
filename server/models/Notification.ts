@@ -284,8 +284,9 @@ class Notification extends ModelWithPublicId<
 
       // If a User provided, we also want to include "global Notifications settings" in the search. A user can
       // set their global setting by creating a Notification that has no specific Collective attached.
+      // `IN (..., NULL)` never matches NULL in SQL, so global rows need an explicit `IS NULL`.
       if (where['UserId']) {
-        where['CollectiveId'].push(null);
+        where['CollectiveId'] = { [Op.or]: [{ [Op.in]: where['CollectiveId'] }, { [Op.is]: null }] };
       }
 
       // Also consider users who unsubscribed from ALL activities in this collective.

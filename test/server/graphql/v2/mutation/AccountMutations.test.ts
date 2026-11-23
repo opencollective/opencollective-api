@@ -35,6 +35,7 @@ import {
   fakeUser,
   fakeUserToken,
   fakeUserTwoFactorMethod,
+  randEmail,
   randStr,
 } from '../../../../test-helpers/fake-data';
 import {
@@ -1494,7 +1495,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       };
       const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
       expect(result.errors).to.have.lengthOf(1);
-      expect(result.errors[0].message).to.include('You are not allowed to edit the following policies');
+      expect(result.errors[0].message).to.include('You need to be an admin of the account or of its host');
 
       // The policy must be retained
       await host.reload();
@@ -1524,6 +1525,30 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       // The policy must be retained
       await collective.reload();
       expect(collective.data.policies[POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]).to.be.true;
+    });
+
+    describe('should fail for a user who is not an admin, even when the policies do not change', () => {
+      const countEditedActivities = () =>
+        models.Activity.count({ where: { type: ACTIVITY.COLLECTIVE_EDITED, CollectiveId: collective.id } });
+
+      const cases = {
+        'no policies': () => ({}),
+        'an unchanged value': () => ({
+          [POLICIES.EXPENSE_POLICIES]: collective.data.policies[POLICIES.EXPENSE_POLICIES],
+        }),
+        'null for a policy that is not set': () => ({ [POLICIES.COLLECTIVE_ADMINS_CAN_REFUND]: null }),
+      };
+
+      for (const [name, getPolicies] of Object.entries(cases)) {
+        it(`with ${name}`, async () => {
+          const activitiesBefore = await countEditedActivities();
+          const mutationParams = { account: { legacyId: collective.id }, policies: getPolicies() };
+          const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, randomUser);
+          expect(result.errors).to.have.lengthOf(1);
+          expect(result.errors[0].extensions.code).to.equal('Forbidden');
+          expect(await countEditedActivities()).to.equal(activitiesBefore);
+        });
+      }
     });
 
     describe('TAX_FORM_THRESHOLDS policy', () => {
@@ -2481,6 +2506,78 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         }
       }
     `;
+
+    describe('profile created without a name (`/users/signup`)', () => {
+      const completeProfileMutation = gql`
+        mutation CompleteProfile($account: AccountUpdateInput!) {
+          editAccount(account: $account) {
+            id
+            slug
+            name
+          }
+        }
+      `;
+
+      // As `/users/signup` does: no name, so the profile gets a placeholder name and a `user-…` slug
+      const createUserWithoutName = async () => {
+        const user = await models.User.create({ email: randEmail(), confirmedAt: new Date() });
+        const collective = await user.createCollective({ data: { requiresProfileCompletion: true } });
+        await user.update({ CollectiveId: collective.id });
+        return { user, collective };
+      };
+
+      // Profiles created before the placeholder changed are named "incognito", with an `incognito-…` slug
+      const createLegacyUserWithoutName = async () => {
+        const { user, collective } = await createUserWithoutName();
+        await collective.update({ name: 'incognito', slug: `incognito-${randStr().toLowerCase().slice(0, 8)}` });
+        return { user, collective };
+      };
+
+      it('derives the slug from the name when the profile is completed', async () => {
+        const { user, collective } = await createUserWithoutName();
+        expect(collective.name).to.equal('user');
+        expect(collective.slug).to.match(/^user-/);
+
+        const result = await graphqlQueryV2(
+          completeProfileMutation,
+          { account: { id: idEncode(collective.id, 'account'), name: 'Jane Newslug' } },
+          user,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.editAccount.slug).to.match(/^jane-newslug/);
+      });
+
+      it('derives the slug from the name for a legacy "incognito" profile', async () => {
+        const { user, collective } = await createLegacyUserWithoutName();
+        expect(collective.slug).to.match(/^incognito-/);
+
+        const result = await graphqlQueryV2(
+          completeProfileMutation,
+          { account: { id: idEncode(collective.id, 'account'), name: 'Jane Slugtest' } },
+          user,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.editAccount.slug).to.match(/^jane-slugtest/);
+        await collective.reload();
+        expect(collective.slug).to.match(/^jane-slugtest/);
+        expect(collective.data.requiresProfileCompletion).to.be.false;
+      });
+
+      it('keeps the slug when the name is not set', async () => {
+        for (const create of [createUserWithoutName, createLegacyUserWithoutName]) {
+          const { user, collective } = await create();
+          const initialSlug = collective.slug;
+
+          const result = await graphqlQueryV2(
+            completeProfileMutation,
+            { account: { id: idEncode(collective.id, 'account'), legalName: 'Jane Legal Slugtest' } },
+            user,
+          );
+          expect(result.errors).to.not.exist;
+          expect(result.data.editAccount.slug).to.equal(initialSlug);
+        }
+      });
+    });
 
     it('requires root scope to edit an unrelated account', async () => {
       const root = await fakeUser({ data: { isRoot: true } });

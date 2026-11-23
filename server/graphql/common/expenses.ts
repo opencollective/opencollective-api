@@ -153,12 +153,10 @@ const loadHostForExpense = async (req: express.Request, expense: Expense): Promi
 
 const isOwner = async (req: express.Request, expense: Expense): Promise<boolean> => {
   expense.fromCollective = expense.fromCollective || (await req.loaders.Collective.byId.load(expense.FromCollectiveId));
-  if (!req.remoteUser) {
+  if (!req.remoteUser || !expense.fromCollective) {
     return false;
   } else if (req.remoteUser.id === expense.UserId && expense.fromCollective.type !== CollectiveType.VENDOR) {
     return true;
-  } else if (!expense.fromCollective) {
-    return false;
   }
 
   return req.remoteUser.isAdminOfCollective(expense.fromCollective);
@@ -1019,6 +1017,23 @@ export const canMarkAsPaid: ExpensePermissionEvaluator = async (
 };
 
 /**
+ * Events and projects inherit their admins from their parent (see `User.isAdminOfCollective`),
+ * so their admins are counted together with the parent's.
+ */
+const countAdminsOfAccount = async (req: express.Request, account: Collective): Promise<number> => {
+  const isChildAccount = [CollectiveType.EVENT, CollectiveType.PROJECT].includes(account.type as CollectiveType);
+  if (!isChildAccount || !account.ParentCollectiveId) {
+    return req.loaders.Member.countAdminMembersOfCollective.load(account.id);
+  }
+
+  const [childAdminIds, parentAdminIds] = await Promise.all([
+    req.loaders.Member.adminMemberCollectiveIdsOfCollective.load(account.id),
+    req.loaders.Member.adminMemberCollectiveIdsOfCollective.load(account.ParentCollectiveId),
+  ]);
+  return new Set([...childAdminIds, ...parentAdminIds]).size;
+};
+
+/**
  * Returns true if expense can be approved by user.
  * SETTLEMENT expenses are created by the platform but approved by the billed fiscal host (or a platform admin).
  * PLATFORM_BILLING can only be approved by platform admins.
@@ -1080,7 +1095,7 @@ export const canApprove: ExpensePermissionEvaluator = async (
     const userIsCollectiveAdmin = await isCollectiveAdmin(req, expense);
     const hostPolicy = await getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
     const collectivePolicy = await getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
-    const numberOfAdmins = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
+    const numberOfAdmins = await countAdminsOfAccount(req, expense.collective);
     const isExpenseAuthor = req.remoteUser.id === expense.UserId;
 
     const hostPolicyApplies =
@@ -1818,12 +1833,12 @@ export const scheduleExpenseForPayment = async (
 
   expense.PayoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
   await checkHasBalanceToPayExpense(host, expense, expense.PayoutMethod);
-  if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
-    const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
-
-    if (hostHasPayoutTwoFactorAuthenticationEnabled) {
-      await validateExpensePayout2FALimit(req, host, expense);
-    }
+  const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
+  if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL && hostHasPayoutTwoFactorAuthenticationEnabled) {
+    await validateExpensePayout2FALimit(req, host, expense);
+  } else {
+    // Not using rolling limit, but still enforcing 2FA for all admins (same as `payExpense`)
+    await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
   }
 
   // If Wise, add expense to a new batch group

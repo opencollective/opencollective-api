@@ -398,6 +398,21 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       expect(location.address).to.equal('Zorg Avenue, 1');
     });
 
+    it('saves the tax ID in settings when only vendorInfo is provided', async () => {
+      const vendor = await fakeCollective({ type: CollectiveType.VENDOR, ParentCollectiveId: host.id, settings: {} });
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        { vendor: { legacyId: vendor.id, vendorInfo: { taxType: 'VAT', taxId: 'BE0411905847' } } },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await vendor.reload();
+      expect(vendor.settings.VAT).to.deep.equal({ number: 'BE0411905847', type: 'OWN' });
+      expect(vendor.data.vendorInfo).to.deep.include({ taxType: 'VAT', taxId: 'BE0411905847' });
+    });
+
     it('invalidates existing Payout Method and updates existing Expenses', async () => {
       const vendor = await fakeCollective({
         type: CollectiveType.VENDOR,

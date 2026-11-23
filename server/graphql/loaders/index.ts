@@ -52,7 +52,6 @@ import {
 import Comment from '../../models/Comment';
 import ExportRequest from '../../models/ExportRequest';
 import { KYCVerification } from '../../models/KYCVerification';
-import PaymentIntentModel from '../../models/PaymentIntent';
 
 import { generateTotalAccountHostAgreementsLoader } from './agreements';
 import collectiveLoaders from './collective';
@@ -73,7 +72,6 @@ import {
   generateRemoteUserIsIndirectFinancialContributor,
 } from './members';
 import * as orderLoaders from './order';
-import * as paymentIntentLoaders from './payment-intents';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import { generateEntityByPublicIdLoader, generateEntityIdByPublicIdLoader } from './publicId';
 import { generateSearchLoaders } from './search';
@@ -189,24 +187,6 @@ export const generateLoaders = req => {
     FiscalHostNote: {
       ...context.loaders.FiscalHostNote,
       byHostAndAccount: generateFiscalHostNoteByHostAndAccountLoader(),
-    },
-    PaymentIntent: {
-      ...context.loaders.PaymentIntent,
-      byId: paymentIntentLoaders.generatePaymentIntentByIdLoader(),
-      byPublicId: generateEntityByPublicIdLoader(PaymentIntentModel),
-      idByPublicId: generateEntityIdByPublicIdLoader(PaymentIntentModel),
-      transactionsByPaymentIntentId: paymentIntentLoaders.generatePaymentIntentTransactionsLoader(),
-      amountPledged: paymentIntentLoaders.generatePaymentIntentAmountPledgedLoader(),
-      amountSentInHostCurrency: paymentIntentLoaders.generatePaymentIntentAmountSentInHostCurrencyLoader(req, false),
-      amountSentNetInHostCurrency: paymentIntentLoaders.generatePaymentIntentAmountSentInHostCurrencyLoader(req, true),
-      amountReceivedInHostCurrency: paymentIntentLoaders.generatePaymentIntentAmountReceivedInHostCurrencyLoader(
-        req,
-        false,
-      ),
-      amountReceivedNetInHostCurrency: paymentIntentLoaders.generatePaymentIntentAmountReceivedInHostCurrencyLoader(
-        req,
-        true,
-      ),
     },
     PayoutMethod: {
       ...context.loaders.PayoutMethod,

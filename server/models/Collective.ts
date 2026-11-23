@@ -49,7 +49,7 @@ import { v4 as uuid } from 'uuid';
 import validator from 'validator';
 
 import activities from '../constants/activities';
-import { CollectiveType, CollectiveTypesList } from '../constants/collectives';
+import { CollectiveType, CollectiveTypesList, PLACEHOLDER_USER_NAME } from '../constants/collectives';
 import { Service } from '../constants/connected-account';
 import { SupportedCurrency } from '../constants/currencies';
 import expenseStatus from '../constants/expense-status';
@@ -859,7 +859,7 @@ class Collective extends ModelWithPublicId<
     }
 
     if (this.type === 'USER') {
-      if (user && user.email && this.name && this.name !== 'incognito') {
+      if (user && user.email && this.name && !['incognito', PLACEHOLDER_USER_NAME].includes(this.name)) {
         const emailHash = md5(user.email.toLowerCase().trim());
         const avatar = `https://www.gravatar.com/avatar/${emailHash}?default=404`;
         return this.checkAndUpdateImage(avatar, force);
@@ -2884,14 +2884,19 @@ class Collective extends ModelWithPublicId<
 
     // remove the members that are not present anymore
     const { remoteUserCollectiveId } = defaultAttributes;
+
+    // At least one admin must remain once the edit is applied. Pending invitations don't count,
+    // only existing members and the remote user adding themselves (which creates a membership directly).
+    const nbAdminsBefore = oldMembers.filter(m => m.role === roles.ADMIN).length;
+    const nbAdmins = members.filter(
+      m => m.role === roles.ADMIN && (m.id || (remoteUserCollectiveId && m.member?.id === remoteUserCollectiveId)),
+    ).length;
+    if (nbAdminsBefore && !nbAdmins) {
+      throw new Error('There must be at least one admin for the account');
+    }
+
     const diff: Member[] = differenceBy(oldMembers, members, (m: Member) => m.id);
     if (diff.length > 0) {
-      const nbAdminsBefore = oldMembers.filter(m => m.role === roles.ADMIN && m.id).length;
-      const nbAdmins = members.filter(m => m.role === roles.ADMIN && m.id).length;
-      if (nbAdminsBefore && !nbAdmins) {
-        throw new Error('There must be at least one admin for the account');
-      }
-
       debug('editMembers', 'delete', diff);
       const diffMemberIds = diff.map(m => m.id);
       await Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diffMemberIds } } });
