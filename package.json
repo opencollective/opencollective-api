@@ -241,7 +241,7 @@
     "test:scripts": "npm run test test/scripts",
     "test:sql": "npm run test test/sql",
     "ts-unused-exports": "ts-unused-exports tsconfig.json --ignoreFiles=server/types --ignoreFiles=server/paymentProviders/types",
-    "type:check": "tsc -p tsconfig.json",
+    "type:check": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc -p tsconfig.json",
     "prepare": "husky",
     "lint-staged": "lint-staged",
     "heroku-postbuild": "npm run build && ./scripts/upload-sourcemaps.sh",

@@ -100,9 +100,6 @@ jobs:
           key: ${{ runner.os }}-${{ secrets.CACHE_VERSION }}-tsc-${{ hashFiles('tsconfig.json', 'package-lock.json') }}-${{ github.sha }}
 
       - run: npm run type:check
-        env:
-          # A cold type-check needs ~2GB of heap, right at Node's default limit on CI runners
-          NODE_OPTIONS: --max-old-space-size=4096
 
   depcheck:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-26.04' }}
