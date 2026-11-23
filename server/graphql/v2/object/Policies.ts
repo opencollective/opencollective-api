@@ -169,16 +169,15 @@ export const GraphQLPolicies = new GraphQLObjectType({
             ? await req.loaders.Collective.byId.load(account.HostCollectiveId)
             : account;
         let thresholds = await getPolicy(host, POLICIES.CONTRIBUTOR_INFO_THRESHOLDS, req);
-        let fxRate = 1;
         if (!thresholds) {
           if (host?.currency === 'USD') {
             thresholds = DEFAULT_CONTRIBUTION_INFO_USD_THRESHOLDS;
           } else {
             return null;
           }
-        } else if (host.currency !== account.currency) {
-          fxRate = await getFxRate(host.currency, account.currency);
         }
+
+        const fxRate = host.currency !== account.currency ? await getFxRate(host.currency, account.currency) : 1;
         return mapValues(thresholds, threshold => (isNil(threshold) ? null : Math.round(threshold * fxRate)));
       },
     },

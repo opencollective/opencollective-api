@@ -41,6 +41,13 @@ describe('server/lib/private-accounts', () => {
       expect(result).to.be.true;
       expect(req.loaders.Collective.canSeePrivateAccount.load).to.have.been.calledOnceWithExactly(99);
     });
+
+    it('returns true without using the loader when the account is null', async () => {
+      const req = mockReq({});
+      const result = await canSeePrivateAccount(req, null);
+      expect(result).to.be.true;
+      expect(req.loaders.Collective.canSeePrivateAccount.load).to.not.have.been.called;
+    });
   });
 
   describe('canSeeAllPrivateAccounts', () => {
@@ -82,6 +89,12 @@ describe('server/lib/private-accounts', () => {
       const req = mockReq({});
       const account = { id: 1, isPrivate: false } as MinimalCollective;
       await assertCanSeeAccount(req, account as never);
+      expect(req.loaders.Collective.canSeePrivateAccount.load).to.not.have.been.called;
+    });
+
+    it('does not throw when the account is null (e.g. soft-deleted)', async () => {
+      const req = mockReq({});
+      await assertCanSeeAccount(req, null);
       expect(req.loaders.Collective.canSeePrivateAccount.load).to.not.have.been.called;
     });
 

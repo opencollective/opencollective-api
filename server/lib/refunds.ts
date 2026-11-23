@@ -15,8 +15,19 @@ export const getRefundableAmountFromCollectiveInHostCurrency = async (transactio
   assert(contribution, 'No contributions found for this transaction');
   const hostFee = relatedCreditTransactions.find(t => t.kind === TransactionKind.HOST_FEE);
   const paymentFee = relatedCreditTransactions.find(t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE);
+  const tax = relatedCreditTransactions.find(t => t.kind === TransactionKind.TAX);
 
+  // The net amount excludes the fees and taxes embedded in the contribution, which never reached the Collective balance.
+  // Exceptions, where the refund takes the embedded fee from the Collective anyway:
+  // - a legacy host fee embedded in the contribution is not given back
+  // - an embedded payment processor fee is not covered by the host when the Collective is its own host
+  const isSelfHosted = contribution.CollectiveId === contribution.HostCollectiveId;
   return (
-    contribution.amountInHostCurrency - (hostFee?.amountInHostCurrency || 0) - (paymentFee?.amountInHostCurrency || 0)
+    Transaction.calculateNetAmountInHostCurrency(contribution) -
+    (contribution.hostFeeInHostCurrency || 0) -
+    (isSelfHosted ? contribution.paymentProcessorFeeInHostCurrency || 0 : 0) -
+    (hostFee?.amountInHostCurrency || 0) -
+    (paymentFee?.amountInHostCurrency || 0) -
+    (tax?.amountInHostCurrency || 0)
   );
 };

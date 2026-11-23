@@ -32,11 +32,14 @@ const oAuthAuthorizationMutations = {
 
       return {
         id: userToken.id,
+        publicId: userToken.publicId,
         account: req.remoteUser.collective,
         application: userToken.application,
         expiresAt: userToken.accessTokenExpiresAt,
         createdAt: userToken.createdAt,
         updatedAt: userToken.updatedAt,
+        preAuthorize2FA: userToken.preAuthorize2FA,
+        scope: userToken.scope,
         user: req.remoteUser,
       };
     },

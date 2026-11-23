@@ -5,7 +5,7 @@ import { createSandbox } from 'sinon';
 
 import { VAT_OPTIONS } from '../../../../server/constants/vat';
 import stripe from '../../../../server/lib/stripe';
-import models from '../../../../server/models';
+import models, { sequelize } from '../../../../server/models';
 import { fakeCollective, fakePrivateHost, fakeTier, fakeUser, randStr } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
@@ -210,6 +210,28 @@ describe('server/graphql/v1/tiers', () => {
       res.errors && console.error(res.errors[0]);
       expect(res.errors).to.not.exist;
       expect(res.data.Tier.id).to.equal(privateTier.id);
+    });
+
+    it('returns null when the tier belongs to a soft-deleted collective', async () => {
+      const collective = await fakeCollective();
+      const tier = await fakeTier({ CollectiveId: collective.id });
+      await sequelize.query(`UPDATE "Collectives" SET "deletedAt" = NOW() WHERE id = :id`, {
+        replacements: { id: collective.id },
+      });
+
+      const tierQuery = gqlV1 /* GraphQL */ `
+        query Tier($id: Int!) {
+          Tier(id: $id) {
+            id
+            name
+          }
+        }
+      `;
+
+      const res = await utils.graphqlQuery(tierQuery, { id: tier.id }, await fakeUser());
+      res.errors && console.error(res.errors[0]);
+      expect(res.errors).to.not.exist;
+      expect(res.data.Tier).to.be.null;
     });
   });
 
