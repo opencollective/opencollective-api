@@ -25,7 +25,7 @@ import {
   sendOrderPendingEmail,
 } from '../../../server/lib/payments';
 import stripe from '../../../server/lib/stripe';
-import { getHostPlatformTipsAccount } from '../../../server/lib/transactions';
+import { createTransactionsFromPaidExpense, getHostPlatformTipsAccount } from '../../../server/lib/transactions';
 import type { PaymentMethod } from '../../../server/models';
 import models from '../../../server/models';
 import type { TransactionData } from '../../../server/models/Transaction';
@@ -35,6 +35,7 @@ import stripeMocks from '../../mocks/stripe';
 import {
   fakeActiveHost,
   fakeCollective,
+  fakeExpense,
   fakeHost,
   fakeManualPaymentProvider,
   fakeOrder,
@@ -1060,6 +1061,45 @@ describe('server/lib/payments', () => {
       const allTransactions = await order.getTransactions({ order: [['id', 'ASC']] });
       await utils.preloadAssociationsForTransactions(allTransactions, SNAPSHOT_COLUMNS);
       utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS });
+    });
+
+    it('credits the separate processor fee back to the collective when refunding a self-paid expense', async () => {
+      const host = await fakeHost({ currency: 'USD' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      const expense = await fakeExpense({
+        amount: 10000,
+        currency: 'USD',
+        status: 'PAID',
+        CollectiveId: collective.id,
+        FromCollectiveId: collective.id,
+        UserId: user.id,
+      });
+      await createTransactionsFromPaidExpense(
+        host,
+        expense,
+        { hostFeeInHostCurrency: 0, platformFeeInHostCurrency: 0, paymentProcessorFeeInHostCurrency: 500 },
+        1,
+      );
+
+      // Same lookup as `markExpenseAsUnpaid`: for a self-expense, this is the DEBIT
+      const transaction = await models.Transaction.findOne({
+        where: { ExpenseId: expense.id, RefundTransactionId: null, kind: 'EXPENSE', isRefund: false },
+      });
+      expect(transaction.type).to.eq('DEBIT');
+      await createRefundTransaction(transaction, 500, null, user);
+
+      const allTransactions = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
+      const feeRefund = allTransactions.find(
+        t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE && t.isRefund && t.CollectiveId === collective.id,
+      );
+      expect(feeRefund).to.exist;
+      expect(feeRefund.type).to.eq('CREDIT');
+      expect(feeRefund.amount).to.eq(500);
+
+      const collectiveNet = allTransactions
+        .filter(t => t.CollectiveId === collective.id)
+        .reduce((total, t) => total + t.netAmountInCollectiveCurrency, 0);
+      expect(collectiveNet).to.eq(0);
     });
 
     it('should remove the settlement if the tip was already invoiced', async () => {
