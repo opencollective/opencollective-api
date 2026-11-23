@@ -12,7 +12,7 @@ import { TransactionKind } from '../../../../../server/constants/transaction-kin
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import * as libcurrency from '../../../../../server/lib/currency';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
-import models, { Op } from '../../../../../server/models';
+import models, { Op, sequelize } from '../../../../../server/models';
 import { BalanceSheetAccountingCategoryKind } from '../../../../../server/models/AccountingCategory';
 import { TransactionSettlementStatus } from '../../../../../server/models/TransactionSettlement';
 import {
@@ -1305,6 +1305,47 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
         expect(failedResult.errors).to.exist;
         expect(failedResult.errors[0].message).to.match(/already been invoiced as part of a platform settlement/);
         expect(await getHostFeeShareDebts()).to.containSubset(newDebts.map(t => ({ id: t.id })));
+      } finally {
+        await collective.host.update({ plan: previousPlan });
+      }
+    });
+
+    it('does not edit settlements that are being invoiced concurrently', async () => {
+      const previousPlan = collective.host.plan;
+      await collective.host.update({
+        plan: 'grow-plan-2021',
+        data: { ...collective.host.data, plan: { hostFeeSharePercent: 15 } },
+      });
+      try {
+        const order = await addFunds();
+        const [debt] = await models.Transaction.findAll({
+          where: { OrderId: order.legacyId, kind: 'HOST_FEE_SHARE_DEBT' },
+        });
+        const TransactionGroup = debt.TransactionGroup;
+
+        // The settlement job flips the rows to INVOICED but has not committed yet when the edit starts
+        const invoicingTransaction = await sequelize.transaction();
+        let result;
+        try {
+          await models.TransactionSettlement.update(
+            { status: TransactionSettlementStatus.INVOICED },
+            { where: { TransactionGroup }, transaction: invoicingTransaction },
+          );
+          const editPromise = editInPlace(order, { amount: { currency: 'USD', valueInCents: 5000 } });
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await invoicingTransaction.commit();
+          result = await editPromise;
+        } catch (e) {
+          await invoicingTransaction.rollback();
+          throw e;
+        }
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/already been invoiced as part of a platform settlement/);
+        const settlements = await models.TransactionSettlement.findAll({ where: { TransactionGroup } });
+        expect(settlements).to.have.length(1);
+        expect(settlements[0].status).to.equal(TransactionSettlementStatus.INVOICED);
+        expect(await models.Transaction.findByPk(debt.id)).to.exist;
       } finally {
         await collective.host.update({ plan: previousPlan });
       }

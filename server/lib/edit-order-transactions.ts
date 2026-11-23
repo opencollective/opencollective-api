@@ -40,9 +40,11 @@ const assertTransactionsCanBeReplaced = async (
   }
 
   // Once the platform share (or tip) has been invoiced to the host, the amounts are part of an expense:
-  // they can't change anymore without a proper reversal.
+  // they can't change anymore without a proper reversal. Rows are locked so that the settlement job
+  // can't invoice them between this check and their deletion.
   const settlements = await TransactionSettlement.findAll({
     where: { TransactionGroup: transactions[0].TransactionGroup },
+    lock: sqlTransaction.LOCK.UPDATE,
     transaction: sqlTransaction,
   });
   if (settlements.some(settlement => settlement.status !== TransactionSettlementStatus.OWED)) {
