@@ -108,6 +108,42 @@ describe('server/lib/export-requests/export-csv', () => {
       expect(url.searchParams.has('manualPaymentProvider')).to.be.false;
     });
 
+    it('forwards the payment method filter as a list of ids', () => {
+      const url = parseUrl({
+        account: { slug: 'my-collective' },
+        variables: { paymentMethod: [{ id: 'pm_abc123' }, { id: 'pm_def456' }] },
+      });
+      expect(url.searchParams.get('paymentMethod')).to.equal('pm_abc123,pm_def456');
+    });
+
+    it('omits the payment method filter when empty', () => {
+      const url = parseUrl({ account: { slug: 'my-collective' }, variables: { paymentMethod: [] } });
+      expect(url.searchParams.has('paymentMethod')).to.be.false;
+    });
+
+    it('forwards the payout method filter as its id', () => {
+      const url = parseUrl({ account: { slug: 'my-collective' }, variables: { payoutMethod: { id: 'po_abc123' } } });
+      expect(url.searchParams.get('payoutMethod')).to.equal('po_abc123');
+    });
+
+    it('omits the payout method filter when not set', () => {
+      const url = parseUrl();
+      expect(url.searchParams.has('payoutMethod')).to.be.false;
+    });
+
+    it('forwards the virtual card filter as a list of ids', () => {
+      const url = parseUrl({
+        account: { slug: 'my-collective' },
+        variables: { virtualCard: [{ id: 'vc_abc123' }, { id: 'vc_def456' }] },
+      });
+      expect(url.searchParams.get('virtualCard')).to.equal('vc_abc123,vc_def456');
+    });
+
+    it('omits the virtual card filter when empty', () => {
+      const url = parseUrl({ account: { slug: 'my-collective' }, variables: { virtualCard: [] } });
+      expect(url.searchParams.has('virtualCard')).to.be.false;
+    });
+
     it('maps amount bounds to min/maxAmount', () => {
       const url = parseUrl({
         account: { slug: 'my-collective' },
