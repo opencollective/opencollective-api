@@ -6,6 +6,7 @@ import { TransactionSettlementStatus } from '../models/TransactionSettlement';
 import type { LedgerWriteOverrides } from '../paymentProviders/types';
 
 import { processOrder } from './payments';
+import { reportErrorToSentry } from './sentry';
 
 /**
  * How the ledger should be updated when a host admin edits funds that they added manually.
@@ -125,9 +126,14 @@ export async function replaceOrderTransactions(
     return transactions;
   });
 
-  // Register the contributor as a member, in case the source of the funds changed (no-op otherwise)
+  // Register the contributor as a member, in case the source of the funds changed (no-op otherwise).
+  // The ledger edit is already committed at this point: a failure here must not fail the edit.
   if (order.fromCollective?.ParentCollectiveId !== order.collective.id) {
-    await order.getOrCreateMembers();
+    try {
+      await order.getOrCreateMembers();
+    } catch (e) {
+      reportErrorToSentry(e, { extra: { orderId: order.id } });
+    }
   }
 
   return replacedTransactions;

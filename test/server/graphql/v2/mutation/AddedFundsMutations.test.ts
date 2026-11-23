@@ -1371,6 +1371,29 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       expect(dbOrder.status).to.equal(OrderStatuses.PAID);
     });
 
+    it('still succeeds and records the activity if the members cannot be registered', async () => {
+      const order = await addFunds();
+      const membersStub = sandbox
+        .stub(models.Order.prototype, 'getOrCreateMembers')
+        .rejects(new Error('Cannot register members'));
+      let result;
+      try {
+        result = await editInPlace(order, { amount: { currency: 'USD', valueInCents: 2500 } });
+      } finally {
+        membersStub.restore();
+      }
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(membersStub.called).to.be.true;
+      expect(result.data.editAddedFunds.amount.valueInCents).to.equal(2500);
+      const activity = await models.Activity.findOne({
+        where: { OrderId: order.legacyId, type: 'added.funds.edited' },
+      });
+      expect(activity).to.exist;
+      expect(activity.data.strategy).to.equal('IN_PLACE');
+    });
+
     it('cannot edit funds that have been refunded', async () => {
       const order = await addFunds();
       const [credit] = await models.Transaction.findAll({
