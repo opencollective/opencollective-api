@@ -302,6 +302,10 @@ export function editCollective(_, args, req) {
             );
           } else if (collective.isPrivate && newCollectiveData.HostCollectiveId) {
             throw new ValidationFailed('Private accounts cannot change hosts');
+          } else if (newCollectiveData.HostCollectiveId && collective.hasActiveHost()) {
+            throw new ValidationFailed(
+              'This account already has an active host. It must leave its current host before applying to a new one.',
+            );
           }
 
           const newHost =

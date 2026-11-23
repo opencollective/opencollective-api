@@ -126,6 +126,10 @@ const HostApplicationMutations = {
       const host = await fetchAccountWithReference(args.host);
       if (!host) {
         throw new NotFound('Host not found');
+      } else if (collective.hasActiveHost() && collective.HostCollectiveId !== host.id) {
+        throw new ValidationFailed(
+          'This account already has an active host. It must leave its current host before applying to a new one.',
+        );
       }
 
       const isProd = config.env === 'production';

@@ -1058,6 +1058,79 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       expect(collectiveForMultiApply.HostCollectiveId).to.eq(host1.id);
       expect(collectiveForMultiApply.approvedAt).to.not.be.null;
     });
+
+    it('cannot apply to a new host when the account already has an active host', async () => {
+      const adminUser = await fakeUser();
+      const currentHost = await fakeActiveHost();
+      const newHost = await fakeActiveHost({ settings: { apply: true } });
+      const collective = await fakeCollective({
+        HostCollectiveId: currentHost.id,
+        admin: adminUser,
+        isActive: true,
+        approvedAt: new Date(),
+      });
+
+      const result = await graphqlQueryV2(
+        APPLY_TO_HOST_MUTATION,
+        { host: { slug: newHost.slug }, collective: { slug: collective.slug } },
+        adminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.eq('ValidationFailed');
+      expect(result.errors[0].message).to.eq(
+        'This account already has an active host. It must leave its current host before applying to a new one.',
+      );
+
+      await collective.reload();
+      expect(collective.HostCollectiveId).to.eq(currentHost.id);
+      expect(collective.approvedAt).to.not.be.null;
+      const hostMember = await models.Member.findOne({
+        where: { CollectiveId: collective.id, MemberCollectiveId: currentHost.id, role: roles.HOST },
+      });
+      expect(hostMember).to.exist;
+      const newApplication = await models.HostApplication.findOne({
+        where: { CollectiveId: collective.id, HostCollectiveId: newHost.id },
+      });
+      expect(newApplication).to.not.exist;
+    });
+
+    it('marks other hosts pending HostApplications EXPIRED when the application is automatically approved', async () => {
+      const userAdminOfHost2 = await fakeUser();
+      const host1 = await fakeActiveHost({ settings: { apply: true } });
+      const host2 = await fakeActiveHost({ settings: { apply: true }, admin: userAdminOfHost2 });
+      const collective = await fakeCollective({ HostCollectiveId: null, admin: userAdminOfHost2 });
+
+      // Pending application to host1, which the user is not an admin of
+      const pendingResult = await graphqlQueryV2(
+        APPLY_TO_HOST_MUTATION,
+        { host: { slug: host1.slug }, collective: { slug: collective.slug } },
+        userAdminOfHost2,
+      );
+      expect(pendingResult.errors).to.not.exist;
+      const appHost1 = await models.HostApplication.findOne({
+        where: { CollectiveId: collective.id, HostCollectiveId: host1.id },
+      });
+      expect(appHost1.status).to.eq(HostApplicationStatus.PENDING);
+
+      // Application to host2 is automatically approved, as the user is an admin of host2
+      const approvedResult = await graphqlQueryV2(
+        APPLY_TO_HOST_MUTATION,
+        { host: { slug: host2.slug }, collective: { slug: collective.slug } },
+        userAdminOfHost2,
+      );
+      expect(approvedResult.errors).to.not.exist;
+      await collective.reload();
+      expect(collective.HostCollectiveId).to.eq(host2.id);
+      expect(collective.approvedAt).to.not.be.null;
+
+      await appHost1.reload();
+      expect(appHost1.status).to.eq(HostApplicationStatus.EXPIRED);
+      const appHost2 = await models.HostApplication.findOne({
+        where: { CollectiveId: collective.id, HostCollectiveId: host2.id },
+      });
+      expect(appHost2.status).to.eq(HostApplicationStatus.APPROVED);
+    });
   });
 
   describe('removeHost', () => {

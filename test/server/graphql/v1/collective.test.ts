@@ -801,11 +801,6 @@ describe('server/graphql/v1/collective', () => {
         },
       );
 
-      const collective = {
-        id: pubnubCollective.id,
-        HostCollectiveId: hostCollective.id,
-      };
-
       const editCollectiveMutation = gqlV1 /* GraphQL */ `
         mutation EditCollective($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
@@ -820,11 +815,31 @@ describe('server/graphql/v1/collective', () => {
           }
         }
       `;
-      const res = await utils.graphqlQuery(editCollectiveMutation, { collective }, pubnubAdmin);
+
+      // Can't apply to a new host while already having an active host
+      const currentHostId = pubnubCollective.HostCollectiveId;
+      const resWithActiveHost = await utils.graphqlQuery(
+        editCollectiveMutation,
+        { collective: { id: pubnubCollective.id, HostCollectiveId: hostCollective.id } },
+        pubnubAdmin,
+      );
+      expect(resWithActiveHost.errors).to.exist;
+      expect(resWithActiveHost.errors[0].message).to.eq(
+        'This account already has an active host. It must leave its current host before applying to a new one.',
+      );
+      await pubnubCollective.reload();
+      expect(pubnubCollective.HostCollectiveId).to.equal(currentHostId);
+
+      // Works for an account without a host
+      const collectiveWithoutHost = await fakeCollective({ HostCollectiveId: null, admin: pubnubAdmin });
+      const res = await utils.graphqlQuery(
+        editCollectiveMutation,
+        { collective: { id: collectiveWithoutHost.id, HostCollectiveId: hostCollective.id } },
+        pubnubAdmin,
+      );
       res.errors && console.error(res.errors);
       expect(res.errors).to.not.exist;
       const updatedCollective = res.data.editCollective;
-      // console.log('>>> updatedCollective', updatedCollective);
       expect(updatedCollective.host.id).to.equal(hostCollective.id);
       expect(updatedCollective.currency).to.equal('EUR');
     });

@@ -3367,6 +3367,14 @@ class Collective extends ModelWithPublicId<
     return Member.findOne({ where: { MemberCollectiveId: this.id, role: 'HOST' }, transaction }).then(r => Boolean(r));
   };
 
+  /**
+   * Returns true if this account has been approved by a host (or is its own host). An account that
+   * only has a pending host application does not have an active host.
+   */
+  hasActiveHost = function (): boolean {
+    return Boolean(this.HostCollectiveId && this.approvedAt);
+  };
+
   isHostOf = function (CollectiveId) {
     return Collective.findOne({
       where: { id: CollectiveId, HostCollectiveId: this.id },
