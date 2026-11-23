@@ -4,7 +4,7 @@ import gql from 'fake-tag';
 import { cloneDeep, defaultsDeep, get, omit, pick, sumBy } from 'lodash';
 import moment from 'moment';
 import { generateSecret, generateSync } from 'otplib';
-import type { SinonSpy } from 'sinon';
+import type { SinonSpy, SinonStub } from 'sinon';
 import { createSandbox } from 'sinon';
 
 import { activities, expenseStatus, expenseTypes } from '../../../../../server/constants';
@@ -8094,8 +8094,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result3.errors[0].extensions.code).to.eq('2FA_REQUIRED');
     });
 
-    describe('when payments fail', () => {
-      let admin, twoFactorHeaders;
+    describe('amount counted towards the rolling limit', () => {
+      let admin, twoFactorHeaders, countKey;
 
       const fakeBankAccountExpense = amount =>
         fakeExpense({
@@ -8146,7 +8146,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].extensions.code).to.eq('2FA_REQUIRED');
       };
 
-      // Each test gets its own admin, as the amount paid since the last 2FA token is remembered per admin and host
+      // Each test gets its own admin, as the amount paid since the last 2FA token is remembered per admin and host.
+      // The rolling limit of the host is 500.00.
       beforeEach(async () => {
         admin = await fakeUser();
         await host.addUserWithRole(admin, 'ADMIN');
@@ -8159,111 +8160,162 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           data: { secret: crypto.encrypt(secret) },
         });
         twoFactorHeaders = { [TwoFactorAuthenticationHeader]: `totp ${generateSync({ secret })}` };
+        countKey = `${admin.id}_2fa_payment_limit_${host.id}`;
       });
 
-      it('does not lower the amount counted towards the rolling limit', async () => {
-        // Rolling limit is 500.00. Pay 100.00 with a 2FA token, then 300.00 without: 300.00 counted
-        expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
-        expectPaid(await pay(await fakeBankAccountExpense(30000)));
+      describe('when payments fail', () => {
+        it('is not lowered', async () => {
+          // Pay 100.00 with a 2FA token, then 300.00 without: 300.00 counted
+          expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
+          expectPaid(await pay(await fakeBankAccountExpense(30000)));
 
-        // Failed attempts must leave the count as it was
-        const paypalExpense = await fakePaypalExpense(5000);
-        for (let i = 0; i < 4; i++) {
-          expectFailedAfterRollingLimitCheck(await pay(paypalExpense));
-        }
+          // Failed attempts must leave the count as it was
+          const paypalExpense = await fakePaypalExpense(5000);
+          for (let i = 0; i < 4; i++) {
+            expectFailedAfterRollingLimitCheck(await pay(paypalExpense));
+          }
 
-        // 300.00 + 250.00 is over the limit
-        expectTwoFactorRequired(await pay(await fakeBankAccountExpense(25000)));
+          // 300.00 + 250.00 is over the limit
+          expectTwoFactorRequired(await pay(await fakeBankAccountExpense(25000)));
+        });
+
+        it('does not include the failed payments', async () => {
+          expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
+          expectPaid(await pay(await fakeBankAccountExpense(30000)));
+
+          const paypalExpense = await fakePaypalExpense(5000);
+          for (let i = 0; i < 4; i++) {
+            expectFailedAfterRollingLimitCheck(await pay(paypalExpense));
+          }
+
+          // 300.00 + 200.00 is exactly the limit: the 4 failed attempts of 50.00 are not part of the count
+          expectPaid(await pay(await fakeBankAccountExpense(20000)));
+        });
+
+        it('is not lowered by a failed payment larger than the amount counted so far', async () => {
+          expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
+          expectPaid(await pay(await fakeBankAccountExpense(5000)));
+
+          // 50.00 counted, each failed attempt is for 400.00
+          const paypalExpense = await fakePaypalExpense(40000);
+          for (let i = 0; i < 4; i++) {
+            expectFailedAfterRollingLimitCheck(await pay(paypalExpense));
+          }
+
+          // 50.00 + 480.00 is over the limit
+          expectTwoFactorRequired(await pay(await fakeBankAccountExpense(48000)));
+        });
+
+        it('is not lowered by a payment that fails after a new 2FA token restarted the count', async () => {
+          const payWithWise = paymentProviders.transferwise.payExpense as SinonStub;
+          const slowExpense = await fakeBankAccountExpense(30000);
+          let hasReachedWise = false;
+          let failSlowPayment;
+          const slowWisePayment = new Promise((_, reject) => {
+            failSlowPayment = reject;
+          });
+          payWithWise.callsFake(async (_connectedAccount, _payoutMethod, expense) => {
+            if (expense.id === slowExpense.id) {
+              hasReachedWise = true;
+              return slowWisePayment;
+            }
+            return { quote };
+          });
+
+          try {
+            // 300.00 counted for a payment that stays in flight
+            expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
+            const slowPayment = pay(slowExpense);
+            while (!hasReachedWise) {
+              await sleep(10);
+            }
+
+            // 300.00 more is over the limit: a new 2FA token restarts the count, then 300.00 is counted again
+            const expense = await fakeBankAccountExpense(30000);
+            expectTwoFactorRequired(await pay(expense));
+            expectPaid(await pay(expense, twoFactorHeaders));
+            expectPaid(await pay(await fakeBankAccountExpense(30000)));
+
+            // The payment in flight fails: what it takes back was counted before the new token
+            failSlowPayment(new Error('Wise is down'));
+            const slowResult = await slowPayment;
+            expect(slowResult.errors[0].message).to.contain('Wise is down');
+
+            // 300.00 + 250.00 is over the limit
+            expectTwoFactorRequired(await pay(await fakeBankAccountExpense(25000)));
+          } finally {
+            payWithWise.resetBehavior();
+            payWithWise.resolves({ quote });
+          }
+        });
       });
 
-      it('does not count the failed payments towards the rolling limit', async () => {
-        expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
-        expectPaid(await pay(await fakeBankAccountExpense(30000)));
+      describe('when payments are made at the same time', () => {
+        it('includes them all', async () => {
+          expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
 
-        const paypalExpense = await fakePaypalExpense(5000);
-        for (let i = 0; i < 4; i++) {
-          expectFailedAfterRollingLimitCheck(await pay(paypalExpense));
-        }
+          // Only one payout of 300.00 fits without a new 2FA token
+          const expenses = await Promise.all([30000, 30000, 30000, 30000].map(fakeBankAccountExpense));
+          const results = await Promise.all(expenses.map(expense => pay(expense)));
 
-        // 300.00 + 200.00 is exactly the limit: the 4 failed attempts of 50.00 are not part of the count
-        expectPaid(await pay(await fakeBankAccountExpense(20000)));
+          const paid = results.filter(result => !result.errors);
+          const refused = results.filter(result => result.errors);
+          expect(paid).to.have.length(1);
+          expect(refused).to.have.length(3);
+          refused.forEach(expectTwoFactorRequired);
+
+          // The refused payouts are not part of the count: 300.00 + 200.00 is exactly the limit
+          expectPaid(await pay(await fakeBankAccountExpense(20000)));
+        });
       });
 
-      it('does not let a failed payment larger than the amount counted so far open the limit', async () => {
-        expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
-        expectPaid(await pay(await fakeBankAccountExpense(5000)));
+      describe('when what is remembered expires or is not valid', () => {
+        it('requires a 2FA token once the count expired', async () => {
+          expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
+          expectPaid(await pay(await fakeBankAccountExpense(40000)));
 
-        // 50.00 counted, each failed attempt is for 400.00
-        const paypalExpense = await fakePaypalExpense(40000);
-        for (let i = 0; i < 4; i++) {
-          expectFailedAfterRollingLimitCheck(await pay(paypalExpense));
-        }
+          await cache.delete(await cache.keys(`${countKey}*`));
 
-        // 50.00 + 480.00 is over the limit
-        expectTwoFactorRequired(await pay(await fakeBankAccountExpense(48000)));
-      });
-
-      it('requires a 2FA token when the amount remembered cannot be an amount paid', async () => {
-        expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
-        expectPaid(await pay(await fakeBankAccountExpense(5000)));
-
-        for (const invalidAmount of [-80000, 100.5, 'not a number']) {
-          await cache.set(`${admin.id}_2fa_payment_limit_${host.id}`, invalidAmount, 3600);
+          // The 2FA session is still valid, but nothing says how much was paid in it
           expectTwoFactorRequired(await pay(await fakeBankAccountExpense(5000)));
-        }
-      });
-    });
-
-    describe('when payments are made at the same time', () => {
-      let admin, twoFactorHeaders;
-
-      const fakeBankAccountExpense = amount =>
-        fakeExpense({
-          payoutMethod: 'transferwise',
-          status: expenseStatus.APPROVED,
-          amount,
-          CollectiveId: collective.id,
-          UserId: user.id,
-          currency: 'USD',
-          PayoutMethodId: payoutMethod.id,
-          type: 'INVOICE',
         });
 
-      const pay = (expense, headers = undefined) =>
-        graphqlQueryV2(processExpenseMutation, { expenseId: expense.id, action: 'PAY' }, admin, null, headers);
+        it('requires a 2FA token if the count expires while a payout is being checked', async () => {
+          expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
+          expectPaid(await pay(await fakeBankAccountExpense(40000)));
 
-      before(async () => {
-        admin = await fakeUser();
-        await host.addUserWithRole(admin, 'ADMIN');
-        await admin.populateRoles();
-        const secret = generateSecret({ length: 64 });
-        await UserTwoFactorMethod.create({
-          UserId: admin.id,
-          method: TwoFactorMethod.TOTP,
-          name: 'TOTP',
-          data: { secret: crypto.encrypt(secret) },
+          // Make the count expire right after the payout has read what is remembered
+          const sandbox = createSandbox();
+          const getFromCache = cache.get;
+          sandbox.stub(cache, 'get').callsFake(async (key, ...args) => {
+            const value = await getFromCache(key, ...args);
+            if (key === countKey) {
+              await cache.delete(await cache.keys(`${countKey}*`));
+            }
+            return value;
+          });
+
+          try {
+            const result = await pay(await fakePaypalExpense(5000));
+            expect(result.errors).to.exist;
+          } finally {
+            sandbox.restore();
+          }
+
+          // The count must not have restarted from zero without a token: 480.00 would then fit
+          expectTwoFactorRequired(await pay(await fakeBankAccountExpense(48000)));
         });
-        twoFactorHeaders = { [TwoFactorAuthenticationHeader]: `totp ${generateSync({ secret })}` };
-      });
 
-      it('counts them all towards the rolling limit', async () => {
-        const firstResult = await pay(await fakeBankAccountExpense(10000), twoFactorHeaders);
-        expect(firstResult.errors).to.not.exist;
+        it('requires a 2FA token if what is remembered is not valid', async () => {
+          expectPaid(await pay(await fakeBankAccountExpense(10000), twoFactorHeaders));
+          expectPaid(await pay(await fakeBankAccountExpense(5000)));
 
-        // Rolling limit is 500.00: only one payout of 300.00 fits without a new 2FA token
-        const expenses = await Promise.all([30000, 30000, 30000, 30000].map(fakeBankAccountExpense));
-        const results = await Promise.all(expenses.map(expense => pay(expense)));
-
-        const paid = results.filter(result => !result.errors);
-        const refused = results.filter(result => result.errors);
-        expect(paid).to.have.length(1);
-        expect(refused).to.have.length(3);
-        refused.forEach(result => expect(result.errors[0].extensions.code).to.eq('2FA_REQUIRED'));
-
-        // The refused payouts are not part of the count: 300.00 + 200.00 is exactly the limit
-        const lastResult = await pay(await fakeBankAccountExpense(20000));
-        lastResult.errors && console.error(lastResult.errors);
-        expect(lastResult.errors).to.not.exist;
+          // Including the amounts that were stored under this key before the count had its own key
+          for (const invalidValue of [0, 20000, -80000, 100.5, 'not a count', true, { amount: 0 }]) {
+            await cache.set(countKey, invalidValue, 3600);
+            expectTwoFactorRequired(await pay(await fakeBankAccountExpense(5000)));
+          }
+        });
       });
     });
   });

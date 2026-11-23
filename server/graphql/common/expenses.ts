@@ -1726,20 +1726,26 @@ const ROLLING_LIMIT_CACHE_VALIDITY = 3600; // 1h in secs for cache to expire
 
 const getExpensePayout2FALimitCacheKey = (userId: number, hostId: number) => `${userId}_2fa_payment_limit_${hostId}`;
 
+/** A payout that was added to a count of the amount paid, and what it must take back if it does not go through */
+type ExpensePayout2FALimitCount = { countKey: string; amount: number };
+
 /**
  * Hosts can require 2FA for payouts. A 2FA token opens a session: the admin can then pay without a token until the
  * payouts add up to more than the host's rolling limit, at which point a new token is required and the count
  * restarts.
  *
- * The amount paid since the last token is remembered in the cache, per admin and host, for as long as the session
- * that the token opened. Payouts can be made at the same time, so a payout never writes a total it computed from a
- * value read earlier: it adds its amount first, atomically, and is checked against the total that comes back. It
- * takes its amount back if it is refused here, or if the payment fails later on
- * (see `releaseExpensePayout2FALimit`).
+ * The amount paid is remembered in the cache, per admin and host, for an hour like the session:
+ * - The count has a key of its own, which changes each time a token restarts it. The cache key of the admin and
+ *   host holds the key of the current count.
+ * - Payouts can be made at the same time, so a payout never writes a total it computed from a value read earlier:
+ *   it adds its amount first, atomically, and is checked against the total that comes back.
+ * - A payout only adds to a count that exists. Without one (first payout, expired, not valid) a token is required.
+ * - A payout takes its amount back if it is refused here, or if the payment fails later on. It takes it back from
+ *   the count it was added to: a payout that fails after a new token restarted the count leaves the new one alone.
  *
- * @returns the amount counted towards the rolling limit for this payout, to release if the payment fails
+ * @returns what was counted for this payout, to pass to `releaseExpensePayout2FALimit` if the payment fails
  */
-async function validateExpensePayout2FALimit(req, host, expense): Promise<number> {
+async function validateExpensePayout2FALimit(req, host, expense): Promise<ExpensePayout2FALimitCount | null> {
   const expensePaidAmountKey = getExpensePayout2FALimitCacheKey(req.remoteUser.id, host.id);
   const hostPayoutTwoFactorAuthenticationRollingLimit = Number(
     get(host, 'settings.payoutsTwoFactorAuth.rollingLimit', 10_000_00),
@@ -1750,26 +1756,22 @@ async function validateExpensePayout2FALimit(req, host, expense): Promise<number
 
   const expenseAmountInHostCurrency = Number(await convertToCurrency(expense.amount, expense.currency, host.currency));
 
-  // Without an amount in the cache (first payout by user, expired session) a 2FA token is required. The same goes
-  // for a value that cannot be an amount paid: it is not trusted, and gets replaced once a token is presented.
-  const currentPaidExpenseAmountCache = await cache.get(expensePaidAmountKey);
-  const currentPaidExpenseAmount = Number(currentPaidExpenseAmountCache) || 0;
-  const hasPaidExpenseAmount =
-    !isNil(currentPaidExpenseAmountCache) &&
-    Number.isSafeInteger(Number(currentPaidExpenseAmountCache)) &&
-    Number(currentPaidExpenseAmountCache) >= 0;
-
-  // Otherwise, a token is required if this payout puts the user over the rolling limit. This is also the answer if
-  // the comparison is not possible (the cache returned no total, the limit is not a number).
-  let use2FAToken = true;
-  if (hasPaidExpenseAmount) {
-    const newPaidExpenseAmount = await cache.increment(
-      expensePaidAmountKey,
-      expenseAmountInHostCurrency,
-      ROLLING_LIMIT_CACHE_VALIDITY,
-    );
-    use2FAToken = !(newPaidExpenseAmount <= hostPayoutTwoFactorAuthenticationRollingLimit);
+  // Add this payout to the current count, if there is one. Anything else than the key of a count is ignored, which
+  // includes the amounts that used to be stored under this key.
+  let counted: ExpensePayout2FALimitCount | null = null;
+  let newPaidExpenseAmount: number | undefined;
+  const countKey = await cache.get(expensePaidAmountKey);
+  if (typeof countKey === 'string' && countKey.startsWith(`${expensePaidAmountKey}:`)) {
+    newPaidExpenseAmount = await cache.incrementIfExists(countKey, expenseAmountInHostCurrency);
+    if (!isNil(newPaidExpenseAmount)) {
+      counted = { countKey, amount: expenseAmountInHostCurrency };
+    }
   }
+
+  // Requires a 2FA token to be present if there is no count (first payout by user, expired session) or if this
+  // payout puts the user over the rolling limit. This is also the answer when the two cannot be compared, as with
+  // a limit that is not a number.
+  const use2FAToken = !counted || !(newPaidExpenseAmount <= hostPayoutTwoFactorAuthenticationRollingLimit);
 
   try {
     if (!(await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
@@ -1787,40 +1789,40 @@ async function validateExpensePayout2FALimit(req, host, expense): Promise<number
           expenseAmount: expense.amount,
           expenseCurrency: expense.currency,
           expenseAmountInHostCurrency,
-          currentPaidExpenseAmount,
+          currentPaidExpenseAmount: counted ? newPaidExpenseAmount - expenseAmountInHostCurrency : 0,
           hostPayoutTwoFactorAuthenticationRollingLimit,
         },
       },
     });
   } catch (error) {
     // The payout is refused: it must not weigh on the next ones
-    if (hasPaidExpenseAmount) {
-      await releaseExpensePayout2FALimit(req, host, expenseAmountInHostCurrency);
-    }
-
+    await releaseExpensePayout2FALimit(req, counted);
     throw error;
   }
 
   if (use2FAToken) {
-    // if a 2fa token was used, reset rolling limit
-    await cache.set(expensePaidAmountKey, 0, ROLLING_LIMIT_CACHE_VALIDITY);
-    return 0;
+    // A 2FA token was used: the count restarts, under a new key. The count is stored before the key that points to
+    // it, so that it never expires after it.
+    const newCountKey = `${expensePaidAmountKey}:${uuid()}`;
+    await cache.set(newCountKey, 0, ROLLING_LIMIT_CACHE_VALIDITY);
+    await cache.set(expensePaidAmountKey, newCountKey, ROLLING_LIMIT_CACHE_VALIDITY);
+    return null;
   }
 
-  return expenseAmountInHostCurrency;
+  return counted;
 }
 
 /**
- * Takes back the amount that `validateExpensePayout2FALimit` counted towards the rolling limit for a payout that
- * did not go through. The amount paid can only go down by what that same payout added to it, and never below zero.
+ * Takes back what `validateExpensePayout2FALimit` counted for a payout that did not go through. The count it was
+ * added to can only go down by what that same payout added to it, and never below zero.
  */
-async function releaseExpensePayout2FALimit(req, host, amount: number): Promise<void> {
-  if (!amount) {
+async function releaseExpensePayout2FALimit(req, counted: ExpensePayout2FALimitCount | null): Promise<void> {
+  if (!counted) {
     return;
   }
 
   try {
-    await cache.decrement(getExpensePayout2FALimitCacheKey(req.remoteUser.id, host.id), amount);
+    await cache.decrement(counted.countKey, counted.amount);
   } catch (e) {
     // The amount stays counted, which only means that a 2FA token will be required sooner
     reportErrorToSentry(e, { req, user: req.remoteUser, feature: FEATURE.USE_EXPENSES });
@@ -4317,10 +4319,10 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     const use2FARollingLimit =
       isTwoFactorAuthenticationRequiredForPayoutMethod && !forceManual && hostHasPayoutTwoFactorAuthenticationEnabled;
 
-    let amountCountedTowards2FARollingLimit = 0;
+    let countedTowards2FARollingLimit: ExpensePayout2FALimitCount | null = null;
 
     if (use2FARollingLimit) {
-      amountCountedTowards2FARollingLimit = await validateExpensePayout2FALimit(req, host, expense);
+      countedTowards2FARollingLimit = await validateExpensePayout2FALimit(req, host, expense);
     } else {
       // Not using rolling limit, but still enforcing 2FA for all admins
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
@@ -4381,7 +4383,9 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
           args.transferDetails,
         );
 
-        // Early return, Webhook will mark expense as Paid when the transaction completes.
+        // Early return, Webhook will mark expense as Paid when the transaction completes. This is not awaited, so an
+        // error here does not reach the `catch` below: the transfer is created, its amount must stay counted towards
+        // the 2FA rolling limit.
         return setTransferWiseExpenseAsProcessing({
           host,
           expense,
@@ -4426,7 +4430,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     } catch (error) {
       if (use2FARollingLimit) {
         // The payment failed: its amount does not count towards the rolling limit
-        await releaseExpensePayout2FALimit(req, host, amountCountedTowards2FARollingLimit);
+        await releaseExpensePayout2FALimit(req, countedTowards2FARollingLimit);
       }
 
       throw error;
