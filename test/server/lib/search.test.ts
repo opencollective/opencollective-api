@@ -10,6 +10,9 @@ import {
   buildKyselySearchConditions,
   buildSearchConditions,
   canonicalizeIntegerSearchText,
+  getColletiveTagFrequencies,
+  getExpenseTagFrequencies,
+  getSearchTermSQLConditions,
   isPostgresInteger,
   MAX_SEARCH_TERM_LENGTH,
   parseSearchTerm,
@@ -20,7 +23,14 @@ import {
 import { getOrCreateHostPlatformTipsAccount } from '../../../server/lib/transactions';
 import models, { Op, sequelize } from '../../../server/models';
 import { newUser } from '../../stores';
-import { fakeCollective, fakeHost, fakeUser, randStr } from '../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeExpense,
+  fakeHost,
+  fakePlatformSubscription,
+  fakeUser,
+  randStr,
+} from '../../test-helpers/fake-data';
 import { createPrivateAccountFixture } from '../../test-helpers/private-account-fixture';
 import { makeRequest, resetTestDB } from '../../utils';
 
@@ -270,6 +280,65 @@ describe('server/lib/search', () => {
       // });
     });
 
+    describe('Filters', () => {
+      // A unique tag isolates the accounts created by each test from the rest of the DB
+      const searchWithTag = async (tag, options = {}) => {
+        const [results] = await searchCollectivesInDB(publicReq, '', 0, 100, { tags: [tag], ...options });
+        return results.map(c => c.id);
+      };
+
+      it('filters on several countries', async () => {
+        const tag = randStr('countries-');
+        const us = await fakeCollective({ countryISO: 'US', tags: [tag] });
+        const fr = await fakeCollective({ countryISO: 'FR', tags: [tag] });
+        const de = await fakeCollective({ countryISO: 'DE', tags: [tag] });
+        expect(await searchWithTag(tag, { countries: ['US'] })).to.deep.eq([us.id]);
+        const results = await searchWithTag(tag, { countries: ['US', 'FR'] });
+        expect(results).to.have.members([us.id, fr.id]);
+        expect(results).to.not.include(de.id);
+      });
+
+      it('filters on isPlatformSubscriber', async () => {
+        const tag = randStr('subscriber-');
+        const subscriber = await fakeCollective({ tags: [tag] });
+        const notSubscriber = await fakeCollective({ tags: [tag] });
+        await fakePlatformSubscription({ CollectiveId: subscriber.id });
+        expect(await searchWithTag(tag, { isPlatformSubscriber: true })).to.deep.eq([subscriber.id]);
+        expect(await searchWithTag(tag, { isPlatformSubscriber: false })).to.deep.eq([notSubscriber.id]);
+      });
+
+      it('treats a missing isVerified / isFirstPartyHost flag as false', async () => {
+        const tag = randStr('verified-');
+        const noKey = await fakeCollective({ tags: [tag], data: {} });
+        const explicitFalse = await fakeCollective({
+          tags: [tag],
+          data: { isVerified: false, isFirstPartyHost: false },
+        });
+        const flagged = await fakeCollective({ tags: [tag], data: { isVerified: true, isFirstPartyHost: true } });
+        for (const filter of ['isVerified', 'isFirstPartyHost']) {
+          expect(await searchWithTag(tag, { [filter]: false })).to.have.members([noKey.id, explicitFalse.id]);
+          expect(await searchWithTag(tag, { [filter]: true })).to.deep.eq([flagged.id]);
+        }
+      });
+    });
+
+    describe('Non-ASCII single-word terms', () => {
+      it('searches on the term', async () => {
+        const japanese = await fakeCollective({ name: '日本語 コミュニティ' });
+        const russian = await fakeCollective({ name: 'Привет Community' });
+        const [japaneseResults] = await searchCollectivesInDB(publicReq, '日本語');
+        expect(japaneseResults.map(c => c.id)).to.deep.eq([japanese.id]);
+        const [russianResults] = await searchCollectivesInDB(publicReq, 'Привет');
+        expect(russianResults.map(c => c.id)).to.deep.eq([russian.id]);
+      });
+
+      it('keeps the letters in the tsquery term', () => {
+        expect(getSearchTermSQLConditions('Привет', 'c').sanitizedTerm).to.eq('Привет');
+        expect(getSearchTermSQLConditions('crème', 'c').sanitizedTerm).to.eq('creme');
+        expect(getSearchTermSQLConditions("foo'&|!():*<>bar", 'c').sanitizedTerm).to.eq('foobar');
+      });
+    });
+
     describe('By email', async () => {
       it('returns exact match', async () => {
         const user = await fakeUser();
@@ -496,6 +565,36 @@ describe('server/lib/search', () => {
       expect(count).to.eq(1);
       expect(results.find(collective => collective.id === userCollective.id)).to.exist;
     });
+
+    it('Ignores the case of the email', async () => {
+      const searcher = await fakeUser();
+      const email = `${randStr('John.Doe-')}@Example.com`;
+      const target = await fakeUser({ email });
+      const [results, count] = await searchCollectivesByEmail(email, searcher);
+      expect(count).to.eq(1);
+      expect(results[0].id).to.eq(target.CollectiveId);
+    });
+  });
+
+  describe('Tag frequencies', () => {
+    const tags = ['café', 'c++', '日本', 'r&d', 'music'];
+    let collective;
+
+    before(async () => {
+      collective = await fakeCollective({ tags });
+      await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED', tags });
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTagStats"`);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "ExpenseTagStats"`);
+    });
+
+    it('matches tags with accents, symbols and non-latin characters', async () => {
+      for (const tag of ['café', 'c++', '日本', 'r&d']) {
+        const collectiveTags = await getColletiveTagFrequencies({ tagSearchTerm: tag, limit: 100, offset: 0 });
+        expect((collectiveTags as { tag: string }[]).map(t => t.tag)).to.deep.eq([tag]);
+        const expenseTags = await getExpenseTagFrequencies({ accountId: collective.id, tagSearchTerm: tag });
+        expect(expenseTags.map(t => t.tag)).to.deep.eq([tag]);
+      }
+    });
   });
 
   describe('parseSearchTerm', () => {
@@ -535,6 +634,19 @@ describe('server/lib/search', () => {
         term: 'tir_importrow',
         prefix: EntityShortIdPrefix.TransactionsImportRow,
       });
+    });
+
+    it('detects emails', () => {
+      for (const email of [
+        'john.doe@example.com',
+        'john+tag@example.com',
+        'john-doe@example.com',
+        "o'brien@example.com",
+        'john@example.technology',
+      ]) {
+        expect(parseSearchTerm(email)).to.deep.equal({ type: 'email', term: email });
+      }
+      expect(parseSearchTerm('John.Doe@Example.com')).to.deep.equal({ type: 'email', term: 'john.doe@example.com' });
     });
 
     it('goes back to text for everything else', () => {
@@ -602,6 +714,21 @@ describe('server/lib/search', () => {
 
     it('returns no condition for an empty search', () => {
       expect(testBuildSearchConditions('')).to.deep.eq([]);
+    });
+
+    it('does not treat zero as an empty search', () => {
+      expect(testBuildSearchConditions('#0')).to.deep.eq([{ id: 0 }, { '$fromCollective.id$': 0 }]);
+      for (const term of ['0', '0.0', '00']) {
+        expect(testBuildSearchConditions(term)).to.deep.include({ name: { [Op.iLike]: `%${term}%` } });
+      }
+    });
+
+    it('matches numbers on text fields with the typed text', () => {
+      const pattern = term => buildSearchConditions(term, { textFields: ['description'] })[0]['description'][Op.iLike];
+      expect(pattern('12345678901234567890')).to.eq('%12345678901234567890%');
+      expect(pattern('007')).to.eq('%007%');
+      expect(pattern('100.00')).to.eq('%100.00%');
+      expect(pattern('9876543210987654321098765')).to.eq('%9876543210987654321098765%');
     });
 
     it('build conditions for IDs', () => {
@@ -876,6 +1003,13 @@ describe('server/lib/search', () => {
       const { sql: compiledSql, parameters } = compileWithSearch('', { textFields: ['name'] });
       expect(compiledSql).to.not.include('ilike');
       expect(parameters).to.be.empty;
+    });
+
+    it('does not treat zero as an empty search', () => {
+      for (const term of ['0', '#0', '0.0', '00']) {
+        const { sql: compiledSql } = compileWithSearch(term, { idFields: ['id'], textFields: ['description'] });
+        expect(compiledSql).to.match(/where/i);
+      }
     });
 
     it('applies no search filter when no fields apply to the parsed term', () => {

@@ -52,7 +52,7 @@ export const GraphQLLegalDocument = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether this legal document is expired',
       deprecationReason: '2025-05-27: Use "status" = "EXPIRED" instead',
-      resolve: document => document.status === LEGAL_DOCUMENT_REQUEST_STATUS.EXPIRED,
+      resolve: ({ requestStatus }) => requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.EXPIRED,
     },
     requestedAt: {
       type: new GraphQLNonNull(GraphQLDateTime),
