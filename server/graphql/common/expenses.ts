@@ -153,12 +153,10 @@ const loadHostForExpense = async (req: express.Request, expense: Expense): Promi
 
 const isOwner = async (req: express.Request, expense: Expense): Promise<boolean> => {
   expense.fromCollective = expense.fromCollective || (await req.loaders.Collective.byId.load(expense.FromCollectiveId));
-  if (!req.remoteUser) {
+  if (!req.remoteUser || !expense.fromCollective) {
     return false;
   } else if (req.remoteUser.id === expense.UserId && expense.fromCollective.type !== CollectiveType.VENDOR) {
     return true;
-  } else if (!expense.fromCollective) {
-    return false;
   }
 
   return req.remoteUser.isAdminOfCollective(expense.fromCollective);
