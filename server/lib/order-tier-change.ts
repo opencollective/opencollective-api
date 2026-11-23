@@ -120,8 +120,9 @@ type BackerMembershipKey = { MemberCollectiveId: number; TierId: number | null }
  * Memberships are unique per (account, collective, role, tier), and other contributions from the same account
  * can rely on the same row:
  * - if a membership already exists for `to`, it is reused (the source is merged into it, never duplicated);
- * - the source row is only moved/removed when no other active or paid contribution from the source account is on
- *   the source tier, otherwise it is kept and the target is created next to it.
+ * - the source row is only moved/removed when no other active, paused (only active orders can be paused, they
+ *   resume with their membership) or paid contribution from the source account is on the source tier, otherwise
+ *   it is kept and the target is created next to it.
  * A missing target row is created without the "new member" activity, since this is not a new contributor. With
  * `onlyIfSourceExists`, nothing is created when there's no source membership to move.
  *
@@ -177,7 +178,7 @@ export const moveBackerMembership = async (
       FromCollectiveId: fromKey.MemberCollectiveId,
       CollectiveId,
       TierId: fromKey.TierId,
-      status: [OrderStatuses.ACTIVE, OrderStatuses.PAID],
+      status: [OrderStatuses.ACTIVE, OrderStatuses.PAUSED, OrderStatuses.PAID],
     },
   });
 
