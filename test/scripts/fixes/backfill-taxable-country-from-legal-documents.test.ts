@@ -5,7 +5,7 @@ import {
   deriveTaxDataFromLegalDocument,
   main as runBackfill,
 } from '../../../scripts/fixes/backfill-taxable-country-from-legal-documents';
-import models from '../../../server/models';
+import models, { sequelize } from '../../../server/models';
 import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_SERVICE } from '../../../server/models/LegalDocument';
 import { fakeCollective, fakeLegalDocument, fakeUser } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
@@ -13,6 +13,8 @@ import { resetTestDB } from '../../utils';
 const { LegalDocument } = models;
 
 const YEAR = new Date().getFullYear();
+const OLDER_SUBMISSION_DATE = new Date('2024-01-01T00:00:00Z');
+const NEWER_SUBMISSION_DATE = new Date('2024-06-01T00:00:00Z');
 
 const encryptFormData = (formData: Record<string, unknown>): string => {
   return LegalDocument.encrypt(Buffer.from(JSON.stringify(formData))).toString('base64');
@@ -26,15 +28,17 @@ const createSubmittedDocument = async (
     service = LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
     requestStatus = LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
     data = {},
+    updatedAt,
   }: {
     year?: number;
     formData?: Record<string, unknown>;
     service?: LEGAL_DOCUMENT_SERVICE;
     requestStatus?: LEGAL_DOCUMENT_REQUEST_STATUS;
     data?: Record<string, unknown>;
+    updatedAt?: Date;
   } = {},
 ) => {
-  return fakeLegalDocument({
+  const legalDocument = await fakeLegalDocument({
     CollectiveId: collective.id,
     year,
     requestStatus,
@@ -44,6 +48,18 @@ const createSubmittedDocument = async (
       ...(formData ? { encryptedFormData: encryptFormData(formData) } : {}),
     },
   });
+
+  // Sequelize ignores `updatedAt` on create/update, and documents created back to back
+  // can share the same timestamp. Tests that depend on the submission order pass an
+  // explicit `updatedAt`, force-set with a raw query.
+  if (updatedAt) {
+    await sequelize.query(`UPDATE "LegalDocuments" SET "updatedAt" = :updatedAt WHERE id = :id`, {
+      replacements: { updatedAt: updatedAt.toISOString(), id: legalDocument.id },
+    });
+    await legalDocument.reload();
+  }
+
+  return legalDocument;
 };
 
 describe('scripts/fixes/backfill-taxable-country-from-legal-documents', () => {
@@ -234,10 +250,12 @@ describe('scripts/fixes/backfill-taxable-country-from-legal-documents', () => {
       await createSubmittedDocument(collective, {
         year: YEAR - 1,
         formData: { formType: 'W8_BEN', residenceAddress: { country: 'FR' } },
+        updatedAt: OLDER_SUBMISSION_DATE,
       });
       await createSubmittedDocument(collective, {
         year: YEAR,
         formData: { formType: 'W9', location: { country: 'US' } },
+        updatedAt: NEWER_SUBMISSION_DATE,
       });
 
       await backfillAccountTaxData(collective, { isDryRun: false });
@@ -252,11 +270,13 @@ describe('scripts/fixes/backfill-taxable-country-from-legal-documents', () => {
       await createSubmittedDocument(collective, {
         year: YEAR,
         formData: { formType: 'W9', location: { country: 'US' } },
+        updatedAt: OLDER_SUBMISSION_DATE,
       });
       // A later submission recorded for a prior tax year must win over an earlier one.
       await createSubmittedDocument(collective, {
         year: YEAR - 1,
         formData: { formType: 'W8_BEN', residenceAddress: { country: 'FR' } },
+        updatedAt: NEWER_SUBMISSION_DATE,
       });
 
       await backfillAccountTaxData(collective, { isDryRun: false });
@@ -286,10 +306,12 @@ describe('scripts/fixes/backfill-taxable-country-from-legal-documents', () => {
       await createSubmittedDocument(collective, {
         year: YEAR - 1,
         formData: { formType: 'W8_BEN', residenceAddress: { country: 'FR' } },
+        updatedAt: OLDER_SUBMISSION_DATE,
       });
       await createSubmittedDocument(collective, {
         year: YEAR,
         data: { isManual: true },
+        updatedAt: NEWER_SUBMISSION_DATE,
       });
 
       await backfillAccountTaxData(collective, { isDryRun: false });
