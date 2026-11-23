@@ -13,6 +13,7 @@ import {
   fakeCollective,
   fakeEvent,
   fakeHost,
+  fakeMember,
   fakeOrder,
   fakeOrganization,
   fakePaymentMethod,
@@ -127,6 +128,37 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         const incognitoProfile = await user.collective.getOrCreateIncognitoProfile();
         const result = await graphqlQueryV2(accountQuery, { slug: incognitoProfile.slug });
         expect(result.data.account.legalName).to.be.null;
+      });
+
+      it('is hidden from collective admins', async () => {
+        const user = await fakeUser(null, { legalName: 'My legal Name!' });
+        const incognitoProfile = await user.collective.getOrCreateIncognitoProfile();
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdmin });
+        await fakeMember({
+          CollectiveId: collective.id,
+          MemberCollectiveId: incognitoProfile.id,
+          role: roles.BACKER,
+        });
+
+        const result = await graphqlQueryV2(accountQuery, { slug: incognitoProfile.slug }, collectiveAdmin);
+        expect(result.data.account.legalName).to.be.null;
+      });
+
+      it('is visible to host admins', async () => {
+        const user = await fakeUser(null, { legalName: 'My legal Name!' });
+        const incognitoProfile = await user.collective.getOrCreateIncognitoProfile();
+        const hostAdmin = await fakeUser();
+        const host = await fakeHost({ admin: hostAdmin });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        await fakeMember({
+          CollectiveId: collective.id,
+          MemberCollectiveId: incognitoProfile.id,
+          role: roles.BACKER,
+        });
+
+        const result = await graphqlQueryV2(accountQuery, { slug: incognitoProfile.slug }, hostAdmin);
+        expect(result.data.account.legalName).to.eq('My legal Name!');
       });
     });
 

@@ -16,18 +16,11 @@ import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getFxRate, roundCentsAmount } from '../../server/lib/currency';
 import { getPendingHostFeeShare } from '../../server/lib/host-metrics';
 import logger from '../../server/lib/logger';
+import { getLastUsedPlatformPayoutMethod, selectPlatformPayoutMethod } from '../../server/lib/platform-subscriptions';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { getHostPlatformTipsAccount } from '../../server/lib/transactions';
 import { parseToBoolean } from '../../server/lib/utils';
-import models, {
-  Collective,
-  ConnectedAccount,
-  Expense,
-  PaymentMethod,
-  sequelize,
-  Transaction,
-} from '../../server/models';
-import { ExpenseStatus, ExpenseType } from '../../server/models/Expense';
+import models, { Collective, Expense, sequelize, Transaction } from '../../server/models';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { TransactionSettlementStatus } from '../../server/models/TransactionSettlement';
 import { runCronJob } from '../utils';
@@ -73,66 +66,6 @@ const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
 const KIND = process.env.KIND;
 const { PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT } = TransactionKind;
-
-// return last payout method used for the last paid settlement if its was not manual or other.
-async function getLastPaidSettlementManagedPayoutMethod(host): Promise<PayoutMethod> {
-  const res = await Expense.findOne({
-    where: {
-      CollectiveId: host.id,
-      type: ExpenseType.SETTLEMENT,
-      status: ExpenseStatus.PAID,
-    },
-    attributes: [],
-    include: [
-      {
-        model: PayoutMethod,
-        attributes: ['type'],
-        paranoid: false, // even if it was deleted at some point, we just want to know the type used
-      },
-      {
-        model: PaymentMethod,
-        as: 'paymentMethod',
-        attributes: ['type'],
-        paranoid: false, // even if it was deleted at some point, we just want to know the type used
-      },
-    ],
-    order: [['createdAt', 'desc']],
-  });
-
-  if (!res) {
-    return null;
-  }
-
-  return res.PayoutMethod;
-}
-
-function isValidHostPayoutMethodType(
-  host: Collective,
-  hostConnectedAccounts: ConnectedAccount[],
-  payoutMethodType: PayoutMethodTypes,
-): boolean {
-  switch (payoutMethodType) {
-    case PayoutMethodTypes.PAYPAL: {
-      if (hostConnectedAccounts?.find(c => c.service === 'paypal') && !host.settings?.['disablePaypalPayouts']) {
-        return true;
-      }
-      break;
-    }
-    case PayoutMethodTypes.BANK_ACCOUNT: {
-      if (hostConnectedAccounts?.find(c => c.service === 'transferwise')) {
-        return true;
-      }
-      break;
-    }
-
-    case PayoutMethodTypes.OTHER:
-    case PayoutMethodTypes.STRIPE: {
-      return true;
-    }
-  }
-
-  return false;
-}
 
 /**
  * Create one SETTLEMENT expense from OFiTech against `billedCollective`, attach its items + CSV,
@@ -525,32 +458,6 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       where: { deletedAt: null },
     });
 
-    const lastPayoutMethod = await getLastPaidSettlementManagedPayoutMethod(host);
-    const payoutMethod = [
-      lastPayoutMethod?.type,
-      PayoutMethodTypes.STRIPE,
-      PayoutMethodTypes.BANK_ACCOUNT,
-      PayoutMethodTypes.PAYPAL,
-      PayoutMethodTypes.OTHER,
-    ]
-      .filter(Boolean)
-      .filter(type => isValidHostPayoutMethodType(host, connectedAccounts, type))
-      .map(type => {
-        if (type === lastPayoutMethod?.type && payoutMethods[type]?.some(pm => pm.id === lastPayoutMethod.id)) {
-          return lastPayoutMethod;
-        }
-
-        if (type === PayoutMethodTypes.BANK_ACCOUNT) {
-          return settlementBankAccountPayoutMethod;
-        }
-        return payoutMethods[type]?.[0];
-      })
-      .find(Boolean);
-
-    if (!payoutMethod) {
-      throw new Error('No Payout Method found, the platform account needs to have at least one payout method.');
-    }
-
     const hostToUsdFxRate = await getFxRate(host.currency, 'USD');
 
     // The minimum-amount threshold is applied to the COMBINED total of both bundles, not each bundle
@@ -561,6 +468,23 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     const combinedAmountChargedInUsd =
       (sumBy(hostItems, 'amount') + sumBy(platformTipsItems, 'amount')) * hostToUsdFxRate;
     const belowThreshold = combinedAmountChargedInUsd < MIN_AMOUNT_USD;
+
+    // Both bundles share the payout method, so Stripe is ruled out on the combined amount of the bundles that will be
+    // billed: a negative bundle is rolled forward, it doesn't lower what the other one charges.
+    const billedAmountInUsd =
+      (Math.max(sumBy(hostItems, 'amount'), 0) + Math.max(sumBy(platformTipsItems, 'amount'), 0)) * hostToUsdFxRate;
+    const payoutMethod = selectPlatformPayoutMethod({
+      host,
+      hostConnectedAccounts: connectedAccounts,
+      lastUsedPayoutMethod: await getLastUsedPlatformPayoutMethod(host),
+      platformPayoutMethods: payoutMethods,
+      bankAccountPayoutMethod: settlementBankAccountPayoutMethod,
+      amountInUSD: billedAmountInUsd,
+    });
+
+    if (!payoutMethod) {
+      throw new Error('No Payout Method found, the platform account needs to have at least one payout method.');
+    }
 
     // --- Host-billed settlement expense (legacy tips + platform share + per-collective fee) ---
     if (hostItems.length > 0) {
