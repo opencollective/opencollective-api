@@ -4,6 +4,7 @@ import { compact, get, pick } from 'lodash';
 import isURL from 'validator/lib/isURL';
 
 import activities from '../constants/activities';
+import { collectiveSlugReservedList, isCollectiveSlugReserved } from '../constants/collective-slugs';
 import { CollectiveType } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import PlatformConstants from '../constants/platform';
@@ -290,114 +291,6 @@ export function validateSettings(settings: Record<string, unknown>): string | bo
   }
 
   return false;
-}
-
-export const collectiveSlugReservedList = [
-  'about',
-  'accept-financial-contributions',
-  'admin',
-  'admin-panel',
-  'agreement',
-  'agreements',
-  'api',
-  'applications',
-  'apply',
-  'become-a-fiscal-host',
-  'become-a-host',
-  'become-a-sponsor',
-  'callback',
-  'chapters',
-  'collective',
-  'collectives',
-  'confirm',
-  'contact',
-  'contribute',
-  'conversations',
-  'create',
-  'create-account',
-  'dashboard',
-  'delete',
-  'deleteCollective',
-  'discover',
-  'donate',
-  'edit',
-  'email',
-  'embed',
-  'event',
-  'events',
-  'expense',
-  'expenses',
-  'submitted-expenses',
-  'faq',
-  'fund',
-  'fiscal-host',
-  'fiscal-hosts',
-  'gift-card',
-  'gift-cards',
-  'gift-cards-next',
-  'gift-of-giving',
-  'graphql',
-  'help',
-  'hiring',
-  'home',
-  'host',
-  'hosts',
-  'how-it-works',
-  'index',
-  'join',
-  'join-free',
-  'learn-more',
-  'login',
-  'me',
-  'my-account',
-  'member',
-  'member-invitations',
-  'members',
-  'oauth',
-  'onboarding',
-  'order',
-  'orders',
-  'organizations',
-  'paymentmethod',
-  'pledge',
-  'pledges',
-  'pricing',
-  'privacypolicy',
-  'project',
-  'projects',
-  'recurring-contributions',
-  'redeem',
-  'redeemed',
-  'redirect',
-  'register',
-  'root-actions',
-  'search',
-  'services',
-  'signin',
-  'signup',
-  'subscriptions',
-  'support',
-  'tiers',
-  'tos',
-  'transactions',
-  'updates',
-  'virtualcards',
-  'virtual-cards',
-  'website',
-  'widgets',
-];
-
-/**
- * Check if given `slug` could conflict with existing routes or
- * if it's a reserved keyword.
- *
- * The list is mostly based on frontend `src/server/pages.js` file and
- * `src/pages/static` content.
- *
- * @param {String} slug
- */
-export function isCollectiveSlugReserved(slug: string): boolean {
-  return collectiveSlugReservedList.includes(slug);
 }
 
 export function canUseSlug(slug: string, user: User | null): boolean {
@@ -727,3 +620,5 @@ export const getInternalHostsIds = async (): Promise<number[]> => {
     ...hostCollectives.map(result => result?.id).filter(Boolean),
   ] as number[];
 };
+
+export { collectiveSlugReservedList, isCollectiveSlugReserved };
