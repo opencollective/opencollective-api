@@ -51,7 +51,7 @@ describe('server/models/User', () => {
     it('uses a placeholder name and a "user" slug if name is not provided', () => {
       const userParams = { email: 'frank@zappa.com' };
       return User.createUserWithCollective(userParams).then(user => {
-        expect(user.collective.name).to.equal('New user');
+        expect(user.collective.name).to.equal('user');
         expect(user.collective.slug).to.match(/^user-[0-9a-f]{8}$/);
       });
     });

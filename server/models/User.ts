@@ -600,7 +600,7 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
       collectiveName = PLACEHOLDER_USER_NAME;
       slug = await Collective.generateSlug(null);
     } else if (slugify(collectiveName).length === 0) {
-      collectiveName = 'user';
+      collectiveName = PLACEHOLDER_USER_NAME;
     }
 
     const userCollectiveData = {

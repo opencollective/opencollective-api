@@ -2511,7 +2511,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       it('derives the slug from the name when the profile is completed', async () => {
         const { user, collective } = await createUserWithoutName();
-        expect(collective.name).to.equal('New user');
+        expect(collective.name).to.equal('user');
         expect(collective.slug).to.match(/^user-/);
 
         const result = await graphqlQueryV2(
