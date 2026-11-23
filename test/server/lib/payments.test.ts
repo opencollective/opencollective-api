@@ -6,10 +6,9 @@ import { createSandbox } from 'sinon';
 import type Stripe from 'stripe';
 
 import { activities } from '../../../server/constants';
+import { CollectiveType } from '../../../server/constants/collectives';
 import { SupportedCurrency } from '../../../server/constants/currencies';
 import status from '../../../server/constants/order-status';
-import PaymentIntentStatus from '../../../server/constants/payment-intent-status';
-import PaymentIntentType from '../../../server/constants/payment-intent-type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../server/constants/platform';
 import roles from '../../../server/constants/roles';
@@ -43,10 +42,6 @@ import {
   fakeUser,
   randStr,
 } from '../../test-helpers/fake-data';
-import {
-  expectPaymentIntentForOrder,
-  expectTransactionsLinkedToPaymentIntent,
-} from '../../test-helpers/payment-intent';
 import * as utils from '../../utils';
 
 /** `newPlatformTipsLedger` is an internal settings flag that is not part of the `Settings` type. */
@@ -280,13 +275,6 @@ describe('server/lib/payments', () => {
               expect(order).to.have.property('currency', CURRENCY);
               expect(order).to.have.property('totalAmount', AMOUNT);
               expect(order).to.have.property('status', status.PAID);
-
-              const paymentIntent = await expectPaymentIntentForOrder(order.id, {
-                status: PaymentIntentStatus.PAID,
-                type: PaymentIntentType.Contribution,
-              });
-              expect(paymentIntent.primaryTransactionGroup).to.exist;
-              await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
             });
 
             it('records a thirdparty payment outcome metric for the successful charge', () => {
@@ -524,14 +512,6 @@ describe('server/lib/payments', () => {
 
       expect(refundTaxTransactions.find(t => t.type === 'DEBIT').amount).to.equal(-100);
       expect(refundTaxTransactions.find(t => t.type === 'CREDIT').amount).to.equal(100);
-
-      const paymentIntent = await expectPaymentIntentForOrder(order.id, {
-        status: PaymentIntentStatus.REVERSED,
-        type: PaymentIntentType.Contribution,
-      });
-      expect(paymentIntent.primaryTransactionGroup).to.exist;
-      const refundContribution = refundTransactions.find(t => t.type === 'CREDIT');
-      await expectTransactionsLinkedToPaymentIntent(refundContribution.TransactionGroup, paymentIntent.id);
     });
 
     it('should refund platform fees on top when refunding original transaction', async () => {
@@ -1090,6 +1070,56 @@ describe('server/lib/payments', () => {
       // TODO(LedgerRefactor)
     });
 
+    describe('refunding the same transaction twice', () => {
+      const createContribution = () =>
+        models.Transaction.createFromContributionPayload({
+          CreatedByUserId: user.id,
+          FromCollectiveId: order.FromCollectiveId,
+          CollectiveId: collective.id,
+          type: 'CREDIT',
+          OrderId: order.id,
+          amount: 5000,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          amountInHostCurrency: 5000,
+          hostCurrencyFxRate: 1,
+          hostFeeInHostCurrency: 250,
+          paymentProcessorFeeInHostCurrency: 175,
+          description: 'Contribution',
+        });
+
+      const countContributionRefunds = () =>
+        models.Transaction.count({
+          where: { OrderId: order.id, kind: TransactionKind.CONTRIBUTION, isRefund: true, type: 'CREDIT' },
+        });
+
+      it('rejects a refund of an instance loaded before the transaction was refunded', async () => {
+        const transaction = await createContribution();
+        const staleTransaction = await models.Transaction.findByPk(transaction.id);
+        await createRefundTransaction(transaction, 0, null, user);
+
+        await expect(createRefundTransaction(staleTransaction, 0, null, user)).to.be.rejectedWith(
+          'This transaction has already been refunded',
+        );
+        expect(await countContributionRefunds()).to.equal(1);
+      });
+
+      it('only refunds once when two refunds run concurrently', async () => {
+        const transaction = await createContribution();
+        const instances = await Promise.all([
+          models.Transaction.findByPk(transaction.id),
+          models.Transaction.findByPk(transaction.id),
+        ]);
+
+        const results = await Promise.allSettled(instances.map(t => createRefundTransaction(t, 0, null, user)));
+
+        expect(results.map(r => r.status).sort()).to.deep.equal(['fulfilled', 'rejected']);
+        const rejected = results.find(r => r.status === 'rejected') as PromiseRejectedResult;
+        expect(rejected.reason.message).to.equal('This transaction has already been refunded');
+        expect(await countContributionRefunds()).to.equal(1);
+      });
+    });
+
     describe('partial refunds', () => {
       it('can be done with a valid amount', async () => {
         // Given the following pair of transactions created
@@ -1441,6 +1471,44 @@ describe('server/lib/payments', () => {
 
         const feePercent = await getHostFeePercent(hostOrder);
         expect(feePercent).to.equal(0);
+      });
+
+      it('returns 0 for events and projects parented by the host itself', async () => {
+        for (const type of [CollectiveType.PROJECT, CollectiveType.EVENT]) {
+          const hostChild = await fakeCollective({
+            type,
+            ParentCollectiveId: testHost.id,
+            HostCollectiveId: testHost.id,
+            hostFeePercent: 10,
+          });
+          const hostChildOrder = await fakeOrder({
+            CollectiveId: hostChild.id,
+            PaymentMethodId: testPaymentMethod.id,
+          });
+          await hostChildOrder.populate();
+
+          const feePercent = await getHostFeePercent(hostChildOrder);
+          expect(feePercent, `expected no host fee for ${type}`).to.equal(0);
+        }
+      });
+
+      it('still charges the configured fee for non-event/project children of the host', async () => {
+        for (const type of [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION]) {
+          const hostChild = await fakeCollective({
+            type,
+            ParentCollectiveId: testHost.id,
+            HostCollectiveId: testHost.id,
+            hostFeePercent: 10,
+          });
+          const hostChildOrder = await fakeOrder({
+            CollectiveId: hostChild.id,
+            PaymentMethodId: testPaymentMethod.id,
+          });
+          await hostChildOrder.populate();
+
+          const feePercent = await getHostFeePercent(hostChildOrder);
+          expect(feePercent, `expected the configured host fee for ${type}`).to.equal(10);
+        }
       });
 
       it('returns collective hostFeePercent as default', async () => {
@@ -1844,7 +1912,27 @@ describe('server/lib/payments', () => {
         totalAmount: AMOUNT,
         currency: collective.currency,
       });
-      await order.setPaymentMethod({ paypalToken: 'abc' });
+      await order.setPaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.PAYPAL,
+        type: PAYMENT_METHOD_TYPE.PAYMENT,
+        data: { orderId: 'fake-paypal-order-id' },
+      });
+
+      /* eslint-disable camelcase */
+      const amount = { value: (AMOUNT / 100).toFixed(2), currency_code: collective.currency };
+      sandbox.stub(paypalAPI, 'paypalRequestV2').callsFake(async (url: string) => {
+        if (url.endsWith('/authorize')) {
+          return { purchase_units: [{ amount, payments: { authorizations: [{ id: 'fake-authorization-id' }] } }] };
+        } else if (url.endsWith('/capture')) {
+          return { id: 'fake-capture-id', status: 'COMPLETED' };
+        } else if (url.startsWith('payments/captures/')) {
+          return { id: 'fake-capture-id', status: 'COMPLETED', amount, seller_receivable_breakdown: {} };
+        } else {
+          return { purchase_units: [{ amount }] };
+        }
+      });
+      /* eslint-enable camelcase */
+
       await executeOrder(user, order);
 
       expect(applyContributionAccountingCategoryRulesSpy).to.have.been.calledWith(order);

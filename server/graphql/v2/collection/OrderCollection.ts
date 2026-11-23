@@ -1,4 +1,4 @@
-import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { CollectionArgs, CollectionFields, GraphQLCollection } from '../interface/Collection';
@@ -13,6 +13,15 @@ export const GraphQLOrderCollection = new GraphQLObjectType({
       ...CollectionFields,
       nodes: {
         type: new GraphQLList(GraphQLOrder),
+      },
+      totalCountIsCapped: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description:
+          'Whether `totalCount` was capped by the `maxTotalCount` argument: there are more orders than the total, which is a lower bound',
+        async resolve(collection): Promise<boolean> {
+          const isCapped = collection.totalCountIsCapped;
+          return Boolean(typeof isCapped === 'function' ? await isCapped() : isCapped);
+        },
       },
       createdByUsers: {
         type: new GraphQLNonNull(GraphQLAccountCollection),

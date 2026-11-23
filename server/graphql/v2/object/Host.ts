@@ -667,13 +667,22 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           const searchTermConditions = buildSearchConditions(args.searchTerm, {
-            idFields: ['id'],
-            slugFields: ['slug'],
-            textFields: ['name', 'description', 'longDescription'],
-            stringArrayFields: ['tags'],
+            idFields: ['id', '$collective.id$'],
+            slugFields: ['$collective.slug$'],
+            textFields: ['$collective.name$', '$collective.description$', '$collective.longDescription$'],
+            stringArrayFields: ['$collective.tags$'],
             stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
-            publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
+            castStringArraysToVarchar: true,
+            publicIdFields: [
+              { field: 'publicId', prefix: EntityShortIdPrefix.HostApplication },
+              { field: '$collective.publicId$', prefix: EntityShortIdPrefix.Collective },
+            ],
           });
+
+          if (searchTermConditions.length) {
+            where[Op.and] = where[Op.and] || [];
+            where[Op.and].push({ [Op.or]: searchTermConditions });
+          }
 
           const { rows, count } = await models.HostApplication.findAndCountAll({
             order: [[args.orderBy.field, args.orderBy.direction]],
@@ -689,7 +698,6 @@ export const GraphQLHost = new GraphQLObjectType({
                   ...(args.status !== 'REJECTED' && {
                     HostCollectiveId: host.id,
                   }),
-                  ...(searchTermConditions.length && { [Op.or]: searchTermConditions }),
                 },
               },
             ],

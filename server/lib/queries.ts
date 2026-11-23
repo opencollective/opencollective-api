@@ -829,16 +829,8 @@ const getTaxFormsRequiredForExpenses = async (expenseIds: number[]): Promise<Set
       SUM(all_expenses."amount" * (
         CASE
           WHEN all_expenses."currency" = host.currency THEN 1
-          ELSE (
-            SELECT COALESCE("rate", 1)
-            FROM "CurrencyExchangeRates" er
-            WHERE er."from" = all_expenses."currency"
-            AND er."to" = host.currency
-            -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
-            AND er."createdAt" <= COALESCE(all_expenses."paidAt", NOW())
-            ORDER BY "createdAt" DESC
-            LIMIT 1
-          )
+          -- Most recent rate that is older than the expense
+          ELSE fx_rate(all_expenses."currency", host.currency, COALESCE(all_expenses."paidAt", NOW()))
         END
       )) AS "total"
     FROM
@@ -1026,15 +1018,7 @@ const getTaxFormsRequiredForAccounts = async ({
       SUM(all_expenses."amount" * (
         CASE
           WHEN all_expenses."currency" = host.currency THEN 1
-          ELSE (
-            SELECT COALESCE("rate", 1)
-            FROM "CurrencyExchangeRates" er
-            WHERE er."from" = all_expenses."currency"
-            AND er."to" = host.currency
-            AND er."createdAt" <= COALESCE(all_expenses."paidAt", NOW())
-            ORDER BY er."createdAt" DESC
-            LIMIT 1
-          )
+          ELSE fx_rate(all_expenses."currency", host.currency, COALESCE(all_expenses."paidAt", NOW()))
         END
       )) AS "total"
     FROM "Collectives" account

@@ -27,7 +27,14 @@ import {
 } from '../../../server/lib/budget';
 import * as libcurrency from '../../../server/lib/currency';
 import { sequelize } from '../../../server/models';
-import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeExpense,
+  fakeHost,
+  fakeOrder,
+  fakeTransaction,
+  fakeUser,
+} from '../../test-helpers/fake-data';
 import { makeRequest, resetTestDB } from '../../utils';
 
 describe('server/lib/budget', () => {
@@ -124,6 +131,39 @@ describe('server/lib/budget', () => {
       });
       const sum = txs[collective.id];
       expect(sum['value']).to.eq(50e2);
+    });
+
+    it('with includeChildren, keys a requested child account under its own id', async () => {
+      const parent = await fakeCollective();
+      const event = await fakeCollective({ type: CollectiveType.EVENT, ParentCollectiveId: parent.id });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: event.id, amount: 100e2 }, { createDoubleEntry: true });
+
+      const txs = await sumCollectivesTransactions([event.id], {
+        column: 'netAmountInHostCurrency',
+        includeChildren: true,
+      });
+      expect(Object.keys(txs).map(Number)).to.deep.eq([event.id]);
+      expect(txs[event.id]['value']).to.eq(100e2);
+    });
+
+    it('with includeChildren, rolls children up to a requested parent', async () => {
+      const parent = await fakeCollective();
+      const project = await fakeCollective({ type: CollectiveType.PROJECT, ParentCollectiveId: parent.id });
+      const otherCollective = await fakeCollective();
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: parent.id, amount: 20e2 }, { createDoubleEntry: true });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: project.id, amount: 30e2 }, { createDoubleEntry: true });
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: otherCollective.id, amount: 40e2 },
+        { createDoubleEntry: true },
+      );
+
+      const txs = await sumCollectivesTransactions([parent.id, otherCollective.id], {
+        column: 'netAmountInHostCurrency',
+        includeChildren: true,
+      });
+      expect(txs[parent.id]['value']).to.eq(50e2);
+      expect(txs[otherCollective.id]['value']).to.eq(40e2);
+      expect(txs[project.id]).to.not.exist;
     });
 
     describe('when blocked funds are excluded', () => {
@@ -896,6 +936,14 @@ describe('server/lib/budget', () => {
       expect(withChildren.value).to.equal(50e2);
     });
 
+    it('returns the child account own amount when called on a child with includeChildren', async () => {
+      const event = await fakeCollective({ type: CollectiveType.EVENT, ParentCollectiveId: collective.id });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: event.id, amount: 30e2 }, { createDoubleEntry: true });
+
+      const result = await getTotalAmountReceivedAmount(event, { includeChildren: true });
+      expect(result.value).to.equal(30e2);
+    });
+
     it('filters by transaction kind', async () => {
       await fakeTransaction(
         { type: 'CREDIT', kind: TransactionKind.CONTRIBUTION, CollectiveId: collective.id, amount: 20e2 },
@@ -1170,6 +1218,37 @@ describe('server/lib/budget', () => {
 
       expect(withoutChildren).to.deep.equal({ contributionsCount: 1, contributorsCount: 1 });
       expect(withChildren).to.deep.equal({ contributionsCount: 2, contributorsCount: 2 });
+    });
+
+    it('counts a contributor once when they contributed under hosts with different currencies', async () => {
+      const sandbox = createSandbox();
+      try {
+        sandbox.stub(libcurrency, 'getFxRate').resolves(1);
+        const usdHost = await fakeHost({ currency: 'USD' });
+        const eurHost = await fakeHost({ currency: 'EUR' });
+        for (const host of [usdHost, eurHost]) {
+          await fakeTransaction(
+            {
+              type: 'CREDIT',
+              kind: TransactionKind.CONTRIBUTION,
+              CollectiveId: collective.id,
+              FromCollectiveId: contributor1.CollectiveId,
+              HostCollectiveId: host.id,
+              currency: host.currency,
+              hostCurrency: host.currency,
+              amount: 10e2,
+            },
+            { createDoubleEntry: true },
+          );
+        }
+
+        const expected = { contributionsCount: 2, contributorsCount: 1 };
+        expect(await getContributionsAndContributorsCount(collective)).to.deep.equal(expected);
+        const loaders = makeRequest().loaders;
+        expect(await getContributionsAndContributorsCount(collective, { loaders })).to.deep.equal(expected);
+      } finally {
+        sandbox.restore();
+      }
     });
   });
 

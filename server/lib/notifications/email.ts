@@ -104,10 +104,10 @@ export const notify = {
     users: Array<User | number>,
     activity: Partial<Activity>,
     options?: NotifySubscribersOptions,
-  ): Promise<void> {
+  ): Promise<number[]> {
     const cleanUsersArray = compact(users); // Remove any possible null or empty user in the array
     if (cleanUsersArray.length === 0) {
-      return;
+      return [];
     }
 
     const unsubscribed = await models.Notification.getUnsubscribers({
@@ -118,6 +118,7 @@ export const notify = {
       attributes: ['id'],
     });
 
+    const notifiedUserIds: number[] = [];
     if (process.env.ONLY) {
       debug('ONLY set to ', process.env.ONLY, ' => skipping subscribers');
       const isTransactional = TransactionalActivities.includes(activity.type);
@@ -134,18 +135,21 @@ export const notify = {
           !unsubscribed.some(unsubscribedUser => unsubscribedUser.id === userId) && // Unsubscribed
           !options?.exclude?.includes(userId) // Explicitly excluded
         ) {
+          notifiedUserIds.push(userId);
           queue.add(() => notify.user(activity, { ...options, skipUnsubscribedCheck: true, userId, user }));
         }
       }
 
       await queue.onIdle();
     }
+
+    return notifiedUserIds;
   },
 
   /**
    * Notifies admins of Collective based on activity.CollectiveId, options.collective or options.collectiveId.
    * Alternatively, other roles can also be notified using options.role.
-   * @returns The list of user IDs notified
+   * @returns The list of user IDs notified (excluding unsubscribed and explicitly excluded users)
    */
   async collective(
     activity: Partial<Activity>,
@@ -180,8 +184,7 @@ export const notify = {
           role,
         });
 
-    await notify.users(users, activity, { ...options, collective });
-    return users.map(user => user.id);
+    return notify.users(users, activity, { ...options, collective });
   },
 };
 
@@ -459,7 +462,8 @@ export const notifyByEmail = async (activity: Activity) => {
         activityForCollective.data.recipientName = collective.name || collective.slug;
         const notifiedCollectiveAdminsUserIds = await notify.collective(activityForCollective, {
           from: config.email.noReply,
-          exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
+          // Don't notify the person who commented, the expense author, nor the host admins notified above
+          exclude: [activity.UserId, activity.data.UserId, ...notifiedUserIds],
           customEmailHeaders,
         });
         notifiedCollectiveAdminsUserIds.forEach(userId => notifiedUserIds.add(userId));
@@ -482,7 +486,7 @@ export const notifyByEmail = async (activity: Activity) => {
         ) {
           const user = await payee.getUser();
           // Make sure payee hasn't been notified as part of other roles
-          if (user && !notifiedUserIds.has(payeeCollectiveId)) {
+          if (user && !notifiedUserIds.has(user.id)) {
             await notify.user(activity, {
               user,
               from: config.email.noReply,

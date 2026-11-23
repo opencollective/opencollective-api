@@ -83,7 +83,14 @@ export type PayoutItemDetails = {
     debug_id: string;
     message: string;
     information_link: string;
-    payout_errors_details: {
+    details?: {
+      field?: string;
+      value?: string;
+      location?: string;
+      issue: string;
+      description?: string;
+    }[];
+    payout_errors_details?: {
       field: string;
       issue: string;
     }[];

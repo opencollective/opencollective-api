@@ -7,6 +7,7 @@ import type { SinonStub } from 'sinon';
 import { assert, createSandbox } from 'sinon';
 
 import status from '../../../../server/constants/expense-status';
+import * as libCurrency from '../../../../server/lib/currency';
 import * as paypalLib from '../../../../server/lib/paypal';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import * as paypalPayouts from '../../../../server/paymentProviders/paypal/payouts';
@@ -421,6 +422,105 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       );
     });
 
+    it('uses the internal FX rate for a cross-currency expense paid without PayPal conversion', async () => {
+      // Here expense=EUR, collective=USD, host=USD and the host paid from its EUR PayPal balance
+      const expense = await fakeExpense({
+        status: status.PROCESSING,
+        amount: 10000,
+        CollectiveId: collective.id,
+        currency: 'EUR',
+        PayoutMethodId: payoutMethod.id,
+        type: 'INVOICE',
+        description: 'May Invoice',
+        data: { payout_batch_id: 'fake-batch-id-eur' },
+      });
+      expense.collective = collective;
+      sandbox.stub(libCurrency, 'getFxRate').callsFake(async (from, to) => (from === to ? 1 : 1.1));
+
+      stubOf(paypalLib.getBatchInfo).resolves({
+        items: [
+          {
+            transaction_status: 'SUCCESS',
+            payout_batch_id: 'fake-batch-id-eur',
+            // Same currency as sent by payExpensesBatch, with no `currency_conversion`
+            payout_item: { sender_item_id: expense.id.toString(), amount: { currency: 'EUR', value: '100.00' } },
+            payout_item_fee: { currency: 'EUR', value: '2.00' },
+          },
+        ],
+      });
+
+      await paypalPayouts.checkBatchStatus([expense]);
+      await expense.reload();
+      const [transaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
+
+      expect(expense).to.have.property('status', 'PAID');
+      expect(transaction).to.have.property('hostCurrency', 'USD');
+      expect(transaction.data.expenseToHostFxRate).to.eq(1.1);
+      expect(transaction).to.have.property('amountInHostCurrency', -11000);
+      expect(transaction).to.have.property('paymentProcessorFeeInHostCurrency', -220);
+    });
+
+    describe('expense data', () => {
+      const taxes = [{ type: 'VAT', rate: 0.2 }];
+      let taxedExpense;
+
+      beforeEach(async () => {
+        taxedExpense = await fakeExpense({
+          status: status.PROCESSING,
+          amount: 12000,
+          CollectiveId: collective.id,
+          currency: 'USD',
+          PayoutMethodId: payoutMethod.id,
+          type: 'INVOICE',
+          data: { payout_batch_id: 'fake-batch-id-taxed', taxes, otherKey: 'preserved' },
+        });
+        taxedExpense.collective = collective;
+      });
+
+      const buildItem = (transaction_status: string, overrides = {}) => ({
+        transaction_status,
+        payout_batch_id: 'fake-batch-id-taxed',
+        payout_item: { sender_item_id: taxedExpense.id.toString() },
+        ...overrides,
+      });
+
+      it('keeps the existing data when the payout item is still PENDING', async () => {
+        stubOf(paypalLib.getBatchInfo).resolves({ items: [buildItem('PENDING')] });
+        await paypalPayouts.checkBatchStatus([taxedExpense]);
+        await taxedExpense.reload();
+
+        expect(taxedExpense).to.have.property('status', 'PROCESSING');
+        expect(taxedExpense.data).to.containSubset({ taxes, otherKey: 'preserved', transaction_status: 'PENDING' });
+      });
+
+      it('records the taxes when a PENDING check comes before SUCCESS', async () => {
+        stubOf(paypalLib.getBatchInfo).resolves({ items: [buildItem('PENDING')] });
+        await paypalPayouts.checkBatchStatus([taxedExpense]);
+        stubOf(paypalLib.getBatchInfo).resolves({
+          items: [buildItem('SUCCESS', { time_processed: '2024-08-15T10:30:00Z' })],
+        });
+        await paypalPayouts.checkBatchStatus([taxedExpense]);
+        await taxedExpense.reload();
+
+        expect(taxedExpense).to.have.property('status', 'PAID');
+        expect(taxedExpense.data).to.containSubset({ taxes, otherKey: 'preserved', transaction_status: 'SUCCESS' });
+        const [debit] = await taxedExpense.getTransactions({ where: { type: 'DEBIT', kind: 'EXPENSE' } });
+        expect(debit).to.have.property('taxAmount', -2000);
+      });
+
+      it('keeps the existing data and drops the batch reference when the payout item FAILED', async () => {
+        stubOf(paypalLib.getBatchInfo).resolves({
+          items: [buildItem('FAILED', { errors: { message: 'Transaction FAILED' } })],
+        });
+        await paypalPayouts.checkBatchStatus([taxedExpense]);
+        await taxedExpense.reload();
+
+        expect(taxedExpense).to.have.property('status', 'ERROR');
+        expect(taxedExpense.data).to.containSubset({ taxes, otherKey: 'preserved', transaction_status: 'FAILED' });
+        expect(taxedExpense.data).to.not.have.property('payout_batch_id');
+      });
+    });
+
     const failedStatuses = ['FAILED', 'BLOCKED', 'REFUNDED', 'RETURNED', 'REVERSED'];
     failedStatuses.map(transaction_status =>
       it(`should set expense status to error if the transaction status is ${transaction_status}`, async () => {
@@ -459,6 +559,189 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         ]);
       }),
     );
+
+    describe('payout item errors at batch review', () => {
+      const buildFailedItem = (overrides = {}) => ({
+        transaction_status: 'FAILED',
+        payout_item_id: 'payout-item-1',
+        payout_batch_id: 'fake-batch-id',
+        payout_item: { sender_item_id: expense.id.toString() },
+        ...overrides,
+      });
+
+      const getErrorActivity = async () => {
+        const activities = await expense.getActivities({ where: { type: 'collective.expense.error' } });
+        expect(activities).to.have.length(1);
+        return activities[0];
+      };
+
+      it('uses the errors included in the batch item without fetching the payout item', async () => {
+        sandbox.stub(paypalLib, 'getPayoutItem');
+        stubOf(paypalLib.getBatchInfo).resolves({
+          items: [
+            buildFailedItem({
+              errors: {
+                name: 'RECEIVER_COUNTRY_NOT_ALLOWED',
+                message: 'The receiver country is not allowed.',
+                debug_id: 'debug-1',
+                details: [{ issue: 'RECEIVER_COUNTRY_NOT_ALLOWED', field: 'items[0].receiver' }],
+              },
+            }),
+          ],
+        });
+
+        await paypalPayouts.checkBatchStatus([expense]);
+
+        expect(expense).to.have.property('status', 'ERROR');
+        expect(paypalLib.getPayoutItem).to.not.have.been.called;
+        // The raw payload is persisted (debug data included); `sanitizeErrorData` gates exposure
+        expect((await getErrorActivity()).data.error).to.deep.equal({
+          name: 'RECEIVER_COUNTRY_NOT_ALLOWED',
+          message: 'The receiver country is not allowed.',
+          debug_id: 'debug-1',
+          details: [{ issue: 'RECEIVER_COUNTRY_NOT_ALLOWED', field: 'items[0].receiver' }],
+        });
+      });
+
+      it('fetches the payout item when a failed item has no errors', async () => {
+        const getPayoutItemStub = sandbox.stub(paypalLib, 'getPayoutItem');
+        getPayoutItemStub.resolves({
+          payout_item_id: 'payout-item-1',
+          transaction_id: 'transaction-1',
+          transaction_status: 'FAILED',
+          errors: {
+            name: 'RECEIVING_LIMIT_EXCEEDED',
+            message: 'The receiver has exceeded the receiving limit.',
+            debug_id: 'debug-2',
+            details: [{ issue: 'RECEIVING_LIMIT_EXCEEDED', field: 'items[0].receiver' }],
+          },
+        });
+        stubOf(paypalLib.getBatchInfo).resolves({ items: [buildFailedItem()] });
+
+        await paypalPayouts.checkBatchStatus([expense]);
+
+        expect(expense).to.have.property('status', 'ERROR');
+        expect(getPayoutItemStub).to.have.been.calledOnce;
+        expect(getPayoutItemStub.getCall(0).args[1]).to.equal('payout-item-1');
+        const { data } = await getErrorActivity();
+        expect(data.error).to.deep.equal({
+          name: 'RECEIVING_LIMIT_EXCEEDED',
+          message: 'The receiver has exceeded the receiving limit.',
+          debug_id: 'debug-2',
+          details: [{ issue: 'RECEIVING_LIMIT_EXCEEDED', field: 'items[0].receiver' }],
+        });
+        // The whole payout item detail is kept for debugging
+        expect(data.payoutItem).to.deep.contain({
+          payout_item_id: 'payout-item-1',
+          transaction_id: 'transaction-1',
+          transaction_status: 'FAILED',
+        });
+        expect(data).to.not.have.property('errorRetrievalFailed');
+      });
+
+      it('stores a status-derived message when the payout item endpoint has no errors either', async () => {
+        sandbox.stub(paypalLib, 'getPayoutItem').resolves({
+          payout_item_id: 'payout-item-1',
+          transaction_id: 'transaction-1',
+          transaction_status: 'FAILED',
+        });
+        stubOf(paypalLib.getBatchInfo).resolves({ items: [buildFailedItem()] });
+
+        await paypalPayouts.checkBatchStatus([expense]);
+
+        expect(expense).to.have.property('status', 'ERROR');
+        const { data } = await getErrorActivity();
+        expect(data.error).to.deep.equal({ message: 'PayPal payout item FAILED' });
+        expect(data.payoutItem).to.deep.contain({ transaction_id: 'transaction-1' });
+        // A successful lookup with no errors is conclusive, so it is not retried
+        expect(data).to.not.have.property('errorRetrievalFailed');
+      });
+
+      it('stores a status-derived message when fetching the payout item fails', async () => {
+        sandbox.stub(paypalLib, 'getPayoutItem').rejects(new Error('PayPal is unavailable'));
+        stubOf(paypalLib.getBatchInfo).resolves({ items: [buildFailedItem({ transaction_status: 'BLOCKED' })] });
+
+        await paypalPayouts.checkBatchStatus([expense]);
+
+        expect(expense).to.have.property('status', 'ERROR');
+        const { data } = await getErrorActivity();
+        expect(data.error).to.deep.equal({ message: 'PayPal payout item BLOCKED' });
+        expect(data.payoutItem).to.deep.contain({ payout_item_id: 'payout-item-1' });
+        // Flagged so the backfill script retries the retrieval instead of treating it as conclusive
+        expect(data.errorRetrievalFailed).to.equal(true);
+      });
+
+      it('does not fetch the payout item for successful items', async () => {
+        sandbox.stub(paypalLib, 'getPayoutItem');
+        stubOf(paypalLib.getBatchInfo).resolves({
+          items: [
+            {
+              transaction_status: 'SUCCESS',
+              payout_item_id: 'payout-item-1',
+              payout_item: { sender_item_id: expense.id.toString() },
+              payout_batch_id: 'fake-batch-id',
+              time_processed: '2024-08-15T10:30:00Z',
+            },
+          ],
+        });
+
+        await paypalPayouts.checkBatchStatus([expense]);
+
+        expect(expense).to.have.property('status', 'PAID');
+        expect(paypalLib.getPayoutItem).to.not.have.been.called;
+      });
+    });
+  });
+
+  describe('when the host also has a "Log in with PayPal" payee account', () => {
+    let payoutsAccount;
+
+    beforeEach(async () => {
+      host = await fakeHost({ currency: 'USD' });
+      // Same shape as the account created by `connectPaypalPayoutMethod`: no clientId, personal OAuth token
+      await fakeConnectedAccount({
+        CollectiveId: host.id,
+        service: 'paypal',
+        clientId: null,
+        username: 'admin-personal@paypal.test',
+        token: 'PERSONAL_OAUTH_ACCESS_TOKEN',
+        refreshToken: 'PERSONAL_REFRESH_TOKEN',
+        data: { payerId: 'PAYER123' },
+      });
+      payoutsAccount = await fakeConnectedAccount({
+        CollectiveId: host.id,
+        service: 'paypal',
+        clientId: 'HOST_APP_CLIENT_ID',
+        token: 'HOST_APP_SECRET',
+      });
+      collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.PAYPAL, data: { email: 'payee@test.com' } });
+      expense = await fakeExpense({
+        status: status.SCHEDULED_FOR_PAYMENT,
+        amount: 10000,
+        CollectiveId: collective.id,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+      expense.collective = collective;
+      expense.PayoutMethod = payoutMethod;
+    });
+
+    it('payExpensesBatch uses the host payouts credentials', async () => {
+      sandbox.stub(paypalLib, 'executePayouts').resolves({ batch_header: { payout_batch_id: 'fake' } });
+      await paypalPayouts.payExpensesBatch([expense]);
+      const connectedAccount = stubOf(paypalLib.executePayouts).getCall(0).args[0];
+      expect(connectedAccount.id).to.eq(payoutsAccount.id);
+      expect(connectedAccount.clientId).to.eq('HOST_APP_CLIENT_ID');
+    });
+
+    it('checkBatchStatus uses the host payouts credentials', async () => {
+      await expense.update({ status: status.PROCESSING, data: { payout_batch_id: 'BATCH1' } });
+      sandbox.stub(paypalLib, 'getBatchInfo').resolves({ items: [] });
+      await paypalPayouts.checkBatchStatus([expense]);
+      const connectedAccount = stubOf(paypalLib.getBatchInfo).getCall(0).args[0];
+      expect(connectedAccount.id).to.eq(payoutsAccount.id);
+    });
   });
 
   describe('estimatePaypalPayoutFee', () => {

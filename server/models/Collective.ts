@@ -49,7 +49,7 @@ import { v4 as uuid } from 'uuid';
 import validator from 'validator';
 
 import activities from '../constants/activities';
-import { CollectiveType, CollectiveTypesList } from '../constants/collectives';
+import { CollectiveType, CollectiveTypesList, PLACEHOLDER_USER_NAME } from '../constants/collectives';
 import { Service } from '../constants/connected-account';
 import { SupportedCurrency } from '../constants/currencies';
 import expenseStatus from '../constants/expense-status';
@@ -860,7 +860,7 @@ class Collective extends ModelWithPublicId<
     }
 
     if (this.type === 'USER') {
-      if (user && user.email && this.name && this.name !== 'incognito') {
+      if (user && user.email && this.name && !['incognito', PLACEHOLDER_USER_NAME].includes(this.name)) {
         const emailHash = md5(user.email.toLowerCase().trim());
         const avatar = `https://www.gravatar.com/avatar/${emailHash}?default=404`;
         return this.checkAndUpdateImage(avatar, force);
@@ -2207,6 +2207,8 @@ class Collective extends ModelWithPublicId<
 
   /**
    * Similar to `updateHostFeeAsUser`, but doesn't check for permissions.
+   * Passing `undefined` is a no-op. Any other value must be a number between 0 and 100: hosted collectives
+   * are updated in bulk without hooks, so an invalid value here would be cascaded to all of them.
    */
   updateHostFeeAsSystem = async function (
     hostFeePercent: number,
@@ -2215,7 +2217,16 @@ class Collective extends ModelWithPublicId<
       dropCustomHostedCollectivesFees = false,
     }: { transaction?: SequelizeTransaction; dropCustomHostedCollectivesFees?: boolean } = {},
   ): Promise<Collective> {
-    if (typeof hostFeePercent === 'undefined' || hostFeePercent === this.hostFeePercent) {
+    if (typeof hostFeePercent === 'undefined') {
+      return this;
+    } else if (
+      typeof hostFeePercent !== 'number' ||
+      !Number.isFinite(hostFeePercent) ||
+      hostFeePercent < 0 ||
+      hostFeePercent > 100
+    ) {
+      throw new Error(`Invalid host fee percent: ${hostFeePercent}. It must be a number between 0 and 100.`);
+    } else if (hostFeePercent === this.hostFeePercent) {
       return this;
     } else if (
       [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.FUND, CollectiveType.PROJECT].includes(this.type)
@@ -2403,6 +2414,27 @@ class Collective extends ModelWithPublicId<
       const projects = <Array<Collective>>await this.getProjects({ transaction });
       if (projects.length > 0) {
         await pMap(projects, project => project.setCurrency(currency, { transaction }), { concurrency: 3 });
+      }
+
+      // Update internal payment methods (budget & added funds) as they're expected to be in the account currency.
+      // Payment methods that were already used are left untouched to preserve the history.
+      const paymentMethods = await PaymentMethod.findAll({
+        where: {
+          CollectiveId: this.id,
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: [PAYMENT_METHOD_TYPE.COLLECTIVE, PAYMENT_METHOD_TYPE.HOST],
+          currency: { [Op.ne]: currency },
+        },
+        transaction,
+      });
+      for (const paymentMethod of paymentMethods) {
+        const pmTransactionCount = await Transaction.count({
+          where: { PaymentMethodId: paymentMethod.id },
+          transaction,
+        });
+        if (pmTransactionCount === 0) {
+          await paymentMethod.update({ currency }, { transaction });
+        }
       }
 
       return this.update({ currency }, { transaction });
@@ -2856,14 +2888,19 @@ class Collective extends ModelWithPublicId<
 
     // remove the members that are not present anymore
     const { remoteUserCollectiveId } = defaultAttributes;
+
+    // At least one admin must remain once the edit is applied. Pending invitations don't count,
+    // only existing members and the remote user adding themselves (which creates a membership directly).
+    const nbAdminsBefore = oldMembers.filter(m => m.role === roles.ADMIN).length;
+    const nbAdmins = members.filter(
+      m => m.role === roles.ADMIN && (m.id || (remoteUserCollectiveId && m.member?.id === remoteUserCollectiveId)),
+    ).length;
+    if (nbAdminsBefore && !nbAdmins) {
+      throw new Error('There must be at least one admin for the account');
+    }
+
     const diff: Member[] = differenceBy(oldMembers, members, (m: Member) => m.id);
     if (diff.length > 0) {
-      const nbAdminsBefore = oldMembers.filter(m => m.role === roles.ADMIN && m.id).length;
-      const nbAdmins = members.filter(m => m.role === roles.ADMIN && m.id).length;
-      if (nbAdminsBefore && !nbAdmins) {
-        throw new Error('There must be at least one admin for the account');
-      }
-
       debug('editMembers', 'delete', diff);
       const diffMemberIds = diff.map(m => m.id);
       await Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diffMemberIds } } });
@@ -3442,6 +3479,12 @@ class Collective extends ModelWithPublicId<
     },
   ) {
     const where: WhereOptions<ConnectedAccount> = { service: provider, CollectiveId: this.id };
+    if (provider === Service.PAYPAL) {
+      // "Log in with PayPal" payee accounts (see `connectPaypalPayoutMethod`) share the 'paypal' service but have no
+      // `clientId`: they must never be used as the host's payments/payouts credentials.
+      where.clientId = { [Op.ne]: null };
+      where.token = { [Op.ne]: null };
+    }
     if (options.CreatedByUserId) {
       where.CreatedByUserId = options.CreatedByUserId;
     }

@@ -10,6 +10,7 @@ import { paypalRequest } from '../paymentProviders/paypal/api';
 import {
   PayoutBatchDetails,
   PayoutError,
+  PayoutItemDetails,
   PayoutRequestBody,
   PayoutRequestResult,
   PaypalTransactionSearchResult,
@@ -95,6 +96,19 @@ export const getBatchInfo = async (
   request.pageSize(100);
   request.totalRequired(true);
   return executeRequest<PayoutBatchDetails>(connectedAccount, request);
+};
+
+/**
+ * Shows details for a single payout item. Batch responses omit `errors` for some failed items, while
+ * this endpoint is the documented source for them.
+ * See https://developer.paypal.com/docs/api/payments.payouts-batch/v1/#payouts-item_get
+ */
+export const getPayoutItem = async (
+  connectedAccount: ConnectedAccount,
+  payoutItemId: string,
+): Promise<PayoutItemDetails> => {
+  const request = new paypal.payouts.PayoutsItemGetRequest(payoutItemId);
+  return executeRequest<PayoutItemDetails>(connectedAccount, request);
 };
 
 export const validateConnectedAccount = async ({ token, clientId }: Partial<ConnectedAccount>): Promise<void> => {

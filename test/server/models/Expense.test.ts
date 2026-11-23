@@ -5,6 +5,7 @@ import moment from 'moment';
 import sinon from 'sinon';
 
 import { expenseStatus, expenseTypes } from '../../../server/constants';
+import ActivityTypes from '../../../server/constants/activities';
 import { SupportedCurrency } from '../../../server/constants/currencies';
 import models from '../../../server/models';
 import Expense from '../../../server/models/Expense';
@@ -239,6 +240,28 @@ describe('test/server/models/Expense', () => {
           currency: 'USD',
         },
       ]);
+    });
+  });
+
+  describe('createActivity', () => {
+    it('includes the pre-tax gross amount when items are not loaded on the expense', async () => {
+      const expense = await fakeExpense({
+        amount: 12000,
+        currency: 'USD',
+        data: { taxes: [{ type: 'VAT', rate: 0.2 }] },
+        items: [{ amount: 10000, currency: 'USD' }],
+      });
+
+      // Reload without the `items` association, like most callers do (e.g. `processExpense`)
+      const reloadedExpense = await models.Expense.findByPk(expense.id);
+      expect(reloadedExpense.items).to.be.undefined;
+
+      const activity = await reloadedExpense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_APPROVED, {
+        id: expense.UserId,
+      });
+      expect(activity.data.items.map(item => item.amount)).to.deep.eq([10000]);
+      expect(activity.data.expense.amount).to.eq(12000);
+      expect(activity.data.expense.grossAmount).to.eq(10000);
     });
   });
 });

@@ -52,7 +52,6 @@ import {
 import Comment from '../../models/Comment';
 import ExportRequest from '../../models/ExportRequest';
 import { KYCVerification } from '../../models/KYCVerification';
-import PaymentIntentModel from '../../models/PaymentIntent';
 
 import { generateTotalAccountHostAgreementsLoader } from './agreements';
 import collectiveLoaders from './collective';
@@ -73,7 +72,6 @@ import {
   generateRemoteUserIsIndirectFinancialContributor,
 } from './members';
 import * as orderLoaders from './order';
-import * as paymentIntentLoaders from './payment-intents';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import { generateEntityByPublicIdLoader, generateEntityIdByPublicIdLoader } from './publicId';
 import { generateSearchLoaders } from './search';
@@ -126,7 +124,6 @@ export const generateLoaders = req => {
       idByPublicId: generateEntityIdByPublicIdLoader(AccountingCategory),
     },
     CurrencyExchangeRate: {
-      ...context.loaders.CurrencyExchangeRate,
       convert: generateConvertToCurrencyLoader(),
       fxRate: generateFxRateLoader(),
     },
@@ -190,24 +187,6 @@ export const generateLoaders = req => {
     FiscalHostNote: {
       ...context.loaders.FiscalHostNote,
       byHostAndAccount: generateFiscalHostNoteByHostAndAccountLoader(),
-    },
-    PaymentIntent: {
-      ...context.loaders.PaymentIntent,
-      byId: paymentIntentLoaders.generatePaymentIntentByIdLoader(),
-      byPublicId: generateEntityByPublicIdLoader(PaymentIntentModel),
-      idByPublicId: generateEntityIdByPublicIdLoader(PaymentIntentModel),
-      transactionsByPaymentIntentId: paymentIntentLoaders.generatePaymentIntentTransactionsLoader(),
-      amountPledged: paymentIntentLoaders.generatePaymentIntentAmountPledgedLoader(),
-      amountSentInHostCurrency: paymentIntentLoaders.generatePaymentIntentAmountSentInHostCurrencyLoader(req, false),
-      amountSentNetInHostCurrency: paymentIntentLoaders.generatePaymentIntentAmountSentInHostCurrencyLoader(req, true),
-      amountReceivedInHostCurrency: paymentIntentLoaders.generatePaymentIntentAmountReceivedInHostCurrencyLoader(
-        req,
-        false,
-      ),
-      amountReceivedNetInHostCurrency: paymentIntentLoaders.generatePaymentIntentAmountReceivedInHostCurrencyLoader(
-        req,
-        true,
-      ),
     },
     PayoutMethod: {
       ...context.loaders.PayoutMethod,
@@ -592,6 +571,7 @@ export const generateLoaders = req => {
                 includeChildren,
                 kind: ['CONTRIBUTION', 'ADDED_FUNDS'],
                 transactionType: 'CREDIT',
+                groupByCurrency: false, // COUNT(DISTINCT) can't be summed across per-currency rows
                 extraAttributes: [
                   [sequelize.fn('COUNT', sequelize.col('Transaction.id')), 'count'],
                   [
@@ -665,14 +645,7 @@ export const generateLoaders = req => {
             cbc."HostCollectiveId",
             SUM(cbc.balance),
             cbc."hostCurrency",
-            (
-              SELECT rate
-              FROM "CurrencyExchangeRates"
-              WHERE "from" = "hostCurrency"
-                AND "to" = 'USD'
-              ORDER BY "createdAt" DESC
-              LIMIT 1
-            ) AS "rate"
+            fx_rate(cbc."hostCurrency", 'USD') AS "rate"
           FROM "CollectiveBalanceCheckpoint" cbc
           INNER JOIN "Collectives" c ON c."id" = cbc."HostCollectiveId"
           WHERE cbc."HostCollectiveId" IN (:ids)

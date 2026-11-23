@@ -445,4 +445,62 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
       });
     });
   });
+
+  describe('expense error summaries derived from stored events', () => {
+    /* eslint-disable camelcase -- stored provider payload */
+    const wiseEvent = {
+      event_type: 'transfers#state-change',
+      schema_version: '2.0.0',
+      sent_at: '2026-11-02T10:00:00Z',
+      subscription_id: '1234567',
+      data: {
+        resource: { id: '987654321', profile_id: '1111111', account_id: '2222222', type: 'transfer' },
+        current_state: 'cancelled',
+        previous_state: 'processing',
+        occurred_at: '2026-11-02T09:59:00Z',
+      },
+    };
+    /* eslint-enable camelcase */
+
+    it('returns a non-sensitive summary for rows without an error', async () => {
+      await fakeActivity({
+        type: ActivityTypes.COLLECTIVE_EXPENSE_ERROR,
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        UserId: admin.id,
+        data: { isSystem: true, event: wiseEvent },
+      });
+
+      const variables = { account: [{ legacyId: collective.id }], type: 'COLLECTIVE_EXPENSE_ERROR' };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.nodes[0].data).to.deep.equal({
+        error: { name: 'transfers#state-change', message: 'Wise transfer cancelled' },
+      });
+    });
+
+    it('only exposes the derived summary to viewers who cannot see the stored error', async () => {
+      await fakeActivity({
+        type: ActivityTypes.COLLECTIVE_EXPENSE_ERROR,
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        UserId: admin.id,
+        data: {
+          isSystem: true,
+          event: wiseEvent,
+          // eslint-disable-next-line camelcase
+          error: { message: 'Raw provider error', debug_id: 'debug-123' },
+        },
+      });
+
+      const variables = { account: [{ legacyId: collective.id }], type: 'COLLECTIVE_EXPENSE_ERROR' };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, incognitoUser);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.nodes[0].data).to.deep.equal({
+        error: { name: 'transfers#state-change', message: 'Wise transfer cancelled' },
+      });
+    });
+  });
 });

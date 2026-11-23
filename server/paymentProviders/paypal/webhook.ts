@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import Debug from 'debug';
 import { Request } from 'express';
-import { get, toNumber } from 'lodash';
+import { get, omit, toNumber } from 'lodash';
 import moment from 'moment';
 
 import FEATURE from '../../constants/feature';
@@ -10,7 +10,6 @@ import OrderStatus from '../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE } from '../../constants/paymentMethods';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
-import { floatAmountToCents } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { applyPendingTierChangeAfterCharge } from '../../lib/order-tier-change';
 import { createRefundTransaction, pauseOrderInDb } from '../../lib/payments';
@@ -22,7 +21,12 @@ import models from '../../models';
 import { PayoutWebhookRequest, PaypalCapture, PaypalRefund } from '../../types/paypal';
 
 import { paypalRequestV2 } from './api';
-import { findTransactionByPaypalId, recordPaypalCapture, recordPaypalSale } from './payment';
+import {
+  findTransactionByPaypalId,
+  getRefundedPaypalFeeInHostCurrency,
+  recordPaypalCapture,
+  recordPaypalSale,
+} from './payment';
 import { checkBatchItemStatus } from './payouts';
 import { CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON, markPaypalSubscriptionAsCancelledInDb } from './subscription';
 
@@ -124,6 +128,12 @@ async function handleSaleCompleted(req: Request): Promise<void> {
   let transaction;
   const { order } = await loadSubscriptionForWebhookEvent(req, subscriptionId);
   await order.lock(async () => {
+    // `lock` works on its own copy of the row: reload to get what was committed before the lock was acquired
+    // (e.g. a tier change), rather than what was loaded before waiting for it.
+    await order.reload();
+    // ...without the lock's own marker: it's released in SQL, later updates of `data` must not write it back
+    order.set('data', omit(order.data, ['lockedAt']), { raw: true });
+
     // 2.1 Make sure the sale hasn't already been recorded
     const existingTransaction = await findTransactionByPaypalId(sale.id, { OrderId: order.id });
     if (existingTransaction) {
@@ -311,7 +321,7 @@ async function handleSaleRefunded(req: Request): Promise<void> {
     }
 
     const rawRefundedPaypalFee = <string>get(refund, 'transaction_fee.value', '0.00');
-    const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
+    const refundedPaypalFee = getRefundedPaypalFeeInHostCurrency(transaction, rawRefundedPaypalFee);
     await createRefundTransaction(
       transaction,
       refundedPaypalFee,
@@ -426,7 +436,7 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
 
     // Record the refund transactions
     const rawRefundedPaypalFee = <string>get(refundDetails, 'seller_payable_breakdown.paypal_fee.value', '0.00');
-    const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
+    const refundedPaypalFee = getRefundedPaypalFeeInHostCurrency(transaction, rawRefundedPaypalFee);
     const dataPayload = {
       ...transaction.data,
       refund: refundDetails,

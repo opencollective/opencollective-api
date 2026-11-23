@@ -22,9 +22,10 @@ import {
   fakeHost,
   fakeOrder,
   fakePaymentMethod,
+  fakeTier,
   fakeTransaction,
 } from '../../../test-helpers/fake-data';
-import { makeGenericRequest, resetTestDB } from '../../../utils';
+import { makeGenericRequest, resetTestDB, seedDefaultVendors } from '../../../utils';
 
 const createOrderWithSubscription = async (params = {}): Promise<Order> => {
   const paymentMethod = await fakePaymentMethod({
@@ -182,6 +183,71 @@ describe('server/paymentProviders/paypal/webhook', () => {
       expect(transaction.paymentProcessorFeeInHostCurrency).to.eq(-120);
       await order.reload();
       expect(order.status).to.eq('ACTIVE');
+    });
+
+    it('uses the order as committed when the lock is acquired, not as loaded before', async () => {
+      const host = await fakeHost();
+      await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const tier = await fakeTier({ CollectiveId: collective.id });
+      const order = await createOrderWithSubscription({
+        CollectiveId: collective.id,
+        TierId: tier.id,
+        status: 'ACTIVE',
+      });
+
+      // The tier is removed from the order after the webhook loaded it, before it acquires the lock
+      const lock = Order.prototype.lock;
+      sandbox.stub(Order.prototype, 'lock').callsFake(async function (...args) {
+        await models.Order.update({ TierId: null }, { where: { id: this.id } });
+        return lock.apply(this, args);
+      });
+
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+      await callPaymentSaleCompleted(host.id, {
+        resource: {
+          billing_agreement_id: order.paymentMethod.token,
+          amount: { total: '12.00', currency: 'USD' },
+          transaction_fee: { value: '1.20', currency: 'USD' },
+        },
+      });
+
+      const members = await models.Member.findAll({
+        where: { MemberCollectiveId: order.FromCollectiveId, CollectiveId: collective.id, role: 'BACKER' },
+      });
+      expect(members.map(m => m.TierId)).to.deep.eq([null]);
+      await order.reload();
+      expect(order.TierId).to.be.null;
+      expect((await order.getSubscription()).chargeNumber).to.eq(1);
+    });
+
+    it('releases the lock when a pending tier change is applied', async () => {
+      const host = await fakeHost();
+      await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      const tier = await fakeTier({ CollectiveId: collective.id, amountType: 'FIXED', amount: 1000, currency: 'USD' });
+      const order = await createOrderWithSubscription({
+        CollectiveId: collective.id,
+        TierId: null,
+        currency: 'USD',
+        quantity: 1,
+        status: 'ACTIVE',
+        data: { pendingTierChange: { TierId: tier.id, previousTierId: null, requestedAt: new Date().toISOString() } },
+      });
+
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+      await callPaymentSaleCompleted(host.id, {
+        resource: {
+          billing_agreement_id: order.paymentMethod.token,
+          amount: { total: '12.00', currency: 'USD' },
+          transaction_fee: { value: '1.20', currency: 'USD' },
+        },
+      });
+
+      await order.reload();
+      expect(order.TierId).to.eq(tier.id);
+      expect(order.data.pendingTierChange).to.not.exist;
+      expect(order.data.lockedAt).to.not.exist;
     });
 
     it('records a thirdparty payment outcome metric for the successful recurring payment', async () => {
@@ -574,6 +640,81 @@ describe('server/paymentProviders/paypal/webhook', () => {
       expect(refundTransaction.data.refund).to.exist;
       // Original transaction data (e.g. paypalCaptureId) is preserved on the refund transaction
       expect(refundTransaction.data.paypalCaptureId).to.equal(captureId);
+    });
+
+    it('converts the refunded PayPal fee from the capture currency to the host currency', async () => {
+      await seedDefaultVendors();
+      sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: true });
+      const host = await fakeHost({ currency: 'USD' });
+      await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'EUR' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.PAYPAL,
+        type: PAYMENT_METHOD_TYPE.PAYMENT,
+      });
+      const order = await fakeOrder({
+        CollectiveId: collective.id,
+        PaymentMethodId: paymentMethod.id,
+        currency: 'EUR',
+        totalAmount: 10000,
+      });
+      const captureId = 'CAPTURE-REV-EUR';
+      const reversalId = 'REVERSAL-REV-EUR';
+
+      // 100.00 EUR capture with a 5.00 EUR PayPal fee, recorded on a USD host at a 2.0 rate
+      await models.Transaction.createFromContributionPayload({
+        CreatedByUserId: order.CreatedByUserId,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        OrderId: order.id,
+        PaymentMethodId: paymentMethod.id,
+        type: TransactionTypes.CREDIT,
+        amount: 10000,
+        currency: 'EUR',
+        amountInHostCurrency: 20000,
+        hostCurrency: 'USD',
+        hostCurrencyFxRate: 2,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 1000,
+        description: 'PayPal contribution',
+        data: { paypalCaptureId: captureId },
+      });
+
+      const reversal = {
+        ...makeReversalResource(reversalId, captureId),
+        seller_payable_breakdown: {
+          gross_amount: { currency_code: 'EUR', value: '100.00' },
+          paypal_fee: { currency_code: 'EUR', value: '5.00' }, // The whole fee, in the capture currency
+          net_amount: { currency_code: 'EUR', value: '95.00' },
+          total_refunded_amount: { currency_code: 'EUR', value: '100.00' },
+        },
+      };
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+      sandbox.stub(PaypalApi, 'paypalRequestV2').callsFake(async url => {
+        if (url === `payments/refunds/${reversalId}`) {
+          return reversal;
+        }
+        if (url === `payments/captures/${captureId}`) {
+          return { id: captureId, status: 'REFUNDED', amount: { currency_code: 'EUR', value: '100.00' } };
+        }
+        throw new Error(`Unexpected PayPal call: ${url}`);
+      });
+
+      await callPaymentCaptureReversed(host.id, { resource: reversal });
+
+      const feeRefunds = await models.Transaction.findAll({
+        where: { OrderId: order.id, kind: TransactionKind.PAYMENT_PROCESSOR_FEE, isRefund: true, type: 'CREDIT' },
+      });
+      expect(feeRefunds).to.have.length(1);
+      expect(feeRefunds[0].amountInHostCurrency).to.eq(1000); // 10.00 USD
+      expect(feeRefunds[0].amount).to.eq(500); // 5.00 EUR
+
+      // PayPal returned the whole fee, so the host must not cover any part of it
+      const covers = await models.Transaction.findAll({
+        where: { OrderId: order.id, kind: TransactionKind.PAYMENT_PROCESSOR_COVER },
+      });
+      expect(covers).to.have.length(0);
     });
   });
 

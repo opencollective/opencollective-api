@@ -48,16 +48,18 @@ describe('server/models/User', () => {
   });
 
   describe('#createUserWithCollective', () => {
-    it('uses "incognito" slug if name is not provided', () => {
+    it('uses a placeholder name and a "user" slug if name is not provided', () => {
       const userParams = { email: 'frank@zappa.com' };
       return User.createUserWithCollective(userParams).then(user => {
-        expect(user.collective.slug.startsWith('incognito')).to.equal(true);
+        expect(user.collective.name).to.equal('user');
+        expect(user.collective.slug).to.match(/^user-[0-9a-f]{8}$/);
       });
     });
 
     it('uses "user" slug if name is not sluggifyable', () => {
       return User.createUserWithCollective({ email: randEmail('user@domain.com'), name: '????...' }).then(user => {
-        expect(user.collective.slug.startsWith('user')).to.equal(true);
+        expect(user.collective.name).to.equal('user');
+        expect(user.collective.slug).to.match(/^user-[0-9a-f]{8}$/);
       });
     });
 
@@ -281,6 +283,45 @@ describe('server/models/User', () => {
           expect(user2.collective.slug).to.match(/^xavier-damman-[0-9a-f]{8}$/);
           expect(user2.collective.name).to.equal('Xavier Damman');
         });
+    });
+  });
+
+  describe('safeDestroy', () => {
+    it('soft-deletes the user and frees up the email', async () => {
+      const email = randEmail();
+      const user = await fakeUser({ email });
+      await user.safeDestroy();
+
+      const deletedUser = await User.findByPk(user.id, { paranoid: false });
+      expect(deletedUser.deletedAt).to.not.be.null;
+      expect(deletedUser.email).to.not.eq(email);
+      expect(deletedUser.email.startsWith(`${email.split('@')[0]}-`)).to.be.true;
+      expect(deletedUser.email.endsWith(`@${email.split('@')[1]}`)).to.be.true;
+    });
+
+    it('works when the email local part is close to the 64 characters limit', async () => {
+      const email = `${'a'.repeat(60)}@example.com`;
+      const user = await fakeUser({ email });
+      await user.safeDestroy();
+
+      const deletedUser = await User.findByPk(user.id, { paranoid: false });
+      expect(deletedUser.deletedAt).to.not.be.null;
+      expect(deletedUser.email).to.not.eq(email);
+      expect(deletedUser.email.split('@')[0]).to.have.length.lte(64);
+      expect(deletedUser.email.split('@')[1]).to.eq('example.com');
+    });
+
+    it('works when the email is close to the 128 characters limit', async () => {
+      const domain = `${'b'.repeat(60)}.${'c'.repeat(10)}.com`;
+      const email = `${'a'.repeat(50)}@${domain}`;
+      const user = await fakeUser({ email });
+      await user.safeDestroy();
+
+      const deletedUser = await User.findByPk(user.id, { paranoid: false });
+      expect(deletedUser.deletedAt).to.not.be.null;
+      expect(deletedUser.email).to.not.eq(email);
+      expect(deletedUser.email).to.have.length.lte(128);
+      expect(deletedUser.email.split('@')[1]).to.eq(domain);
     });
   });
 

@@ -172,11 +172,16 @@ const getOrderBaseAmount = order => {
 };
 
 /**
- * A wrapper around `getOrderTaxInfoFromTaxInput` that will throw if the tax amount doesn't match the tax percentage.
+ * A wrapper around `getOrderTaxInfoFromTaxInput` that will throw if the tax rate is out of bounds or if the
+ * tax amount doesn't match the tax percentage.
  */
 const getOrderTaxInfo = (taxInput, quantity, orderAmount, fromAccount, toAccount, host, currency) => {
   let taxInfo, taxAmount;
   if (taxInput) {
+    if (taxInput.rate < 0 || taxInput.rate > 1) {
+      throw new ValidationFailed('Tax rate must be between 0 and 1');
+    }
+
     const grossAmount = quantity * getValueInCentsFromAmountInput(orderAmount);
     taxInfo = getOrderTaxInfoFromTaxInput(taxInput, fromAccount, toAccount, host);
     taxAmount = getTaxAmount(grossAmount, taxInput, currency);
@@ -860,14 +865,19 @@ const orderMutations = {
             }
 
             const paymentProcessorFeeInCents = getValueInCentsFromAmountInput(paymentProcessorFee);
+            if (paymentProcessorFeeInCents < 0) {
+              throw new ValidationFailed('Payment processor fee cannot be negative');
+            }
             order.set('data', { ...order.data, paymentProcessorFee: paymentProcessorFeeInCents });
           }
+          // Read the base amount before `taxAmount` changes: without a new amount, the tax applies to this one
+          const existingBaseAmount = getOrderBaseAmount(order);
           if (!isNil(tax)) {
             const quantity = 1; // Not supported yet by OrderUpdateInput
             const { taxInfo, taxAmount } = getOrderTaxInfo(
               args.order.tax,
               quantity,
-              args.order.amount,
+              args.order.amount ?? { valueInCents: existingBaseAmount },
               fromAccount,
               toAccount,
               host,
@@ -892,9 +902,14 @@ const orderMutations = {
           }
 
           // Re-compute total amount
-          const baseAmount = !isNil(args.order.amount)
-            ? getValueInCentsFromAmountInput(args.order.amount)
-            : getOrderBaseAmount(order);
+          let baseAmount;
+          if (!isNil(args.order.amount)) {
+            baseAmount = getValueInCentsFromAmountInput(args.order.amount);
+          } else if (!isNil(tax)) {
+            baseAmount = existingBaseAmount;
+          } else {
+            baseAmount = getOrderBaseAmount(order);
+          }
           order.set(
             'totalAmount',
             getTotalAmountForOrderInput(
@@ -904,6 +919,11 @@ const orderMutations = {
               order.currency,
             ),
           );
+
+          // The payment processor fee is taken from the contribution, it cannot be higher than it
+          if (order.data?.paymentProcessorFee > order.totalAmount - (order.platformTipAmount || 0)) {
+            throw new ValidationFailed('Payment processor fee cannot be higher than the contribution amount');
+          }
 
           // Link transactions import row
           let transactionsImportRow;
@@ -1043,7 +1063,7 @@ const orderMutations = {
       const orders = await fetchOrdersWithReferences(args.orders, {
         include: [
           { association: 'paymentMethod' },
-          { association: 'fromCollective', attributes: ['id', 'slug'] },
+          { association: 'fromCollective', attributes: ['id', 'slug', 'HostCollectiveId'] },
           { association: 'collective', attributes: ['id', 'slug', 'HostCollectiveId'] },
         ],
       });
@@ -1472,6 +1492,10 @@ const orderMutations = {
         }
       });
 
+      if (!(getValueInCentsFromAmountInput(args.order.amount) > 0)) {
+        throw new ValidationFailed('Amount should be greater than 0');
+      }
+
       // Get tax info
       const quantity = 1; // Not supported yet by PendingOrderCreateInput
       const { taxInfo, taxAmount } = getOrderTaxInfo(
@@ -1660,6 +1684,10 @@ const orderMutations = {
           assertAmountInputCurrency(amount, expectedCurrency, { name: field });
         }
       });
+
+      if (!(getValueInCentsFromAmountInput(args.order.amount) > 0)) {
+        throw new ValidationFailed('Amount should be greater than 0');
+      }
 
       // Get tax info
       const quantity = 1; // Not supported yet by PendingOrderCreateInput

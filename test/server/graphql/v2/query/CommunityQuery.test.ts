@@ -2,15 +2,24 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import { v4 as uuid } from 'uuid';
 
+import { CollectiveType } from '../../../../../server/constants/collectives';
+import ExpenseStatuses from '../../../../../server/constants/expense-status';
 import MemberRoles from '../../../../../server/constants/roles';
+import { US_TAX_FORM_THRESHOLD_POST_2026 } from '../../../../../server/constants/tax-form';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { sequelize } from '../../../../../server/models';
+import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import {
   fakeActiveHost,
   fakeActivity,
   fakeCollective,
+  fakeExpense,
   fakeIncognitoProfile,
+  fakeLegalDocument,
+  fakeLocation,
   fakeMember,
+  fakePayoutMethod,
+  fakeRequiredLegalDocument,
   fakeTransaction,
   fakeUser,
   randStr,
@@ -24,9 +33,10 @@ const communityQuery = gql`
     $type: [AccountType]
     $searchTerm: String
     $relation: [CommunityRelationType!]
+    $missingInformation: [MissingInformationField!]
     $orderBy: OrderByInput
-    $totalContributed: AmountRangeInput
-    $totalExpended: AmountRangeInput
+    $totalContributed: AmountRangeWithYearInput
+    $totalExpended: AmountRangeWithYearInput
     $limit: Int!
     $offset: Int!
   ) {
@@ -36,6 +46,7 @@ const communityQuery = gql`
       type: $type
       searchTerm: $searchTerm
       relation: $relation
+      missingInformation: $missingInformation
       orderBy: $orderBy
       totalContributed: $totalContributed
       totalExpended: $totalExpended
@@ -303,6 +314,375 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
     });
   });
 
+  describe('missingInformation filter', () => {
+    let miHost, miHostAdmin, miCollective;
+    let completeOrg,
+      noLegalNameOrg,
+      noAddressOrg,
+      emptyAddressOrg,
+      noCountryOrg,
+      blankCountryOrg,
+      missingAllOrg,
+      taxFormMissingOrg,
+      taxFormReceivedOrg,
+      taxFormNotRequiredOrg;
+
+    const completeInfo = { legalName: 'Some Legal Name', data: { taxableCountry: 'US' } };
+
+    const queryCommunity = async (host, variables = {}, user = miHostAdmin) => {
+      const result = await graphqlQueryV2(
+        communityQuery,
+        { host: { legacyId: host.id }, type: ['ORGANIZATION'], limit: 100, offset: 0, ...variables },
+        user,
+      );
+      expect(result.errors).to.not.exist;
+      return result.data.community;
+    };
+
+    before(async () => {
+      miHostAdmin = await fakeUser();
+      miHost = await fakeActiveHost({ admin: miHostAdmin, currency: 'USD' });
+      miCollective = await fakeCollective({ HostCollectiveId: miHost.id });
+
+      // Organizations with complete information except for one specific gap
+      completeOrg = await fakeCollective({ type: CollectiveType.ORGANIZATION, ...completeInfo });
+      noLegalNameOrg = await fakeCollective({
+        type: CollectiveType.ORGANIZATION,
+        legalName: '',
+        data: { taxableCountry: 'US' },
+      });
+      noAddressOrg = await fakeCollective({ type: CollectiveType.ORGANIZATION, ...completeInfo });
+      emptyAddressOrg = await fakeCollective({
+        type: CollectiveType.ORGANIZATION,
+        ...completeInfo,
+        data: { taxableCountry: 'US' },
+      });
+      noCountryOrg = await fakeCollective({
+        type: CollectiveType.ORGANIZATION,
+        legalName: 'Some Legal Name',
+        data: {},
+      });
+      blankCountryOrg = await fakeCollective({
+        type: CollectiveType.ORGANIZATION,
+        legalName: 'Some Legal Name',
+        data: { taxableCountry: '' },
+      });
+      missingAllOrg = await fakeCollective({ type: CollectiveType.ORGANIZATION, legalName: null, data: {} });
+
+      // Locations: complete/noAddressOrg/... except noAddressOrg (no row) and emptyAddressOrg (empty address)
+      await fakeLocation({ CollectiveId: completeOrg.id, address: '123 Main Street' });
+      await fakeLocation({ CollectiveId: noLegalNameOrg.id, address: '123 Main Street' });
+      await fakeLocation({ CollectiveId: emptyAddressOrg.id, address: '', structured: null });
+      await fakeLocation({ CollectiveId: noCountryOrg.id, address: '123 Main Street' });
+      await fakeLocation({ CollectiveId: blankCountryOrg.id, address: '123 Main Street' });
+
+      // Organizations for the US tax form cases (all have complete information otherwise)
+      taxFormMissingOrg = await fakeCollective({
+        type: CollectiveType.ORGANIZATION,
+        ...completeInfo,
+        data: { taxableCountry: 'US' },
+      });
+      taxFormReceivedOrg = await fakeCollective({
+        type: CollectiveType.ORGANIZATION,
+        ...completeInfo,
+        data: { taxableCountry: 'US' },
+      });
+      taxFormNotRequiredOrg = await fakeCollective({
+        type: CollectiveType.ORGANIZATION,
+        ...completeInfo,
+        data: { taxableCountry: 'US' },
+      });
+      await fakeLocation({ CollectiveId: taxFormMissingOrg.id, address: '123 Main Street' });
+      await fakeLocation({ CollectiveId: taxFormReceivedOrg.id, address: '123 Main Street' });
+      await fakeLocation({ CollectiveId: taxFormNotRequiredOrg.id, address: '123 Main Street' });
+
+      // All organizations are part of the host community
+      for (const org of [
+        completeOrg,
+        noLegalNameOrg,
+        noAddressOrg,
+        emptyAddressOrg,
+        noCountryOrg,
+        blankCountryOrg,
+        missingAllOrg,
+        taxFormMissingOrg,
+        taxFormReceivedOrg,
+        taxFormNotRequiredOrg,
+      ]) {
+        await fakeMember({ CollectiveId: miCollective.id, MemberCollectiveId: org.id, role: MemberRoles.BACKER });
+      }
+
+      // The host requires US tax forms
+      await fakeRequiredLegalDocument({ HostCollectiveId: miHost.id });
+
+      // Expenses over the tax form threshold: taxFormMissingOrg and taxFormReceivedOrg require one
+      const otherPayoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      await fakeExpense({
+        FromCollectiveId: taxFormMissingOrg.id,
+        CollectiveId: miCollective.id,
+        PayoutMethodId: otherPayoutMethod.id,
+        type: 'INVOICE',
+        status: 'PENDING',
+        amount: US_TAX_FORM_THRESHOLD_POST_2026 + 100e2,
+        currency: 'USD',
+      });
+      await fakeExpense({
+        FromCollectiveId: taxFormReceivedOrg.id,
+        CollectiveId: miCollective.id,
+        PayoutMethodId: otherPayoutMethod.id,
+        type: 'INVOICE',
+        status: 'PENDING',
+        amount: US_TAX_FORM_THRESHOLD_POST_2026 + 100e2,
+        currency: 'USD',
+      });
+      // taxFormReceivedOrg already filed its tax form
+      await fakeLegalDocument({ CollectiveId: taxFormReceivedOrg.id, requestStatus: 'RECEIVED' });
+
+      // taxFormNotRequiredOrg stays under the threshold
+      await fakeExpense({
+        FromCollectiveId: taxFormNotRequiredOrg.id,
+        CollectiveId: miCollective.id,
+        PayoutMethodId: otherPayoutMethod.id,
+        type: 'INVOICE',
+        status: 'PENDING',
+        amount: US_TAX_FORM_THRESHOLD_POST_2026 - 200e2,
+        currency: 'USD',
+      });
+
+      // Fund each organization. The LEGAL_NAME and ADDRESS filters match on field presence only,
+      // so no host requirement or contribution threshold applies to them.
+      for (const org of [
+        completeOrg,
+        noLegalNameOrg,
+        noAddressOrg,
+        emptyAddressOrg,
+        noCountryOrg,
+        blankCountryOrg,
+        missingAllOrg,
+        taxFormMissingOrg,
+        taxFormReceivedOrg,
+        taxFormNotRequiredOrg,
+      ]) {
+        await fakeTransaction({
+          type: 'CREDIT',
+          kind: TransactionKind.CONTRIBUTION,
+          FromCollectiveId: org.id,
+          CollectiveId: miCollective.id,
+          HostCollectiveId: miHost.id,
+          amount: 600000, // $6000: over the $5000 address default threshold (and the $250 legal name one)
+          currency: 'USD',
+          hostCurrency: 'USD',
+        });
+      }
+
+      await refreshCommunityMaterializedViews();
+    });
+
+    it('rejects invalid missing information values', async () => {
+      const result = await graphqlQueryV2(
+        communityQuery,
+        {
+          host: { legacyId: miHost.id },
+          missingInformation: ['NOT_A_FIELD'],
+          limit: 100,
+          offset: 0,
+        },
+        miHostAdmin,
+      );
+      expect(result.errors).to.exist;
+    });
+
+    it('filters accounts missing a legal name (including empty strings)', async () => {
+      const community = await queryCommunity(miHost, { missingInformation: ['LEGAL_NAME'] });
+      const slugs = community.nodes.map(n => n.slug);
+      expect(slugs).to.include(noLegalNameOrg.slug);
+      expect(slugs).to.include(missingAllOrg.slug);
+      expect(slugs).to.not.include(completeOrg.slug);
+      expect(slugs).to.not.include(noAddressOrg.slug);
+      expect(slugs).to.not.include(taxFormMissingOrg.slug);
+    });
+
+    it('filters accounts missing an address (including empty addresses)', async () => {
+      const community = await queryCommunity(miHost, { missingInformation: ['ADDRESS'] });
+      const slugs = community.nodes.map(n => n.slug);
+      expect(slugs).to.include(noAddressOrg.slug);
+      expect(slugs).to.include(emptyAddressOrg.slug);
+      expect(slugs).to.include(missingAllOrg.slug);
+      expect(slugs).to.not.include(completeOrg.slug);
+      expect(slugs).to.not.include(noLegalNameOrg.slug);
+      expect(slugs).to.not.include(taxFormMissingOrg.slug);
+    });
+
+    it('filters accounts missing a country of incorporation (including blank values)', async () => {
+      const community = await queryCommunity(miHost, { missingInformation: ['COUNTRY_OF_INCORPORATION'] });
+      const slugs = community.nodes.map(n => n.slug);
+      expect(slugs).to.include(noCountryOrg.slug);
+      expect(slugs).to.include(blankCountryOrg.slug);
+      expect(slugs).to.include(missingAllOrg.slug);
+      expect(slugs).to.not.include(completeOrg.slug);
+      expect(slugs).to.not.include(taxFormMissingOrg.slug);
+    });
+
+    it('filters accounts required to file a US tax form this year that has not been received', async () => {
+      const community = await queryCommunity(miHost, { missingInformation: ['US_TAX_FORM_CURRENT_YEAR'] });
+      const slugs = community.nodes.map(n => n.slug);
+      expect(slugs).to.include(taxFormMissingOrg.slug);
+      expect(slugs).to.not.include(taxFormReceivedOrg.slug);
+      expect(slugs).to.not.include(taxFormNotRequiredOrg.slug);
+      expect(slugs).to.not.include(completeOrg.slug);
+    });
+
+    describe('US tax form per year', () => {
+      const previousYear = new Date().getUTCFullYear() - 1;
+      let previousYearOrg, previousYearReceivedOrg;
+
+      const makeOrgWithExpense = async (paidAt: Date | undefined) => {
+        const org = await fakeCollective({ type: CollectiveType.ORGANIZATION, ...completeInfo });
+        await fakeLocation({ CollectiveId: org.id, address: '123 Main Street' });
+        await fakeMember({ CollectiveId: miCollective.id, MemberCollectiveId: org.id, role: MemberRoles.BACKER });
+        await fakeExpense({
+          FromCollectiveId: org.id,
+          CollectiveId: miCollective.id,
+          HostCollectiveId: miHost.id,
+          PayoutMethodId: (await fakePayoutMethod({ type: PayoutMethodTypes.OTHER })).id,
+          type: 'INVOICE',
+          status: 'PAID',
+          amount: US_TAX_FORM_THRESHOLD_POST_2026 + 100e2,
+          currency: 'USD',
+          paidAt,
+        });
+        return org;
+      };
+
+      before(async () => {
+        // Paid (and over the threshold) last year only, no tax form received
+        previousYearOrg = await makeOrgWithExpense(new Date(Date.UTC(previousYear, 5, 15)));
+        // Same, but the tax form was received
+        previousYearReceivedOrg = await makeOrgWithExpense(new Date(Date.UTC(previousYear, 5, 15)));
+        await fakeLegalDocument({ CollectiveId: previousYearReceivedOrg.id, requestStatus: 'RECEIVED' });
+        await refreshCommunityMaterializedViews();
+      });
+
+      it('US_TAX_FORM_CURRENT_YEAR only considers the current year requirements', async () => {
+        const community = await queryCommunity(miHost, { missingInformation: ['US_TAX_FORM_CURRENT_YEAR'] });
+        const slugs = community.nodes.map(n => n.slug);
+        expect(slugs).to.include(taxFormMissingOrg.slug);
+        expect(slugs).to.not.include(previousYearOrg.slug);
+      });
+
+      it('US_TAX_FORM_PREVIOUS_YEAR only considers the previous year requirements', async () => {
+        const community = await queryCommunity(miHost, { missingInformation: ['US_TAX_FORM_PREVIOUS_YEAR'] });
+        const slugs = community.nodes.map(n => n.slug);
+        expect(slugs).to.include(previousYearOrg.slug);
+        expect(slugs).to.not.include(previousYearReceivedOrg.slug); // tax form received
+        expect(slugs).to.not.include(taxFormMissingOrg.slug); // only required this year
+      });
+
+      it('matches either year when both are selected', async () => {
+        const community = await queryCommunity(miHost, {
+          missingInformation: ['US_TAX_FORM_CURRENT_YEAR', 'US_TAX_FORM_PREVIOUS_YEAR'],
+        });
+        const slugs = community.nodes.map(n => n.slug);
+        expect(slugs).to.include.members([taxFormMissingOrg.slug, previousYearOrg.slug]);
+        expect(slugs).to.not.include(previousYearReceivedOrg.slug);
+        expect(slugs).to.not.include(taxFormReceivedOrg.slug);
+      });
+    });
+
+    it('combines multiple values with OR', async () => {
+      const community = await queryCommunity(miHost, { missingInformation: ['LEGAL_NAME', 'ADDRESS'] });
+      const slugs = community.nodes.map(n => n.slug);
+      expect(slugs).to.include(noLegalNameOrg.slug);
+      expect(slugs).to.include(noAddressOrg.slug);
+      expect(slugs).to.include(emptyAddressOrg.slug);
+      expect(slugs).to.include(missingAllOrg.slug);
+      expect(slugs).to.not.include(completeOrg.slug);
+      expect(slugs).to.not.include(noCountryOrg.slug);
+      expect(slugs).to.not.include(blankCountryOrg.slug);
+      expect(slugs).to.not.include(taxFormMissingOrg.slug);
+    });
+
+    it('matches nothing on the US tax form values when the host does not require a tax form', async () => {
+      const noTaxFormHostAdmin = await fakeUser();
+      const noTaxFormHost = await fakeActiveHost({ admin: noTaxFormHostAdmin });
+      const noTaxFormCollective = await fakeCollective({ HostCollectiveId: noTaxFormHost.id });
+      const noTaxFormOrg = await fakeCollective({ type: CollectiveType.ORGANIZATION, ...completeInfo });
+      await fakeLocation({ CollectiveId: noTaxFormOrg.id, address: '123 Main Street' });
+      await fakeMember({
+        CollectiveId: noTaxFormCollective.id,
+        MemberCollectiveId: noTaxFormOrg.id,
+        role: MemberRoles.BACKER,
+      });
+      // The account would be required to file a tax form (current year expense over the threshold)
+      // if the host required one: only the missing host requirement keeps it from matching
+      await fakeExpense({
+        FromCollectiveId: noTaxFormOrg.id,
+        CollectiveId: noTaxFormCollective.id,
+        PayoutMethodId: (await fakePayoutMethod({ type: PayoutMethodTypes.OTHER })).id,
+        type: 'INVOICE',
+        status: 'PENDING',
+        amount: US_TAX_FORM_THRESHOLD_POST_2026 + 100e2,
+        currency: 'USD',
+      });
+      await refreshCommunityMaterializedViews();
+
+      // The organization is part of the community...
+      const unfiltered = await queryCommunity(noTaxFormHost, {}, noTaxFormHostAdmin);
+      expect(unfiltered.nodes.map(n => n.slug)).to.include(noTaxFormOrg.slug);
+
+      // ...but nothing matches the US tax form values without a tax form requirement
+      const community = await queryCommunity(
+        noTaxFormHost,
+        { missingInformation: ['US_TAX_FORM_CURRENT_YEAR', 'US_TAX_FORM_PREVIOUS_YEAR'] },
+        noTaxFormHostAdmin,
+      );
+      expect(community.totalCount).to.equal(0);
+      expect(community.nodes).to.have.length(0);
+    });
+
+    it('ignores soft-deleted locations when looking for a missing address', async () => {
+      const clearedAddressOrg = await fakeCollective({ type: CollectiveType.ORGANIZATION, ...completeInfo });
+      const location = await fakeLocation({ CollectiveId: clearedAddressOrg.id, address: '123 Main Street' });
+      await fakeMember({
+        CollectiveId: miCollective.id,
+        MemberCollectiveId: clearedAddressOrg.id,
+        role: MemberRoles.BACKER,
+      });
+      await refreshCommunityMaterializedViews();
+
+      const before = await queryCommunity(miHost, { missingInformation: ['ADDRESS'] });
+      expect(before.nodes.map(n => n.slug)).to.not.include(clearedAddressOrg.slug);
+
+      // Clearing the address soft-deletes the location
+      await location.destroy();
+      const after = await queryCommunity(miHost, { missingInformation: ['ADDRESS'] });
+      expect(after.nodes.map(n => n.slug)).to.include(clearedAddressOrg.slug);
+    });
+
+    it('uses the structured address when the formatted address is missing', async () => {
+      const addOrg = async location => {
+        const org = await fakeCollective({ type: CollectiveType.ORGANIZATION, ...completeInfo });
+        await fakeLocation({ CollectiveId: org.id, ...location });
+        await fakeMember({ CollectiveId: miCollective.id, MemberCollectiveId: org.id, role: MemberRoles.BACKER });
+        return org;
+      };
+
+      // Legacy location: structured data, but the formatted address was never generated
+      const structuredOnlyOrg = await addOrg({
+        address: null,
+        structured: { address1: '1 Main Street', city: 'Paris' },
+      });
+      // Structured data with only blank values is not an address
+      const blankStructuredOrg = await addOrg({ address: '', structured: { address1: '', city: '  ' } });
+      await refreshCommunityMaterializedViews();
+
+      const community = await queryCommunity(miHost, { missingInformation: ['ADDRESS'] });
+      const slugs = community.nodes.map(n => n.slug);
+      expect(slugs).to.not.include(structuredOnlyOrg.slug);
+      expect(slugs).to.include(blankStructuredOrg.slug);
+    });
+  });
+
   describe('searchTerm', () => {
     it('searches by name', async () => {
       const result = await graphqlQueryV2(
@@ -352,6 +732,23 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
       expect(result.errors).to.not.exist;
       const { community } = result.data;
       expect(community.totalCount).to.be.greaterThan(0);
+    });
+
+    it('searches by publicId', async () => {
+      const result = await graphqlQueryV2(
+        communityQuery,
+        {
+          host: { legacyId: host.id },
+          searchTerm: contributor1.collective.publicId,
+          limit: 100,
+          offset: 0,
+        },
+        hostAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      const { community } = result.data;
+      expect(community.totalCount).to.equal(1);
+      expect(community.nodes[0].slug).to.equal(contributor1.collective.slug);
     });
   });
 
@@ -412,6 +809,194 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
       const slugs = community.nodes.map(n => n.slug);
       // expenseSubmitter had $2000 in expenses
       expect(slugs).to.include(expenseSubmitter.collective.slug);
+    });
+  });
+
+  describe('year filter', () => {
+    const currentYear = new Date().getUTCFullYear();
+    const previousYear = currentYear - 1;
+    let yearHost,
+      yearHostAdmin,
+      yearCollective,
+      lastYearContributor,
+      thisYearContributor,
+      lastYearPayee,
+      mixedYearsAccount,
+      currentYearOnlyContributor;
+
+    const addTransactions = async (kind, from, amount, date) => {
+      const TransactionGroup = uuid();
+      const isExpense = kind === TransactionKind.EXPENSE;
+      await fakeTransaction({
+        type: isExpense ? 'DEBIT' : 'CREDIT',
+        kind,
+        FromCollectiveId: from.CollectiveId,
+        CollectiveId: yearCollective.id,
+        HostCollectiveId: yearHost.id,
+        amount: isExpense ? -amount : amount,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        createdAt: date,
+        TransactionGroup,
+      });
+      await fakeTransaction({
+        type: isExpense ? 'CREDIT' : 'DEBIT',
+        kind,
+        FromCollectiveId: yearCollective.id,
+        CollectiveId: from.CollectiveId,
+        HostCollectiveId: yearHost.id,
+        amount: isExpense ? amount : -amount,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        createdAt: date,
+        TransactionGroup,
+      });
+    };
+
+    const query = async variables => {
+      const result = await graphqlQueryV2(
+        communityQuery,
+        { host: { legacyId: yearHost.id }, limit: 100, offset: 0, ...variables },
+        yearHostAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      return result.data.community.nodes.map(n => n.slug);
+    };
+
+    before(async () => {
+      yearHostAdmin = await fakeUser();
+      yearHost = await fakeActiveHost({ admin: yearHostAdmin });
+      yearCollective = await fakeCollective({ HostCollectiveId: yearHost.id });
+      lastYearContributor = await fakeUser({}, { name: 'Last Year Contributor' });
+      thisYearContributor = await fakeUser({}, { name: 'This Year Contributor' });
+      lastYearPayee = await fakeUser({}, { name: 'Last Year Payee' });
+      mixedYearsAccount = await fakeUser({}, { name: 'Mixed Years Account' });
+      currentYearOnlyContributor = await fakeUser({}, { name: 'Current Year Only Contributor' });
+      for (const user of [
+        lastYearContributor,
+        thisYearContributor,
+        lastYearPayee,
+        mixedYearsAccount,
+        currentYearOnlyContributor,
+      ]) {
+        await fakeMember({
+          CollectiveId: yearCollective.id,
+          MemberCollectiveId: user.CollectiveId,
+          role: MemberRoles.BACKER,
+        });
+      }
+
+      const lastYearDate = new Date(Date.UTC(previousYear, 5, 15));
+      const thisYearDate = new Date(Date.UTC(currentYear, 0, 2));
+      // lastYearContributor: $5000 last year only. thisYearContributor: $100 last year + $5000 this year
+      await addTransactions(TransactionKind.CONTRIBUTION, lastYearContributor, 500000, lastYearDate);
+      await addTransactions(TransactionKind.CONTRIBUTION, thisYearContributor, 10000, lastYearDate);
+      await addTransactions(TransactionKind.CONTRIBUTION, thisYearContributor, 500000, thisYearDate);
+      // lastYearPayee: $2000 received through expenses last year only
+      await addTransactions(TransactionKind.EXPENSE, lastYearPayee, 200000, lastYearDate);
+      // mixedYearsAccount: $1000 contributed this year and $1000 received through expenses last year
+      await addTransactions(TransactionKind.CONTRIBUTION, mixedYearsAccount, 100000, thisYearDate);
+      await addTransactions(TransactionKind.EXPENSE, mixedYearsAccount, 100000, lastYearDate);
+      // currentYearOnlyContributor: $500 this year, nothing last year (no summary row for last year at all)
+      await addTransactions(TransactionKind.CONTRIBUTION, currentYearOnlyContributor, 50000, thisYearDate);
+      await refreshCommunityMaterializedViews();
+    });
+
+    const amount = (valueInCents: number) => ({ valueInCents, currency: 'USD' });
+
+    it('filters totalContributed within the given year only', async () => {
+      const gte = amount(100000);
+
+      const lastYear = await query({ totalContributed: { gte, year: previousYear } });
+      expect(lastYear).to.include(lastYearContributor.collective.slug);
+      expect(lastYear).to.not.include(thisYearContributor.collective.slug); // only $100 last year
+
+      const thisYear = await query({ totalContributed: { gte, year: currentYear } });
+      expect(thisYear).to.include(thisYearContributor.collective.slug);
+      expect(thisYear).to.not.include(lastYearContributor.collective.slug);
+
+      // Without a year, all-time totals apply
+      const allTime = await query({ totalContributed: { gte } });
+      expect(allTime).to.include.members([lastYearContributor.collective.slug, thisYearContributor.collective.slug]);
+    });
+
+    it('filters totalExpended within the given year only', async () => {
+      const gte = amount(100000);
+      expect(await query({ totalExpended: { gte, year: previousYear } })).to.include(lastYearPayee.collective.slug);
+      expect(await query({ totalExpended: { gte, year: currentYear } })).to.not.include(lastYearPayee.collective.slug);
+    });
+
+    it('supports a different year for contributed and expended', async () => {
+      const slugs = await query({
+        totalContributed: { gte: amount(100000), year: currentYear },
+        totalExpended: { gte: amount(100000), year: previousYear },
+      });
+      // Both conditions must hold (AND), each against its own year
+      expect(slugs).to.include(mixedYearsAccount.collective.slug);
+      expect(slugs).to.not.include(lastYearPayee.collective.slug); // paid last year, no contribution this year
+      expect(slugs).to.not.include(lastYearContributor.collective.slug); // no contribution this year
+      expect(slugs).to.not.include(thisYearContributor.collective.slug); // contributed this year, not paid last year
+
+      const onlyContributed = await query({
+        totalContributed: { gte: amount(100000), year: currentYear },
+        totalExpended: { lte: amount(0), year: previousYear },
+      });
+      expect(onlyContributed).to.not.include(lastYearPayee.collective.slug);
+    });
+
+    it('orders by the totals of the requested year', async () => {
+      const orderBy = { field: 'TOTAL_CONTRIBUTED', direction: 'DESC' };
+      const positions = slugs => [
+        slugs.indexOf(lastYearContributor.collective.slug),
+        slugs.indexOf(thisYearContributor.collective.slug),
+      ];
+
+      // Last year: lastYearContributor ($5000) is ahead of thisYearContributor ($100)
+      const [lastYearA, thisYearA] = positions(await query({ orderBy, totalContributed: { year: previousYear } }));
+      expect(lastYearA).to.be.at.least(0);
+      expect(thisYearA).to.be.at.least(0);
+      expect(lastYearA).to.be.lessThan(thisYearA);
+
+      // All time: thisYearContributor ($5100) is ahead of lastYearContributor ($5000)
+      const [lastYearB, thisYearB] = positions(await query({ orderBy }));
+      expect(thisYearB).to.be.lessThan(lastYearB);
+    });
+
+    it('sorts accounts without activity in the year as having a zero total', async () => {
+      // thisYearContributor has $100 last year, currentYearOnlyContributor has no activity (no summary row) last year
+      const slugs = await query({
+        orderBy: { field: 'TOTAL_CONTRIBUTED', direction: 'ASC' },
+        totalContributed: { lte: amount(100000), year: previousYear },
+      });
+      const idxNoActivity = slugs.indexOf(currentYearOnlyContributor.collective.slug);
+      const idxWithActivity = slugs.indexOf(thisYearContributor.collective.slug);
+      expect(idxNoActivity).to.be.at.least(0);
+      expect(idxWithActivity).to.be.at.least(0);
+      expect(idxNoActivity).to.be.lessThan(idxWithActivity); // $0 before $100, not NULLs last
+    });
+
+    it('treats accounts without activity in the year as having a zero total', async () => {
+      const slugs = await query({ totalContributed: { lte: amount(0), year: previousYear - 5 } });
+      expect(slugs).to.include.members([lastYearContributor.collective.slug, thisYearContributor.collective.slug]);
+    });
+
+    it('returns nothing for a year without matching activity', async () => {
+      const slugs = await query({ totalContributed: { gte: amount(1), year: previousYear - 5 } });
+      expect(slugs).to.have.length(0);
+    });
+
+    it('rejects invalid years', async () => {
+      const result = await graphqlQueryV2(
+        communityQuery,
+        {
+          host: { legacyId: yearHost.id },
+          totalContributed: { gte: amount(1), year: 12 },
+          limit: 100,
+          offset: 0,
+        },
+        yearHostAdmin,
+      );
+      expect(result.errors?.[0]?.message).to.match(/Invalid year/);
     });
   });
 
@@ -833,6 +1418,69 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
       );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('not hosted by the host provided');
+    });
+  });
+
+  describe('private profile info', () => {
+    const communityEmailsQuery = gql`
+      query CommunityEmails($host: AccountReferenceInput!, $limit: Int!, $offset: Int!) {
+        community(host: $host, type: [INDIVIDUAL], limit: $limit, offset: $offset) {
+          nodes {
+            slug
+            ... on Individual {
+              email
+            }
+          }
+        }
+      }
+    `;
+
+    let privateHost, privateHostAdmin, privateCollective, incognitoUser, expensePayee;
+
+    before(async () => {
+      privateHostAdmin = await fakeUser();
+      privateHost = await fakeActiveHost({ admin: privateHostAdmin });
+      privateCollective = await fakeCollective({ HostCollectiveId: privateHost.id });
+
+      incognitoUser = await fakeUser({}, { name: 'Incognito Contributor' });
+      const incognitoProfile = await fakeIncognitoProfile(incognitoUser);
+      await fakeMember({
+        CollectiveId: privateCollective.id,
+        MemberCollectiveId: incognitoProfile.id,
+        role: MemberRoles.BACKER,
+      });
+
+      expensePayee = await fakeUser({}, { name: 'Expense Payee' });
+      const formerCollective = await fakeCollective({ HostCollectiveId: null });
+      const expense = await fakeExpense({
+        HostCollectiveId: privateHost.id,
+        CollectiveId: formerCollective.id,
+        FromCollectiveId: expensePayee.collective.id,
+        status: ExpenseStatuses.PAID,
+      });
+      await fakeActivity({
+        type: 'collective.expense.paid',
+        FromCollectiveId: expensePayee.collective.id,
+        CollectiveId: formerCollective.id,
+        HostCollectiveId: privateHost.id,
+        ExpenseId: expense.id,
+      });
+
+      await refreshCommunityMaterializedViews();
+    });
+
+    it('returns the email of incognito contributors and of payees of unhosted collectives', async () => {
+      const result = await graphqlQueryV2(
+        communityEmailsQuery,
+        { host: { legacyId: privateHost.id }, limit: 100, offset: 0 },
+        privateHostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const emailBySlug = Object.fromEntries(result.data.community.nodes.map(node => [node.slug, node.email]));
+      expect(emailBySlug[incognitoUser.collective.slug]).to.equal(incognitoUser.email);
+      expect(emailBySlug[expensePayee.collective.slug]).to.equal(expensePayee.email);
     });
   });
 });

@@ -1,5 +1,8 @@
+import type express from 'express';
 import { pick } from 'lodash';
 
+import FEATURE from '../../constants/feature';
+import { isFeatureBlockedForAccount } from '../../lib/allowed-features';
 import { invalidateContributorsCache } from '../../lib/contributors';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { Collective } from '../../models';
@@ -8,20 +11,23 @@ import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 
 import { checkRemoteUserCanUseAccount } from './scope-check';
 
-/** A mutation to edit the public message of all matching members. */
-export async function editPublicMessage(
-  _,
-  { fromAccount, toAccount, FromCollectiveId = null, CollectiveId = null, message },
-  req,
-) {
-  checkRemoteUserCanUseAccount(req);
+/**
+ * Throws if the team (admins, members, accountants...) of `account` cannot be changed. This happens when
+ * the TEAM feature is blocked for the account or its parent, which includes frozen and suspended accounts.
+ */
+export const checkCanEditTeam = async (account: Collective, req: express.Request): Promise<void> => {
+  const parent = account.ParentCollectiveId ? await req.loaders.Collective.byId.load(account.ParentCollectiveId) : null;
+  if ([account, parent].some(a => a && isFeatureBlockedForAccount(a, FEATURE.TEAM))) {
+    throw new Forbidden(
+      'The team of this account is locked and cannot be changed at the moment. Please contact your fiscal host for more information.',
+      'TeamLocked',
+    );
+  }
+};
 
-  if (!fromAccount && FromCollectiveId) {
-    fromAccount = await req.loaders.Collective.byId.load(FromCollectiveId);
-  }
-  if (!toAccount && CollectiveId) {
-    toAccount = await req.loaders.Collective.byId.load(CollectiveId);
-  }
+/** A mutation to edit the public message of all matching members. */
+export async function editPublicMessage(_, { fromAccount, toAccount, message }, req) {
+  checkRemoteUserCanUseAccount(req);
 
   if (!req.remoteUser.isAdminOfCollective(fromAccount)) {
     throw new Unauthorized("You don't have the permission to edit member public message");

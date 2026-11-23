@@ -118,7 +118,7 @@ const checkExpenseStats = (
   { expense, checks, scope, details }: { scope: Scope; details?: string; checks: Array<SecurityCheck>; expense },
 ) => {
   const platformStats = aggregateByStatus(stats);
-  const collectiveStats = filter(stats, { CollectiveId: expense.CollectiveId });
+  const collectiveStats = aggregateByStatus(filter(stats, { CollectiveId: expense.CollectiveId }));
 
   // Checks if there was any SPAM or rejects on the platform
   const spam = find(platformStats, { status: status.SPAM });
@@ -332,24 +332,20 @@ const getExpensesAmountsStats = async (
             -- Simple case: expense is already in display currency
             WHEN e.currency = :displayCurrency THEN e.amount
             -- Convert expense to display currency
-            ELSE e.amount * COALESCE((
-                SELECT rate
-                FROM "CurrencyExchangeRates" r
-                WHERE r."from" = e.currency
-                AND r."to" = :displayCurrency
-                -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
-                AND r."createdAt" <= e."createdAt"
-                ORDER BY r."createdAt" DESC
-                LIMIT 1
-              ), (
-                -- Fix for old expenses where we didn't have an exchange rate stored yet: just use the oldest rate available
-                SELECT rate
-                FROM "CurrencyExchangeRates" r
-                WHERE r."from" = e.currency
-                AND r."to" = :displayCurrency
-                ORDER BY r."createdAt" ASC -- Oldest rate
-                LIMIT 1
-            ))
+            ELSE e.amount * COALESCE(
+              -- Most recent rate that is older than the expense
+              fx_rate(e.currency, :displayCurrency, e."createdAt"),
+              -- Fix for old expenses where we didn't have an exchange rate stored yet: use the oldest rate
+              -- available, from the first day both currencies have one
+              fx_rate(
+                e.currency,
+                :displayCurrency,
+                GREATEST(
+                  (SELECT MIN(u."createdAt") FROM "UsdExchangeRates" u WHERE u."currency" = e.currency),
+                  (SELECT MIN(u."createdAt") FROM "UsdExchangeRates" u WHERE u."currency" = :displayCurrency)
+                )
+              )
+            )
             END AS "amountInHostCurrency"
         FROM "Expenses" e
         WHERE e."deletedAt" IS NULL
@@ -776,7 +772,10 @@ export const checkExpensesBatch = async (
       await handleExpenseKycSecurityChecks(expense, checks, { loaders: req.loaders });
 
       // Author Membership Check: Checks if the user is admin of the fiscal host or the collective paying for the expense
-      const userIsHostAdmin = expense.User.isAdmin(expense.HostCollectiveId);
+      // `Expenses.HostCollectiveId` is only set when the expense gets paid, fall back on the collective's approved host
+      const hostId =
+        expense.HostCollectiveId || (expense.collective?.isActive ? expense.collective.HostCollectiveId : null);
+      const userIsHostAdmin = expense.User.isAdmin(hostId);
       addBooleanCheck(checks, userIsHostAdmin, {
         scope: Scope.USER,
         level: Level.PASS,

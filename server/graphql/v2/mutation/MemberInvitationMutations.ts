@@ -12,7 +12,7 @@ import { stripHTML } from '../../../lib/sanitize-html';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
-import { processInviteMembersInput } from '../../common/members';
+import { checkCanEditTeam, processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { BadRequest, Forbidden, NotFound, Unauthorized } from '../../errors';
 import { GraphQLMemberRole } from '../enum';
@@ -97,6 +97,8 @@ const memberInvitationMutations = {
         throw new Forbidden('You can only invite users.');
       }
 
+      await checkCanEditTeam(account, req);
+
       await twoFactorAuthLib.enforceForAccount(req, account);
 
       const memberParams = {
@@ -144,6 +146,8 @@ const memberInvitationMutations = {
       ) {
         throw new Forbidden('You need to be an Admin of the provided account in order to invite members.');
       }
+
+      await checkCanEditTeam(account, req);
 
       // Enforce 2FA for invite actions
       await twoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
@@ -195,6 +199,8 @@ const memberInvitationMutations = {
       if (!INVITABLE_ROLES.includes(args.role)) {
         throw new Forbidden('You can only edit accountants, admins, members, or community managers.');
       }
+
+      await checkCanEditTeam(account, req);
 
       await twoFactorAuthLib.enforceForAccount(req, account);
 
@@ -265,6 +271,7 @@ const memberInvitationMutations = {
         throw new Forbidden('Only admins can cancel an invitation.');
       }
 
+      await checkCanEditTeam(account, req);
       await twoFactorAuthLib.enforceForAccount(req, account);
       await invitation.destroy();
       return true;
@@ -292,11 +299,13 @@ const memberInvitationMutations = {
         throw new Forbidden('Only an admin of the invited account can reply to the invitation');
       }
 
+      const collective = await invitation.getCollective();
+      await checkCanEditTeam(collective, req);
+
       if (args.accept) {
         await invitation.accept();
 
         // Restore financial contributions if Collective now has enough admins to comply with host policy
-        const collective = await invitation.getCollective();
         if (collective.data?.features?.[FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS] === false) {
           const host = await collective.getHostCollective({ loaders: req.loaders });
           const adminCount = await models.Member.count({

@@ -363,6 +363,23 @@ describe('server/lib/order-tier-change', () => {
       expect(order.data.pendingTierChange).to.not.exist;
     });
 
+    it('keeps the order instance unchanged when applying the tier fails', async () => {
+      const order = await createPaidRecurringOrder(100);
+      await updateOrder(order, { tier: { legacyId: goldTier.id }, amount: { valueInCents: 100000 } });
+      await order.reload();
+      sandbox.stub(models.Member, 'findOne').rejects(new Error('Database unavailable'));
+
+      const applied = await applyPendingTierChangeAfterCharge(order, await recordCharge(order, 100000));
+      expect(applied).to.be.false;
+      // In memory, as the recurring contributions job would save it next
+      expect(order.TierId).to.be.null;
+      expect(order.data.pendingTierChange.TierId).to.eq(goldTier.id);
+      // In the database
+      await order.reload();
+      expect(order.TierId).to.be.null;
+      expect(order.data.pendingTierChange.TierId).to.eq(goldTier.id);
+    });
+
     it('does nothing for charges without a pending change', async () => {
       const order = await createPaidRecurringOrder(100);
       expect(await applyPendingTierChangeAfterCharge(order, await recordCharge(order, 100))).to.be.false;

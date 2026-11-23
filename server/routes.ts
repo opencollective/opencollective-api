@@ -8,7 +8,7 @@ import config from 'config';
 import type express from 'express';
 import { print as convertASTToString } from 'graphql';
 import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.mjs';
-import { get, pick } from 'lodash';
+import { get } from 'lodash';
 import multer from 'multer';
 
 import * as connectedAccounts from './controllers/connectedAccounts';
@@ -22,7 +22,7 @@ import * as transferwise from './controllers/transferwise';
 import * as users from './controllers/users';
 import { paypalWebhook, plaidWebhook, stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
 import { getGraphqlCacheProperties } from './graphql/cache';
-import { IGNORED_GRAPHQL_ERROR_CODES } from './graphql/errors';
+import { formatGraphQLError } from './graphql/format-error';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import { apolloSlowRequestCachePlugin, apolloSlowResolverDebugPlugin, apolloStudioUsagePlugin } from './lib/apollo';
@@ -285,31 +285,7 @@ export default async (app: express.Application) => {
     // https://www.apollographql.com/docs/apollo-server/api/apollo-server#csrfprevention
     csrfPrevention: { requestHeaders: ['Authorization'] },
     // https://www.apollographql.com/docs/apollo-server/api/apollo-server#formaterror
-    formatError: (formattedError, error) => {
-      if (IGNORED_GRAPHQL_ERROR_CODES.includes(formattedError.extensions?.code)) {
-        return formattedError;
-      }
-
-      logger.error(`GraphQL error: ${formattedError.message}`);
-      const extra = pick(formattedError, ['locations', 'path']);
-      if (Object.keys(extra).length) {
-        logger.error(JSON.stringify(extra));
-      }
-
-      const stacktrace = get(formattedError, 'extensions.exception.stacktrace');
-      if (stacktrace) {
-        logger.error(stacktrace);
-      }
-
-      if (parseToBoolean(config.graphql.error.detailed)) {
-        /* eslint-disable no-console */
-        console.log(formattedError);
-        console.log(error);
-        /* eslint-enable no-console */
-      }
-
-      return formattedError;
-    },
+    formatError: formatGraphQLError,
     ...graphqlProtection,
     plugins: graphqlPlugins,
   };

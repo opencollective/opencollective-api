@@ -1,20 +1,161 @@
 import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
-import { intersection, isNil, isUndefined } from 'lodash';
+import { intersection, isNil, isUndefined, uniq } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import { CollectiveType } from '../../../constants/collectives';
+import type { SupportedCurrency } from '../../../constants/currencies';
 import MemberRoles, { MemberRolesForPrivateAccounts } from '../../../constants/roles';
+import { memoize } from '../../../lib/cache';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import models, { type Collective, Op, sequelize } from '../../../models';
 import { checkScope, isRemoteUserRoot } from '../../common/scope-check';
 import { BadRequest } from '../../errors';
+import { getMemberIsActiveSQLCondition } from '../../loaders/members';
 import { GraphQLMemberCollection } from '../collection/MemberCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../enum/AccountType';
 import { GraphQLMemberRole } from '../enum/MemberRole';
+import { GraphQLOrderDirectionType } from '../enum/OrderDirectionType';
 import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 import MemberInvitationsQuery from '../query/MemberInvitationsQuery';
 import EmailAddress from '../scalar/EmailAddress';
+
+/** Transaction kinds that `Member.totalDonations` (loader `Transaction.totalAmountDonatedFromTo`) leaves out */
+const TOTAL_DONATIONS_EXCLUDED_KINDS = ['HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT', 'PLATFORM_TIP_DEBT'];
+
+/**
+ * Sums, per contributor and currency, what was contributed to `collectiveId` directly or with a gift card the
+ * contributor emitted. Same filters as `Member.totalDonations`. Pass `contributorIds` to only aggregate those.
+ *
+ * Cached for a few minutes: on the largest accounts this aggregate takes seconds, and paging through the members (or
+ * repeating the same request) would otherwise compute it again each time.
+ */
+const getContributedTotalsByCurrency = memoize(
+  (
+    collectiveId: number,
+    contributorIds?: number[],
+  ): Promise<Array<{ contributorId: number; currency: SupportedCurrency; total: string }>> => {
+    const contributorFilter = (column: string) => (contributorIds ? `AND t."${column}" IN (:contributorIds)` : '');
+    const commonFilters = `
+    t."CollectiveId" = :collectiveId AND t."deletedAt" IS NULL AND t."type" = 'CREDIT'
+    AND t."RefundTransactionId" IS NULL AND t."kind" NOT IN (:excludedKinds)
+  `;
+    return sequelize.query<{ contributorId: number; currency: SupportedCurrency; total: string }>(
+      `
+    SELECT s."contributorId", s.currency, SUM(s.amount) AS total
+    FROM (
+      SELECT t."FromCollectiveId" AS "contributorId", t.currency, t.amount
+      FROM "Transactions" t
+      WHERE ${commonFilters} ${contributorFilter('FromCollectiveId')}
+      UNION ALL
+      SELECT t."UsingGiftCardFromCollectiveId" AS "contributorId", t.currency, t.amount
+      FROM "Transactions" t
+      WHERE ${commonFilters} ${contributorFilter('UsingGiftCardFromCollectiveId')}
+      AND t."UsingGiftCardFromCollectiveId" IS NOT NULL
+      AND t."UsingGiftCardFromCollectiveId" != t."FromCollectiveId"
+    ) s
+    GROUP BY s."contributorId", s.currency
+    `,
+      {
+        replacements: { collectiveId, contributorIds, excludedKinds: TOTAL_DONATIONS_EXCLUDED_KINDS },
+        type: QueryTypes.SELECT,
+      },
+    );
+  },
+  { key: 'membersContributedTotalsByCurrency', maxAge: 10 * 60 },
+);
+
+/**
+ * Orders the members by the total amount they contributed (same amount as `Member.totalDonations`: refunds and fee
+ * kinds excluded, each currency converted to the currency of the account the membership is on).
+ *
+ * The totals are computed with a single aggregate over the account's transactions: a subquery per member is far too
+ * slow on accounts with tens of thousands of backers (it times out after 2 minutes on production). The matching
+ * members are fetched as plain rows (ids only), sorted here, and only the requested page is loaded. Members inherited
+ * from the parent account are few (admins), so their totals are only aggregated for them.
+ */
+const getMembersOrderedByTotalContributed = async (
+  collective: Collective,
+  args: {
+    limit: number;
+    offset: number;
+    orderByTotalContributed: 'ASC' | 'DESC';
+    orderBy: { field: string; direction: string };
+  },
+  { where, memberCollectiveInclude, inheritedAttribute },
+  req: Request,
+) => {
+  const tieBreakField = args.orderBy.field;
+  const candidates = (await models.Member.findAll({
+    where,
+    attributes: ['id', 'CollectiveId', 'MemberCollectiveId', tieBreakField],
+    include: [{ ...memberCollectiveInclude, attributes: [] }],
+    raw: true,
+  })) as unknown as Array<{ id: number; CollectiveId: number; MemberCollectiveId: number } & Record<string, unknown>>;
+
+  // Total per `${CollectiveId}-${MemberCollectiveId}`, in the currency of CollectiveId
+  const totalByKey = new Map<string, number>();
+  const addTotals = async (account: Collective, contributorIds?: number[]) => {
+    const rows = await getContributedTotalsByCurrency(account.id, contributorIds);
+    for (const row of rows) {
+      const fxRate = await req.loaders.CurrencyExchangeRate.fxRate.load({
+        fromCurrency: row.currency,
+        toCurrency: account.currency as SupportedCurrency,
+      });
+      if (isNil(fxRate)) {
+        continue; // Same as `Member.totalDonations`: amounts that can't be converted are skipped
+      }
+      const key = `${account.id}-${row.contributorId}`;
+      totalByKey.set(key, (totalByKey.get(key) || 0) + Number(row.total) * fxRate);
+    }
+  };
+
+  await addTotals(collective);
+  const inheritedContributorIds = uniq(
+    candidates.filter(m => m.CollectiveId !== collective.id).map(m => m.MemberCollectiveId),
+  );
+  if (inheritedContributorIds.length && collective.ParentCollectiveId) {
+    const parent = await req.loaders.Collective.byId.load(collective.ParentCollectiveId);
+    await addTotals(parent, inheritedContributorIds);
+  }
+  const getTotal = (member: { CollectiveId: number; MemberCollectiveId: number }) =>
+    totalByKey.get(`${member.CollectiveId}-${member.MemberCollectiveId}`) || 0;
+
+  const totalSign = args.orderByTotalContributed === 'ASC' ? 1 : -1;
+  const tieBreakSign = args.orderBy.direction === 'DESC' ? -1 : 1;
+  candidates.sort((a, b) => {
+    const totalDiff = getTotal(a) - getTotal(b);
+    if (totalDiff !== 0) {
+      return totalSign * totalDiff;
+    }
+    const aValue = a[tieBreakField] as Date | number;
+    const bValue = b[tieBreakField] as Date | number;
+    if (aValue < bValue) {
+      return -tieBreakSign;
+    } else if (aValue > bValue) {
+      return tieBreakSign;
+    }
+    return a.id - b.id;
+  });
+
+  const pageIds = candidates.slice(args.offset, args.offset + args.limit).map(m => m.id);
+  const pageMembers = pageIds.length
+    ? await models.Member.findAll({
+        where: { id: pageIds },
+        attributes: { include: [inheritedAttribute] },
+        include: [{ model: models.Collective, as: 'memberCollective' }],
+      })
+    : [];
+  const membersById = new Map(pageMembers.map(m => [m.id, m]));
+
+  return {
+    nodes: pageIds.map(id => membersById.get(id)).filter(Boolean),
+    totalCount: candidates.length,
+    limit: args.limit,
+    offset: args.offset,
+  };
+};
 
 export const HasMembersFields = {
   members: {
@@ -33,6 +174,16 @@ export const HasMembersFields = {
         type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
         defaultValue: { field: 'createdAt', direction: 'ASC' },
         description: 'Order of the results',
+      },
+      orderByTotalContributed: {
+        type: GraphQLOrderDirectionType,
+        description:
+          'Order by the total amount each member contributed to this account. Takes precedence over `orderBy`, which is used to break ties.',
+      },
+      isActive: {
+        type: GraphQLBoolean,
+        description:
+          'Only return active (true) or inactive (false) members, as defined by `Member.isActive`: members of a monthly or yearly tier need a recent contribution.',
       },
       includeInherited: {
         type: GraphQLBoolean,
@@ -67,6 +218,7 @@ export const HasMembersFields = {
         role?: { [Op.in]: string[] };
         TierId?: number | { [Op.is]: null };
         [Op.or]?: [typeof where, { CollectiveId?: number; role?: { [Op.in]: string[] }; TierId?: number }];
+        [Op.and]?: ReturnType<typeof sequelize.literal>[];
       } = { CollectiveId: collective.id };
       const collectiveInclude = [];
 
@@ -140,25 +292,46 @@ export const HasMembersFields = {
         }
       }
 
+      if (!isNil(args.isActive)) {
+        const isActiveCondition = getMemberIsActiveSQLCondition('Member');
+        where = {
+          ...where,
+          [Op.and]: [sequelize.literal(args.isActive ? isActiveCondition : `NOT ${isActiveCondition}`)],
+        };
+      }
+
+      const memberCollectiveInclude = {
+        model: models.Collective,
+        as: 'memberCollective',
+        where: collectiveConditions,
+        include: collectiveInclude,
+        required: true,
+      };
+      const inheritedAttribute: [ReturnType<typeof sequelize.literal>, string] = [
+        sequelize.literal(`"Member"."CollectiveId" = ${collective.ParentCollectiveId || 0}`),
+        'inherited',
+      ];
+
+      if (args.orderByTotalContributed) {
+        return getMembersOrderedByTotalContributed(
+          collective,
+          args,
+          {
+            where,
+            memberCollectiveInclude,
+            inheritedAttribute,
+          },
+          req,
+        );
+      }
+
       const result = await models.Member.findAndCountAll({
         where,
         limit: args.limit,
         offset: args.offset,
         order: [[args.orderBy.field, args.orderBy.direction]],
-        attributes: {
-          include: [
-            [sequelize.literal(`"Member"."CollectiveId" = ${collective.ParentCollectiveId || 0}`), 'inherited'],
-          ],
-        },
-        include: [
-          {
-            model: models.Collective,
-            as: 'memberCollective',
-            where: collectiveConditions,
-            include: collectiveInclude,
-            required: true,
-          },
-        ],
+        attributes: { include: [inheritedAttribute] },
+        include: [memberCollectiveInclude],
       });
 
       return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };

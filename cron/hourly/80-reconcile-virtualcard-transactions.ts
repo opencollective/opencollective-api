@@ -8,6 +8,7 @@ import { Service as ConnectedAccountServices } from '../../server/constants/conn
 import PlatformConstants from '../../server/constants/platform';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
+import { convertFromStripeAmount } from '../../server/lib/stripe';
 import models from '../../server/models';
 import { processTransaction } from '../../server/paymentProviders/stripe/virtual-cards';
 import { runCronJob } from '../utils';
@@ -63,7 +64,10 @@ async function reconcileConnectedAccount(connectedAccount) {
           logger.info(`Refreshing card details'...`);
           const stripeCard = await stripe.issuing.cards.retrieve(card.id);
           await card.update({
-            spendingLimitAmount: stripeCard['spending_controls']['spending_limits'][0]['amount'],
+            spendingLimitAmount: convertFromStripeAmount(
+              stripeCard.currency,
+              stripeCard['spending_controls']['spending_limits'][0]['amount'],
+            ),
             spendingLimitInterval: stripeCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),
             data: omit(stripeCard, ['number', 'cvc', 'exp_year', 'exp_month']),
           });

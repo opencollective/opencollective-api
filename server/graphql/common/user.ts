@@ -1,8 +1,11 @@
+import crypto from 'crypto';
+
 import config from 'config';
 import cryptoRandomString from 'crypto-random-string';
 import { pick } from 'lodash';
 import assert from 'node:assert';
 import type Sequelize from 'sequelize';
+import { UniqueConstraintError } from 'sequelize';
 
 import { activities } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
@@ -10,10 +13,11 @@ import roles from '../../constants/roles';
 import cache from '../../lib/cache';
 import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
+import RateLimit from '../../lib/rate-limit';
 import { reportErrorToSentry } from '../../lib/sentry';
 import models, { Collective, Op, sequelize } from '../../models';
 import User from '../../models/User';
-import { InvalidToken, ValidationFailed } from '../errors';
+import { InvalidToken, RateLimitExceeded, Unauthorized, ValidationFailed } from '../errors';
 
 type CreateUserOptions = {
   organizationData?: {
@@ -182,7 +186,99 @@ export const hasSeenLatestChangelogEntry = async (user: User): Promise<boolean> 
 };
 
 /**
- * From a given token (generated in `updateUserEmail`) confirm the new email
+ * Sets `emailWaitingForValidation` to `newEmail` for `user` and sends a confirmation
+ * email to the new address. The change is applied by `confirmUserEmail`.
+ */
+export const requestUserEmailChange = async (user: User, newEmail: string): Promise<User> => {
+  if (!user) {
+    throw new Unauthorized();
+  } else if (!user.confirmedAt) {
+    throw new Error('You need to verify your account before changing your email address');
+  }
+
+  // Emails are stored lowercased (see the User model setters)
+  newEmail = newEmail?.toLowerCase().trim();
+  if (!newEmail) {
+    throw new ValidationFailed('Email address is required');
+  }
+
+  // If somehow user tries to update the email to its existing value then we remove
+  // any email waiting for confirmation
+  if (user.email === newEmail) {
+    if (user.emailWaitingForValidation !== null) {
+      return user.update({ emailWaitingForValidation: null, emailConfirmationToken: null });
+    }
+    return user;
+  }
+
+  // Rate limit every real attempt, including the ones rejected below, so that users can't guess which addresses
+  // are registered. Registered before the async checks so that concurrent requests can't all pass it.
+  const rateLimit = new RateLimit(`user_email_change_${user.id}`, config.limits.changeEmailPerHour.update);
+  if (!(await rateLimit.registerCall())) {
+    throw new RateLimitExceeded();
+  }
+
+  // Ensure this email is not already used by another user, nor waiting for validation on another account
+  const existingEmail = await models.User.findOne({
+    where: {
+      id: { [Op.ne]: user.id },
+      [Op.or]: [{ email: newEmail }, { emailWaitingForValidation: newEmail }],
+    },
+  });
+  if (existingEmail) {
+    throw new ValidationFailed('A user with that email already exists');
+  }
+
+  // If user tries to update again with the same email, we send the email without
+  // re-generating the token.
+  if (newEmail !== user.emailWaitingForValidation) {
+    // Store temporary user's email and generate the confirmation token
+    try {
+      user = await user.update({
+        emailWaitingForValidation: newEmail,
+        emailConfirmationToken: crypto.randomBytes(48).toString('hex'),
+      });
+    } catch (e) {
+      // The unique constraint also covers deleted users and concurrent requests, which the check above can't see
+      if (e instanceof UniqueConstraintError) {
+        throw new ValidationFailed('A user with that email already exists');
+      }
+      throw e;
+    }
+  }
+
+  const data = {
+    user: {
+      ...user.info,
+      emailConfirmationToken: user.emailConfirmationToken,
+      emailWaitingForValidation: user.emailWaitingForValidation,
+    },
+  };
+
+  // Send the email and return updated user
+  try {
+    await emailLib.send(activities.USER_CHANGE_EMAIL, data.user.emailWaitingForValidation, data, {
+      sendEvenIfNotProduction: true,
+    });
+  } catch (e) {
+    reportErrorToSentry(e, { user, extra: { newEmail } });
+    await rateLimit.unregisterCall(); // Not the user's fault, give the attempt back
+    throw new Error('Error while sending the verification email, please try again later');
+  }
+
+  await models.Activity.create({
+    type: activities.USER_CHANGE_EMAIL,
+    UserId: user.id,
+    CollectiveId: user.CollectiveId,
+    FromCollectiveId: user.CollectiveId,
+    data: { notify: false },
+  });
+
+  return user;
+};
+
+/**
+ * From a given token (generated in `requestUserEmailChange`) confirm the new email
  * and updates the user record.
  */
 export const confirmUserEmail = async emailConfirmationToken => {

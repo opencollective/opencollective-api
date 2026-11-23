@@ -100,7 +100,6 @@ const modelsDeduplicationSchema: Record<ModelNames, { unique?: string[] }> = {
   ConnectedAccount: {},
   Conversation: {},
   ConversationFollower: {},
-  CurrencyExchangeRate: {},
   EmojiReaction: {},
   Expense: {},
   ExpenseAttachedFile: {},
@@ -117,7 +116,6 @@ const modelsDeduplicationSchema: Record<ModelNames, { unique?: string[] }> = {
   Notification: {},
   OAuthAuthorizationCode: {},
   Order: { unique: ['totalAmount', 'currency', 'createdAt', 'quantity', 'status', 'interval', 'description'] },
-  PaymentIntent: {},
   PaymentMethod: { unique: ['uuid'] },
   PayoutMethod: {},
   PaypalPlan: {},
@@ -134,6 +132,7 @@ const modelsDeduplicationSchema: Record<ModelNames, { unique?: string[] }> = {
   TransactionsImport: {},
   TransactionsImportRow: {},
   Update: { unique: ['slug'] },
+  UsdExchangeRate: {},
   UploadedFile: {},
   User: { unique: ['email', 'emailWaitingForValidation'] },
   UserToken: {},
@@ -320,6 +319,9 @@ export const mergeRecords = async (dataFile: string, pkMap: PKMap, transaction) 
 
     record = populateDefaultValues(record);
 
+    // Despite `ignoreDuplicates`, a duplicate primary key is not skipped here: Sequelize throws EmptyResultError
+    // when an instance insert affects 0 rows, so the import aborts and the caller (`scripts/smart-dump.ts`)
+    // rolls back the transaction.
     await model.create(record, {
       transaction,
       validate: false,

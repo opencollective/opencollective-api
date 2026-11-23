@@ -12,7 +12,6 @@ import Comment from './Comment';
 import ConnectedAccount from './ConnectedAccount';
 import Conversation from './Conversation';
 import ConversationFollower from './ConversationFollower';
-import CurrencyExchangeRate from './CurrencyExchangeRate';
 import EmojiReaction from './EmojiReaction';
 import Expense from './Expense';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
@@ -30,7 +29,6 @@ import MigrationLog from './MigrationLog';
 import Notification from './Notification';
 import OAuthAuthorizationCode from './OAuthAuthorizationCode';
 import Order from './Order';
-import PaymentIntent from './PaymentIntent';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
 import PaypalPlan from './PaypalPlan';
@@ -49,6 +47,7 @@ import TransactionsImport from './TransactionsImport';
 import TransactionsImportRow from './TransactionsImportRow';
 import Update from './Update';
 import UploadedFile from './UploadedFile';
+import UsdExchangeRate from './UsdExchangeRate';
 import User from './User';
 import UserToken from './UserToken';
 import UserTwoFactorMethod from './UserTwoFactorMethod';
@@ -68,7 +67,6 @@ const models = {
   ConnectedAccount,
   Conversation,
   ConversationFollower,
-  CurrencyExchangeRate,
   EmojiReaction,
   Expense,
   ExpenseAttachedFile,
@@ -85,7 +83,6 @@ const models = {
   Notification,
   OAuthAuthorizationCode,
   Order,
-  PaymentIntent,
   PaymentMethod,
   PayoutMethod,
   PaypalPlan,
@@ -102,6 +99,7 @@ const models = {
   TransactionsImport,
   TransactionsImportRow,
   Update,
+  UsdExchangeRate,
   UploadedFile,
   User,
   UserToken,
@@ -234,7 +232,6 @@ Expense.hasMany(ExpenseAttachedFile, { as: 'attachedFiles' });
 Expense.belongsTo(UploadedFile, { foreignKey: 'InvoiceFileId', as: 'invoiceFile' });
 Expense.hasMany(ExpenseItem, { as: 'items' });
 Expense.hasMany(Transaction);
-Expense.hasOne(PaymentIntent);
 
 // ExpenseAttachedFile
 ExpenseAttachedFile.belongsTo(Expense);
@@ -288,7 +285,6 @@ Order.belongsTo(Subscription); // adds SubscriptionId to the Orders table
 Order.belongsTo(Tier);
 Order.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
 Order.hasMany(Transaction);
-Order.hasOne(PaymentIntent);
 
 // PaymentMethod
 PaymentMethod.belongsTo(Collective);
@@ -328,16 +324,6 @@ Subscription.hasOne(Order);
 Tier.belongsTo(Collective);
 Tier.hasMany(Order);
 
-// PaymentIntent
-PaymentIntent.belongsTo(Collective, { foreignKey: 'PayerCollectiveId', as: 'payerCollective' });
-PaymentIntent.belongsTo(Collective, { foreignKey: 'PayeeCollectiveId', as: 'payeeCollective' });
-PaymentIntent.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'hostCollective' });
-PaymentIntent.belongsTo(Collective, { foreignKey: 'InitiatedByCollectiveId', as: 'initiatedByCollective' });
-PaymentIntent.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
-PaymentIntent.belongsTo(Order, { foreignKey: 'OrderId', as: 'order' });
-PaymentIntent.belongsTo(Expense, { foreignKey: 'ExpenseId', as: 'expense' });
-PaymentIntent.hasMany(Transaction, { foreignKey: 'PaymentIntentId', as: 'transactions' });
-
 // Transaction
 Transaction.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Transaction.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
@@ -345,7 +331,6 @@ Transaction.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' }
 Transaction.belongsTo(Collective, { foreignKey: 'UsingGiftCardFromCollectiveId', as: 'usingGiftCardFromCollective' });
 Transaction.belongsTo(Expense);
 Transaction.belongsTo(Order);
-Transaction.belongsTo(PaymentIntent);
 Transaction.belongsTo(PaymentMethod);
 Transaction.belongsTo(PayoutMethod);
 Transaction.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
@@ -439,7 +424,6 @@ export {
   ConnectedAccount,
   Conversation,
   ConversationFollower,
-  CurrencyExchangeRate,
   EmojiReaction,
   ExportRequest as ExportRequests,
   Expense,
@@ -473,6 +457,7 @@ export {
   TransactionsImportRow,
   TransactionSettlement,
   Update,
+  UsdExchangeRate,
   UploadedFile,
   User,
   UserToken,

@@ -19,8 +19,6 @@ import { SupportedCurrency } from '../../server/constants/currencies';
 import { SUPPORTED_FILE_KINDS } from '../../server/constants/file-kind';
 import OAuthScopes from '../../server/constants/oauth-scopes';
 import OrderStatuses from '../../server/constants/order-status';
-import PaymentIntentStatus from '../../server/constants/payment-intent-status';
-import PaymentIntentType from '../../server/constants/payment-intent-type';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import MemberRoles from '../../server/constants/roles';
@@ -67,7 +65,6 @@ import ManualPaymentProvider, { ManualPaymentProviderTypes } from '../../server/
 import Member from '../../server/models/Member';
 import MemberInvitation from '../../server/models/MemberInvitation';
 import Order from '../../server/models/Order';
-import PaymentIntent from '../../server/models/PaymentIntent';
 import PaymentMethod from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { Billing } from '../../server/models/PlatformSubscription';
@@ -1115,14 +1112,23 @@ export const fakeLocation = async (data: Partial<InferCreationAttributes<Locatio
   });
 };
 
-export const fakeCurrencyExchangeRate = async (data: Record<string, unknown> = {}) => {
-  const currencies = ['USD', 'NSG', 'EUR', 'CZK', 'JPY', 'MYR', 'AUD'];
-  return models.CurrencyExchangeRate.create({
-    from: sample(currencies),
-    to: sample(currencies),
-    rate: randNumber(0, 100) / 100.0,
-    ...data,
-  });
+/**
+ * Stores a rate from or to USD in `UsdExchangeRates` (X -> USD is stored as USD -> X = 1 / rate).
+ * Other pairs are computed from them and can't be stored.
+ */
+export const fakeCurrencyExchangeRate = async (
+  data: { from?: string; to?: string; rate?: number; createdAt?: Date | string | moment.Moment } = {},
+) => {
+  const from = data.from || 'USD';
+  const to = data.to || sample(['EUR', 'CZK', 'JPY', 'MYR', 'AUD'].filter(currency => currency !== from));
+  const rate = data.rate ?? randNumber(1, 100) / 100.0;
+  const createdAt = data.createdAt ? moment(data.createdAt).toDate() : new Date();
+  if (from !== 'USD' && to !== 'USD') {
+    throw new Error(`Only rates from or to USD are stored, got ${from} -> ${to}`);
+  }
+
+  await models.UsdExchangeRate.record(from === 'USD' ? { [to]: rate } : { [from]: 1 / rate }, createdAt);
+  return { from, to, rate, createdAt };
 };
 
 export const fakeVirtualCard = async (virtualCardData: Partial<InferCreationAttributes<VirtualCard>> = {}) => {
@@ -1503,23 +1509,5 @@ export const fakeExportRequest = async (exportRequestData: Partial<InferCreation
     CollectiveId: collective.id,
     CreatedByUserId: createdByUser.id,
     ...exportRequestData,
-  });
-};
-
-/**
- * Creates a fake payment intent. All params are optional.
- */
-export const fakePaymentIntent = async (
-  data: Partial<InferCreationAttributes<PaymentIntent>> = {},
-): Promise<PaymentIntent> => {
-  const PayerCollectiveId = data.PayerCollectiveId !== undefined ? data.PayerCollectiveId : (await fakeCollective()).id;
-  const PayeeCollectiveId = data.PayeeCollectiveId !== undefined ? data.PayeeCollectiveId : (await fakeCollective()).id;
-
-  return PaymentIntent.create({
-    status: PaymentIntentStatus.PENDING,
-    type: PaymentIntentType.Contribution,
-    ...data,
-    PayerCollectiveId,
-    PayeeCollectiveId,
   });
 };

@@ -1,0 +1,146 @@
+import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
+
+import sequelize, { DataTypes, Model, QueryTypes } from '../lib/sequelize';
+
+type ExchangeRate = { from: string; to: string; rate: number };
+
+/**
+ * The rate from USD to each currency, one per currency and day (`UsdExchangeRates`). Every other
+ * pair is computed from them: X -> Y = (USD -> Y) / (USD -> X), with the `fx_rate(from, to, at)`
+ * SQL function in queries.
+ *
+ * These are mid-market reference rates from Fixer, with no bid/ask spread. On a real market,
+ * USD -> EUR is not exactly 1 / (EUR -> USD): buying and selling have different prices. For
+ * mid-market rates the two match, and Fixer itself computes every pair from one base: the pairs it
+ * returned matched the ones computed here within 1e-5, its rounding. So computing pairs from USD
+ * loses nothing, but the rates remain estimates for statistics, filters and suggested amounts.
+ * Money that actually moves must use the rate of the provider that moves it (Wise, PayPal, Stripe).
+ *
+ * `CurrencyExchangeRates` is deprecated: it used to store every pair, and is now a view computing
+ * them from this table, kept only so that existing reports (Metabase) keep working. Don't use it in
+ * the code. See migration 20261110150000.
+ */
+class UsdExchangeRate extends Model<InferAttributes<UsdExchangeRate>, InferCreationAttributes<UsdExchangeRate>> {
+  public static readonly tableName = 'UsdExchangeRates' as const;
+
+  declare public readonly id: CreationOptional<number>;
+  declare public currency: string;
+  declare public rate: number;
+  declare public createdAt: CreationOptional<Date>;
+  declare public updatedAt: CreationOptional<Date>;
+
+  /**
+   * Stores rates from USD (`{ EUR: 0.92, ... }`) and returns the currencies stored. USD is always
+   * stored as 1, whatever the provider returned. Rates that are not positive finite numbers are skipped: every pair computed from them would be wrong. One rate
+   * per currency and day: a rate recorded again the same day replaces the previous one if it's
+   * more recent.
+   */
+  static async record(inputRates: Record<string, number>, createdAt: Date = new Date()): Promise<string[]> {
+    // USD -> USD is 1 by definition, and every pair involving USD divides by it
+    const rates = 'USD' in inputRates ? { ...inputRates, USD: 1 } : inputRates;
+    const currencies = Object.keys(rates).filter(currency => Number.isFinite(rates[currency]) && rates[currency] > 0);
+    if (!currencies.length) {
+      return [];
+    }
+
+    await sequelize.query(
+      `
+      INSERT INTO "UsdExchangeRates" ("currency", "rate", "createdAt", "updatedAt")
+      SELECT c.currency, c.rate, :createdAt, :createdAt
+      FROM UNNEST(ARRAY[:currencies]::varchar[], ARRAY[:rates]::double precision[]) AS c(currency, rate)
+      ON CONFLICT ("currency", "day") DO UPDATE
+      SET "rate" = EXCLUDED."rate", "createdAt" = EXCLUDED."createdAt", "updatedAt" = EXCLUDED."updatedAt"
+      WHERE EXCLUDED."createdAt" >= "UsdExchangeRates"."createdAt"
+      `,
+      { replacements: { currencies, rates: currencies.map(currency => rates[currency]), createdAt } },
+    );
+
+    return currencies;
+  }
+
+  /**
+   * The latest rate from `fromCurrency` to each of `toCurrencies` at `date`. Currencies without a
+   * rate are left out.
+   */
+  static getMany(
+    fromCurrency: string,
+    toCurrencies: string[],
+    date: string | Date = 'latest',
+  ): Promise<ExchangeRate[]> {
+    return sequelize.query<ExchangeRate>(
+      `
+      SELECT *
+      FROM (
+        SELECT :fromCurrency AS "from", c.currency AS "to", fx_rate(:fromCurrency, c.currency, :date) AS "rate"
+        FROM UNNEST(ARRAY[:toCurrencies]::varchar[]) AS c(currency)
+      ) r
+      WHERE r."rate" IS NOT NULL
+      ORDER BY r."to"
+    `,
+      {
+        type: QueryTypes.SELECT,
+        replacements: { date: date === 'latest' ? new Date() : date, fromCurrency, toCurrencies },
+      },
+    );
+  }
+
+  /**
+   * Standard deviation and latest value of the daily rate from `from` to `to` over the last 5 days.
+   * Returns nothing when fewer than two days have rates, since no deviation can be computed.
+   */
+  static async getPairStats(
+    from: string,
+    to: string,
+  ): Promise<{ from: string; to: string; stddev: number; latestRate: number }> {
+    return sequelize.query<{ from: string; to: string; stddev: number | null; latestRate: number | null }>(
+      `
+        SELECT
+          :from AS "from",
+          :to AS "to",
+          STDDEV(t."rate" / f."rate") AS "stddev",
+          (ARRAY_AGG(t."rate" / f."rate" ORDER BY t."createdAt" DESC))[1] AS "latestRate"
+        FROM "UsdExchangeRates" t
+        INNER JOIN "UsdExchangeRates" f ON f."currency" = :from AND f."day" = t."day"
+        WHERE t."currency" = :to
+        AND t."createdAt" >= DATE_TRUNC('day', NOW() - INTERVAL '5 days')
+        -- A deviation needs at least two days; without it, callers use their own margin
+        HAVING COUNT(*) > 1
+      `,
+      { type: QueryTypes.SELECT, raw: true, plain: true, replacements: { from, to } },
+    );
+  }
+}
+
+UsdExchangeRate.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    currency: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    rate: {
+      type: DataTypes.DOUBLE,
+      allowNull: false,
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      allowNull: false,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      allowNull: false,
+    },
+  },
+  {
+    sequelize,
+    tableName: 'UsdExchangeRates',
+  },
+);
+
+export default UsdExchangeRate;

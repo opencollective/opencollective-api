@@ -11,9 +11,11 @@ import PlatformConstants from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../../server/constants/transactions';
 import * as LibActivities from '../../../server/lib/activities';
+import { createRefundTransaction } from '../../../server/lib/payments';
 import { getHostPlatformTipsAccount } from '../../../server/lib/transactions';
 import type { Transaction as TransactionModel } from '../../../server/models';
 import models, { Op } from '../../../server/models';
+import type { Transfer } from '../../../server/types/transferwise';
 
 type TransactionPayload = Partial<TransactionModel> & { totalAmount?: number; platformTipAmount?: number };
 import {
@@ -677,6 +679,31 @@ describe('server/models/Transaction', () => {
     expect(credit).to.have.property('amount').equal(402);
   });
 
+  it('should use the FX rate of the new currency when converting to a currency other than the host one', async () => {
+    const credit = Transaction.build({
+      type: TransactionTypes.CREDIT,
+      currency: 'EUR',
+      hostCurrency: 'USD',
+      hostCurrencyFxRate: 1.1,
+      amount: 10000,
+      amountInHostCurrency: 11000,
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
+      netAmountInCollectiveCurrency: 10000,
+      data: { transfer: { sourceCurrency: 'JPY', targetCurrency: 'USD', rate: 0.0065 } as Transfer },
+    });
+
+    await Transaction.updateCurrency('JPY', credit);
+
+    expect(credit.currency).to.equal('JPY');
+    expect(credit.amountInHostCurrency).to.equal(11000);
+    expect(credit.hostCurrencyFxRate).to.equal(0.0065);
+    // 11000 / 0.0065 = 1692307.69, rounded to a whole yen
+    expect(credit.amount).to.equal(1692300);
+    expect(credit.netAmountInCollectiveCurrency).to.equal(1692300);
+  });
+
   describe('createHostFeeShareTransactions', () => {
     it('applies different host fees share based on the payment method / host plan', async () => {
       await host.update({
@@ -801,6 +828,190 @@ describe('server/models/Transaction', () => {
       expect(debit.amountInHostCurrency).to.equal(0);
       expect(debit.paymentProcessorFeeInHostCurrency).to.equal(-500);
       expect(debit.netAmountInCollectiveCurrency).to.equal(-500);
+    });
+
+    describe('opposite side hosted in a zero-decimal currency', () => {
+      const USD_TO_KRW = 1346.619822;
+      let krwCollective;
+
+      beforeEach(async () => {
+        sandbox.stub(Transaction, 'getFxRate').callsFake(async (from, to) => {
+          if (from === to) {
+            return 1;
+          } else if (from === 'USD' && to === 'KRW') {
+            return USD_TO_KRW;
+          } else if (from === 'KRW' && to === 'USD') {
+            return 1 / USD_TO_KRW;
+          }
+          throw new Error(`Unexpected FX rate request: ${from} -> ${to}`);
+        });
+
+        const krwHost = await fakeHost({ currency: 'KRW', CreatedByUserId: user.id });
+        // hostFeePercent: 0 to avoid generating cross-host fees for the expense
+        krwCollective = await fakeCollective({ HostCollectiveId: krwHost.id, currency: 'KRW', hostFeePercent: 0 });
+      });
+
+      const createExpensePair = async (fees: { paymentProcessorFeeInHostCurrency?: number } = {}) => {
+        const paymentProcessorFeeInHostCurrency = fees.paymentProcessorFeeInHostCurrency || 0;
+        // USD-hosted collective pays an expense to an account hosted in KRW
+        const result = await models.Transaction.createDoubleEntry({
+          type: TransactionTypes.DEBIT,
+          kind: TransactionKind.EXPENSE,
+          description: 'Expense paid to a KRW-hosted account',
+          CollectiveId: collective.id,
+          FromCollectiveId: krwCollective.id,
+          HostCollectiveId: host.id,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          hostCurrencyFxRate: 1,
+          amount: -1000,
+          amountInHostCurrency: -1000,
+          hostFeeInHostCurrency: 0,
+          platformFeeInHostCurrency: 0,
+          paymentProcessorFeeInHostCurrency,
+          netAmountInCollectiveCurrency: -1000 + paymentProcessorFeeInHostCurrency,
+        });
+
+        const transactions = await models.Transaction.findAll({ where: { TransactionGroup: result.TransactionGroup } });
+        expect(transactions).to.have.length(2);
+        return {
+          credit: transactions.find(t => t.type === 'CREDIT'),
+          debit: transactions.find(t => t.type === 'DEBIT'),
+        };
+      };
+
+      it('rounds the opposite transaction amount using its own host currency', async () => {
+        const { credit, debit } = await createExpensePair();
+
+        expect(debit.hostCurrency).to.equal('USD');
+        expect(debit.amountInHostCurrency).to.equal(-1000);
+
+        expect(credit.CollectiveId).to.equal(krwCollective.id);
+        expect(credit.hostCurrency).to.equal('KRW');
+        expect(credit.hostCurrencyFxRate).to.equal(USD_TO_KRW);
+        // 1000 * 1346.619822 = 1346619.82 -> 1346600 (₩13,466 stored x100). Was 1346620 before the fix.
+        expect(credit.amountInHostCurrency).to.equal(1346600);
+        expect(credit.amountInHostCurrency % 100).to.equal(0);
+        expect(credit.netAmountInHostCurrency % 100).to.equal(0);
+      });
+
+      it('rounds the opposite transaction fees using its own host currency', async () => {
+        const { credit, debit } = await createExpensePair({ paymentProcessorFeeInHostCurrency: -37 });
+
+        expect(credit.hostCurrency).to.equal('KRW');
+        // 1037 * 1346.619822 = 1396444.76 -> 1396400 (was 1396445)
+        expect(credit.amountInHostCurrency).to.equal(1396400);
+        // -37 * 1346.619822 = -49824.93 -> -49800 (was -49825)
+        expect(credit.paymentProcessorFeeInHostCurrency).to.equal(-49800);
+        for (const field of ['amountInHostCurrency', 'paymentProcessorFeeInHostCurrency', 'netAmountInHostCurrency']) {
+          expect(credit[field] % 100, field).to.equal(0);
+        }
+
+        // Validation of the opposite side must agree with the stored rounding
+        await Transaction.validate(debit, { oppositeTransaction: credit });
+      });
+    });
+
+    describe('expense paid to a collective under another host', () => {
+      const payTaxedExpenseAcrossHosts = async () => {
+        const payeeHost = await fakeHost({ currency: 'USD', CreatedByUserId: user.id });
+        const payee = await fakeCollective({ HostCollectiveId: payeeHost.id, currency: 'USD', hostFeePercent: 10 });
+        await models.Transaction.createDoubleEntry({
+          type: TransactionTypes.DEBIT,
+          kind: TransactionKind.EXPENSE,
+          description: 'Expense with 20% tax paid to a collective under another host',
+          CollectiveId: collective.id,
+          FromCollectiveId: payee.id,
+          HostCollectiveId: host.id,
+          CreatedByUserId: user.id,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          hostCurrencyFxRate: 1,
+          amount: -10000,
+          amountInHostCurrency: -10000,
+          taxAmount: -2000,
+          netAmountInCollectiveCurrency: -12000,
+          hostFeeInHostCurrency: 0,
+          platformFeeInHostCurrency: 0,
+          paymentProcessorFeeInHostCurrency: 0,
+          data: { tax: { id: 'VAT', percentage: 20 } },
+        });
+
+        const hostFee = await models.Transaction.findOne({
+          where: { kind: TransactionKind.HOST_FEE, type: TransactionTypes.CREDIT, CollectiveId: payeeHost.id },
+        });
+        return { hostFee, payee };
+      };
+
+      it('charges the host fee on the tax-exclusive amount with embedded taxes', async () => {
+        sandbox.stub(config.ledger, 'separateTaxes').value(false);
+        const { hostFee, payee } = await payTaxedExpenseAcrossHosts();
+        expect(hostFee.amount).to.equal(1000);
+        expect(await payee.getBalance()).to.equal(9000);
+      });
+
+      it('charges the host fee on the tax-exclusive amount with separated taxes', async () => {
+        sandbox.stub(config.ledger, 'separateTaxes').value(true);
+        const { hostFee, payee } = await payTaxedExpenseAcrossHosts();
+        expect(hostFee.amount).to.equal(1000);
+        expect(await payee.getBalance()).to.equal(9000);
+      });
+    });
+  });
+
+  describe('getFxRate', () => {
+    it('returns 1 for the same currency', async () => {
+      expect(await Transaction.getFxRate('EUR', 'EUR')).to.equal(1);
+    });
+
+    it('returns the latest rate when no transaction is passed', async () => {
+      await utils.seedCachedRates({ EUR: { USD: 1.19 } });
+      expect(await Transaction.getFxRate('EUR', 'USD')).to.equal(1.19);
+    });
+  });
+
+  describe('createTaxTransactions', () => {
+    it('gives the tax back to the collective when refunding a contribution with embedded tax', async () => {
+      // Legacy contribution, tax embedded in the transaction (taxes not separated yet)
+      sandbox.stub(config.ledger, 'separateTaxes').value(false);
+      const contribution = await models.Transaction.createDoubleEntry({
+        type: TransactionTypes.CREDIT,
+        kind: TransactionKind.CONTRIBUTION,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        CreatedByUserId: user.id,
+        amount: 1000,
+        amountInHostCurrency: 1000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        hostCurrencyFxRate: 1,
+        taxAmount: -200,
+        netAmountInCollectiveCurrency: 800,
+        description: 'Legacy contribution with embedded tax',
+      });
+      expect(await collective.getBalance()).to.equal(800);
+
+      // Refund it once taxes are separated
+      sandbox.stub(config.ledger, 'separateTaxes').value(true);
+      const refundedContribution = await createRefundTransaction(contribution, 0, null, user);
+      const refund = await models.Transaction.findByPk(refundedContribution.RefundTransactionId);
+
+      const vendor = await models.Collective.findBySlug('other-tax-vendor');
+      const taxTransactions = await models.Transaction.findAll({
+        where: { TransactionGroup: refund.TransactionGroup, kind: TransactionKind.TAX },
+      });
+      expect(taxTransactions).to.have.length(2);
+      const taxCredit = taxTransactions.find(t => t.type === TransactionTypes.CREDIT);
+      const taxDebit = taxTransactions.find(t => t.type === TransactionTypes.DEBIT);
+      expect(taxCredit.CollectiveId).to.equal(collective.id);
+      expect(taxCredit.FromCollectiveId).to.equal(vendor.id);
+      expect(taxCredit.HostCollectiveId).to.equal(host.id);
+      expect(taxCredit.amount).to.equal(200);
+      expect(taxDebit.CollectiveId).to.equal(vendor.id);
+      expect(taxDebit.amount).to.equal(-200);
+
+      expect(await collective.getBalance()).to.equal(0);
     });
   });
 

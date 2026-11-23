@@ -1,7 +1,7 @@
 import type { Loaders } from '../graphql/loaders';
 
 import { EntityShortIdPrefix } from './permalink/entity-map';
-import { parseSearchTerm } from './sql-search';
+import { isPostgresInteger, parseSearchTerm } from './sql-search';
 
 type LinkedIdSearchCondition = { ExpenseId?: number; OrderId?: number };
 
@@ -22,7 +22,7 @@ export const getTransactionsImportRowLinkedIdSearchConditions = async (
     }
   } else if (
     (parsedSearchTerm.type === 'id' || (parsedSearchTerm.type === 'number' && !parsedSearchTerm.isFloat)) &&
-    Number.isSafeInteger(parsedSearchTerm.term) &&
+    isPostgresInteger(parsedSearchTerm.term) &&
     parsedSearchTerm.term > 0
   ) {
     return [{ ExpenseId: parsedSearchTerm.term }, { OrderId: parsedSearchTerm.term }];

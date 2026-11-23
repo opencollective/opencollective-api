@@ -13,7 +13,7 @@ import {
   SqlBool,
 } from 'kysely';
 import { KyselifyModel } from 'kysely-sequelize';
-import { compact, isEmpty, isNil, uniq } from 'lodash';
+import { compact, isEmpty, isNil, memoize, uniq } from 'lodash';
 import moment from 'moment';
 import { Includeable, WhereOptions } from 'sequelize';
 
@@ -26,7 +26,12 @@ import { TransactionKind } from '../../../../constants/transaction-kind';
 import { DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
-import { buildKyselySearchConditions, buildSearchConditions, parseSearchTerm } from '../../../../lib/sql-search';
+import {
+  buildKyselySearchConditions,
+  buildSearchArms,
+  buildSearchConditions,
+  parseSearchTerm,
+} from '../../../../lib/sql-search';
 import models, { Collective, ManualPaymentProvider, Op, PaymentMethod, Tier, User } from '../../../../models';
 import { checkScope, enforceScope, isRemoteUserRoot } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../../errors';
@@ -268,6 +273,11 @@ export const OrdersCollectionArgs = {
     type: GraphQLString,
     description: 'The term to search',
   },
+  maxTotalCount: {
+    type: GraphQLInt,
+    description:
+      'If set, `totalCount` stops counting at this number: it is then a lower bound and `totalCountIsCapped` is true. Much faster than an exact total when there are many orders, e.g. to paginate with `offset + <a few pages>`.',
+  },
   tierSlug: {
     type: GraphQLString,
     deprecationReason: '2022-02-25: Should be replaced by a tier reference.',
@@ -348,6 +358,7 @@ interface OrdersCollectionArgsType {
   chargedDateFrom?: Date;
   chargedDateTo?: Date;
   searchTerm?: string;
+  maxTotalCount?: number;
   tierSlug?: string;
   tier?: Array<{ id?: string; legacyId?: number; slug?: string }>;
   onlySubscriptions?: boolean;
@@ -361,6 +372,19 @@ interface OrdersCollectionArgsType {
   createdBy?: AccountReferenceInput[];
 }
 
+/**
+ * `"approvedAt" IS NOT NULL` for the account of a contribution, written the way the `collectives__host_approved`
+ * statistics define it (see the migration that creates them): PostgreSQL only uses statistics on an expression for
+ * conditions that are written like it. Both forms select the same accounts.
+ *
+ * Without the statistics, the planner multiplies the share of accounts that have this host by the share of accounts
+ * that are approved, as if they were unrelated, when nearly all accounts are individuals with neither. It then expects
+ * about a hundred times fewer hosted accounts than a large host has, and reads all their contributions to sort them
+ * instead of reading the most recent contributions first.
+ */
+const isApproved = (join: 'collective' | 'fromCollective') =>
+  sql<SqlBool>`(${sql.ref(`${join}.approvedAt`)} IS NOT NULL) IS TRUE`;
+
 export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, req: express.Request) => {
   enforceScope(req, 'orders');
 
@@ -370,6 +394,10 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
 
   if (args.searchTerm && args.searchTerm.trim().length < 3) {
     throw new Error('Search term must be at least 3 characters long');
+  }
+
+  if (!isNil(args.maxTotalCount) && args.maxTotalCount < 1) {
+    throw new ValidationFailed('maxTotalCount must be at least 1');
   }
 
   const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
@@ -516,6 +544,37 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
   const isHostAdminEmailSearch = isHostAdmin && parsedSearchTerm.type === 'email';
   const hasSearchTerm = !!parsedSearchTerm.term;
 
+  // Fields searched on the contribution itself. Its accounts (and its author, for emails) are searched through joins
+  // by `buildKyselySearchConditions`, or resolved first by `buildSearchArms`.
+  const searchIdFields = ['Orders.id'];
+  const searchTextFields = [
+    'Orders.description',
+    ...(isCollectiveAdmin ? [sql`"Orders".data->>'ponumber'`, sql`"Orders".data#>>'{fromAccountInfo,name}'`] : []),
+  ];
+  const searchEmailFields = isCollectiveAdmin ? [sql<string>`lower("Orders".data#>>'{fromAccountInfo,email}')`] : [];
+  const searchStringArrayFields = ['Orders.tags'];
+  const searchStringArrayTransformFn = (str: string) => str.toLowerCase();
+
+  // On large hosts, searching through the joined accounts has to visit every contribution of the host. When the term
+  // is selective, look for the matching contributions first, then apply the other filters to them.
+  const searchArms = !hasSearchTerm
+    ? null
+    : await buildSearchArms(args.searchTerm, {
+        table: 'Orders',
+        accountIdFields: ['Orders.CollectiveId', 'Orders.FromCollectiveId'],
+        userIdFields: isHostAdminEmailSearch ? ['Orders.CreatedByUserId'] : [],
+        idFields: searchIdFields,
+        textFields: searchTextFields,
+        emailFields: searchEmailFields.map(field => ({
+          field,
+          // Predicate of "Orders_data_fromAccountInfo_email_search_idx"
+          indexPredicate: sql<SqlBool>`COALESCE("Orders".data#>>'{fromAccountInfo,email}', '') <> ''`,
+        })),
+        stringArrayFields: searchStringArrayFields,
+        stringArrayTransformFn: searchStringArrayTransformFn,
+        publicIdFields: [{ field: 'Orders.publicId', prefix: EntityShortIdPrefix.Order }],
+      });
+
   const shouldApplyPrivateRecipientVisibilityFilter = !isRemoteUserRoot(req) && !host;
   const kysely = getKysely();
   const query = kysely
@@ -610,7 +669,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
       });
     })
     .$if(!!host, qb => {
-      return qb.where('collective.HostCollectiveId', '=', host.id).where('collective.approvedAt', 'is not', null);
+      return qb.where('collective.HostCollectiveId', '=', host.id).where(isApproved('collective'));
     })
     .$if(!!account, qb => {
       function accountConditionOrs(
@@ -625,7 +684,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         switch (hostContext) {
           case 'ALL':
             if (account.hasMoneyManagement) {
-              ors.push(eb(`${join}.HostCollectiveId`, '=', account.id).and(eb(`${join}.approvedAt`, 'is not', null)));
+              ors.push(eb(`${join}.HostCollectiveId`, '=', account.id).and(isApproved(join)));
             } else {
               ors.push(eb(`${join}.id`, '=', account.id));
             }
@@ -640,7 +699,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
             ors.push(
               eb(`${join}.HostCollectiveId`, '=', account.id)
                 .and(eb(join === 'collective' ? 'Orders.CollectiveId' : 'Orders.FromCollectiveId', '!=', account.id))
-                .and(eb(`${join}.approvedAt`, 'is not', null))
+                .and(isApproved(join))
                 .and(
                   eb(`${join}.ParentCollectiveId`, '!=', account.id).or(eb(`${join}.ParentCollectiveId`, 'is', null)),
                 ),
@@ -677,29 +736,20 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         return or(ors);
       });
     })
-    .$if(isHostAdminEmailSearch && hasSearchTerm, qb =>
+    .$if(!!searchArms, qb => qb.where('Orders.id', 'in', searchArms))
+    .$if(isHostAdminEmailSearch && hasSearchTerm && !searchArms, qb =>
       qb.leftJoin('Users', join =>
         join.onRef('Users.id', '=', 'Orders.CreatedByUserId').on('Users.deletedAt', 'is', null),
       ),
     )
-    .$if(hasSearchTerm, qb =>
+    .$if(hasSearchTerm && !searchArms, qb =>
       buildKyselySearchConditions(args.searchTerm, {
-        idFields: ['Orders.id'],
+        idFields: searchIdFields,
         slugFields: ['collective.slug', 'fromCollective.slug'],
-        textFields: [
-          'collective.name',
-          'fromCollective.name',
-          'Orders.description',
-          ...(isCollectiveAdmin
-            ? [sql`"Orders".data->>'ponumber'`, sql`"Orders".data#>>'{fromAccountInfo,name}'`]
-            : []),
-        ],
-        emailFields: [
-          isCollectiveAdmin && sql<string>`lower("Orders".data#>>'{fromAccountInfo,email}')`,
-          isHostAdminEmailSearch && 'Users.email',
-        ].filter(Boolean),
-        stringArrayFields: ['Orders.tags'],
-        stringArrayTransformFn: (str: string) => str.toLowerCase(),
+        textFields: ['collective.name', 'fromCollective.name', ...searchTextFields],
+        emailFields: [...searchEmailFields, isHostAdminEmailSearch && 'Users.email'].filter(Boolean),
+        stringArrayFields: searchStringArrayFields,
+        stringArrayTransformFn: searchStringArrayTransformFn,
         publicIdFields: [
           { field: 'Orders.publicId', prefix: EntityShortIdPrefix.Order },
           {
@@ -721,7 +771,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         const isWithinHost = (join: JoinAlias) =>
           eb(`${join}.HostCollectiveId`, 'is not', null)
             .and(eb(`${join}.HostCollectiveId`, '=', oppositeAccountScopeHostId))
-            .and(eb(`${join}.approvedAt`, 'is not', null));
+            .and(isApproved(join));
         const isOutsideHost = (join: JoinAlias) => not(isWithinHost(join));
 
         // Account-level scoping: "internal" means the account itself or a non-vendor child.
@@ -798,14 +848,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
           .then(eb.ref('Orders.totalAmount'))
           .else(
             eb.fn.coalesce(
-              eb
-                .selectFrom('CurrencyExchangeRates')
-                .select(sql<number>`rate * ${eb.ref('Orders.totalAmount')}`.as('totalAmount'))
-                .where('from', '=', eb.ref('Orders.currency'))
-                .where('to', '=', currency as SupportedCurrency)
-                .where('createdAt', '<=', eb.fn.coalesce(eb.ref('Orders.processedAt'), eb.ref('Orders.createdAt')))
-                .orderBy('CurrencyExchangeRates.createdAt', 'desc')
-                .limit(1),
+              sql<number>`fx_rate(${eb.ref('Orders.currency')}, ${currency}, COALESCE(${eb.ref('Orders.processedAt')}, ${eb.ref('Orders.createdAt')})) * ${eb.ref('Orders.totalAmount')}`,
               eb.ref('Orders.totalAmount'),
             ),
           )
@@ -958,6 +1001,22 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     )
     .$if(!isEmpty(createdByUsers), qb => qb.where('Orders.CreatedByUserId', 'in', uniq(createdByUsers.map(u => u.id))));
 
+  // An exact total has to visit every matching order: seconds for a host with more than a million of them. With
+  // `maxTotalCount`, the count stops after that many orders (+ 1, to know whether there are more).
+  const maxTotalCount = args.maxTotalCount;
+  const countUpToMax = memoize(() =>
+    kysely
+      .selectFrom(
+        query
+          .select(sql<number>`1`.as('one'))
+          .limit(maxTotalCount + 1)
+          .as('countedOrders'),
+      )
+      .select(kysely.fn.countAll<number>().as('totalCount'))
+      .executeTakeFirstOrThrow()
+      .then(result => Number(result.totalCount)),
+  );
+
   return {
     nodes: () =>
       query
@@ -980,10 +1039,13 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         .execute()
         .then(kyselyToSequelizeModels(models.Order)),
     totalCount: () =>
-      query
-        .select(kysely.fn.countAll<number>().as('totalCount'))
-        .executeTakeFirstOrThrow()
-        .then(result => result?.totalCount ?? 0),
+      maxTotalCount
+        ? countUpToMax().then(count => Math.min(count, maxTotalCount))
+        : query
+            .select(kysely.fn.countAll<number>().as('totalCount'))
+            .executeTakeFirstOrThrow()
+            .then(result => result?.totalCount ?? 0),
+    totalCountIsCapped: () => (maxTotalCount ? countUpToMax().then(count => count > maxTotalCount) : false),
     limit: args.limit,
     offset: args.offset,
     createdByUsers: async (subArgs: { limit?: number; offset?: number; searchTerm?: string } = {}) => {

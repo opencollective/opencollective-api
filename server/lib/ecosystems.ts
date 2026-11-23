@@ -67,8 +67,20 @@ type EcosystemsCommitsRepository = {
   past_year_total_bot_committers?: number;
   created_at?: string;
   updated_at?: string;
+  /** URL of the commits list for the repository (`.../repositories/{owner}%2F{name}/commits`) */
+  commits_url?: string | null;
   committers?: EcosystemsCommitter[];
   past_year_committers?: EcosystemsCommitter[];
+};
+
+type EcosystemsCommit = {
+  sha: string;
+  message?: string | null;
+  author?: string | null;
+  committer?: string | null;
+  timestamp: string;
+  merge?: boolean;
+  html_url?: string | null;
 };
 
 type EcosystemsMaintainer = {
@@ -119,6 +131,8 @@ export type EcosystemsRepoSummary = {
   contributors: EcosystemsCommitsRepository | null;
   issues: EcosystemsIssuesRepository | null;
   owner: EcosystemsOwner | null;
+  /** Oldest commit of the default branch, from the commits API (null when unavailable) */
+  firstCommit: EcosystemsCommit | null;
 };
 
 /**
@@ -140,6 +154,9 @@ export type EcosystemsRepositorySnapshot = {
   archived: boolean | null;
   /** Repository creation date */
   createdAt: string | null;
+  /** Date of the first commit on the default branch (may differ from the repository creation date) */
+  firstCommitAt: string | null;
+  firstCommitSha: string | null;
   /** Date of the last commit/push activity */
   lastCommitAt: string | null;
   lastCommitSha: string | null;
@@ -249,6 +266,38 @@ async function fetchIssuesLookup(repoUrl: string): Promise<EcosystemsIssuesRepos
   return fetchFromEcosystems(ECOSYSTEMS_ISSUES_API_URL, '/api/v1/repositories/lookup', { url: repoUrl });
 }
 
+/**
+ * Fetches the oldest commit of a repository. ecosyste.ms doesn't expose the first commit on the
+ * repository record, but its commits list accepts `order=asc&per_page=1`.
+ */
+async function fetchFirstCommit(commitsUrl: string): Promise<EcosystemsCommit | null> {
+  const url = new URL(commitsUrl);
+  // The URL comes from the upstream payload: only follow it on the ecosyste.ms commits host
+  if (url.protocol !== 'https:' || url.hostname !== new URL(ECOSYSTEMS_COMMITS_API_URL).hostname) {
+    return null;
+  }
+
+  url.searchParams.set('order', 'asc');
+  url.searchParams.set('per_page', '1');
+
+  const response = await fetch(url, {
+    headers: getEcosystemsHeaders(),
+    signal: AbortSignal.timeout(ECOSYSTEMS_REQUEST_TIMEOUT_MS),
+  });
+  // 202 means ecosyste.ms is still indexing the repository: no commit can be read yet. Throw so
+  // the caller reports an incomplete summary and doesn't cache a null first commit for the TTL.
+  if (response.status === 202) {
+    throw new Error('ecosyste.ms is still indexing the repository');
+  } else if (response.status === 404) {
+    return null;
+  } else if (!response.ok) {
+    throw new Error(`ecosyste.ms commits request failed with status ${response.status}: ${url.pathname}`);
+  }
+
+  const commits = await response.json();
+  return Array.isArray(commits) && commits.length > 0 ? commits[0] : null;
+}
+
 async function fetchOwnerLookup(hostName: string, owner: string): Promise<EcosystemsOwner | null> {
   return fetchFromEcosystems(
     ECOSYSTEMS_REPOS_API_URL,
@@ -306,13 +355,13 @@ export async function fetchRepoSummaryWithStatus(
   // Same resolution order as the POC: prefer the metadata attached to a package, fall back to the repos lookup
   const repository = findRepoMetadata(packages) || (await fetchRepositoryLookup(repoUrl));
 
-  let owner: EcosystemsOwner | null = null;
   const fromUrl = hostAndOwnerFromUrl(repoUrl);
   const hostName = repository?.host?.name || fromUrl?.hostName;
   const ownerLogin = repository?.owner || fromUrl?.owner;
-  if (hostName && ownerLogin) {
-    owner = await tolerateFailure(fetchOwnerLookup(hostName, ownerLogin));
-  }
+  const [owner, firstCommit] = await Promise.all([
+    hostName && ownerLogin ? tolerateFailure(fetchOwnerLookup(hostName, ownerLogin)) : null,
+    contributors?.commits_url ? tolerateFailure(fetchFirstCommit(contributors.commits_url)) : null,
+  ]);
 
-  return { summary: { packages, repository, contributors, issues, owner }, isComplete };
+  return { summary: { packages, repository, contributors, issues, owner, firstCommit }, isComplete };
 }
