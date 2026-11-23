@@ -32,7 +32,7 @@ import {
   type SearchArmsQuery,
 } from '../../../../lib/sql-search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
-import { AccountingCategory, Activity, Collective, Op, sequelize } from '../../../../models';
+import { AccountingCategory, Collective, Op, sequelize } from '../../../../models';
 import Expense, { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
@@ -1023,14 +1023,16 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   if (args.activity) {
-    const activitiesConditions: WhereOptions<Activity> = {};
+    // Use EXISTS rather than joining the hasMany `activities` association: a join returns one row per
+    // matching activity, which inflates totalCount/totalAmount and breaks pagination.
+    const activitiesConditions = ['"act"."ExpenseId" = "Expense"."id"'];
     if (args.activity.individual) {
       const account = await fetchAccountWithReference(args.activity.individual, { throwIfMissing: true });
       const user = await req.loaders.User.byCollectiveId.load(account.id);
       if (!user) {
         throw new NotFound('User not found');
       }
-      activitiesConditions.UserId = user.id;
+      activitiesConditions.push(`"act"."UserId" = ${sequelize.escape(user.id)}`);
     }
     if (args.activity.type && args.activity.type.length > 0) {
       const allowedActivityTypes = new Set([
@@ -1062,10 +1064,14 @@ export const ExpensesCollectionQueryResolver = async (
         throw new Forbidden(`Invalid activity type: ${invalidActivityTypes.join(', ')}`);
       }
 
-      activitiesConditions.type = { [Op.in]: args.activity.type };
+      activitiesConditions.push(
+        `"act"."type" IN (${args.activity.type.map(type => sequelize.escape(type)).join(', ')})`,
+      );
     }
 
-    include.push({ association: 'activities', required: true, attributes: [], where: activitiesConditions });
+    where[Op.and].push(
+      sequelize.literal(`EXISTS (SELECT 1 FROM "Activities" AS "act" WHERE ${activitiesConditions.join(' AND ')})`),
+    );
   }
 
   const kycStatusFilter: 'VERIFIED' | 'PENDING' | undefined = args.kycStatus;
