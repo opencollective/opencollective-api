@@ -120,7 +120,7 @@ class HostApplication extends ModelWithPublicId<
     }
 
     if (status === HostApplicationStatus.APPROVED) {
-      // The account now has a host: applications to other hosts are no longer valid
+      // The collective now has a host: applications to other hosts are no longer valid
       await this.update(
         { status: HostApplicationStatus.EXPIRED },
         {

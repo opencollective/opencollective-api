@@ -2809,6 +2809,20 @@ class Collective extends ModelWithPublicId<
       await this.unfreeze(message, message, remoteUser);
     }
 
+    // When leaving a host that has not approved the collective yet, close the pending application
+    if (newHostCollectiveId === null && this.HostCollectiveId && !this.approvedAt) {
+      await HostApplication.update(
+        { status: HostApplicationStatus.EXPIRED },
+        {
+          where: {
+            CollectiveId: this.id,
+            HostCollectiveId: this.HostCollectiveId,
+            status: HostApplicationStatus.PENDING,
+          },
+        },
+      );
+    }
+
     // Reset current host
     await this.update({
       HostCollectiveId: null,
