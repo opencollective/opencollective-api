@@ -1539,8 +1539,12 @@ export const getHostFeePercent = async (
     order.paymentMethod = await order.getPaymentMethod();
   }
 
-  // No Host Fee for money going to an host itself
-  if (collective.hasMoneyManagement) {
+  // No Host Fee for money going to a host itself or to its own events/projects
+  const isHostOwnedChild = collective.type === CollectiveType.EVENT || collective.type === CollectiveType.PROJECT;
+  if (
+    collective.hasMoneyManagement ||
+    (isHostOwnedChild && parent && parent.id === host?.id && parent.hasMoneyManagement)
+  ) {
     return 0;
   }
 

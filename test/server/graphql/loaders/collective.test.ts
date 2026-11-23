@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import moment from 'moment';
 
 import { CollectiveType } from '../../../../server/constants/collectives';
+import ExpenseStatuses from '../../../../server/constants/expense-status';
 import OrderStatuses from '../../../../server/constants/order-status';
 import MemberRoles from '../../../../server/constants/roles';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
@@ -10,11 +11,14 @@ import { sequelize } from '../../../../server/models';
 import {
   fakeActiveHost,
   fakeCollective,
+  fakeExpense,
+  fakeIncognitoProfile,
   fakeMember,
   fakeOrder,
   fakeOrganization,
   fakeTransaction,
   fakeUser,
+  fakeVendor,
   multiple,
 } from '../../../test-helpers/fake-data';
 import { makeRequest, resetTestDB } from '../../../utils';
@@ -258,10 +262,68 @@ describe('server/graphql/loaders/collective', () => {
         expect(result).to.be.false;
       });
 
-      it('Cannot see infos if host admin', async () => {
+      it('Can see infos if host admin', async () => {
         const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: hostAdmin });
         const result = await loader.load(userWithPrivateInfo.CollectiveId);
+        expect(result).to.be.true;
+      });
+
+      it('Cannot see location if collective admin', async () => {
+        const loader = CollectiveLoaders.canSeePrivateLocation({ remoteUser: collectiveAdmin });
+        const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.false;
+      });
+
+      it('Can see location if host admin', async () => {
+        const loader = CollectiveLoaders.canSeePrivateLocation({ remoteUser: hostAdmin });
+        const result = await loader.load(userWithPrivateInfo.CollectiveId);
+        expect(result).to.be.true;
+      });
+
+      it('Cannot see incognito profile infos as a collective admin', async () => {
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: collectiveAdmin });
+        expect(await loader.load(incognitoProfile.id)).to.be.false;
+      });
+
+      it('Can see incognito profile infos as the profile owner', async () => {
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: userWithPrivateInfo });
+        expect(await loader.load(incognitoProfile.id)).to.be.true;
+      });
+
+      it('Can see incognito profile infos as a host admin', async () => {
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: hostAdmin });
+        expect(await loader.load(incognitoProfile.id)).to.be.true;
+      });
+
+      it('Cannot see incognito profile infos as a random user', async () => {
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: randomUser });
+        expect(await loader.load(incognitoProfile.id)).to.be.false;
+      });
+
+      it('keeps a mixed batch private except for an ordinary collective member', async () => {
+        const regularMember = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdmin, HostCollectiveId: null });
+        await collective.addUserWithRole(regularMember, MemberRoles.BACKER);
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: collectiveAdmin });
+        expect(
+          await loader.loadMany([userWithPrivateInfo.CollectiveId, incognitoProfile.id, regularMember.CollectiveId]),
+        ).to.deep.equal([false, false, true]);
+      });
+
+      it('preserves incognito access for an admin of a self-hosted collective', async () => {
+        const selfHosted = await fakeActiveHost({ admin: collectiveAdmin });
+        await fakeMember({
+          CollectiveId: selfHosted.id,
+          MemberCollectiveId: incognitoProfile.id,
+          role: MemberRoles.BACKER,
+        });
+        for (const factory of [CollectiveLoaders.canSeePrivateProfileInfo, CollectiveLoaders.canSeePrivateLocation]) {
+          const loader = factory({ remoteUser: collectiveAdmin });
+          expect(await loader.loadMany([userWithPrivateInfo.CollectiveId, incognitoProfile.id])).to.deep.equal([
+            true,
+            true,
+          ]);
+        }
       });
     });
 
@@ -275,7 +337,7 @@ describe('server/graphql/loaders/collective', () => {
         target = await fakeUser();
       });
 
-      const canSeeProfileInfo = (remoteUser = hostAdmin) =>
+      const canSeeProfileInfo = remoteUser =>
         CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser }).load(target.collective.id);
 
       it('grants access for a PROCESSING order created by the target', async () => {
@@ -285,7 +347,7 @@ describe('server/graphql/loaders/collective', () => {
           CollectiveId: collective.id,
           status: OrderStatuses.PROCESSING,
         });
-        expect(await canSeeProfileInfo()).to.be.true;
+        expect(await canSeeProfileInfo(hostAdmin)).to.be.true;
       });
 
       it('grants access when the target created the order for another account', async () => {
@@ -296,7 +358,7 @@ describe('server/graphql/loaders/collective', () => {
           CollectiveId: collective.id,
           status: OrderStatuses.PROCESSING,
         });
-        expect(await canSeeProfileInfo()).to.be.true;
+        expect(await canSeeProfileInfo(hostAdmin)).to.be.true;
       });
 
       it('does not grant access based on the order from-collective alone', async () => {
@@ -307,7 +369,7 @@ describe('server/graphql/loaders/collective', () => {
           CollectiveId: collective.id,
           status: OrderStatuses.PROCESSING,
         });
-        expect(await canSeeProfileInfo()).to.be.false;
+        expect(await canSeeProfileInfo(hostAdmin)).to.be.false;
       });
 
       it('does not grant access for orders that are not PROCESSING', async () => {
@@ -319,7 +381,7 @@ describe('server/graphql/loaders/collective', () => {
             status,
           });
         }
-        expect(await canSeeProfileInfo()).to.be.false;
+        expect(await canSeeProfileInfo(hostAdmin)).to.be.false;
       });
 
       it('does not grant access when the collective is hosted by another host', async () => {
@@ -330,7 +392,7 @@ describe('server/graphql/loaders/collective', () => {
           CollectiveId: otherCollective.id,
           status: OrderStatuses.PROCESSING,
         });
-        expect(await canSeeProfileInfo()).to.be.false;
+        expect(await canSeeProfileInfo(hostAdmin)).to.be.false;
       });
 
       it('does not grant access to collective admins', async () => {
@@ -366,6 +428,196 @@ describe('server/graphql/loaders/collective', () => {
           status: OrderStatuses.PROCESSING,
         });
         expect(await canSeeProfileInfo(randomUser)).to.be.false;
+      });
+    });
+
+    describe('Expense payees', () => {
+      let hostAdmin, host, collective, target;
+
+      beforeEach(async () => {
+        hostAdmin = await fakeUser();
+        host = await fakeActiveHost({ admin: hostAdmin });
+        collective = await fakeCollective({ HostCollectiveId: host.id });
+        target = await fakeUser();
+      });
+
+      const canSeeProfileInfo = remoteUser =>
+        CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser }).load(target.collective.id);
+
+      const canSeeLocation = remoteUser =>
+        CollectiveLoaders.canSeePrivateLocation({ remoteUser }).load(target.collective.id);
+
+      const fakeExpenseFor = (expenseData: Record<string, unknown> = {}) =>
+        fakeExpense({
+          HostCollectiveId: host.id,
+          CollectiveId: collective.id,
+          FromCollectiveId: target.collective.id,
+          status: ExpenseStatuses.PAID,
+          ...expenseData,
+        });
+
+      it('grants access for an expense paid by the host', async () => {
+        await fakeExpenseFor();
+        expect(await canSeeProfileInfo(hostAdmin)).to.be.true;
+        expect(await canSeeLocation(hostAdmin)).to.be.true;
+      });
+
+      it('grants access when the collective is no longer hosted', async () => {
+        const formerCollective = await fakeCollective({ HostCollectiveId: null });
+        await fakeExpenseFor({ CollectiveId: formerCollective.id });
+        expect(await canSeeProfileInfo(hostAdmin)).to.be.true;
+        expect(await canSeeLocation(hostAdmin)).to.be.true;
+      });
+
+      it('grants access when the collective moved to another host', async () => {
+        const otherHost = await fakeActiveHost();
+        const movedCollective = await fakeCollective({ HostCollectiveId: otherHost.id });
+        await fakeExpenseFor({ CollectiveId: movedCollective.id });
+        expect(await canSeeProfileInfo(hostAdmin)).to.be.true;
+        expect(await canSeeLocation(hostAdmin)).to.be.true;
+      });
+
+      for (const status of [ExpenseStatuses.PROCESSING, ExpenseStatuses.SCHEDULED_FOR_PAYMENT]) {
+        it(`grants access for ${status} expenses`, async () => {
+          await fakeExpenseFor({ status, HostCollectiveId: null });
+          expect(await canSeeProfileInfo(hostAdmin)).to.be.true;
+          expect(await canSeeLocation(hostAdmin)).to.be.true;
+        });
+
+        it(`ignores a stale host on ${status} expenses`, async () => {
+          const previousAdmin = await fakeUser();
+          const previousHost = await fakeActiveHost({ admin: previousAdmin });
+          await fakeExpenseFor({ status, HostCollectiveId: previousHost.id });
+
+          for (const loader of [CollectiveLoaders.canSeePrivateProfileInfo, CollectiveLoaders.canSeePrivateLocation]) {
+            expect(await loader({ remoteUser: previousAdmin }).load(target.CollectiveId)).to.be.false;
+            expect(await loader({ remoteUser: hostAdmin }).load(target.CollectiveId)).to.be.true;
+          }
+        });
+
+        it(`does not grant access through an unapproved host for ${status} expenses`, async () => {
+          await collective.update({ approvedAt: null });
+          await fakeExpenseFor({ status, HostCollectiveId: null });
+          expect(await canSeeProfileInfo(hostAdmin)).to.be.false;
+          expect(await canSeeLocation(hostAdmin)).to.be.false;
+        });
+
+        it(`uses the approved parent host for ${status} expenses`, async () => {
+          const child = await fakeCollective({
+            type: CollectiveType.EVENT,
+            HostCollectiveId: null,
+            ParentCollectiveId: collective.id,
+            approvedAt: null,
+          });
+          await fakeExpenseFor({ status, HostCollectiveId: null, CollectiveId: child.id });
+          expect(await canSeeProfileInfo(hostAdmin)).to.be.true;
+          expect(await canSeeLocation(hostAdmin)).to.be.true;
+        });
+
+        it(`does not use an unapproved parent host for ${status} expenses`, async () => {
+          await collective.update({ approvedAt: null });
+          const child = await fakeCollective({
+            type: CollectiveType.EVENT,
+            HostCollectiveId: null,
+            ParentCollectiveId: collective.id,
+            approvedAt: null,
+          });
+          await fakeExpenseFor({ status, HostCollectiveId: null, CollectiveId: child.id });
+          expect(await canSeeProfileInfo(hostAdmin)).to.be.false;
+          expect(await canSeeLocation(hostAdmin)).to.be.false;
+        });
+      }
+
+      for (const type of [CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE, CollectiveType.VENDOR]) {
+        for (const status of [
+          ExpenseStatuses.PAID,
+          ExpenseStatuses.PROCESSING,
+          ExpenseStatuses.SCHEDULED_FOR_PAYMENT,
+        ]) {
+          it(`does not grant private info or location access to a ${type} payee for ${status}`, async () => {
+            const payee =
+              type === CollectiveType.VENDOR
+                ? await fakeVendor({ ParentCollectiveId: host.id })
+                : await fakeCollective({ type, HostCollectiveId: null });
+            await fakeExpenseFor({ FromCollectiveId: payee.id, status });
+            for (const loader of [
+              CollectiveLoaders.canSeePrivateProfileInfo,
+              CollectiveLoaders.canSeePrivateLocation,
+            ]) {
+              expect(await loader({ remoteUser: hostAdmin }).load(payee.id)).to.be.false;
+            }
+          });
+        }
+      }
+
+      for (const status of [
+        ExpenseStatuses.PENDING,
+        ExpenseStatuses.APPROVED,
+        ExpenseStatuses.REJECTED,
+        ExpenseStatuses.ERROR,
+        ExpenseStatuses.CANCELED,
+      ]) {
+        it(`does not grant access for ${status} expenses`, async () => {
+          await fakeExpenseFor({ status });
+          expect(await canSeeProfileInfo(hostAdmin)).to.be.false;
+          expect(await canSeeLocation(hostAdmin)).to.be.false;
+        });
+      }
+
+      it('does not grant access when the expense was paid by another host', async () => {
+        const otherHost = await fakeActiveHost();
+        await fakeExpenseFor({ HostCollectiveId: otherHost.id });
+        expect(await canSeeProfileInfo(hostAdmin)).to.be.false;
+        expect(await canSeeLocation(hostAdmin)).to.be.false;
+      });
+
+      it('does not grant access based on the expense submitter alone', async () => {
+        const otherUser = await fakeUser();
+        await fakeExpenseFor({ FromCollectiveId: otherUser.collective.id, UserId: target.id });
+        expect(await canSeeProfileInfo(hostAdmin)).to.be.false;
+        expect(await canSeeLocation(hostAdmin)).to.be.false;
+      });
+
+      it('grants access when the expense was paid to the target incognito profile', async () => {
+        const incognitoProfile = await fakeIncognitoProfile(target);
+        await fakeExpenseFor({ FromCollectiveId: incognitoProfile.id });
+        expect(await canSeeProfileInfo(hostAdmin)).to.be.true;
+        expect(await canSeeLocation(hostAdmin)).to.be.true;
+      });
+
+      it('keeps incognito payee access independent from the primary profile being in the same batch', async () => {
+        const incognitoProfile = await fakeIncognitoProfile(target);
+        await fakeExpenseFor({ FromCollectiveId: incognitoProfile.id });
+
+        for (const factory of [CollectiveLoaders.canSeePrivateProfileInfo, CollectiveLoaders.canSeePrivateLocation]) {
+          expect(await factory({ remoteUser: hostAdmin }).load(incognitoProfile.id)).to.be.true;
+          expect(
+            await factory({ remoteUser: hostAdmin }).loadMany([target.collective.id, incognitoProfile.id]),
+          ).to.deep.equal([true, true]);
+        }
+      });
+
+      it('does not grant access to collective admins', async () => {
+        const collectiveAdmin = await fakeUser();
+        await collective.addUserWithRole(collectiveAdmin, MemberRoles.ADMIN);
+        await fakeExpenseFor();
+        expect(await canSeeProfileInfo(collectiveAdmin)).to.be.false;
+        expect(await canSeeLocation(collectiveAdmin)).to.be.false;
+      });
+
+      it('does not grant access to host accountants', async () => {
+        const accountant = await fakeUser();
+        await host.addUserWithRole(accountant, MemberRoles.ACCOUNTANT);
+        await fakeExpenseFor();
+        expect(await canSeeProfileInfo(accountant)).to.be.false;
+        expect(await canSeeLocation(accountant)).to.be.false;
+      });
+
+      it('does not grant access to random users', async () => {
+        const randomUser = await fakeUser();
+        await fakeExpenseFor();
+        expect(await canSeeProfileInfo(randomUser)).to.be.false;
+        expect(await canSeeLocation(randomUser)).to.be.false;
       });
     });
   });
@@ -426,7 +678,7 @@ describe('server/graphql/loaders/collective', () => {
       target = await fakeUser();
     });
 
-    const canSeeLocation = (remoteUser = hostAdmin) =>
+    const canSeeLocation = remoteUser =>
       CollectiveLoaders.canSeePrivateLocation({ remoteUser }).load(target.collective.id);
 
     it('grants access for a PROCESSING order created by the target', async () => {
@@ -436,7 +688,7 @@ describe('server/graphql/loaders/collective', () => {
         CollectiveId: collective.id,
         status: OrderStatuses.PROCESSING,
       });
-      expect(await canSeeLocation()).to.be.true;
+      expect(await canSeeLocation(hostAdmin)).to.be.true;
     });
 
     it('grants access when the target created the order for another account', async () => {
@@ -447,7 +699,7 @@ describe('server/graphql/loaders/collective', () => {
         CollectiveId: collective.id,
         status: OrderStatuses.PROCESSING,
       });
-      expect(await canSeeLocation()).to.be.true;
+      expect(await canSeeLocation(hostAdmin)).to.be.true;
     });
 
     it('does not grant access based on the order from-collective alone', async () => {
@@ -458,7 +710,7 @@ describe('server/graphql/loaders/collective', () => {
         CollectiveId: collective.id,
         status: OrderStatuses.PROCESSING,
       });
-      expect(await canSeeLocation()).to.be.false;
+      expect(await canSeeLocation(hostAdmin)).to.be.false;
     });
 
     it('does not grant access for orders that are not PROCESSING', async () => {
@@ -470,7 +722,7 @@ describe('server/graphql/loaders/collective', () => {
           status,
         });
       }
-      expect(await canSeeLocation()).to.be.false;
+      expect(await canSeeLocation(hostAdmin)).to.be.false;
     });
 
     it('does not grant access when the collective is hosted by another host', async () => {
@@ -481,7 +733,7 @@ describe('server/graphql/loaders/collective', () => {
         CollectiveId: otherCollective.id,
         status: OrderStatuses.PROCESSING,
       });
-      expect(await canSeeLocation()).to.be.false;
+      expect(await canSeeLocation(hostAdmin)).to.be.false;
     });
 
     it('does not grant access to collective admins', async () => {

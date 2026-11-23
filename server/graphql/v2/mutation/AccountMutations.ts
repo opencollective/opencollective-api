@@ -22,6 +22,7 @@ import {
   omitBy,
   pick,
   set,
+  truncate,
   union,
 } from 'lodash';
 
@@ -492,7 +493,7 @@ const accountMutations = {
 
           const data = await webauthn.getWebauthDeviceData(registrationResponse);
 
-          const name = data.description || 'U2F device';
+          const name = truncate(data.description, { length: 50 }) || 'U2F device';
 
           await UserTwoFactorMethod.create({
             UserId: user.id,
