@@ -595,12 +595,10 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     const sequelizeParams = transaction ? { transaction } : undefined;
     let collectiveName = userData.name;
     let slug: string;
-    if (!collectiveName || collectiveName.trim().length === 0) {
-      // A neutral placeholder with a `user-…` slug: `editAccount` derives the slug from the name once it is set
+    if (!collectiveName || collectiveName.trim().length === 0 || slugify(collectiveName).length === 0) {
+      // No usable name: a neutral placeholder with a `user-…` slug. `editAccount` derives the slug from the name once set
       collectiveName = PLACEHOLDER_USER_NAME;
       slug = await Collective.generateSlug(null);
-    } else if (slugify(collectiveName).length === 0) {
-      collectiveName = PLACEHOLDER_USER_NAME;
     }
 
     const userCollectiveData = {

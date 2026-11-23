@@ -58,7 +58,8 @@ describe('server/models/User', () => {
 
     it('uses "user" slug if name is not sluggifyable', () => {
       return User.createUserWithCollective({ email: randEmail('user@domain.com'), name: '????...' }).then(user => {
-        expect(user.collective.slug.startsWith('user')).to.equal(true);
+        expect(user.collective.name).to.equal('user');
+        expect(user.collective.slug).to.match(/^user-[0-9a-f]{8}$/);
       });
     });
 
