@@ -1054,11 +1054,13 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
   }
 };
 
+// ERROR is live: a failed recurring charge keeps the subscription active for retries, which must stop during the review
 const REVIEWABLE_ORDER_STATUSES = [
   OrderStatuses.NEW,
   OrderStatuses.PROCESSING,
   OrderStatuses.PAID,
   OrderStatuses.ACTIVE,
+  OrderStatuses.ERROR,
 ];
 
 // Charge on Stripe had a fraud review opened

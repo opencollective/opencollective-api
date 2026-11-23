@@ -404,6 +404,20 @@ describe('webhook', () => {
         expect(transactions.map(tx => tx.isInReview)).to.eql([false, false, false, false]);
       });
 
+      it('stops retries of a recurring contribution in ERROR during the review, then resumes it', async () => {
+        await order.update({ status: OrderStatuses.ERROR });
+
+        await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+        await order.reload();
+        expect(order.status).to.eql(OrderStatuses.IN_REVIEW);
+        expect((await order.getSubscription()).isActive).to.eql(false);
+
+        await webhook.reviewClosed(stripeMocks.webhook_review_closed_approved);
+        await order.reload();
+        expect(order.status).to.eql(OrderStatuses.ACTIVE);
+        expect((await order.getSubscription()).isActive).to.eql(true);
+      });
+
       it('updates isInReview status of all Transactions connected to the charge', async () => {
         await webhook.reviewOpened(stripeMocks.webhook_review_opened);
         await webhook.reviewClosed(stripeMocks.webhook_review_closed_approved);
