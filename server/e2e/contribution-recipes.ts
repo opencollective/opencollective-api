@@ -109,7 +109,6 @@ export const contributionRecipes: Record<string, Recipe> = {
       const amount = graph.pendingGoldTier ? gold.amount : graph.amount;
       const subscription = await Subscription.create(
         {
-          amount,
           currency: 'USD',
           interval: 'month',
           isActive: true,

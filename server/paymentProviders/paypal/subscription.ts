@@ -417,7 +417,6 @@ export const updateSubscriptionWithPaypal = async (
 const createSubscription = async (order: Order, paypalSubscriptionId) => {
   return order.createSubscription({
     paypalSubscriptionId,
-    amount: order.totalAmount,
     currency: order.currency,
     interval: order.interval,
     isActive: false, // Will be activated when the payment hits

@@ -12,7 +12,6 @@ class Subscription extends Model<InferAttributes<Subscription>, InferCreationAtt
   public static readonly tableName = 'Subscriptions' as const;
 
   declare id: number;
-  declare amount: number;
   declare currency: SupportedCurrency;
   declare interval: 'month' | 'year' | null;
   declare isActive: boolean;
@@ -42,11 +41,6 @@ Subscription.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
-    },
-
-    amount: {
-      type: DataTypes.INTEGER,
-      validate: { min: 0 },
     },
 
     currency: CustomDataTypes(DataTypes).currency,

@@ -1019,7 +1019,7 @@ export const generateLoaders = req => {
         sequelize
           .query(
             `
-        SELECT o."TierId" AS "TierId", COALESCE(SUM(s."amount" - COALESCE(o."platformTipAmount", 0)), 0) AS "total"
+        SELECT o."TierId" AS "TierId", COALESCE(SUM(o."totalAmount" - COALESCE(o."platformTipAmount", 0)), 0) AS "total"
         FROM "Orders" o
         INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
         WHERE o."TierId" IN (?)
@@ -1041,7 +1041,7 @@ export const generateLoaders = req => {
         sequelize
           .query(
             `
-        SELECT o."TierId" AS "TierId", COALESCE(SUM(s."amount" - COALESCE(o."platformTipAmount", 0)), 0) AS "total"
+        SELECT o."TierId" AS "TierId", COALESCE(SUM(o."totalAmount" - COALESCE(o."platformTipAmount", 0)), 0) AS "total"
         FROM "Orders" o
         INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
         WHERE o."TierId" IN (?)
@@ -1068,8 +1068,8 @@ export const generateLoaders = req => {
             SUM(
               CASE
                 WHEN s."interval" = 'year'
-                  THEN (s."amount" - COALESCE(o."platformTipAmount", 0))/12
-                ELSE s."amount" - COALESCE(o."platformTipAmount", 0)
+                  THEN (o."totalAmount" - COALESCE(o."platformTipAmount", 0))/12
+                ELSE o."totalAmount" - COALESCE(o."platformTipAmount", 0)
               END
             ), 0)
           AS "total"

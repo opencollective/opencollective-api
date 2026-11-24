@@ -370,7 +370,6 @@ describe('server/lib/payments', () => {
               const subscription = res.rows[0];
 
               expect(res.count).to.equal(1);
-              expect(subscription).to.have.property('amount', AMOUNT2);
               expect(subscription).to.have.property('interval', 'month');
               expect(subscription).to.have.property('data');
               expect(subscription).to.have.property('isActive', true);

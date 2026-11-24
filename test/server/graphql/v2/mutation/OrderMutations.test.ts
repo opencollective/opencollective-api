@@ -1891,7 +1891,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         const subscription = await orderFromDb.getSubscription();
         expect(subscription.interval).to.equal('month');
         expect(subscription.isActive).to.be.true;
-        expect(subscription.amount).to.equal(order.amount.valueInCents);
+        expect(orderFromDb.totalAmount).to.equal(order.amount.valueInCents);
 
         const transaction = await models.Transaction.findOne({
           where: {
@@ -3892,7 +3892,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         await orderWithPlatformTip.reload({ include: [{ association: 'Subscription' }] });
         expect(orderWithPlatformTip.totalAmount).to.eq(1250);
         expect(orderWithPlatformTip.platformTipAmount).to.eq(250);
-        expect(orderWithPlatformTip.Subscription.amount).to.eq(1250);
       });
 
       it('preserves tax calculation when updating the platform tip amount', async () => {
@@ -3931,7 +3930,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(orderWithTaxes.totalAmount).to.eq(1500);
         expect(orderWithTaxes.platformTipAmount).to.eq(300);
         expect(orderWithTaxes.taxAmount).to.eq(200);
-        expect(orderWithTaxes.Subscription.amount).to.eq(1500);
       });
 
       it('recomputes tax when changing the amount and platform tip together', async () => {
@@ -4009,7 +4007,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(orderWithTaxes.totalAmount).to.eq(1200);
         expect(orderWithTaxes.platformTipAmount).to.eq(0);
         expect(orderWithTaxes.taxAmount).to.eq(200);
-        expect(orderWithTaxes.Subscription.amount).to.eq(1200);
       });
 
       it('rejects a negative platform tip amount', async () => {

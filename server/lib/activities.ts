@@ -63,6 +63,7 @@ const doFormatMessage = (activity, format): string | { message: string; options:
   // get subscription data
   if (activity.data.subscription) {
     ({ interval } = activity.data.subscription);
+    // Activities created before `Subscriptions.amount` was removed only have the amount there
     amount = amount || activity.data.subscription.amount / 100;
     recurringAmount = amount + (interval ? `/${interval}` : '');
   }

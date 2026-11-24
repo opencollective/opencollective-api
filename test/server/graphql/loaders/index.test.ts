@@ -430,7 +430,7 @@ describe('server/graphql/loaders/index', () => {
           platformTipAmount: 150,
           status: OrderStatuses.ACTIVE,
         });
-        await createSubscription(order); // Sets Subscription.amount to the order total, tip included
+        await createSubscription(order);
         await (await order.getSubscription()).update({ isActive: true });
       }
 
