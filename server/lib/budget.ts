@@ -283,16 +283,20 @@ export async function getBalances(
 ): Promise<TotalsByCollective> {
   // Note: Historical balances (endDate path) don't support withBlockedFunds - the slow path will throw
   // an error for that combination. We must not use the fast path in that case to preserve the error.
-  const fastResults =
-    useMaterializedView === true && !includeChildren
-      ? endDate
-        ? FAST_BALANCE_SUPPORTED_VERSIONS.includes(version) && !withBlockedFunds
-          ? await getHistoricalCollectiveBalances(collectiveIds, endDate)
-          : {}
-        : version === DEFAULT_BUDGET_VERSION
-          ? await getCurrentCollectiveBalances(collectiveIds, { loaders, withBlockedFunds })
-          : {}
-      : {};
+  let fastResults: TotalsByCollective = {};
+  if (useMaterializedView !== true) {
+    // Fast path disabled
+  } else if (includeChildren) {
+    if (!endDate && !withBlockedFunds && version === DEFAULT_BUDGET_VERSION) {
+      fastResults = await getCurrentConsolidatedBalances(collectiveIds, { loaders });
+    }
+  } else if (endDate) {
+    if (FAST_BALANCE_SUPPORTED_VERSIONS.includes(version) && !withBlockedFunds) {
+      fastResults = await getHistoricalCollectiveBalances(collectiveIds, endDate);
+    }
+  } else if (version === DEFAULT_BUDGET_VERSION) {
+    fastResults = await getCurrentCollectiveBalances(collectiveIds, { loaders, withBlockedFunds });
+  }
   const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
 
   if (missingCollectiveIds.length === 0) {
@@ -1430,6 +1434,81 @@ export async function getCurrentCollectiveBalances(
         totals[CollectiveId].value -= roundCentsAmount(value * fxRate, targetCurrency);
       }
     }
+  }
+
+  return totals;
+}
+
+/**
+ * Current balance of each account including its children (events, projects), from the balance
+ * checkpoints (`CurrentCollectiveBalance`). Gives the same totals as `sumCollectivesTransactions`
+ * with `includeChildren`, without summing every transaction of the account and its children.
+ *
+ * An account is left out (for the caller to compute from the transactions) when one of its
+ * children or itself has transactions but no checkpoint, or when they are in several currencies.
+ */
+export async function getCurrentConsolidatedBalances(
+  collectiveIds: number[] | readonly number[],
+  { loaders = null }: { loaders?: Loaders | null } = {},
+): Promise<TotalsByCollective> {
+  const requestedIds = (collectiveIds || []).map(Number).filter(Number.isInteger);
+  if (!requestedIds.length) {
+    return {};
+  }
+
+  // Same accounts and same roll-up as `sumCollectivesTransactions` with `includeChildren`
+  const accounts = await sequelize.query<{ id: number; rootId: number }>(
+    `SELECT "id", CASE WHEN "ParentCollectiveId" IN (:requestedIds) THEN "ParentCollectiveId" ELSE "id" END AS "rootId"
+     FROM "Collectives"
+     WHERE "deletedAt" IS NULL
+     AND ("id" IN (:requestedIds) OR "ParentCollectiveId" IN (:requestedIds))
+     AND "type" != :vendorType`,
+    { replacements: { requestedIds, vendorType: CollectiveType.VENDOR }, type: QueryTypes.SELECT, raw: true },
+  );
+
+  const accountIds = accounts.map(account => account.id);
+  const balances = accountIds.length ? await getCurrentCollectiveBalances(accountIds, { loaders }) : {};
+
+  // An account without a checkpoint is fine only if it has no transactions
+  const accountsWithoutCheckpoint = accountIds.filter(id => !balances[id]);
+  const accountsWithUnknownBalance = new Set<number>();
+  if (accountsWithoutCheckpoint.length) {
+    const rows = await sequelize.query<{ id: number }>(
+      `SELECT c."id" FROM "Collectives" c
+       WHERE c."id" IN (:accountsWithoutCheckpoint)
+       AND EXISTS (SELECT 1 FROM "Transactions" t WHERE t."CollectiveId" = c."id" AND t."deletedAt" IS NULL)`,
+      { replacements: { accountsWithoutCheckpoint }, type: QueryTypes.SELECT, raw: true },
+    );
+    rows.forEach(row => accountsWithUnknownBalance.add(Number(row.id)));
+  }
+
+  const accountsByRoot = groupBy(accounts, account => account.rootId);
+  const totals: TotalsByCollective = {};
+  let hasSkippedAccount = false;
+  for (const CollectiveId of requestedIds) {
+    const rootAccounts = accountsByRoot[CollectiveId] || [];
+    const rootBalances = rootAccounts.map(account => balances[account.id]).filter(Boolean);
+    if (
+      rootAccounts.some(account => accountsWithUnknownBalance.has(Number(account.id))) ||
+      new Set(rootBalances.map(balance => balance.currency)).size > 1 // Currency conversions stay in the slow path
+    ) {
+      hasSkippedAccount = true;
+      continue;
+    }
+
+    const currency = rootBalances[0]?.currency || 'USD';
+    const value = rootBalances.reduce((sum, balance) => sum + balance.value, 0);
+    totals[CollectiveId] = { CollectiveId, currency, value: roundCentsAmount(value, currency) };
+  }
+
+  // The slow path rolls a child up into its parent only when both are requested in the same call:
+  // if the request mixes them, compute every account there rather than only the skipped ones
+  const requestedIdsSet = new Set(requestedIds);
+  const requestsParentAndChild = accounts.some(
+    account => account.rootId !== account.id && requestedIdsSet.has(account.id),
+  );
+  if (hasSkippedAccount && requestsParentAndChild) {
+    return {};
   }
 
   return totals;

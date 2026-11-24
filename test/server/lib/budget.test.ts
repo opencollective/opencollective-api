@@ -13,6 +13,7 @@ import {
   getContributionsAndContributorsCount,
   getCurrentCollectiveBalances,
   getCurrentCollectiveTransactionStats,
+  getCurrentConsolidatedBalances,
   getHistoricalCollectiveBalances,
   getSumCollectivesAmountSpent,
   getTotalAmountPaidExpenses,
@@ -427,6 +428,160 @@ describe('server/lib/budget', () => {
       });
       expect(balances[collective.id].value).to.eq(140e2);
       expect(balances[otherCollective.id].value).to.eq(130e2);
+    });
+  });
+
+  describe('getBalances with includeChildren', () => {
+    let host, parent, project, event, sandbox;
+
+    const addTransaction = (collective, values = {}) =>
+      fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.HostCollectiveId,
+          amount: 10e2,
+          currency: 'USD',
+          createdAt: new Date(Date.now() - 1000 * 60 * 30),
+          ...values,
+        },
+        { createDoubleEntry: true },
+      );
+
+    const refreshCheckpoints = async () => {
+      await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+    };
+
+    // The fast path (checkpoints) must give the same totals as summing all the transactions
+    const expectSameAsTransactions = async (ids: number[]) => {
+      const fromTransactions = await getBalances(ids, { includeChildren: true, useMaterializedView: false });
+      const fast = await getBalances(ids, { includeChildren: true, useMaterializedView: true });
+      expect(fast).to.deep.eq(fromTransactions);
+      return fast;
+    };
+
+    before(() => {
+      sandbox = createSandbox();
+      sandbox
+        .stub(libcurrency, 'getFxRate')
+        .callsFake(async (from, to) => (from === to ? 1 : from === 'EUR' && to === 'USD' ? 1.1 : 1 / 1.1));
+    });
+
+    after(() => {
+      sandbox.restore();
+    });
+
+    beforeEach(async () => {
+      await resetTestDB();
+      host = await fakeHost({ currency: 'USD' });
+      parent = await fakeCollective({ HostCollectiveId: host.id });
+      project = await fakeCollective({
+        type: CollectiveType.PROJECT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: host.id,
+      });
+      event = await fakeCollective({
+        type: CollectiveType.EVENT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: host.id,
+      });
+
+      await addTransaction(parent, { amount: 100e2, platformFeeInHostCurrency: -5e2, taxAmount: -3e2 });
+      await addTransaction(project, { amount: 40e2, hostFeeInHostCurrency: -4e2 });
+      await addTransaction(project, { type: 'DEBIT', amount: -15e2, kind: 'EXPENSE' });
+      await addTransaction(event, { amount: 7e2, paymentProcessorFeeInHostCurrency: -1e2 });
+      await refreshCheckpoints();
+
+      // After the checkpoint: counted from the transactions created since
+      await addTransaction(parent, { amount: 20e2, createdAt: new Date() });
+      await addTransaction(event, { amount: 3e2, createdAt: new Date() });
+    });
+
+    it('sums the account and its children from the checkpoints', async () => {
+      const balances = await expectSameAsTransactions([parent.id]);
+      const consolidated = await getCurrentConsolidatedBalances([parent.id]);
+      expect(consolidated[parent.id]).to.deep.eq(balances[parent.id]);
+      expect(consolidated[parent.id].currency).to.eq('USD');
+    });
+
+    it('ignores deleted children and vendors, like the transactions path', async () => {
+      const deletedEvent = await fakeCollective({
+        type: CollectiveType.EVENT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: host.id,
+      });
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: host.id,
+      });
+      await addTransaction(deletedEvent, { amount: 50e2 });
+      await addTransaction(vendor, { amount: 60e2 });
+      await refreshCheckpoints();
+      await deletedEvent.destroy();
+
+      await expectSameAsTransactions([parent.id]);
+      expect(await getCurrentConsolidatedBalances([parent.id])).to.have.key(String(parent.id));
+    });
+
+    it('returns 0 for an account without transactions and children without transactions', async () => {
+      const emptyParent = await fakeCollective({ HostCollectiveId: host.id });
+      await fakeCollective({
+        type: CollectiveType.EVENT,
+        ParentCollectiveId: emptyParent.id,
+        HostCollectiveId: host.id,
+      });
+      const balances = await expectSameAsTransactions([emptyParent.id]);
+      expect(balances[emptyParent.id]).to.deep.eq({ CollectiveId: emptyParent.id, currency: 'USD', value: 0 });
+    });
+
+    it('falls back to the transactions when a child has transactions but no checkpoint', async () => {
+      const newProject = await fakeCollective({
+        type: CollectiveType.PROJECT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: host.id,
+      });
+      await addTransaction(newProject, { amount: 9e2, createdAt: new Date() });
+
+      expect(await getCurrentConsolidatedBalances([parent.id])).to.be.empty;
+      await expectSameAsTransactions([parent.id]);
+    });
+
+    it('falls back to the transactions when the children are in several currencies', async () => {
+      const eurHost = await fakeHost({ currency: 'EUR' });
+      const eurProject = await fakeCollective({
+        type: CollectiveType.PROJECT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: eurHost.id,
+        currency: 'EUR',
+      });
+      await addTransaction(eurProject, { amount: 30e2, currency: 'EUR', hostCurrency: 'EUR' });
+      await refreshCheckpoints();
+
+      expect(await getCurrentConsolidatedBalances([parent.id])).to.be.empty;
+      await expectSameAsTransactions([parent.id]);
+    });
+
+    it('keys a requested child under its parent when both are requested, like the transactions path', async () => {
+      const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
+      await addTransaction(otherCollective, { amount: 11e2 });
+      await refreshCheckpoints();
+
+      const balances = await expectSameAsTransactions([parent.id, event.id, otherCollective.id]);
+      expect(balances[event.id].value).to.eq(0);
+
+      // Same when one of them has to be computed from the transactions
+      await addTransaction(
+        await fakeCollective({ type: CollectiveType.EVENT, ParentCollectiveId: parent.id, HostCollectiveId: host.id }),
+        { amount: 2e2 },
+      );
+      await expectSameAsTransactions([parent.id, event.id, otherCollective.id]);
+    });
+
+    it('returns a requested child alone', async () => {
+      const balances = await expectSameAsTransactions([event.id]);
+      expect(balances[event.id].value).to.be.gt(0);
     });
   });
 
