@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import config from 'config';
 import gql from 'fake-tag';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
@@ -15,6 +16,7 @@ import {
   fakeExpense,
   fakeHost,
   fakeMemberInvitation,
+  fakeOpenCollectiveS3URL,
   fakeOrganization,
   fakePayoutMethod,
   fakePrivateHost,
@@ -148,6 +150,24 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
 
       const location = await vendor.getLocation();
       expect(location.address).to.equal('Zorg Planet, 123');
+    });
+
+    it('rejects a tax form URL pointing to another account tax form', async () => {
+      const victim = await fakeCollective();
+      const taxFormUrl = fakeOpenCollectiveS3URL({
+        bucket: config.taxForms.aws.s3.bucket,
+        key: `US_TAX_FORM/${new Date().getFullYear()}/Name-${victim.id}.pdf`,
+      });
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { legacyId: host.id },
+          vendor: { ...vendorData, vendorInfo: { ...vendorData.vendorInfo, taxFormUrl } },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('This tax form link does not belong to this account');
     });
 
     it('accepts publicId in AccountReferenceInput for host', async () => {

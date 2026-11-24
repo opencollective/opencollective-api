@@ -171,7 +171,12 @@ export const getFileInfoFromS3 = async (s3Url: string): Promise<HeadObjectOutput
   return s3.send(command) as Promise<HeadObjectOutput>;
 };
 
-export const getFileFromS3 = async (s3Url: string): Promise<Buffer> => {
+/**
+ * Same as `getFileFromS3`, but also returns the object's user-defined metadata (keys are lowercased by S3).
+ */
+export const getFileWithMetadataFromS3 = async (
+  s3Url: string,
+): Promise<{ body: Buffer; metadata: Record<string, string> }> => {
   if (!s3) {
     throw new Error('S3 is not set');
   }
@@ -184,7 +189,12 @@ export const getFileFromS3 = async (s3Url: string): Promise<Buffer> => {
     throw new Error('Failed to get file from S3');
   }
 
-  return Buffer.from(body);
+  return { body: Buffer.from(body), metadata: data.Metadata || {} };
+};
+
+export const getFileFromS3 = async (s3Url: string): Promise<Buffer> => {
+  const { body } = await getFileWithMetadataFromS3(s3Url);
+  return body;
 };
 
 /**

@@ -3,11 +3,11 @@ import type express from 'express';
 
 import MemberRoles from '../constants/roles';
 import { idDecode } from '../graphql/v2/identifiers';
-import { getFileFromS3 } from '../lib/awsS3';
+import { getFileWithMetadataFromS3 } from '../lib/awsS3';
 import { EntityShortIdPrefix, isEntityPublicId } from '../lib/permalink/entity-map';
 import SQLQueries from '../lib/queries';
 import RateLimit from '../lib/rate-limit';
-import { reportErrorToSentry } from '../lib/sentry';
+import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import twoFactorAuthLib from '../lib/two-factor-authentication';
 import { LegalDocument, RequiredLegalDocument, User } from '../models';
 
@@ -105,7 +105,18 @@ export default {
       }
 
       // Download associated file with `fetch`
-      const encryptedFileContent = await getFileFromS3(legalDocument.documentLink);
+      const { body: encryptedFileContent, metadata } = await getFileWithMetadataFromS3(legalDocument.documentLink);
+
+      // Defense in depth: files uploaded by the platform are tagged with the owner's collective ID
+      const fileCollectiveId = metadata?.collectiveid ?? metadata?.collectiveId;
+      if (fileCollectiveId && fileCollectiveId !== `${legalDocument.CollectiveId}`) {
+        reportMessageToSentry('Legal document file does not belong to the document owner', {
+          severity: 'error',
+          extra: { legalDocumentId: legalDocument.id, CollectiveId: legalDocument.CollectiveId, fileCollectiveId },
+        });
+        return res.status(403).send({ message: 'Document cannot be downloaded' });
+      }
+
       const decryptedFileContent = LegalDocument.decrypt(encryptedFileContent);
       return res.set('Content-Type', 'application/pdf').send(decryptedFileContent);
     } catch (error) {

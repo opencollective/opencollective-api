@@ -1,7 +1,9 @@
 import { expect } from 'chai';
+import config from 'config';
 import moment from 'moment';
 import sinon from 'sinon';
 
+import { CollectiveType } from '../../../server/constants/collectives';
 import { SupportedCurrency } from '../../../server/constants/currencies';
 import { US_TAX_FORM_THRESHOLD_POST_2026, US_TAX_FORM_THRESHOLD_PRE_2026 } from '../../../server/constants/tax-form';
 import emailLib from '../../../server/lib/email';
@@ -17,6 +19,7 @@ import {
   fakeCollective,
   fakeExpense,
   fakeLegalDocument,
+  fakeOpenCollectiveS3URL,
   fakePayoutMethod,
   fakeUser,
 } from '../../test-helpers/fake-data';
@@ -132,6 +135,85 @@ describe('server/models/LegalDocument', () => {
           documentLink: 'not a valid link',
         }),
       ).to.be.rejectedWith('The document link is invalid');
+    });
+  });
+
+  describe('canDownload', () => {
+    const taxFormUrl = (key: string) => fakeOpenCollectiveS3URL({ bucket: config.taxForms.aws.s3.bucket, key });
+
+    it('only accepts S3 links from the tax forms bucket that belong to the document owner', async () => {
+      const owner = await fakeCollective();
+      const other = await fakeCollective();
+      const year = new Date().getFullYear();
+      const build = (documentLink: string, attrs = {}) =>
+        LegalDocument.build({ CollectiveId: owner.id, year, documentLink, ...attrs });
+
+      // Valid
+      expect(build(taxFormUrl(`US_TAX_FORM/${year}/Name-${owner.id}.pdf`)).canDownload()).to.be.true;
+      expect(build(taxFormUrl(`US_TAX_FORM/${year - 1}/A-b/c-${owner.id}_${'f'.repeat(64)}.pdf`)).canDownload()).to.be
+        .true;
+
+      // Invalid
+      expect(build(null).canDownload()).to.be.false;
+      expect(build('https://drive.google.com/whatever').canDownload()).to.be.false;
+      expect(build(fakeOpenCollectiveS3URL({ key: `US_TAX_FORM/${year}/X-${owner.id}.pdf` })).canDownload()).to.be
+        .false;
+      expect(build(taxFormUrl(`US_TAX_FORM/${year}/Name-${other.id}.pdf`)).canDownload()).to.be.false;
+      expect(build(taxFormUrl(`US_TAX_FORM/${year}/X-${owner.id}-${other.id}.pdf`)).canDownload()).to.be.false;
+      expect(build(taxFormUrl(`US_TAX_FORM/${year}/X-${owner.id}_zz-${other.id}.pdf`)).canDownload()).to.be.false;
+      expect(build(taxFormUrl(`US_TAX_FORM/${year}/X-1${owner.id}.pdf`)).canDownload()).to.be.false;
+      expect(build(taxFormUrl(`US_TAX_FORM/${year}/X-${owner.id}1.pdf`)).canDownload()).to.be.false;
+      expect(build(taxFormUrl(`US_TAX_FORM/${year}/X-${owner.id}.pdf.exe`)).canDownload()).to.be.false;
+    });
+
+    it('only accepts legacy (pre-2023) keys on old documents', async () => {
+      const owner = await fakeCollective();
+      const legacyLink = taxFormUrl(`US_TAX_FORM_2022_Name.pdf`);
+      const build = (createdAt: Date) =>
+        LegalDocument.build({ CollectiveId: owner.id, year: 2022, documentLink: legacyLink, createdAt });
+
+      expect(build(new Date('2022-06-01')).canDownload()).to.be.true;
+      expect(build(new Date()).canDownload()).to.be.false;
+    });
+  });
+
+  describe('manuallyMarkTaxFormAsReceived', () => {
+    it('rejects links to tax forms that belong to another account', async () => {
+      const user = await fakeUser();
+      const payee = await fakeCollective({ type: CollectiveType.VENDOR });
+      const victim = await fakeCollective();
+      const year = new Date().getFullYear();
+      const foreignLink = fakeOpenCollectiveS3URL({
+        bucket: config.taxForms.aws.s3.bucket,
+        key: `US_TAX_FORM/${year}/Name-${victim.id}.pdf`,
+      });
+
+      await expect(LegalDocument.manuallyMarkTaxFormAsReceived(payee, user, foreignLink)).to.be.rejectedWith(
+        'This tax form link does not belong to this account',
+      );
+      expect(await LegalDocument.count({ where: { CollectiveId: payee.id } })).to.eq(0);
+    });
+
+    it('accepts external links and links to the payee tax forms', async () => {
+      const user = await fakeUser();
+      const payee = await fakeCollective({ type: CollectiveType.VENDOR });
+      const year = new Date().getFullYear();
+
+      await LegalDocument.manuallyMarkTaxFormAsReceived(payee, user, 'https://drive.google.com/whatever', {
+        year: year - 1,
+      });
+      const externalDoc = await LegalDocument.findOne({ where: { CollectiveId: payee.id, year: year - 1 } });
+      expect(externalDoc.documentLink).to.eq('https://drive.google.com/whatever');
+      expect(externalDoc.canDownload()).to.be.false;
+
+      const ownLink = fakeOpenCollectiveS3URL({
+        bucket: config.taxForms.aws.s3.bucket,
+        key: `US_TAX_FORM/${year}/Name-${payee.id}.pdf`,
+      });
+      await LegalDocument.manuallyMarkTaxFormAsReceived(payee, user, ownLink);
+      const ownDoc = await LegalDocument.findOne({ where: { CollectiveId: payee.id, year } });
+      expect(ownDoc.documentLink).to.eq(ownLink);
+      expect(ownDoc.canDownload()).to.be.true;
     });
   });
 

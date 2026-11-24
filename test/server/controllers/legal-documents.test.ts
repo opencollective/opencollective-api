@@ -171,7 +171,10 @@ describe('server/controllers/legal-documents', () => {
         // Add a legal document
         legalDocument = await fakeLegalDocument({
           CollectiveId: payee.CollectiveId,
-          documentLink: fakeOpenCollectiveS3URL({ bucket: config.taxForms.aws.s3.bucket, key: 'file.pdf' }),
+          documentLink: fakeOpenCollectiveS3URL({
+            bucket: config.taxForms.aws.s3.bucket,
+            key: `US_TAX_FORM/${YEAR}/Payee-${payee.CollectiveId}.pdf`,
+          }),
         });
       });
 
@@ -191,6 +194,69 @@ describe('server/controllers/legal-documents', () => {
         expect(res.send.firstCall.args[0]).to.deep.equal({ message: 'Document cannot be downloaded' });
       });
 
+      describe('rejects documents linked to a file that belongs to another account', () => {
+        const downloadWithValid2FA = async (documentId: number) => {
+          const req = makeRequest(hostAdmin) as unknown as Request;
+          req.headers[TwoFactorAuthenticationHeader] = `totp 123456`;
+          req.params = { id: idEncode(documentId, 'legal-document') };
+          const res = getResStub();
+          await LegalDocumentsController.download(req, res as Response);
+          return res;
+        };
+
+        beforeEach(() => {
+          sandbox.stub(TOTPLib, 'validateToken').resolves(true);
+        });
+
+        it('when the S3 key targets another account', async () => {
+          const victim = await fakeCollective();
+          const getFileStub = sandbox.stub(LibS3, 'getFileWithMetadataFromS3');
+          const foreignKeys = [
+            `US_TAX_FORM/${YEAR}/Name-${victim.id}.pdf`,
+            `US_TAX_FORM/${YEAR}/Name-${victim.id}_${'a'.repeat(64)}.pdf`,
+            `US_TAX_FORM/${YEAR}/Fake-${payee.CollectiveId}-${victim.id}.pdf`,
+            `US_TAX_FORM/${YEAR}/Fake-1${payee.CollectiveId}.pdf`,
+            `US_TAX_FORM_2022_Name.pdf`, // Legacy format, only allowed on old documents
+            `other/${YEAR}/Fake-${payee.CollectiveId}.pdf`,
+          ];
+
+          for (const key of foreignKeys) {
+            const doc = await fakeLegalDocument({
+              CollectiveId: payee.CollectiveId,
+              year: YEAR - 1 - foreignKeys.indexOf(key), // Unique constraint on year/collective
+              documentLink: fakeOpenCollectiveS3URL({ bucket: config.taxForms.aws.s3.bucket, key }),
+            });
+            expect(doc.canDownload(), key).to.be.false;
+            const res = await downloadWithValid2FA(doc.id);
+            expect(res.status.firstCall.args[0], key).to.equal(403);
+            expect(res.send.firstCall.args[0]).to.deep.equal({ message: 'Document cannot be downloaded' });
+          }
+
+          expect(getFileStub.called).to.be.false;
+        });
+
+        it('when the S3 object metadata targets another account', async () => {
+          sandbox.stub(LibS3, 'getFileWithMetadataFromS3').resolves({
+            body: LegalDocument.encrypt(Buffer.from('content')),
+            metadata: { collectiveid: `${payee.CollectiveId + 1}` },
+          });
+          const res = await downloadWithValid2FA(legalDocument.id);
+          expect(res.status.firstCall.args[0]).to.equal(403);
+          expect(res.send.firstCall.args[0]).to.deep.equal({ message: 'Document cannot be downloaded' });
+          expect(res.set.called).to.be.false;
+        });
+
+        it('accepts matching S3 object metadata', async () => {
+          sandbox.stub(LibS3, 'getFileWithMetadataFromS3').resolves({
+            body: LegalDocument.encrypt(Buffer.from('content')),
+            metadata: { collectiveid: `${payee.CollectiveId}` },
+          });
+          const res = await downloadWithValid2FA(legalDocument.id);
+          expect(res.set.calledWith('Content-Type', 'application/pdf')).to.be.true;
+          expect(res.send.firstCall.args[0].toString()).to.equal('content');
+        });
+      });
+
       it('throws if 2FA is not enabled on the admin account', async () => {
         const hostAdminWithout2FA = await fakeUser();
         await host.addUserWithRole(hostAdminWithout2FA, 'ADMIN');
@@ -208,7 +274,7 @@ describe('server/controllers/legal-documents', () => {
 
       it('must provide 2FA', async () => {
         const encryptedContent = LegalDocument.encrypt(Buffer.from('content'));
-        sandbox.stub(LibS3, 'getFileFromS3').resolves(encryptedContent);
+        sandbox.stub(LibS3, 'getFileWithMetadataFromS3').resolves({ body: encryptedContent, metadata: {} });
         const req = makeRequest(hostAdmin) as unknown as Request;
         const res = getResStub();
         req.params = { id: idEncode(legalDocument.id, 'legal-document') };
@@ -225,7 +291,7 @@ describe('server/controllers/legal-documents', () => {
 
       it('should reject invalid 2FA codes', async () => {
         const encryptedContent = LegalDocument.encrypt(Buffer.from('content'));
-        sandbox.stub(LibS3, 'getFileFromS3').resolves(encryptedContent);
+        sandbox.stub(LibS3, 'getFileWithMetadataFromS3').resolves({ body: encryptedContent, metadata: {} });
         const req = makeRequest(hostAdmin) as unknown as Request;
         req.headers[TwoFactorAuthenticationHeader] = `totp 123456`;
         const res = getResStub();
@@ -239,7 +305,7 @@ describe('server/controllers/legal-documents', () => {
 
       it('should decrypt and download file when valid 2FA is provided', async () => {
         const encryptedContent = LegalDocument.encrypt(Buffer.from('content'));
-        sandbox.stub(LibS3, 'getFileFromS3').resolves(encryptedContent);
+        sandbox.stub(LibS3, 'getFileWithMetadataFromS3').resolves({ body: encryptedContent, metadata: {} });
         const req = makeRequest(hostAdmin) as unknown as Request;
         sandbox.stub(TOTPLib, 'validateToken').resolves(true);
         req.headers[TwoFactorAuthenticationHeader] = `totp 123456`;
@@ -258,7 +324,9 @@ describe('server/controllers/legal-documents', () => {
 
         beforeEach(async () => {
           sandbox.stub(config.limits.taxForms, 'downloadPerHour').value(2);
-          sandbox.stub(LibS3, 'getFileFromS3').resolves(LegalDocument.encrypt(Buffer.from('content')));
+          sandbox
+            .stub(LibS3, 'getFileWithMetadataFromS3')
+            .resolves({ body: LegalDocument.encrypt(Buffer.from('content')), metadata: {} });
           rateLimit = new RateLimit(`legal-document-download-${hostAdmin.id}`, 2);
           await rateLimit.reset();
         });

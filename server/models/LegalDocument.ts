@@ -18,6 +18,7 @@ import {
   TAX_FORM_IGNORED_EXPENSE_TYPES,
   US_TAX_FORM_VALIDITY_IN_YEARS,
 } from '../constants/tax-form';
+import { ValidationFailed } from '../graphql/errors';
 import { parseS3Url } from '../lib/awsS3';
 import { crypto, secretbox } from '../lib/encryption';
 import { trackActivityDispatch } from '../lib/notifications/activity-dispatch-tracker';
@@ -26,7 +27,7 @@ import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import SQLQueries from '../lib/queries';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize from '../lib/sequelize';
-import { getTaxFormsS3Bucket } from '../lib/tax-forms';
+import { getTaxFormsS3Bucket, isTaxFormS3KeyForAccount } from '../lib/tax-forms';
 import { isValidURL, prependHttp } from '../lib/url-utils';
 
 import Activity from './Activity';
@@ -56,6 +57,9 @@ export enum LEGAL_DOCUMENT_SERVICE {
 }
 
 const ENCRYPTION_KEY = get(config, 'taxForms.encryptionKey');
+
+/** Legacy S3 keys (`US_TAX_FORM_<year>_<name>.pdf`) are not bound to an account ID; only trust them on old documents */
+const LEGACY_TAX_FORM_KEYS_CUTOFF_DATE = new Date('2024-01-01T00:00:00Z');
 
 export type LegalDocumentAttributes = InferAttributes<LegalDocument>;
 
@@ -310,9 +314,32 @@ class LegalDocument extends ModelWithPublicId<
   };
 
   /**
+   * Manually set links can point to external services (e.g. Google Drive), but links to the tax forms
+   * bucket must target a file that belongs to the payee: these are downloaded & decrypted by the platform.
+   */
+  static assertManualDocumentLinkIsAllowed = (documentLink: string, payee: Collective): void => {
+    const trimmedLink = documentLink?.trim();
+    if (!trimmedLink) {
+      return;
+    }
+
+    let parsed: { bucket: string; key: string };
+    try {
+      parsed = parseS3Url(prependHttp(trimmedLink, { https: true }));
+    } catch {
+      return; // Not an S3 link
+    }
+
+    const taxFormsBucket = getTaxFormsS3Bucket();
+    if (taxFormsBucket && parsed.bucket === taxFormsBucket && !isTaxFormS3KeyForAccount(parsed.key, payee.id)) {
+      throw new ValidationFailed('This tax form link does not belong to this account');
+    }
+  };
+
+  /**
    * To use when a host admin manually provides an external link to a tax form.
    */
-  static manuallyMarkTaxFormAsReceived = (
+  static manuallyMarkTaxFormAsReceived = async (
     payee: Collective,
     user: User,
     documentLink: string,
@@ -324,6 +351,7 @@ class LegalDocument extends ModelWithPublicId<
       year?: number;
     } = {},
   ) => {
+    LegalDocument.assertManualDocumentLinkIsAllowed(documentLink, payee);
     let legalDocument: LegalDocument;
     let previousStatus: LEGAL_DOCUMENT_REQUEST_STATUS | string | null;
     return sequelize
@@ -507,8 +535,16 @@ class LegalDocument extends ModelWithPublicId<
     }
 
     try {
-      const { bucket } = parseS3Url(this.documentLink);
-      return bucket === getTaxFormsS3Bucket();
+      const { bucket, key } = parseS3Url(this.documentLink);
+      if (bucket !== getTaxFormsS3Bucket()) {
+        return false;
+      }
+
+      // The S3 key must belong to the document owner, otherwise anyone able to set `documentLink`
+      // could point it at another account's tax form and download it.
+      return isTaxFormS3KeyForAccount(key, this.CollectiveId, {
+        allowLegacy: Boolean(this.createdAt) && new Date(this.createdAt) < LEGACY_TAX_FORM_KEYS_CUTOFF_DATE,
+      });
     } catch {
       return false;
     }
