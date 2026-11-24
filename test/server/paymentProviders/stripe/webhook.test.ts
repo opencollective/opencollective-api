@@ -1579,6 +1579,70 @@ describe('webhook', () => {
         expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
         expect(metricsCountStub.called).to.be.false;
       });
+
+      it('keeps the payment intent as current when payment failed immediately, so it can be retried', async () => {
+        await webhook.stripePaymentIntentFailed(event);
+
+        await expense.reload();
+        expect(expense.data.stripePaymentIntent.id).to.eql(event.data.object.id);
+      });
+    });
+
+    describe('retry after a declined card', () => {
+      it('records the payment when the declined intent is retried and succeeds', async () => {
+        event.data.object.last_payment_error = { code: 'card_declined', message: 'Your card was declined.' };
+        await webhook.stripePaymentIntentFailed(event);
+        delete event.data.object.last_payment_error;
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.PAID);
+        expect(transactions.createTransactionsFromPaidStripeExpense).to.have.been.calledOnce;
+      });
+
+      it('records the payment of an older intent of the expense, resolved from its metadata', async () => {
+        const previousIntentId = expense.data.stripePaymentIntent.id;
+        await expense.update({
+          data: {
+            stripePaymentIntent: { id: randStr('pi_fake') } as Stripe.PaymentIntent,
+            previousStripePaymentIntents: [{ id: previousIntentId } as Stripe.PaymentIntent],
+          },
+        });
+        event.account = 'testUserName';
+        event.data.object.metadata = { expenseId: `${expense.id}` };
+
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.PAID);
+        expect(transactions.createTransactionsFromPaidStripeExpense).to.have.been.calledOnce;
+      });
+
+      it('does not trust the metadata of an unknown intent coming from a connected account', async () => {
+        await expense.update({ data: { stripePaymentIntent: { id: randStr('pi_fake') } as Stripe.PaymentIntent } });
+        event.account = 'testUserName';
+        event.data.object.id = randStr('pi_unknown');
+        event.data.object.metadata = { expenseId: `${expense.id}` };
+
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
+        expect(transactions.createTransactionsFromPaidStripeExpense).to.not.have.been.called;
+      });
+
+      it('does not record a second payment for an expense that is already paid', async () => {
+        const previousIntentId = expense.data.stripePaymentIntent.id;
+        await expense.update({
+          status: ExpenseStatuses.PAID,
+          data: { previousStripePaymentIntents: [{ id: previousIntentId } as Stripe.PaymentIntent] },
+        });
+        event.data.object.metadata = { expenseId: `${expense.id}` };
+
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        expect(transactions.createTransactionsFromPaidStripeExpense).to.not.have.been.called;
+      });
     });
   });
 

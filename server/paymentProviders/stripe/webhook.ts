@@ -4,7 +4,7 @@ import debugLib from 'debug';
 import { Request } from 'express';
 import { omit } from 'lodash';
 import moment from 'moment';
-import { Op, QueryTypes, Transaction } from 'sequelize';
+import { FindOptions, Op, QueryTypes, Transaction } from 'sequelize';
 import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
@@ -42,7 +42,7 @@ import {
 import stripe, { convertToStripeAmount, getDashboardObjectIdURL } from '../../lib/stripe';
 import { createTransactionsFromPaidStripeExpense, getPaymentProcessorFeeVendor } from '../../lib/transactions';
 import models, { sequelize } from '../../models';
-import { ExpenseStatus } from '../../models/Expense';
+import Expense, { ExpenseStatus } from '../../models/Expense';
 import Order from '../../models/Order';
 import PaymentMethod from '../../models/PaymentMethod';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
@@ -62,6 +62,82 @@ const debug = debugLib('stripe');
 const getWhereStripePaymentIntentId = (id: string) => ({
   data: { stripePaymentIntent: { id } },
 });
+
+const getPaymentIntentExpenseIdFromMetadata = (stripePaymentIntent: Stripe.PaymentIntent): number | null => {
+  const expenseId = parseInt(stripePaymentIntent.metadata?.expenseId);
+  return Number.isSafeInteger(expenseId) && expenseId > 0 ? expenseId : null;
+};
+
+const isPlatformStripeAccount = (stripeAccount: string | undefined) =>
+  !stripeAccount || stripeAccount === config.stripe.accountId;
+
+const isPaymentIntentInExpenseHistory = (expense: Expense, stripePaymentIntentId: string) =>
+  expense.data?.stripePaymentIntent?.id === stripePaymentIntentId ||
+  Boolean(expense.data?.previousStripePaymentIntents?.some(pi => pi?.id === stripePaymentIntentId));
+
+/**
+ * Finds the expense a payment intent belongs to.
+ *
+ * Expenses only reference their *current* payment intent in `data.stripePaymentIntent`, but an older
+ * intent can still succeed: a declined intent goes back to `requires_payment_method` and can be confirmed
+ * again by the payer, and platform billing confirms the intent before it gets stored on the expense.
+ * We fall back on `metadata.expenseId` for these, but only when we can trust it: either the intent is
+ * part of the expense history, or the event comes from the platform Stripe account (connected accounts
+ * control the metadata of their own payment intents, so it is not trusted on its own for them).
+ */
+async function findExpenseForStripePaymentIntent(
+  stripePaymentIntent: Stripe.PaymentIntent,
+  stripeAccount: string | undefined,
+  options: Omit<FindOptions<Expense>, 'where'> = {},
+): Promise<Expense | null> {
+  const expense = await models.Expense.findOne({
+    ...options,
+    where: getWhereStripePaymentIntentId(stripePaymentIntent.id),
+  });
+  if (expense) {
+    return expense;
+  }
+
+  const expenseId = getPaymentIntentExpenseIdFromMetadata(stripePaymentIntent);
+  if (!expenseId) {
+    return null;
+  }
+
+  const expenseFromMetadata = await models.Expense.findByPk(expenseId, options);
+  if (!expenseFromMetadata) {
+    return null;
+  } else if (
+    !isPaymentIntentInExpenseHistory(expenseFromMetadata, stripePaymentIntent.id) &&
+    !isPlatformStripeAccount(stripeAccount)
+  ) {
+    reportMessageToSentry(
+      `Stripe Webhook: Payment Intent ${stripePaymentIntent.id} references Expense ${expenseId} in its metadata, but is not part of its history`,
+      { extra: { paymentIntentId: stripePaymentIntent.id, expenseId, stripeAccount } },
+    );
+    return null;
+  }
+
+  return expenseFromMetadata;
+}
+
+const reportUnmatchedSucceededPaymentIntent = (
+  targetType: 'Order' | 'Expense',
+  stripePaymentIntent: Stripe.PaymentIntent,
+  stripeAccount: string,
+) => {
+  // A succeeded payment intent means the money moved: never drop it silently, someone needs to look at it.
+  const message = `Stripe Webhook: Could not find ${targetType} for succeeded Payment Intent ${stripePaymentIntent.id}`;
+  logger.warn(message);
+  reportMessageToSentry(message, {
+    extra: {
+      paymentIntentId: stripePaymentIntent.id,
+      stripeAccount,
+      amount: stripePaymentIntent.amount,
+      currency: stripePaymentIntent.currency,
+      metadata: stripePaymentIntent.metadata,
+    },
+  });
+};
 
 export async function createOrUpdatePaymentMethod(
   PaymentMethodCollectiveId: number,
@@ -249,7 +325,7 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   });
 
   if (!order) {
-    logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${stripePaymentIntent.id}`);
+    reportUnmatchedSucceededPaymentIntent('Order', stripePaymentIntent, stripeAccount);
     return;
   }
 
@@ -370,10 +446,9 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
   }
 
   const [expense, shouldMarkPaid, paidAt] = await sequelize.transaction(async transaction => {
-    const expense = await models.Expense.findOne({
+    const expense = await findExpenseForStripePaymentIntent(stripePaymentIntent, event.account, {
       lock: transaction.LOCK.UPDATE,
       transaction,
-      where: getWhereStripePaymentIntentId(stripePaymentIntent.id),
       include: [
         { association: 'collective', required: true },
         {
@@ -390,7 +465,7 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
     });
 
     if (!expense) {
-      logger.debug(`Stripe Webhook: Could not find Expense for Payment Intent ${stripePaymentIntent.id}`);
+      reportUnmatchedSucceededPaymentIntent('Expense', stripePaymentIntent, stripeAccount);
       return [expense, false];
     }
 
@@ -424,6 +499,17 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
       logger.info(
         `Stripe Webhook: Expense ${existingChargeTransaction.ExpenseId} already processed charge ${charge.id}, ignoring event ${event.id}`,
       );
+      return [expense, false];
+    }
+
+    if (expense.status === ExpenseStatus.PAID) {
+      // The expense was already paid by another payment intent (e.g. payer retried with two intents
+      // still open): do not record it twice, but make sure the extra payment gets refunded.
+      const message = `Stripe Webhook: Payment Intent ${stripePaymentIntent.id} succeeded for Expense ${expense.id}, which is already paid. The payment probably needs to be refunded.`;
+      logger.error(message);
+      reportMessageToSentry(message, {
+        extra: { paymentIntentId: stripePaymentIntent.id, expenseId: expense.id, chargeId: charge.id, stripeAccount },
+      });
       return [expense, false];
     }
 
@@ -495,11 +581,17 @@ async function paymentIntentTarget(stripePaymentIntent: Stripe.PaymentIntent): P
     },
   );
 
-  if (!result?.length) {
-    return 'ORDER';
+  if (result?.length) {
+    return result[0].target;
   }
 
-  return result[0].target;
+  // The intent is not the current one of any order/expense (e.g. retried after a decline). Expense payment
+  // intents carry their expense ID in their metadata: let the expense handler resolve (and validate) it.
+  if (getPaymentIntentExpenseIdFromMetadata(stripePaymentIntent)) {
+    return 'EXPENSE';
+  }
+
+  return 'ORDER';
 }
 
 export const stripePaymentIntentProcessing = async (event: Stripe.Event) => {
@@ -600,8 +692,7 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
   const stripeAccount = event.account ?? config.stripe.accountId;
 
   await sequelize.transaction(async transaction => {
-    const expense = await models.Expense.findOne({
-      where: getWhereStripePaymentIntentId(stripePaymentIntent.id),
+    const expense = await findExpenseForStripePaymentIntent(stripePaymentIntent, stripeAccount, {
       transaction,
       lock: transaction.LOCK.UPDATE,
       include: [
@@ -754,8 +845,7 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
 
 async function handleExpensePaymentIntentFailed(event: Stripe.Event) {
   const stripePaymentIntent = event.data.object as Stripe.PaymentIntent;
-  const expense = await models.Expense.findOne({
-    where: getWhereStripePaymentIntentId(stripePaymentIntent.id),
+  const expense = await findExpenseForStripePaymentIntent(stripePaymentIntent, event.account, {
     include: [
       { association: 'collective', required: true },
       { association: 'fromCollective', required: true },
@@ -773,14 +863,22 @@ async function handleExpensePaymentIntentFailed(event: Stripe.Event) {
   const reason = stripePaymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
   logger.info(`Stripe Webook: Payment Intent failed for Expense #${expense.id}. Reason: ${reason}`);
 
-  const isTerminalFailure = expense.status === ExpenseStatus.PROCESSING;
-  await expense.update({
-    status: isTerminalFailure ? ExpenseStatus.ERROR : undefined,
-    data: {
-      ...omit(expense.data, ['stripePaymentIntent']),
-      previousStripePaymentIntents: [...(expense.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
-    },
-  });
+  const isCurrentPaymentIntent = expense.data?.stripePaymentIntent?.id === stripePaymentIntent.id;
+  const isTerminalFailure = isCurrentPaymentIntent && expense.status === ExpenseStatus.PROCESSING;
+  if (isTerminalFailure) {
+    await expense.update({
+      status: ExpenseStatus.ERROR,
+      data: {
+        ...omit(expense.data, ['stripePaymentIntent']),
+        previousStripePaymentIntents: [...(expense.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
+      },
+    });
+  } else if (isCurrentPaymentIntent) {
+    // The payment failed straight away (e.g. card declined): the intent goes back to `requires_payment_method`
+    // and the payer can retry it with another card. Keep it as the current intent so the retry is recorded
+    // and `createExpenseStripePaymentIntent` reuses it instead of opening a second live intent.
+    await expense.update({ data: { ...expense.data, stripePaymentIntent } });
+  }
 
   // Terminal failure of the payout attempt: counted only when the expense transitions to ERROR, so
   // redeliveries and failures arriving for already-settled expenses are not counted twice.

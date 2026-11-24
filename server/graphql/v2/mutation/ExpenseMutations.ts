@@ -12,7 +12,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { groupBy, isNil, pick, size } from 'lodash';
+import { groupBy, isNil, omit, pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../../constants/activities';
@@ -920,6 +920,23 @@ const expenseMutations = {
             stripeAccountPublishableSecret: payeeHostStripeAccount.data.publishableKey,
           };
         }
+
+        // The stored intent is outdated (e.g. the expense amount changed): cancel it so that only one
+        // intent can ever be confirmed for this expense.
+        if (!['canceled', 'succeeded', 'processing'].includes(stripePaymentIntent.status)) {
+          await stripe.paymentIntents.cancel(
+            stripePaymentIntent.id,
+            undefined,
+            !isPlatformHost ? { stripeAccount: payeeHostStripeAccount.username } : undefined,
+          );
+        }
+
+        await expense.update({
+          data: {
+            ...omit(expense.data, ['stripePaymentIntent']),
+            previousStripePaymentIntents: [...(expense.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
+          },
+        });
       }
 
       let stripeCustomerAccount = await payer.getCustomerStripeAccount(payeeHostStripeAccount.username);

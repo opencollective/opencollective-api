@@ -9201,5 +9201,34 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.data.stripePaymentIntent.id).to.equal('pi_new'); // overwritten with the fresh PI
       });
     }
+
+    it('cancels the stored PaymentIntent before creating a new one when it no longer matches the expense', async () => {
+      const { hostAdmin, expense } = await setupStripeExpense({
+        stripePaymentIntent: { id: 'pi_outdated', amount: 500, currency: 'usd' },
+      });
+      sandbox.stub(stripe.paymentIntents, 'retrieve').resolves({
+        id: 'pi_outdated',
+        amount: 500,
+        currency: 'usd',
+        status: 'requires_payment_method',
+      });
+      const cancelStub = sandbox.stub(stripe.paymentIntents, 'cancel').resolves({ id: 'pi_outdated' });
+      sandbox.stub(stripe.customers, 'create').resolves({ id: 'cus_test' });
+      sandbox
+        .stub(stripe.paymentIntents, 'create')
+        // eslint-disable-next-line camelcase
+        .resolves({ id: 'pi_new', client_secret: 'cs_new', status: 'requires_payment_method' });
+
+      const result = await graphqlQueryV2(createPaymentIntentMutation, { expense: expenseRef(expense) }, hostAdmin);
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.createExpenseStripePaymentIntent.id).to.equal('pi_new');
+      expect(cancelStub.calledOnce).to.be.true;
+      expect(cancelStub.firstCall.args[0]).to.equal('pi_outdated');
+
+      await expense.reload();
+      expect(expense.data.stripePaymentIntent.id).to.equal('pi_new');
+      expect(expense.data.previousStripePaymentIntents.map(pi => pi.id)).to.include('pi_outdated');
+    });
   });
 });
