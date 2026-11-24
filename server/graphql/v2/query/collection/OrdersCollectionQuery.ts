@@ -895,40 +895,59 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         );
       }
 
+      const isChargedTransaction = ({ and, eb }: ExpressionBuilder<DatabaseWithViews, 'Transactions'>) => {
+        const ands: Expression<SqlBool>[] = [];
+        if (args.chargedDateFrom) {
+          ands.push(
+            eb(
+              eb.fn.coalesce(eb.ref('Transactions.clearedAt'), eb.ref('Transactions.createdAt')),
+              '>=',
+              args.chargedDateFrom,
+            ),
+          );
+        }
+        if (args.chargedDateTo) {
+          ands.push(
+            eb(
+              eb.fn.coalesce(eb.ref('Transactions.clearedAt'), eb.ref('Transactions.createdAt')),
+              '<=',
+              args.chargedDateTo,
+            ),
+          );
+        }
+
+        ands.push(eb('Transactions.deletedAt', 'is', null));
+        ands.push(eb('Transactions.type', '=', 'CREDIT'));
+        ands.push(eb('Transactions.isRefund', 'is', false));
+        ands.push(eb('Transactions.RefundTransactionId', 'is', null));
+        ands.push(eb('Transactions.kind', 'in', [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS]));
+
+        return and(ands);
+      };
+
+      // Orders scoped to a few accounts (an account's own contributions, or the ones between two accounts): check each
+      // order's transactions with a semi-join. Joining the list of all orders charged in the period would read every
+      // contribution of the platform for that period (24 s in production for 7 orders).
+      // Host-wide or unscoped queries keep the join, which is faster when most of the period's orders match.
+      const isScopedToAccounts =
+        !!account && !host && hostContext !== 'HOSTED' && !(hostContext === 'ALL' && account.hasMoneyManagement);
+      if (isScopedToAccounts) {
+        return qb.where(({ exists, selectFrom }) =>
+          exists(
+            selectFrom('Transactions')
+              .select(sql`1`.as('one'))
+              .whereRef('Transactions.OrderId', '=', 'Orders.id')
+              .where(isChargedTransaction),
+          ),
+        );
+      }
+
       return qb.innerJoin(
         expressionBuilder<DatabaseWithViews, 'Transactions'>()
           .selectFrom('Transactions')
           .distinctOn('Transactions.OrderId')
           .select('OrderId')
-          .where(({ and, eb }) => {
-            const ands: Expression<SqlBool>[] = [];
-            if (args.chargedDateFrom) {
-              ands.push(
-                eb(
-                  eb.fn.coalesce(eb.ref('Transactions.clearedAt'), eb.ref('Transactions.createdAt')),
-                  '>=',
-                  args.chargedDateFrom,
-                ),
-              );
-            }
-            if (args.chargedDateTo) {
-              ands.push(
-                eb(
-                  eb.fn.coalesce(eb.ref('Transactions.clearedAt'), eb.ref('Transactions.createdAt')),
-                  '<=',
-                  args.chargedDateTo,
-                ),
-              );
-            }
-
-            ands.push(eb('Transactions.deletedAt', 'is', null));
-            ands.push(eb('Transactions.type', '=', 'CREDIT'));
-            ands.push(eb('Transactions.isRefund', 'is', false));
-            ands.push(eb('Transactions.RefundTransactionId', 'is', null));
-            ands.push(eb('Transactions.kind', 'in', [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS]));
-
-            return and(ands);
-          })
+          .where(isChargedTransaction)
           .as('ChargedTransactions'),
         join => join.onRef('Orders.id', '=', 'ChargedTransactions.OrderId'),
       );
