@@ -1056,6 +1056,24 @@ describe('webhook', () => {
         );
       });
 
+      it('explains why the payment failed when the bank account was not verified with microdeposits in time', async () => {
+        sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+        set(event, 'data.object.last_payment_error', {
+          code: 'payment_method_microdeposit_verification_timeout',
+          message: 'Microdeposit verification timed out.',
+        });
+
+        await webhook.stripePaymentIntentFailed(event);
+        await order.reload();
+
+        expect(order.status).to.equal(OrderStatuses.ERROR);
+        assert.calledOnceWithMatch(
+          libPayments.sendOrderFailedEmail,
+          { dataValues: { id: order.id } },
+          sinon.match(/bank account was not verified within 10 days/),
+        );
+      });
+
       it('records a thirdparty payment outcome metric for the failed payment', async () => {
         sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
         set(event, 'data.object.last_payment_error', {
