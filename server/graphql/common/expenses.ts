@@ -1124,7 +1124,28 @@ export const canApprove: ExpensePermissionEvaluator = async (
       usedPolicy = (collectivePolicyApplies && collectivePolicy) || (hostPolicyApplies && hostPolicy);
     }
 
-    const authorCannotApprove = usedPolicy && isExpenseAuthor && expense.amount >= usedPolicy.amountInCents;
+    let authorCannotApprove = false;
+    if (usedPolicy && isExpenseAuthor) {
+      // The policy limit is expressed in the host (or collective) currency
+      let amountInPolicyCurrency = expense.amount;
+      if (expense.currency && expense.currency !== currency) {
+        try {
+          amountInPolicyCurrency = await req.loaders.CurrencyExchangeRate.convert.load({
+            amount: expense.amount,
+            fromCurrency: expense.currency as SupportedCurrency,
+            toCurrency: currency as SupportedCurrency,
+          });
+        } catch (e) {
+          reportErrorToSentry(e, { req, user: req.remoteUser, feature: FEATURE.USE_EXPENSES });
+          amountInPolicyCurrency = NaN;
+        }
+      }
+
+      // Treat a failed conversion as above the limit
+      authorCannotApprove =
+        !Number.isFinite(amountInPolicyCurrency) || amountInPolicyCurrency >= usedPolicy.amountInCents;
+    }
+
     if (authorCannotApprove) {
       if (options?.throw) {
         throw new Forbidden(
