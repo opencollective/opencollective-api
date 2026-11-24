@@ -111,7 +111,13 @@ export const verifyPlaidWebhookRequest = async (req: Request) => {
   }
 
   // Ensure that the hash of the body matches the claim
+  if (typeof claims.request_body_sha256 !== 'string') {
+    return false;
+  }
+
   const expectedBuffer = new Uint8Array(Buffer.from(claims.request_body_sha256));
   const formattedJsonHash = sha256(JSON.stringify(JSON.parse(req.rawBody), null, 2)); // Format body to match Plaid's expectations
-  return crypto.timingSafeEqual(new Uint8Array(Buffer.from(formattedJsonHash)), expectedBuffer);
+  const actualBuffer = new Uint8Array(Buffer.from(formattedJsonHash));
+  // `timingSafeEqual` throws on buffers of different lengths
+  return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
 };
