@@ -2382,5 +2382,28 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         expect(orderFromPrivateOrg?.fromAccount).to.be.null;
       });
     });
+
+    it('createdByUsers keeps the creators of orders to private accounts visible to the sender', async () => {
+      const sender = await fakeUser();
+      await fakeOrder({
+        FromCollectiveId: sender.CollectiveId,
+        CollectiveId: privateCollective.id,
+        CreatedByUserId: sender.id,
+        status: OrderStatuses.PAID,
+      });
+
+      const variables = { account: { legacyId: sender.CollectiveId }, filter: 'OUTGOING' };
+      const resultAsSender = await graphqlQueryV2(ordersWithCreatedByUsersQuery, variables, sender);
+      expect(resultAsSender.errors).to.not.exist;
+      expect(resultAsSender.data.orders.totalCount).to.eq(1);
+      expect(resultAsSender.data.orders.createdByUsers.totalCount).to.eq(1);
+      expect(resultAsSender.data.orders.createdByUsers.nodes.map(n => n.legacyId)).to.deep.eq([sender.CollectiveId]);
+
+      const resultAsRandomUser = await graphqlQueryV2(ordersWithCreatedByUsersQuery, variables, randomUser);
+      expect(resultAsRandomUser.errors).to.not.exist;
+      expect(resultAsRandomUser.data.orders.totalCount).to.eq(0);
+      expect(resultAsRandomUser.data.orders.createdByUsers.totalCount).to.eq(0);
+      expect(resultAsRandomUser.data.orders.createdByUsers.nodes).to.be.empty;
+    });
   });
 });

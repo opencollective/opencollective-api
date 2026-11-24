@@ -1107,20 +1107,25 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         collectiveConditions.push(accountConditions);
       }
 
-      // Same visibility rule as `nodes` for orders to private accounts
+      // Same visibility rule as `nodes` for orders to private accounts. It references both sides of the order, so like
+      // `incognitoCreatorsConditions` below, it must go in the top-level WHERE.
+      const privateRecipientConditions: WhereOptions[] = [];
       if (shouldApplyPrivateRecipientVisibilityFilter) {
-        const privateRecipientOrs: WhereOptions[] = [{ isPrivate: false }];
+        const privateRecipientOrs: WhereOptions[] = [{ '$user.orders.collective.isPrivate$': false }];
         if (req.remoteUser) {
           const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
+          privateRecipientOrs.push({
+            '$user.orders.FromCollectiveId$': { [Op.in]: [req.remoteUser.CollectiveId, ...directAccess] },
+          });
           if (directAccess.length > 0) {
             privateRecipientOrs.push(
-              { id: { [Op.in]: directAccess } },
-              { ParentCollectiveId: { [Op.in]: directAccess } },
-              { HostCollectiveId: { [Op.in]: directAccess } },
+              { '$user.orders.CollectiveId$': { [Op.in]: directAccess } },
+              { '$user.orders.collective.ParentCollectiveId$': { [Op.in]: directAccess } },
+              { '$user.orders.collective.HostCollectiveId$': { [Op.in]: directAccess } },
             );
           }
         }
-        collectiveConditions.push({ [Op.or]: privateRecipientOrs });
+        privateRecipientConditions.push({ [Op.or]: privateRecipientOrs });
       }
 
       // Both accounts are always joined, as they're needed to hide the creators of incognito contributions
@@ -1181,7 +1186,9 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         where: {
           deletedAt: null,
           ...(searchConditions.length ? { [Op.or]: searchConditions } : {}),
-          ...(incognitoCreatorsConditions.length ? { [Op.and]: incognitoCreatorsConditions } : {}),
+          ...(incognitoCreatorsConditions.length || privateRecipientConditions.length
+            ? { [Op.and]: [...incognitoCreatorsConditions, ...privateRecipientConditions] }
+            : {}),
         },
         include: [
           {
