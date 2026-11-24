@@ -11,7 +11,7 @@ import RateLimit from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { ConnectedAccount, TransactionsImport } from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
-import { Forbidden, RateLimitExceeded } from '../../errors';
+import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
 import { GraphQLCountryISO } from '../enum';
 import {
   AccountReferenceInput,
@@ -224,6 +224,13 @@ export const plaidMutations = {
         throw new Forbidden('You do not have permission to sync this account');
       }
 
+      const transactionsImport = await TransactionsImport.findOne({
+        where: { ConnectedAccountId: connectedAccount.id, CollectiveId: connectedAccount.CollectiveId },
+      });
+      if (!transactionsImport) {
+        throw new NotFound('No transactions import found for this connected account');
+      }
+
       const rateLimiter = new RateLimit(`syncPlaidAccount:${connectedAccount.id}`, 2, 5 * 60);
       if (!(await rateLimiter.registerCall())) {
         throw new RateLimitExceeded(
@@ -232,7 +239,7 @@ export const plaidMutations = {
       }
 
       await requestPlaidAccountSync(connectedAccount);
-      return connectedAccount;
+      return transactionsImport;
     },
   },
   refreshPlaidAccount: {
