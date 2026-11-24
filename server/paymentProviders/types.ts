@@ -119,7 +119,7 @@ export interface PaymentProvider {
   /**
    * Triggers the payment for this order and updates it accordingly
    */
-  processOrder(order: Order): Promise<Transaction>;
+  processOrder(order: Order, options?: ProcessOrderOptions): Promise<Transaction>;
 
   /**
    * The different types of payment methods supported by this provider

@@ -48,6 +48,14 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
         return OrdersLib.canEdit(req, order);
       },
     },
+    canEditPaidManualOrder: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description:
+        'Whether the current user can edit this contribution after it was manually marked as paid (see `editPaidManualOrder`)',
+      async resolve(order, _, req: express.Request): Promise<boolean> {
+        return OrdersLib.canEditPaidManualOrder(req, order);
+      },
+    },
     canComment: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can comment on this order',
