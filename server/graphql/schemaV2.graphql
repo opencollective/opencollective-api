@@ -27467,6 +27467,16 @@ type Mutation {
   createIncognitoProfile: Individual!
 
   """
+  Create the profile of another person from an email and a name, for example to add them as a contributor or a member. The person is not emailed and completes the profile at first sign-in. Scope: "account".
+  """
+  createIndividual(
+    """
+    The email and name of the person
+    """
+    individual: IndividualCreateInput!
+  ): Individual!
+
+  """
   Set password to Individual. Session only (OAuth/Personal tokens are not allowed). 2FA.
   """
   setPassword(

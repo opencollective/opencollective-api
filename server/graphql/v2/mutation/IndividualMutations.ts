@@ -5,17 +5,20 @@ import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
+import { pick } from 'lodash';
 
 import * as auth from '../../../lib/auth';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
+import models from '../../../models';
 import {
   checkRemoteUserCanUseAccount,
   rejectOAuthAndPersonalTokenAuth,
   requireSessionToken,
 } from '../../common/scope-check';
-import { confirmUserEmail, requestUserEmailChange } from '../../common/user';
-import { RateLimitExceeded, Unauthorized } from '../../errors';
+import { confirmUserEmail, createUser, requestUserEmailChange } from '../../common/user';
+import { RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
+import { GraphQLIndividualCreateInput } from '../input/IndividualCreateInput';
 import { GraphQLIndividual } from '../object/Individual';
 import { GraphQLSetPasswordResponse } from '../object/SetPasswordResponse';
 import GraphQLEmailAddress from '../scalar/EmailAddress';
@@ -57,6 +60,43 @@ const individualMutations = {
 
       const collective = req.remoteUser.collective ?? (await req.remoteUser.getCollective({ loaders: req.loaders }));
       return collective.getOrCreateIncognitoProfile();
+    },
+  },
+  createIndividual: {
+    type: new GraphQLNonNull(GraphQLIndividual),
+    description:
+      'Create the profile of another person from an email and a name, for example to add them as a contributor or a member. The person is not emailed and completes the profile at first sign-in. Scope: "account".',
+    args: {
+      individual: {
+        type: new GraphQLNonNull(GraphQLIndividualCreateInput),
+        description: 'The email and name of the person',
+      },
+    },
+    resolve: async (_, args, req: express.Request) => {
+      checkRemoteUserCanUseAccount(req);
+
+      // Same limit as v1 `createUser`, which this mutation replaces.
+      const rateLimitKey = `user_create_${req.remoteUser.id}`;
+      const rateLimit = new RateLimit(rateLimitKey, config.limits.userSignUpPerHour, ONE_HOUR_IN_SECONDS, true);
+      if (!(await rateLimit.registerCall())) {
+        throw new RateLimitExceeded();
+      }
+
+      const email = args.individual.email.toLowerCase().trim();
+      if (await models.User.count({ where: { email } })) {
+        throw new ValidationFailed('An account already exists for this email', 'EMAIL_ALREADY_EXISTS');
+      }
+
+      const { user } = await createUser(
+        { ...pick(args.individual, ['name', 'legalName']), email },
+        {
+          throwIfExists: true,
+          sendSignInLink: false,
+          creationRequest: { ip: req.ip, userAgent: req.header('user-agent') },
+        },
+      );
+
+      return user.collective;
     },
   },
   setPassword: {
