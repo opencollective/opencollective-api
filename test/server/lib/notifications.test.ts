@@ -602,4 +602,50 @@ describe('server/lib/notification', () => {
       expect(recipients.filter(email => email === otherAdmin.email)).to.have.length(1);
     });
   });
+
+  describe('COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT', () => {
+    let sendEmailSpy, host, hostAdmin, otherHostAdmin, collective;
+
+    beforeEach(async () => {
+      sendEmailSpy = sandbox.stub(emailLib, 'send').resolves();
+      hostAdmin = await fakeUser();
+      otherHostAdmin = await fakeUser();
+      host = await fakeActiveHost({ admin: hostAdmin });
+      await fakeMember({ CollectiveId: host.id, MemberCollectiveId: otherHostAdmin.CollectiveId, role: roles.ADMIN });
+      collective = await fakeCollective({ HostCollectiveId: host.id });
+    });
+
+    const fakeScheduledActivity = payoutMethodType =>
+      fakeActivity(
+        {
+          type: activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          UserId: hostAdmin.id,
+          data: {
+            host: host.info,
+            collective: collective.info,
+            fromCollective: collective.info,
+            expense: { id: 42, amount: 100_00, currency: 'USD', description: 'Invoice' },
+            payoutMethod: { type: payoutMethodType, data: { email: 'payee@example.com' } },
+          },
+        },
+        { hooks: false },
+      );
+
+    it('notifies the other host admins of a scheduled PayPal payout', async () => {
+      await notifyByEmail(await fakeScheduledActivity('PAYPAL'));
+      await utils.waitForCondition(() => sendEmailSpy.callCount >= 1);
+
+      expect(sendEmailSpy.callCount).to.eq(1);
+      expect(sendEmailSpy.firstCall.args[0]).to.eq('collective.expense.scheduledForPayment.for.host');
+      expect(sendEmailSpy.firstCall.args[1]).to.eq(otherHostAdmin.email);
+    });
+
+    it('does not notify for Wise payouts, which are only sent when the batch is paid', async () => {
+      await notifyByEmail(await fakeScheduledActivity('BANK_ACCOUNT'));
+      await utils.sleep(100);
+      expect(sendEmailSpy.called).to.be.false;
+    });
+  });
 });

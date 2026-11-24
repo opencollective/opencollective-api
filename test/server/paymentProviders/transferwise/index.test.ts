@@ -769,6 +769,19 @@ describe('server/paymentProviders/transferwise/index', () => {
       expect(fundBatchGroup.secondCall).to.not.have.nested.property('args[3]');
     });
 
+    it('should refuse an OTT token used by another user than the one who started the payment', async () => {
+      const otherUser = await fakeUser();
+      const call = transferwise.approveExpenseBatchGroupPayment({
+        host,
+        x2faApproval: ottToken,
+        remoteUser: otherUser,
+      });
+      await expect(call).to.be.eventually.rejectedWith(
+        'This batch payment can only be approved by the admin who started it',
+      );
+      expect(fundBatchGroup.callCount).to.be.equal(2);
+    });
+
     it('should retry batchGroup if OTT token is provided', async () => {
       fundBatchGroup.resolves({ id: randStr() });
       await transferwise.approveExpenseBatchGroupPayment({ host, x2faApproval: ottToken, remoteUser: hostAdmin });

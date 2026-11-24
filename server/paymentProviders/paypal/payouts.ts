@@ -1,5 +1,5 @@
 /* eslint-disable camelcase */
-import { isNil, omit, round, toNumber, truncate } from 'lodash';
+import { groupBy, isNil, omit, round, sortBy, sum, toNumber, truncate } from 'lodash';
 import assert from 'node:assert';
 import { v4 as uuid } from 'uuid';
 
@@ -41,6 +41,83 @@ const getPayoutItemNote = (expense: Expense): string => {
   }
 
   return result;
+};
+
+/**
+ * Puts a scheduled payout back to APPROVED, so that another admin can schedule it again, and says why in its
+ * activity.
+ */
+const unschedulePayout = async (expense: Expense, reason: string): Promise<void> => {
+  logger.warn(`PayPal: not paying scheduled expense #${expense.id}: ${reason}`);
+  await expense.update({ status: status.APPROVED });
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT, null, {
+    isSystem: true,
+    message: reason,
+  });
+};
+
+/**
+ * The hourly cron pays the PayPal payouts that are scheduled for payment, without anyone else involved. Right before
+ * paying, it checks again that each of them is still authorized:
+ * - The admin who scheduled it (the user of its last `COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT` activity) is still
+ *   an admin of the host. Removing a compromised admin also stops the payouts they scheduled.
+ * - The collective can still cover it. The balance can go down after scheduling, with a refund or a dispute.
+ *
+ * The payouts that are not authorized anymore go back to APPROVED.
+ *
+ * @returns the expenses to pay
+ */
+export const checkScheduledPayoutsBeforePaying = async (host: Collective, expenses: Expense[]): Promise<Expense[]> => {
+  const stillAuthorized: Expense[] = [];
+  for (const expense of expenses) {
+    const scheduledActivity = await models.Activity.findOne({
+      where: { ExpenseId: expense.id, type: activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT },
+      order: [
+        ['createdAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
+    });
+    const scheduledBy = scheduledActivity?.UserId && (await models.User.findByPk(scheduledActivity.UserId));
+    if (!scheduledBy) {
+      await unschedulePayout(expense, 'Could not find the admin who scheduled this payout');
+      continue;
+    }
+
+    await scheduledBy.populateRoles();
+    if (!scheduledBy.isAdmin(host.id)) {
+      await unschedulePayout(expense, 'The admin who scheduled this payout is no longer an admin of the host');
+      continue;
+    }
+
+    stillAuthorized.push(expense);
+  }
+
+  // The balance with blocked funds already sets aside every expense scheduled for payment, these ones included: what
+  // is available for them is that balance plus their own amounts. They are paid in the order they were created.
+  const toPay: Expense[] = [];
+  const byCollective = Object.values(groupBy(stillAuthorized, 'CollectiveId'));
+  for (const collectiveExpenses of byCollective) {
+    const collective = collectiveExpenses[0].collective || (await collectiveExpenses[0].getCollective());
+    const amountsInCollectiveCurrency = new Map<number, number>();
+    for (const expense of collectiveExpenses) {
+      const fxRate = await getFxRate(expense.currency, collective.currency);
+      amountsInCollectiveCurrency.set(expense.id, roundCentsAmount(expense.amount * fxRate, collective.currency));
+    }
+
+    const balanceWithBlockedFunds = await collective.getBalanceWithBlockedFunds();
+    let available = balanceWithBlockedFunds + sum([...amountsInCollectiveCurrency.values()]);
+    for (const expense of sortBy(collectiveExpenses, 'id')) {
+      const amount = amountsInCollectiveCurrency.get(expense.id);
+      if (amount > available) {
+        await unschedulePayout(expense, 'The collective does not have enough funds to pay this expense anymore');
+      } else {
+        available -= amount;
+        toPay.push(expense);
+      }
+    }
+  }
+
+  return toPay;
 };
 
 export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> => {

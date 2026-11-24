@@ -28,7 +28,16 @@ export async function run(): Promise<void> {
       logger.info(
         `Paying collective ${currencyBatch[0].CollectiveId} batch with ${currencyBatch.length} expense(s) in ${currencyBatch[0].currency}...`,
       );
-      await paypal.payExpensesBatch(currencyBatch).catch(console.error);
+      try {
+        // Paid without anyone else involved: check again that the payouts are still authorized
+        const host = await currencyBatch[0].collective.getHostCollective();
+        const expensesToPay = await paypal.checkScheduledPayoutsBeforePaying(host, currencyBatch);
+        if (expensesToPay.length > 0) {
+          await paypal.payExpensesBatch(expensesToPay);
+        }
+      } catch (e) {
+        logger.error(`Error paying PayPal batch for collective ${currencyBatch[0].CollectiveId}`, e);
+      }
     }
   }
   logger.info('Done!');

@@ -609,6 +609,9 @@ const updateBatchGroup = async (batchGroup: BatchGroup): Promise<void> => {
   );
 };
 
+/** What is stored, under the Wise approval code, while a batch payment waits for the admin to approve it */
+type PendingBatchGroupApproval = { batchGroupId: BatchGroup['id']; UserId: number };
+
 async function payExpensesBatchGroup({
   host,
   expenses,
@@ -666,7 +669,9 @@ async function payExpensesBatchGroup({
     const fundResponse = await transferwise.fundBatchGroup(token, profileId, batchGroup.id);
     if ('status' in fundResponse && 'headers' in fundResponse) {
       const cacheKey = `transferwise_ott_${fundResponse.headers['x-2fa-approval']}`;
-      await sessionCache.set(cacheKey, batchGroup.id, 30 * 60);
+      // The approval code can only be used by the admin who went through the 2FA check to send the batch
+      const pendingApproval: PendingBatchGroupApproval = { batchGroupId: batchGroup.id, UserId: remoteUser.id };
+      await sessionCache.set(cacheKey, pendingApproval, 30 * 60);
     }
     return fundResponse;
   } catch (e) {
@@ -694,10 +699,14 @@ async function approveExpenseBatchGroupPayment({
   const token = await transferwise.getToken(connectedAccount);
   try {
     const cacheKey = `transferwise_ott_${x2faApproval}`;
-    const batchGroupId = await sessionCache.get(cacheKey);
-    if (!batchGroupId) {
+    const pendingApproval: PendingBatchGroupApproval | string | undefined = await sessionCache.get(cacheKey);
+    // Codes stored before the approval was bound to a user (a plain batch group id) are not accepted
+    if (!pendingApproval || typeof pendingApproval !== 'object' || !pendingApproval.batchGroupId) {
       throw new Error('Invalid or expired OTT approval code');
+    } else if (pendingApproval.UserId !== remoteUser.id) {
+      throw new Forbidden('This batch payment can only be approved by the admin who started it');
     }
+    const { batchGroupId } = pendingApproval;
     const batchGroup = (await transferwise.fundBatchGroup(token, profileId, batchGroupId, x2faApproval)) as BatchGroup;
     await sessionCache.delete(cacheKey);
     await updateBatchGroup(batchGroup);

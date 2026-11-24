@@ -3,14 +3,22 @@ import type Express from 'express';
 
 import { Service } from '../constants/connected-account';
 import expenseStatus from '../constants/expense-status';
-import { getExpenseFees, setTransferWiseExpenseAsProcessing } from '../graphql/common/expenses';
+import {
+  enforcePayout2FA,
+  ExpensePayout2FALimitCount,
+  getExpenseFees,
+  releaseExpensePayout2FALimit,
+  setTransferWiseExpenseAsProcessing,
+} from '../graphql/common/expenses';
 import { checkRemoteUserCanUseExpenses } from '../graphql/common/scope-check';
 import { fetchAccountWithReference } from '../graphql/v2/input/AccountReferenceInput';
 import { fetchExpenseWithReference } from '../graphql/v2/input/ExpenseReferenceInput';
+import { convertToCurrency } from '../lib/currency';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import { simulateTransferSuccess } from '../lib/transferwise';
+import twoFactorAuthLib from '../lib/two-factor-authentication';
 import { wiseIdsEqual } from '../lib/wise-id';
 import models, { Op } from '../models';
 import transferwise from '../paymentProviders/transferwise';
@@ -38,6 +46,33 @@ const getErrorStatusCode = (e: unknown): number => {
   }
 };
 
+/** 2FA errors are sent as JSON, in the format the frontend expects to prompt for a code and retry */
+const send2FAError = (e: unknown, res: Express.Response): boolean => {
+  const extensions =
+    typeof e === 'object' && e !== null && 'extensions' in e
+      ? (e.extensions as { code?: string; supportedMethods?: unknown; authenticationOptions?: unknown })
+      : undefined;
+  if (extensions?.code === '2FA_REQUIRED') {
+    res.status(401).send({
+      message: (e as Error).message,
+      supportedMethods: extensions.supportedMethods,
+      authenticationOptions: extensions.authenticationOptions,
+    });
+    return true;
+  } else if (extensions?.code === 'INVALID_2FA_CODE') {
+    res.status(401).send({ message: (e as Error).message });
+    return true;
+  }
+
+  return false;
+};
+
+/** The amount the batch takes out of the host's account, for the payout 2FA rolling limit */
+const getBatchTotalInHostCurrency = async (host, expenses): Promise<number> => {
+  const amounts = await Promise.all(expenses.map(e => convertToCurrency(e.amount, e.currency, host.currency)));
+  return amounts.reduce((total, amount) => total + Number(amount), 0);
+};
+
 const processPaidExpense = (host, remoteUser, batchGroup: BatchGroup) => async expense => {
   try {
     await expense.reload();
@@ -61,6 +96,7 @@ export async function payBatch(
   req: Express.Request<Record<string, string>, unknown, { expenseIds: Array<string>; hostId: string }>,
   res: Express.Response,
 ): Promise<void> {
+  let countedTowards2FARollingLimit: ExpensePayout2FALimitCount | null = null;
   try {
     const { remoteUser, headers, body } = req;
     if (!remoteUser) {
@@ -110,17 +146,31 @@ export async function payBatch(
     }
     const x2faApproval = headers['x-2fa-approval'] as string;
 
-    const fundResponse = x2faApproval
-      ? // Forward OTT response if included
-        await transferwise.approveExpenseBatchGroupPayment({ host, x2faApproval, remoteUser })
-      : // Otherwise, send the list of Expenses to pay the batch
-        await transferwise.payExpensesBatchGroup({ host, expenses, remoteUser });
+    let fundResponse: Awaited<ReturnType<typeof transferwise.payExpensesBatchGroup>>;
+    if (x2faApproval) {
+      // The payout 2FA check ran when the batch was sent to Wise, and the approval code it got back can only be used
+      // by the same admin. The host's 2FA policy still applies.
+      await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
+      fundResponse = await transferwise.approveExpenseBatchGroupPayment({ host, x2faApproval, remoteUser });
+    } else {
+      // Paying the batch is what moves the money, so it goes through the payout 2FA check for its total
+      const totalInHostCurrency = await getBatchTotalInHostCurrency(host, expenses);
+      countedTowards2FARollingLimit = await enforcePayout2FA(
+        req,
+        host,
+        { amount: totalInHostCurrency, currency: host.currency },
+        { isAutomatedPayout: true },
+      );
+      fundResponse = await transferwise.payExpensesBatchGroup({ host, expenses, remoteUser });
+    }
 
     // If OTT response, proxy it to the frontend and return early
     if ('status' in fundResponse && 'headers' in fundResponse) {
+      countedTowards2FARollingLimit = null; // Waiting for approval: stays counted
       res.setHeader('x-2fa-approval', fundResponse.headers['x-2fa-approval']);
       res.sendStatus(fundResponse.status);
     } else if (fundResponse.status === 'COMPLETED') {
+      countedTowards2FARollingLimit = null; // Paid: stays counted, whatever happens next
       // Mark expenses as paid and create transactions
       await Promise.all(expenses.map(processPaidExpense(host, remoteUser, fundResponse)));
       // Send 200 to the frontend
@@ -147,6 +197,13 @@ export async function payBatch(
       throw new Error(`Could not pay for batch group #${fundResponse.id}, please contact support.`);
     }
   } catch (e) {
+    // The batch was not paid: its amount does not count towards the rolling limit. A batch that Wise asked to approve
+    // stays counted, even if the admin never approves it.
+    await releaseExpensePayout2FALimit(req, countedTowards2FARollingLimit);
+    if (send2FAError(e, res)) {
+      return;
+    }
+
     logger.error('Error paying Wise batch group', e);
     reportErrorToSentry(e);
     const message = e.message || 'An error occurred while processing the Wise batch payment.';

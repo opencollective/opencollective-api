@@ -16,6 +16,7 @@ import { TransactionTypes } from '../../constants/transactions';
 import models, { Activity, Collective } from '../../models';
 import { CommentType } from '../../models/Comment';
 import { ExpenseStatus } from '../../models/Expense';
+import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import User from '../../models/User';
 import emailLib from '../email';
 import logger from '../logger';
@@ -563,6 +564,18 @@ export const notifyByEmail = async (activity: Activity) => {
             template: 'collective.expense.paid.for.host',
           });
         }
+      }
+      break;
+
+    case ActivityTypes.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT:
+      // PayPal payouts are sent by the hourly cron without anyone else involved: let the other host admins know, so
+      // that they can unschedule one they did not expect before it goes out
+      if (activity.data.payoutMethod?.type === PayoutMethodTypes.PAYPAL && get(activity, 'data.host.id')) {
+        await notify.collective(activity, {
+          collectiveId: activity.data.host.id,
+          template: 'collective.expense.scheduledForPayment.for.host',
+          exclude: [activity.UserId],
+        });
       }
       break;
 
