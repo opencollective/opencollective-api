@@ -21,7 +21,7 @@ import { CollectiveType } from '../../../../constants/collectives';
 import { SupportedCurrency } from '../../../../constants/currencies';
 import OrderStatuses from '../../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
-import { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
+import MemberRoles, { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import { DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
@@ -538,6 +538,17 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     }
   }
 
+  // The user behind an incognito contribution (`Orders.CreatedByUserId`) must stay hidden. Mirroring `Order.createdByAccount`,
+  // it can only be revealed to root, the admins of the incognito profile (the contributor themselves) and the admins or
+  // accountants of the recipient's fiscal host. Filtering by creator (`createdBy`, `createdByUsers`) must apply the same rule.
+  const restrictIncognitoCreators = !isRemoteUserRoot(req);
+  const incognitoCreatorAccess = {
+    fromCollectiveIds: req.remoteUser ? Array.from(req.remoteUser.getCollectiveIdsForRoles([MemberRoles.ADMIN])) : [],
+    hostCollectiveIds: req.remoteUser
+      ? Array.from(req.remoteUser.getCollectiveIdsForRoles([MemberRoles.ADMIN, MemberRoles.ACCOUNTANT]))
+      : [],
+  };
+
   const isCollectiveAdmin = req.remoteUser?.isAdminOfCollective(account);
   const isHostAdmin = account?.hasMoneyManagement && isCollectiveAdmin;
   const parsedSearchTerm = parseSearchTerm(args.searchTerm);
@@ -999,7 +1010,19 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     .$if(!args.expectedFundsFilter && isEmpty(args.status), qb =>
       qb.where('Orders.status', '!=', OrderStatuses.PENDING),
     )
-    .$if(!isEmpty(createdByUsers), qb => qb.where('Orders.CreatedByUserId', 'in', uniq(createdByUsers.map(u => u.id))));
+    .$if(!isEmpty(createdByUsers), qb => qb.where('Orders.CreatedByUserId', 'in', uniq(createdByUsers.map(u => u.id))))
+    .$if(!isEmpty(createdByUsers) && restrictIncognitoCreators, qb =>
+      qb.where(({ eb, or }) => {
+        const ors: Expression<SqlBool>[] = [eb('fromCollective.isIncognito', '=', false)];
+        if (incognitoCreatorAccess.fromCollectiveIds.length) {
+          ors.push(eb('Orders.FromCollectiveId', 'in', incognitoCreatorAccess.fromCollectiveIds));
+        }
+        if (incognitoCreatorAccess.hostCollectiveIds.length) {
+          ors.push(eb('collective.HostCollectiveId', 'in', incognitoCreatorAccess.hostCollectiveIds));
+        }
+        return or(ors);
+      }),
+    );
 
   // An exact total has to visit every matching order: seconds for a host with more than a million of them. With
   // `maxTotalCount`, the count stops after that many orders (+ 1, to know whether there are more).
@@ -1084,26 +1107,54 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         collectiveConditions.push(accountConditions);
       }
 
-      if (fromCollectiveConditions.length) {
-        ordersInclude.push({
+      // Same visibility rule as `nodes` for orders to private accounts
+      if (shouldApplyPrivateRecipientVisibilityFilter) {
+        const privateRecipientOrs: WhereOptions[] = [{ isPrivate: false }];
+        if (req.remoteUser) {
+          const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
+          if (directAccess.length > 0) {
+            privateRecipientOrs.push(
+              { id: { [Op.in]: directAccess } },
+              { ParentCollectiveId: { [Op.in]: directAccess } },
+              { HostCollectiveId: { [Op.in]: directAccess } },
+            );
+          }
+        }
+        collectiveConditions.push({ [Op.or]: privateRecipientOrs });
+      }
+
+      // Both accounts are always joined, as they're needed to hide the creators of incognito contributions
+      ordersInclude.push(
+        {
           association: 'fromCollective',
           required: true,
           attributes: [],
-          where: {
-            [Op.and]:
-              fromCollectiveConditions.length === 1 ? fromCollectiveConditions : { [Op.or]: fromCollectiveConditions },
-          },
-        });
-      }
-      if (collectiveConditions.length) {
-        ordersInclude.push({
+          ...(fromCollectiveConditions.length ? { where: { [Op.and]: fromCollectiveConditions } } : {}),
+        },
+        {
           association: 'collective',
           required: true,
           attributes: [],
-          where: {
-            [Op.and]: collectiveConditions.length === 1 ? collectiveConditions : { [Op.or]: collectiveConditions },
-          },
-        });
+          ...(collectiveConditions.length ? { where: { [Op.and]: collectiveConditions } } : {}),
+        },
+      );
+
+      // Hide the creators of incognito contributions. These conditions reference the nested joins, so they must
+      // go in the top-level WHERE (include `where`s are rendered in the JOIN ON clauses, before the nested joins).
+      const incognitoCreatorsConditions: WhereOptions[] = [];
+      if (restrictIncognitoCreators) {
+        const incognitoOrs: WhereOptions[] = [{ '$user.orders.fromCollective.isIncognito$': false }];
+        if (incognitoCreatorAccess.fromCollectiveIds.length) {
+          incognitoOrs.push({
+            '$user.orders.FromCollectiveId$': { [Op.in]: incognitoCreatorAccess.fromCollectiveIds },
+          });
+        }
+        if (incognitoCreatorAccess.hostCollectiveIds.length) {
+          incognitoOrs.push({
+            '$user.orders.collective.HostCollectiveId$': { [Op.in]: incognitoCreatorAccess.hostCollectiveIds },
+          });
+        }
+        incognitoCreatorsConditions.push({ [Op.or]: incognitoOrs });
       }
 
       const ordersWhere: WhereOptions = {};
@@ -1130,6 +1181,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         where: {
           deletedAt: null,
           ...(searchConditions.length ? { [Op.or]: searchConditions } : {}),
+          ...(incognitoCreatorsConditions.length ? { [Op.and]: incognitoCreatorsConditions } : {}),
         },
         include: [
           {
