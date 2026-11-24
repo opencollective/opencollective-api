@@ -114,6 +114,7 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   // ---- Mutations that return Account types - mutations are out of scope for the read-path audit ----
   'Mutation.createCollective': 'skipped',
   'Mutation.createIncognitoProfile': 'skipped',
+  'Mutation.createIndividual': 'skipped',
   'Mutation.createEvent': 'skipped',
   'Mutation.createFund': 'skipped',
   'Mutation.createProject': 'skipped',

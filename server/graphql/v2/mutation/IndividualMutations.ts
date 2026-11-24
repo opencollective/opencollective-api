@@ -101,11 +101,12 @@ const individualMutations = {
       let user;
       try {
         ({ user } = await createUser(
-          { ...pick(args.individual, ['name', 'legalName']), email, CreatedByUserId: req.remoteUser.id },
+          { ...pick(args.individual, ['name', 'legalName']), email },
           {
             throwIfExists: true,
             sendSignInLink: false,
-            creationRequest: { ip: req.ip, userAgent: req.header('user-agent') },
+            // Not `CreatedByUserId`: on a user profile it identifies the owner (see lib/timeline)
+            creationRequest: { ip: req.ip, userAgent: req.header('user-agent'), createdByUserId: req.remoteUser.id },
           },
         ));
       } catch (e) {

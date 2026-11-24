@@ -767,7 +767,8 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
       expect(user).to.exist;
       expect(idEncode(user.CollectiveId, IDENTIFIER_TYPES.ACCOUNT)).to.equal(individual.id);
       expect(user.collective.legalName).to.equal('Jane Legal Doe');
-      expect(user.collective.CreatedByUserId).to.equal(remoteUser.id);
+      expect(user.collective.CreatedByUserId).to.equal(user.id);
+      expect(user.data.creationRequest.createdByUserId).to.equal(remoteUser.id);
       expect(user.collective.data.requiresProfileCompletion).to.be.true;
       expect(emailSendSpy.called).to.be.false;
     });
