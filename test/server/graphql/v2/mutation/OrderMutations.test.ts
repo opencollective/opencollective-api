@@ -1591,6 +1591,58 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
     });
 
     // Moved/adapted from `test/server/paymentProviders/opencollective/collective.test.ts` + `test/server/graphql/v1/createOrder.test.js`
+    describe('Host payment method (Added Funds)', () => {
+      let hostAdmin, host, hostedCollective, otherHost, foreignCollective, hostPaymentMethod;
+
+      before(async () => {
+        hostAdmin = await fakeUser();
+        host = await fakeActiveHost({ admin: hostAdmin, currency: 'USD' });
+        hostedCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+        otherHost = await fakeActiveHost({ currency: 'USD' });
+        foreignCollective = await fakeCollective({ HostCollectiveId: otherHost.id, currency: 'USD' });
+        hostPaymentMethod = await host.getOrCreateHostPaymentMethod();
+      });
+
+      const getOrderInput = fromAccount => ({
+        quantity: 1,
+        amount: { valueInCents: 1000, currency: 'USD' },
+        frequency: 'ONETIME',
+        fromAccount: { legacyId: fromAccount.id },
+        toAccount: { legacyId: hostedCollective.id },
+        paymentMethod: { id: idEncode(hostPaymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD) },
+      });
+
+      it('cannot be used to debit an account the host admin does not own or host', async () => {
+        const result = await callCreateOrder({ order: getOrderInput(foreignCollective) }, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include("You don't have the permission to add funds from accounts");
+        const ordersCount = await models.Order.count({ where: { FromCollectiveId: foreignCollective.id } });
+        expect(ordersCount).to.eq(0);
+      });
+
+      it('cannot be used to debit an individual unrelated to the host', async () => {
+        const randomUser = await fakeUser();
+        const result = await callCreateOrder({ order: getOrderInput(randomUser.collective) }, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include("You don't have the permission to add funds from accounts");
+      });
+
+      it('cannot be used by the admin of the source account if they are not a host admin', async () => {
+        const otherCollectiveAdmin = await fakeUser();
+        const otherCollective = await fakeCollective({ admin: otherCollectiveAdmin, HostCollectiveId: otherHost.id });
+        const result = await callCreateOrder({ order: getOrderInput(otherCollective) }, otherCollectiveAdmin);
+        expect(result.errors).to.exist;
+      });
+
+      it('can still be used from an account hosted by the same host', async () => {
+        const sameHostCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+        const result = await callCreateOrder({ order: getOrderInput(sameHostCollective) }, hostAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createOrder.order.status).to.eq('PAID');
+      });
+    });
+
     describe('Collective to Collective Transactions', () => {
       const STRIPE_FEE_STUBBED_VALUE = 300;
       let sandbox,

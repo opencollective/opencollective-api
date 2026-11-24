@@ -44,7 +44,7 @@ import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency } from '../../../lib/utils';
 import models, { Op, Order } from '../../../models';
 import { checkReceiveFinancialContributions } from '../../common/features';
-import { assertOrderAmountMatchesTier } from '../../common/orders';
+import { assertOrderAmountMatchesTier, canAddFundsFromAccount } from '../../common/orders';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
@@ -215,6 +215,22 @@ export const getOrderTaxInfoFromTaxInput = (tax, fromCollective, collective, hos
 //   context: any;
 //   tags: string[];
 // };
+
+/**
+ * Returns true if the payment method input resolves to the Host payment method (opencollective/host),
+ * loading it from the database when only a reference (id/uuid) is provided.
+ */
+const isHostPaymentMethodInput = async paymentMethodInput => {
+  let { service, type } = paymentMethodInput;
+  if ((!service || !type) && (paymentMethodInput.id || paymentMethodInput.uuid)) {
+    const where = paymentMethodInput.id ? { id: paymentMethodInput.id } : { uuid: paymentMethodInput.uuid };
+    const paymentMethod = await models.PaymentMethod.findOne({ where, attributes: ['service', 'type'] });
+    service = paymentMethod?.service;
+    type = paymentMethod?.type;
+  }
+
+  return service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE && type === PAYMENT_METHOD_TYPE.HOST;
+};
 
 export async function createOrder(order, req) {
   debug('Beginning creation of order', order);
@@ -413,6 +429,17 @@ export async function createOrder(order, req) {
       fromCollective = guestProfile.collective;
       isGuest = true;
       guestToken = crypto.randomBytes(48).toString('hex');
+    }
+
+    // The host payment method ("Added Funds") bypasses balance checks and books funds on behalf of `fromCollective`.
+    // Make sure we enforce the same permissions as `addFunds` to prevent host admins from using it to debit
+    // accounts they don't own or host.
+    if (paymentRequired && order.paymentMethod && (await isHostPaymentMethodInput(order.paymentMethod))) {
+      if (!host || !canAddFundsFromAccount(fromCollective, host, req)) {
+        throw new Forbidden(
+          "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
+        );
+      }
     }
 
     // Update the contributing profile with legal name / location
