@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import config from 'config';
 import { difference, groupBy } from 'lodash';
 import type { FindAttributeOptions, GroupOption, Transaction as SequelizeTransaction } from 'sequelize';
@@ -6,6 +8,7 @@ import { QueryTypes } from 'sequelize';
 import { CollectiveType } from '../constants/collectives';
 import type { SupportedCurrency } from '../constants/currencies';
 import expenseStatus from '../constants/expense-status';
+import { POSTGRES_LOCK_NAMESPACES } from '../constants/postgres-locks';
 import { TransactionTypes } from '../constants/transactions';
 import type { Loaders } from '../graphql/loaders';
 import models, { type Collective, Op, sequelize } from '../models';
@@ -1485,10 +1488,6 @@ export async function getCurrentCollectiveTransactionStats(
   return totals;
 }
 
-// Namespace for the per-collective advisory lock that serializes operations debiting a collective's balance
-// (pg_advisory_xact_lock takes two int4 keys: this namespace + the collective id). Arbitrary but stable.
-const COLLECTIVE_BALANCE_LOCK_NAMESPACE = 20261124;
-
 /**
  * Acquires a transaction-scoped lock on the balance of `collectiveId`, released when `transaction` commits or
  * rolls back. Use it to make a "check balance, then debit" sequence atomic against concurrent debits: take
@@ -1500,14 +1499,13 @@ export async function lockCollectiveBalance(
   transaction: SequelizeTransaction,
   { timeoutMs = 15 * 1000 }: { timeoutMs?: number } = {},
 ): Promise<void> {
-  if (!transaction) {
-    throw new Error('lockCollectiveBalance must be called within a SQL transaction');
-  }
+  assert(collectiveId, 'Cannot lock the balance for account');
+  assert(transaction, 'lockCollectiveBalance must be called within a SQL transaction');
 
   await sequelize.query(`SET LOCAL lock_timeout = ${Math.max(1, Math.round(timeoutMs))}`, { transaction });
   try {
     await sequelize.query('SELECT pg_advisory_xact_lock(:namespace, :collectiveId)', {
-      replacements: { namespace: COLLECTIVE_BALANCE_LOCK_NAMESPACE, collectiveId },
+      replacements: { namespace: POSTGRES_LOCK_NAMESPACES.COLLECTIVE_BALANCE, collectiveId },
       transaction,
     });
   } catch (error) {
