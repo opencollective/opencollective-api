@@ -1,11 +1,13 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import moment from 'moment';
 import sinon from 'sinon';
 
 import OrderStatuses from '../../../../../../server/constants/order-status';
+import { TransactionKind } from '../../../../../../server/constants/transaction-kind';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../../server/graphql/v2/identifiers';
 import * as SqlSearchLib from '../../../../../../server/lib/sql-search';
-import models from '../../../../../../server/models';
+import models, { sequelize } from '../../../../../../server/models';
 import {
   fakeAccountingCategory,
   fakeActiveHost,
@@ -15,6 +17,7 @@ import {
   fakeOrder,
   fakePrivateHost,
   fakePrivateOrganization,
+  fakeTransaction,
   fakeUser,
   randStr,
 } from '../../../../../test-helpers/fake-data';
@@ -1348,6 +1351,130 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       });
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq('maxTotalCount must be at least 1');
+    });
+  });
+
+  describe('chargedDateFrom and chargedDateTo arguments', () => {
+    const chargedOrdersQuery = gql`
+      query ChargedOrders(
+        $account: AccountReferenceInput
+        $host: AccountReferenceInput
+        $oppositeAccount: AccountReferenceInput
+        $hostContext: HostContext
+        $filter: AccountOrdersFilter
+        $chargedDateFrom: DateTime
+        $chargedDateTo: DateTime
+      ) {
+        orders(
+          account: $account
+          host: $host
+          oppositeAccount: $oppositeAccount
+          hostContext: $hostContext
+          filter: $filter
+          chargedDateFrom: $chargedDateFrom
+          chargedDateTo: $chargedDateTo
+        ) {
+          totalCount
+          nodes {
+            legacyId
+          }
+        }
+      }
+    `;
+
+    const daysAgo = (days: number) => moment.utc().subtract(days, 'days').toDate();
+    const orders: Record<string, { id: number }> = {};
+    let host, collective, contributor, otherContributor;
+
+    before(async () => {
+      host = await fakeActiveHost();
+      collective = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
+      contributor = (await fakeUser()).collective;
+      otherContributor = (await fakeUser()).collective;
+
+      const contribute = async (
+        name: string,
+        transactions: {
+          createdAt: Date;
+          clearedAt?: Date;
+          kind?: TransactionKind;
+          isRefund?: boolean;
+          amount?: number;
+        }[],
+        fromCollective = contributor,
+      ) => {
+        const order = await fakeOrder({
+          CollectiveId: collective.id,
+          FromCollectiveId: fromCollective.id,
+          status: OrderStatuses.PAID,
+        });
+        for (const { createdAt, clearedAt, ...transaction } of transactions) {
+          const { id } = await fakeTransaction({
+            OrderId: order.id,
+            CollectiveId: collective.id,
+            FromCollectiveId: fromCollective.id,
+            HostCollectiveId: host.id,
+            kind: TransactionKind.CONTRIBUTION,
+            clearedAt: clearedAt || createdAt,
+            ...transaction,
+          });
+          // Sequelize sets `createdAt` on create
+          await sequelize.query(`UPDATE "Transactions" SET "createdAt" = :createdAt WHERE id = :id`, {
+            replacements: { createdAt, id },
+          });
+        }
+        orders[name] = order;
+      };
+
+      await contribute('chargedTwice', [{ createdAt: daysAgo(10) }, { createdAt: daysAgo(5) }]);
+      await contribute('addedFunds', [{ createdAt: daysAgo(10), kind: TransactionKind.ADDED_FUNDS }]);
+      await contribute('clearedInPeriod', [{ createdAt: daysAgo(50), clearedAt: daysAgo(10) }]);
+      await contribute('chargedBefore', [{ createdAt: daysAgo(60) }]);
+      await contribute('refund', [{ createdAt: daysAgo(10), isRefund: true }]);
+      await contribute('debit', [{ createdAt: daysAgo(10), amount: -1000 }]);
+      await contribute('otherKind', [{ createdAt: daysAgo(10), kind: TransactionKind.PLATFORM_TIP }]);
+      await contribute('notCharged', []);
+      await contribute('otherContributor', [{ createdAt: daysAgo(10) }], otherContributor);
+    });
+
+    const queryOrderIds = async (variables: Record<string, unknown>) => {
+      const result = await graphqlQueryV2(chargedOrdersQuery, variables);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(result.data.orders.nodes.length);
+      return result.data.orders.nodes.map(node => node.legacyId).sort();
+    };
+
+    const expectedIds = (...names: string[]) => names.map(name => orders[name].id).sort();
+
+    // Accounts scoped queries check each order's transactions, host-wide queries join the period's charged orders:
+    // both must return the same orders.
+    const scopes = {
+      'an account (incoming)': () => ({ account: { legacyId: collective.id }, filter: 'INCOMING' }),
+      'a host (hostContext ALL)': () => ({ account: { legacyId: host.id }, hostContext: 'ALL', filter: 'INCOMING' }),
+      'the host argument': () => ({ host: { legacyId: host.id } }),
+    };
+
+    for (const [scopeName, scope] of Object.entries(scopes)) {
+      it(`returns the orders charged after chargedDateFrom, for ${scopeName}`, async () => {
+        const ids = await queryOrderIds({ ...scope(), chargedDateFrom: daysAgo(30) });
+        expect(ids).to.deep.eq(expectedIds('chargedTwice', 'addedFunds', 'clearedInPeriod', 'otherContributor'));
+      });
+
+      it(`returns the orders charged between chargedDateFrom and chargedDateTo, for ${scopeName}`, async () => {
+        const ids = await queryOrderIds({ ...scope(), chargedDateFrom: daysAgo(90), chargedDateTo: daysAgo(30) });
+        expect(ids).to.deep.eq(expectedIds('chargedBefore'));
+      });
+    }
+
+    it('returns the charged orders between two accounts', async () => {
+      const ids = await queryOrderIds({
+        account: { legacyId: contributor.id },
+        oppositeAccount: { legacyId: collective.id },
+        filter: 'OUTGOING',
+        chargedDateFrom: daysAgo(30),
+      });
+      expect(ids).to.deep.eq(expectedIds('chargedTwice', 'addedFunds', 'clearedInPeriod'));
     });
   });
 
