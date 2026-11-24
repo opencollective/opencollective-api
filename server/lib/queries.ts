@@ -3,7 +3,10 @@ import { pick } from 'lodash';
 import { QueryTypes } from 'sequelize';
 
 import { TAX_FORM_IGNORED_EXPENSE_STATUSES, TAX_FORM_IGNORED_EXPENSE_TYPES } from '../constants/tax-form';
-import Collective from '../models/Collective';
+// Import models through the index (not `../models/Collective` directly): loading a model file first
+// triggers a circular import (`models/Collective` -> `models/index`) that runs associations before
+// `Collective` is defined, crashing any script that imports this file before `server/models`.
+import { Collective } from '../models';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 import { memoize } from './cache';
