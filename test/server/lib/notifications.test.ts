@@ -642,6 +642,32 @@ describe('server/lib/notification', () => {
       expect(sendEmailSpy.firstCall.args[1]).to.eq(otherHostAdmin.email);
     });
 
+    it('notifies the host admins who turned off expense notifications, unless they unsubscribed from this one', async () => {
+      const unsubscribedAdmin = await fakeUser();
+      await fakeMember({
+        CollectiveId: host.id,
+        MemberCollectiveId: unsubscribedAdmin.CollectiveId,
+        role: roles.ADMIN,
+      });
+      const unsubscribe = (user, type) =>
+        fakeNotification({
+          channel: channels.EMAIL,
+          type,
+          active: false,
+          UserId: user.id,
+          CollectiveId: host.id,
+          webhookUrl: null,
+        });
+      await unsubscribe(otherHostAdmin, 'expenses');
+      await unsubscribe(unsubscribedAdmin, 'collective.expense.scheduledForPayment.for.host');
+
+      await notifyByEmail(await fakeScheduledActivity('PAYPAL'));
+      await utils.waitForCondition(() => sendEmailSpy.callCount >= 1);
+
+      expect(sendEmailSpy.callCount).to.eq(1);
+      expect(sendEmailSpy.firstCall.args[1]).to.eq(otherHostAdmin.email);
+    });
+
     it('does not notify for Wise payouts, which are only sent when the batch is paid', async () => {
       await notifyByEmail(await fakeScheduledActivity('BANK_ACCOUNT'));
       await utils.sleep(100);

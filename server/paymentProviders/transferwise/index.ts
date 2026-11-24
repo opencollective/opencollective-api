@@ -641,23 +641,29 @@ async function payExpensesBatchGroup({
     else if (['MARKED_FOR_CANCELLATION', 'PROCESSING_CANCEL', 'CANCELLED'].includes(batchGroup.status)) {
       throw new Error(`Can not pay batch group, existing batch group was cancelled`);
     }
-    // If it is new, check if the expenses match the batch group and mark it as completed
-    else if (batchGroup.status === 'NEW') {
-      const expenseTransferIds = normalizeWiseIdList(expenses.map(e => e.data.transfer.id));
-      if (difference(normalizeWiseIdList(batchGroup.transferIds), expenseTransferIds).length > 0) {
-        throw new Error(`Expenses requested do not match the transfers added to batch group ${batchGroup.id}`);
+
+    // The expenses must be the ones of the batch group, whatever its status: the whole group is funded, and the
+    // payout 2FA check was made for the total of these expenses
+    const expenseTransferIds = normalizeWiseIdList(expenses.map(e => e.data.transfer.id));
+    if (difference(normalizeWiseIdList(batchGroup.transferIds), expenseTransferIds).length > 0) {
+      throw new Error(`Expenses requested do not match the transfers added to batch group ${batchGroup.id}`);
+    }
+    expenses.forEach(expense => {
+      if (expense.data.batchGroup.id !== batchGroup.id) {
+        throw new Error(
+          `All expenses should belong to the same batch group. Unschedule expense ${expense.id} and try again`,
+        );
       }
+      if (!wiseIdListIncludes(batchGroup.transferIds, expense.data.transfer.id)) {
+        throw new Error(`Batch group ${batchGroup.id} does not include expense ${expense.id}`);
+      }
+    });
+
+    // If it is new, check the quotes and mark it as completed
+    if (batchGroup.status === 'NEW') {
       expenses.forEach(expense => {
-        if (expense.data.batchGroup.id !== batchGroup.id) {
-          throw new Error(
-            `All expenses should belong to the same batch group. Unschedule expense ${expense.id} and try again`,
-          );
-        }
         if (moment().isSameOrAfter(expense.data.quote.expirationTime)) {
           throw new Error(`Expense ${expense.id} quote expired. Unschedule expense and try again`);
-        }
-        if (!wiseIdListIncludes(batchGroup.transferIds, expense.data.transfer.id)) {
-          throw new Error(`Batch group ${batchGroup.id} does not include expense ${expense.id}`);
         }
       });
 

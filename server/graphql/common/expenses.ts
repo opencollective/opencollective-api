@@ -1829,7 +1829,7 @@ async function checkExpensePayout2FALimit(
 
   try {
     if (!(await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
-      throw new Error('Host has two-factor authentication enabled for large payouts.');
+      throw new Forbidden('Host has two-factor authentication enabled for large payouts.');
     }
 
     await twoFactorAuthLib.validateRequest(req, {

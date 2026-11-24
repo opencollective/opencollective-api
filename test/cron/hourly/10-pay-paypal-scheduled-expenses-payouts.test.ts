@@ -6,7 +6,7 @@ import activities from '../../../server/constants/activities';
 import status from '../../../server/constants/expense-status';
 import MemberRoles from '../../../server/constants/roles';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
-import models from '../../../server/models';
+import models, { sequelize } from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import * as paypal from '../../../server/paymentProviders/paypal/payouts';
 import {
@@ -55,8 +55,15 @@ describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
     return { host, hostAdmin, collective };
   };
 
-  /** A PayPal expense scheduled for payment by `scheduledBy`, as `scheduleExpenseForPayment` does */
-  const fakeScheduledExpense = async (collective, scheduledBy, expenseData = {}) => {
+  /**
+   * A PayPal expense scheduled for payment by `scheduledBy`, as `scheduleExpenseForPayment` does. It was scheduled an
+   * hour ago, unless `justScheduled` is set.
+   */
+  const fakeScheduledExpense = async (
+    collective,
+    scheduledBy,
+    { justScheduled = false, ...expenseData }: { justScheduled?: boolean; type?: string } = {},
+  ) => {
     const payoutMethod = await fakePaypalPayoutMethod();
     const expense = await fakeExpense({
       status: status.SCHEDULED_FOR_PAYMENT,
@@ -73,6 +80,12 @@ describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
         ExpenseId: expense.id,
         CollectiveId: collective.id,
         UserId: scheduledBy.id,
+      });
+    }
+
+    if (!justScheduled) {
+      await sequelize.query(`UPDATE "Expenses" SET "updatedAt" = NOW() - INTERVAL '1 hour' WHERE "id" = :id`, {
+        replacements: { id: expense.id },
       });
     }
 
@@ -149,5 +162,51 @@ describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
     expect(expenses[2].status).to.eq(status.APPROVED);
     const activity = await getUnscheduledActivity(expenses[2]);
     expect(activity.data.message).to.eq('The collective does not have enough funds to pay this expense anymore');
+  });
+
+  it('leaves alone a payout scheduled seconds ago that has no record yet of who scheduled it', async () => {
+    const { collective } = await fakeHostAndCollective();
+    const expense = await fakeScheduledExpense(collective, null, { justScheduled: true });
+
+    await payPaypalScheduledExpenses();
+
+    expect(payExpensesBatch.called).to.be.false;
+    await expense.reload();
+    expect(expense.status).to.eq(status.SCHEDULED_FOR_PAYMENT);
+    expect(await getUnscheduledActivity(expense)).to.be.null;
+  });
+
+  it('pays settlements and platform bills whatever the balance, like when scheduling', async () => {
+    const { hostAdmin, collective } = await fakeHostAndCollective({ balance: 0 });
+    const settlement = await fakeScheduledExpense(collective, hostAdmin, { type: 'SETTLEMENT' });
+    const platformBill = await fakeScheduledExpense(collective, hostAdmin, { type: 'PLATFORM_BILLING' });
+    const invoice = await fakeScheduledExpense(collective, hostAdmin);
+
+    await payPaypalScheduledExpenses();
+
+    expect(getPaidExpenseIds()).to.have.members([settlement.id, platformBill.id]);
+    await invoice.reload();
+    expect(invoice.status).to.eq(status.APPROVED);
+  });
+
+  it('does not pay nor touch expenses that are not scheduled for payment anymore', async () => {
+    const { host, collective } = await fakeHostAndCollective();
+    // No record of who scheduled them: they would be put back to APPROVED if they were still scheduled
+    const rejected = await fakeScheduledExpense(collective, null);
+    const unscheduled = await fakeScheduledExpense(collective, null);
+    const loadedByCron = await models.Expense.findAll({
+      where: { id: [rejected.id, unscheduled.id] },
+      include: [{ model: models.Collective, as: 'collective' }],
+    });
+    await rejected.update({ status: status.REJECTED });
+    await unscheduled.update({ status: status.APPROVED });
+
+    const toPay = await paypal.checkScheduledPayoutsBeforePaying(host, loadedByCron);
+
+    expect(toPay).to.be.empty;
+    await rejected.reload();
+    expect(rejected.status).to.eq(status.REJECTED);
+    expect(await getUnscheduledActivity(rejected)).to.be.null;
+    expect(await getUnscheduledActivity(unscheduled)).to.be.null;
   });
 });

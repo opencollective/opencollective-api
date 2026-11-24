@@ -571,11 +571,27 @@ export const notifyByEmail = async (activity: Activity) => {
       // PayPal payouts are sent by the hourly cron without anyone else involved: let the other host admins know, so
       // that they can unschedule one they did not expect before it goes out
       if (activity.data.payoutMethod?.type === PayoutMethodTypes.PAYPAL && get(activity, 'data.host.id')) {
-        await notify.collective(activity, {
-          collectiveId: activity.data.host.id,
-          template: 'collective.expense.scheduledForPayment.for.host',
-          exclude: [activity.UserId],
+        const template = 'collective.expense.scheduledForPayment.for.host';
+        const host = await models.Collective.findByPk(activity.data.host.id);
+        const admins = host ? await host.getMembersUsers({ role: [roles.ADMIN] }) : [];
+        // A security alert: it does not follow the admins' settings for expense notifications, only its own
+        // unsubscribe link
+        const unsubscribed = await models.Notification.findAll({
+          attributes: ['UserId'],
+          where: {
+            type: template,
+            channel: Channels.EMAIL,
+            active: false,
+            CollectiveId: host?.id ?? null,
+            UserId: admins.map(admin => admin.id),
+          },
         });
+        const unsubscribedUserIds = unsubscribed.map(notification => notification.UserId);
+        for (const user of admins) {
+          if (user.id !== activity.UserId && !unsubscribedUserIds.includes(user.id)) {
+            await notify.user(activity, { user, collective: host, template, skipUnsubscribedCheck: true });
+          }
+        }
       }
       break;
 
