@@ -76,7 +76,7 @@
     "gqlmin": "0.3.2",
     "graphql": "17.1.0",
     "graphql-scalars": "2.0.1",
-    "graphql-upload": "18.0.2",
+    "graphql-upload": "18.0.3",
     "handlebars": "4.7.10",
     "hashids": "2.3.0",
     "hcaptcha": "0.2.0",
