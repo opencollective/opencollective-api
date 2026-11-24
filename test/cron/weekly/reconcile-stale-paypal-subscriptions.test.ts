@@ -8,6 +8,7 @@ import { run } from '../../../cron/weekly/reconcile-stale-paypal-subscriptions';
 import ActivityTypes from '../../../server/constants/activities';
 import OrderStatuses from '../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
+import { TransactionKind } from '../../../server/constants/transaction-kind';
 import emailLib from '../../../server/lib/email';
 import models from '../../../server/models';
 import * as PaypalAPI from '../../../server/paymentProviders/paypal/api';
@@ -17,6 +18,7 @@ import {
   fakeHost,
   fakeOrder,
   fakePaymentMethod,
+  fakeTransaction,
   randStr,
 } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
@@ -239,6 +241,40 @@ describe('cron/weekly/reconcile-stale-paypal-subscriptions', () => {
     expect(sentEmails).to.eq(0);
     expect(paypalRequestStub.called).to.be.false;
 
+    await order.reload();
+    expect(order.status).to.eq('ACTIVE');
+  });
+
+  it('queries the PayPal account of the host that charges the subscription, not the current host', async () => {
+    const { host: chargingHost, collective, order } = await createStaleContribution();
+    await fakeTransaction({
+      OrderId: order.id,
+      CollectiveId: collective.id,
+      HostCollectiveId: chargingHost.id,
+      kind: TransactionKind.CONTRIBUTION,
+      type: 'CREDIT',
+      amount: 1000,
+    });
+
+    // Collective moved to a new host since the last charge
+    const newHost = await fakeHost();
+    await fakeConnectedAccount({ CollectiveId: newHost.id, service: 'paypal', token: 'other-paypal-token' });
+    await collective.update({ HostCollectiveId: newHost.id });
+    paypalRequestStub.resolves({ id: order.Subscription.paypalSubscriptionId, status: 'ACTIVE' });
+
+    await runAndIsolateEmails({ limitedToOrderIds: [order.id] });
+
+    expect(paypalRequestStub.calledOnce).to.be.true;
+    expect(paypalRequestStub.firstCall.args[2].id).to.eq(chargingHost.id);
+  });
+
+  it('skips contributions whose PayPal host is not connected anymore', async () => {
+    const { host, order } = await createStaleContribution();
+    await models.ConnectedAccount.destroy({ where: { CollectiveId: host.id } });
+
+    await runAndIsolateEmails({ limitedToOrderIds: [order.id] });
+
+    expect(paypalRequestStub.called).to.be.false;
     await order.reload();
     expect(order.status).to.eq('ACTIVE');
   });
