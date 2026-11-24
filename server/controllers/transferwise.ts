@@ -213,6 +213,7 @@ export async function payBatch(
       reportErrorToSentry(e);
     }
     const message = e.message || 'An error occurred while processing the Wise batch payment.';
-    res.status(statusCode).send(message).end();
+    // Sent as plain text: the message can hold text that comes from the request or from Wise
+    res.status(statusCode).setHeader('Content-Type', 'text/plain').send(message).end();
   }
 }
