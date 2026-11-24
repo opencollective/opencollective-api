@@ -803,6 +803,18 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
       expect(result.errors[0].message).to.equal('Email is required');
     });
 
+    it('fails when the email is malformed', async () => {
+      const remoteUser = await fakeUser();
+      const result = await graphqlQueryV2(
+        createIndividualMutation,
+        { individual: { email: 'not-an-email' } },
+        remoteUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('ValidationFailed');
+      expect(result.errors[0].message).to.equal('Email must be valid');
+    });
+
     it('is not allowed with a personal token', async () => {
       const remoteUser = await fakeUser();
       const personalToken = await fakePersonalToken({ user: remoteUser, scope: [OAuthScopes.account] });

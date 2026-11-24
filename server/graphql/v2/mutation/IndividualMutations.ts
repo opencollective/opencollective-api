@@ -6,7 +6,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 import { pick } from 'lodash';
-import { UniqueConstraintError } from 'sequelize';
+import { UniqueConstraintError, ValidationError } from 'sequelize';
 
 import * as auth from '../../../lib/auth';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
@@ -111,6 +111,9 @@ const individualMutations = {
       } catch (e) {
         if (e instanceof UniqueConstraintError) {
           throw new ValidationFailed('An account already exists for this email', 'EMAIL_ALREADY_EXISTS');
+        } else if (e instanceof ValidationError) {
+          // Model validators, e.g. a malformed email
+          throw new ValidationFailed(e.errors[0]?.message || e.message);
         }
         throw e;
       }
