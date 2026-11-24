@@ -41,6 +41,8 @@ const getErrorStatusCode = (e: unknown): number => {
       return 403;
     case 'NotFound':
       return 404;
+    case 'RateLimitExceeded':
+      return 429;
     default:
       return 500;
   }
@@ -205,8 +207,12 @@ export async function payBatch(
     }
 
     logger.error('Error paying Wise batch group', e);
-    reportErrorToSentry(e);
+    const statusCode = getErrorStatusCode(e);
+    // Refused requests are expected, like too many 2FA attempts or an admin without 2FA on a host that requires it
+    if (statusCode >= 500) {
+      reportErrorToSentry(e);
+    }
     const message = e.message || 'An error occurred while processing the Wise batch payment.';
-    res.status(getErrorStatusCode(e)).send(message).end();
+    res.status(statusCode).send(message).end();
   }
 }

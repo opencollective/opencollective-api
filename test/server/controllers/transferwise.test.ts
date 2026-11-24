@@ -255,6 +255,17 @@ describe('server/controllers/transferwise', () => {
       expect(payExpensesBatchGroup.called).to.be.false;
     });
 
+    it('refuses host admins without 2FA when the host has the payouts rolling limit', async () => {
+      await host.update({
+        settings: { ...host.settings, payoutsTwoFactorAuth: { enabled: true, rollingLimit: 500_00 } },
+      });
+      await transferwiseController.payBatch(req, res);
+
+      expect(res.status.firstCall.firstArg).to.equal(403);
+      expect(res.send.firstCall.firstArg).to.equal('Host has two-factor authentication enabled for large payouts.');
+      expect(payExpensesBatchGroup.called).to.be.false;
+    });
+
     describe('with the payouts rolling limit', () => {
       let secret;
 
@@ -280,6 +291,18 @@ describe('server/controllers/transferwise', () => {
         await transferwiseController.payBatch(req, res);
 
         expect(res.status.firstCall.firstArg).to.equal(401);
+        expect(payExpensesBatchGroup.called).to.be.false;
+      });
+
+      it('answers 429 after too many invalid 2FA codes', async () => {
+        req.headers[TwoFactorAuthenticationHeader] = 'totp 000000';
+        for (let i = 0; i < 10; i++) {
+          await transferwiseController.payBatch(req, res);
+        }
+
+        res.status.resetHistory();
+        await transferwiseController.payBatch(req, res);
+        expect(res.status.firstCall.firstArg).to.equal(429);
         expect(payExpensesBatchGroup.called).to.be.false;
       });
 

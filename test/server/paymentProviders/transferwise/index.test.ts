@@ -891,6 +891,17 @@ describe('server/paymentProviders/transferwise/index', () => {
         `Expenses requested do not match the transfers added to batch group ${batchGroupId}`,
       );
     });
+
+    it('should throw if the expenses do not cover a batch group that is completed but not paid for', async () => {
+      fundBatchGroup.resetHistory();
+      getBatchGroup.resolves({ id: batchGroupId, version: 2, transferIds: [800, 546], status: 'COMPLETED' });
+      const call = transferwise.payExpensesBatchGroup({ host, expenses: [expense], remoteUser: hostAdmin });
+      await expect(call).to.be.eventually.rejectedWith(
+        Error,
+        `Expenses requested do not match the transfers added to batch group ${batchGroupId}`,
+      );
+      expect(fundBatchGroup.called).to.be.false;
+    });
   });
 
   describe('getRequiredBankInformation', () => {
