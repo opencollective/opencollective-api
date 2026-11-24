@@ -729,20 +729,14 @@ export const generateLoaders = req => {
           }: { currency?: SupportedCurrency; includeChildren?: boolean } = {}) {
             const key = `activeRecurringContributions-${currency}-${includeChildren}`;
             if (!cachedLoaders[key]) {
-              const collectiveIdCol = !includeChildren
-                ? 'CollectiveId'
-                : sequelize.fn(
-                    'COALESCE',
-                    sequelize.col('collective.ParentCollectiveId'),
-                    sequelize.col('collective.id'),
-                  );
               cachedLoaders[key] = new DataLoader<
                 number,
                 { CollectiveId: number; monthly: number; monthlyCount: number; yearly: number; yearlyCount: number }
               >(async ids => {
                 const rows = (await Order.findAll({
                   attributes: [
-                    [collectiveIdCol, 'CollectiveId'],
+                    'CollectiveId',
+                    [sequelize.col('collective.ParentCollectiveId'), 'ParentCollectiveId'],
                     'Order.currency',
                     'Subscription.interval',
                     [sequelize.fn('COUNT', sequelize.literal(`DISTINCT "Order"."id"`)), 'count'],
@@ -759,7 +753,12 @@ export const generateLoaders = req => {
                   where: {
                     status: 'ACTIVE',
                   },
-                  group: ['Subscription.interval', collectiveIdCol, 'Order.currency'],
+                  group: [
+                    'Subscription.interval',
+                    'Order.CollectiveId',
+                    'collective.ParentCollectiveId',
+                    'Order.currency',
+                  ],
                   include: [
                     {
                       association: 'collective',
@@ -779,12 +778,12 @@ export const generateLoaders = req => {
                   raw: true,
                 })) as unknown as {
                   CollectiveId: number;
+                  ParentCollectiveId: number | null;
                   currency: string;
                   interval: string;
                   count: number;
                   total: number;
                 }[];
-                const results = groupBy(rows, 'CollectiveId');
                 return Promise.all(
                   ids.map(async collectiveId => {
                     const stats = {
@@ -794,13 +793,17 @@ export const generateLoaders = req => {
                       yearly: 0,
                       yearlyCount: 0,
                     };
-                    if (results[collectiveId]) {
-                      for (const result of results[collectiveId]) {
-                        const interval = result.interval === 'month' ? 'monthly' : 'yearly';
-                        const fxRate = await getFxRate(result.currency as SupportedCurrency, currency);
-                        stats[interval] += result.total * fxRate;
-                        stats[`${interval}Count`] += result.count;
-                      }
+                    // Rows are keyed by the order's own account, so that a child requested as its own key gets its stats too
+                    const accountRows = rows.filter(
+                      row =>
+                        row.CollectiveId === collectiveId ||
+                        (includeChildren && row.ParentCollectiveId === collectiveId),
+                    );
+                    for (const result of accountRows) {
+                      const interval = result.interval === 'month' ? 'monthly' : 'yearly';
+                      const fxRate = await getFxRate(result.currency as SupportedCurrency, currency);
+                      stats[interval] += result.total * fxRate;
+                      stats[`${interval}Count`] += result.count;
                     }
                     return stats;
                   }),
@@ -1016,7 +1019,7 @@ export const generateLoaders = req => {
         sequelize
           .query(
             `
-        SELECT o."TierId" AS "TierId", COALESCE(SUM(s."amount"), 0) AS "total"
+        SELECT o."TierId" AS "TierId", COALESCE(SUM(s."amount" - COALESCE(o."platformTipAmount", 0)), 0) AS "total"
         FROM "Orders" o
         INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
         WHERE o."TierId" IN (?)
@@ -1038,7 +1041,7 @@ export const generateLoaders = req => {
         sequelize
           .query(
             `
-        SELECT o."TierId" AS "TierId", COALESCE(SUM(s."amount"), 0) AS "total"
+        SELECT o."TierId" AS "TierId", COALESCE(SUM(s."amount" - COALESCE(o."platformTipAmount", 0)), 0) AS "total"
         FROM "Orders" o
         INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
         WHERE o."TierId" IN (?)
@@ -1065,8 +1068,8 @@ export const generateLoaders = req => {
             SUM(
               CASE
                 WHEN s."interval" = 'year'
-                  THEN s."amount"/12
-                ELSE s."amount"
+                  THEN (s."amount" - COALESCE(o."platformTipAmount", 0))/12
+                ELSE s."amount" - COALESCE(o."platformTipAmount", 0)
               END
             ), 0)
           AS "total"
