@@ -1,8 +1,7 @@
 /**
  * PostgreSQL search provider (opencollective#8937).
  *
- * These tests go through the GraphQL V2 `search` query with real PostgreSQL fixtures. They never need an
- * OpenSearch cluster: OpenSearch is reported as not configured unless a test explicitly fakes it.
+ * These tests go through the GraphQL V2 `search` query with real PostgreSQL fixtures.
  *
  * Fixtures use made-up words so that tests don't match each other's accounts.
  */
@@ -18,9 +17,6 @@ import { CollectiveType } from '../../../../../server/constants/collectives';
 import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
-import * as OpenSearchClientLib from '../../../../../server/lib/open-search/client';
-import { formatIndexNameForOpenSearch } from '../../../../../server/lib/open-search/common';
-import { OpenSearchIndexName } from '../../../../../server/lib/open-search/constants';
 import { SearchEntity } from '../../../../../server/lib/search/types';
 import { Collective, sequelize, User } from '../../../../../server/models';
 import {
@@ -107,7 +103,6 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
-    sandbox.stub(OpenSearchClientLib, 'isOpenSearchConfigured').returns(false);
   });
 
   afterEach(() => {
@@ -121,7 +116,7 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
       collective = await fakeCollective({ name: 'Zanzibar Gardening Club', slug: 'zanzibar-gardening' });
     });
 
-    it('finds an Account by name without an OpenSearch cluster', async () => {
+    it('finds an Account by name', async () => {
       const accounts = await getAccounts('zanzibar');
       expect(accounts.collection.totalCount).to.eq(1);
       expect(accounts.collection.nodes.map(n => n.slug)).to.deep.eq([collective.slug]);
@@ -129,75 +124,16 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
       expect(accounts.maxScore).to.eq(accounts.scores[0].score);
     });
 
-    it('uses OpenSearch when the backend is omitted, which requires OpenSearch to be configured', async () => {
+    it('uses PostgreSQL when the backend is omitted', async () => {
       const result = await graphqlQueryV2(accountsSearchQuery, { searchTerm: 'zanzibar' });
-      expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.match(/OpenSearch is not running|temporarily unavailable/);
+      expect(result.errors).to.not.exist;
+      expect(result.data.search.results.accounts.collection.nodes.map(n => n.slug)).to.deep.eq([collective.slug]);
     });
 
-    it('can mix providers in the same request with aliases', async () => {
-      // A fake OpenSearch that returns a single, fixed account
-      sandbox.restore();
-      sandbox = sinon.createSandbox();
-      sandbox.stub(OpenSearchClientLib, 'isOpenSearchConfigured').returns(true);
-      const otherAccount = await fakeCollective({ name: 'Unrelated OpenSearch Result' });
-      sandbox.stub(OpenSearchClientLib, 'getOpenSearchClient').returns({
-        search: async () => ({
-          body: {
-            hits: {
-              total: { value: 1, relation: 'eq' },
-              // eslint-disable-next-line camelcase
-              max_score: 42,
-              hits: [
-                {
-                  _index: formatIndexNameForOpenSearch(OpenSearchIndexName.COLLECTIVES),
-                  _id: String(otherAccount.id),
-                  _score: 42,
-                  _source: { id: otherAccount.id },
-                },
-              ],
-            },
-          },
-        }),
-      } as unknown as ReturnType<typeof OpenSearchClientLib.getOpenSearchClient>);
-
-      const result = await graphqlQueryV2(
-        gql`
-          query MixedProviders($searchTerm: String!) {
-            os: search(searchTerm: $searchTerm, backend: OPENSEARCH) {
-              results {
-                accounts {
-                  maxScore
-                  collection {
-                    totalCount
-                    nodes {
-                      slug
-                    }
-                  }
-                }
-              }
-            }
-            pg: search(searchTerm: $searchTerm, backend: POSTGRES) {
-              results {
-                accounts {
-                  collection {
-                    totalCount
-                    nodes {
-                      slug
-                    }
-                  }
-                }
-              }
-            }
-          }
-        `,
-        { searchTerm: 'zanzibar' },
-      );
-
+    it('uses PostgreSQL for the deprecated OPENSEARCH backend', async () => {
+      const result = await graphqlQueryV2(accountsSearchQuery, { searchTerm: 'zanzibar', backend: 'OPENSEARCH' });
       expect(result.errors).to.not.exist;
-      expect(result.data.os.results.accounts.maxScore).to.eq(42);
-      expect(result.data.os.results.accounts.collection.nodes.map(n => n.slug)).to.deep.eq([otherAccount.slug]);
-      expect(result.data.pg.results.accounts.collection.nodes.map(n => n.slug)).to.deep.eq([collective.slug]);
+      expect(result.data.search.results.accounts.collection.nodes.map(n => n.slug)).to.deep.eq([collective.slug]);
     });
 
     it('supports every searchable entity, each one with its own result', async () => {
@@ -270,25 +206,15 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
       sandbox.stub(config.search.postgres, 'enabled').value('false');
       const result = await searchAccounts('zanzibar');
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.include('PostgreSQL search is turned off');
+      expect(result.errors[0].message).to.include('The search is temporarily unavailable');
     });
 
-    it('requires the explicit PostgreSQL preview opt-in in production', async () => {
+    it('does not require a backend-specific opt-in in production', async () => {
       sandbox.stub(config, 'env').value('production');
       const allowedAccount = await fakeOrganization({ id: PlatformConstants.FirstPartyHostCollectiveIds[0] });
       const searchPreviewUser = await fakeUser({}, { settings: { earlyAccess: { SEARCH_COMMAND: true } } });
       await allowedAccount.addUserWithRole(searchPreviewUser, 'ADMIN');
-      const forbidden = await searchAccounts('zanzibar', {}, searchPreviewUser);
-      expect(forbidden.errors).to.exist;
-      expect(forbidden.errors[0].extensions.code).to.eq('Forbidden');
-      expect(forbidden.errors[0].message).to.include('PostgreSQL search backend');
-
-      const optedInUser = await fakeUser(
-        {},
-        { settings: { earlyAccess: { SEARCH_COMMAND: true, SEARCH_POSTGRES_BACKEND: true } } },
-      );
-      await allowedAccount.addUserWithRole(optedInUser, 'ADMIN');
-      const accounts = await getAccounts('zanzibar', {}, optedInUser);
+      const accounts = await getAccounts('zanzibar', {}, searchPreviewUser);
       expect(accounts.collection.totalCount).to.eq(1);
     });
   });

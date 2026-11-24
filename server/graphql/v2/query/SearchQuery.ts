@@ -51,7 +51,8 @@ const SearchQuery = {
     backend: {
       type: new GraphQLNonNull(GraphQLSearchBackend),
       description: 'The backend to use for this search',
-      defaultValue: SearchProvider.OPENSEARCH,
+      defaultValue: SearchProvider.POSTGRES,
+      deprecationReason: '2026-11-13: Searches always run on PostgreSQL, this argument is ignored.',
     },
     account: {
       type: GraphQLAccountReferenceInput,
@@ -83,7 +84,7 @@ const SearchQuery = {
   },
   async resolve(
     _: void,
-    { searchTerm, useTopHits, backend, ...args },
+    { searchTerm, useTopHits, ...args },
     req: express.Request,
   ): Promise<{
     results: GraphQLSearchParams;
@@ -93,13 +94,11 @@ const SearchQuery = {
       const earlyAccess = remoteUser?.collective?.settings?.earlyAccess;
       if (!earlyAccess?.['SEARCH_COMMAND'] || !(await canAccessSearch(remoteUser))) {
         throw new Forbidden();
-      } else if (backend === SearchProvider.POSTGRES && !earlyAccess['SEARCH_POSTGRES_BACKEND']) {
-        // The PostgreSQL backend is a team preview: it must be explicitly enabled (preview feature of the frontend)
-        throw new Forbidden('The PostgreSQL search backend is only available to users who enabled its preview');
       }
     }
 
-    const providerImplementation = getSearchProvider(backend);
+    const provider = SearchProvider.POSTGRES;
+    const providerImplementation = getSearchProvider(provider);
     providerImplementation.assertAvailable();
 
     // Enforce rate limiting
@@ -117,7 +116,7 @@ const SearchQuery = {
 
     // Return the base arguments that will be digested by `GraphQLSearchResponse`
     const request: SearchRequest = {
-      provider: backend,
+      provider,
       term: searchTerm,
       scope: { account: account || null, host: host || null },
       remoteUser: remoteUser || null,

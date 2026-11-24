@@ -1,8 +1,5 @@
 {
   "env": "development",
-  "opensearch": {
-    "url": "http://localhost:9200"
-  },
   "mailpit": {
     "client": true
   },

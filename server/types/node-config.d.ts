@@ -4,7 +4,7 @@ import type DefaultConfig from '../../config/default.json';
 
 type AppConfig = Omit<
   DefaultConfig,
-  'platform' | 'slack' | 'opensearch' | 'host' | 'exports' | 'graphql' | 'activities' | 'services' | 'database'
+  'platform' | 'slack' | 'host' | 'exports' | 'graphql' | 'activities' | 'services' | 'database'
 > & {
   env?: string;
   platform?: {
@@ -24,10 +24,6 @@ type AppConfig = Omit<
   host?: DefaultConfig['host'] & {
     frontend?: string;
     webhooks?: string;
-  };
-  opensearch?: DefaultConfig['opensearch'] & {
-    url?: string;
-    indexesPrefix?: string;
   };
   exports?: DefaultConfig['exports'] & {
     concurrency?: number;

@@ -236,19 +236,6 @@ jobs:
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 5
-      opensearch:
-        image: opensearchproject/opensearch:3
-        ports:
-          - 9200:9200
-        env:
-          discovery.type: single-node
-          DISABLE_INSTALL_DEMO_CONFIG: 'true'
-          DISABLE_SECURITY_PLUGIN: 'true'
-        options: >-
-          --health-cmd="curl --silent --fail http://localhost:9200/_cluster/health || exit 1"
-          --health-interval=10s
-          --health-timeout=15s
-          --health-retries=30
       rustfs:
         image: rustfs/rustfs:1.0.0-rc.6@sha256:97171b3d72cd47dc81000f92ea84de25608bfc35a94c965501afaeb5d99f6035
         ports:

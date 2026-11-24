@@ -13,9 +13,6 @@ import sinon from 'sinon';
 import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
-import * as OpenSearchClientLib from '../../../../../server/lib/open-search/client';
-import { formatIndexNameForOpenSearch } from '../../../../../server/lib/open-search/common';
-import { OpenSearchIndexName } from '../../../../../server/lib/open-search/constants';
 import { SearchEntity } from '../../../../../server/lib/search/types';
 import { Collective, sequelize, User } from '../../../../../server/models';
 import { CommentType } from '../../../../../server/models/Comment';
@@ -173,7 +170,6 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL, all entities)', () =>
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
-    sandbox.stub(OpenSearchClientLib, 'isOpenSearchConfigured').returns(false);
   });
 
   afterEach(() => {
@@ -275,75 +271,6 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL, all entities)', () =>
     const other = await searchAll(rootUser, { host: { slug: otherHost.slug } });
     expect(other.errors, JSON.stringify(other.errors)).to.not.exist;
     expect(Object.values(getTotals(other.data.search.results))).to.deep.eq(ENTITIES.map(() => 0));
-  });
-
-  it('can mix providers in the same request, each alias with its own results', async () => {
-    sandbox.restore();
-    sandbox = sinon.createSandbox();
-    sandbox.stub(OpenSearchClientLib, 'isOpenSearchConfigured').returns(true);
-    sandbox.stub(OpenSearchClientLib, 'getOpenSearchClient').returns({
-      search: async () => ({
-        body: {
-          hits: {
-            total: { value: 1, relation: 'eq' },
-            // eslint-disable-next-line camelcase
-            max_score: 42,
-            hits: [
-              {
-                _index: formatIndexNameForOpenSearch(OpenSearchIndexName.COLLECTIVES),
-                _id: String(host.id),
-                _score: 42,
-                _source: { id: host.id },
-              },
-            ],
-          },
-        },
-      }),
-    } as unknown as ReturnType<typeof OpenSearchClientLib.getOpenSearchClient>);
-
-    const result = await graphqlQueryV2(
-      `
-        query MixedProvidersAllEntities($searchTerm: String!) {
-          os: search(searchTerm: $searchTerm, backend: OPENSEARCH) {
-            results {
-              accounts {
-                maxScore
-                collection {
-                  totalCount
-                  nodes {
-                    slug
-                  }
-                }
-              }
-            }
-          }
-          pg: search(searchTerm: $searchTerm, backend: POSTGRES) {
-            results {
-              ${ENTITIES.map(entity => `${entity}(limit: 10) { collection { totalCount } }`).join('\n')}
-            }
-          }
-        }
-      `,
-      { searchTerm: 'okapi' },
-      rootUser,
-    );
-
-    expect(result.errors, JSON.stringify(result.errors)).to.not.exist;
-    expect(result.data.os.results.accounts.maxScore).to.eq(42);
-    expect(result.data.os.results.accounts.collection.nodes.map(n => n.slug)).to.deep.eq([host.slug]);
-    const pgTotals = Object.fromEntries(
-      ENTITIES.map(entity => [entity, result.data.pg.results[entity].collection.totalCount]),
-    );
-    expect(pgTotals).to.deep.eq({
-      accounts: 1,
-      comments: 2,
-      expenses: 1,
-      hostApplications: 1,
-      orders: 1,
-      tiers: 1,
-      transactions: 2,
-      updates: 2,
-    });
   });
 
   it('gives each entity query its own timeout, even when it has to wait for the others', async () => {

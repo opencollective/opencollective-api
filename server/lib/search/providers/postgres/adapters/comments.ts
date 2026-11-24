@@ -1,14 +1,14 @@
 /**
  * Comments adapter for PostgreSQL search.
  *
- * Coverage (same as OpenSearch): the HTML body as plain text (`oc_search_html_to_text`), and identifiers.
+ * Coverage: the HTML body as plain text (`oc_search_html_to_text`), and identifiers.
  *
  * Comments are restricted rows: only root and administrators can find them (no access, e.g. unauthenticated: nothing
  * to search, no query). Every arm applies, before matching, counting and ranking:
  * - eligibility (even for root): live Comment, its Account neither deleted nor private, a live commented entity
  *   (Expense, Conversation, Update, Order or Host Application, in the order `canSeeComment` resolves them) whose
  *   Account is neither deleted nor private, and only private notes on Orders (the only type allowed there).
- * - the OpenSearch row permission: administrators of the effective host see every Comment; administrators of the
+ * - the row permission: administrators of the effective host see every Comment; administrators of the
  *   Comment's Account, its parent or its author see `COMMENT`s (never private notes).
  * - the commented entity's visibility (live, see `getParentVisibility`): e.g. Comments on drafts and private Updates
  *   are only found by the Update's administrators, private notes on Expenses only by the Expense's host
@@ -73,7 +73,7 @@ const isActivelyHostedBy = (column: RawBuilder<unknown>, ids: RawBuilder<unknown
   sql<boolean>`${column} IN (SELECT c.id FROM "Collectives" c WHERE c."HostCollectiveId" = ANY(${ids}) AND c."isActive" = TRUE AND c."deletedAt" IS NULL)`;
 
 /**
- * The effective host of the Comment is one of `ids` (same as OpenSearch): the Expense's host (or the active host of
+ * The effective host of the Comment is one of `ids`: the Expense's host (or the active host of
  * its Account when it has none), the Host Application's host, otherwise the active host of the Comment's Account.
  */
 const isHostedBy = (ids: RawBuilder<unknown>): RawBuilder<boolean> =>
@@ -116,7 +116,7 @@ const getParentEligibility = (): RawBuilder<boolean> => {
 };
 
 /**
- * Row permission of OpenSearch: host administrators see every Comment, administrators of the Comment's Account, its
+ * Row permission: host administrators see every Comment, administrators of the Comment's Account, its
  * parent or its author see `COMMENT`s.
  */
 const getRowPermission = (ids: RawBuilder<unknown>): RawBuilder<boolean> =>

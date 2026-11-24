@@ -1,8 +1,7 @@
 {
   "port": "3060",
   "services": {
-    "server": true,
-    "searchSync": false
+    "server": true
   },
   "mailpit": {
     "client": false,
@@ -24,9 +23,6 @@
       }
     },
     "readOnly": false
-  },
-  "opensearch": {
-    "maxSyncDelay": 5000
   },
   "search": {
     "postgres": {

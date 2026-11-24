@@ -3,7 +3,6 @@
   "env": "OC_ENV",
   "services": {
     "server": "ENABLE_SERVICE_SERVER",
-    "searchSync": "ENABLE_SERVICE_SEARCH_SYNC",
     "exports": "ENABLE_SERVICE_EXPORTS"
   },
   "mailpit": {
@@ -20,11 +19,6 @@
       "typoSimilarityThreshold": "SEARCH_POSTGRES_TYPO_SIMILARITY_THRESHOLD",
       "maxCountedMatches": "SEARCH_POSTGRES_MAX_COUNTED_MATCHES"
     }
-  },
-  "opensearch": {
-    "url": "OPENSEARCH_URL",
-    "maxSyncDelay": "OPENSEARCH_MAX_SYNC_DELAY",
-    "indexesPrefix": "OPENSEARCH_INDEXES_PREFIX"
   },
   "exports": {
     "concurrency": "EXPORTS_CONCURRENCY"

@@ -16,7 +16,6 @@ import { reportErrorToSentry } from './lib/sentry';
 import { updateCachedFidoMetadata } from './lib/two-factor-authentication/fido-metadata';
 import { parseToBoolean } from './lib/utils';
 import { startExportWorker } from './workers/exports';
-import { startSearchSyncWorker } from './workers/search-sync';
 import { sequelize } from './models';
 import routes from './routes';
 
@@ -71,8 +70,6 @@ if (parseToBoolean(config.services.server)) {
   appPromise = startExpressServer(1);
 }
 
-// Start the search sync job
-const pStopSearchSyncWorker = startSearchSyncWorker();
 const pStopExportWorker = startExportWorker();
 
 let isShuttingDown = false;
@@ -81,10 +78,6 @@ const gracefullyShutdown = async signal => {
     logger.info(`Received ${signal}. Shutting down.`);
     isShuttingDown = true;
 
-    const stopSearchSyncWorker = await pStopSearchSyncWorker;
-    if (stopSearchSyncWorker) {
-      await stopSearchSyncWorker();
-    }
     const stopExportWorker = await pStopExportWorker;
     if (stopExportWorker) {
       await stopExportWorker();

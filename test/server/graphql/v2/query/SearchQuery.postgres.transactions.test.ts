@@ -1,8 +1,8 @@
 /**
  * PostgreSQL search provider, Transactions (opencollective#8941).
  *
- * Through the GraphQL V2 `search` query with real PostgreSQL fixtures, without an OpenSearch cluster. Fixtures use
- * made-up words so that tests don't match each other's transactions.
+ * Through the GraphQL V2 `search` query with real PostgreSQL fixtures. Fixtures use made-up
+ * words so that tests don't match each other's transactions.
  */
 
 import { expect } from 'chai';
@@ -14,7 +14,6 @@ import { v4 as uuid } from 'uuid';
 import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
-import * as OpenSearchClientLib from '../../../../../server/lib/open-search/client';
 import models, { Collective, Transaction, User } from '../../../../../server/models';
 import {
   fakeActiveHost,
@@ -106,7 +105,6 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL, transactions)', () =>
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
-    sandbox.stub(OpenSearchClientLib, 'isOpenSearchConfigured').returns(false);
   });
 
   afterEach(() => {
