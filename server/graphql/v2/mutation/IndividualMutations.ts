@@ -6,11 +6,12 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 import { pick } from 'lodash';
+import { UniqueConstraintError } from 'sequelize';
 
 import * as auth from '../../../lib/auth';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
+import models, { Op } from '../../../models';
 import {
   checkRemoteUserCanUseAccount,
   rejectOAuthAndPersonalTokenAuth,
@@ -65,7 +66,7 @@ const individualMutations = {
   createIndividual: {
     type: new GraphQLNonNull(GraphQLIndividual),
     description:
-      'Create the profile of another person from an email and a name, for example to add them as a contributor or a member. The person is not emailed and completes the profile at first sign-in. Scope: "account".',
+      'Create the profile of another person from an email and a name, for example to add them as a contributor or a member. The person is not emailed and completes the profile at first sign-in. Session only (OAuth/Personal tokens are not allowed).',
     args: {
       individual: {
         type: new GraphQLNonNull(GraphQLIndividualCreateInput),
@@ -74,6 +75,7 @@ const individualMutations = {
     },
     resolve: async (_, args, req: express.Request) => {
       checkRemoteUserCanUseAccount(req);
+      requireSessionToken(req);
 
       // Same limit as v1 `createUser`, which this mutation replaces.
       const rateLimitKey = `user_create_${req.remoteUser.id}`;
@@ -83,18 +85,35 @@ const individualMutations = {
       }
 
       const email = args.individual.email.toLowerCase().trim();
-      if (await models.User.count({ where: { email } })) {
+      if (!email) {
+        throw new ValidationFailed('Email is required');
+      }
+
+      // Includes deleted users (the email stays unique) and pending email changes.
+      const existing = await models.User.count({
+        where: { [Op.or]: [{ email }, { emailWaitingForValidation: email }] },
+        paranoid: false,
+      });
+      if (existing) {
         throw new ValidationFailed('An account already exists for this email', 'EMAIL_ALREADY_EXISTS');
       }
 
-      const { user } = await createUser(
-        { ...pick(args.individual, ['name', 'legalName']), email },
-        {
-          throwIfExists: true,
-          sendSignInLink: false,
-          creationRequest: { ip: req.ip, userAgent: req.header('user-agent') },
-        },
-      );
+      let user;
+      try {
+        ({ user } = await createUser(
+          { ...pick(args.individual, ['name', 'legalName']), email, CreatedByUserId: req.remoteUser.id },
+          {
+            throwIfExists: true,
+            sendSignInLink: false,
+            creationRequest: { ip: req.ip, userAgent: req.header('user-agent') },
+          },
+        ));
+      } catch (e) {
+        if (e instanceof UniqueConstraintError) {
+          throw new ValidationFailed('An account already exists for this email', 'EMAIL_ALREADY_EXISTS');
+        }
+        throw e;
+      }
 
       return user.collective;
     },

@@ -767,6 +767,7 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
       expect(user).to.exist;
       expect(idEncode(user.CollectiveId, IDENTIFIER_TYPES.ACCOUNT)).to.equal(individual.id);
       expect(user.collective.legalName).to.equal('Jane Legal Doe');
+      expect(user.collective.CreatedByUserId).to.equal(remoteUser.id);
       expect(user.collective.data.requiresProfileCompletion).to.be.true;
       expect(emailSendSpy.called).to.be.false;
     });
@@ -779,6 +780,45 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
         expect(result.errors).to.exist;
         expect(result.errors[0].extensions.code).to.equal('EMAIL_ALREADY_EXISTS');
       }
+    });
+
+    it('fails when the email is pending validation or belongs to a deleted user', async () => {
+      const remoteUser = await fakeUser();
+      const pendingEmail = randEmail();
+      await fakeUser({ emailWaitingForValidation: pendingEmail });
+      const deletedUser = await fakeUser();
+      await deletedUser.destroy();
+
+      for (const email of [pendingEmail, deletedUser.email]) {
+        const result = await graphqlQueryV2(createIndividualMutation, { individual: { email } }, remoteUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('EMAIL_ALREADY_EXISTS');
+      }
+    });
+
+    it('fails when the email is blank', async () => {
+      const remoteUser = await fakeUser();
+      const result = await graphqlQueryV2(createIndividualMutation, { individual: { email: '  ' } }, remoteUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Email is required');
+    });
+
+    it('is not allowed with a personal token', async () => {
+      const remoteUser = await fakeUser();
+      const personalToken = await fakePersonalToken({ user: remoteUser, scope: [OAuthScopes.account] });
+      const email = randEmail();
+      const result = await graphqlQueryV2(
+        createIndividualMutation,
+        { individual: { email } },
+        remoteUser,
+        null,
+        null,
+        null,
+        personalToken,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      expect(await models.User.count({ where: { email } })).to.equal(0);
     });
 
     it('is rate limited per signed-in user', async () => {

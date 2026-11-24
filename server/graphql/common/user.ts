@@ -47,6 +47,7 @@ export const createUser = (
     email: string;
     newsletterOptIn?: boolean;
     location?: Record<string, unknown>;
+    CreatedByUserId?: number;
   },
   {
     organizationData,
