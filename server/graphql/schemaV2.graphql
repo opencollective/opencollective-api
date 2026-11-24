@@ -28205,16 +28205,6 @@ type Mutation {
   ): PlaidConnectAccountResponse!
 
   """
-  Manually request a sync for Plaid account
-  """
-  syncPlaidAccount(
-    """
-    The connected account to refresh
-    """
-    connectedAccount: ConnectedAccountReferenceInput!
-  ): TransactionsImport! @deprecated(reason: "2025-07-23: Use `syncTransactionsImport` instead")
-
-  """
   Refresh the list of sub-accounts & other metadata by re-fetching the account info
   """
   refreshPlaidAccount(

@@ -4,7 +4,6 @@ import { PlaidApi } from 'plaid';
 import sinon from 'sinon';
 
 import PlatformConstants from '../../../../../server/constants/platform';
-import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import * as PlaidClient from '../../../../../server/lib/plaid/client';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models, { ConnectedAccount } from '../../../../../server/models';
@@ -12,10 +11,7 @@ import { plaidItemPublicTokenExchangeResponse, plaidLinkTokenCreateResponse } fr
 import {
   fakeActiveHost,
   fakeCollective,
-  fakeConnectedAccount,
   fakePlatformSubscription,
-  fakeTransactionsImport,
-  fakeTransactionsImportRow,
   fakeUser,
   randStr,
 } from '../../../../test-helpers/fake-data';
@@ -409,78 +405,6 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
         'This bank connection request could not be verified. Please restart the connection process from your dashboard.',
       );
       expect(await ConnectedAccount.count({ where: { CollectiveId: host.id } })).to.equal(0);
-    });
-  });
-
-  describe('syncPlaidAccount', () => {
-    const SYNC_PLAID_ACCOUNT_MUTATION = gql`
-      mutation SyncPlaidAccount($connectedAccount: ConnectedAccountReferenceInput!) {
-        syncPlaidAccount(connectedAccount: $connectedAccount) {
-          id
-          rows {
-            totalCount
-            nodes {
-              description
-            }
-          }
-          stats {
-            total
-          }
-        }
-      }
-    `;
-
-    beforeEach(() => {
-      stubPlaidAPI.transactionsRefresh = sandbox.stub().resolves({} as any);
-    });
-
-    it('returns the transactions import linked to the connected account', async () => {
-      const sharedId = 700000 + Math.floor(Math.random() * 100000);
-
-      // Another host has an import whose numeric id equals the connected account id
-      const otherHost = await fakeActiveHost();
-      const otherImport = await fakeTransactionsImport({ id: sharedId, CollectiveId: otherHost.id });
-      await fakeTransactionsImportRow({ TransactionsImportId: otherImport.id, description: 'OTHER HOST ROW' });
-
-      const admin = await fakeUser();
-      const host = await fakeActiveHost({ admin });
-      const connectedAccount = await fakeConnectedAccount({ id: sharedId, CollectiveId: host.id, service: 'plaid' });
-      const ownImport = await fakeTransactionsImport({
-        CollectiveId: host.id,
-        type: 'PLAID',
-        ConnectedAccountId: connectedAccount.id,
-      });
-
-      const result = await graphqlQueryV2(
-        SYNC_PLAID_ACCOUNT_MUTATION,
-        { connectedAccount: { legacyId: connectedAccount.id } },
-        admin,
-      );
-
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      const data = result.data.syncPlaidAccount;
-      expect(data.id).to.equal(idEncode(ownImport.id, IDENTIFIER_TYPES.TRANSACTIONS_IMPORT));
-      expect(data.rows.totalCount).to.equal(0);
-      expect(data.rows.nodes.map(n => n.description)).to.not.include('OTHER HOST ROW');
-      expect(data.stats.total).to.equal(0);
-      expect(stubPlaidAPI.transactionsRefresh.calledOnce).to.be.true;
-    });
-
-    it('throws if the connected account has no transactions import', async () => {
-      const admin = await fakeUser();
-      const host = await fakeActiveHost({ admin });
-      const connectedAccount = await fakeConnectedAccount({ CollectiveId: host.id, service: 'plaid' });
-
-      const result = await graphqlQueryV2(
-        SYNC_PLAID_ACCOUNT_MUTATION,
-        { connectedAccount: { legacyId: connectedAccount.id } },
-        admin,
-      );
-
-      expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('No transactions import found for this connected account');
-      expect(stubPlaidAPI.transactionsRefresh.called).to.be.false;
     });
   });
 });

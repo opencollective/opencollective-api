@@ -6,12 +6,11 @@ import { isEmpty, pick } from 'lodash';
 import { Service } from '../../../constants/connected-account';
 import { hasFeature } from '../../../lib/allowed-features';
 import { connectPlaidAccount, generatePlaidLinkToken, refreshPlaidSubAccounts } from '../../../lib/plaid/connect';
-import { requestPlaidAccountSync } from '../../../lib/plaid/sync';
 import RateLimit from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { ConnectedAccount, TransactionsImport } from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
-import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
+import { Forbidden, RateLimitExceeded } from '../../errors';
 import { GraphQLCountryISO } from '../enum';
 import {
   AccountReferenceInput,
@@ -203,43 +202,6 @@ export const plaidMutations = {
 
       const accountInfo: Parameters<typeof connectPlaidAccount>[4] = pick(args, ['sourceName', 'name']);
       return connectPlaidAccount(req.remoteUser, host, args.publicToken, args.linkToken, accountInfo);
-    },
-  },
-  syncPlaidAccount: {
-    type: new GraphQLNonNull(GraphQLTransactionsImport),
-    description: 'Manually request a sync for Plaid account',
-    deprecationReason: '2025-07-23: Use `syncTransactionsImport` instead',
-    args: {
-      connectedAccount: {
-        type: new GraphQLNonNull(GraphQLConnectedAccountReferenceInput),
-        description: 'The connected account to refresh',
-      },
-    },
-    resolve: async (_, args, req) => {
-      checkRemoteUserCanUseTransactions(req);
-      const connectedAccount = await fetchConnectedAccountWithReference(args.connectedAccount, {
-        throwIfMissing: true,
-      });
-      if (!req.remoteUser.isAdmin(connectedAccount.CollectiveId)) {
-        throw new Forbidden('You do not have permission to sync this account');
-      }
-
-      const transactionsImport = await TransactionsImport.findOne({
-        where: { ConnectedAccountId: connectedAccount.id, CollectiveId: connectedAccount.CollectiveId },
-      });
-      if (!transactionsImport) {
-        throw new NotFound('No transactions import found for this connected account');
-      }
-
-      const rateLimiter = new RateLimit(`syncPlaidAccount:${connectedAccount.id}`, 2, 5 * 60);
-      if (!(await rateLimiter.registerCall())) {
-        throw new RateLimitExceeded(
-          'A sync was already requested for this account recently. Please wait a few minutes before trying again.',
-        );
-      }
-
-      await requestPlaidAccountSync(connectedAccount);
-      return transactionsImport;
     },
   },
   refreshPlaidAccount: {
