@@ -77,6 +77,10 @@ export async function editUpdate(_, args, req) {
   checkRemoteUserCanUseUpdates(req);
 
   let update = await fetchUpdateForEdit(args.update.id, req);
+  if (args.update.isChangelog && !update.isChangelog && !update.collective.data?.canHaveChangelogUpdates) {
+    throw new Forbidden('This account cannot have changelog updates');
+  }
+
   update = await update.edit(req.remoteUser, args.update);
   purgeCacheForCollective(update.collective.slug);
   return update;
