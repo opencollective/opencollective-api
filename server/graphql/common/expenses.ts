@@ -1625,6 +1625,32 @@ export const canSeeExpenseOnHoldFlag = async (req: express.Request, expense: Exp
 
 // ---- Expense actions ----
 
+/**
+ * Updates an expense's status while holding a row lock, making sure that neither the status nor the
+ * processing soft lock (see `lockExpense`) changed since `expense` was loaded. Without this, a status
+ * transition computed from a stale snapshot (e.g. `APPROVED -> PENDING`) could overwrite a concurrent
+ * payment (`PAID`), allowing the expense to be approved and paid a second time.
+ */
+const updateExpenseStatusWithLock = async (
+  expense: Expense,
+  values: Parameters<Expense['update']>[0],
+): Promise<Expense> => {
+  return sequelize.transaction(async transaction => {
+    const lockedExpense = await models.Expense.findByPk(expense.id, { lock: true, transaction });
+    if (!lockedExpense) {
+      throw new NotFound('Expense not found');
+    } else if (lockedExpense.data?.isLocked) {
+      throw new ValidationFailed('This expense is currently being processed, please try again later');
+    } else if (lockedExpense.status !== expense.status) {
+      throw new ValidationFailed(
+        `The status of this expense changed (${lockedExpense.status}) while processing the request, please refresh and try again`,
+      );
+    }
+
+    return expense.update(values, { transaction });
+  });
+};
+
 export const approveExpense = async (req: express.Request, expense: Expense): Promise<Expense> => {
   if (expense.status === 'APPROVED') {
     return expense;
@@ -1632,7 +1658,10 @@ export const approveExpense = async (req: express.Request, expense: Expense): Pr
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'APPROVED', lastEditedById: req.remoteUser.id });
+  const updatedExpense = await updateExpenseStatusWithLock(expense, {
+    status: 'APPROVED',
+    lastEditedById: req.remoteUser.id,
+  });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_APPROVED, req.remoteUser);
   return updatedExpense;
 };
@@ -1644,7 +1673,10 @@ export const unapproveExpense = async (req: express.Request, expense: Expense): 
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'PENDING', lastEditedById: req.remoteUser.id });
+  const updatedExpense = await updateExpenseStatusWithLock(expense, {
+    status: 'PENDING',
+    lastEditedById: req.remoteUser.id,
+  });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNAPPROVED, req.remoteUser);
   return updatedExpense;
 };
@@ -1656,7 +1688,10 @@ export const requestExpenseReApproval = async (req: express.Request, expense: Ex
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'PENDING', lastEditedById: req.remoteUser.id });
+  const updatedExpense = await updateExpenseStatusWithLock(expense, {
+    status: 'PENDING',
+    lastEditedById: req.remoteUser.id,
+  });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED, req.remoteUser);
   return updatedExpense;
 };
@@ -1668,7 +1703,7 @@ export const markExpenseAsIncomplete = async (req: express.Request, expense: Exp
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({
+  const updatedExpense = await updateExpenseStatusWithLock(expense, {
     status: 'INCOMPLETE',
     lastEditedById: req.remoteUser.id,
     onHold: false,
@@ -1684,7 +1719,7 @@ export const rejectExpense = async (req: express.Request, expense: Expense): Pro
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({
+  const updatedExpense = await updateExpenseStatusWithLock(expense, {
     status: 'REJECTED',
     lastEditedById: req.remoteUser.id,
     onHold: false,
@@ -1732,7 +1767,7 @@ export const markExpenseAsSpam = async (req: express.Request, expense: Expense):
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({
+  const updatedExpense = await updateExpenseStatusWithLock(expense, {
     status: 'SPAM',
     lastEditedById: req.remoteUser.id,
     onHold: false,
@@ -1956,7 +1991,7 @@ export const scheduleExpenseForPayment = async (
     await host.getAccountForPaymentProvider(Service.PAYPAL);
   }
 
-  const updatedExpense = await expense.update({
+  const updatedExpense = await updateExpenseStatusWithLock(expense, {
     status: 'SCHEDULED_FOR_PAYMENT',
     lastEditedById: req.remoteUser.id,
     onHold: false,
@@ -1978,7 +2013,7 @@ export const unscheduleExpensePayment = async (req: express.Request, expense: Ex
     await paymentProviders.transferwise.unscheduleExpenseForPayment(expense);
   }
 
-  const updatedExpense = await expense.update({
+  const updatedExpense = await updateExpenseStatusWithLock(expense, {
     status: 'APPROVED',
     lastEditedById: req.remoteUser.id,
   });

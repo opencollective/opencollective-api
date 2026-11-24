@@ -12,6 +12,7 @@ import POLICIES from '../../../../server/constants/policies';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../../server/graphql/common/context-permissions';
 import {
+  approveExpense,
   canApprove,
   canAttachReceipts,
   canComment,
@@ -42,6 +43,9 @@ import {
   checkHasBalanceToPayExpense,
   getExpenseAmountInDifferentCurrency,
   isAccountHolderNameAndLegalNameMatch,
+  rejectExpense,
+  requestExpenseReApproval,
+  unapproveExpense,
 } from '../../../../server/graphql/common/expenses';
 import { createTransactionsFromPaidExpense } from '../../../../server/lib/transactions';
 import models, { Collective } from '../../../../server/models';
@@ -2446,6 +2450,76 @@ describe('server/graphql/common/expenses', () => {
           platformAdmin: false,
         });
       });
+    });
+  });
+
+  describe('status transitions with concurrent updates', () => {
+    const loadStaleExpense = async (status: string) => {
+      const { expense } = contexts.normal;
+      await expense.update({ status, data: { ...expense.data, isLocked: false } });
+      return models.Expense.findByPk(expense.id);
+    };
+
+    for (const [name, action] of [
+      ['unapproveExpense', unapproveExpense],
+      ['requestExpenseReApproval', requestExpenseReApproval],
+    ] as const) {
+      describe(name, () => {
+        it('does not revert an expense that was paid concurrently', async () => {
+          const staleExpense = await loadStaleExpense('APPROVED');
+          // Simulate a concurrent payment that completed after the expense was loaded
+          await models.Expense.update({ status: 'PAID' }, { where: { id: staleExpense.id } });
+
+          await expect(action(contexts.normal.req.hostAdmin, staleExpense)).to.be.rejectedWith(
+            /The status of this expense changed \(PAID\)/,
+          );
+          await contexts.normal.expense.reload();
+          expect(contexts.normal.expense.status).to.eq('PAID');
+        });
+
+        it('does not update an expense that is being paid', async () => {
+          const staleExpense = await loadStaleExpense('APPROVED');
+          // Simulate a concurrent payment that is in progress (see `lockExpense`)
+          await models.Expense.update(
+            { data: { ...staleExpense.data, isLocked: true } },
+            { where: { id: staleExpense.id } },
+          );
+
+          await expect(action(contexts.normal.req.hostAdmin, staleExpense)).to.be.rejectedWith(
+            /currently being processed/,
+          );
+          await contexts.normal.expense.reload();
+          expect(contexts.normal.expense.status).to.eq('APPROVED');
+        });
+
+        it('updates the status when there is no concurrent update', async () => {
+          const staleExpense = await loadStaleExpense('APPROVED');
+          const result = await action(contexts.normal.req.hostAdmin, staleExpense);
+          expect(result.status).to.eq('PENDING');
+          await contexts.normal.expense.reload();
+          expect(contexts.normal.expense.status).to.eq('PENDING');
+        });
+      });
+    }
+
+    it('approveExpense does not override a concurrent status change', async () => {
+      const staleExpense = await loadStaleExpense('PENDING');
+      await models.Expense.update({ status: 'REJECTED' }, { where: { id: staleExpense.id } });
+      await expect(approveExpense(contexts.normal.req.hostAdmin, staleExpense)).to.be.rejectedWith(
+        /The status of this expense changed \(REJECTED\)/,
+      );
+      await contexts.normal.expense.reload();
+      expect(contexts.normal.expense.status).to.eq('REJECTED');
+    });
+
+    it('rejectExpense does not override a concurrent status change', async () => {
+      const staleExpense = await loadStaleExpense('PENDING');
+      await models.Expense.update({ status: 'PAID' }, { where: { id: staleExpense.id } });
+      await expect(rejectExpense(contexts.normal.req.hostAdmin, staleExpense)).to.be.rejectedWith(
+        /The status of this expense changed \(PAID\)/,
+      );
+      await contexts.normal.expense.reload();
+      expect(contexts.normal.expense.status).to.eq('PAID');
     });
   });
 
