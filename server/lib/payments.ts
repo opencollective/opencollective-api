@@ -1031,7 +1031,6 @@ export const sendEmailNotifications = (
 
 export const createSubscription = async (order: Order, data?: { lastChargedAt?: Date }): Promise<void> => {
   const subscription = await Subscription.create({
-    amount: order.totalAmount,
     interval: order.interval,
     currency: order.currency,
     lastChargedAt: data?.lastChargedAt,
