@@ -1,10 +1,11 @@
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
+import { lockCollectiveBalance } from '../../lib/budget';
 import { getFxRate, roundCentsAmount } from '../../lib/currency';
 import { createRefundTransaction, getHostFee, getHostFeeSharePercent, getPlatformTip } from '../../lib/payments';
 import { getRefundableAmountFromCollectiveInHostCurrency } from '../../lib/refunds';
 import { formatCurrency } from '../../lib/utils';
-import models, { type PaymentMethod } from '../../models';
+import models, { type PaymentMethod, sequelize } from '../../models';
 import type { BasePaymentProviderService } from '../types';
 
 const paymentMethodProvider: BasePaymentProviderService = {
@@ -48,19 +49,9 @@ const paymentMethodProvider: BasePaymentProviderService = {
       );
     }
 
-    // The balance is returned in the payment method currency, which can differ from the order currency
-    const balance = (await paymentMethodProvider.getBalance(order.paymentMethod)) as number;
     const paymentMethodCurrency = order.paymentMethod.currency;
     const fxRate = await getFxRate(order.currency, paymentMethodCurrency);
     const totalAmountInPaymentMethodCurrency = order.totalAmount * fxRate;
-    if (balance < totalAmountInPaymentMethodCurrency) {
-      throw new Error(
-        `Not enough funds available (${formatCurrency(
-          balance,
-          paymentMethodCurrency,
-        )} left) to execute this order (${formatCurrency(order.totalAmount, order.currency)})`,
-      );
-    }
 
     const hostFeeSharePercent = await getHostFeeSharePercent(order);
     const isSharedRevenue = !!hostFeeSharePercent;
@@ -105,7 +96,31 @@ const paymentMethodProvider: BasePaymentProviderService = {
       },
     };
 
-    const transaction = await models.Transaction.createFromContributionPayload(transactionPayload);
+    // Check the balance and record the ledger entries atomically: the source balance is locked for the duration
+    // of the SQL transaction, so concurrent debits can't all pass the check against the same funds.
+    const transaction = await sequelize.transaction(async sqlTransaction => {
+      await lockCollectiveBalance(order.fromCollective.id, sqlTransaction);
+
+      // Same as `paymentMethodProvider.getBalance`, but read within the locked SQL transaction. The payment method
+      // belongs to `order.fromCollective` (checked above). The balance is returned in the payment method currency,
+      // which can differ from the order currency.
+      const balance = await order.fromCollective.getBalance({
+        currency: paymentMethodCurrency,
+        withBlockedFunds: true,
+        transaction: sqlTransaction,
+      });
+      if (balance < totalAmountInPaymentMethodCurrency) {
+        throw new Error(
+          `Not enough funds available (${formatCurrency(
+            balance,
+            paymentMethodCurrency,
+          )} left) to execute this order (${formatCurrency(order.totalAmount, order.currency)})`,
+        );
+      }
+
+      return models.Transaction.createFromContributionPayload(transactionPayload, { sqlTransaction });
+    });
+
     if (order.SubscriptionId) {
       const subscription = await models.Subscription.findByPk(order.SubscriptionId);
       await subscription.update({ lastChargedAt: transaction.clearedAt });

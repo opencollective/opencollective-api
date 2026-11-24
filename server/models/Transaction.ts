@@ -1321,7 +1321,10 @@ class Transaction extends ModelWithPublicId<
    * Creates a transaction pair from given payload. Defaults to `CONTRIBUTION` kind unless
    * specified otherwise.
    */
-  static async createFromContributionPayload(transaction: TransactionCreationAttributes): Promise<Transaction> {
+  static async createFromContributionPayload(
+    transaction: TransactionCreationAttributes,
+    { sqlTransaction }: { sqlTransaction?: SequelizeTransaction } = {},
+  ): Promise<Transaction> {
     try {
       Transaction.validateContributionPayload(transaction);
     } catch (error) {
@@ -1329,8 +1332,8 @@ class Transaction extends ModelWithPublicId<
     }
 
     // Retrieve Host
-    const collective = await Collective.findByPk(transaction.CollectiveId);
-    const host = await collective.getHostCollective();
+    const collective = await Collective.findByPk(transaction.CollectiveId, { transaction: sqlTransaction });
+    const host = await collective.getHostCollective({ transaction: sqlTransaction });
     transaction.HostCollectiveId = collective.hasMoneyManagement ? collective.id : host.id;
     if (!transaction.HostCollectiveId) {
       throw new Error(
@@ -1356,7 +1359,7 @@ class Transaction extends ModelWithPublicId<
 
     transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
 
-    return Transaction.createDoubleEntry(transaction);
+    return Transaction.createDoubleEntry(transaction, { sequelizeTransaction: sqlTransaction });
   }
 
   static async fetchHost(
