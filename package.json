@@ -57,7 +57,7 @@
     "cloudflare": "7.3.0",
     "commander": "15.1.0",
     "config": "5.0.1",
-    "connect-redis": "10.0.0",
+    "connect-redis": "11.0.0",
     "cookie-parser": "1.4.7",
     "cors": "2.8.6",
     "crypto-random-string": "6.0.0",
