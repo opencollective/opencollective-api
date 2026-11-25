@@ -24,7 +24,6 @@ import { CollectiveType } from '../../constants/collectives';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import expenseType from '../../constants/expense-type';
-import { isAccountHolderNameAndLegalNameMatch } from '../../graphql/common/expenses';
 import type { ConvertToCurrencyArgs } from '../../graphql/loaders/currency-exchange-rate';
 import models, { Collective, ExpenseAttachedFile, ExpenseItem, Op, sequelize, UploadedFile } from '../../models';
 import Expense from '../../models/Expense';
@@ -33,12 +32,14 @@ import { PayoutMethodTypes, PaypalPayoutMethodData } from '../../models/PayoutMe
 import { Location as LocationType } from '../../types/Location';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
 import { handleExpenseKycSecurityChecks } from '../kyc/expenses/kyc-expenses-check';
+import { getNameMatchLevel, NameMatchLevel } from '../name-matching';
 import { expenseMightBeSubjectToTaxForm } from '../tax-forms';
 import {
   getLegalDocumentAddressMismatchDetails,
   getLegalDocumentCountryMismatchDetails,
   getLegalDocumentIdentity,
   getLegalDocumentNameMismatchDetails,
+  getLegalDocumentNamePartialMatchDetails,
   LegalDocumentIdentity,
 } from '../tax-forms/identity';
 import { formatCurrency } from '../utils';
@@ -607,6 +608,16 @@ const checkLegalDocumentIdentity = (
     });
   }
 
+  const namePartialMatchDetails = getLegalDocumentNamePartialMatchDetails(identity, payeeName);
+  if (namePartialMatchDetails) {
+    checks.push({
+      scope: Scope.LEGAL_DOCUMENT,
+      level: Level.LOW,
+      message: 'Legal document name partially matches the payee name',
+      details: namePartialMatchDetails,
+    });
+  }
+
   const addressMismatchDetails = getLegalDocumentAddressMismatchDetails(identity, payeeAddress, payeeCountry);
   if (addressMismatchDetails) {
     checks.push({
@@ -632,6 +643,21 @@ const checkLegalDocumentIdentity = (
     const bankNameMismatchDetails = getLegalDocumentNameMismatchDetails(identity, bankAccount.accountHolderName, {
       nameLabel: 'payout method account holder name',
     });
+    const bankNamePartialMatchDetails = getLegalDocumentNamePartialMatchDetails(
+      identity,
+      bankAccount.accountHolderName,
+      {
+        nameLabel: 'payout method account holder name',
+      },
+    );
+    if (bankNamePartialMatchDetails) {
+      checks.push({
+        scope: Scope.LEGAL_DOCUMENT,
+        level: Level.LOW,
+        message: 'Legal document name partially matches the payout method account holder name',
+        details: bankNamePartialMatchDetails,
+      });
+    }
     if (bankNameMismatchDetails) {
       checks.push({
         scope: Scope.LEGAL_DOCUMENT,
@@ -890,8 +916,14 @@ export const checkExpensesBatch = async (
             const paypalName = paypalData?.paypalUserInfo?.name;
             if (paypalName) {
               const payeeLegalName = expense.fromCollective.legalName || expense.fromCollective.name;
-              const namesMatch = isAccountHolderNameAndLegalNameMatch(paypalName, payeeLegalName);
-              addBooleanCheck(checks, !namesMatch, {
+              const nameMatchLevel = getNameMatchLevel(paypalName, payeeLegalName);
+              addBooleanCheck(checks, nameMatchLevel === NameMatchLevel.PARTIAL, {
+                scope: Scope.PAYOUT_METHOD,
+                level: Level.LOW,
+                message: 'Payout Method name partially matches the payee name',
+                details: `The name on the PayPal account ("${paypalName}") only partially matches the payee name ("${payeeLegalName}").`,
+              });
+              addBooleanCheck(checks, nameMatchLevel === NameMatchLevel.NONE, {
                 scope: Scope.PAYOUT_METHOD,
                 level: Level.MEDIUM,
                 message: 'Payout Method name does not match the payee name',

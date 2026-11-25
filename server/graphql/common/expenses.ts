@@ -63,6 +63,7 @@ import { handleExpensePayoutMethodChange } from '../../lib/kyc/expenses/kyc-expe
 import logger from '../../lib/logger';
 import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
 import { lockUntilResolved } from '../../lib/mutex';
+import { areNamesMatching } from '../../lib/name-matching';
 import { createRefundTransaction } from '../../lib/payments';
 import { isBlockedForUnpaidPlatformBilling } from '../../lib/platform-subscriptions';
 import { getPolicy } from '../../lib/policies';
@@ -2910,36 +2911,12 @@ export const getItemsChanges = async (
   }
 };
 
-/*
- * Validate the account holder name against the legal name. Following cases are considered a match,
- *
- * 1) Punctuation are ignored; "Evil Corp, Inc" and "Evil Corp, Inc." are considered a match.
- * 2) Accents are ignored; "François" and "Francois" are considered a match.
- * 3) The first name and last name order is ignored; "Benjamin Piouffle" and "Piouffle Benjamin" is considered a match.
- * 4) If one of account holder name or legal name is not defined then this function returns true.
+/**
+ * Validate the account holder name against the legal name. Partial matches are accepted
+ * (e.g. a missing middle name), see `areNamesMatching` for the exact rules.
  */
 export const isAccountHolderNameAndLegalNameMatch = (accountHolderName: string, legalName: string): boolean => {
-  // Ignore 501(c)(3) in both account holder name and legal name
-  legalName = legalName.replace(/501\(c\)\(3\)/g, '');
-  accountHolderName = accountHolderName.replace(/501\(c\)\(3\)/g, '');
-
-  const namesArray = legalName.trim().split(' ');
-  let legalNameReversed;
-  if (namesArray.length === 2) {
-    const firstName = namesArray[0];
-    const lastName = namesArray[1];
-    legalNameReversed = `${lastName} ${firstName}`;
-  }
-  return !(
-    accountHolderName.localeCompare(legalName, undefined, {
-      sensitivity: 'base',
-      ignorePunctuation: true,
-    }) &&
-    accountHolderName.localeCompare(legalNameReversed, undefined, {
-      sensitivity: 'base',
-      ignorePunctuation: true,
-    })
-  );
+  return areNamesMatching(accountHolderName, legalName);
 };
 
 export async function submitExpenseDraft(
