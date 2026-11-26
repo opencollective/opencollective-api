@@ -213,6 +213,39 @@ describe('server/graphql/common/features', () => {
         const result = await resolveFeatureStatusWithReq(FEATURE.RECEIVE_GRANTS, fund);
         expect(result).to.eq(FEATURE_STATUS.ACTIVE);
       });
+
+      it('Returns DISABLED when the account is archived', async () => {
+        const fund = await fakeCollective({
+          type: CollectiveType.FUND,
+          settings: grantsSettings,
+          isActive: false,
+          approvedAt: null,
+          deactivatedAt: new Date(),
+        });
+        const result = await resolveFeatureStatusWithReq(FEATURE.RECEIVE_GRANTS, fund);
+        expect(result).to.eq(FEATURE_STATUS.DISABLED);
+      });
+    });
+
+    describe('RECEIVE_EXPENSES', () => {
+      it('Returns UNSUPPORTED for users', async () => {
+        const collective = await fakeCollective({ type: CollectiveType.USER });
+        const result = await resolveFeatureStatusWithReq(FEATURE.RECEIVE_EXPENSES, collective);
+        expect(result).to.eq(FEATURE_STATUS.UNSUPPORTED);
+      });
+
+      it('Returns AVAILABLE for an active collective', async () => {
+        const collective = await fakeCollective();
+        const result = await resolveFeatureStatusWithReq(FEATURE.RECEIVE_EXPENSES, collective);
+        expect(result).to.eq(FEATURE_STATUS.AVAILABLE);
+      });
+
+      it('Returns DISABLED when the account is archived', async () => {
+        const collective = await fakeCollective({ isActive: false, approvedAt: null, deactivatedAt: new Date() });
+        await fakeExpense({ CollectiveId: collective.id, type: 'INVOICE' });
+        const result = await resolveFeatureStatusWithReq(FEATURE.RECEIVE_EXPENSES, collective);
+        expect(result).to.eq(FEATURE_STATUS.DISABLED);
+      });
     });
 
     describe('FUNDS_GRANTS_MANAGEMENT', () => {
