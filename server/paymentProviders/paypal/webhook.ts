@@ -153,19 +153,25 @@ async function handleSaleCompleted(req: Request): Promise<void> {
       outcome: MetricEvent.SUCCEEDED,
     });
 
-    // 2.3 Mark order/subscription as active
-    if (order.status !== OrderStatus.ACTIVE) {
+    // 2.3 Mark order/subscription as active, unless the contribution was ended before this sale arrived:
+    // a late sale for an earlier billing cycle must not resume a cancelled or paused contribution.
+    const isEnded = [OrderStatus.CANCELLED, OrderStatus.PAUSED, OrderStatus.EXPIRED, OrderStatus.REJECTED].includes(
+      order.status,
+    );
+    if (!isEnded && order.status !== OrderStatus.ACTIVE) {
       await order.update({ status: OrderStatus.ACTIVE, processedAt: new Date() });
     }
 
     const nextChargeDate = moment().add(1, order.interval);
     await order.Subscription.update({
       chargeNumber: (order.Subscription.chargeNumber || 0) + 1,
-      nextChargeDate: nextChargeDate,
-      nextPeriodStart: nextChargeDate,
-      isActive: true,
-      activatedAt: order.Subscription.activatedAt || new Date(),
       lastChargedAt: transaction.clearedAt || transaction.createdAt,
+      ...(!isEnded && {
+        nextChargeDate: nextChargeDate,
+        nextPeriodStart: nextChargeDate,
+        isActive: true,
+        activatedAt: order.Subscription.activatedAt || new Date(),
+      }),
     });
   });
 
