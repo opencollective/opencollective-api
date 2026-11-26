@@ -124,7 +124,7 @@ export const expenseRecipes: Record<string, Recipe> = {
    * A Collective admin facing their own Collective on an attempt-owned host:
    * the party who approves, rejects and deletes expenses and writes the
    * expense policy. Options add a pending invoice the admin submitted to the
-   * Collective (optionally with a stored PDF attached) and a Project under it. Policies start empty; every transition,
+   * Collective (optionally with a stored PDF attached), more listed invoices and a Project under it. Policies start empty; every transition,
    * deletion and policy edit is the journey's own behavior.
    */
   'expense-management': defineRecipe({
@@ -148,6 +148,11 @@ export const expenseRecipes: Record<string, Recipe> = {
           .optional(),
         /** A Project under `collective`. */
         project: z.boolean().default(false),
+        /**
+         * This many more pending invoices by `admin` on `collective`, described `Listed expense <n> <tag>`, so its
+         * expense list spans several pages. They share one saved payout method.
+         */
+        listedExpenses: z.number().int().min(0).max(30).default(0),
       })
       .strict(),
     build: async (ctx, inputs) => {
@@ -166,6 +171,22 @@ export const expenseRecipes: Record<string, Recipe> = {
         }));
       if (expense && inputs.expense.attachedPdf) {
         await attachStoredPdf(ctx, { expense, submitter: admin, ...inputs.expense.attachedPdf });
+      }
+      if (inputs.listedExpenses) {
+        const payoutMethod = await createPayoutMethod(ctx, {
+          account: admin.collective,
+          creator: admin,
+          name: `Listed payout ${ctx.tag}`,
+        });
+        for (let number = 1; number <= inputs.listedExpenses; number++) {
+          await createSubmittedExpense(ctx, {
+            account: collective,
+            submitter: admin,
+            payoutMethod,
+            description: `Listed expense ${number} ${ctx.tag}`,
+            items: [{ description: 'Some stuff', amount: 1000 * number }],
+          });
+        }
       }
       return {
         actors: { hostAdmin: actorHandle(hostAdmin), admin: actorHandle(admin) },
