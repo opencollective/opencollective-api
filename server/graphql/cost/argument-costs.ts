@@ -68,7 +68,8 @@ interface TimeSeriesSizeOptions {
  * picked from the length of the range. Returns `null` when the start of the range is unknown.
  */
 const countPeriods = (dateFrom: Date | null, dateTo: Date, timeUnit: unknown): number | null => {
-  const unit = typeof timeUnit === 'string' && TIME_UNIT_DURATIONS[timeUnit] ? timeUnit : null;
+  // `Object.hasOwn`: a variable can hold anything, including inherited names like `constructor`
+  const unit = typeof timeUnit === 'string' && Object.hasOwn(TIME_UNIT_DURATIONS, timeUnit) ? timeUnit : null;
   if (!dateFrom) {
     if (!unit) {
       return AUTOMATIC_TIME_UNIT_MAX_PERIODS;
@@ -103,6 +104,9 @@ export const getTimeSeriesListSize =
     }
 
     const periods = countPeriods(dateFrom, dateTo, args.timeUnit);
+    if (periods !== null && !Number.isFinite(periods)) {
+      return MAX_SERIES_SIZE; // Dates out of range (huge `periodInMonths`): count the largest series
+    }
     return Math.min(MAX_SERIES_SIZE, Math.max(1, periods) * labels);
   };
 

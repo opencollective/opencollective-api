@@ -263,7 +263,15 @@ describe('server/graphql/cost argument-dependent costs', () => {
     });
 
     it('accepts anything', () => {
-      for (const args of [{ dateFrom: 'not a date' }, { dateFrom: {} }, { timeUnit: 42 }, { periodInMonths: '3' }]) {
+      for (const args of [
+        { dateFrom: 'not a date' },
+        { dateFrom: {} },
+        { timeUnit: 42 },
+        { periodInMonths: '3' },
+        { timeUnit: 'constructor' },
+        { timeUnit: '__proto__' },
+        { periodInMonths: 1e300 },
+      ]) {
         expect(size(args)).to.be.within(1, DEFAULT_MAX_LIMIT);
       }
       expect(getTimeSeriesListSize({ labels: 2 })({ dateFrom: '2024-01-01', dateTo: '2024-01-05' })).to.eq(8);
