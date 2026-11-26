@@ -871,7 +871,7 @@ const orderMutations = {
             }
             order.set('data', { ...order.data, paymentProcessorFee: paymentProcessorFeeInCents });
           }
-          // Read the base amount before `taxAmount` changes: without a new amount, the tax applies to this one
+          // Read the base amount before `taxAmount` or `platformTipAmount` change: without a new amount, it stays the same
           const existingBaseAmount = getOrderBaseAmount(order);
           if (!isNil(tax)) {
             const quantity = 1; // Not supported yet by OrderUpdateInput
@@ -906,10 +906,8 @@ const orderMutations = {
           let baseAmount;
           if (!isNil(args.order.amount)) {
             baseAmount = getValueInCentsFromAmountInput(args.order.amount);
-          } else if (!isNil(tax)) {
-            baseAmount = existingBaseAmount;
           } else {
-            baseAmount = getOrderBaseAmount(order);
+            baseAmount = existingBaseAmount;
           }
           order.set(
             'totalAmount',
