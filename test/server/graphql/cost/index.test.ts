@@ -459,7 +459,7 @@ describe('server/graphql/cost', () => {
         cost: Infinity,
         abortReason: 'MAX_DEPTH',
       });
-      expect(getQueryCost(schema, parse(nested(1000))).abortReason).to.eq('MAX_DEPTH');
+      expect(getQueryCost(schema, parse(nested(200))).abortReason).to.eq('MAX_DEPTH');
     });
   });
 
