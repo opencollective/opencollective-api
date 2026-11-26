@@ -454,6 +454,11 @@ export const fetchPaypalTransactionsForSubscription = async (
 const verifySubscription = async (order: Order, paypalSubscription: PayPalSubscription) => {
   if (paypalSubscription.status !== 'APPROVED') {
     throw new Error('Subscription must be approved to be activated');
+  } else if (paypalSubscription.plan_overridden) {
+    // Overridden plan attributes (e.g. pricing) mean PayPal would not charge `plan.amount`
+    throw new Error('PayPal subscriptions with a customized plan are not supported');
+  } else if (paypalSubscription.quantity && Number(paypalSubscription.quantity) !== 1) {
+    throw new Error('PayPal subscription quantity must be 1');
   }
 
   // The plan is created for the tier the contributor is moving to, which stays pending until PayPal charges it
