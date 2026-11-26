@@ -260,6 +260,12 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
   const MUTEX_LOCK_KEY = `wise-webhook-${expense.id}`;
   return lockUntilResolved(MUTEX_LOCK_KEY, async () => {
     await expense.reload();
+    // A concurrent delivery of the same event may have been processed while we were waiting for the lock
+    if (expense.data.refundWiseEventTimestamp === refundWiseEventTimestamp) {
+      logger.debug('Wise: Ignoring duplicate refund event.', event);
+      return;
+    }
+
     const collective = expense.collective;
     const host = collective.host;
 
@@ -299,14 +305,16 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
         logger.verbose('Wise: Paid Expense was fully refunded', event);
         await createRefundTransaction(
           creditTransaction,
-          paymentProcessorFee * 100,
+          roundCentsAmount(paymentProcessorFee * 100, host.currency),
           pick(creditTransaction.data, ['transfer']),
           expense.User,
         );
       }
 
       await expense.update({ data: { ...expense.data, refundWiseEventTimestamp, refundEvent: event } });
-      await relatedTransferTransactions.map(t => t.update({ data: { ...t.data, refundWiseEventTimestamp } }));
+      await Promise.all(
+        relatedTransferTransactions.map(t => t.update({ data: { ...t.data, refundWiseEventTimestamp } })),
+      );
       if (expense.status !== expenseStatus.ERROR) {
         await expense.setError(expense.lastEditedById);
         await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });

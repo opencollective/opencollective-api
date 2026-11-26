@@ -15,10 +15,11 @@ import app from '../../../../server/index';
 import { getFxRate } from '../../../../server/lib/currency';
 import emailLib from '../../../../server/lib/email';
 import logger from '../../../../server/lib/logger';
+import * as mutex from '../../../../server/lib/mutex';
 import * as transferwiseLib from '../../../../server/lib/transferwise';
 import models from '../../../../server/models';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
-import { handleTransferStateChange } from '../../../../server/paymentProviders/transferwise/webhook';
+import webhook, { handleTransferStateChange } from '../../../../server/paymentProviders/transferwise/webhook';
 import { TransferRefundEvent } from '../../../../server/types/transferwise';
 import {
   fakeActiveHost,
@@ -526,6 +527,54 @@ describe('server/paymentProviders/transferwise/webhook', () => {
     });
 
     describe('Expense was already PAID (has Transactions)', () => {
+      const payExpense = async expense => {
+        await handleTransferStateChange({
+          data: {
+            resource: { id: expense.data.transfer.id, profile_id: '0', account_id: '0', type: 'transfer' },
+            current_state: 'outgoing_payment_sent',
+            previous_state: 'processing',
+            occurred_at: '2020-03-02T13:37:54Z',
+          },
+          subscription_id: '00000000-0000-0000-0000-000000000000',
+          event_type: 'transfers#state-change',
+          schema_version: '2.0.0',
+          sent_at: '2020-03-02T13:37:54Z',
+        });
+        await expense.reload();
+        expect(expense).to.have.property('status', status.PAID);
+      };
+
+      for (const fees of [113, 435, 29, 201]) {
+        it(`should fully refund a ${fees} cents fee without creating a payment processor cover`, async () => {
+          const { expense, event } = await setup({ amount: 10000, fees, refunded: 10000 + fees });
+          await payExpense(expense);
+
+          await api.post('/webhooks/transferwise').send(event).expect(200);
+
+          const transactions = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
+          expect(transactions.filter(t => t.kind === 'PAYMENT_PROCESSOR_COVER')).to.have.length(0);
+          const feeRefunds = transactions.filter(t => t.kind === 'PAYMENT_PROCESSOR_FEE' && t.isRefund);
+          expect(feeRefunds.map(t => Math.abs(t.amountInHostCurrency))).to.deep.eq([fees, fees]);
+        });
+      }
+
+      it('should fail if the related transactions cannot be marked as refunded', async () => {
+        const { expense } = await setup({ amount: 10000, fees: 1000, refunded: 11000 });
+        await payExpense(expense);
+
+        const originalUpdate = models.Transaction.prototype.update;
+        sandbox.stub(models.Transaction.prototype, 'update').callsFake(function (values, ...args) {
+          if (values?.data?.refundWiseEventTimestamp) {
+            return Promise.reject(new Error('Transaction update failed'));
+          }
+          return originalUpdate.call(this, values, ...args);
+        });
+
+        await expect(webhook({ rawBody: '' } as Parameters<typeof webhook>[0])).to.be.rejectedWith(
+          'Transaction update failed',
+        );
+      });
+
       it('should fully refund the transactions if refunded amount matches the amount paid', async () => {
         const { expense, event } = await setup({ amount: 10000, fees: 1000, refunded: 11000 });
         // Pay the Expense
@@ -861,6 +910,24 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       expect(expense).to.have.property('status', status.ERROR);
       expect(expense).to.have.nested.property('data.transfer.id', event.data.resource.id);
       expect(expense).to.have.nested.property('data.refundWiseEventTimestamp', event.data.occurred_at);
+      expect(expense.Transactions).to.have.length(2);
+    });
+
+    it('should ignore a duplicate event processed while waiting for the lock', async () => {
+      const { expense, event } = await setup({ amount: 10000, fees: 1000, refunded: 10000 });
+
+      // Both deliveries pass the duplicate check before the lock; the second one is fully processed
+      // while the first one waits for the lock.
+      const lockUntilResolved = sandbox.stub(mutex, 'lockUntilResolved').callsFake((key, until) => until());
+      lockUntilResolved.onFirstCall().callsFake(async (key, until) => {
+        await api.post('/webhooks/transferwise').send(event).expect(200);
+        return until();
+      });
+
+      await api.post('/webhooks/transferwise').send(event).expect(200);
+
+      expect(lockUntilResolved).to.have.been.calledTwice;
+      await expense.reload({ include: [{ model: models.Transaction }] });
       expect(expense.Transactions).to.have.length(2);
     });
   });
