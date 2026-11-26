@@ -74,6 +74,12 @@ const LEDGER_ORDERED_TRANSACTIONS_FIELDS = {
 
 const { PLATFORM_TIP, HOST_FEE_SHARE } = TransactionKind;
 
+/** Transactions accept larger pages than the default maximum (`DEFAULT_MAX_LIMIT`) */
+const TRANSACTIONS_COLLECTION_MAX_LIMIT = 10_000;
+
+/** For fields that use `TransactionsCollectionArgs` */
+export const TRANSACTIONS_COLLECTION_COST_EXTENSIONS = { cost: { maxLimit: TRANSACTIONS_COLLECTION_MAX_LIMIT } };
+
 export const TransactionsCollectionArgs = {
   limit: collectionLimitArg(100),
   offset: CollectionArgs.offset,
@@ -265,7 +271,7 @@ export const TransactionsCollectionResolver = async (
   if (isNil(args.offset) || args.offset < 0) {
     args.offset = 0;
   }
-  if (args.limit > 10000 && !isRemoteUserRoot(req)) {
+  if (args.limit > TRANSACTIONS_COLLECTION_MAX_LIMIT && !isRemoteUserRoot(req)) {
     throw new Error('Cannot fetch more than 10,000 transactions at the same time, please adjust the limit');
   }
 
@@ -908,6 +914,7 @@ const TransactionsCollectionQuery = {
     },
     ...TransactionsCollectionArgs,
   },
+  extensions: TRANSACTIONS_COLLECTION_COST_EXTENSIONS,
   async resolve(_: void, args, req: express.Request): Promise<GraphQLTransactionsCollectionReturnType> {
     return TransactionsCollectionResolver(args, req);
   },

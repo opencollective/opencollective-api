@@ -11,6 +11,12 @@
  *   type: new GraphQLList(GraphQLSocialLink),
  *   extensions: { cost: { listSize: 10 } },
  * }
+ *
+ * transactions: {
+ *   type: new GraphQLNonNull(GraphQLTransactionCollection),
+ *   args: { limit: collectionLimitArg(100) },
+ *   extensions: { cost: { maxLimit: 10_000 } },
+ * }
  * ```
  *
  * The cost analyzer reads them through `getFieldCostExtension`, never directly, so that a malformed value
@@ -60,6 +66,15 @@ interface FieldCostExtension {
    * item per item of the page.
    */
   listSize?: number | typeof PARENT_LIMIT;
+  /**
+   * Largest `limit` the field accepts, when it is not `DEFAULT_MAX_LIMIT`. A request above it is reported, then
+   * rejected once `config.graphql.cost.maxLimit.reject` is on (root users are exempt). Also the number of items counted
+   * when the limit cannot be determined. Ignored on fields that take no `limit`.
+   *
+   * Declare the same value on an interface field and on its implementations: `test/server/graphql/cost` checks it and
+   * lists every field that declares one.
+   */
+  maxLimit?: number;
 }
 
 declare module 'graphql' {
@@ -75,6 +90,8 @@ const isNonNegativeFiniteNumber = (value: unknown): value is number =>
 const isNonNegativeInteger = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 
+const isPositiveInteger = (value: unknown): value is number => isNonNegativeInteger(value) && value > 0;
+
 /**
  * Returns the valid entries of a field's `extensions.cost`. Invalid entries are dropped, so the analyzer
  * falls back to its defaults for them.
@@ -86,12 +103,15 @@ export const getFieldCostExtension = (field: GraphQLField<unknown, unknown>): Fi
   }
 
   const result: FieldCostExtension = {};
-  const { weight, listSize } = cost as Record<string, unknown>;
+  const { weight, listSize, maxLimit } = cost as Record<string, unknown>;
   if (isNonNegativeFiniteNumber(weight)) {
     result.weight = weight;
   }
   if (isNonNegativeInteger(listSize) || listSize === PARENT_LIMIT) {
     result.listSize = listSize;
+  }
+  if (isPositiveInteger(maxLimit)) {
+    result.maxLimit = maxLimit;
   }
 
   return result;

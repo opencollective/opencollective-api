@@ -109,6 +109,7 @@ import {
 } from '../query/collection/ExpensesCollectionQuery';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
 import {
+  TRANSACTIONS_COLLECTION_COST_EXTENSIONS,
   TransactionsCollectionArgs,
   TransactionsCollectionResolver,
 } from '../query/collection/TransactionsCollectionQuery';
@@ -525,6 +526,7 @@ const accountFieldsDefinition = () => ({
     args: {
       ...TransactionsCollectionArgs,
     },
+    extensions: TRANSACTIONS_COLLECTION_COST_EXTENSIONS,
   },
   orders: {
     type: new GraphQLNonNull(GraphQLOrderCollection),
@@ -948,6 +950,7 @@ const accountFieldsDefinition = () => ({
           'Order of the results. When not provided, children are grouped by type (Collectives/Organizations, then Projects, then Events, then internal Platform accounts) and sorted by createdAt DESC within each group.',
       },
     },
+    extensions: { cost: { maxLimit: 100 } },
     async resolve(account: Collective, args) {
       if (args.limit > 100) {
         throw new BadRequest('Cannot fetch more than 100 accounts at the same time, please adjust the limit');
@@ -1393,6 +1396,7 @@ const accountTransactions = {
   args: {
     ...omit(TransactionsCollectionArgs, ['account']),
   },
+  extensions: TRANSACTIONS_COLLECTION_COST_EXTENSIONS,
   async resolve(collective: Collective, args, req) {
     return TransactionsCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
   },

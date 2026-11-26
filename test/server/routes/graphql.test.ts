@@ -4,10 +4,13 @@ import { after, afterEach, before, beforeEach, describe, it } from 'mocha';
 import sinon from 'sinon';
 import request from 'supertest';
 
+import PlatformConstants from '../../../server/constants/platform';
 import * as QueryCostLib from '../../../server/graphql/cost';
 import * as SentryLib from '../../../server/lib/sentry';
 import * as SentryMetricsLib from '../../../server/lib/sentry/metrics';
+import { fakeOrganization, fakeUser } from '../../test-helpers/fake-data';
 import { startTestServer, stopTestServer } from '../../test-helpers/server';
+import { resetTestDB } from '../../utils';
 
 const nestFields = (fields: string[]) => {
   if (!fields.length) {
@@ -386,6 +389,162 @@ describe('GraphQL query cost (opencollective/opencollective#9081)', () => {
 
       expect(response.body.errors).to.not.exist;
       expect(getCostReports()).to.have.length(0);
+    });
+  });
+});
+
+describe('GraphQL max limit (opencollective/opencollective#9087)', () => {
+  let app, sandbox, reportMessageToSentry, rootUser, user;
+
+  const rootQuery = 'query BigPage { accounts(limit: 1001) { totalCount } }';
+  const nestedQuery =
+    'query NestedPage($limit: Int!) { accounts(limit: 1) { nodes { transactions(limit: $limit) { totalCount } } } }';
+
+  // The internal API key bypasses the per-IP rate limit (10/min), which later test files would hit otherwise
+  const post = (path: string) => request(app).post(path).query({ api_key: config.keys.opencollective.apiKey }); // eslint-disable-line camelcase
+
+  const getLimitReports = () =>
+    reportMessageToSentry.getCalls().filter(call => call.args[0] === 'GraphQL limit exceeded');
+
+  before(async () => {
+    await resetTestDB();
+    app = await startTestServer();
+    user = await fakeUser();
+    rootUser = await fakeUser({ data: { isRoot: true } });
+    const platform = await fakeOrganization({ id: PlatformConstants.PlatformCollectiveId, name: 'Platform' });
+    await platform.addUserWithRole(rootUser, 'ADMIN');
+  });
+
+  after(async () => {
+    await stopTestServer();
+  });
+
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
+    reportMessageToSentry = sandbox.stub(SentryLib, 'reportMessageToSentry');
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  it('defaults to log-only mode', () => {
+    expect(config.graphql.cost.maxLimit.reject).to.be.false;
+  });
+
+  describe('log-only mode', () => {
+    it('returns the data and reports once to Sentry, naming the field', async () => {
+      const response = await post('/graphql/v2')
+        .set('oc-application', 'test-client')
+        .send({ query: rootQuery })
+        .expect(200);
+
+      expect(response.body.errors).to.not.exist;
+      expect(response.body.data.accounts.totalCount).to.be.a('number');
+
+      const reports = getLimitReports();
+      expect(reports).to.have.length(1);
+      const { tags, extra, transactionName } = reports[0].args[1];
+      expect(tags).to.deep.equal({ mode: 'log-only', client: 'test-client', apiVersion: 'v2' });
+      expect(transactionName).to.equal('GraphQL limit exceeded: BigPage');
+      expect(extra).to.deep.include({ operationName: 'BigPage', operationType: 'query' });
+      expect(extra.limitViolations).to.deep.equal([
+        { coordinate: 'Query.accounts', responseKey: 'accounts', limit: 1001, maxLimit: 1000, source: 'literal' },
+      ]);
+    });
+
+    it('reports nested limits passed as variables', async () => {
+      await post('/graphql/v2')
+        .send({ query: nestedQuery, variables: { limit: 10_001 } })
+        .expect(200);
+
+      const reports = getLimitReports();
+      expect(reports).to.have.length(1);
+      expect(reports[0].args[1].extra.limitViolations).to.deep.equal([
+        {
+          coordinate: 'Account.transactions',
+          responseKey: 'transactions',
+          limit: 10_001,
+          maxLimit: 10_000,
+          source: 'variable',
+        },
+      ]);
+    });
+
+    it('does not report limits up to the maximum of the field', async () => {
+      const response = await post('/graphql/v2')
+        .send({ query: nestedQuery, variables: { limit: 10_000 } })
+        .expect(200);
+
+      expect(response.body.errors).to.not.exist;
+      expect(getLimitReports()).to.have.length(0);
+    });
+  });
+
+  describe('rejection mode', () => {
+    beforeEach(() => {
+      sandbox.stub(config.graphql.cost.maxLimit, 'reject').value(true);
+    });
+
+    it('rejects with a 400 naming the field and its maximum', async () => {
+      const response = await post('/graphql/v2').send({ query: rootQuery }).expect(400);
+
+      expect(response.body.data).to.not.exist;
+      expect(response.body.errors).to.have.length(1);
+      expect(response.body.errors[0].message).to.equal(
+        'The limit of 1001 on "Query.accounts" exceeds its maximum of 1000, please adjust the limit.',
+      );
+      expect(response.body.errors[0].extensions).to.deep.include({
+        code: 'GRAPHQL_VALIDATION_FAILED',
+        limitViolations: [{ coordinate: 'Query.accounts', limit: 1001, maxLimit: 1000 }],
+      });
+
+      const reports = getLimitReports();
+      expect(reports).to.have.length(1);
+      expect(reports[0].args[1].tags.mode).to.equal('reject');
+    });
+
+    it('rejects nested limits passed as variables', async () => {
+      const response = await post('/graphql/v2')
+        .send({ query: nestedQuery, variables: { limit: 10_001 } })
+        .expect(400);
+
+      expect(response.body.errors[0].message).to.equal(
+        'The limit of 10001 on "Account.transactions" exceeds its maximum of 10000, please adjust the limit.',
+      );
+    });
+
+    it('accepts limits up to the maximum of the field', async () => {
+      const response = await post('/graphql/v2')
+        .send({ query: nestedQuery, variables: { limit: 10_000 } })
+        .expect(200);
+
+      expect(response.body.errors).to.not.exist;
+    });
+
+    it('does not depend on the cost rejection setting', async () => {
+      expect(config.graphql.cost.reject).to.be.false;
+      await post('/graphql/v2').send({ query: rootQuery }).expect(400);
+    });
+
+    it('rejects authenticated users', async () => {
+      await post('/graphql/v2').set('Authorization', `Bearer ${user.jwt()}`).send({ query: rootQuery }).expect(400);
+    });
+
+    it('exempts root users', async () => {
+      const response = await post('/graphql/v2')
+        .set('Authorization', `Bearer ${rootUser.jwt()}`)
+        .send({ query: rootQuery })
+        .expect(200);
+
+      expect(response.body.errors).to.not.exist;
+      expect(getLimitReports()).to.have.length(0);
+    });
+
+    it('does not check GraphQL V1', async () => {
+      // Fails in the resolver (no account given), after the checks
+      await post('/graphql/v1').send({ query: '{ allMembers(limit: 2000) { id } }' }).expect(200);
+      expect(getLimitReports()).to.have.length(0);
     });
   });
 });

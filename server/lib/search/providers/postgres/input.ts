@@ -7,7 +7,7 @@ import { BadRequest } from '../../../../graphql/errors';
 import { idDecode, idEncode, IdentifierType } from '../../../../graphql/v2/identifiers';
 import { EntityShortIdPrefix, isAnyEntityPublicId, isEntityPublicId } from '../../../permalink/entity-map';
 
-const PostgresSearchLimits = {
+export const PostgresSearchLimits = {
   MAX_TERM_LENGTH: 200,
   MAX_WORDS: 12,
   MAX_RESULTS_PER_PAGE: 50,
