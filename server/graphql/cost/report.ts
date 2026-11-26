@@ -296,7 +296,9 @@ const formatCost = (cost: number | null): string => (cost === null ? 'not analyz
 const formatPercent = (part: number, whole: number): string =>
   whole > 0 ? `${Math.round((part / whole) * 100)}%` : '0%';
 
-const escapeCell = (value: string): string => value.replace(/\|/g, '\\|').replace(/\n/g, ' ');
+/** Escapes a value for a Markdown table cell, which also renders HTML */
+const escapeCell = (value: string): string =>
+  value.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, ' ');
 
 const formatTopFields = (operation: OperationCost): string => {
   if (operation.error) {

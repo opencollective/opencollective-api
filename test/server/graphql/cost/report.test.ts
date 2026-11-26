@@ -139,6 +139,13 @@ describe('server/graphql/cost/report', () => {
     });
   });
 
+  describe('formatCostReportMarkdown', () => {
+    it('escapes the values written in table cells', () => {
+      const report = getReport([{ path: 'a\\b|<c>.ts', content: 'query A { account { id } }' }]);
+      expect(formatCostReportMarkdown(report)).to.contain('<sub>a\\\\b\\|&lt;c&gt;.ts</sub>');
+    });
+  });
+
   describe('getCostReport', () => {
     it('uses the variable defaults, then the schema defaults, most expensive first', () => {
       const report = getReport(FRONTEND_FILES);
