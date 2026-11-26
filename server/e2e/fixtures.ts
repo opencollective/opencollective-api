@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'crypto';
 import { readFileSync, statSync } from 'fs';
 
 import config from 'config';
-import type { Application } from 'express';
+import type { Application, Request, Response } from 'express';
 
 import { getDBConf } from '../lib/db';
 
@@ -43,11 +43,32 @@ export async function installE2EFixtures(app: Application): Promise<void> {
   // harness dependency and never creates the E2E receipt table.
   const { initializeFixtures, arrangeFixture } = await import('./recipes.js');
   await initializeFixtures(owner.database);
-  app.post('/e2e/fixtures', async (req, res) => {
-    res.set('Cache-Control', 'no-store');
+  const authorized = (req: Request, res: Response): boolean => {
     const token = req.get('Authorization')?.replace(/^Bearer /, '') || '';
     if (!/^[a-f0-9]{64}$/.test(token) || !timingSafeEqual(Buffer.from(token), Buffer.from(owner.token))) {
       res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Fixture authorization required.' } });
+      return false;
+    }
+    return true;
+  };
+  // Live Stripe journeys: attempt-owned provider objects and the webhook ownership gate.
+  const { installStripeOwnership, retireAttemptRoute, probeStripeRoute } = await import('./stripe-ownership.js');
+  await installStripeOwnership(app, owner.ownerRunId);
+  for (const [path, route] of [
+    ['/e2e/stripe/attempts/retire', retireAttemptRoute],
+    ['/e2e/stripe/probe', probeStripeRoute],
+  ] as const) {
+    app.post(path, async (req, res) => {
+      res.set('Cache-Control', 'no-store');
+      if (authorized(req, res)) {
+        const { status, body } = await route(owner.ownerRunId, req.body);
+        res.status(status).json(body);
+      }
+    });
+  }
+  app.post('/e2e/fixtures', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    if (!authorized(req, res)) {
       return;
     }
     let disconnected = false;
