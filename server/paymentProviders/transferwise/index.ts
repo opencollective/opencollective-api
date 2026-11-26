@@ -412,6 +412,14 @@ async function payExpense(
       transferId: transfer.id,
     });
 
+    // Wise answers with a success HTTP status and `status: 'REJECTED'` when it refuses to fund the transfer
+    if (fund?.status === 'REJECTED') {
+      throw new TransferwiseError(
+        `The transfer could not be funded (${fund.errorCode || 'unknown error'})`,
+        fund.errorCode ? `transferwise.error.${fund.errorCode}` : null,
+      );
+    }
+
     // Simulate transfer success in other environments so transactions don't get stuck.
     if (['development', 'staging'].includes(config.env)) {
       const response = await transferwise.simulateTransferSuccess(connectedAccount, transfer.id);
