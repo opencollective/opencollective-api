@@ -10,7 +10,6 @@ export const PAYMENT_METHOD_SERVICES = Object.values(PAYMENT_METHOD_SERVICE);
 
 export enum PAYMENT_METHOD_TYPE {
   DEFAULT = 'default',
-  ALIPAY = 'alipay',
   CREDITCARD = 'creditcard',
   PREPAID = 'prepaid',
   PAYMENT = 'payment',
