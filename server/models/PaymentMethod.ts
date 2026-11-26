@@ -1,7 +1,7 @@
 import config from 'config';
 import debugLib from 'debug';
 import { get, intersection } from 'lodash';
-import { InferAttributes, InferCreationAttributes } from 'sequelize';
+import { FindOptions, InferAttributes, InferCreationAttributes, WhereOptions } from 'sequelize';
 
 import { SupportedCurrency } from '../constants/currencies';
 import { maxInteger } from '../constants/math';
@@ -31,6 +31,20 @@ import User from './User';
 
 const debug = debugLib('models:PaymentMethod');
 
+/**
+ * Types that are legitimately created without a token: PayPal one-time payments (identified by
+ * `data.orderId`), Stripe payment intents, manual payments, and the host-side payment methods
+ * attached to expenses (see `Collective.findOrCreatePaymentMethod`).
+ */
+const TOKENLESS_PAYMENT_METHOD_TYPES: readonly string[] = [
+  PAYMENT_METHOD_TYPE.PAYMENT,
+  PAYMENT_METHOD_TYPE.PAYMENT_INTENT,
+  PAYMENT_METHOD_TYPE.MANUAL,
+  PAYMENT_METHOD_TYPE.PAYOUT,
+  PAYMENT_METHOD_TYPE.BANK_TRANSFER,
+  PAYMENT_METHOD_TYPE.VIRTUAL_CARD,
+];
+
 class PaymentMethod extends ModelWithPublicId<
   EntityShortIdPrefix.PaymentMethod,
   InferAttributes<PaymentMethod>,
@@ -52,6 +66,7 @@ class PaymentMethod extends ModelWithPublicId<
   declare currency: SupportedCurrency;
   declare service: PAYMENT_METHOD_SERVICE;
   declare type: PAYMENT_METHOD_TYPE;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- PaymentMethod.data holds provider-specific payloads (Stripe, PayPal, Wise, gift cards) deep-read and mutated across payment providers and GraphQL resolvers; narrowing it would cascade errors without per-provider schemas
   declare data: any;
   declare createdAt: Date;
   declare updatedAt: Date;
@@ -284,7 +299,7 @@ PaymentMethod.init(
     hooks: {
       beforeCreate: instance => {
         if (instance.service !== 'opencollective') {
-          if (!instance.token && !instance.isPaypalPayment()) {
+          if (!instance.token && !TOKENLESS_PAYMENT_METHOD_TYPES.includes(instance.type)) {
             throw new Error(`${instance.service} payment method requires a token`);
           }
           if (
@@ -550,8 +565,9 @@ PaymentMethod.prototype.getBalanceForUser = async function (user) {
   }
 
   let limit = Infinity; // no no, no no no no, no no no no limit!
-  const query: any = {
-    where: { type: TransactionTypes.DEBIT },
+  const where: WhereOptions = { type: TransactionTypes.DEBIT };
+  const query: FindOptions = {
+    where,
     include: [
       {
         model: PaymentMethod,
@@ -566,8 +582,8 @@ PaymentMethod.prototype.getBalanceForUser = async function (user) {
     limit = this.monthlyLimitPerMember;
     const d = new Date();
     const firstOfTheMonth = new Date(d.getFullYear(), d.getMonth(), 1);
-    query.where.createdAt = { [Op.gte]: firstOfTheMonth };
-    query.where.CreatedByUserId = user.id;
+    where.createdAt = { [Op.gte]: firstOfTheMonth };
+    where.CreatedByUserId = user.id;
   }
 
   if (this.initialBalance) {

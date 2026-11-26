@@ -149,7 +149,7 @@ const syncTransactionsImport = async (
           const transaction = nonPendingModifiedTransactions.find(tr => tr.transaction_id === row.sourceId);
           const previousData = row.rawValue;
           await row.update({
-            description: transaction.name,
+            description: transaction.name?.substring(0, 255), // Comply with Transactions table description column length limit
             date: new Date(transaction.date),
             amount: -floatAmountToCents(transaction.amount),
             currency: transaction.iso_currency_code,
@@ -183,7 +183,7 @@ const syncTransactionsImport = async (
             transactionsToAdd.map(plaidTransaction => ({
               sourceId: plaidTransaction.transaction_id,
               isUnique: true, // This enables the unique index on the sourceId column
-              description: plaidTransaction.name,
+              description: plaidTransaction.name?.substring(0, 255), // Comply with Transactions table description column length limit
               date: new Date(plaidTransaction.date),
               amount: -floatAmountToCents(plaidTransaction.amount),
               currency: plaidTransaction.iso_currency_code,

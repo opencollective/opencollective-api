@@ -3,6 +3,7 @@ import { get } from 'lodash';
 
 import errors from '../lib/errors';
 import * as github from '../lib/github';
+import logger from '../lib/logger';
 import RateLimit from '../lib/rate-limit';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
@@ -140,6 +141,15 @@ export const fetchAllRepositories = async (req, res, next) => {
     }
     res.send(repos);
   } catch (e) {
+    if (e?.status === 401) {
+      // The stored GitHub token was revoked or expired: this is a user-side state, ask them to reconnect
+      logger.warn(`GitHub token rejected (401) while fetching repositories for connected account #${githubAccount.id}`);
+      return next(
+        new errors.Unauthorized(
+          'Your GitHub authorization has expired or was revoked. Please reconnect your GitHub account.',
+        ),
+      );
+    }
     next(e);
   }
 };

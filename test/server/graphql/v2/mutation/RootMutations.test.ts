@@ -7,15 +7,18 @@ import { CollectiveType } from '../../../../../server/constants/collectives';
 import PlatformConstants from '../../../../../server/constants/platform';
 import roles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import cache, { fetchCollectiveId } from '../../../../../server/lib/cache';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
 import {
+  fakeActiveHost,
   fakeActivity,
   fakeCollective,
   fakeComment,
   fakeExpense,
   fakeHost,
   fakeMember,
+  fakePlatformSubscription,
   fakeRecurringExpense,
   fakeTransaction,
   fakeUser,
@@ -38,6 +41,25 @@ const EDIT_ACCOUNT_TYPE_MUTATION = gql`
     editAccountType(account: $account) {
       id
       type
+    }
+  }
+`;
+
+const EDIT_ACCOUNT_FLAGS_MUTATION = gql`
+  mutation EditAccountFlags($account: AccountReferenceInput!, $isBlockedForUnpaidPlatformBilling: Boolean) {
+    editAccountFlags(account: $account, isBlockedForUnpaidPlatformBilling: $isBlockedForUnpaidPlatformBilling) {
+      id
+    }
+  }
+`;
+
+const MERGE_ACCOUNTS_MUTATION = gql`
+  mutation MergeAccounts($fromAccount: AccountReferenceInput!, $toAccount: AccountReferenceInput!, $dryRun: Boolean!) {
+    mergeAccounts(fromAccount: $fromAccount, toAccount: $toAccount, dryRun: $dryRun) {
+      message
+      account {
+        id
+      }
     }
   }
 `;
@@ -88,7 +110,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       const result = await callMoveExpenseMutation({ expenses: [] }, rootUser);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal(
-        'Variable "$destinationAccount" of required type "AccountReferenceInput!" was not provided.',
+        'Variable "$destinationAccount" has invalid value: Expected a value of non-null type "AccountReferenceInput!" to be provided.',
       );
     });
 
@@ -293,6 +315,75 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
     });
   });
 
+  describe('editAccountFlags - isBlockedForUnpaidPlatformBilling', () => {
+    const callEditAccountFlags = async (variables, user, useValid2FA = true) => {
+      const headers = {};
+      if (useValid2FA) {
+        headers[TwoFactorAuthenticationHeader] = generateValid2FAHeader(rootUser);
+      }
+      return graphqlQueryV2(EDIT_ACCOUNT_FLAGS_MUTATION, variables, user, undefined, headers);
+    };
+
+    it('is rejected for non-root users', async () => {
+      const nonRoot = await fakeUser();
+      const host = await fakeHost();
+      const result = await callEditAccountFlags(
+        { account: { legacyId: host.id }, isBlockedForUnpaidPlatformBilling: true },
+        nonRoot,
+      );
+      expect(result.errors).to.exist;
+    });
+
+    it('lets a root user block and unblock an account', async () => {
+      const host = await fakeHost();
+
+      let result = await callEditAccountFlags(
+        { account: { legacyId: host.id }, isBlockedForUnpaidPlatformBilling: true },
+        rootUser,
+      );
+      expect(result.errors).to.not.exist;
+      await host.reload();
+      expect(host.data.isBlockedForUnpaidPlatformBilling).to.be.true;
+
+      result = await callEditAccountFlags(
+        { account: { legacyId: host.id }, isBlockedForUnpaidPlatformBilling: false },
+        rootUser,
+      );
+      expect(result.errors).to.not.exist;
+      await host.reload();
+      expect(host.data.isBlockedForUnpaidPlatformBilling).to.be.false;
+    });
+
+    it('exposes the on-hold status via platformSubscription to admins only', async () => {
+      const ACCOUNT_QUERY = gql`
+        query Account($slug: String!) {
+          account(slug: $slug) {
+            id
+            ... on AccountWithPlatformSubscription {
+              platformSubscription {
+                isAccountOnHold
+              }
+            }
+          }
+        }
+      `;
+      const admin = await fakeUser();
+      const host = await fakeHost({ admin, data: { isBlockedForUnpaidPlatformBilling: true } });
+      await fakePlatformSubscription({ CollectiveId: host.id });
+      await admin.populateRoles();
+
+      const asAdmin = await graphqlQueryV2(ACCOUNT_QUERY, { slug: host.slug }, admin);
+      expect(asAdmin.data.account.platformSubscription.isAccountOnHold).to.be.true;
+
+      // platformSubscription itself is gated to admins/root, so non-admins can't reach the field
+      const asStranger = await graphqlQueryV2(ACCOUNT_QUERY, { slug: host.slug }, await fakeUser());
+      expect(asStranger.data.account.platformSubscription).to.be.null;
+
+      const asPublic = await graphqlQueryV2(ACCOUNT_QUERY, { slug: host.slug });
+      expect(asPublic.data.account.platformSubscription).to.be.null;
+    });
+  });
+
   describe('rootTransferBalance', () => {
     const ROOT_TRANSFER_BALANCE_MUTATION = gql`
       mutation RootTransferBalance(
@@ -471,6 +562,58 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       expect(toBalanceAfter).to.equal(3000);
     });
 
+    it('uses the balance in host currency when the source account currency differs', async () => {
+      const host = await fakeHost({ currency: 'USD' });
+      const fromCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'EUR' });
+      const toCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'EUR' });
+
+      // Give fromCollective a balance of $100 in host currency
+      await fakeTransaction(
+        {
+          CollectiveId: fromCollective.id,
+          FromCollectiveId: fromCollective.id,
+          HostCollectiveId: host.id,
+          amount: 10000,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          amountInHostCurrency: 10000,
+          netAmountInCollectiveCurrency: 10000,
+          kind: TransactionKind.CONTRIBUTION,
+        },
+        { createDoubleEntry: true },
+      );
+
+      const balanceInHostCurrency = await fromCollective.getBalance({ currency: 'USD' });
+      expect(balanceInHostCurrency).to.equal(10000);
+      expect(await fromCollective.getBalance()).to.not.equal(balanceInHostCurrency); // Balance in EUR differs
+
+      // An amount above the host-currency balance is rejected
+      const tooMuchResult = await callTransferBalance(
+        {
+          fromAccount: { legacyId: fromCollective.id },
+          toAccount: { legacyId: toCollective.id },
+          amount: { valueInCents: 10500, currency: 'USD' },
+        },
+        rootUser,
+      );
+      expect(tooMuchResult.errors).to.exist;
+      expect(tooMuchResult.errors[0].message).to.include('exceeds available balance');
+
+      // The default transfer moves exactly the host-currency balance
+      const result = await callTransferBalance(
+        {
+          fromAccount: { legacyId: fromCollective.id },
+          toAccount: { legacyId: toCollective.id },
+        },
+        rootUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.rootTransferBalance.amount).to.deep.equal({ valueInCents: 10000, currency: 'USD' });
+      expect(await fromCollective.getBalance({ currency: 'USD' })).to.equal(0);
+    });
+
     it('fails when amount exceeds balance', async () => {
       const host = await fakeHost();
       const fromCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
@@ -584,6 +727,49 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('Expected currency');
+    });
+  });
+
+  describe('mergeAccounts', () => {
+    const callMergeAccountsMutation = (variables, user = rootUser, useValid2FA = true) => {
+      const headers = {};
+      if (useValid2FA) {
+        headers[TwoFactorAuthenticationHeader] = generateValid2FAHeader(rootUser);
+      }
+
+      return graphqlQueryV2(MERGE_ACCOUNTS_MUTATION, variables, user, undefined, headers);
+    };
+
+    it('purges the source parent caches and the source slug cache after a merge', async () => {
+      const host = await fakeActiveHost();
+      const parent = await fakeCollective({ HostCollectiveId: host.id });
+      const project = await fakeCollective({
+        type: CollectiveType.PROJECT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: host.id,
+      });
+      const target = await fakeCollective({ HostCollectiveId: host.id });
+
+      // Seed the caches that would otherwise survive the merge
+      await fetchCollectiveId(project.slug);
+      await cache.set(`graphqlCache_${parent.slug}_seed`, 'parent-cache');
+      await cache.set(`graphqlCache_${project.slug}_seed`, 'project-cache');
+      expect(await fetchCollectiveId(project.slug)).to.eq(project.id);
+      expect(await cache.get(`graphqlCache_${parent.slug}_seed`)).to.eq('parent-cache');
+
+      const result = await callMergeAccountsMutation({
+        fromAccount: { legacyId: project.id },
+        toAccount: { legacyId: target.id },
+        dryRun: false,
+      });
+      expect(result.errors, result.errors?.map(error => error.message).join(', ')).to.not.exist;
+
+      // The source's old slug no longer resolves from the cache
+      expect(await fetchCollectiveId(project.slug)).to.be.undefined;
+
+      // The source's and its parent's caches are purged (the parent lists its children)
+      expect(await cache.get(`graphqlCache_${project.slug}_seed`)).to.be.undefined;
+      expect(await cache.get(`graphqlCache_${parent.slug}_seed`)).to.be.undefined;
     });
   });
 });

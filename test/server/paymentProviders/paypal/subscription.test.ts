@@ -1,18 +1,23 @@
 /* eslint-disable camelcase */
 
+import * as SentrySdk from '@sentry/node';
 import { expect } from 'chai';
+import config from 'config';
 import nock from 'nock';
 import { assert, createSandbox } from 'sinon';
 
+import INTERVALS from '../../../../server/constants/intervals';
 import OrderStatuses from '../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import * as PaypalAPI from '../../../../server/paymentProviders/paypal/api';
 import {
   cancelPaypalSubscription,
+  getOrCreatePlan,
   setupPaypalSubscriptionForOrder,
 } from '../../../../server/paymentProviders/paypal/subscription';
 import { randEmail } from '../../../stores';
 import {
+  fakeCollective,
   fakeConnectedAccount,
   fakeHost,
   fakeOrder,
@@ -108,6 +113,41 @@ describe('server/paymentProviders/paypal/subscription', () => {
       const createdSubscription = await order.getSubscription();
       expect(createdSubscription.paypalSubscriptionId).to.eq(validSubscriptionParams.id);
       expect(createdSubscription.isActive).to.be.false; // Will be activated when the first payment hits
+    });
+
+    it('records a failed payment outcome metric when the subscription activation fails', async () => {
+      const paymentMethod = await fakePaypalSubscriptionPm(validSubscriptionParams);
+      const order = await fakeOrder({
+        CollectiveId: host.id,
+        status: OrderStatuses.NEW,
+        TierId: null,
+        totalAmount: 1000,
+        PaymentMethodId: paymentMethod.id,
+      });
+      const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest');
+      const subscriptionUrl = `billing/subscriptions/${paymentMethod.token}`;
+      paypalRequestStub.withArgs(subscriptionUrl).returns(validSubscriptionParams);
+      const paypalError = {
+        message: 'PayPal refused to activate the subscription',
+        metadata: { error: { name: 'INTERNAL_ERROR', details: [{ issue: 'INTERNAL_ERROR' }] } },
+      };
+      paypalRequestStub.withArgs(`${subscriptionUrl}/activate`).rejects(paypalError);
+
+      sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+      const metricsCountStub = sandbox.stub(SentrySdk.metrics, 'count');
+
+      const error = await setupPaypalSubscriptionForOrder(order, paymentMethod).catch(e => e);
+      expect(error['rootException'].message).to.eq('PayPal refused to activate the subscription');
+
+      expect(metricsCountStub).to.have.been.calledOnce;
+      expect(metricsCountStub.firstCall.args).to.deep.equal([
+        'thirdparty.paypal.payment.failed',
+        1,
+        { attributes: { flow: 'contribution', method: 'subscription', error_type: 'provider_error' } },
+      ]);
+
+      // NB: the ERROR update is fire-and-forget in the handler, assert on the in-memory instance
+      expect(order.status).to.eq(OrderStatuses.ERROR);
     });
 
     describe('subscription matches the contribution', () => {
@@ -218,6 +258,63 @@ describe('server/paymentProviders/paypal/subscription', () => {
         assert.calledWith(paypalRequestStub, `${oldSubscriptionUrl}/cancel`);
         assert.callCount(paypalRequestStub, 2); // Must NOT call activate if cancellation fails
       });
+
+      it('restores the existing subscription if activation fails', async () => {
+        const cardPm = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        });
+        const order = await fakeOrder(
+          {
+            CollectiveId: host.id,
+            status: OrderStatuses.ACTIVE,
+            TierId: null,
+            totalAmount: 1000,
+            subscription: { isActive: true, isManagedExternally: false, paypalSubscriptionId: null },
+            PaymentMethodId: cardPm.id,
+          },
+          { withSubscription: true },
+        );
+        const newSubscriptionPm = await fakePaypalSubscriptionPm(validSubscriptionParams);
+
+        // PayPal API stubs
+        const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest');
+        const subscriptionUrl = `billing/subscriptions/${newSubscriptionPm.token}`;
+        paypalRequestStub.withArgs(subscriptionUrl).returns(validSubscriptionParams);
+        paypalRequestStub.withArgs(`${subscriptionUrl}/activate`).rejects(new Error('PayPal 500'));
+
+        const error = await setupPaypalSubscriptionForOrder(order, newSubscriptionPm).catch(e => e);
+        expect(error.message).to.eq('Failed to activate PayPal subscription');
+
+        // The card subscription must still be charged by the internal cron
+        const subscription = await order.getSubscription();
+        expect(subscription.isManagedExternally).to.be.false;
+        expect(subscription.paypalSubscriptionId).to.be.null;
+      });
+    });
+  });
+
+  describe('getOrCreatePlan', () => {
+    it('disables PayPal outstanding bundling (https://github.com/opencollective/opencollective/issues/6600)', async () => {
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest');
+      paypalRequestStub.withArgs('catalogs/products').resolves({ id: 'PROD-123' });
+      paypalRequestStub.withArgs('billing/plans').resolves({ id: 'PLAN-123' });
+
+      await getOrCreatePlan(host, collective, INTERVALS.MONTH, 500, 'USD', null);
+
+      const planCall = paypalRequestStub.getCalls().find(call => call.args[0] === 'billing/plans');
+      expect(planCall).to.exist;
+      expect(planCall.args[1].payment_preferences.auto_bill_outstanding).to.eq(false);
+    });
+
+    it('throws an explicit error if the host is missing', async () => {
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest');
+      await expect(getOrCreatePlan(null, collective, INTERVALS.MONTH, 500, 'USD', null)).to.be.rejectedWith(
+        'A fiscal host is required to create a PayPal plan',
+      );
+      expect(paypalRequestStub.called).to.be.false;
     });
   });
 

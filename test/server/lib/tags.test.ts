@@ -1,6 +1,6 @@
-import { assert } from 'chai';
+import { assert, expect } from 'chai';
 
-import { sanitizeTags } from '../../../server/lib/tags';
+import { sanitizeTags, validateTags } from '../../../server/lib/tags';
 
 describe('server/lib/tags', () => {
   it('sanitize tags', () => {
@@ -27,5 +27,17 @@ describe('server/lib/tags', () => {
       'double space',
       'open source',
     ]);
+  });
+
+  describe('validateTags', () => {
+    it('accepts up to the max number of tags', () => {
+      expect(() => validateTags(['a', 'b', 'c'], { maxNbTags: 3 })).to.not.throw();
+    });
+
+    it('tells how many tags to remove when there are too many', () => {
+      expect(() => validateTags(['a', 'b', 'c', 'd', 'e'], { maxNbTags: 3 })).to.throw(
+        "Sorry, you can't add more than 3 tags. Please remove 2 tag(s).",
+      );
+    });
   });
 });

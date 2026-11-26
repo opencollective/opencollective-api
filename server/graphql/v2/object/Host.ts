@@ -17,6 +17,7 @@ import { QueryTypes } from 'sequelize';
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
+import MemberRoles from '../../../constants/roles';
 import { FEATURE } from '../../../lib/allowed-features';
 import { listMatchingDimensionValues } from '../../../lib/metrics';
 import { GraphQLMetricsDateRangeInput, hostMetricsField } from '../../../lib/metrics/graphql';
@@ -34,7 +35,14 @@ import { ifStr } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
-import { checkRemoteUserCanUseHost } from '../../common/scope-check';
+import {
+  checkRemoteUserCanUseApplications,
+  checkRemoteUserCanUseExpenses,
+  checkRemoteUserCanUseHost,
+  checkRemoteUserCanUseOrders,
+  checkRemoteUserCanUseTransactions,
+  checkRemoteUserCanUseVirtualCards,
+} from '../../common/scope-check';
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
@@ -170,7 +178,14 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLDateTime,
           },
         },
-        resolve: async (host, args) => {
+        resolve: async (host, args, req) => {
+          checkRemoteUserCanUseHost(req);
+          checkRemoteUserCanUseTransactions(req);
+          if (!req.remoteUser.isAdminOfCollective(host) && !req.remoteUser.hasRole(MemberRoles.ACCOUNTANT, host.id)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin or an accountant of the host to see its transaction reports',
+            );
+          }
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
             throw new Error('Only monthly, quarterly and yearly reports are supported.');
           }
@@ -400,15 +415,9 @@ export const GraphQLHost = new GraphQLObjectType({
             description: 'The end date of the time series',
           },
         },
-        async resolve(host, args) {
-          let collectiveIds;
-          if (args.account) {
-            const collectives = await fetchAccountsWithReferences(args.account, {
-              attributes: ['id'],
-            });
-            collectiveIds = collectives.map(collective => collective.id);
-          }
-          const metrics = await host.getHostMetrics(args.dateFrom || args.from, args.dateTo || args.to, collectiveIds);
+        async resolve(host) {
+          // getHostMetrics is a stub that ignores the account and date arguments (see the model)
+          const metrics = await host.getHostMetrics();
           const toAmount = value => ({ value, currency: host.currency });
           return mapValues(metrics, (value, key) => (key.includes('Percent') ? value : toAmount(value)));
         },
@@ -458,7 +467,14 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLDateTime,
           },
         },
-        resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }) => {
+        resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }, req) => {
+          checkRemoteUserCanUseHost(req);
+          checkRemoteUserCanUseExpenses(req);
+          if (!req.remoteUser.isAdminOfCollective(host) && !req.remoteUser.hasRole(MemberRoles.ACCOUNTANT, host.id)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin or an accountant of the host to see its expense reports',
+            );
+          }
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
             throw new Error('Only monthly, quarterly and yearly reports are supported.');
           }
@@ -528,7 +544,15 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLDateTime,
           },
         },
-        resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }) => {
+        resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }, req) => {
+          checkRemoteUserCanUseHost(req);
+          checkRemoteUserCanUseOrders(req);
+          if (!req.remoteUser.isAdminOfCollective(host) && !req.remoteUser.hasRole(MemberRoles.ACCOUNTANT, host.id)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin or an accountant of the host to see its contribution reports',
+            );
+          }
+
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
             throw new Error('Only monthly, quarterly and yearly reports are supported.');
           }
@@ -583,7 +607,7 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       hostApplications: {
         type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-        description: 'Applications for this host',
+        description: 'Applications for this host. Scope: "applications".',
         args: {
           ...CollectionArgs,
           searchTerm: {
@@ -605,7 +629,8 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         resolve: async (host, args, req) => {
-          if (!req.remoteUser?.isAdmin(host.id)) {
+          checkRemoteUserCanUseApplications(req);
+          if (!req.remoteUser.isAdminOfCollective(host)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its applications');
           }
 
@@ -622,7 +647,7 @@ export const GraphQLHost = new GraphQLObjectType({
             if (CollectiveIds.length) {
               conditions.push(
                 sequelize.literal(
-                  `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."HostApplicationId" = "HostApplication"."id" ORDER BY "Comments"."createdAt" DESC LIMIT 1)
+                  `(SELECT "FromCollectiveId" FROM "Comments" WHERE "type" = 'COMMENT' AND "Comments"."HostApplicationId" = "HostApplication"."id" ORDER BY "Comments"."createdAt" DESC LIMIT 1)
                     IN (
                       SELECT "MemberCollectiveId" FROM "Members" WHERE
                       "role" = 'ADMIN' AND "deletedAt" IS NULL AND
@@ -642,13 +667,22 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           const searchTermConditions = buildSearchConditions(args.searchTerm, {
-            idFields: ['id'],
-            slugFields: ['slug'],
-            textFields: ['name', 'description', 'longDescription'],
-            stringArrayFields: ['tags'],
+            idFields: ['id', '$collective.id$'],
+            slugFields: ['$collective.slug$'],
+            textFields: ['$collective.name$', '$collective.description$', '$collective.longDescription$'],
+            stringArrayFields: ['$collective.tags$'],
             stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
-            publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
+            castStringArraysToVarchar: true,
+            publicIdFields: [
+              { field: 'publicId', prefix: EntityShortIdPrefix.HostApplication },
+              { field: '$collective.publicId$', prefix: EntityShortIdPrefix.Collective },
+            ],
           });
+
+          if (searchTermConditions.length) {
+            where[Op.and] = where[Op.and] || [];
+            where[Op.and].push({ [Op.or]: searchTermConditions });
+          }
 
           const { rows, count } = await models.HostApplication.findAndCountAll({
             order: [[args.orderBy.field, args.orderBy.direction]],
@@ -664,7 +698,6 @@ export const GraphQLHost = new GraphQLObjectType({
                   ...(args.status !== 'REJECTED' && {
                     HostCollectiveId: host.id,
                   }),
-                  ...(searchTermConditions.length && { [Op.or]: searchTermConditions }),
                 },
               },
             ],
@@ -675,7 +708,7 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       pendingApplications: {
         type: new GraphQLNonNull(GraphQLHostApplicationCollection),
-        description: 'Pending applications for this host',
+        description: 'Pending applications for this host. Scope: "applications".',
         deprecationReason: '2023-08-25: Deprecated in favour of host.hostApplications(status: PENDING).',
         args: {
           ...CollectionArgs,
@@ -691,8 +724,9 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         resolve: async (host, args, req) => {
-          if (!req.remoteUser?.isAdmin(host.id)) {
-            throw new Unauthorized('You need to be logged in as an admin of the host to see its pending application');
+          checkRemoteUserCanUseApplications(req);
+          if (!req.remoteUser.isAdminOfCollective(host)) {
+            throw new Unauthorized('You need to be logged in as an admin of the host to see its pending applications');
           }
 
           const applyTypes = [CollectiveType.COLLECTIVE, CollectiveType.FUND];
@@ -775,7 +809,9 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         async resolve(host, args, req) {
-          if (!req.remoteUser?.isAdmin(host.id)) {
+          checkRemoteUserCanUseHost(req);
+          checkRemoteUserCanUseVirtualCards(req);
+          if (!req.remoteUser.isAdminOfCollective(host)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its hosted virtual cards');
           }
 
@@ -944,8 +980,12 @@ export const GraphQLHost = new GraphQLObjectType({
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
         },
         async resolve(host, args, req) {
-          if (!req.remoteUser?.isAdmin(host.id)) {
-            throw new Unauthorized('You need to be logged in as an admin to see the virtual card merchants');
+          checkRemoteUserCanUseHost(req);
+          checkRemoteUserCanUseVirtualCards(req);
+          if (!req.remoteUser.isAdminOfCollective(host)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin of the host to see the virtual card merchants',
+            );
           }
 
           const result = await models.Collective.findAndCountAll({
@@ -988,8 +1028,12 @@ export const GraphQLHost = new GraphQLObjectType({
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
         },
         async resolve(host, args, req) {
-          if (!req.remoteUser?.isAdmin(host.id)) {
-            throw new Unauthorized('You need to be logged in as an admin to see the virtual card merchants');
+          checkRemoteUserCanUseHost(req);
+          checkRemoteUserCanUseVirtualCards(req);
+          if (!req.remoteUser.isAdminOfCollective(host)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin of the host to see the virtual card merchants',
+            );
           }
 
           const result = await models.Collective.findAndCountAll({
@@ -1040,6 +1084,7 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         async resolve(host, args, req) {
+          checkRemoteUserCanUseHost(req);
           if (!Agreement.canSeeAgreementsForHostCollectiveId(req.remoteUser, host.id)) {
             throw new Unauthorized(
               'You need to be logged in as an admin or accountant of the host to see its agreements',
@@ -1440,8 +1485,17 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           const { offset, limit } = args;
+          // Finding which accounts require a tax form is expensive when done host-wide. When the
+          // caller already targets specific accounts, scope the query to them: Postgres then starts
+          // from the payees' expenses instead of scanning every expense of the host (see
+          // `getTaxFormsRequiredForAccounts`).
+          const requestedAccountIds =
+            args.account?.length > 0
+              ? uniq(await fetchAccountsIdsWithReference(args.account, { throwIfMissing: true }))
+              : null;
           const accountIds = await SQLQueries.getTaxFormsRequiredForAccounts({
             HostCollectiveId: host.id,
+            CollectiveId: requestedAccountIds ?? undefined,
             allTime: true,
           });
           if (!accountIds.size) {
@@ -1454,11 +1508,6 @@ export const GraphQLHost = new GraphQLObjectType({
           }
           if (args.status) {
             where['requestStatus'] = args.status;
-          }
-
-          if (args.account && args.account.length > 0) {
-            const accountIds = await fetchAccountsIdsWithReference(args.account, { throwIfMissing: true });
-            where['CollectiveId'] = uniq(accountIds);
           }
 
           if (args.requestedAtFrom) {
@@ -1504,10 +1553,13 @@ export const GraphQLHost = new GraphQLObjectType({
           };
         },
       },
+      // Host is an Account, and `Account.location` is not deprecated: since graphql@17, an implementing field
+      // can't be deprecated when the interface field isn't, so this one keeps the Organization resolver undeprecated.
+      location: getOrganizationFields().location,
       ...mapValues(
         pick(getOrganizationFields(), [
-          'location',
           'accountingCategories',
+          'suggestedBalanceAccountingCategories',
           'contributionAccountingCategoryRules',
           'hasMoneyManagement',
           'supportedPayoutMethods',

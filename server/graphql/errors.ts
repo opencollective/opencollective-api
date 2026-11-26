@@ -121,6 +121,8 @@ export class ContentNotReady extends IdentifiableApolloError {
   }
 }
 
+export const IGNORED_GRAPHQL_ERROR_CODES = [ContentNotReady.name];
+
 export class UnexpectedError extends IdentifiableApolloError {
   constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
     super(message || 'An unexpected error happened', code || 'UnexpectedError', additionalProperties);

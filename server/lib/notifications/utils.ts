@@ -1,9 +1,11 @@
-import sanitizeHtml from 'sanitize-html';
+import * as cheerio from 'cheerio';
 
-import { sanitizerOptions as updateSanitizerOptions } from '../../models/Update';
+import { optsSanitizeUpdateHtml, parseServiceLink, sanitizeHTML } from '../sanitize-html';
+import { reportErrorToSentry } from '../sentry';
+import { constructYouTubeWatchUrl, YOUTUBE_VIDEO_ID_PATTERN } from '../url-utils';
 
 const constructPreviewImageURL = (service: string, id: string) => {
-  if (service === 'youtube' && id.match('[a-zA-Z0-9_-]{11}')) {
+  if (service === 'youtube' && YOUTUBE_VIDEO_ID_PATTERN.test(id)) {
     return `https://img.youtube.com/vi/${id}/0.jpg`;
   } else if (service === 'anchorFm') {
     return `https://opencollective.com/static/images/anchor-fm-logo.png`;
@@ -12,55 +14,71 @@ const constructPreviewImageURL = (service: string, id: string) => {
   }
 };
 
-const parseServiceLink = (videoLink: string) => {
-  const regexps = {
-    youtube: new RegExp(
-      '(?:https?://)?(?:www\\.)?youtu(?:\\.be/|be(-nocookie)?\\.com/\\S*(?:watch|embed|shorts)(?:(?:(?=/[^&\\s?]+(?!\\S))/)|(?:\\S*v=|v/)))([^&\\s?]+)',
-      'i',
-    ),
-    anchorFm: /^(http|https)?:\/\/(www\.)?anchor\.fm\/([^/]+)(\/embed)?(\/episodes\/)?([^/]+)?\/?$/,
-  };
-  for (const service in regexps) {
-    videoLink = videoLink.replace('/?showinfo=0', '');
-    const matches = regexps[service].exec(videoLink);
-    if (matches) {
-      if (service === 'anchorFm') {
-        const podcastName = matches[3];
-        const episodeId = matches[6];
-        const podcastUrl = `${podcastName}/embed`;
-        return { service, id: episodeId ? `${podcastUrl}/episodes/${episodeId}` : podcastUrl };
-      } else {
-        return { service, id: matches[matches.length - 1] };
-      }
-    }
+const constructPreviewLinkHref = (service: string, id: string, iframeSrc: string) => {
+  if (service === 'youtube' && YOUTUBE_VIDEO_ID_PATTERN.test(id)) {
+    return constructYouTubeWatchUrl(id);
+  } else if (service === 'anchorFm') {
+    return iframeSrc;
+  } else {
+    return null;
   }
-  return {};
 };
 
+/**
+ * Replaces supported video iframes with a linked preview image.
+ *
+ * sanitize-html can rename tags but cannot emit nested markup (e.g. `<a><img></a>`)
+ * from transformTags, so we rewrite the DOM first and sanitize the result afterward.
+ */
+const replaceIframesWithPreviewLinks = (html: string): string => {
+  // Fragment mode: do not wrap the HTML in `<html><body>`.
+  const $ = cheerio.load(html, null, false);
+
+  $('iframe').each((_, element) => {
+    const iframe = $(element);
+    const src = iframe.attr('src');
+
+    if (!src) {
+      iframe.remove();
+      return;
+    }
+
+    const { service, id } = parseServiceLink(src);
+    const imgSrc = constructPreviewImageURL(service, id);
+    const linkHref = constructPreviewLinkHref(service, id, src);
+
+    if (!imgSrc || !linkHref) {
+      iframe.remove();
+      return;
+    }
+
+    const link = $('<a></a>').attr({ href: linkHref });
+    link.append($('<img></img>').attr({ src: imgSrc, alt: `${service} content` }));
+    iframe.replaceWith(link);
+  });
+
+  return $.html() ?? '';
+};
+
+/**
+ * Prepares update HTML for notification emails: supported video embeds become
+ * clickable preview images, since iframes are not reliably rendered in email clients.
+ */
 export const replaceVideosByImagePreviews = (html: string) => {
-  const sanitizerOptions = {
-    ...updateSanitizerOptions,
+  try {
+    html = replaceIframesWithPreviewLinks(html);
+  } catch (error) {
+    // Do not block the email from being sent if there is an error replacing the videos by image previews.
+    // Sanitization will simply strip all iframes in this case.
+    reportErrorToSentry(error);
+  }
+
+  return sanitizeHTML(html, {
+    ...optsSanitizeUpdateHtml,
     transformTags: {
-      ...updateSanitizerOptions.transformTags,
-      iframe: (tagName, attribs) => {
-        if (!attribs.src) {
-          return '';
-        }
-        const { service, id } = parseServiceLink(attribs.src);
-        const imgSrc = constructPreviewImageURL(service, id);
-        if (imgSrc) {
-          return {
-            tagName: 'img',
-            attribs: {
-              src: imgSrc,
-              alt: `${service} content`,
-            },
-          };
-        } else {
-          return '';
-        }
-      },
+      ...optsSanitizeUpdateHtml.transformTags,
+      // Cheerio already converted supported iframes; strip any that remain.
+      iframe: () => '',
     },
-  };
-  return sanitizeHtml(html, sanitizerOptions);
+  });
 };

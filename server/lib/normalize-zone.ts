@@ -1,7 +1,7 @@
-import { CountryCode, getCountrySubdivisions, isValidCountrySubdivisionCode } from 'lib-address';
+import { CountryCode, getCountrySubdivisions, isValidCountrySubdivisionCode } from './address';
 
 /**
- * Normalize a zone value (state/province/emirate) to a lib-address subdivision code.
+ * Normalize a zone value (state/province/emirate) to a subdivision code (see `./address`).
  * Accepts ISO codes or full subdivision names (including latin variants).
  * Returns the original value when no match is found.
  */

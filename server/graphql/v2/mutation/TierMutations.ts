@@ -5,7 +5,7 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { Tier, Tier as TierModel } from '../../../models';
+import models, { sequelize, Tier, Tier as TierModel } from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { getIntervalFromTierFrequency } from '../enum/TierFrequency';
@@ -189,11 +189,20 @@ const tierMutations = {
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, collective);
 
-      if (args.stopRecurringContributions) {
-        await models.Order.cancelActiveOrdersByTierId(tier.id);
-      }
+      await sequelize.transaction(async transaction => {
+        if (args.stopRecurringContributions) {
+          // Flags the orders for asynchronous deactivation in `cron/10mn/00-handle-batch-subscriptions-update.ts`,
+          // which deactivates the subscriptions and calls the payment provider for externally managed ones (PayPal).
+          const isCollectiveAdmin = req.remoteUser.isAdminOfCollective(collective);
+          await models.Order.stopActiveSubscriptionsForTier(tier.id, {
+            messageSource: isCollectiveAdmin ? 'COLLECTIVE' : 'HOST',
+            messageForContributors: `The tier "${tier.name}" you were contributing to is no longer available.`,
+            transaction,
+          });
+        }
 
-      await tier.destroy();
+        await tier.destroy({ transaction });
+      });
 
       // Purge cache
       purgeCacheForCollective(collective.slug);

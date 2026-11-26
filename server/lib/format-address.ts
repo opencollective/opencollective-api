@@ -1,19 +1,17 @@
-import { CountryCode, formatAddress as libFormatAddress } from 'lib-address';
-
 import { Location } from '../types/Location';
 
+import { CountryCode, formatAddress as libFormatAddress } from './address';
 import { normalizeZoneCode } from './normalize-zone';
 import { reportErrorToSentry } from './sentry';
 
 type Options = {
   includeCountry?: boolean;
   lineDivider?: ', ' | '\n';
-  locale?: string;
 };
 
 export async function formatAddress(
   { country, structured }: Location,
-  { includeCountry = false, lineDivider = ', ', locale = 'en' }: Options = {},
+  { includeCountry = false, lineDivider = ', ' }: Options = {},
 ): Promise<string> {
   if (!structured) {
     return null;
@@ -32,14 +30,10 @@ export async function formatAddress(
         state: normalizedZone,
         zip: postalCode,
       },
-      {
-        appendCountry: includeCountry,
-        lang: locale,
-        preserveCase: true,
-      },
+      { appendCountry: includeCountry },
     );
 
-    // lib-address returns newline-separated string, convert to requested divider
+    // The address lib returns a newline-separated string, convert to requested divider
     if (lineDivider === '\n') {
       return formatted;
     } else {

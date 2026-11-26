@@ -130,7 +130,7 @@ const main = async options => {
         logger.info(`Trashed ${curFile}/${totalFiles} files (${((curFile / totalFiles) * 100).toFixed(2)}%)`);
       }
     };
-    queue.on('active', logProgress);
+    queue.addEventListener('active', logProgress);
 
     // Process the queue
     await queue.onIdle();

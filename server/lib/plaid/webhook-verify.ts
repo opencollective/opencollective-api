@@ -96,10 +96,12 @@ export const verifyPlaidWebhookRequest = async (req: Request) => {
   }
 
   // Validate the signature and extract the claims
-  let claims: any;
+  let claims: PlaidWebhookDecodedJWTToken;
   try {
     const pem = jwkToPem(key);
-    claims = jwt.verify(signedJwt, pem, { algorithms: [key.alg as jwt.Algorithm] });
+    claims = jwt.verify(signedJwt, pem, {
+      algorithms: [key.alg as jwt.Algorithm],
+    }) as PlaidWebhookDecodedJWTToken;
   } catch {
     return false;
   }

@@ -1,13 +1,22 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
+import sinon from 'sinon';
 
 import ActivityTypes from '../../../../../server/constants/activities';
+import POLICIES from '../../../../../server/constants/policies';
 import roles from '../../../../../server/constants/roles';
-import MemberRoles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
-import models, { Member } from '../../../../../server/models';
-import { fakeCollective, fakeMember, fakePersonalToken, fakeUser } from '../../../../test-helpers/fake-data';
+import cache from '../../../../../server/lib/cache';
+import models from '../../../../../server/models';
+import {
+  fakeCollective,
+  fakeHost,
+  fakeMember,
+  fakePersonalToken,
+  fakeProject,
+  fakeUser,
+} from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 let collectiveAdminUser, collectiveMemberUser, collective;
@@ -101,6 +110,91 @@ describe('memberMutations', () => {
       );
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal('There must be at least one admin for the account.');
+    });
+    describe('with a host policy requiring a minimum number of admins', () => {
+      const setupCollectiveWithTwoAdmins = async () => {
+        const host = await fakeHost({
+          data: { policies: { [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 2 } } },
+        });
+        const firstAdmin = await fakeUser();
+        const secondAdmin = await fakeUser();
+        const account = await fakeCollective({ admin: firstAdmin, HostCollectiveId: host.id, isActive: true });
+        await account.addUserWithRole(secondAdmin, roles.ADMIN);
+        return { account, firstAdmin, secondAdmin };
+      };
+
+      const countAdminRows = account => models.Member.count({ where: { CollectiveId: account.id, role: roles.ADMIN } });
+
+      it('must not demote an admin when it would go below the minimum', async () => {
+        const { account, firstAdmin, secondAdmin } = await setupCollectiveWithTwoAdmins();
+        const result = await utils.graphqlQueryV2(
+          editMemberMutation,
+          {
+            memberAccount: { id: idEncode(secondAdmin.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+            account: { id: idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT) },
+            role: roles.MEMBER,
+          },
+          firstAdmin,
+        );
+
+        expect(result.errors).to.have.length(1);
+        expect(result.errors[0].message).to.equal('Your host policy requires at least 2 admins for this account.');
+        expect(await countAdminRows(account)).to.equal(2);
+      });
+
+      it('counts an admin holding several admin rows only once', async () => {
+        const { account, firstAdmin, secondAdmin } = await setupCollectiveWithTwoAdmins();
+        await fakeMember({ CollectiveId: account.id, MemberCollectiveId: firstAdmin.CollectiveId, role: roles.ADMIN }); // Second ADMIN row
+        const result = await utils.graphqlQueryV2(
+          editMemberMutation,
+          {
+            memberAccount: { id: idEncode(firstAdmin.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+            account: { id: idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT) },
+            role: roles.MEMBER,
+          },
+          secondAdmin,
+        );
+
+        expect(result.errors).to.have.length(1);
+        expect(result.errors[0].message).to.equal('Your host policy requires at least 2 admins for this account.');
+        expect(await countAdminRows(account)).to.equal(3);
+      });
+
+      it('can demote an admin when enough admins remain', async () => {
+        const { account, firstAdmin, secondAdmin } = await setupCollectiveWithTwoAdmins();
+        await account.addUserWithRole(await fakeUser(), roles.ADMIN);
+        const result = await utils.graphqlQueryV2(
+          editMemberMutation,
+          {
+            memberAccount: { id: idEncode(secondAdmin.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+            account: { id: idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT) },
+            role: roles.MEMBER,
+          },
+          firstAdmin,
+        );
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.editMember.role).to.equal(roles.MEMBER);
+        expect(await countAdminRows(account)).to.equal(2);
+      });
+
+      it('can change the role of a non-admin member when the account is at the minimum', async () => {
+        const { account, firstAdmin } = await setupCollectiveWithTwoAdmins();
+        const accountant = await fakeUser();
+        await account.addUserWithRole(accountant, roles.ACCOUNTANT);
+        const result = await utils.graphqlQueryV2(
+          editMemberMutation,
+          {
+            memberAccount: { id: idEncode(accountant.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+            account: { id: idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT) },
+            role: roles.MEMBER,
+          },
+          firstAdmin,
+        );
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.editMember.role).to.equal(roles.MEMBER);
+      });
     });
     it('can only update role to accountant, admin, community manager or member', async () => {
       [roles.ADMIN, roles.MEMBER, roles.COMMUNITY_MANAGER, roles.ACCOUNTANT, roles.HOST].forEach(async role => {
@@ -214,6 +308,79 @@ describe('memberMutations', () => {
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal('Only admins can remove a member.');
     });
+    it('must not remove the last admin when they hold several admin rows', async () => {
+      // A sole admin who is also an accountant ends up with two ADMIN rows after `editMember(role: ADMIN)`
+      const adminUser = await fakeUser();
+      const account = await fakeCollective({ admin: adminUser, HostCollectiveId: null, approvedAt: null });
+      await account.addUserWithRole(adminUser, roles.ACCOUNTANT);
+      const memberAccount = { id: idEncode(adminUser.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) };
+      const accountRef = { id: idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT) };
+
+      const editResult = await utils.graphqlQueryV2(
+        gql`
+          mutation EditMember($memberAccount: AccountReferenceInput!, $account: AccountReferenceInput!) {
+            editMember(memberAccount: $memberAccount, account: $account, role: ADMIN) {
+              id
+            }
+          }
+        `,
+        { memberAccount, account: accountRef },
+        adminUser,
+      );
+      expect(editResult.errors).to.not.exist;
+      expect(await models.Member.count({ where: { CollectiveId: account.id, role: roles.ADMIN } })).to.equal(2);
+
+      const result = await utils.graphqlQueryV2(
+        removeMemberMutation,
+        { memberAccount, account: accountRef, role: roles.ADMIN },
+        adminUser,
+      );
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('There must be at least one admin for the account.');
+      expect(await models.Member.count({ where: { CollectiveId: account.id, role: roles.ADMIN } })).to.equal(2);
+    });
+    it('counts an admin holding several admin rows only once for the host minimum admins policy', async () => {
+      const host = await fakeHost({
+        data: { policies: { [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 2 } } },
+      });
+      const firstAdmin = await fakeUser();
+      const secondAdmin = await fakeUser();
+      const account = await fakeCollective({ admin: firstAdmin, HostCollectiveId: host.id, isActive: true });
+      await fakeMember({ CollectiveId: account.id, MemberCollectiveId: firstAdmin.CollectiveId, role: roles.ADMIN }); // Second ADMIN row
+      await account.addUserWithRole(secondAdmin, roles.ADMIN);
+
+      const result = await utils.graphqlQueryV2(
+        removeMemberMutation,
+        {
+          memberAccount: { id: idEncode(secondAdmin.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT) },
+          role: roles.ADMIN,
+        },
+        firstAdmin,
+      );
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('Your host policy requires at least 2 admins for this account.');
+      expect(await models.Member.count({ where: { CollectiveId: account.id, role: roles.ADMIN } })).to.equal(3);
+    });
+    it('can remove the admin role on a project when the member stays admin through the parent', async () => {
+      const adminUser = await fakeUser();
+      const parent = await fakeCollective({ admin: adminUser, HostCollectiveId: null, approvedAt: null });
+      const project = await fakeProject({ ParentCollectiveId: parent.id, HostCollectiveId: null, approvedAt: null });
+      await project.addUserWithRole(adminUser, roles.ADMIN);
+
+      const result = await utils.graphqlQueryV2(
+        removeMemberMutation,
+        {
+          memberAccount: { id: idEncode(adminUser.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(project.id, IDENTIFIER_TYPES.ACCOUNT) },
+          role: roles.ADMIN,
+        },
+        adminUser,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeMember).to.equal(true);
+      expect(await models.Member.count({ where: { CollectiveId: project.id, role: roles.ADMIN } })).to.equal(0);
+    });
     it('can only remove members with role accountant, admin, community manager or member', async () => {
       const randomAdminUser = await fakeUser();
       const randomMemberUser = await fakeUser();
@@ -297,225 +464,267 @@ describe('memberMutations', () => {
     });
   });
 
-  describe('follow', () => {
-    const followMutation = gql`
-      mutation FollowCollective($account: AccountReferenceInput!) {
-        followAccount(account: $account) {
-          member {
-            id
-            role
-          }
-          individual {
-            memberOf(role: [FOLLOWER]) {
-              nodes {
-                id
-              }
-            }
-          }
+  describe('when the team is locked', () => {
+    const editMemberMutation = gql`
+      mutation EditMemberLocked(
+        $memberAccount: AccountReferenceInput!
+        $account: AccountReferenceInput!
+        $role: MemberRole
+      ) {
+        editMember(memberAccount: $memberAccount, account: $account, role: $role) {
+          id
         }
       }
     `;
 
-    it('follows new account', async () => {
-      const collective = await fakeCollective();
-      const user = await fakeUser();
+    const removeMemberMutation = gql`
+      mutation RemoveMemberLocked(
+        $memberAccount: AccountReferenceInput!
+        $account: AccountReferenceInput!
+        $role: MemberRole!
+        $isInvitation: Boolean
+      ) {
+        removeMember(memberAccount: $memberAccount, account: $account, role: $role, isInvitation: $isInvitation)
+      }
+    `;
 
-      const result = await utils.graphqlQueryV2(
-        followMutation,
+    const setupAccount = async () => {
+      const admin = await fakeUser();
+      const member = await fakeUser();
+      const account = await fakeCollective({ admin });
+      await account.addUserWithRole(member, roles.MEMBER);
+      return { admin, member, account };
+    };
+
+    const editMember = (account, member, admin) =>
+      utils.graphqlQueryV2(
+        editMemberMutation,
         {
-          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          memberAccount: { legacyId: member.CollectiveId },
+          account: { legacyId: account.id },
+          role: roles.ADMIN,
         },
-        user,
+        admin,
       );
 
-      expect(result.errors).to.not.exist;
-      expect(result.data.followAccount.member.role).to.equal(MemberRoles.FOLLOWER);
-      expect(result.data.followAccount.individual.memberOf.nodes).to.have.length(1);
+    const removeMember = (account, member, admin) =>
+      utils.graphqlQueryV2(
+        removeMemberMutation,
+        { memberAccount: { legacyId: member.CollectiveId }, account: { legacyId: account.id }, role: roles.MEMBER },
+        admin,
+      );
 
-      const followers = await Member.findAll({
-        where: {
-          MemberCollectiveId: user.collective.id,
-          CollectiveId: collective.id,
-          role: MemberRoles.FOLLOWER,
-        },
+    const expectTeamLocked = result => {
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].extensions.code).to.equal('TeamLocked');
+    };
+
+    it('cannot edit or remove members of a frozen account', async () => {
+      const { admin, member, account } = await setupAccount();
+      await account.freeze('Frozen for audit', false);
+
+      expectTeamLocked(await editMember(account, member, admin));
+      expectTeamLocked(await removeMember(account, member, admin));
+
+      const membership = await models.Member.findOne({
+        where: { CollectiveId: account.id, MemberCollectiveId: member.CollectiveId },
       });
+      expect(membership.role).to.equal(roles.MEMBER);
 
-      expect(followers).to.have.length(1);
+      // Unfreezing restores the ability to edit the team
+      await account.reload();
+      await account.unfreeze('Unfrozen', 'Unfrozen');
+      const result = await editMember(account, member, admin);
+      expect(result.errors).to.not.exist;
     });
 
-    it('tries to follow account again', async () => {
-      const collective = await fakeCollective();
-      const user = await fakeUser();
-
-      const member = await fakeMember({
-        CollectiveId: collective.id,
-        MemberCollectiveId: user.collective.id,
-        role: MemberRoles.FOLLOWER,
-      });
-
-      const result = await utils.graphqlQueryV2(
-        followMutation,
-        {
-          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
-        },
-        user,
-      );
-
-      expect(result.errors).to.not.exist;
-      expect(result.data.followAccount.member.role).to.equal(MemberRoles.FOLLOWER);
-      expect(result.data.followAccount.member.id).to.equal(idEncode(member.id, IDENTIFIER_TYPES.MEMBER));
-
-      expect(result.data.followAccount.individual.memberOf.nodes).to.have.length(1);
-      expect(result.data.followAccount.individual.memberOf.nodes[0].id).to.equal(
-        idEncode(member.id, IDENTIFIER_TYPES.MEMBER),
-      );
-
-      const followers = await Member.findAll({
-        where: {
-          MemberCollectiveId: user.collective.id,
-          CollectiveId: collective.id,
-          role: MemberRoles.FOLLOWER,
-        },
-      });
-
-      expect(followers).to.have.length(1);
+    it('cannot edit or remove members when the TEAM feature is disabled', async () => {
+      const { admin, member, account } = await setupAccount();
+      await account.update({ data: { features: { TEAM: false } } });
+      expectTeamLocked(await editMember(account, member, admin));
+      expectTeamLocked(await removeMember(account, member, admin));
     });
 
-    it('creates only one follow member', async () => {
-      const collective = await fakeCollective();
-      const user = await fakeUser();
+    it('cannot edit members of a project when the team of the parent is locked', async () => {
+      const { admin, account } = await setupAccount();
+      const project = await fakeProject({ ParentCollectiveId: account.id });
+      const projectMember = await fakeUser();
+      await project.addUserWithRole(projectMember, roles.MEMBER);
+      await account.update({ data: { features: { TEAM: false } } });
+      expectTeamLocked(await editMember(project, projectMember, admin));
+    });
 
-      const member = await fakeMember({
-        CollectiveId: collective.id,
-        MemberCollectiveId: user.collective.id,
-        role: MemberRoles.FOLLOWER,
-        deletedAt: new Date(),
+    it('cannot remove a pending invitation', async () => {
+      const { admin, account } = await setupAccount();
+      const invitedUser = await fakeUser();
+      const invitation = await models.MemberInvitation.invite(account, {
+        role: roles.MEMBER,
+        MemberCollectiveId: invitedUser.CollectiveId,
+        CreatedByUserId: admin.id,
       });
-
-      let memberRecords = await Member.findAll({
-        where: {
-          MemberCollectiveId: user.collective.id,
-          CollectiveId: collective.id,
-          role: MemberRoles.FOLLOWER,
-        },
-        paranoid: false,
-      });
-      expect(memberRecords).to.have.length(1);
+      await account.freeze('Frozen for audit', false);
 
       const result = await utils.graphqlQueryV2(
-        followMutation,
+        removeMemberMutation,
         {
-          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          memberAccount: { legacyId: invitedUser.CollectiveId },
+          account: { legacyId: account.id },
+          role: roles.MEMBER,
+          isInvitation: true,
         },
-        user,
+        admin,
       );
 
-      expect(result.errors).to.not.exist;
-      expect(result.data.followAccount.member.role).to.equal(MemberRoles.FOLLOWER);
-      expect(result.data.followAccount.member.id).to.equal(idEncode(member.id, IDENTIFIER_TYPES.MEMBER));
-
-      expect(result.data.followAccount.individual.memberOf.nodes).to.have.length(1);
-      expect(result.data.followAccount.individual.memberOf.nodes[0].id).to.equal(
-        idEncode(member.id, IDENTIFIER_TYPES.MEMBER),
-      );
-
-      const followers = await Member.findAll({
-        where: {
-          MemberCollectiveId: user.collective.id,
-          CollectiveId: collective.id,
-          role: MemberRoles.FOLLOWER,
-        },
-      });
-
-      expect(followers).to.have.length(1);
-
-      memberRecords = await Member.findAll({
-        where: {
-          MemberCollectiveId: user.collective.id,
-          CollectiveId: collective.id,
-          role: MemberRoles.FOLLOWER,
-        },
-        paranoid: false,
-      });
-      expect(memberRecords).to.have.length(1);
+      expectTeamLocked(result);
+      await invitation.reload();
+      expect(invitation.deletedAt).to.be.null;
     });
   });
 
-  describe('unfollow', () => {
-    const unfollowMutation = gql`
-      mutation UnfollowCollective($account: AccountReferenceInput!) {
-        unfollowAccount(account: $account) {
-          member {
-            id
-          }
-          individual {
-            id
-            memberOf(role: [FOLLOWER]) {
-              nodes {
-                id
+  describe('removed follower feature', () => {
+    it('does not expose follow mutations or the follower member role', async () => {
+      const result = await utils.graphqlQueryV2(
+        gql`
+          query RemovedFollowerFeature {
+            __schema {
+              mutationType {
+                fields {
+                  name
+                }
+              }
+            }
+            __type(name: "MemberRole") {
+              enumValues {
+                name
               }
             }
           }
+        `,
+        {},
+      );
+
+      expect(result.errors).to.not.exist;
+      const mutations = result.data.__schema.mutationType.fields.map(field => field.name);
+      const memberRoles = result.data.__type.enumValues.map(role => role.name);
+      expect(mutations).to.not.include('followAccount');
+      expect(mutations).to.not.include('unfollowAccount');
+      expect(memberRoles).to.not.include('FOLLOWER');
+    });
+  });
+
+  describe('editPublicMessage', () => {
+    const editPublicMessageMutation = gql`
+      mutation EditPublicMessage(
+        $fromAccount: AccountReferenceInput!
+        $toAccount: AccountReferenceInput!
+        $message: String
+      ) {
+        editPublicMessage(fromAccount: $fromAccount, toAccount: $toAccount, message: $message) {
+          id
+          publicMessage
         }
       }
     `;
 
-    it('handles unfollowing account', async () => {
-      const collective = await fakeCollective();
-      const collective2 = await fakeCollective();
-      const user = await fakeUser();
+    let contributorUser, receivingCollective, sandbox, cacheDeleteSpy;
 
+    const accountRef = account => ({ id: idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT) });
+    const membersOfContributor = () =>
+      models.Member.findAll({
+        where: { MemberCollectiveId: contributorUser.CollectiveId, CollectiveId: receivingCollective.id },
+      });
+
+    beforeEach(async () => {
+      contributorUser = await fakeUser();
+      receivingCollective = await fakeCollective();
+      // A contributor can have several rows on the same account, all edited at once
       await fakeMember({
-        CollectiveId: collective.id,
-        MemberCollectiveId: user.collective.id,
-        role: MemberRoles.FOLLOWER,
+        MemberCollectiveId: contributorUser.CollectiveId,
+        CollectiveId: receivingCollective.id,
+        role: roles.BACKER,
       });
-
-      const member2 = await fakeMember({
-        CollectiveId: collective2.id,
-        MemberCollectiveId: user.collective.id,
-        role: MemberRoles.FOLLOWER,
+      await fakeMember({
+        MemberCollectiveId: contributorUser.CollectiveId,
+        CollectiveId: receivingCollective.id,
+        role: roles.ATTENDEE,
       });
-
-      const result = await utils.graphqlQueryV2(
-        unfollowMutation,
-        {
-          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
-        },
-        user,
-      );
-
-      expect(result.errors).to.not.exist;
-      expect(result.data.unfollowAccount.individual.memberOf.nodes).to.have.length(1);
-      expect(result.data.unfollowAccount.individual.memberOf.nodes[0].id).to.eq(
-        idEncode(member2.id, IDENTIFIER_TYPES.MEMBER),
-      );
+      sandbox = sinon.createSandbox();
+      cacheDeleteSpy = sandbox.spy(cache, 'delete');
     });
 
-    it('handles unfollowing account without follow', async () => {
-      const collective = await fakeCollective();
-      const user = await fakeUser();
+    afterEach(() => sandbox.restore());
 
+    it('edits the public message on every membership and clears the contributors cache', async () => {
+      const message = 'I am happy to support this collective!';
       const result = await utils.graphqlQueryV2(
-        unfollowMutation,
-        {
-          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
-        },
-        user,
+        editPublicMessageMutation,
+        { fromAccount: accountRef(contributorUser.collective), toAccount: accountRef(receivingCollective), message },
+        contributorUser,
       );
 
-      expect(result.errors).to.not.exist;
-      expect(result.data.unfollowAccount.individual.memberOf.nodes).to.have.length(0);
+      utils.expectNoErrorsFromResult(result);
+      expect(result.data.editPublicMessage.publicMessage).to.equal(message);
+      const members = await membersOfContributor();
+      expect(members).to.have.length(2);
+      members.forEach(member => expect(member.publicMessage).to.equal(message));
+      expect(cacheDeleteSpy.callCount).to.equal(1);
+      expect(cacheDeleteSpy.firstCall.args[0]).to.equal(`collective_contributors_${receivingCollective.id}`);
+    });
 
-      const followers = await Member.findAll({
-        where: {
-          MemberCollectiveId: user.collective.id,
-          CollectiveId: collective.id,
-          role: MemberRoles.FOLLOWER,
+    it('deletes the public message', async () => {
+      await models.Member.update(
+        { publicMessage: 'I am happy to contribute to this collective!' },
+        { where: { MemberCollectiveId: contributorUser.CollectiveId, CollectiveId: receivingCollective.id } },
+      );
+
+      const result = await utils.graphqlQueryV2(
+        editPublicMessageMutation,
+        {
+          fromAccount: accountRef(contributorUser.collective),
+          toAccount: accountRef(receivingCollective),
+          message: null,
         },
-      });
+        contributorUser,
+      );
 
-      expect(followers).to.have.length(0);
+      utils.expectNoErrorsFromResult(result);
+      expect(result.data.editPublicMessage.publicMessage).to.be.null;
+      const members = await membersOfContributor();
+      expect(members).to.have.length(2);
+      members.forEach(member => expect(member.publicMessage).to.be.null);
+      expect(cacheDeleteSpy.callCount).to.equal(1);
+    });
+
+    it('rejects a user who is not an admin of the contributing account', async () => {
+      const otherUser = await fakeUser();
+      const result = await utils.graphqlQueryV2(
+        editPublicMessageMutation,
+        {
+          fromAccount: accountRef(contributorUser.collective),
+          toAccount: accountRef(receivingCollective),
+          message: 'Not mine',
+        },
+        otherUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal("You don't have the permission to edit member public message");
+      const members = await membersOfContributor();
+      members.forEach(member => expect(member.publicMessage).to.be.null);
+      expect(cacheDeleteSpy.callCount).to.equal(0);
+    });
+
+    it('fails when the account has no membership on the receiving account', async () => {
+      const otherUser = await fakeUser();
+      const result = await utils.graphqlQueryV2(
+        editPublicMessageMutation,
+        { fromAccount: accountRef(otherUser.collective), toAccount: accountRef(receivingCollective), message: 'Hello' },
+        otherUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('No member found');
+      expect(cacheDeleteSpy.callCount).to.equal(0);
     });
   });
 });

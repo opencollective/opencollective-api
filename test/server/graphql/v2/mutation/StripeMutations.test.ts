@@ -253,6 +253,16 @@ describe('server/graphql/v2/mutation/StripeMutations', () => {
       await host.reload();
       expect(host.currency).to.equal('EUR');
       expect(host.timezone).to.equal('Europe/Madrid');
+
+      // The currency change should be recorded in the activity log
+      const activity = await models.Activity.findOne({
+        where: { type: 'collective.edited', CollectiveId: host.id },
+        order: [['id', 'DESC']],
+      });
+      expect(activity).to.exist;
+      expect(activity.UserId).to.equal(user.id);
+      expect(activity.data.previousData).to.deep.equal({ currency: 'USD' });
+      expect(activity.data.newData).to.deep.equal({ currency: 'EUR' });
     });
 
     it('replaces an existing Stripe connected account when reconnecting', async () => {

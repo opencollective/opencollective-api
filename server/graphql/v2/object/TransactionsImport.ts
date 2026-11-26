@@ -3,6 +3,7 @@ import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-sca
 
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../lib/sql-search';
+import { getTransactionsImportRowLinkedIdSearchConditions } from '../../../lib/transactions-imports';
 import { Op, TransactionsImport } from '../../../models';
 import TransactionsImportRow from '../../../models/TransactionsImportRow';
 import { GraphQLTransactionsImportRowCollection } from '../collection/GraphQLTransactionsImportRow';
@@ -107,6 +108,11 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
       type: new GraphQLList(GraphQLTransactionsImportAccount),
       description: 'List of available accounts for the import',
       resolve: async (importInstance: TransactionsImport) => {
+        const balanceAccountingCategories = importInstance.settings?.balanceAccountingCategories || {};
+        const commonFields = (accountId: string) => ({
+          CollectiveId: importInstance.CollectiveId,
+          BalanceAccountingCategoryId: balanceAccountingCategories[accountId],
+        });
         if (importInstance.type === 'PLAID') {
           return (
             importInstance.data?.plaid?.availableAccounts?.map(account => ({
@@ -115,12 +121,14 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
               subtype: account.subtype,
               type: account.type,
               mask: account.mask,
+              ...commonFields(account.accountId),
             })) || []
           );
         } else if (importInstance.type === 'GOCARDLESS') {
           return importInstance.data?.gocardless?.accountsMetadata?.map(account => ({
             id: account.id,
             name: account.name || 'Unknown Account',
+            ...commonFields(account.id),
           }));
         }
 
@@ -175,6 +183,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
           searchTerm: string;
           accountId: string[];
         },
+        req,
       ) => {
         const where: Parameters<typeof TransactionsImportRow.findAll>[0]['where'] = {
           [Op.and]: [{ TransactionsImportId: importInstance.id }],
@@ -187,10 +196,15 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
 
         // Search term
         if (args.searchTerm) {
+          const linkedIdConditions = await getTransactionsImportRowLinkedIdSearchConditions(
+            args.searchTerm,
+            req.loaders,
+          );
           where[Op.and].push({
-            [Op.or]: buildSearchConditions(args.searchTerm, {
-              textFields: ['description', 'sourceId'],
-            }),
+            [Op.or]: [
+              ...buildSearchConditions(args.searchTerm, { textFields: ['description', 'sourceId'] }),
+              ...linkedIdConditions,
+            ],
           });
         }
 

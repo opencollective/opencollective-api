@@ -11,7 +11,6 @@ export const generateTierAvailableQuantityLoader = () => {
       SELECT t.id, (t."maxQuantity" - (
         SELECT COALESCE(SUM(o.quantity), 0)
         FROM "Orders" o
-        LEFT JOIN "Transactions" trx ON trx."OrderId" = o.id AND trx."kind" = 'CONTRIBUTION' AND trx."type" = 'CREDIT' AND trx."deletedAt" IS NULL
         WHERE o."TierId" = t.id
         AND o."deletedAt" IS NULL
         AND (
@@ -19,8 +18,27 @@ export const generateTierAvailableQuantityLoader = () => {
           OR (o."status" IN ('NEW', 'REQUIRE_CLIENT_CONFIRMATION', 'PROCESSING') AND o."updatedAt" > NOW() - INTERVAL '12 hour') -- Allow 12 hours to complete a payment
         )
         AND (
-          trx.id IS NULL -- No transactions yet, important to consider for payment intents that are processed asynchronously
-          OR trx."RefundTransactionId" IS NULL -- Not refunded
+          -- Occupied if there are no contribution credits yet (async payment intents)
+          -- or if at least one contribution credit is not refunded.
+          -- Count each order once so recurring charges do not consume extra quantity.
+          -- See https://github.com/opencollective/opencollective/issues/8875
+          NOT EXISTS (
+            SELECT 1
+            FROM "Transactions" trx
+            WHERE trx."OrderId" = o.id
+              AND trx."kind" = 'CONTRIBUTION'
+              AND trx."type" = 'CREDIT'
+              AND trx."deletedAt" IS NULL
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM "Transactions" trx
+            WHERE trx."OrderId" = o.id
+              AND trx."kind" = 'CONTRIBUTION'
+              AND trx."type" = 'CREDIT'
+              AND trx."deletedAt" IS NULL
+              AND trx."RefundTransactionId" IS NULL
+          )
         )
       )) AS "availableQuantity"
       FROM "Tiers" t

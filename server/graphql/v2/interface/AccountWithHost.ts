@@ -146,8 +146,8 @@ export const AccountWithHostFields = {
   isApproved: {
     description: "Returns whether it's approved by the Fiscal Host",
     type: new GraphQLNonNull(GraphQLBoolean),
-    resolve(account: Collective): boolean {
-      return account.isApproved();
+    resolve(account: Collective, _, req): Promise<boolean> {
+      return req.loaders.Collective.isApproved.load(account.id);
     },
   },
   isActive: {

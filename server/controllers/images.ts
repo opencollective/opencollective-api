@@ -60,7 +60,9 @@ export default async function uploadImage(req, res, next) {
 
   if (!s3) {
     if (config.env !== 'production') {
-      logger.error('S3 service object not initialized. In dev or test environments, use [minio](/docs/s3.md).');
+      logger.error(
+        'S3 service object not initialized. In dev or test environments, use the local S3 server (see docs/s3.md).',
+      );
     }
 
     return next(new errors.ServerError('File uploads are currently disabled'));

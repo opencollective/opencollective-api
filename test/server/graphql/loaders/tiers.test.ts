@@ -3,10 +3,22 @@ import moment from 'moment';
 import { QueryTypes } from 'sequelize';
 
 import OrderStatuses from '../../../../server/constants/order-status';
+import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import { generateTierAvailableQuantityLoader } from '../../../../server/graphql/loaders/tiers';
 import { refundTransaction } from '../../../../server/lib/payments';
 import { sequelize } from '../../../../server/models';
-import { fakeOrder, fakeTier } from '../../../test-helpers/fake-data';
+import { fakeOrder, fakeTier, fakeTransaction } from '../../../test-helpers/fake-data';
+
+const addContributionCharge = async (order: Awaited<ReturnType<typeof fakeOrder>>) => {
+  await fakeTransaction({
+    OrderId: order.id,
+    type: 'CREDIT',
+    kind: TransactionKind.CONTRIBUTION,
+    FromCollectiveId: order.FromCollectiveId,
+    CollectiveId: order.CollectiveId,
+    amount: order.totalAmount,
+  });
+};
 
 describe('server/graphql/loaders/tiers', () => {
   describe('availableQuantity', () => {
@@ -93,6 +105,42 @@ describe('server/graphql/loaders/tiers', () => {
       const loader = generateTierAvailableQuantityLoader();
       const availableQuantity = await loader.load(tier.id);
       expect(availableQuantity).to.equal(8); // Only one "NEW" and one "PROCESSING" recent order
+    });
+
+    it('counts recurring orders once even when they have multiple contribution charges', async () => {
+      const tier = await fakeTier({ maxQuantity: 8 });
+
+      // Reproduce https://github.com/opencollective/opencollective/issues/8875:
+      // 4 active subscriptions, each charged twice, must occupy 4 slots (not 8).
+      for (let i = 0; i < 4; i++) {
+        const order = await fakeOrder(
+          { TierId: tier.id, status: OrderStatuses.ACTIVE, quantity: 1 },
+          { withSubscription: true, withTransactions: true },
+        );
+        await addContributionCharge(order);
+      }
+
+      const loader = generateTierAvailableQuantityLoader();
+      const availableQuantity = await loader.load(tier.id);
+      expect(availableQuantity).to.equal(4);
+    });
+
+    it('still occupies a slot if only some recurring charges were refunded', async () => {
+      const tier = await fakeTier({ maxQuantity: 5 });
+      const order = await fakeOrder(
+        { TierId: tier.id, status: OrderStatuses.ACTIVE, quantity: 1 },
+        { withSubscription: true, withTransactions: true },
+      );
+      await addContributionCharge(order);
+
+      const [firstCharge] = await order.getTransactions({
+        where: { kind: TransactionKind.CONTRIBUTION, type: 'CREDIT' },
+      });
+      await refundTransaction(firstCharge);
+
+      const loader = generateTierAvailableQuantityLoader();
+      const availableQuantity = await loader.load(tier.id);
+      expect(availableQuantity).to.equal(4); // Subscription still active
     });
   });
 });

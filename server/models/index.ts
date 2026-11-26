@@ -1,3 +1,5 @@
+import type { ThroughOptions } from 'sequelize';
+
 import sequelize, { Op } from '../lib/sequelize';
 
 import AccountingCategory from './AccountingCategory';
@@ -10,12 +12,12 @@ import Comment from './Comment';
 import ConnectedAccount from './ConnectedAccount';
 import Conversation from './Conversation';
 import ConversationFollower from './ConversationFollower';
-import CurrencyExchangeRate from './CurrencyExchangeRate';
 import EmojiReaction from './EmojiReaction';
 import Expense from './Expense';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import ExportRequest from './ExportRequest';
+import FiscalHostNote from './FiscalHostNote';
 import HostApplication from './HostApplication';
 import { KYCVerification } from './KYCVerification';
 import LegalDocument from './LegalDocument';
@@ -27,7 +29,6 @@ import MigrationLog from './MigrationLog';
 import Notification from './Notification';
 import OAuthAuthorizationCode from './OAuthAuthorizationCode';
 import Order from './Order';
-import PaymentIntent from './PaymentIntent';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
 import PaypalPlan from './PaypalPlan';
@@ -46,6 +47,7 @@ import TransactionsImport from './TransactionsImport';
 import TransactionsImportRow from './TransactionsImportRow';
 import Update from './Update';
 import UploadedFile from './UploadedFile';
+import UsdExchangeRate from './UsdExchangeRate';
 import User from './User';
 import UserToken from './UserToken';
 import UserTwoFactorMethod from './UserTwoFactorMethod';
@@ -65,12 +67,12 @@ const models = {
   ConnectedAccount,
   Conversation,
   ConversationFollower,
-  CurrencyExchangeRate,
   EmojiReaction,
   Expense,
   ExpenseAttachedFile,
   ExpenseItem,
   ExportRequest,
+  FiscalHostNote,
   HostApplication,
   LegalDocument,
   Location,
@@ -81,7 +83,6 @@ const models = {
   Notification,
   OAuthAuthorizationCode,
   Order,
-  PaymentIntent,
   PaymentMethod,
   PayoutMethod,
   PaypalPlan,
@@ -98,6 +99,7 @@ const models = {
   TransactionsImport,
   TransactionsImportRow,
   Update,
+  UsdExchangeRate,
   UploadedFile,
   User,
   UserToken,
@@ -117,6 +119,8 @@ const models = {
 AccountingCategory.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 AccountingCategory.hasMany(Expense, { foreignKey: 'AccountingCategoryId', as: 'expenses' });
 AccountingCategory.hasMany(Order, { foreignKey: 'AccountingCategoryId', as: 'orders' });
+AccountingCategory.hasMany(Expense, { foreignKey: 'BalanceAccountingCategoryId', as: 'balanceExpenses' });
+AccountingCategory.hasMany(Order, { foreignKey: 'BalanceAccountingCategoryId', as: 'balanceOrders' });
 
 // Activity.
 Activity.belongsTo(Collective);
@@ -134,16 +138,24 @@ Agreement.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'Collective' }
 Agreement.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'Host' });
 Agreement.belongsTo(User, { foreignKey: 'UserId', as: 'User' });
 
+// FiscalHostNote
+FiscalHostNote.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
+FiscalHostNote.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'account' });
+FiscalHostNote.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
+FiscalHostNote.belongsTo(User, { foreignKey: 'UpdatedByUserId', as: 'updatedByUser' });
+Collective.hasMany(FiscalHostNote, { foreignKey: 'HostCollectiveId', as: 'givenFiscalHostNotes' });
+Collective.hasMany(FiscalHostNote, { foreignKey: 'CollectiveId', as: 'receivedFiscalHostNotes' });
+
 // Collective
 Collective.belongsTo(Collective, { as: 'HostCollective' });
 Collective.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
 Collective.belongsTo(Collective, { foreignKey: 'ParentCollectiveId', as: 'parent' });
 Collective.belongsToMany(Collective, {
   as: 'memberCollectives',
-  through: { model: Member, unique: false, foreignKey: 'MemberCollectiveId' } as any,
+  through: { model: Member, unique: false, foreignKey: 'MemberCollectiveId' } as ThroughOptions,
 });
 Collective.belongsToMany(Collective, {
-  through: { model: Member, unique: false, foreignKey: 'CollectiveId' } as any,
+  through: { model: Member, unique: false, foreignKey: 'CollectiveId' } as ThroughOptions,
   as: 'memberOfCollectives',
 });
 Collective.hasMany(AccountingCategory, { foreignKey: 'CollectiveId', as: 'accountingCategories' });
@@ -205,6 +217,7 @@ ExportRequest.belongsTo(UploadedFile, { foreignKey: 'UploadedFileId', as: 'uploa
 
 // Expense
 Expense.belongsTo(AccountingCategory, { as: 'accountingCategory', foreignKey: 'AccountingCategoryId' });
+Expense.belongsTo(AccountingCategory, { as: 'balanceAccountingCategory', foreignKey: 'BalanceAccountingCategoryId' });
 Expense.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Expense.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
 Expense.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
@@ -219,7 +232,6 @@ Expense.hasMany(ExpenseAttachedFile, { as: 'attachedFiles' });
 Expense.belongsTo(UploadedFile, { foreignKey: 'InvoiceFileId', as: 'invoiceFile' });
 Expense.hasMany(ExpenseItem, { as: 'items' });
 Expense.hasMany(Transaction);
-Expense.hasOne(PaymentIntent);
 
 // ExpenseAttachedFile
 ExpenseAttachedFile.belongsTo(Expense);
@@ -264,6 +276,7 @@ OAuthAuthorizationCode.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
 
 // Order.
 Order.belongsTo(AccountingCategory, { as: 'accountingCategory', foreignKey: 'AccountingCategoryId' });
+Order.belongsTo(AccountingCategory, { as: 'balanceAccountingCategory', foreignKey: 'BalanceAccountingCategoryId' });
 Order.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Order.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
 Order.belongsTo(ManualPaymentProvider, { foreignKey: 'ManualPaymentProviderId', as: 'manualPaymentProvider' });
@@ -272,7 +285,6 @@ Order.belongsTo(Subscription); // adds SubscriptionId to the Orders table
 Order.belongsTo(Tier);
 Order.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
 Order.hasMany(Transaction);
-Order.hasOne(PaymentIntent);
 
 // PaymentMethod
 PaymentMethod.belongsTo(Collective);
@@ -283,6 +295,7 @@ PaymentMethod.hasMany(Transaction);
 
 // Payout method
 PayoutMethod.belongsTo(Collective);
+PayoutMethod.belongsTo(ConnectedAccount);
 PayoutMethod.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
 
 // PaypalPlan
@@ -311,16 +324,6 @@ Subscription.hasOne(Order);
 Tier.belongsTo(Collective);
 Tier.hasMany(Order);
 
-// PaymentIntent
-PaymentIntent.belongsTo(Collective, { foreignKey: 'PayerCollectiveId', as: 'payerCollective' });
-PaymentIntent.belongsTo(Collective, { foreignKey: 'PayeeCollectiveId', as: 'payeeCollective' });
-PaymentIntent.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'hostCollective' });
-PaymentIntent.belongsTo(Collective, { foreignKey: 'InitiatedByCollectiveId', as: 'initiatedByCollective' });
-PaymentIntent.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
-PaymentIntent.belongsTo(Order, { foreignKey: 'OrderId', as: 'order' });
-PaymentIntent.belongsTo(Expense, { foreignKey: 'ExpenseId', as: 'expense' });
-PaymentIntent.hasMany(Transaction, { foreignKey: 'PaymentIntentId', as: 'transactions' });
-
 // Transaction
 Transaction.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Transaction.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
@@ -328,7 +331,6 @@ Transaction.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' }
 Transaction.belongsTo(Collective, { foreignKey: 'UsingGiftCardFromCollectiveId', as: 'usingGiftCardFromCollective' });
 Transaction.belongsTo(Expense);
 Transaction.belongsTo(Order);
-Transaction.belongsTo(PaymentIntent);
 Transaction.belongsTo(PaymentMethod);
 Transaction.belongsTo(PayoutMethod);
 Transaction.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
@@ -408,7 +410,6 @@ export { sequelize, Op };
 
 export type Models = typeof models;
 export type ModelNames = keyof Models;
-export type ModelType = Models[ModelNames];
 export type ModelInstance<T extends ModelNames> = InstanceType<Models[T]>;
 
 // ts-unused-exports:disable-next-line
@@ -422,10 +423,10 @@ export {
   ConnectedAccount,
   Conversation,
   ConversationFollower,
-  CurrencyExchangeRate,
   EmojiReaction,
   ExportRequest as ExportRequests,
   Expense,
+  FiscalHostNote,
   ExpenseAttachedFile,
   ExpenseItem,
   HostApplication,
@@ -455,6 +456,7 @@ export {
   TransactionsImportRow,
   TransactionSettlement,
   Update,
+  UsdExchangeRate,
   UploadedFile,
   User,
   UserToken,

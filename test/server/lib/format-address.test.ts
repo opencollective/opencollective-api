@@ -308,6 +308,70 @@ describe('server/lib/format-address', () => {
         });
         expect(result).to.equal('123 George Street, Sydney New South Wales 2000');
       });
+
+      it('normalizes latin subdivision names but displays the local name', async () => {
+        const result = await formatAddress({
+          country: 'AE',
+          structured: { address1: 'Sheikh Zayed Road', zone: 'Dubai' },
+        });
+        expect(result).to.equal('Sheikh Zayed Road, دبي');
+      });
+
+      it('follows the country line order', async () => {
+        const result = await formatAddress(
+          {
+            country: 'JP',
+            structured: { address1: '1-1 Chiyoda', city: 'Chiyoda-ku', zone: 'Tokyo', postalCode: '100-0001' },
+          },
+          { lineDivider: '\n' },
+        );
+        expect(result).to.equal('〒100-0001\n東京都\n1-1 Chiyoda');
+      });
+    });
+
+    describe('missing optional fields', () => {
+      it('omits the state when there is no zone, instead of printing "null"', async () => {
+        const dublin = { country: 'IE', structured: { address1: '1 Main St', city: 'Dublin', postalCode: 'D02 X285' } };
+        expect(await formatAddress(dublin)).to.equal('1 Main St, Dublin, D02 X285');
+        expect(await formatAddress({ ...dublin, structured: { ...dublin.structured, zone: null } })).to.equal(
+          '1 Main St, Dublin, D02 X285',
+        );
+        const buenosAires = {
+          country: 'AR',
+          structured: { address1: 'Av. Corrientes 1', city: 'Buenos Aires', postalCode: 'C1043' },
+        };
+        expect(await formatAddress(buenosAires)).to.equal('Av. Corrientes 1, C1043 Buenos Aires');
+      });
+    });
+
+    describe('fallback formatting when the address is not valid for the country', () => {
+      const sanFrancisco = { address1: '123 Main Street', city: 'San Francisco', zone: 'CA' };
+
+      it('falls back when the zip does not match the country format', async () => {
+        const result = await formatAddress({ country: 'US', structured: { ...sanFrancisco, postalCode: 'ABC' } });
+        expect(result).to.equal('123 Main Street, San Francisco CA ABC');
+      });
+
+      it('falls back when the zip does not match the subdivision', async () => {
+        const result = await formatAddress({ country: 'US', structured: { ...sanFrancisco, postalCode: '10001' } });
+        expect(result).to.equal('123 Main Street, San Francisco CA 10001');
+      });
+
+      it('falls back when a required subdivision is unknown', async () => {
+        const result = await formatAddress({
+          country: 'US',
+          structured: { ...sanFrancisco, zone: 'Atlantis', postalCode: '94102' },
+        });
+        expect(result).to.equal('123 Main Street, San Francisco Atlantis 94102');
+      });
+
+      it('falls back when the country is unknown', async () => {
+        const result = await formatAddress({
+          country: 'XX',
+          structured: { address1: '1 Nowhere Lane', city: 'Atlantis', postalCode: '12345' },
+        });
+        expect(result).to.equal('1 Nowhere Lane, Atlantis 12345');
+      });
     });
   });
 });

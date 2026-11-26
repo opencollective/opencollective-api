@@ -1,6 +1,7 @@
 import config from 'config';
 import { get, result, toUpper } from 'lodash';
 import moment from 'moment';
+import assert from 'node:assert';
 import type { CreateOptions } from 'sequelize';
 import Stripe from 'stripe';
 
@@ -29,6 +30,15 @@ import { BasePaymentProviderService } from '../types';
 
 export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 
+/**
+ * Older API versions expose the charges of a PaymentIntent through a `charges` list, which is not part of the
+ * `PaymentIntent` type in the current version of the Stripe SDK. Prefer `latest_charge` whenever possible.
+ */
+export const getPaymentIntentCharge = (paymentIntent: Stripe.PaymentIntent): Stripe.Charge | undefined => {
+  const legacyCharges = (paymentIntent as Stripe.PaymentIntent & { charges?: Stripe.ApiList<Stripe.Charge> }).charges;
+  return legacyCharges?.data?.[0];
+};
+
 /** Refund a given transaction */
 export const refundTransaction: BasePaymentProviderService['refundTransaction'] = async (
   transaction: Transaction,
@@ -55,8 +65,19 @@ export const refundTransaction: BasePaymentProviderService['refundTransaction'] 
     { charge: chargeId, refund_application_fee: hasApplicationFees }, // eslint-disable-line camelcase
     { stripeAccount: hostStripeAccount.username },
   );
+  assert(refund, `Refund for charge ${chargeId} failed for host #${hostStripeAccount.CollectiveId}`);
+
+  // Record the refund reference on the original transaction (and its opposite ledger entry) so that
+  // a concurrent/duplicate refund request is blocked by the guard above while it's still pending on Stripe.
+  // We only add the `refund` key here, we don't touch the rest of the original transaction's data
+  // (e.g. `charge`, `balanceTransaction`), which must keep reflecting the original charge.
+  const oppositeTransaction = await transaction.getOppositeTransaction();
+  await Promise.all(
+    [transaction, oppositeTransaction].filter(Boolean).map(t => t.update({ data: { ...t.data, refund } })),
+  );
 
   const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });
+  assert(charge, `Charge ${chargeId} not found in Stripe for host #${hostStripeAccount.CollectiveId}`);
   const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction as string, {
     stripeAccount: hostStripeAccount.username,
   });
@@ -69,7 +90,8 @@ export const refundTransaction: BasePaymentProviderService['refundTransaction'] 
     {
       ...transaction.data,
       refund,
-      balanceTransaction: refundBalance, // TODO: This is overwriting the original balanceTransaction with the refund balance transaction, which remove important info
+      // This is no longer replicated into the original set of transactions, but we keep it here for backward compatibility with existing transactions
+      balanceTransaction: refundBalance,
       charge,
       refundReason: reason,
     },
@@ -271,8 +293,17 @@ export async function resolvePaymentMethodForOrder(
     const customer = await stripe.customers.retrieve(customerId, {
       stripeAccount: hostStripeAccount,
     });
+    if (customer.deleted) {
+      throw new Error(`Legacy Stripe customer ${customerId} was deleted on Stripe`);
+    }
 
-    const paymentMethodId = get(customer, 'default_source', get(customer, 'sources.data[0].id'));
+    // `default_source` is not expanded, so it's a string ID at runtime. It can also be null for
+    // legacy customers, in which case we fall back to the first source.
+    const paymentMethodId =
+      (get(customer, 'default_source') as string | null) || (get(customer, 'sources.data[0].id') as string);
+    if (!paymentMethodId) {
+      throw new Error(`No default source found on legacy Stripe customer ${customerId}`);
+    }
 
     return {
       id: paymentMethodId,
@@ -510,8 +541,7 @@ export async function createPaymentMethod(
   },
   createOptions?: CreateOptions,
 ): Promise<PaymentMethod> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const paymentIntentCharge: Stripe.Charge = (originPaymentIntent as any)?.charges?.data?.[0];
+  const paymentIntentCharge = originPaymentIntent ? getPaymentIntentCharge(originPaymentIntent) : undefined;
   const paymentMethodChargeDetails = paymentIntentCharge?.payment_method_details;
 
   const paymentMethodData: Record<string, unknown> = {
@@ -563,7 +593,9 @@ export async function createOrRetrievePaymentMethodFromSetupIntent(
   });
 
   if (existingPaymentMethod) {
-    if (existingPaymentMethod.type === PAYMENT_METHOD_TYPE.BANCONTACT) {
+    if (existingPaymentMethod.type !== PAYMENT_METHOD_TYPE.BANCONTACT) {
+      return existingPaymentMethod;
+    } else if (existingPaymentMethod.data?.generated_sepa_debit) {
       return await PaymentMethod.findOne({
         where: {
           data: {
@@ -572,7 +604,7 @@ export async function createOrRetrievePaymentMethodFromSetupIntent(
         },
       });
     }
-    return existingPaymentMethod;
+    // Bancontact setup not completed yet: no generated SEPA debit to look up, check the setup intent again below
   }
 
   if (['requires_payment_method', 'canceled'].includes(setupIntent.status)) {
@@ -635,7 +667,11 @@ export async function createOrRetrievePaymentMethodFromSetupIntent(
       },
     });
 
-    const generatedSepaPaymentId = latestAttempt.payment_method_details.bancontact.generated_sepa_debit as string;
+    const generatedSepaPaymentId = latestAttempt.payment_method_details?.bancontact?.generated_sepa_debit as string;
+    if (!generatedSepaPaymentId) {
+      throw new Error(`Bancontact setup intent is not completed yet (status: ${setupIntent.status})`);
+    }
+
     const generatedPaymentMethod = await createOrRetrieveStripePaymentMethod(
       generatedSepaPaymentId,
       customerConnectedAccount,

@@ -5,6 +5,7 @@ import moment from 'moment';
 import { createSandbox } from 'sinon';
 
 import ActivityTypes from '../../../../../../server/constants/activities';
+import { CollectiveType } from '../../../../../../server/constants/collectives';
 import ExpenseStatuses from '../../../../../../server/constants/expense-status';
 import roles from '../../../../../../server/constants/roles';
 import {
@@ -13,7 +14,9 @@ import {
 } from '../../../../../../server/constants/tax-form';
 import * as libcurrency from '../../../../../../server/lib/currency';
 import { KYCProviderName } from '../../../../../../server/lib/kyc/providers';
-import models from '../../../../../../server/models';
+import * as SqlSearchLib from '../../../../../../server/lib/sql-search';
+import models, { sequelize } from '../../../../../../server/models';
+import { CommentMainRole } from '../../../../../../server/models/Comment';
 import { KYCVerificationStatus } from '../../../../../../server/models/KYCVerification';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../../server/models/PayoutMethod';
@@ -21,6 +24,7 @@ import {
   fakeActiveHost,
   fakeActivity,
   fakeCollective,
+  fakeComment,
   fakeEvent,
   fakeExpense,
   fakeHost,
@@ -34,6 +38,7 @@ import {
   fakeProject,
   fakeTransaction,
   fakeUser,
+  fakeVendor,
   randStr,
 } from '../../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../../utils';
@@ -468,6 +473,368 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         // payee is non-null; resolver failure nulls the parent expense node
         expect(result.data.expenses.nodes.some(node => node === null)).to.be.true;
       });
+    });
+  });
+
+  describe('lastCommentBy filters', () => {
+    const expensesLastCommentQuery = gql`
+      query ExpensesLastComment(
+        $host: AccountReferenceInput
+        $fromAccount: AccountReferenceInput
+        $lastCommentBy: [LastCommentBy]
+        $searchTerm: String
+      ) {
+        expenses(host: $host, fromAccount: $fromAccount, lastCommentBy: $lastCommentBy, searchTerm: $searchTerm) {
+          totalCount
+          nodes {
+            legacyId
+          }
+        }
+      }
+    `;
+
+    it('NON_FROM_ACCOUNT_ADMIN: returns expenses whose last comment is not authored by an admin of the expense payee', async () => {
+      const payeeAdmin = await fakeUser();
+      const payeeCollective = await fakeCollective({ admin: payeeAdmin });
+      const submitterUser = await fakeUser();
+      const outsider = await fakeUser();
+      const payerCollective = await fakeCollective();
+      await fakeExpense({ items: [] }); // Noise: unrelated expense
+
+      const expenseWithOutsiderReply = await fakeExpense({
+        FromCollectiveId: payeeCollective.id,
+        CollectiveId: payerCollective.id,
+        UserId: submitterUser.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+      await fakeComment({
+        ExpenseId: expenseWithOutsiderReply.id,
+        CollectiveId: payerCollective.id,
+        CreatedByUserId: outsider.id,
+        FromCollectiveId: outsider.CollectiveId,
+        mainCommenterRole: CommentMainRole.PUBLIC,
+      });
+
+      const expenseWithPayeeAdminReply = await fakeExpense({
+        FromCollectiveId: payeeCollective.id,
+        CollectiveId: payerCollective.id,
+        UserId: submitterUser.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+      await fakeComment({
+        ExpenseId: expenseWithPayeeAdminReply.id,
+        CollectiveId: payerCollective.id,
+        CreatedByUserId: payeeAdmin.id,
+        FromCollectiveId: payeeAdmin.CollectiveId,
+        mainCommenterRole: CommentMainRole.FROM_COLLECTIVE_ADMIN,
+      });
+
+      // Expense with no comments - should not appear in the filter
+      await fakeExpense({
+        FromCollectiveId: payeeCollective.id,
+        CollectiveId: payerCollective.id,
+        UserId: submitterUser.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        {
+          fromAccount: { legacyId: payeeCollective.id },
+          lastCommentBy: ['NON_FROM_ACCOUNT_ADMIN'],
+        },
+        payeeAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes.map(n => n.legacyId)).to.deep.eq([expenseWithOutsiderReply.id]);
+    });
+
+    it('NON_FROM_ACCOUNT_ADMIN: returns empty results when caller cannot comment on expenses', async () => {
+      const payeeAdmin = await fakeUser();
+      const payeeCollective = await fakeCollective({ admin: payeeAdmin });
+      const outsider = await fakeUser();
+      const expense = await fakeExpense({
+        FromCollectiveId: payeeCollective.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+
+      await fakeComment({
+        ExpenseId: expense.id,
+        CollectiveId: expense.CollectiveId,
+        CreatedByUserId: outsider.id,
+        FromCollectiveId: outsider.CollectiveId,
+        mainCommenterRole: CommentMainRole.PUBLIC,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        {
+          fromAccount: { legacyId: payeeCollective.id },
+          lastCommentBy: ['NON_FROM_ACCOUNT_ADMIN'],
+        },
+        outsider,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(0);
+      expect(result.data.expenses.nodes).to.deep.eq([]);
+    });
+
+    it('returns empty results when caller is not logged in', async () => {
+      const result = await graphqlQueryV2(expensesLastCommentQuery, {
+        lastCommentBy: ['NON_HOST_ADMIN'],
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(0);
+      expect(result.data.expenses.nodes).to.deep.eq([]);
+    });
+
+    it('NON_HOST_ADMIN: host admin can filter unreplied expenses', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const submitter = await fakeUser();
+      const outsider = await fakeUser();
+
+      const expenseWithOutsiderReply = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: submitter.CollectiveId,
+        UserId: submitter.id,
+        HostCollectiveId: host.id,
+        items: [],
+        status: ExpenseStatuses.APPROVED,
+      });
+      await fakeComment({
+        ExpenseId: expenseWithOutsiderReply.id,
+        CollectiveId: collective.id,
+        CreatedByUserId: outsider.id,
+        FromCollectiveId: outsider.CollectiveId,
+        mainCommenterRole: CommentMainRole.PUBLIC,
+      });
+
+      const expenseWithHostAdminReply = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: submitter.CollectiveId,
+        UserId: submitter.id,
+        HostCollectiveId: host.id,
+        items: [],
+        status: ExpenseStatuses.APPROVED,
+      });
+      await fakeComment({
+        ExpenseId: expenseWithHostAdminReply.id,
+        CollectiveId: collective.id,
+        CreatedByUserId: hostAdmin.id,
+        FromCollectiveId: hostAdmin.CollectiveId,
+        mainCommenterRole: CommentMainRole.HOST_ADMIN,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        { host: { legacyId: host.id }, lastCommentBy: ['NON_HOST_ADMIN'] },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expenseWithOutsiderReply.id);
+    });
+
+    it('expense submitter can filter by lastCommentBy on their own expenses', async () => {
+      const submitter = await fakeUser();
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: submitter.CollectiveId,
+        UserId: submitter.id,
+        HostCollectiveId: host.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+      await fakeComment({
+        ExpenseId: expense.id,
+        CollectiveId: collective.id,
+        CreatedByUserId: hostAdmin.id,
+        FromCollectiveId: hostAdmin.CollectiveId,
+        mainCommenterRole: CommentMainRole.HOST_ADMIN,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        {
+          fromAccount: { legacyId: submitter.CollectiveId },
+          lastCommentBy: ['HOST_ADMIN'],
+        },
+        submitter,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expense.id);
+    });
+
+    it('expense submitter can filter by lastCommentBy on expenses they submitted for a vendor', async () => {
+      const submitter = await fakeUser();
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const vendor = await fakeVendor({ ParentCollectiveId: host.id });
+
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: vendor.id,
+        UserId: submitter.id,
+        HostCollectiveId: host.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+      await fakeComment({
+        ExpenseId: expense.id,
+        CollectiveId: collective.id,
+        CreatedByUserId: hostAdmin.id,
+        FromCollectiveId: hostAdmin.CollectiveId,
+        mainCommenterRole: CommentMainRole.HOST_ADMIN,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        { fromAccount: { legacyId: vendor.id }, lastCommentBy: ['HOST_ADMIN'] },
+        submitter,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expense.id);
+    });
+
+    it('HOST_ADMIN: remains stable after admin membership is removed (regression for #8801)', async () => {
+      // formerAdmin comments on the expense, then gets removed as host admin
+      const formerAdmin = await fakeUser();
+      // activeAdmin stays as admin and will run the query
+      const activeAdmin = await fakeUser();
+      const host = await fakeHost({ admin: activeAdmin });
+      await fakeMember({ MemberCollectiveId: formerAdmin.CollectiveId, CollectiveId: host.id, role: roles.ADMIN });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const submitter = await fakeUser();
+
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: submitter.CollectiveId,
+        UserId: submitter.id,
+        HostCollectiveId: host.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+
+      // formerAdmin comments - role is captured at creation time
+      await fakeComment({
+        ExpenseId: expense.id,
+        CollectiveId: collective.id,
+        CreatedByUserId: formerAdmin.id,
+        FromCollectiveId: formerAdmin.CollectiveId,
+        mainCommenterRole: CommentMainRole.HOST_ADMIN,
+      });
+
+      // Remove formerAdmin from the host - simulates the bug scenario
+      await models.Member.destroy({
+        where: { MemberCollectiveId: formerAdmin.CollectiveId, CollectiveId: host.id },
+      });
+
+      // activeAdmin queries using the HOST_ADMIN filter
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        { host: { legacyId: host.id }, lastCommentBy: ['HOST_ADMIN'] },
+        activeAdmin,
+      );
+
+      // Even after formerAdmin's membership removal, the stored role keeps the expense in the queue
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expense.id);
+    });
+
+    it('does not fail when combined with searchTerm (duplicate include regression)', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const submitter = await fakeUser();
+      const outsider = await fakeUser();
+
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: submitter.CollectiveId,
+        UserId: submitter.id,
+        HostCollectiveId: host.id,
+        description: 'Unreplied expense for search',
+        items: [],
+        status: ExpenseStatuses.APPROVED,
+      });
+      await fakeComment({
+        ExpenseId: expense.id,
+        CollectiveId: collective.id,
+        CreatedByUserId: outsider.id,
+        FromCollectiveId: outsider.CollectiveId,
+        mainCommenterRole: CommentMainRole.PUBLIC,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        {
+          host: { legacyId: host.id },
+          lastCommentBy: ['NON_HOST_ADMIN'],
+          searchTerm: 'Unreplied',
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expense.id);
+    });
+
+    it('does not fail without host filter for non-root users (duplicate collective include regression)', async () => {
+      const payeeAdmin = await fakeUser();
+      const payeeCollective = await fakeCollective({ admin: payeeAdmin });
+      const submitterUser = await fakeUser();
+      const outsider = await fakeUser();
+      const payerCollective = await fakeCollective();
+
+      const expense = await fakeExpense({
+        FromCollectiveId: payeeCollective.id,
+        CollectiveId: payerCollective.id,
+        UserId: submitterUser.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+      await fakeComment({
+        ExpenseId: expense.id,
+        CollectiveId: payerCollective.id,
+        CreatedByUserId: outsider.id,
+        FromCollectiveId: outsider.CollectiveId,
+        mainCommenterRole: CommentMainRole.PUBLIC,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        {
+          fromAccount: { legacyId: payeeCollective.id },
+          lastCommentBy: ['NON_FROM_ACCOUNT_ADMIN'],
+        },
+        payeeAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expense.id);
     });
   });
 
@@ -1374,6 +1741,29 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       expect(result.data.expenses.totalCount).to.be.at.least(5);
     });
 
+    it('Counts an expense once even when it has several matching activities', async () => {
+      const user = await fakeUser();
+      const otherCollective = await fakeCollective({ currency: 'USD' });
+      const expense = await fakeExpense({
+        CollectiveId: otherCollective.id,
+        amount: 100000,
+        currency: 'USD',
+        status: 'PENDING',
+      });
+      for (let i = 0; i < 3; i++) {
+        await fakeActivity({ ExpenseId: expense.id, UserId: user.id, type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED });
+      }
+
+      const result = await graphqlQueryV2(expensesQuery, {
+        account: { legacyId: otherCollective.id },
+        activity: { individual: { legacyId: user.CollectiveId }, type: ['COLLECTIVE_EXPENSE_UPDATED'] },
+      });
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.nodes.map(e => e.legacyId)).to.deep.eq([expense.id]);
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.totalAmount.amount.valueInCents).to.eq(100000);
+    });
+
     describe('Error checks', () => {
       it('Throws error when individual account is not found', async () => {
         const queryParams = {
@@ -1404,7 +1794,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         const result = await graphqlQueryV2(expensesQuery, queryParams);
         expect(result.errors).to.exist;
         // GraphQL validation error happens before resolver
-        expect(result.errors[0].message).to.include('Variable "$activity" got invalid value');
+        expect(result.errors[0].message).to.include('Variable "$activity" has invalid value');
       });
 
       it('Throws error when multiple invalid activity types are provided', async () => {
@@ -1415,7 +1805,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         const result = await graphqlQueryV2(expensesQuery, queryParams);
         expect(result.errors).to.exist;
         // GraphQL validation error happens before resolver
-        expect(result.errors[0].message).to.include('Variable "$activity" got invalid value');
+        expect(result.errors[0].message).to.include('Variable "$activity" has invalid value');
       });
 
       it('Throws error when activity type is not an expense-related activity', async () => {
@@ -1481,6 +1871,41 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       const result = await graphqlQueryV2(expensesQuery, { searchTerm: slug });
       expect(result.data.expenses.totalCount).to.eq(1);
       expect(result.data.expenses.nodes[0].legacyId).to.eq(expenseTwo.id);
+    });
+
+    it('searches in Wise transfer ids above Number.MAX_SAFE_INTEGER with exact digits', async () => {
+      const bigTransferId = '9223372036854775807';
+      const adjacentTransferId = '9223372036854775806';
+      const bigExpense = await fakeExpense({
+        FromCollectiveId: ownerUser.collective.id,
+        CollectiveId: expenseOne.CollectiveId,
+        description: 'Big Wise transfer',
+        data: { transfer: { id: bigTransferId } },
+      });
+      await fakeExpense({
+        FromCollectiveId: ownerUser.collective.id,
+        CollectiveId: expenseOne.CollectiveId,
+        description: 'Adjacent Wise transfer',
+        data: { transfer: { id: adjacentTransferId } },
+      });
+
+      const result = await graphqlQueryV2(expensesQuery, { searchTerm: bigTransferId });
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(bigExpense.id);
+    });
+
+    it('searches in legacy numeric Wise transfer ids stored as JSON numbers', async () => {
+      const transferId = 2147483648;
+      const legacyExpense = await fakeExpense({
+        FromCollectiveId: ownerUser.collective.id,
+        CollectiveId: expenseOne.CollectiveId,
+        description: 'Legacy numeric Wise transfer',
+        data: { transfer: { id: transferId } },
+      });
+
+      const result = await graphqlQueryV2(expensesQuery, { searchTerm: String(transferId) });
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(legacyExpense.id);
     });
   });
 
@@ -1569,10 +1994,12 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       hostChild,
       hostedCollective,
       hostedCollectiveChild,
+      platformTipsAccount,
       expenseOnHost,
       expenseOnHostChild,
       expenseOnHostedCollective,
-      expenseOnHostedCollectiveChild;
+      expenseOnHostedCollectiveChild,
+      expenseOnPlatformTips;
 
     before(async () => {
       // Create a host account with money management
@@ -1622,6 +2049,24 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         status: 'APPROVED',
         description: 'Expense on hosted collective child',
       });
+
+      // Per-host platform-tips account: a hosted child of the host (ParentCollectiveId =
+      // HostCollectiveId = host). Its settlement expense is grouped with the host's own activity
+      // (INTERNAL / Organization), not with hosted collectives (HOSTED), via the normal parent-based
+      // grouping — no special-casing.
+      platformTipsAccount = await fakeCollective({
+        type: CollectiveType.PLATFORM,
+        ParentCollectiveId: host.id,
+        HostCollectiveId: host.id,
+        isActive: true,
+      });
+      expenseOnPlatformTips = await fakeExpense({
+        CollectiveId: platformTipsAccount.id,
+        HostCollectiveId: host.id,
+        type: 'SETTLEMENT',
+        status: 'APPROVED',
+        description: 'Platform tips settlement',
+      });
     });
 
     it('should return all expenses when hostContext is ALL', async () => {
@@ -1650,6 +2095,8 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       const expenseIds = result.data.expenses.nodes.map(node => node.legacyId);
       expect(expenseIds).to.include(expenseOnHost.id);
       expect(expenseIds).to.include(expenseOnHostChild.id);
+      // The platform-owned (platform-tips) settlement is grouped with the Organization
+      expect(expenseIds).to.include(expenseOnPlatformTips.id);
       // Verify hosted collective expenses are NOT included
       expect(expenseIds).to.not.include(expenseOnHostedCollective.id);
       expect(expenseIds).to.not.include(expenseOnHostedCollectiveChild.id);
@@ -1669,6 +2116,8 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       // Verify host/internal expenses are NOT included
       expect(expenseIds).to.not.include(expenseOnHost.id);
       expect(expenseIds).to.not.include(expenseOnHostChild.id);
+      // The platform-owned (platform-tips) settlement is NOT a hosted collective
+      expect(expenseIds).to.not.include(expenseOnPlatformTips.id);
     });
 
     it('should return all host expenses when hostContext is not set (default behavior)', async () => {
@@ -2228,5 +2677,322 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       expect(ids).to.not.include(expenseOnHold.id);
       expect(ids).to.not.include(expenseApproved.id);
     });
+  });
+});
+
+describe('server/graphql/v2/collection/ExpenseCollection - searchTerm', () => {
+  const searchQuery = gql`
+    query SearchExpenses(
+      $host: AccountReferenceInput
+      $account: AccountReferenceInput
+      $status: [ExpenseStatusFilter]
+      $hostContext: HostContext
+      $tag: [String]
+      $searchTerm: String
+    ) {
+      expenses(
+        host: $host
+        account: $account
+        status: $status
+        hostContext: $hostContext
+        tag: $tag
+        searchTerm: $searchTerm
+        limit: 100
+      ) {
+        totalCount
+        nodes {
+          legacyId
+        }
+      }
+    }
+  `;
+
+  // Number of expenses a host must have paid for its searches to use the search arms
+  const MIN_HOST_EXPENSES = 5000;
+
+  let sandbox, hostAdmin, randomUser, host, collective, payee, submitter;
+  let fromPayee, fromSubmitter, mentioningSubmitterEmail, onOtherHost;
+
+  /**
+   * Runs the search with the search arms, then with the regular conditions, and expects the same expenses from both.
+   * - `withSearchArms: false` is for searches that never use the search arms.
+   * - `withMinScope: true` keeps the minimum number of expenses of the host, which the fixtures do not reach.
+   */
+  const expectSearchResults = async (
+    variables,
+    expectedExpenses,
+    { withSearchArms = true, withMinScope = false, remoteUser = hostAdmin } = {},
+  ) => {
+    const expectedIds = expectedExpenses.map(expense => expense.id).sort();
+    const search = async () => {
+      const result = await graphqlQueryV2(searchQuery, variables, remoteUser);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(expectedIds.length);
+      expect(result.data.expenses.nodes.map(node => node.legacyId).sort()).to.deep.eq(expectedIds);
+    };
+
+    const originalBuildSearchArms = SqlSearchLib.buildSearchArms;
+    const buildSearchArms = sandbox
+      .stub(SqlSearchLib, 'buildSearchArms')
+      .callsFake((searchTerm, options) =>
+        originalBuildSearchArms(searchTerm, withMinScope ? options : { ...options, minScope: undefined }),
+      );
+    await search();
+    if (withSearchArms) {
+      expect(await buildSearchArms.lastCall.returnValue).to.exist;
+    } else {
+      expect(buildSearchArms.called && (await buildSearchArms.lastCall.returnValue)).to.not.be.ok;
+    }
+
+    buildSearchArms.restore();
+    const withoutSearchArms = sandbox.stub(SqlSearchLib, 'buildSearchArms').resolves(null);
+    await search();
+    withoutSearchArms.restore();
+  };
+
+  before(async () => {
+    await resetTestDB();
+    hostAdmin = await fakeUser();
+    randomUser = await fakeUser();
+    host = await fakeActiveHost({ admin: hostAdmin });
+    collective = await fakeCollective({
+      HostCollectiveId: host.id,
+      name: 'Search Recipient',
+      slug: 'search-recipient',
+    });
+    payee = await fakeUser(
+      { email: 'quentin.payee@example.com' },
+      { name: "Quentin O'Search", slug: 'quentin-search' },
+    );
+    submitter = await fakeUser(
+      { email: 'zoltan.submitter@example.com' },
+      { name: 'Zoltan Submitter', slug: 'zoltan-submitter' },
+    );
+    const vendor = await fakeOrganization({ name: 'Wonderful Vendor', slug: 'wonderful-vendor' });
+    const otherUser = await fakeUser(null, { name: 'Someone Else', slug: 'someone-else' });
+    const otherHost = await fakeActiveHost();
+    const collectiveOnOtherHost = await fakeCollective({ HostCollectiveId: otherHost.id });
+
+    // Submitted by the payee, not paid yet: the expense does not reference the host
+    fromPayee = await fakeExpense({
+      UserId: payee.id,
+      FromCollectiveId: payee.CollectiveId,
+      CollectiveId: collective.id,
+      status: ExpenseStatuses.APPROVED,
+      amount: 98765432,
+      description: 'Flight to the conference',
+      tags: ['travel'],
+    });
+    // Submitted by someone for a vendor, paid by the host
+    fromSubmitter = await fakeExpense({
+      UserId: submitter.id,
+      FromCollectiveId: vendor.id,
+      CollectiveId: collective.id,
+      HostCollectiveId: host.id,
+      status: ExpenseStatuses.PAID,
+      amount: 4500,
+      description: 'Invoice on behalf of quentin',
+      tags: ['hosting'],
+      reference: 'REF2026X',
+      data: { transfer: { id: 40500021 }, transaction_id: 'PAYPALTX42' }, // eslint-disable-line camelcase
+    });
+    mentioningSubmitterEmail = await fakeExpense({
+      UserId: otherUser.id,
+      FromCollectiveId: otherUser.CollectiveId,
+      CollectiveId: collective.id,
+      status: ExpenseStatuses.PENDING,
+      amount: 700,
+      description: 'Refund for zoltan.submitter@example.com',
+      tags: ['refund'],
+      data: { transactionId: 'CARDTX42', batchGroup: { id: 'BATCH42' } },
+    });
+    onOtherHost = await fakeExpense({
+      UserId: payee.id,
+      FromCollectiveId: payee.CollectiveId,
+      CollectiveId: collectiveOnOtherHost.id,
+      status: ExpenseStatuses.APPROVED,
+      amount: 98765432,
+      description: 'Flight to the conference',
+      tags: ['travel'],
+    });
+    const deletedExpense = await fakeExpense({
+      UserId: payee.id,
+      FromCollectiveId: payee.CollectiveId,
+      CollectiveId: collective.id,
+      status: ExpenseStatuses.APPROVED,
+      description: 'Flight to the conference',
+    });
+    await deletedExpense.destroy();
+
+    await hostAdmin.populateRoles({ force: true });
+  });
+
+  beforeEach(() => {
+    sandbox = createSandbox();
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  const hostScope = () => ({ host: { legacyId: host.id } });
+
+  it('searches the name and slug of the payee, of the collective and of the submitter', async () => {
+    await expectSearchResults({ ...hostScope(), searchTerm: 'quentin' }, [fromPayee, fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: "Quentin O'Search" }, [fromPayee]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'quentin-search' }, [fromPayee]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'wonderful vendor' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'zoltan' }, [fromSubmitter, mentioningSubmitterEmail]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'Zoltan Submitter' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'zoltan-submitter' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'search recipient' }, [
+      fromPayee,
+      fromSubmitter,
+      mentioningSubmitterEmail,
+    ]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'search-recipient' }, [
+      fromPayee,
+      fromSubmitter,
+      mentioningSubmitterEmail,
+    ]);
+  });
+
+  it('searches the description, the tags and the structured data', async () => {
+    await expectSearchResults({ ...hostScope(), searchTerm: 'to the conference' }, [fromPayee]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'hosting' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'HOSTING' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'host' }, []); // Tags are matched exactly
+    await expectSearchResults({ ...hostScope(), searchTerm: 'REF2026X' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'PAYPALTX42' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'CARDTX42' }, [mentioningSubmitterEmail]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'BATCH42' }, [mentioningSubmitterEmail]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'BATCH4' }, []); // Structured data is matched exactly
+    await expectSearchResults({ ...hostScope(), searchTerm: 'no expense matches this' }, []);
+  });
+
+  it('searches the email of the submitter for host admins only', async () => {
+    const searchTerm = submitter.email;
+    await expectSearchResults({ ...hostScope(), searchTerm }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'nobody@example.com' }, []);
+    // For other users, an email is a text like any other
+    await expectSearchResults({ ...hostScope(), searchTerm }, [mentioningSubmitterEmail], { remoteUser: randomUser });
+    await expectSearchResults({ ...hostScope(), searchTerm }, [mentioningSubmitterEmail], { remoteUser: null });
+  });
+
+  it('searches exact slugs', async () => {
+    await expectSearchResults({ ...hostScope(), searchTerm: '@quentin-search' }, [fromPayee]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '@zoltan-submitter' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '@wonderful-vendor' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '@search-recipient' }, [
+      fromPayee,
+      fromSubmitter,
+      mentioningSubmitterEmail,
+    ]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '@quentin' }, []);
+  });
+
+  it('searches amounts, IDs and structured data by number', async () => {
+    await expectSearchResults({ ...hostScope(), searchTerm: '987654.32' }, [fromPayee]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '45' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '45.00' }, [fromSubmitter]);
+    // A Wise transfer ID, which does not fit in an integer column as an amount in cents
+    await expectSearchResults({ ...hostScope(), searchTerm: '40500021' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '0040500021' }, [fromSubmitter]);
+    // Too large for an ID and for an amount
+    await expectSearchResults({ ...hostScope(), searchTerm: '99999999999' }, []);
+
+    const withKnownId = await fakeExpense({ id: 987654321, CollectiveId: collective.id, status: 'APPROVED' });
+    await expectSearchResults({ ...hostScope(), searchTerm: '987654321' }, [withKnownId]);
+    await expectSearchResults({ ...hostScope(), searchTerm: '#987654321' }, [withKnownId], { withSearchArms: false });
+    await withKnownId.destroy();
+  });
+
+  it('uses the regular conditions for public IDs', async () => {
+    const options = { withSearchArms: false };
+    await expectSearchResults({ ...hostScope(), searchTerm: fromPayee.publicId }, [fromPayee], options);
+    await expectSearchResults({ ...hostScope(), searchTerm: payee.collective.publicId }, [fromPayee], options);
+    await expectSearchResults({ ...hostScope(), searchTerm: submitter.collective.publicId }, [fromSubmitter], options);
+    await expectSearchResults({ ...hostScope(), searchTerm: submitter.publicId }, [fromSubmitter], options);
+  });
+
+  it('applies the other conditions of the query to the matches', async () => {
+    await expectSearchResults({ ...hostScope(), status: ['PAID'], searchTerm: 'quentin' }, [fromSubmitter]);
+    await expectSearchResults({ ...hostScope(), status: ['PAID', 'PENDING'], searchTerm: 'zoltan' }, [
+      fromSubmitter,
+      mentioningSubmitterEmail,
+    ]);
+    await expectSearchResults({ ...hostScope(), hostContext: 'HOSTED', searchTerm: 'quentin' }, [
+      fromPayee,
+      fromSubmitter,
+    ]);
+    // Draft expenses are not listed for unauthenticated users
+    const draft = await fakeExpense({ CollectiveId: collective.id, status: 'DRAFT', description: 'Draft for quentin' });
+    await expectSearchResults({ ...hostScope(), searchTerm: 'quentin' }, [fromPayee, fromSubmitter, draft]);
+    await expectSearchResults({ ...hostScope(), searchTerm: 'quentin' }, [fromPayee, fromSubmitter], {
+      remoteUser: null,
+    });
+    await draft.destroy();
+  });
+
+  it('uses the regular conditions when the search is not in all the expenses of a host', async () => {
+    const options = { withSearchArms: false };
+    const searchTerm = 'quentin';
+    await expectSearchResults({ searchTerm: "Quentin O'Search" }, [fromPayee, onOtherHost], options);
+    await expectSearchResults(
+      { account: { legacyId: collective.id }, searchTerm },
+      [fromPayee, fromSubmitter],
+      options,
+    );
+    await expectSearchResults(
+      { ...hostScope(), account: { legacyId: collective.id }, searchTerm },
+      [fromPayee, fromSubmitter],
+      options,
+    );
+    await expectSearchResults({ ...hostScope(), status: ['APPROVED'], searchTerm }, [fromPayee], options);
+    await expectSearchResults({ ...hostScope(), tag: ['travel'], searchTerm }, [fromPayee], options);
+    await expectSearchResults({ ...hostScope(), tag: null, searchTerm }, [], options);
+    await expectSearchResults({ ...hostScope(), hostContext: 'INTERNAL', searchTerm }, [], options);
+  });
+
+  it('uses the regular conditions until the host has paid enough expenses', async () => {
+    const options = { withMinScope: true };
+    const searchTerm = 'quentin';
+    const addPaidExpenses = async (count: number, status = 'PAID') => {
+      await sequelize.query(
+        `
+        INSERT INTO "Expenses" ("UserId", "FromCollectiveId", "CollectiveId", "HostCollectiveId", "status", "currency", "amount", "description", "legacyPayoutMethod", "incurredAt", "createdAt", "updatedAt")
+        SELECT :UserId, :FromCollectiveId, :CollectiveId, :HostCollectiveId, :status, 'USD', 1000, 'Generated expense', 'other', NOW(), NOW(), NOW()
+        FROM generate_series(1, :count)
+        `,
+        {
+          replacements: {
+            UserId: hostAdmin.id,
+            FromCollectiveId: hostAdmin.CollectiveId,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            status,
+            count,
+          },
+        },
+      );
+    };
+
+    // `fromSubmitter` is the only expense paid by the host so far
+    await expectSearchResults({ ...hostScope(), searchTerm }, [fromPayee, fromSubmitter], {
+      ...options,
+      withSearchArms: false,
+    });
+
+    // Draft and spam expenses do not count
+    await addPaidExpenses(MIN_HOST_EXPENSES - 2);
+    await addPaidExpenses(5, 'SPAM');
+    await expectSearchResults({ ...hostScope(), searchTerm }, [fromPayee, fromSubmitter], {
+      ...options,
+      withSearchArms: false,
+    });
+
+    await addPaidExpenses(1);
+    await expectSearchResults({ ...hostScope(), searchTerm }, [fromPayee, fromSubmitter], options);
   });
 });

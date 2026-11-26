@@ -1,6 +1,5 @@
 /** @module lib/payments */
 import config from 'config';
-import DataLoader from 'dataloader';
 import debugLib from 'debug';
 import { escape, find, get, includes, isNil, isNumber, omit, pick, truncate } from 'lodash';
 import moment from 'moment';
@@ -18,6 +17,7 @@ import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
+import type { Loaders } from '../graphql/loaders';
 import { ManualPaymentProvider, Op, sequelize } from '../models';
 import Activity from '../models/Activity';
 import { ManualPaymentProviderTypes, sanitizeManualPaymentProviderInstructions } from '../models/ManualPaymentProvider';
@@ -34,14 +34,20 @@ import {
   type PaymentProviderServiceWithInternalRecurringManagement,
 } from '../paymentProviders/types';
 
+import { applyBalanceAccountingCategory } from './accounting/categorization/balance-accounts';
 import { applyContributionAccountingCategoryRules } from './accounting/categorization/contribution-rules';
 import { notify } from './notifications/email';
-import { syncPaymentIntentFromRefund } from './payment-intents/sync';
+import {
+  MetricEvent,
+  MetricFlow,
+  MetricProvider,
+  paymentServiceToMetricProvider,
+  recordPaymentOutcome,
+} from './sentry/metrics';
 import { getFxRate, roundCentsAmount } from './currency';
 import emailLib from './email';
 import { toNegative } from './math';
 import { getTransactionPdf } from './pdf';
-import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
 import { optsSanitizeOnlyTextFormatting, sanitizeHTML } from './sanitize-html';
 import { reportMessageToSentry } from './sentry';
@@ -54,7 +60,7 @@ const { CREDIT, DEBIT } = TransactionTypes;
 
 const debug = debugLib('payments');
 
-type loaders = Record<string, Record<string, DataLoader<number | string, any>>>;
+type loaders = Loaders;
 
 /** Check if paymentMethod has a given fully qualified name
  *
@@ -498,7 +504,11 @@ async function refundPaymentProcessorFee(
     // Load processor fee transaction if using separate transactions
     let processorFeeTransaction;
     if (!transaction.paymentProcessorFeeInHostCurrency) {
-      processorFeeTransaction = await transaction.getPaymentProcessorFeeTransaction(null, { sqlTransaction });
+      // Always refund the CREDIT leg (vendor side): `transaction` stays a DEBIT for expenses paid to the collective itself
+      processorFeeTransaction = await transaction.getPaymentProcessorFeeTransaction(
+        { type: CREDIT },
+        { sqlTransaction },
+      );
       if (!processorFeeTransaction) {
         // If there is no processor fee on the original transaction and no separate processor fee transaction, there is nothing to refund
         reportMessageToSentry('No processor fee found for refund with refundedPaymentProcessorFee set', {
@@ -550,7 +560,6 @@ async function refundPaymentProcessorFee(
           processorFeeTransaction,
           processorFeeRefundTransaction,
           sqlTransaction,
-          null,
           refundKind,
         );
       }
@@ -616,13 +625,7 @@ export async function refundHostFee(
       const hostFeeRefundTransaction = await Transaction.createDoubleEntry(hostFeeRefund, {
         sequelizeTransaction: sqlTransaction,
       });
-      await associateTransactionRefundId(
-        hostFeeTransaction,
-        hostFeeRefundTransaction,
-        sqlTransaction,
-        null,
-        refundKind,
-      );
+      await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, sqlTransaction, refundKind);
 
       // Refund Host Fee Share
       const hostFeeShareTransaction = await transaction.getHostFeeShareTransaction(null, { sqlTransaction });
@@ -635,7 +638,6 @@ export async function refundHostFee(
           hostFeeShareTransaction,
           hostFeeShareRefundTransaction,
           sqlTransaction,
-          null,
           refundKind,
         );
 
@@ -650,10 +652,12 @@ export async function refundHostFee(
             },
           });
           let hostFeeShareRefundSettlementStatus = TransactionSettlementStatus.OWED;
-          if (hostFeeShareSettlement.status === TransactionSettlementStatus.OWED) {
+          if (!hostFeeShareSettlement || hostFeeShareSettlement.status === TransactionSettlementStatus.OWED) {
             // If the Host Fee Share is not INVOICED or SETTLED, we don't need to care about recording it.
-            // Otherwise, the Host Fee Share refund will be marked as OWED and deduced from the next invoice
-            await hostFeeShareSettlement.update(
+            // Otherwise, the Host Fee Share refund will be marked as OWED and deduced from the next invoice.
+            // A missing settlement row (inconsistent data, see scripts/ledger/create-debts-for-platform-tips.ts)
+            // means the debt was never invoiced, so it gets the same treatment as OWED.
+            await hostFeeShareSettlement?.update(
               { status: TransactionSettlementStatus.SETTLED },
               { transaction: sqlTransaction },
             );
@@ -668,7 +672,6 @@ export async function refundHostFee(
             hostFeeShareDebtTransaction,
             hostFeeShareDebtRefundTransaction,
             sqlTransaction,
-            null,
             refundKind,
           );
           await TransactionSettlement.createForTransaction(
@@ -703,7 +706,7 @@ async function refundTax(
       const taxRefundTransaction = await Transaction.createDoubleEntry(taxRefundData, {
         sequelizeTransaction: sqlTransaction,
       });
-      await associateTransactionRefundId(taxTransaction, taxRefundTransaction, sqlTransaction, null, refundKind);
+      await associateTransactionRefundId(taxTransaction, taxRefundTransaction, sqlTransaction, refundKind);
     }
   };
 
@@ -763,6 +766,19 @@ export async function createRefundTransaction(
       throw new Error('This transaction has already been refunded');
     }
 
+    // The instance we received may have been loaded before another refund was recorded. Lock the row and
+    // re-check it so that refunds of the same transaction are serialized and only the first one goes through.
+    const lockedTransaction = await Transaction.findByPk(transaction.id, {
+      attributes: ['id', 'RefundTransactionId'],
+      transaction: sqlTransaction,
+      lock: sqlTransaction.LOCK.UPDATE,
+    });
+    if (!lockedTransaction) {
+      throw new Error('Cannot find any CREDIT transaction to refund');
+    } else if (lockedTransaction.RefundTransactionId) {
+      throw new Error('This transaction has already been refunded');
+    }
+
     const transactionGroup = transactionGroupId || uuid();
     const buildRefund = transaction => {
       return {
@@ -789,9 +805,36 @@ export async function createRefundTransaction(
         platformTipTransaction,
         platformTipRefundTransaction,
         sqlTransaction,
-        data,
         refundKind,
       );
+
+      // New platform-tips ledger: there is no per-tip debt — the OWED settlement lives directly
+      // on the PLATFORM_TIP credit. Mark it SETTLED so the settlement cron never invoices the
+      // host for a refunded tip. Legacy groups key their settlement on PLATFORM_TIP_DEBT (handled
+      // below), so this lookup is a no-op for them.
+      const newLedgerTipSettlement = await TransactionSettlement.findOne({
+        transaction: sqlTransaction,
+        where: {
+          TransactionGroup: transaction.TransactionGroup,
+          kind: TransactionKind.PLATFORM_TIP,
+        },
+      });
+      if (newLedgerTipSettlement?.status === TransactionSettlementStatus.OWED) {
+        await newLedgerTipSettlement.update(
+          { status: TransactionSettlementStatus.SETTLED },
+          { transaction: sqlTransaction },
+        );
+      } else if (newLedgerTipSettlement) {
+        // INVOICED/SETTLED: the host was already (or is being) billed for this tip. Mirror the
+        // legacy debt flow below: carry an OWED settlement on the refund pair so the settlement
+        // cron deducts the (negative) refund DEBIT on the platform-tips account from the host's next
+        // Platform Tips invoice.
+        await TransactionSettlement.createForTransaction(
+          platformTipRefundTransaction,
+          TransactionSettlementStatus.OWED,
+          sqlTransaction,
+        );
+      }
 
       // Refund Platform Tip Debt
       // Tips directly collected (and legacy ones) do not have a "debt" transaction associated
@@ -806,10 +849,12 @@ export async function createRefundTransaction(
           },
         });
         let tipRefundSettlementStatus = TransactionSettlementStatus.OWED;
-        if (tipSettlement.status === TransactionSettlementStatus.OWED) {
+        if (!tipSettlement || tipSettlement.status === TransactionSettlementStatus.OWED) {
           // If the tip is not INVOICED or SETTLED, we don't need to care about recording it.
-          // Otherwise, the tip refund will be marked as OWED and deduced from the next invoice
-          await tipSettlement.update({ status: TransactionSettlementStatus.SETTLED }, { transaction: sqlTransaction });
+          // Otherwise, the tip refund will be marked as OWED and deduced from the next invoice.
+          // A missing settlement row (inconsistent data, see scripts/ledger/create-debts-for-platform-tips.ts)
+          // means the debt was never invoiced, so it gets the same treatment as OWED.
+          await tipSettlement?.update({ status: TransactionSettlementStatus.SETTLED }, { transaction: sqlTransaction });
           tipRefundSettlementStatus = TransactionSettlementStatus.SETTLED;
         }
 
@@ -821,7 +866,6 @@ export async function createRefundTransaction(
           platformTipDebtTransaction,
           platformTipDebtRefundTransaction,
           sqlTransaction,
-          data,
           refundKind,
         );
         await TransactionSettlement.createForTransaction(
@@ -830,6 +874,34 @@ export async function createRefundTransaction(
           sqlTransaction,
         );
       }
+    }
+
+    // Refund Application Fee (new platform-tips ledger, Stripe direct-collected tips)
+    // Stripe claws the application fee back on refund (`refund_application_fee` in
+    // server/paymentProviders/stripe/common.ts), so the APPLICATION_FEE pair must be reversed too:
+    // otherwise the host's platform-tips slice stays negative and OFiTech keeps revenue that
+    // Stripe actually returned.
+    //
+    // Reverse from the DEBIT side: that is the host-scoped row on the platform-tips account
+    // (CollectiveId = platform-tips, HostCollectiveId = host), so buildRefund preserves HostCollectiveId
+    // via its `pick`, and createDoubleEntry derives only the OFiTech opposite. Reversing from the CREDIT
+    // (on OFiTech) instead would make the platform-tips row the *derived* opposite, re-deriving its
+    // HostCollectiveId from `getHostCollective()` rather than preserving the host scope directly.
+    const applicationFeeTransaction = await transaction.getRelatedTransaction(
+      { type: DEBIT, kind: TransactionKind.APPLICATION_FEE },
+      { sqlTransaction },
+    );
+    if (applicationFeeTransaction && applicationFeeTransaction.id !== transaction.id) {
+      const applicationFeeRefund = buildRefund(applicationFeeTransaction);
+      const applicationFeeRefundTransaction = await Transaction.createDoubleEntry(applicationFeeRefund, {
+        sequelizeTransaction: sqlTransaction,
+      });
+      await associateTransactionRefundId(
+        applicationFeeTransaction,
+        applicationFeeRefundTransaction,
+        sqlTransaction,
+        refundKind,
+      );
     }
 
     // Refund Payment Processor Fee
@@ -862,8 +934,7 @@ export async function createRefundTransaction(
     const refundTransaction = await Transaction.createDoubleEntry(creditTransactionRefund, {
       sequelizeTransaction: sqlTransaction,
     });
-    await syncPaymentIntentFromRefund(refundTransaction, sqlTransaction);
-    return associateTransactionRefundId(transaction, refundTransaction, sqlTransaction, data, refundKind);
+    return associateTransactionRefundId(transaction, refundTransaction, sqlTransaction, refundKind);
   };
 
   return sqlTransaction ? runInTransaction(sqlTransaction) : sequelize.transaction(runInTransaction);
@@ -873,7 +944,6 @@ export async function associateTransactionRefundId(
   transaction: Transaction,
   refund: Transaction,
   sqlTransaction: SequelizeTransaction,
-  data?: TransactionData,
   refundKind?: RefundKind,
 ): Promise<Transaction> {
   const transactions = await Transaction.findAll({
@@ -891,12 +961,6 @@ export async function associateTransactionRefundId(
   const debit = transactions.find(t => !t.isRefund && t.type === DEBIT);
   const refundCredit = transactions.find(t => t.isRefund && t.type === CREDIT);
   const refundDebit = transactions.find(t => t.isRefund && t.type === DEBIT);
-
-  // After refunding a transaction, in some cases the data may be updated as well (stripe data changes after refunds)
-  if (data && Object.keys(data).length) {
-    debit.data = data;
-    credit.data = data;
-  }
 
   if (refundCredit && debit) {
     debit.RefundTransactionId = refundCredit.id;
@@ -967,7 +1031,6 @@ export const sendEmailNotifications = (
 
 export const createSubscription = async (order: Order, data?: { lastChargedAt?: Date }): Promise<void> => {
   const subscription = await Subscription.create({
-    amount: order.totalAmount,
     interval: order.interval,
     currency: order.currency,
     lastChargedAt: data?.lastChargedAt,
@@ -1047,7 +1110,23 @@ export const executeOrder = async (
       data: omit(order.data, ['stripePaymentIntent']),
     });
 
+    // Terminal outcome for synchronous payments. Async methods (SEPA, payment intents) settle later
+    // and are counted by the webhooks, after their idempotency/dedupe guards. PayPal is counted where
+    // its transaction is recorded (sync capture in the provider, async capture in the webhook) to
+    // avoid double-counting the race between the two. Internal flows (opencollective service:
+    // balance, gift card, prepaid, manual) are out of scope.
+    const provider = paymentServiceToMetricProvider(order.paymentMethod?.service);
+    if (provider === MetricProvider.STRIPE) {
+      recordPaymentOutcome({
+        provider,
+        flow: MetricFlow.CONTRIBUTION,
+        method: order.paymentMethod.type,
+        outcome: MetricEvent.SUCCEEDED,
+      });
+    }
+
     await applyContributionAccountingCategoryRules(order);
+    await applyBalanceAccountingCategory(order);
 
     // Credit card charges are synchronous. If the transaction is
     // created here it means that the payment went through so it's
@@ -1062,11 +1141,6 @@ export const executeOrder = async (
     // Or in the case of tickets register the user as an ATTENDEE
     if (order.fromCollective?.ParentCollectiveId !== order.collective.id) {
       await order.getOrCreateMembers();
-    }
-
-    // Create a Pre-Paid Payment Method for the prepaid budget
-    if (isPrepaidBudgetOrder(order)) {
-      await createPrepaidPaymentMethod(transaction);
     }
   }
 
@@ -1331,17 +1405,9 @@ const sendManualPendingOrderEmail = async (order: Order): Promise<void> => {
   const { collective, fromCollective } = order;
   const host = await collective.getHostCollective();
 
-  let replyTo: string | string[] = [];
-  if (fromCollective.isIncognito) {
-    // We still want to surface incognito emails to the host as they often need to contact them to reconciliate the bank transfer
-    const user = await User.findByPk(fromCollective.CreatedByUserId);
-    if (user) {
-      replyTo.push(user.email);
-    }
-  } else {
-    const fromCollectiveAdmins = await fromCollective.getAdminUsers();
-    replyTo = fromCollectiveAdmins.map(({ email }) => email).join(', ');
-  }
+  // Include incognito admins so the host can contact them to reconcile the bank transfer.
+  const fromCollectiveAdmins = await fromCollective.getAdminUsers();
+  const replyTo = fromCollectiveAdmins.map(({ email }) => email).join(', ');
 
   const data = {
     order: order.info,
@@ -1487,8 +1553,12 @@ export const getHostFeePercent = async (
     order.paymentMethod = await order.getPaymentMethod();
   }
 
-  // No Host Fee for money going to an host itself
-  if (collective.hasMoneyManagement) {
+  // No Host Fee for money going to a host itself or to its own events/projects
+  const isHostOwnedChild = collective.type === CollectiveType.EVENT || collective.type === CollectiveType.PROJECT;
+  if (
+    collective.hasMoneyManagement ||
+    (isHostOwnedChild && parent && parent.id === host?.id && parent.hasMoneyManagement)
+  ) {
     return 0;
   }
 

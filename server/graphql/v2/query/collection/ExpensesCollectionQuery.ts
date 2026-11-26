@@ -10,24 +10,33 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { compact, isEmpty, isNil, sum, uniq } from 'lodash';
+import { sql, type SqlBool } from 'kysely';
+import { isEmpty, isNil, sum, uniq } from 'lodash';
 import { OrderItem, QueryTypes, Sequelize, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
-import { expenseStatus } from '../../../../constants';
+import { expenseStatus, roles } from '../../../../constants';
 import ActivityTypes from '../../../../constants/activities';
 import { CollectiveType } from '../../../../constants/collectives';
 import { SupportedCurrency } from '../../../../constants/currencies';
-import MemberRoles, { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
+import { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
 import { getBalancesWithVersionPerCollective } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
+import { compileToInlineSQL } from '../../../../lib/kysely';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
-import { buildSearchConditions, getSearchTermSQLConditions } from '../../../../lib/sql-search';
+import {
+  buildSearchArms,
+  buildSearchConditions,
+  getSearchTermSQLConditions,
+  parseSearchTerm,
+  type SearchArmsQuery,
+} from '../../../../lib/sql-search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
-import { AccountingCategory, Activity, Collective, Op, sequelize } from '../../../../models';
+import { AccountingCategory, Collective, Op, sequelize } from '../../../../models';
 import Expense, { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
+import { isRemoteUserRoot } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized } from '../../../errors';
 import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection';
 import { GraphQLActivityType } from '../../enum/ActivityType';
@@ -124,6 +133,11 @@ const updateFilterConditionsForReadyToPay = async (where, include, host, loaders
 
     const expenseIdsWithoutBalance = expensesWithoutPendingTaxForm
       .filter(expense => {
+        // Platform settlements and platform billing are not paid out of the collective's balance,
+        // so they must not be balance-gated (mirrors the frontend's getDisabledMessage exemption).
+        if ([ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
+          return false;
+        }
         const collectiveBalance = balances[expense.CollectiveId];
         const hasBalance =
           collectiveBalance &&
@@ -187,6 +201,53 @@ const getHostContextConditions = (
     };
   }
   return undefined;
+};
+
+const buildExpenseCanCommentRoleSqlLiteral = (req: express.Request): ReturnType<typeof sequelize.literal> | null => {
+  if (!req.remoteUser) {
+    return sequelize.literal('FALSE'); // This will return an empty result set for all expenses
+  } else if (isRemoteUserRoot(req)) {
+    return null; // No restrictions for root users
+  }
+
+  const userCollectiveId = req.remoteUser.CollectiveId;
+  const privilegedCollectiveIds = req.remoteUser.getCollectiveIdsForRoles([roles.ADMIN, roles.HOST, roles.ACCOUNTANT]);
+  privilegedCollectiveIds.add(userCollectiveId);
+
+  const replacements: Record<string, number | number[]> = {
+    userId: req.remoteUser.id,
+    privilegedCollectiveIds: Array.from(privilegedCollectiveIds),
+  };
+
+  const buildIsAdminOfCollectiveSql = (alias: string): string => {
+    const idExpr = `"${alias}"."id"`;
+    const parentExpr = `"${alias}"."ParentCollectiveId"`;
+    return `(
+      ${idExpr} IN (:privilegedCollectiveIds)
+      OR (${parentExpr} IS NOT NULL AND ${parentExpr} IN (:privilegedCollectiveIds))
+    )`;
+  };
+
+  const buildHostAdminRoleSql = (): string => {
+    return `(
+      CASE
+        WHEN "Expense"."HostCollectiveId" IS NOT NULL THEN "Expense"."HostCollectiveId" IN (:privilegedCollectiveIds)
+        WHEN "collective"."HostCollectiveId" IS NOT NULL THEN "collective"."HostCollectiveId" IN (:privilegedCollectiveIds)
+        ELSE FALSE
+      END
+    )`;
+  };
+
+  const sql = `(
+    ${buildIsAdminOfCollectiveSql('collective')}
+    OR ${buildHostAdminRoleSql()}
+    OR "Expense"."UserId" = :userId
+    OR ${buildIsAdminOfCollectiveSql('fromCollective')}
+  )`;
+
+  return sequelize.literal(
+    SequelizeUtils.formatNamedParameters(sql, replacements as { [key: string]: string | number | boolean }, 'postgres'),
+  );
 };
 
 export const ExpensesCollectionQueryArgs = {
@@ -316,7 +377,8 @@ export const ExpensesCollectionQueryArgs = {
   },
   lastCommentBy: {
     type: new GraphQLList(GraphQLLastCommentBy),
-    description: 'Filter expenses by the last user-role who replied to them',
+    description:
+      'Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.',
   },
   accountingCategory: {
     type: new GraphQLList(GraphQLString),
@@ -346,6 +408,88 @@ export const ExpensesCollectionQueryArgs = {
     type: GraphQLExpenseKYCStatusFilter,
     description: 'Filter expenses by KYC status',
   },
+};
+
+/**
+ * A search uses the search arms (see `buildSearchArms`) when it is in all the expenses of a host that paid at least
+ * this number of expenses. Measured with a rare term on hosts of 2.6k, 6k, 11k, 20k, 43k and 297k expenses: the
+ * regular conditions take 0.24 s, 0.30 s, 0.48 s, 0.56 s, 0.75 s and 3.1 s, against 0.01 s to 0.12 s for the search
+ * arms. Below this size, a search costs about the same as the page without a search (0.23 s to 0.25 s).
+ */
+const SEARCH_ARMS_MIN_HOST_EXPENSES = 5_000;
+
+/**
+ * Arguments with which a search still covers all the expenses of a host, or all the ones it paid. Any other argument
+ * is a filter: the regular conditions then only have to visit a part of the expenses of the host.
+ */
+const HOST_WIDE_SEARCH_ARGS = new Set([
+  'host',
+  'hostContext',
+  'searchTerm',
+  'status',
+  'orderBy',
+  'limit',
+  'offset',
+  'includeChildrenExpenses',
+]);
+
+const isHostWideSearch = (args: Record<string, unknown>): boolean => {
+  const isSet = (value: unknown) => value !== undefined && !(Array.isArray(value) && !value.length);
+  const status = args.status as string[] | null | undefined;
+  return (
+    Object.entries(args).every(([name, value]) => HOST_WIDE_SEARCH_ARGS.has(name) || !isSet(value)) &&
+    args.hostContext !== 'INTERNAL' &&
+    (!status?.length || status.includes(expenseStatus.PAID))
+  );
+};
+
+/**
+ * Index-friendly version of the search conditions of `ExpensesCollectionQueryResolver` (see `buildSearchArms`), for a
+ * search in all the expenses of a large host. Returns `null` when the regular conditions should be used:
+ * - with another filter, or on a host that paid few expenses: the regular conditions only visit the expenses that
+ *   pass the other filters, where the search arms first look for the matches of the term in all the expenses of the
+ *   platform. Measured on a host with 297k expenses, for a name that matches 6,400 accounts: 0.19 s with the regular
+ *   conditions and 0.38 s with the search arms among its 7.8k pending expenses, 0.72 s and 0.41 s among all of them.
+ * - for a public ID: the regular conditions also match it as text (description, names, tags), where the search arms
+ *   only match it exactly.
+ */
+const buildExpensesSearchArms = async (
+  args: Record<string, unknown> & { searchTerm?: string },
+  { host, isHostAdmin }: { host?: Collective; isHostAdmin: boolean },
+): Promise<SearchArmsQuery | null> => {
+  if (!host || !isHostWideSearch(args) || parseSearchTerm(args.searchTerm).type === 'publicId') {
+    return null;
+  }
+
+  return buildSearchArms(args.searchTerm, {
+    table: 'Expenses',
+    // The expenses paid by the host, the only ones that reference it: they are counted with `expenses__host_paid_at`,
+    // hence the condition on the status, which is the predicate of this index.
+    minScope: {
+      conditions: [
+        sql<SqlBool>`"Expenses"."HostCollectiveId" = ${host.id}`,
+        sql<SqlBool>`"Expenses"."status" NOT IN ('DRAFT', 'SPAM')`,
+      ],
+      rows: SEARCH_ARMS_MIN_HOST_EXPENSES,
+    },
+    // No `scope`: the arms have no index to use on the host of an expense (unpaid expenses don't reference it), and
+    // the limit on the number of matches then applies to all the rows that the arms read.
+    accountIdFields: ['Expenses.FromCollectiveId', 'Expenses.CollectiveId'],
+    userAccountIdFields: ['Expenses.UserId'],
+    userIdFields: isHostAdmin ? ['Expenses.UserId'] : [],
+    idFields: ['Expenses.id'],
+    textFields: ['Expenses.description'],
+    dataFields: [
+      sql`("Expenses"."data"#>>'{transactionId}')`,
+      sql`("Expenses"."data"#>>'{transfer,id}')`,
+      sql`("Expenses"."data"#>>'{transaction_id}')`,
+      sql`("Expenses"."data"#>>'{batchGroup,id}')`,
+      'Expenses.reference',
+    ],
+    amountFields: ['Expenses.amount'],
+    stringArrayFields: ['Expenses.tags'],
+    stringArrayTransformFn: (str: string) => str.toLowerCase(), // expense tags are stored lowercase
+  });
 };
 
 const loadAllAccountsFromArgs = async (
@@ -427,15 +571,26 @@ const loadAllAccountsFromArgs = async (
 
 export const ExpensesCollectionQueryResolver = async (
   _: void,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GraphQL resolver args bag, shaped by graphql-js at runtime
   args: Record<string, any> & { amount?: AmountRangeInputType },
   req: express.Request,
-): Promise<CollectionReturnType & { totalAmount?: any; payees?: any }> => {
+): Promise<CollectionReturnType & { totalAmount?: unknown; payees?: unknown }> => {
   const where = { [Op.and]: [] };
   const include = [];
-  let hasCollectiveInclude = false;
+
+  const ensureInclude = (association: string, options: { required?: boolean } = {}) => {
+    const existing = include.find(item => item.association === association);
+    if (existing) {
+      if (options.required) {
+        existing.required = true;
+      }
+    } else {
+      include.push({ association, attributes: [], ...options });
+    }
+  };
 
   // Check arguments
-  if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+  if (args.limit > 1000 && !isRemoteUserRoot(req)) {
     throw new Error('Cannot fetch more than 1,000 expenses at the same time, please adjust the limit');
   }
 
@@ -467,6 +622,7 @@ export const ExpensesCollectionQueryResolver = async (
     where['FromCollectiveId'] = uniq(fromAccountIds);
   }
 
+  let scopedAccountIds: number[] | undefined;
   if (accounts.length > 0) {
     if (host) {
       assertCollectivesMatchFiscalHostFilter(accounts, host, args.hostContext);
@@ -479,13 +635,18 @@ export const ExpensesCollectionQueryResolver = async (
       );
       accountIds.push(...childIds.flat());
     }
-    where['CollectiveId'] = uniq(accountIds);
+    scopedAccountIds = uniq(accountIds);
+    if (args.includeSubmittedByAccount) {
+      // Internal flag set by `Account.expenses` when no direction is given: match expenses received OR submitted
+      where[Op.and].push({ [Op.or]: [{ CollectiveId: scopedAccountIds }, { FromCollectiveId: scopedAccountIds }] });
+    } else {
+      where['CollectiveId'] = scopedAccountIds;
+    }
   }
 
   if (host) {
     // Either the expense has its `HostCollectiveId` set to the host (when its paid) or the collective is hosted by the host
-    include.push({ association: 'collective', attributes: [], required: true });
-    hasCollectiveInclude = true; // Tracking this as a separate flag to make sure we update dependant paths if changing the include structure.
+    ensureInclude('collective', { required: true });
 
     // Base condition: the expense belongs to an account hosted by this host
     where[Op.and].push({
@@ -510,7 +671,7 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   if (fromHost) {
-    include.push({ association: 'fromCollective', attributes: [], required: true });
+    ensureInclude('fromCollective', { required: true });
     where[Op.and].push({
       '$fromCollective.HostCollectiveId$': fromHost.id,
       '$fromCollective.approvedAt$': { [Op.not]: null },
@@ -526,12 +687,16 @@ export const ExpensesCollectionQueryResolver = async (
 
   // Restrict expenses whose payer collective is private unless the viewer may see that account (or submitted the expense).
   // When `accounts` / `account` / `host` is set, visibility was already enforced via assertCanSeeAllAccounts on those collectives.
-  if (!req.remoteUser?.isRoot() && accounts.length === 0 && !host) {
-    if (!hasCollectiveInclude) {
-      include.push({ association: 'collective', attributes: [], required: true });
-    }
+  // With `includeSubmittedByAccount`, only the received side was checked: submitted expenses still go through this filter,
+  // even when `host` is set.
+  if (!isRemoteUserRoot(req) && (args.includeSubmittedByAccount || (accounts.length === 0 && !host))) {
+    ensureInclude('collective', { required: true });
 
     const orConditions: WhereOptions[] = [{ '$collective.isPrivate$': false }];
+    if (args.includeSubmittedByAccount) {
+      // Received side (account and its children when `includeChildrenExpenses` is set), same as `direction: RECEIVED`
+      orConditions.push({ CollectiveId: scopedAccountIds });
+    }
 
     if (req.remoteUser) {
       const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
@@ -627,13 +792,20 @@ export const ExpensesCollectionQueryResolver = async (
     ],
   });
 
-  if (searchTermConditions.length) {
+  // These conditions are a single `OR` across the expense, its payee, its collective and its submitter, which no index
+  // can serve: every expense of the host has to be joined to them and tested. When the search arms apply, the matching
+  // expenses are looked up first, and the other conditions of the query apply to them.
+  const searchArms = searchTermConditions.length
+    ? await buildExpensesSearchArms(args, { host, isHostAdmin: Boolean(isHostAdmin) })
+    : null;
+
+  if (searchArms) {
+    where[Op.and].push(sequelize.literal(`"Expense"."id" IN (${compileToInlineSQL(searchArms)})`));
+  } else if (searchTermConditions.length) {
     where[Op.or] = searchTermConditions;
-    include.push(
-      { association: 'fromCollective', attributes: [] },
-      { association: 'collective', attributes: [] },
-      { association: 'User', attributes: [], include: [{ association: 'collective', attributes: [] }] },
-    );
+    ensureInclude('fromCollective');
+    ensureInclude('collective');
+    include.push({ association: 'User', attributes: [], include: [{ association: 'collective', attributes: [] }] });
   }
 
   if (!isEmpty(args.virtualCards)) {
@@ -691,6 +863,11 @@ export const ExpensesCollectionQueryResolver = async (
   /*
    * Please notice that updateFilterConditionsForReadyToPay will query the DB with existing conditionals,
    * for performance reasons, we should make sure that complex conditionals are added after this function is called.
+   *
+   * DRAFT expenses are unlisted by default, not access-controlled: hiding them from listings keeps them
+   * out of sight, but they are not private objects. What is private is the sensitive data they hold
+   * (payout method details, emails, invoices, tax IDs), and those fields have their own permission checks.
+   * Do not treat this collection filter as a privacy boundary.
    */
   if (args.status && args.status.length > 0) {
     if (args.status.includes('ON_HOLD') && args.status.length === 1) {
@@ -706,7 +883,7 @@ export const ExpensesCollectionQueryResolver = async (
     }
   } else {
     if (req.remoteUser) {
-      const userClause: any[] = [{ status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } }];
+      const userClause: WhereOptions[] = [{ status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } }];
 
       if (accounts.every(account => req.remoteUser.isAdminOfCollectiveOrHost(account))) {
         userClause.push({ status: expenseStatus.DRAFT });
@@ -738,6 +915,7 @@ export const ExpensesCollectionQueryResolver = async (
       assert(args.amount.gte.currency === args.amount.lte.currency, 'Amount range must have the same currency');
     }
     const currency = args.amount.gte?.currency || args.amount.lte?.currency;
+    assert(currency, 'A currency must be provided when filtering by amount');
     const gte = args.amount.gte && getValueInCentsFromAmountInput(args.amount.gte);
     const lte = args.amount.lte && getValueInCentsFromAmountInput(args.amount.lte);
     const operator =
@@ -762,16 +940,8 @@ export const ExpensesCollectionQueryResolver = async (
               WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = "Expense"."currency"
                 AND "Expense"."data" #>> '{quote,targetCurrency}' = :currency
                 THEN ("Expense"."data" #> '{quote,rate}')::NUMERIC
-              ELSE COALESCE(
-                (SELECT rate FROM "CurrencyExchangeRates"
-                  WHERE "from" = "Expense"."currency"
-                  AND "to" = :currency
-                  -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
-                  AND "createdAt" <= COALESCE("Expense"."incurredAt", "Expense"."createdAt")
-                  ORDER BY "createdAt" DESC
-                  LIMIT 1),
-                1
-              )
+              -- Most recent rate that is older than the expense
+              ELSE COALESCE(fx_rate("Expense"."currency", :currency, COALESCE("Expense"."incurredAt", "Expense"."createdAt")), 1)
             END * "Expense"."amount"
           `,
             { currency },
@@ -791,49 +961,44 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   if (args.lastCommentBy?.length) {
-    assert(
-      host && req.remoteUser.hasRole([MemberRoles.HOST, MemberRoles.ADMIN, MemberRoles.ACCOUNTANT], host.id),
-      'You need to be an admin of the host to filter by lastCommentBy',
-    );
+    // Unauthenticated users cannot filter by lastCommentBy
+    if (!req.remoteUser) {
+      return { nodes: [], offset: 0, limit: 0, totalCount: 0 };
+    }
+
+    // We don't want users to be able to filter by lastCommentBy if they don't have the `canComment` permission on the expenses
+    ensureInclude('fromCollective', { required: true });
+    ensureInclude('collective', { required: true });
+
+    const canCommentRoleSql = buildExpenseCanCommentRoleSqlLiteral(req);
+    if (canCommentRoleSql) {
+      where[Op.and].push(canCommentRoleSql);
+    }
+
+    // Subquery to retrieve the stored role of the last commenter on this expense
+    const lastCommentRoleSubquery = `(
+      SELECT "mainCommenterRole"
+      FROM "Comments"
+      WHERE "Comments"."deletedAt" IS NULL
+      AND "Comments"."ExpenseId" = "Expense"."id"
+      AND "Comments"."type" = 'COMMENT' -- Ignore private notes
+      ORDER BY "createdAt" DESC, "id" DESC
+      LIMIT 1
+    )`;
     const conditions = [];
-    const CollectiveIds = compact([
-      args.lastCommentBy.includes('COLLECTIVE_ADMIN') && '"Expense"."CollectiveId"',
-      args.lastCommentBy.includes('HOST_ADMIN') && `"collective"."HostCollectiveId"`,
-    ]);
+    const roleConditions = {
+      HOST_ADMIN: "= 'HOST_ADMIN'",
+      COLLECTIVE_ADMIN: "= 'COLLECTIVE_ADMIN'",
+      USER: "= 'SUBMITTER'",
+      NON_HOST_ADMIN: "!= 'HOST_ADMIN'",
+      NON_FROM_ACCOUNT_ADMIN: "!= 'FROM_COLLECTIVE_ADMIN'",
+    } as const;
 
-    // Collective Conditions
-    if (CollectiveIds.length) {
-      conditions.push(
-        sequelize.literal(
-          `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."deletedAt" IS NULL AND "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1)
-            IN (
-              SELECT "MemberCollectiveId" FROM "Members" WHERE
-              "role" = 'ADMIN' AND "deletedAt" IS NULL AND
-              "CollectiveId" IN (${CollectiveIds.join(',')})
-          )`,
-        ),
-      );
-    }
-    // User Condition
-    if (args.lastCommentBy.includes('USER')) {
-      conditions.push(
-        sequelize.literal(
-          `(SELECT "CreatedByUserId" FROM "Comments" WHERE "Comments"."deletedAt" IS NULL AND "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1) = "Expense"."UserId"`,
-        ),
-      );
-    }
-
-    if (args.lastCommentBy.includes('NON_HOST_ADMIN')) {
-      conditions.push(
-        sequelize.literal(
-          `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."deletedAt" IS NULL AND "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1)
-            NOT IN (
-              SELECT "MemberCollectiveId" FROM "Members" WHERE
-              "role" = 'ADMIN' AND "deletedAt" IS NULL AND
-              "CollectiveId" = "collective"."HostCollectiveId"
-          )`,
-        ),
-      );
+    for (const filter of args.lastCommentBy) {
+      const condition = roleConditions[filter];
+      if (condition) {
+        conditions.push(sequelize.literal(`${lastCommentRoleSubquery} ${condition}`));
+      }
     }
 
     where[Op.and].push(conditions.length > 1 ? { [Op.or]: conditions } : conditions[0]);
@@ -871,14 +1036,16 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   if (args.activity) {
-    const activitiesConditions: WhereOptions<Activity> = {};
+    // Use EXISTS rather than joining the hasMany `activities` association: a join returns one row per
+    // matching activity, which inflates totalCount/totalAmount and breaks pagination.
+    const activitiesConditions = ['"act"."ExpenseId" = "Expense"."id"'];
     if (args.activity.individual) {
       const account = await fetchAccountWithReference(args.activity.individual, { throwIfMissing: true });
       const user = await req.loaders.User.byCollectiveId.load(account.id);
       if (!user) {
         throw new NotFound('User not found');
       }
-      activitiesConditions.UserId = user.id;
+      activitiesConditions.push(`"act"."UserId" = ${sequelize.escape(user.id)}`);
     }
     if (args.activity.type && args.activity.type.length > 0) {
       const allowedActivityTypes = new Set([
@@ -910,10 +1077,14 @@ export const ExpensesCollectionQueryResolver = async (
         throw new Forbidden(`Invalid activity type: ${invalidActivityTypes.join(', ')}`);
       }
 
-      activitiesConditions.type = { [Op.in]: args.activity.type };
+      activitiesConditions.push(
+        `"act"."type" IN (${args.activity.type.map(type => sequelize.escape(type)).join(', ')})`,
+      );
     }
 
-    include.push({ association: 'activities', required: true, attributes: [], where: activitiesConditions });
+    where[Op.and].push(
+      sequelize.literal(`EXISTS (SELECT 1 FROM "Activities" AS "act" WHERE ${activitiesConditions.join(' AND ')})`),
+    );
   }
 
   const kycStatusFilter: 'VERIFIED' | 'PENDING' | undefined = args.kycStatus;
@@ -1057,10 +1228,7 @@ export const ExpensesCollectionQueryResolver = async (
     limit: args.limit,
     offset: args.offset,
     payees: (subArgs: { limit?: number; offset?: number; searchTerm?: string } = {}) =>
-      fetchExpensesPayees(
-        { args, host, fromHost, collectiveIds: where['CollectiveId'] as number[] | undefined },
-        subArgs,
-      ),
+      fetchExpensesPayees({ args, host, fromHost, collectiveIds: scopedAccountIds }, subArgs),
   };
 };
 
@@ -1089,7 +1257,12 @@ const fetchExpensesPayees = async (
 
   // Account filter (collectiveIds already includes children when includeChildrenExpenses is set)
   if (collectiveIds?.length > 0) {
-    expenseConditions.push('e."CollectiveId" IN (:collectiveIds)');
+    if (args.includeSubmittedByAccount) {
+      // Same received-or-submitted scope as the main query
+      expenseConditions.push('(e."CollectiveId" IN (:collectiveIds) OR e."FromCollectiveId" IN (:collectiveIds))');
+    } else {
+      expenseConditions.push('e."CollectiveId" IN (:collectiveIds)');
+    }
     replacements.collectiveIds = collectiveIds;
   }
 
@@ -1103,10 +1276,10 @@ const fetchExpensesPayees = async (
     );
     replacements.hostId = host.id;
 
-    // Host context: filter on the expense's collective
+    // Host context: filter on the expense's collective.
     if (args.hostContext && args.hostContext !== 'ALL') {
       if (args.hostContext === 'INTERNAL') {
-        // Only the host account and its children (projects/events)
+        // The host account and its children (projects/events)
         expenseConditions.push('(ec."id" = :hostId OR ec."ParentCollectiveId" = :hostId)');
       } else if (args.hostContext === 'HOSTED') {
         // Only hosted accounts, excluding the host account and its children

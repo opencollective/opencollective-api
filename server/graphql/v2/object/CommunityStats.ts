@@ -1,5 +1,4 @@
 import { GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
 import { compact, flatten, uniq, values } from 'lodash';
 import moment from 'moment';
 import type { Sequelize } from 'sequelize';
@@ -189,18 +188,6 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
           };
         },
       },
-      lastInteractionAt: {
-        type: GraphQLDateTime,
-        resolve(account) {
-          return account?.dataValues?.lastInteractionAt;
-        },
-      },
-      firstInteractionAt: {
-        type: GraphQLDateTime,
-        resolve(account) {
-          return account?.dataValues?.firstInteractionAt;
-        },
-      },
       activities: {
         type: GraphQLActivityCollection,
         args: { ...CollectionArgs },
@@ -251,6 +238,8 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
                   ActivityTypes.SUBSCRIPTION_CANCELED,
                   ActivityTypes.SUBSCRIPTION_PAUSED,
                   ActivityTypes.SUBSCRIPTION_ACTIVATED,
+                  ActivityTypes.FISCAL_HOST_NOTE_SET,
+                  ActivityTypes.FISCAL_HOST_NOTE_REMOVED,
                 ],
               },
             ]),

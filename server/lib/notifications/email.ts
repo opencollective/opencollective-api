@@ -1,6 +1,7 @@
 import config from 'config';
 import debugLib from 'debug';
 import { cloneDeep, compact, get, uniq } from 'lodash';
+import type { SendMailOptions } from 'nodemailer';
 import PQueue from 'p-queue';
 
 import { roles } from '../../constants';
@@ -15,7 +16,6 @@ import { TransactionTypes } from '../../constants/transactions';
 import models, { Activity, Collective } from '../../models';
 import { CommentType } from '../../models/Comment';
 import { ExpenseStatus } from '../../models/Expense';
-import { UpdateChannel } from '../../models/Update';
 import User from '../../models/User';
 import emailLib from '../email';
 import logger from '../logger';
@@ -30,7 +30,7 @@ const debug = debugLib('notifications');
 const VENDOR_SUBSCRIBED_ACTIVITIES = [ActivityTypes.ORDER_PROCESSED];
 
 type NotifySubscribersOptions = {
-  attachments?: any[];
+  attachments?: NonNullable<SendMailOptions['attachments']>;
   bcc?: string;
   cc?: string;
   collective?: Collective;
@@ -41,7 +41,7 @@ type NotifySubscribersOptions = {
   template?: string;
   to?: string;
   unsubscribed?: Array<User>;
-  customEmailHeaders?: Record<string, any>;
+  customEmailHeaders?: Record<string, string>;
 };
 
 export const notify = {
@@ -104,10 +104,10 @@ export const notify = {
     users: Array<User | number>,
     activity: Partial<Activity>,
     options?: NotifySubscribersOptions,
-  ): Promise<void> {
+  ): Promise<number[]> {
     const cleanUsersArray = compact(users); // Remove any possible null or empty user in the array
     if (cleanUsersArray.length === 0) {
-      return;
+      return [];
     }
 
     const unsubscribed = await models.Notification.getUnsubscribers({
@@ -118,6 +118,7 @@ export const notify = {
       attributes: ['id'],
     });
 
+    const notifiedUserIds: number[] = [];
     if (process.env.ONLY) {
       debug('ONLY set to ', process.env.ONLY, ' => skipping subscribers');
       const isTransactional = TransactionalActivities.includes(activity.type);
@@ -134,18 +135,21 @@ export const notify = {
           !unsubscribed.some(unsubscribedUser => unsubscribedUser.id === userId) && // Unsubscribed
           !options?.exclude?.includes(userId) // Explicitly excluded
         ) {
+          notifiedUserIds.push(userId);
           queue.add(() => notify.user(activity, { ...options, skipUnsubscribedCheck: true, userId, user }));
         }
       }
 
       await queue.onIdle();
     }
+
+    return notifiedUserIds;
   },
 
   /**
    * Notifies admins of Collective based on activity.CollectiveId, options.collective or options.collectiveId.
    * Alternatively, other roles can also be notified using options.role.
-   * @returns The list of user IDs notified
+   * @returns The list of user IDs notified (excluding unsubscribed and explicitly excluded users)
    */
   async collective(
     activity: Partial<Activity>,
@@ -180,8 +184,7 @@ export const notify = {
           role,
         });
 
-    await notify.users(users, activity, { ...options, collective });
-    return users.map(user => user.id);
+    return notify.users(users, activity, { ...options, collective });
   },
 };
 
@@ -207,15 +210,16 @@ export const notifyByEmail = async (activity: Activity) => {
       await notify.collective(activity);
       break;
 
-    case ActivityTypes.COLLECTIVE_UNHOSTED:
+    case ActivityTypes.COLLECTIVE_UNHOSTED: {
+      const host = activity.data.host.id && (await models.Collective.findByPk(activity.data.host.id));
       await notify.collective(activity, {
-        replyTo: activity.data.host.data?.replyToEmail || 'support@opencollective.com',
+        replyTo: host?.data?.replyToEmail || 'support@opencollective.com',
       });
       break;
+    }
 
     case ActivityTypes.OAUTH_APPLICATION_AUTHORIZED:
     case ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED:
-    case ActivityTypes.USER_CARD_CLAIMED:
     case ActivityTypes.EXPORT_REQUEST_COMPLETED:
     case ActivityTypes.EXPORT_REQUEST_FAILED:
       await notify.user(activity);
@@ -287,10 +291,6 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     // Custom Notification Logic
-    case ActivityTypes.USER_CARD_INVITED:
-      emailLib.send(activity.type, activity.data.email, activity.data);
-      break;
-
     case ActivityTypes.TICKET_CONFIRMED: {
       const user = await models.User.findByPk(activity.UserId);
       const event = await models.Collective.findByPk(activity.data.EventCollectiveId, {
@@ -358,7 +358,7 @@ export const notifyByEmail = async (activity: Activity) => {
       activity.data.update.html = replaceVideosByImagePreviews(activity.data.update.html);
 
       // Updates can have many subscribers (e.g. OSC has 6000+). We only load the ID and defer the rest to the email functions.
-      const usersIdsToNotify = await update.getUsersIdsToNotify(UpdateChannel.EMAIL);
+      const usersIdsToNotify = await update.getUsersIdsToNotify();
       const emailOpts = { from: activity.data.fromEmail };
       await notify.users(usersIdsToNotify, activity, emailOpts);
       break;
@@ -462,7 +462,8 @@ export const notifyByEmail = async (activity: Activity) => {
         activityForCollective.data.recipientName = collective.name || collective.slug;
         const notifiedCollectiveAdminsUserIds = await notify.collective(activityForCollective, {
           from: config.email.noReply,
-          exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
+          // Don't notify the person who commented, the expense author, nor the host admins notified above
+          exclude: [activity.UserId, activity.data.UserId, ...notifiedUserIds],
           customEmailHeaders,
         });
         notifiedCollectiveAdminsUserIds.forEach(userId => notifiedUserIds.add(userId));
@@ -485,7 +486,7 @@ export const notifyByEmail = async (activity: Activity) => {
         ) {
           const user = await payee.getUser();
           // Make sure payee hasn't been notified as part of other roles
-          if (user && !notifiedUserIds.has(payeeCollectiveId)) {
+          if (user && !notifiedUserIds.has(user.id)) {
             await notify.user(activity, {
               user,
               from: config.email.noReply,
@@ -582,24 +583,28 @@ export const notifyByEmail = async (activity: Activity) => {
       await notify.user(activity, { from: config.email.noReply, userId: activity.data.expense.UserId });
       break;
 
-    case ActivityTypes.COLLECTIVE_APPROVED:
+    case ActivityTypes.COLLECTIVE_APPROVED: {
+      const host = activity.data.host.id && (await models.Collective.findByPk(activity.data.host.id));
       await notify.collective(activity, {
         collectiveId: activity.CollectiveId,
-        replyTo: activity.data.host.data?.replyToEmail || undefined,
+        replyTo: host?.data?.replyToEmail || undefined,
       });
       break;
+    }
 
-    case ActivityTypes.COLLECTIVE_REJECTED:
+    case ActivityTypes.COLLECTIVE_REJECTED: {
       // Funds MVP
       if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
         break;
       }
+      const host = activity.data.host.id && (await models.Collective.findByPk(activity.data.host.id));
       await notify.collective(activity, {
         collectiveId: activity.CollectiveId,
         template: 'collective.rejected',
-        replyTo: activity.data.host.data?.replyToEmail || undefined,
+        replyTo: host?.data?.replyToEmail || undefined,
       });
       break;
+    }
 
     case ActivityTypes.HOST_APPLICATION_COMMENT_CREATED: {
       const isCommentFromHostAdmin = await models.Member.findOne({
@@ -613,8 +618,9 @@ export const notifyByEmail = async (activity: Activity) => {
       const isPrivateNote = activity.data.comment.type === CommentType.PRIVATE_NOTE;
 
       if (isCommentFromHostAdmin && !isPrivateNote) {
+        const host = activity.data.host.id && (await models.Collective.findByPk(activity.data.host.id));
         await notify.collective(activity, {
-          replyTo: activity.data.host.data?.replyToEmail || undefined,
+          replyTo: host?.data?.replyToEmail || undefined,
         });
       } else {
         await notify.collective(activity, {

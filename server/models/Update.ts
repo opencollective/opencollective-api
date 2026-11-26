@@ -8,7 +8,6 @@ import {
   InferCreationAttributes,
   NonAttribute,
 } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
 import PlatformConstants from '../constants/platform';
@@ -17,8 +16,9 @@ import * as errors from '../graphql/errors';
 import logger from '../lib/logger';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import * as SQLQueries from '../lib/queries';
-import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
+import { generateSummaryForHTML, optsSanitizeUpdateHtml, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 import { sanitizeTags, validateTags } from '../lib/tags';
 
 import Activity from './Activity';
@@ -28,16 +28,6 @@ import { ModelWithPublicId } from './ModelWithPublicId';
 import Tier from './Tier';
 import User from './User';
 
-export const sanitizerOptions = buildSanitizerOptions({
-  titles: true,
-  mainTitles: true,
-  basicTextFormatting: true,
-  multilineTextFormatting: true,
-  images: true,
-  links: true,
-  videoIframes: true,
-});
-
 export const UPDATE_NOTIFICATION_AUDIENCE = {
   ALL: 'ALL',
   COLLECTIVE_ADMINS: 'COLLECTIVE_ADMINS',
@@ -45,23 +35,17 @@ export const UPDATE_NOTIFICATION_AUDIENCE = {
   NO_ONE: 'NO_ONE',
 } as const;
 
-export const enum UpdateChannel {
-  EMAIL = 'EMAIL',
-}
-
 /**
  * Defines the roles targeted by an update notification. Admins of the parent collective are
  * always included, regardless of the values in this array.
  */
-const PRIVATE_UPDATE_TARGET_ROLES = [
+const UPDATE_TARGET_ROLES = [
   MemberRoles.ADMIN,
   MemberRoles.MEMBER,
   MemberRoles.CONTRIBUTOR,
   MemberRoles.BACKER,
   MemberRoles.ATTENDEE,
 ];
-
-const PUBLIC_UPDATE_TARGET_ROLES = [...PRIVATE_UPDATE_TARGET_ROLES, MemberRoles.FOLLOWER];
 
 class Update extends ModelWithPublicId<
   EntityShortIdPrefix.Update,
@@ -195,19 +179,9 @@ class Update extends ModelWithPublicId<
     return Boolean(this.collective.hasMoneyManagement && audiencesForHostedAccounts.includes(audience));
   };
 
-  getTargetMembersRoles = function (notificationAudience, channel?: UpdateChannel) {
+  getTargetMembersRoles = function (notificationAudience) {
     const audience = notificationAudience || this.notificationAudience || 'ALL';
-    if (audience === 'COLLECTIVE_ADMINS') {
-      return ['__NONE__'];
-    } else if (this.isPrivate) {
-      return PRIVATE_UPDATE_TARGET_ROLES;
-    } else {
-      // dont notify followers by email.
-      if (channel === UpdateChannel.EMAIL) {
-        return PRIVATE_UPDATE_TARGET_ROLES;
-      }
-      return PUBLIC_UPDATE_TARGET_ROLES;
-    }
+    return audience === 'COLLECTIVE_ADMINS' ? ['__NONE__'] : UPDATE_TARGET_ROLES;
   };
 
   isPlatformUpdate = function () {
@@ -222,7 +196,7 @@ class Update extends ModelWithPublicId<
   /**
    * Get the member users to notify for this update.
    */
-  getUsersIdsToNotify = async function (channel?: UpdateChannel): Promise<Array<number>> {
+  getUsersIdsToNotify = async function (): Promise<Array<number>> {
     const audience = this.notificationAudience || 'ALL';
 
     const shouldNotify = this.shouldNotify(audience);
@@ -234,7 +208,7 @@ class Update extends ModelWithPublicId<
       type: QueryTypes.SELECT,
       replacements: {
         collectiveId: this.CollectiveId,
-        targetRoles: this.getTargetMembersRoles(audience, channel),
+        targetRoles: this.getTargetMembersRoles(audience),
         includeHostedAccounts: await this.includeHostedAccountsInNotification(),
         includeMembers: audience !== 'COLLECTIVE_ADMINS',
       },
@@ -248,7 +222,7 @@ class Update extends ModelWithPublicId<
    *
    * @argument notificationAudience - to override the update audience
    */
-  countUsersToNotify = async function (notificationAudience, channel?: UpdateChannel) {
+  countUsersToNotify = async function (notificationAudience) {
     this.collective = this.collective || (await this.getCollective());
     const audience = notificationAudience || this.notificationAudience || 'ALL';
 
@@ -261,7 +235,7 @@ class Update extends ModelWithPublicId<
       type: QueryTypes.SELECT,
       replacements: {
         collectiveId: this.CollectiveId,
-        targetRoles: this.getTargetMembersRoles(audience, channel),
+        targetRoles: this.getTargetMembersRoles(audience),
         includeHostedAccounts: await this.includeHostedAccountsInNotification(audience),
         includeMembers: audience !== 'COLLECTIVE_ADMINS',
       },
@@ -273,7 +247,7 @@ class Update extends ModelWithPublicId<
   /**
    * Gets a summary of who will be notified about this update
    */
-  getAudienceMembersStats = async function (audience, channel?: UpdateChannel) {
+  getAudienceMembersStats = async function (audience) {
     const shouldNotify = this.shouldNotify(audience);
     if (!shouldNotify) {
       return {};
@@ -285,7 +259,7 @@ class Update extends ModelWithPublicId<
         type: QueryTypes.SELECT,
         replacements: {
           collectiveId: this.CollectiveId,
-          targetRoles: this.getTargetMembersRoles(audience, channel),
+          targetRoles: this.getTargetMembersRoles(audience),
         },
       },
     );
@@ -498,7 +472,7 @@ Update.init(
     html: {
       type: DataTypes.TEXT,
       set(html: string) {
-        this.setDataValue('html', sanitizeHTML(html, sanitizerOptions));
+        this.setDataValue('html', sanitizeHTML(html, optsSanitizeUpdateHtml));
         this.setDataValue('summary', generateSummaryForHTML(html, 240));
       },
     },

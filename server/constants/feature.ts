@@ -15,7 +15,10 @@ enum FEATURE {
   USE_EXPENSES = 'USE_EXPENSES',
   /** Whether this profile can receive expenses */
   RECEIVE_EXPENSES = 'RECEIVE_EXPENSES',
-  /** Whether this profile can receive grants */
+  /**
+   * Whether this profile accepts grant requests. Not a plan feature: the plan side is covered by
+   * `FUNDS_GRANTS_MANAGEMENT` on the host, which `getSupportedExpenseTypes` already checks.
+   */
   RECEIVE_GRANTS = 'RECEIVE_GRANTS',
   /** Whether this account can use multi-currency expenses */
   MULTI_CURRENCY_EXPENSES = 'MULTI_CURRENCY_EXPENSES',
@@ -65,9 +68,6 @@ enum FEATURE {
   /** Whether an account can add and use payment methods */
   USE_PAYMENT_METHODS = 'USE_PAYMENT_METHODS',
 
-  /** Whether an account can emit gift cards */
-  EMIT_GIFT_CARDS = 'EMIT_GIFT_CARDS',
-
   /** @deprecated Whether an account tweak email notifications or not */
   EMAIL_NOTIFICATIONS_PANEL = 'EMAIL_NOTIFICATIONS_PANEL',
 
@@ -104,6 +104,18 @@ enum FEATURE {
   PUBLIC_PROFILE = 'PUBLIC_PROFILE',
 }
 
+/**
+ * Internal opt-in flag stored at `Collective.settings.newPlatformTipsLedger`. When set
+ * on a host: route PLATFORM_TIP credits to the host's own platform-tips account, skip
+ * PLATFORM_TIP_DEBT generation per-tip, emit APPLICATION_FEE on the Stripe app-fee path, and
+ * have host-settlement bill the held tips directly against the platform-tips account.
+ *
+ * Not a member of the FEATURE enum because it is an internal ledger flag, not a user-facing
+ * feature, and shouldn't appear in `getFeaturesAccessMap`. Lives in `settings` (not
+ * `data.features`) so it goes through the COLLECTIVE_SETTINGS_KEYS_LIST allowlist.
+ */
+export const NEW_PLATFORM_TIPS_LEDGER_FLAG = 'newPlatformTipsLedger';
+
 // features that can conditionally enabled/disabled based on subscription
 export const CommercialFeatures = [
   FEATURE.TRANSFERWISE,
@@ -121,7 +133,6 @@ export const CommercialFeatures = [
   FEATURE.UPDATES,
   FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS,
   FEATURE.RECEIVE_EXPENSES,
-  FEATURE.RECEIVE_GRANTS,
   FEATURE.ACCOUNT_MANAGEMENT,
   FEATURE.OFF_PLATFORM_TRANSACTIONS,
 ] as const;
@@ -196,10 +207,6 @@ export const FeatureDetails: Record<CommercialFeaturesType, { label: string; doc
     label: 'Receive Expenses',
     documentationUrl:
       'https://documentation.opencollective.com/fiscal-hosts/expense-payment/paying-expenses-as-a-fiscal-host',
-  },
-  RECEIVE_GRANTS: {
-    label: 'Receive Grants',
-    documentationUrl: 'https://documentation.opencollective.com/fiscal-hosts/funds-and-grants/grants',
   },
   ACCOUNT_MANAGEMENT: {
     label: 'Account Management',

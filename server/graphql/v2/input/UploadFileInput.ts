@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
-import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
+import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
 
 import { GraphQLUploadedFileKind } from '../enum';
 

@@ -302,4 +302,4 @@ describe('server/lib/transactions', () => {
       });
     });
   });
-}); /* End of "lib.transactions.test.js" */
+}); /* End of "lib.transactions.test.ts" */

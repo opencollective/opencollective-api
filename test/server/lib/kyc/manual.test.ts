@@ -1,10 +1,12 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
+import ActivityTypes from '../../../../server/constants/activities';
 import { KYCProviderName } from '../../../../server/lib/kyc/providers';
 import { manualKycProvider } from '../../../../server/lib/kyc/providers/manual';
+import Activity from '../../../../server/models/Activity';
 import { KYCVerificationStatus } from '../../../../server/models/KYCVerification';
-import { fakeKYCVerification, fakeOrganization, fakeUser } from '../../../test-helpers/fake-data';
+import { fakeKYCVerification, fakeOrganization, fakeUser, fakeUserToken } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
 describe('server/lib/kyc/manual', () => {
@@ -90,6 +92,29 @@ describe('server/lib/kyc/manual', () => {
       });
 
       expect(handleKycRequestedStub).to.have.been.calledWith(kycVerification);
+    });
+    it('records the user and token on the KYC_REQUESTED activity', async () => {
+      const org = await fakeOrganization();
+      const user = await fakeUser();
+      const requester = await fakeUser();
+      const userToken = await fakeUserToken({ user: requester });
+
+      const kycVerification = await manualKycProvider.requestVerification(
+        {
+          CollectiveId: user.collective.id,
+          RequestedByCollectiveId: org.id,
+          CreatedByUserId: requester.id,
+          UserTokenId: userToken.id,
+        },
+        { notes: 'notes', UserTokenId: null },
+      );
+
+      const activity = await Activity.findOne({
+        where: { type: ActivityTypes.KYC_REQUESTED, CollectiveId: kycVerification.CollectiveId },
+      });
+      expect(activity).to.exist;
+      expect(activity.UserId).to.equal(requester.id);
+      expect(activity.UserTokenId).to.equal(userToken.id);
     });
   });
 
@@ -207,6 +232,29 @@ describe('server/lib/kyc/manual', () => {
       expect(kycVerification.data.legalAddress).to.be.undefined;
 
       expect(handleKycVerifiedStub).to.have.been.calledWith(kycVerification);
+    });
+    it('records the user and token on the KYC_VERIFIED activity', async () => {
+      const org = await fakeOrganization();
+      const user = await fakeUser();
+      const requester = await fakeUser();
+      const userToken = await fakeUserToken({ user: requester });
+
+      const kycVerification = await manualKycProvider.submitVerification(
+        {
+          CollectiveId: user.collective.id,
+          RequestedByCollectiveId: org.id,
+          CreatedByUserId: requester.id,
+          UserTokenId: userToken.id,
+        },
+        { legalName: 'Legal name', UserTokenId: null },
+      );
+
+      const activity = await Activity.findOne({
+        where: { type: ActivityTypes.KYC_VERIFIED, CollectiveId: kycVerification.CollectiveId },
+      });
+      expect(activity).to.exist;
+      expect(activity.UserId).to.equal(requester.id);
+      expect(activity.UserTokenId).to.equal(userToken.id);
     });
   });
 });

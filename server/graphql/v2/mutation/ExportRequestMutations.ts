@@ -6,6 +6,7 @@ import { parseS3Url, permanentlyDeleteFileFromS3 } from '../../../lib/awsS3';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import ExportRequest, { ExportRequestStatus } from '../../../models/ExportRequest';
+import { canUseExportRequestsForAccount } from '../../common/export-requests';
 import { checkRemoteUserCanUseExportRequests, checkScopeForExportRequest } from '../../common/scope-check';
 import { Forbidden, RateLimitExceeded } from '../../errors';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput';
@@ -20,7 +21,7 @@ const exportRequestMutations = {
   createExportRequest: {
     type: new GraphQLNonNull(GraphQLExportRequest),
     description:
-      'Create a new export request. Scopes: "exportRequests" (+ "transactions" for TRANSACTIONS exports, "host" for HOSTED_COLLECTIVES exports).',
+      'Create a new export request. Scopes: "exportRequests" (+ "transactions" and "incognito" for TRANSACTIONS exports, "host" for HOSTED_COLLECTIVES exports).',
     args: {
       exportRequest: {
         type: new GraphQLNonNull(GraphQLExportRequestCreateInput),
@@ -42,7 +43,7 @@ const exportRequestMutations = {
 
       // Fetch account and check permissions
       const account = await fetchAccountWithReference(input.account, { throwIfMissing: true });
-      if (!req.remoteUser.isAdminOfCollective(account)) {
+      if (!canUseExportRequestsForAccount(req.remoteUser, account)) {
         throw new Forbidden('You do not have permission to create export requests for this account');
       }
 
@@ -79,9 +80,9 @@ const exportRequestMutations = {
       // Fetch the export request
       const exportRequest = await fetchExportRequestWithReference(args.exportRequest, { throwIfMissing: true });
 
-      // Check permissions - user must be admin of the account
+      // Check permissions - user must be an admin or accountant of the account
       const account = await exportRequest.getCollective();
-      if (!req.remoteUser.isAdminOfCollective(account)) {
+      if (!canUseExportRequestsForAccount(req.remoteUser, account)) {
         throw new Forbidden('You do not have permission to edit this export request');
       }
 

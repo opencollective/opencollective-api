@@ -7,7 +7,13 @@ import { getSumCollectivesAmountReceived, getSumCollectivesAmountSpent } from '.
 import { queryMetrics } from '../../../../../server/lib/metrics';
 import { HostedCollectivesFinancialActivity } from '../../../../../server/lib/metrics/sources';
 import { sequelize } from '../../../../../server/models';
-import { fakeActiveHost, fakeCollective, fakeEvent, fakeTransaction } from '../../../../test-helpers/fake-data';
+import {
+  fakeActiveHost,
+  fakeCollective,
+  fakeEvent,
+  fakeOrder,
+  fakeTransaction,
+} from '../../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../../utils';
 
 describe('server/lib/metrics/sources/HostedCollectivesFinancialActivity', () => {
@@ -315,6 +321,49 @@ describe('server/lib/metrics/sources/HostedCollectivesFinancialActivity', () => 
       // Most recent fund transaction was 2025-09-12; collective's was 2025-07-20.
       expect(byCollectiveId.get(fund.id)).to.equal('2025-09-12');
       expect(byCollectiveId.get(collective.id)).to.equal('2025-07-20');
+    });
+  });
+
+  describe('per-kind counts', () => {
+    it('counts contributions (CREDIT) and payouts (DEBIT) with the same filters as the amounts', async () => {
+      const result = await queryMetrics({
+        source: HostedCollectivesFinancialActivity,
+        measures: ['contributionsCount', 'payoutsCount'],
+        dateFrom: '2025-01-01',
+        dateTo: '2026-01-01',
+        filters: { host: host.id },
+      });
+      // Contributions: 100 + 200 + event 75 + fund 500 = 4 CREDIT rows (refund target + internal excluded).
+      expect(result.rows[0].values.contributionsCount).to.equal(4);
+      // Payouts: only the 50 expense (refund DEBIT excluded).
+      expect(result.rows[0].values.payoutsCount).to.equal(1);
+    });
+
+    it('scopes counts by mainAccount (children roll up)', async () => {
+      const result = await queryMetrics({
+        source: HostedCollectivesFinancialActivity,
+        measures: ['contributionsCount', 'payoutsCount'],
+        dateFrom: '2025-01-01',
+        dateTo: '2026-01-01',
+        filters: { host: host.id, mainAccount: collective.id },
+      });
+      // collective 100 + 200 + child event 75 = 3 contributions; 1 payout.
+      expect(result.rows[0].values.contributionsCount).to.equal(3);
+      expect(result.rows[0].values.payoutsCount).to.equal(1);
+    });
+
+    it('excludes refunds and internal transfers from per-kind counts', async () => {
+      const result = await queryMetrics({
+        source: HostedCollectivesFinancialActivity,
+        measures: ['contributionsCount', 'payoutsCount', 'transactionCount'],
+        dateFrom: '2025-06-25',
+        dateTo: '2025-06-28',
+        filters: { host: host.id, account: collective.id },
+      });
+      // 3 raw rows (refund credit + refund debit + internal credit), but none are clean contributions/payouts.
+      expect(result.rows[0]?.values.transactionCount ?? 0).to.equal(3);
+      expect(result.rows[0]?.values.contributionsCount ?? 0).to.equal(0);
+      expect(result.rows[0]?.values.payoutsCount ?? 0).to.equal(0);
     });
   });
 
@@ -664,6 +713,220 @@ describe('server/lib/metrics/sources/HostedCollectivesFinancialActivity', () => 
         const hostStatsTotal = await sumHostStatsForCollective(getSumCollectivesAmountSpent, collective.id, true);
         expect(Math.abs(metric)).to.equal(Math.abs(hostStatsTotal));
       });
+    });
+
+    describe('consolidated vs parent-only scope (includeChildren)', () => {
+      const sumForCollective = async (fn: HostStatsFn, net: boolean, includeChildren: boolean) => {
+        const sums = (await fn([collective.id], {
+          net,
+          includeChildren,
+          startDate: dateFrom,
+          endDate: dateTo,
+          useMaterializedView: false,
+        })) as HostStatsSums;
+        return sumHostStatsTotal(sums);
+      };
+
+      it('mainAccount filter == getSumCollectivesAmountReceived(includeChildren: true)', async () => {
+        const gross = await queryMetric('amountReceived', { mainAccount: collective.id });
+        const net = await queryMetric('amountReceivedNet', { mainAccount: collective.id });
+        expect(gross).to.equal(375_00); // parent 100 + 200 + child event 75
+        expect(Math.abs(gross)).to.equal(
+          Math.abs(await sumForCollective(getSumCollectivesAmountReceived, false, true)),
+        );
+        expect(Math.abs(net)).to.equal(Math.abs(await sumForCollective(getSumCollectivesAmountReceived, true, true)));
+      });
+
+      it('mainAccount filter == getSumCollectivesAmountSpent(includeChildren: true)', async () => {
+        const gross = await queryMetric('amountSpent', { mainAccount: collective.id });
+        const net = await queryMetric('amountSpentNet', { mainAccount: collective.id });
+        expect(Math.abs(gross)).to.equal(Math.abs(await sumForCollective(getSumCollectivesAmountSpent, false, true)));
+        expect(Math.abs(net)).to.equal(Math.abs(await sumForCollective(getSumCollectivesAmountSpent, true, true)));
+      });
+
+      it('account filter == getSumCollectivesAmount*(includeChildren: false) — parent-only excludes the child event', async () => {
+        expect(await queryMetric('amountReceived', { account: collective.id })).to.equal(300_00);
+        expect(Math.abs(await queryMetric('amountReceived', { account: collective.id }))).to.equal(
+          Math.abs(await sumForCollective(getSumCollectivesAmountReceived, false, false)),
+        );
+        expect(Math.abs(await queryMetric('amountSpent', { account: collective.id }))).to.equal(
+          Math.abs(await sumForCollective(getSumCollectivesAmountSpent, false, false)),
+        );
+      });
+    });
+  });
+
+  describe('foreign hostCurrency exclusion (matview vs budget)', () => {
+    let curHost: Awaited<ReturnType<typeof fakeActiveHost>>;
+    let curCollective: Awaited<ReturnType<typeof fakeCollective>>;
+
+    before(async () => {
+      curHost = await fakeActiveHost({ slug: 'metrics-fa-currency-host', currency: 'USD' });
+      curCollective = await fakeCollective({
+        HostCollectiveId: curHost.id,
+        type: CollectiveType.COLLECTIVE,
+        approvedAt: new Date('2025-01-01'),
+        currency: 'USD',
+      });
+      // Same-currency contribution (USD == host currency): counted by both metrics and budget.
+      await fakeTransaction(
+        {
+          type: TransactionTypes.CREDIT,
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: curCollective.id,
+          HostCollectiveId: curHost.id,
+          amount: 100_00,
+          hostCurrency: 'USD',
+          currency: 'USD',
+          createdAt: new Date('2025-06-15'),
+        },
+        { createDoubleEntry: true },
+      );
+      // Foreign-hostCurrency contribution (EUR != host USD): excluded by the matview only.
+      await fakeTransaction(
+        {
+          type: TransactionTypes.CREDIT,
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: curCollective.id,
+          HostCollectiveId: curHost.id,
+          amount: 50_00,
+          hostCurrency: 'EUR',
+          currency: 'EUR',
+          createdAt: new Date('2025-06-16'),
+        },
+        { createDoubleEntry: true },
+      );
+      await refreshMV();
+    });
+
+    const metricAmountReceived = async () => {
+      const result = await queryMetrics({
+        source: HostedCollectivesFinancialActivity,
+        measures: ['amountReceived'],
+        dateFrom: '2025-01-01',
+        dateTo: '2026-01-01',
+        filters: { host: curHost.id, account: curCollective.id },
+      });
+      return (result.rows[0]?.values.amountReceived as number) ?? 0;
+    };
+
+    it('metrics excludes the foreign-hostCurrency transaction', async () => {
+      // Only the USD 100 is counted; the EUR 50 row is filtered out by `hostCurrency = h.currency`.
+      expect(await metricAmountReceived()).to.equal(100_00);
+    });
+
+    it('budget counts it too, so budget > metrics (the documented divergence)', async () => {
+      const metricValue = await metricAmountReceived();
+      const sums = (await getSumCollectivesAmountReceived([curCollective.id], {
+        net: false,
+        startDate: new Date('2025-01-01'),
+        endDate: new Date('2026-01-01'),
+        useMaterializedView: false,
+      })) as Record<string, { value: number }>;
+      const budgetValue = Object.values(sums).reduce((acc, v) => acc + (v.value ?? 0), 0);
+
+      expect(metricValue).to.equal(100_00);
+      expect(budgetValue).to.be.greaterThan(metricValue);
+    });
+  });
+
+  describe('contributionFrequency dimension (one-time / recurring / added funds)', () => {
+    let freqHost: Awaited<ReturnType<typeof fakeActiveHost>>;
+    let freqCollective: Awaited<ReturnType<typeof fakeCollective>>;
+
+    before(async () => {
+      freqHost = await fakeActiveHost({ slug: 'metrics-fa-frequency-host', currency: 'USD' });
+      freqCollective = await fakeCollective({
+        HostCollectiveId: freqHost.id,
+        type: CollectiveType.COLLECTIVE,
+        approvedAt: new Date('2025-01-01'),
+        currency: 'USD',
+      });
+
+      // One-time: a contribution with no recurring order.
+      await fakeTransaction(
+        {
+          type: TransactionTypes.CREDIT,
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: freqCollective.id,
+          HostCollectiveId: freqHost.id,
+          amount: 100_00,
+          createdAt: new Date('2025-06-15'),
+        },
+        { createDoubleEntry: true },
+      );
+
+      // Recurring: a contribution whose order has a monthly interval.
+      const recurringOrder = await fakeOrder({ CollectiveId: freqCollective.id, interval: 'month' });
+      await fakeTransaction(
+        {
+          type: TransactionTypes.CREDIT,
+          kind: TransactionKind.CONTRIBUTION,
+          CollectiveId: freqCollective.id,
+          HostCollectiveId: freqHost.id,
+          OrderId: recurringOrder.id,
+          amount: 200_00,
+          createdAt: new Date('2025-06-16'),
+        },
+        { createDoubleEntry: true },
+      );
+
+      // Added funds: classified by kind regardless of order.
+      await fakeTransaction(
+        {
+          type: TransactionTypes.CREDIT,
+          kind: TransactionKind.ADDED_FUNDS,
+          CollectiveId: freqCollective.id,
+          HostCollectiveId: freqHost.id,
+          amount: 300_00,
+          createdAt: new Date('2025-06-17'),
+        },
+        { createDoubleEntry: true },
+      );
+
+      await refreshMV();
+    });
+
+    it('splits received income by frequency class', async () => {
+      const result = await queryMetrics({
+        source: HostedCollectivesFinancialActivity,
+        measures: ['amountReceived', 'contributionsCount'],
+        dateFrom: '2025-01-01',
+        dateTo: '2026-01-01',
+        filters: { host: freqHost.id, account: freqCollective.id },
+        groupBy: ['contributionFrequency'],
+        limit: 100,
+      });
+      const byFreq = new Map(result.rows.map(r => [r.group?.contributionFrequency, r.values]));
+
+      expect(byFreq.get('ONE_TIME')?.amountReceived).to.equal(100_00);
+      expect(byFreq.get('RECURRING')?.amountReceived).to.equal(200_00);
+      expect(byFreq.get('ADDED_FUNDS')?.amountReceived).to.equal(300_00);
+      expect(byFreq.get('ONE_TIME')?.contributionsCount).to.equal(1);
+      expect(byFreq.get('RECURRING')?.contributionsCount).to.equal(1);
+      expect(byFreq.get('ADDED_FUNDS')?.contributionsCount).to.equal(1);
+    });
+
+    it('filters by a single frequency class', async () => {
+      const result = await queryMetrics({
+        source: HostedCollectivesFinancialActivity,
+        measures: ['amountReceived'],
+        dateFrom: '2025-01-01',
+        dateTo: '2026-01-01',
+        filters: { host: freqHost.id, account: freqCollective.id, contributionFrequency: ['RECURRING'] },
+      });
+      expect(result.rows[0]?.values.amountReceived).to.equal(200_00);
+    });
+
+    it('does not change the un-grouped total (grain split is transparent)', async () => {
+      const result = await queryMetrics({
+        source: HostedCollectivesFinancialActivity,
+        measures: ['amountReceived'],
+        dateFrom: '2025-01-01',
+        dateTo: '2026-01-01',
+        filters: { host: freqHost.id, account: freqCollective.id },
+      });
+      expect(result.rows[0]?.values.amountReceived).to.equal(600_00); // 100 + 200 + 300
     });
   });
 });

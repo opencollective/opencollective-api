@@ -1,3 +1,4 @@
+import type express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { hasFeature } from '../../../lib/allowed-features';
@@ -9,6 +10,7 @@ import {
 import { syncGoCardlessAccount } from '../../../lib/gocardless/sync';
 import RateLimit from '../../../lib/rate-limit';
 import { reportErrorToSentry } from '../../../lib/sentry';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { ConnectedAccount } from '../../../models';
 import TransactionsImport, { TransactionsImportLockedError } from '../../../models/TransactionsImport';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
@@ -36,7 +38,7 @@ const goCardlessMutations = {
         description: 'The account to which the GoCardless link should be generated',
       },
     },
-    resolve: async (_: void, args, req: Express.Request) => {
+    resolve: async (_: void, args, req: express.Request) => {
       checkRemoteUserCanUseTransactions(req);
 
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
@@ -47,8 +49,10 @@ const goCardlessMutations = {
         throw new Forbidden('Off-platform transactions are not enabled for this account');
       }
 
+      await twoFactorAuthLib.enforceForAccount(req, host, { alwaysAskForToken: true });
+
       const rateLimiter = new RateLimit(`generateGoCardlessLink:${req.remoteUser.id}`, 20, 60 * 60);
-      if (await rateLimiter.hasReachedLimit()) {
+      if (!(await rateLimiter.registerCall())) {
         throw new RateLimitExceeded(
           'A link was already generated for this account recently. Please wait a few minutes before trying again.',
         );
@@ -56,15 +60,12 @@ const goCardlessMutations = {
 
       const { input } = args;
 
-      // Create the GoCardless link
-      const link = await createGoCardlessLink(input.institutionId, {
+      const link = await createGoCardlessLink(req.remoteUser, host, input.institutionId, {
         maxHistoricalDays: input.maxHistoricalDays,
         accessValidForDays: input.accessValidForDays,
         userLanguage: input.userLanguage,
         accountSelection: input.accountSelection,
       });
-
-      await rateLimiter.registerCall();
 
       return {
         id: link.id,
@@ -119,6 +120,8 @@ const goCardlessMutations = {
       } else if (!(await hasFeature(host, 'OFF_PLATFORM_TRANSACTIONS', { loaders: req.loaders }))) {
         throw new Forbidden('Off-platform transactions are not enabled for this account');
       }
+
+      await twoFactorAuthLib.enforceForAccount(req, host);
 
       const rateLimiter = new RateLimit(`connectGoCardlessAccount:${req.remoteUser.id}`, 20, 60 * 60);
       if (!(await rateLimiter.registerCall())) {

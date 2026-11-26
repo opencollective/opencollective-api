@@ -1,0 +1,124 @@
+import { Command } from 'commander';
+import config from 'config';
+import { isNil } from 'lodash';
+
+import { decryptWithCipher, encryptWithCipher } from '../server/lib/encryption';
+import { sequelize } from '../server/models';
+
+const CIPHER = config.dbEncryption.cipher;
+const SECRET_KEY = config.dbEncryption.secretKey;
+
+/** Row shape of the ConnectedAccounts query below */
+type ConnectedAccountRow = {
+  id: number;
+  service: string;
+  token: string;
+  refreshToken: string | null;
+};
+
+/**
+ * Change the DB encryption key by reencrypting the DB fields.
+ *
+ * @deprecated /!\ This script is not re-encrypting LegalDocuments data, and the lack of
+ * pagination would probably make it crash in production. It needs to be updated to work
+ * outside of dev environments.
+ */
+async function main(args: ScriptArgs) {
+  if (!args.oldKey || !args.newKey) {
+    console.error('You need to provide both old and new key.');
+    console.error(
+      `Usage: npm run script scripts/change_db_encryption_key.ts -- [-f] [--fromCipher DES] [--toCipher DES] oldKey newKey`,
+    );
+    process.exit(1);
+  }
+  if (!args.force && SECRET_KEY && args.oldKey !== SECRET_KEY) {
+    console.error('Your oldKey does not match the existing DB_ENCRYPTION_SECRET_KEY!');
+    process.exit(1);
+  }
+  if (!args.ignoreEnv && process.env.OC_ENV !== 'development') {
+    console.error('This script is not ready to be run in production environment (see comment in the code)');
+    process.exit(1);
+  }
+  console.log(`Re-encrypting from cipher ${args.fromCipher} to cipher ${args.toCipher}...`);
+
+  const [accounts] = (await sequelize.query(
+    `SELECT "id", "service", "token", "refreshToken" FROM "ConnectedAccounts" WHERE "token" IS NOT NULL`,
+  )) as [ConnectedAccountRow[], unknown];
+
+  console.info(`Re-encrypting ${accounts.length} ConnectedAccounts...`);
+  // `refreshToken` is nullable, and the ConnectedAccount model stores NULL rather than an encrypted
+  // empty string for missing values (`value ? crypto.encrypt(value) : null`). We update with raw SQL
+  // here, which bypasses those accessors, so the same semantics have to be preserved by hand.
+  const encrypt = (message: string): string | null =>
+    message ? encryptWithCipher(message, args.newKey, args.toCipher) : null;
+  const decrypt = (encryptedMessage: string): string | null =>
+    isNil(encryptedMessage) ? null : decryptWithCipher(encryptedMessage, args.oldKey, args.fromCipher);
+
+  try {
+    await sequelize.transaction(async transaction => {
+      for (const account of accounts) {
+        const token = decrypt(account.token);
+        const refreshToken = decrypt(account.refreshToken);
+        await sequelize.query(
+          `
+          UPDATE "ConnectedAccounts"
+          SET "token" = :token, "refreshToken" = :refreshToken
+          WHERE "id" = :id;
+        `,
+          {
+            transaction,
+            replacements: {
+              token: encrypt(token),
+              refreshToken: encrypt(refreshToken),
+              id: account.id,
+            },
+          },
+        );
+      }
+    });
+  } catch (e) {
+    console.error('Oops, something went wrong and I rolled back the transaction.');
+    console.error(e);
+    process.exit(1);
+  }
+  console.log('Done!');
+  process.exit(0);
+}
+
+/** Options passed by the user to run the script */
+type ScriptArgs = {
+  oldKey?: string;
+  newKey?: string;
+  fromCipher: string;
+  toCipher: string;
+  force: boolean;
+  ignoreEnv: boolean;
+};
+
+/** Return the options passed by the user to run the script */
+function parseCommandLineArguments(): ScriptArgs {
+  const program = new Command()
+    .description('Change DB Encryption keys by reencrypting the DB fields')
+    .argument('<oldKey>', 'The current key being used')
+    .argument('<newKey>', 'The new key you want to reencrypt data with')
+    .option('--fromCipher <cipher>', 'The current cipher being used', CIPHER)
+    .option('--toCipher <cipher>', 'The new cipher you want to reencrypt data with', CIPHER)
+    .option('-f, --force', 'Ignore existing key check', false)
+    .option('--ignore-env', 'Ignore the environment check', false)
+    .parse(process.argv);
+
+  const opts = program.opts();
+  const [oldKey, newKey] = program.args;
+  return {
+    oldKey,
+    newKey,
+    fromCipher: opts.fromCipher,
+    toCipher: opts.toCipher,
+    force: opts.force,
+    ignoreEnv: opts.ignoreEnv,
+  };
+}
+
+if (!module.parent) {
+  main(parseCommandLineArguments());
+}

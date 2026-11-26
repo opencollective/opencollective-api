@@ -1,8 +1,7 @@
 {
   "port": "3060",
   "services": {
-    "server": true,
-    "searchSync": false
+    "server": true
   },
   "mailpit": {
     "client": false,
@@ -25,8 +24,15 @@
     },
     "readOnly": false
   },
-  "opensearch": {
-    "maxSyncDelay": 5000
+  "search": {
+    "postgres": {
+      "enabled": true,
+      "concurrencyPerRequest": 2,
+      "maxConcurrentQueries": 8,
+      "workMem": "32MB",
+      "typoSimilarityThreshold": 0.5,
+      "maxCountedMatches": 10000
+    }
   },
   "platform": {},
   "maintenancedb": {
@@ -68,8 +74,9 @@
       "perMask": 5,
       "forCollective": 10
     },
-    "giftCards": {
-      "maxPerDay": 100
+    "manualOrdersPerHour": {
+      "perUser": 10,
+      "perIp": 10
     },
     "klippa": {
       "perUser": {
@@ -84,6 +91,8 @@
       "confirmToken": 15
     },
     "setPasswordPerUserPerHour": 10,
+    "addCreditCardPerUserPerHour": 10,
+    "maxCreditCardsPerAccount": 100,
     "confirmEmailPerIpPerHour": 10,
     "skipCleanOrdersLimitSlugs": "",
     "enabledMasks": "",
@@ -93,6 +102,9 @@
     "maxNumberOfAppsPerUser": 15,
     "maxWebhooksPerUserPerCollective": 50,
     "webhookUrlValidationPerUserPerHour": 30,
+    "ecosystems": {
+      "repositoryLookupsPerHourPerIp": 30
+    },
     "search": {
       "global": {
         "perMinutePerUser": 75,
@@ -108,6 +120,7 @@
     "userSignUpPerHour": 3,
     "userExchangeLoginTokenPerHourPerIp": 50,
     "userRefreshTokenPerHourPerIp": 50,
+    "wiseBatchPaymentPerHour": 30,
     "collectiveEmailMessagePerHour": 5,
     "maxCoreContributorsPerAccount": 60,
     "transactionsImports": {
@@ -165,7 +178,8 @@
   },
   "slack": {
     "webhooks": {
-      "abuse": null
+      "abuse": null,
+      "engineeringAlerts": null
     }
   },
   "captcha": {
@@ -203,8 +217,7 @@
     "blockedCurrenciesForNonProfits": "INR",
     "currenciesThatRequireReference": "RUB",
     "blockedCountries": "SS, SD, BI, CF, TD, CG, CD, SO, CU, IR, VE, SY, KP, AF, ER, IQ, LY, MM, YE, RU, BY",
-    "useTransferRefundHandler": false,
-    "useSimplifiedQuote": true
+    "useTransferRefundHandler": false
   },
   "hyperwatch": {
     "enabled": false,
@@ -258,7 +271,7 @@
   "fraud": {
     "order": {
       "user": "[[\"1 month\", 10, 0.8, 0.8], [\"1 month\", 5, 1, 1]]",
-      "card": "[[\"1 month\", 10, 0.8, 0.2], [\"1 month\", 5, 1, 0.5]]",
+      "card": "[[\"1 month\", 10, 0.8, 0], [\"1 month\", 5, 1, 0]]",
       "email": "[[\"5 days\", 10, 0.8, 0.8], [\"5 days\", 5, 1, 1]]",
       "ip": "[[\"5 day\", 10, 0.8, 0.8]]"
     },
@@ -266,21 +279,18 @@
   },
   "virtualCards": {
     "maximumLimitForInterval": {
-      "PER_AUTHORIZATION": 5000,
-      "DAILY": 5000,
-      "WEEKLY": 5000,
-      "MONTHLY": 5000,
-      "YEARLY": 5000,
-      "ALL_TIME": 5000
+      "PER_AUTHORIZATION": 500000,
+      "DAILY": 500000,
+      "WEEKLY": 500000,
+      "MONTHLY": 500000,
+      "YEARLY": 500000,
+      "ALL_TIME": 500000
     }
   },
   "gitbook": {
     "apiUrl": "https://api.gitbook.com",
     "apiKey": "UNDEFINED_GITBOOK_API_KEY",
     "spaceId": "NDB6a9zS8ZMISyZwm7K9"
-  },
-  "opentelemetry": {
-    "enabled": false
   },
   "plaid": {
     "env": "sandbox"
@@ -298,7 +308,8 @@
     "collectivesWithManyTransactions": []
   },
   "settlement": {
-    "minimumAmountInUSD": 1000
+    "minimumAmountInUSD": 1000,
+    "maximumStripeAmountInUSD": 100000
   },
   "exports": {
     "expirationDays": {

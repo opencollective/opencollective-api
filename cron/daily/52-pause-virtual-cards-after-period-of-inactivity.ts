@@ -56,9 +56,9 @@ async function findUnusedVirtualCards() {
         `),
         // the card was not resumed in the period
         sequelize.literal(`
-          "VirtualCard"."resumedAt" IS NULL OR 
-          "VirtualCard"."resumedAt" <= now() - make_interval(
-            days => cast("host".settings#>'{virtualcards,autopauseUnusedCards,period}' as integer)
+          (
+            "VirtualCard"."resumedAt" IS NULL OR 
+            "VirtualCard"."resumedAt" <= now() - make_interval(days => cast("host".settings#>'{virtualcards,autopauseUnusedCards,period}' as integer))
           )
         `),
       ],
@@ -79,7 +79,7 @@ async function pauseVirtualCardDueToInactivity(virtualCard: VirtualCard) {
       CollectiveId: virtualCard.collective.id,
       HostCollectiveId: virtualCard.host.id,
       data: {
-        virtualCard,
+        virtualCard: virtualCard.info,
         host: virtualCard.host.info,
         collective: virtualCard.collective.info,
       },

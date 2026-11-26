@@ -6,9 +6,6 @@
       "benchmark": true
     }
   },
-  "opensearch": {
-    "url": "http://localhost:9200"
-  },
   "fees": {
     "default": {
       "hostPercent": 5,
@@ -17,11 +14,6 @@
   },
   "maintenancedb": {
     "url": "postgres://postgres@localhost:5432/postgres"
-  },
-  "limits": {
-    "giftCards": {
-      "maxPerDay": 1000
-    }
   },
   "redis": {
     "serverUrl": "redis://localhost"
@@ -55,5 +47,12 @@
   },
   "fixer": {
     "accessKey": "UNDEFINED_FIXER_ACCESS_KEY"
+  },
+  "limits": {
+    "search": {
+      "global": {
+        "perMinutePerIp": 100000
+      }
+    }
   }
 }

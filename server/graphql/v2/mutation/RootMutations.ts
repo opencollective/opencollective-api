@@ -8,7 +8,11 @@ import { CollectiveType } from '../../../constants/collectives';
 import OrderStatuses from '../../../constants/order-status';
 import roles from '../../../constants/roles';
 import { TransactionKind } from '../../../constants/transaction-kind';
-import { purgeAllCachesForAccount, purgeGraphqlCacheForCollective } from '../../../lib/cache';
+import {
+  purgeAllCachesForAccount,
+  purgeCollectiveIdCacheForSlug,
+  purgeGraphqlCacheForCollective,
+} from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
 import { invalidateContributorsCache } from '../../../lib/contributors';
 import { mergeAccounts, simulateMergeAccounts } from '../../../lib/merge-accounts';
@@ -81,6 +85,10 @@ export default {
         type: GraphQLBoolean,
         description: 'Set this to false to disable 2FA. Other values have no effect.',
       },
+      isBlockedForUnpaidPlatformBilling: {
+        type: GraphQLBoolean,
+        description: 'Specify whether the account is blocked due to unpaid platform billing',
+      },
     },
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanRoot(req);
@@ -98,6 +106,15 @@ export default {
 
       if (!isNil(args.isTrustedHost) && Boolean(args.isTrustedHost) !== Boolean(account.data?.isTrustedHost)) {
         await account.update({ data: { ...account.data, isTrustedHost: args.isTrustedHost } });
+      }
+
+      if (
+        !isNil(args.isBlockedForUnpaidPlatformBilling) &&
+        Boolean(args.isBlockedForUnpaidPlatformBilling) !== Boolean(account.data?.isBlockedForUnpaidPlatformBilling)
+      ) {
+        await account.update({
+          data: { ...account.data, isBlockedForUnpaidPlatformBilling: args.isBlockedForUnpaidPlatformBilling },
+        });
       }
 
       if (args.isTwoFactorAuthEnabled === false) {
@@ -217,7 +234,8 @@ export default {
   },
   mergeAccounts: {
     type: new GraphQLNonNull(GraphQLMergeAccountsResponse),
-    description: '[Root only] Merge two accounts, returns the result account',
+    description:
+      '[Root only] Merge two accounts, returns the result account. Both accounts must have the same type, except PROJECT accounts that can be merged into a COLLECTIVE hosted by the same host.',
     args: {
       fromAccount: {
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),
@@ -249,8 +267,21 @@ export default {
         const message = await simulateMergeAccounts(fromAccount, toAccount);
         return { account: toAccount, message };
       } else {
+        const fromAccountSlug = fromAccount.slug;
         const warnings = await mergeAccounts(fromAccount, toAccount, req.remoteUser.id);
-        await Promise.all([purgeAllCachesForAccount(fromAccount), purgeAllCachesForAccount(toAccount)]).catch(() => {
+        const parentAccount = fromAccount.ParentCollectiveId
+          ? await models.Collective.findByPk(fromAccount.ParentCollectiveId)
+          : null;
+        await Promise.all(
+          [
+            purgeAllCachesForAccount(fromAccount),
+            purgeAllCachesForAccount(toAccount),
+            // The source's parent page lists its children, so it must be purged too
+            parentAccount && purgeAllCachesForAccount(parentAccount),
+            // The source's slug is renamed by the merge: drop the stale slug -> id cache entry
+            purgeCollectiveIdCacheForSlug(fromAccountSlug),
+          ].filter(Boolean),
+        ).catch(() => {
           // Ignore errors
         });
         const message = warnings.join('\n');
@@ -433,7 +464,7 @@ export default {
       }
       const hostCurrency = host.currency;
 
-      const balance = await fromAccount.getBalance();
+      const balance = await fromAccount.getBalance({ currency: hostCurrency });
       let transferAmount: number;
       if (args.amount) {
         transferAmount = getValueInCentsFromAmountInput(args.amount, {

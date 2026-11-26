@@ -24,6 +24,23 @@ const accountQuery = gql`
   }
 `;
 
+const accountSummaryQuery = gql`
+  query AccountSummary($slug: String!) {
+    account(slug: $slug) {
+      id
+      ... on AccountWithHost {
+        summary {
+          expenseCount
+          receivedTotal {
+            valueInCents
+            currency
+          }
+        }
+      }
+    }
+  }
+`;
+
 describe('server/graphql/v2/object/AccountWithHost', () => {
   describe('hostAgreements', () => {
     it('should agreements with its host', async () => {
@@ -44,6 +61,26 @@ describe('server/graphql/v2/object/AccountWithHost', () => {
       expect(result.data.account.hostAgreements.nodes[0].attachment).to.eql({
         name: 'my agreement.pdf',
       });
+    });
+  });
+
+  describe('summary', () => {
+    it('returns the summary for a hosted account', async () => {
+      const host = await fakeHost({ currency: 'USD' });
+      const account = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
+      const result = await graphqlQueryV2(accountSummaryQuery, { slug: account.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.summary).to.deep.eq({
+        expenseCount: 0,
+        receivedTotal: { valueInCents: 0, currency: 'USD' },
+      });
+    });
+
+    it('returns null (and does not crash) for an unhosted account', async () => {
+      const account = await fakeCollective({ HostCollectiveId: null, approvedAt: null, isActive: false });
+      const result = await graphqlQueryV2(accountSummaryQuery, { slug: account.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.summary).to.be.null;
     });
   });
 });

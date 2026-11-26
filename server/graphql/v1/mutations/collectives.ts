@@ -1,22 +1,22 @@
-import config from 'config';
 import express from 'express';
 import slugify from 'limax';
-import { cloneDeep, get, isEqual, omit, pick, truncate } from 'lodash';
+import { cloneDeep, get, isEqual, omit, pick } from 'lodash';
 import { Op, QueryTypes } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
+import ExpenseStatuses from '../../../constants/expense-status';
+import OrderStatuses from '../../../constants/order-status';
 import roles from '../../../constants/roles';
 import { assertSettingsChangeAllowed } from '../../../lib/account-settings';
 import { purgeCacheForCollective } from '../../../lib/cache';
-import * as collectivelib from '../../../lib/collectivelib';
-import { defaultHostCollective } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
 import { canSeePrivateAccount } from '../../../lib/private-accounts';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, sequelize } from '../../../models';
+import { isRemoteUserRoot } from '../../common/scope-check';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { VENDOR_INFO_FIELDS } from '../../v2/mutation/VendorMutations';
 import { CollectiveInputType } from '../inputTypes';
@@ -75,9 +75,9 @@ export async function createCollective(_, args, req: express.Request) {
     parentCollective = await req.loaders.Collective.byId.load(args.collective.ParentCollectiveId);
     if (!parentCollective) {
       return Promise.reject(new Error(`Parent collective with id ${args.collective.ParentCollectiveId} not found`));
-    } else if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parentCollective.id)) {
+    } else if (!req.remoteUser.hasRole([roles.ADMIN], parentCollective.id)) {
       throw new Unauthorized(
-        `You must be logged in as a member of the ${parentCollective.slug} collective to create an event`,
+        `You must be logged in as an admin of the ${parentCollective.slug} collective to create an account under it`,
       );
     }
 
@@ -195,127 +195,6 @@ export async function createCollective(_, args, req: express.Request) {
       data: { ...collective.data, useCustomHostFee: Boolean(parentCollective.data?.useCustomHostFee) },
     });
   }
-
-  return collective;
-}
-
-export async function createCollectiveFromGithub(_, args, req) {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to create a collective');
-  }
-
-  if (!args.collective.name) {
-    throw new ValidationFailed('collective.name required');
-  }
-
-  if (config.env === 'production') {
-    throw new Error('This mutation is not allowed in production');
-  }
-
-  let collective;
-  const user = req.remoteUser;
-
-  if (args.collective.githubHandle && !github.githubHandleRegex.test(args.collective.githubHandle)) {
-    throw new ValidationFailed('githubHandle must be a valid github handle');
-  }
-
-  const githubHandle = github.getGithubHandleFromUrl(args.collective.repositoryUrl) || args.collective.githubHandle;
-  const collectiveData = {
-    ...args.collective,
-    settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
-  };
-
-  // For e2e testing, we enable testuser+(admin|member|host)@opencollective.com to create collective without github validation
-  if (config.env !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
-    const existingCollective = models.Collective.findOne({
-      where: { slug: collectiveData.slug.toLowerCase() },
-    });
-    if (existingCollective) {
-      collectiveData.slug = `${collectiveData.slug}-${Math.floor(Math.random() * 1000 + 1)}`;
-    }
-    collectiveData.currency = 'USD';
-    collectiveData.CreatedByUserId = user.id;
-    collectiveData.LastEditedByUserId = user.id;
-    collective = await models.Collective.create(collectiveData);
-    const host = await defaultHostCollective('opensource');
-    const promises = [
-      collective.addUserWithRole(user, roles.ADMIN),
-      collective.addHost(host, user, { shouldAutomaticallyApprove: true }),
-      collective.update({ isActive: true, approvedAt: new Date() }),
-    ];
-
-    await Promise.all(promises);
-    return collective;
-  }
-
-  const existingCollective = await models.Collective.findOne({
-    where: { slug: collectiveData.slug.toLowerCase() },
-  });
-
-  if (existingCollective) {
-    throw new Error(
-      `The slug ${
-        collectiveData.slug
-      } is already taken. Please use another slug for your ${collectiveData.type.toLowerCase()}.`,
-    );
-  }
-
-  const githubAccount = await models.ConnectedAccount.findOne({
-    where: { CollectiveId: req.remoteUser.CollectiveId, service: 'github' },
-  });
-  if (!githubAccount) {
-    throw new Error('You must have a connected GitHub Account to create a collective with GitHub.');
-  }
-
-  try {
-    await github.checkGithubAdmin(githubHandle, githubAccount.token);
-    await github.checkGithubStars(githubHandle, githubAccount.token);
-    if (githubHandle.includes('/')) {
-      const repo = await github.getRepo(githubHandle, githubAccount.token);
-      collectiveData.tags = repo.topics || [];
-      collectiveData.tags.push('open source');
-      collectiveData.description = truncate(repo.description, { length: 255 });
-      collectiveData.longDescription = repo.description;
-      collectiveData.settings.githubRepo = githubHandle;
-    } else {
-      collectiveData.settings.githubOrg = githubHandle;
-    }
-  } catch (error) {
-    throw new ValidationFailed(error.message);
-  }
-
-  collectiveData.currency = 'USD';
-  collectiveData.CreatedByUserId = user.id;
-  collectiveData.LastEditedByUserId = user.id;
-
-  try {
-    collective = await models.Collective.create(collectiveData);
-  } catch (err) {
-    throw new Error(err.message);
-  }
-
-  const host = await defaultHostCollective('opensource');
-  const promises = [
-    collective.addUserWithRole(user, roles.ADMIN),
-    collective.addHost(host, user, { skipCollectiveApplyActivity: true }),
-    collective.update({ isActive: true, approvedAt: new Date() }),
-  ];
-
-  await Promise.all(promises);
-
-  models.Activity.create({
-    type: activities.COLLECTIVE_CREATED_GITHUB,
-    UserId: user.id,
-    UserTokenId: req.userToken?.id,
-    CollectiveId: collective.id,
-    FromCollectiveId: collective.id,
-    HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
-    data: {
-      collective: collective.info,
-      host: host.info,
-      user: user.info,
-    },
-  });
 
   return collective;
 }
@@ -515,7 +394,7 @@ export async function archiveCollective(_, args, req) {
     throw new NotFound(`Collective with id ${args.id} not found`);
   }
 
-  if (!req.remoteUser.isAdminOfCollective(collective) && !req.remoteUser.isRoot()) {
+  if (!req.remoteUser.isAdminOfCollective(collective) && !isRemoteUserRoot(req)) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
@@ -534,6 +413,24 @@ export async function archiveCollective(_, args, req) {
     }
   }
 
+  // `changeHost` below refuses to remove the host while the account or one of its children has processing expenses.
+  // Check it before changing anything, so that a refused archive does not leave contributions cancelled (and queued
+  // for cancellation on the payment provider) or children archived.
+  if (collective.HostCollectiveId) {
+    const hostedChildren = await collective.getChildren({
+      attributes: ['id'],
+      where: { HostCollectiveId: { [Op.ne]: null } },
+    });
+    const processingExpensesCount = await models.Expense.count({
+      where: { CollectiveId: [collective.id, ...hostedChildren.map(c => c.id)], status: ExpenseStatuses.PROCESSING },
+    });
+    if (processingExpensesCount > 0) {
+      throw new Error(
+        `Unable to change host: there are still ${processingExpensesCount} expenses in a processing state`,
+      );
+    }
+  }
+
   const isChildren = collective.type === CollectiveType.EVENT || collective.type === CollectiveType.PROJECT;
   const slugsToClearCacheFor = [collective.slug];
   const hostCollectiveId = collective.HostCollectiveId;
@@ -541,10 +438,19 @@ export async function archiveCollective(_, args, req) {
   const deactivatedAt = new Date();
   let children: { id: number; slug: string }[] = [];
   if (!isChildren) {
+    // Stop the contributions received by the children now: their `approvedAt` is reset below, after which neither
+    // their `changeHost` nor `Order.stopActiveSubscriptions` would touch them anymore.
+    await models.Order.stopActiveSubscriptions(collective.id, OrderStatuses.CANCELLED, {
+      includeChildren: true,
+      messageForContributors: 'We are archiving this Collective.',
+    });
+
     // Mark all children as archived, with a special `data.archivedFromParent` flag for later un-archive
     children = await sequelize.query<{ id: number; slug: string }>(
       `UPDATE "Collectives"
     SET "deactivatedAt" = :deactivatedAt,
+    "isActive" = FALSE,
+    "approvedAt" = NULL,
     "data" = JSONB_SET(COALESCE("data", '{}'), '{archivedFromParent}', 'true')
     WHERE "ParentCollectiveId" = :collectiveId
     AND "deletedAt" IS NULL
@@ -574,7 +480,7 @@ export async function archiveCollective(_, args, req) {
   });
 
   // Mark main account as archived
-  await collective.update({ isActive: false, deactivatedAt });
+  await collective.update({ isActive: false, deactivatedAt, approvedAt: null });
 
   await models.Activity.create({
     type: activities.COLLECTIVE_ARCHIVED,
@@ -590,9 +496,14 @@ export async function archiveCollective(_, args, req) {
     },
   });
 
-  // Cancel all subscriptions which the collective is contributing
+  // Cancel all recurring contributions the account (and its children) is making. The subscriptions are
+  // deactivated asynchronously by `cron/10mn/00-handle-batch-subscriptions-update.ts`, which also calls the
+  // payment provider for externally managed subscriptions (e.g. PayPal).
   const allAccountIds = [collective.id, ...children.map(c => c.id)];
-  await models.Order.cancelActiveOrdersByCollective(allAccountIds);
+  await models.Order.stopActiveSubscriptionsFromAccounts(allAccountIds, OrderStatuses.CANCELLED, {
+    messageSource: 'PLATFORM',
+    messageForContributors: 'This account was archived, so its recurring contributions have been cancelled.',
+  });
 
   // Cancel all unprocessed expenses
   await cancelUnprocessedExpenses(allAccountIds, req.remoteUser);
@@ -636,84 +547,4 @@ export async function unarchiveCollective(_, args, req) {
   }
 
   return collective.update({ deactivatedAt: null });
-}
-
-export async function deleteCollective(_, args, req) {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to delete a collective');
-  }
-
-  const collective = await req.loaders.Collective.byId.load(args.id);
-  if (!collective) {
-    throw new NotFound(`Collective with id ${args.id} not found`);
-  }
-
-  if (!req.remoteUser.isAdminOfCollective(collective) && !req.remoteUser.isRoot()) {
-    throw new Unauthorized(`You don't have permission to delete this collective.`);
-  }
-
-  if (await collective.isHost()) {
-    throw new Error(
-      `You can't delete your collective while being a host. Please, deactivate your collective as Host and try again.`,
-    );
-  }
-
-  if (!(await collectivelib.isCollectiveDeletable(collective))) {
-    throw new Error(
-      `You can't delete a collective with children, transactions, orders or paid expenses. Please archive it instead.`,
-    );
-  }
-
-  await twoFactorAuthLib.enforceForAccount(req, collective, { alwaysAskForToken: true });
-
-  return collectivelib.deleteCollective(collective, req.remoteUser);
-}
-
-export async function activateCollectiveAsHost(_, args, req) {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to activate a collective as Host.');
-  }
-
-  const collective = await req.loaders.Collective.byId.load(args.id);
-  if (!collective) {
-    throw new NotFound(`Collective with id ${args.id} not found`);
-  }
-
-  if (!req.remoteUser.isAdminOfCollective(collective)) {
-    throw new Unauthorized('You need to be logged in as an Admin.');
-  }
-
-  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
-
-  // This is now equivalent to activate "Money Management"
-  return collective.activateMoneyManagement({ remoteUser: req.remoteUser });
-}
-
-export async function deactivateCollectiveAsHost(_, args, req: express.Request) {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to deactivate a collective as Host.');
-  }
-
-  const collective = await req.loaders.Collective.byId.load(args.id);
-  if (!collective) {
-    throw new NotFound(`Collective with id ${args.id} not found`);
-  }
-
-  if (!req.remoteUser.isAdminOfCollective(collective)) {
-    throw new Unauthorized('You need to be logged in as an Admin.');
-  }
-
-  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
-
-  // This is expected as a combination of deactivateHosting and deactivateMoneyManagement
-  await sequelize.transaction(async transaction => {
-    if (collective.hasHosting) {
-      await collective.deactivateHosting({ remoteUser: req.remoteUser, transaction });
-    }
-    if (collective.hasMoneyManagement) {
-      await collective.deactivateMoneyManagement({ remoteUser: req.remoteUser, transaction });
-    }
-  });
-
-  return collective;
 }

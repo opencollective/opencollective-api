@@ -14,6 +14,7 @@ import moment from 'moment';
 
 import { Service } from '../server/constants/connected-account';
 import * as transferwiseLib from '../server/lib/transferwise';
+import { normalizeWiseIdList, wiseIdListIncludes } from '../server/lib/wise-id';
 import models, { Op, sequelize } from '../server/models';
 import { PayoutMethodTypes } from '../server/models/PayoutMethod';
 
@@ -55,12 +56,13 @@ program.command('check-batch <batchId> [env]').action(async batchId => {
   console.dir(batch);
 
   console.log('\n');
-  const allExpensesWerePaid = expenses.every(expense => batch.transferIds.includes(expense.data.transfer.id));
+  const batchTransferIds = normalizeWiseIdList(batch.transferIds);
+  const allExpensesWerePaid = expenses.every(expense => wiseIdListIncludes(batchTransferIds, expense.data.transfer.id));
   if (allExpensesWerePaid) {
     console.log(`✅ All expenses tracked on the platform were included in the batch`);
   } else {
     expenses
-      .filter(expense => !batch.transferIds.includes(expense.data.transfer.id))
+      .filter(expense => !wiseIdListIncludes(batchTransferIds, expense.data.transfer.id))
       .forEach(expense => {
         console.warn(`❌ Expense ${expense.id} for ${expense.collective.slug} was not included in the batch`);
       });

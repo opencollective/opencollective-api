@@ -8,6 +8,8 @@ import { Forbidden } from '../graphql/errors';
 import { Loaders } from '../graphql/loaders';
 import { Collective, PlatformSubscription } from '../models';
 
+import { isBlockedForUnpaidPlatformBilling } from './platform-subscriptions';
+
 type FEATURE_ACCESS = 'AVAILABLE' | 'DISABLED' | 'UNSUPPORTED';
 enum FEATURE_ACCESS_PARTY {
   EVERYONE = 'EVERYONE',
@@ -46,6 +48,8 @@ const FeaturesAccess: Partial<
       countries?: string[];
       /** If set to true, only public accounts will have access to the feature */
       onlyPublicAccounts?: boolean;
+      /** If set to true, the feature is unavailable while the account is on hold for unpaid platform billing */
+      blockedForUnpaidPlatformBilling?: boolean;
     }
   >
 > = {
@@ -84,10 +88,6 @@ const FeaturesAccess: Partial<
     accountTypes: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION],
     onlyPublicAccounts: true,
   },
-  [FEATURE.EMIT_GIFT_CARDS]: {
-    accountTypes: [CollectiveType.ORGANIZATION],
-    onlyPublicAccounts: true,
-  },
   [FEATURE.EVENTS]: {
     onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
     accountTypes: [CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],
@@ -102,6 +102,7 @@ const FeaturesAccess: Partial<
     onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS],
   },
   [FEATURE.FUNDS_GRANTS_MANAGEMENT]: {
+    // Only describes whether the host's plan includes the feature. Whether an account accepts grants is `RECEIVE_GRANTS`.
     onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
   },
   [FEATURE.TAX_FORMS]: {
@@ -138,6 +139,7 @@ const FeaturesAccess: Partial<
   },
   [FEATURE.PUBLIC_PROFILE]: {
     onlyPublicAccounts: true,
+    flagOverride: 'settings.features.publicProfile',
     accountTypes: [
       CollectiveType.COLLECTIVE,
       CollectiveType.ORGANIZATION,
@@ -145,6 +147,7 @@ const FeaturesAccess: Partial<
       CollectiveType.FUND,
       CollectiveType.PROJECT,
       CollectiveType.USER,
+      CollectiveType.VENDOR,
     ],
   },
   [FEATURE.RECEIVE_EXPENSES]: {
@@ -180,6 +183,7 @@ const FeaturesAccess: Partial<
     onlyAllowedFor: FEATURE_ACCESS_PARTY.HOSTS,
     optIn: true,
     flagOverride: 'settings.apply',
+    blockedForUnpaidPlatformBilling: true,
   },
   [FEATURE.RECURRING_CONTRIBUTIONS]: {
     onlyPublicAccounts: true,
@@ -234,10 +238,20 @@ const FeaturesAccess: Partial<
 } as const;
 
 /**
+ * Features that are not affected by `data.isSuspended` or `FEATURE.ALL` and must be
+ * explicitly disabled (through `data.features.<feature>`) to be blocked.
+ */
+const FEATURES_NOT_AFFECTED_BY_SUSPENSION = [FEATURE.PUBLIC_PROFILE];
+
+/**
  * Returns true if the feature is disabled for the account. This function only checks `collective.data`,
  * use `hasFeature` to properly check a feature activation.
  */
 export const isFeatureBlockedForAccount = (collective: Collective, feature: FEATURE | `${FEATURE}`): boolean => {
+  if (FEATURES_NOT_AFFECTED_BY_SUSPENSION.includes(feature as FEATURE)) {
+    return get(collective, `data.features.${feature}`) === false;
+  }
+
   return (
     get(collective, `data.features.${FEATURE.ALL}`) === false ||
     get(collective, `data.features.${feature}`) === false ||
@@ -276,7 +290,7 @@ const checkFeatureAccessParty = (
   });
 };
 
-const loadPLatformSubscription = (collectiveId: number, loaders?: Loaders) => {
+const loadPlatformSubscription = (collectiveId: number, loaders?: Loaders) => {
   if (loaders) {
     return loaders.PlatformSubscription.currentByCollectiveId.load(collectiveId);
   } else {
@@ -365,6 +379,11 @@ export const getFeatureAccess = async (
       return { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' };
     }
 
+    // Accounts on hold for unpaid platform billing
+    if (featureAccess.blockedForUnpaidPlatformBilling && isBlockedForUnpaidPlatformBilling(collective)) {
+      return { access: 'DISABLED', reason: 'BLOCKED' };
+    }
+
     // Check opt-out flag
     if (
       get(collective, `data.features.${feature}`) === false ||
@@ -411,10 +430,10 @@ export const getFeatureAccess = async (
     }
 
     // Check if the feature is part of the host plan
-    const subscription = await loadPLatformSubscription(collective.id, loaders);
+    const subscription = await loadPlatformSubscription(host.id, loaders);
     if (!subscription || !get(subscription, `plan.features.${feature}`)) {
       return { access: 'DISABLED', reason: 'PRICING' };
-    } else if (featureAccess?.optIn === 'new-pricing' && !hasOptInFlag(collective, feature, featureAccess)) {
+    } else if (featureAccess?.optIn === 'new-pricing' && !hasOptInFlag(host, feature, featureAccess)) {
       return { access: 'DISABLED', reason: 'OPT_IN' };
     }
   }

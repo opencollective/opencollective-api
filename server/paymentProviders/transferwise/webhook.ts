@@ -15,10 +15,13 @@ import logger from '../../lib/logger';
 import { lockUntilResolved } from '../../lib/mutex';
 import { createRefundTransaction } from '../../lib/payments';
 import { reportErrorToSentry } from '../../lib/sentry';
+import { ErrorType, MetricEvent, MetricFlow, MetricProvider, recordPaymentOutcome } from '../../lib/sentry/metrics';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import { getQuote, getTransfer, verifyEvent } from '../../lib/transferwise';
 import { parseToBoolean } from '../../lib/utils';
+import { wiseIdsEqual } from '../../lib/wise-id';
 import models from '../../models';
+import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import {
   ExpenseDataQuoteV3,
   QuoteV2PaymentOption,
@@ -29,6 +32,14 @@ import {
 
 export async function handleTransferStateChange(event: TransferStateChangeEvent): Promise<void> {
   const isUsingTransferRefundHandler = parseToBoolean(config.transferwise.useTransferRefundHandler);
+
+  // This state is emitted right after a transfer is created and is waiting to be funded (e.g. a transfer added to a
+  // batch group, or a direct transfer before it is funded). At this point the expense is still APPROVED or
+  // SCHEDULED_FOR_PAYMENT, so there is nothing to do yet. Bail early to avoid the misleading
+  // "Could not find related Expense" log for transfers that are not (yet) linked to a PROCESSING/PAID expense.
+  if (event.data.current_state === 'incoming_payment_waiting') {
+    return;
+  }
 
   const expense = await models.Expense.findOne({
     where: {
@@ -79,6 +90,14 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       logger.info(`Wise: Transfer sent, marking expense as paid.`, event);
       // Mark Expense as Paid, create activity and send notifications
       await expense.markAsPaid({ paidAt: transaction.clearedAt || transaction.createdAt });
+
+      // Terminal success of the payout attempt (the state/status guards above make redeliveries no-ops)
+      recordPaymentOutcome({
+        provider: MetricProvider.WISE,
+        flow: MetricFlow.PAYOUT,
+        method: expense.PayoutMethod?.type ?? PayoutMethodTypes.BANK_ACCOUNT,
+        outcome: MetricEvent.SUCCEEDED,
+      });
     } else if (expense.status === expenseStatus.PROCESSING && event.data.current_state === 'outgoing_payment_sent') {
       logger.info(`Wise: Transfer sent, marking expense as paid and creating transactions.`, event);
       const feesInHostCurrency = (expense.data.feesInHostCurrency || {}) as {
@@ -136,6 +155,14 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       const paidAt = (event.data?.occurred_at && new Date(event.data.occurred_at)) || new Date();
       // Mark Expense as Paid, create activity and send notifications
       await expense.markAsPaid({ paidAt });
+
+      // Terminal success of the payout attempt (the status guard above makes redeliveries no-ops)
+      recordPaymentOutcome({
+        provider: MetricProvider.WISE,
+        flow: MetricFlow.PAYOUT,
+        method: expense.PayoutMethod?.type ?? PayoutMethodTypes.BANK_ACCOUNT,
+        outcome: MetricEvent.SUCCEEDED,
+      });
     }
     // Legacy refund handler
     else if (
@@ -163,6 +190,16 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       await expense.update({ data: { ...expense.data, transfer } });
       await expense.setError(expense.lastEditedById);
       await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+
+      // Terminal failure of the payout attempt (the expense lookup above skips already-errored expenses)
+      recordPaymentOutcome({
+        provider: MetricProvider.WISE,
+        flow: MetricFlow.PAYOUT,
+        method: expense.PayoutMethod?.type ?? PayoutMethodTypes.BANK_ACCOUNT,
+        outcome: MetricEvent.FAILED,
+        errorType:
+          event.data.current_state === 'funds_refunded' ? ErrorType.FUNDS_REFUNDED : ErrorType.TRANSFER_CANCELLED,
+      });
     } else if (
       isUsingTransferRefundHandler &&
       expense.status === expenseStatus.PROCESSING &&
@@ -172,6 +209,15 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       await expense.update({ data: { ...expense.data, transfer } });
       await expense.setError(expense.lastEditedById);
       await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+
+      // Terminal failure of the payout attempt (the status guard makes redeliveries no-ops)
+      recordPaymentOutcome({
+        provider: MetricProvider.WISE,
+        flow: MetricFlow.PAYOUT,
+        method: expense.PayoutMethod?.type ?? PayoutMethodTypes.BANK_ACCOUNT,
+        outcome: MetricEvent.FAILED,
+        errorType: ErrorType.TRANSFER_CANCELLED,
+      });
     }
   });
 }
@@ -188,7 +234,7 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
   const expense = await models.Expense.findOne({
     where: {
       status: [expenseStatus.PROCESSING, expenseStatus.PAID, expenseStatus.ERROR],
-      data: { transfer: { id: transferId } },
+      data: { transfer: { id: toString(event.data.resource.id) } },
     },
     include: [
       {
@@ -227,7 +273,9 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
 
     const refundedAmount = event.data.resource.refund_amount;
     const sourceAmount = expense.data.transfer.sourceValue;
-    const relatedTransferTransactions = expense.Transactions.filter(t => t.data?.transfer?.id === transferId);
+    const relatedTransferTransactions = expense.Transactions.filter(t =>
+      wiseIdsEqual(t.data?.transfer?.id, transferId),
+    );
     const hasTransactions = relatedTransferTransactions.some(t => t.kind === TransactionKind.EXPENSE);
 
     if (hasTransactions) {
@@ -262,6 +310,15 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
       if (expense.status !== expenseStatus.ERROR) {
         await expense.setError(expense.lastEditedById);
         await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+
+        // Terminal failure of the payout attempt (the status guard makes redeliveries no-ops)
+        recordPaymentOutcome({
+          provider: MetricProvider.WISE,
+          flow: MetricFlow.PAYOUT,
+          method: expense.PayoutMethod?.type ?? PayoutMethodTypes.BANK_ACCOUNT,
+          outcome: MetricEvent.FAILED,
+          errorType: ErrorType.FUNDS_REFUNDED,
+        });
       }
     } else {
       if (refundedAmount < sourceAmount) {
@@ -289,6 +346,15 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
         if (expense.status !== expenseStatus.ERROR) {
           await expense.setError(expense.lastEditedById);
           await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+
+          // Terminal failure of the payout attempt (the status guard makes redeliveries no-ops)
+          recordPaymentOutcome({
+            provider: MetricProvider.WISE,
+            flow: MetricFlow.PAYOUT,
+            method: expense.PayoutMethod?.type ?? PayoutMethodTypes.BANK_ACCOUNT,
+            outcome: MetricEvent.FAILED,
+            errorType: ErrorType.FUNDS_REFUNDED,
+          });
         }
       } else {
         logger.verbose('Wise: Expense was never marked as Paid, marking it as error', event);
@@ -296,6 +362,15 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
         if (expense.status !== expenseStatus.ERROR) {
           await expense.setError(expense.lastEditedById);
           await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
+
+          // Terminal failure of the payout attempt (the status guard makes redeliveries no-ops)
+          recordPaymentOutcome({
+            provider: MetricProvider.WISE,
+            flow: MetricFlow.PAYOUT,
+            method: expense.PayoutMethod?.type ?? PayoutMethodTypes.BANK_ACCOUNT,
+            outcome: MetricEvent.FAILED,
+            errorType: ErrorType.FUNDS_REFUNDED,
+          });
         }
       }
     }

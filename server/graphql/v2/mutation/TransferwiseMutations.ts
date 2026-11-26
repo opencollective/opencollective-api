@@ -54,7 +54,7 @@ export const transferwiseMutations = {
       }
 
       // We call it here to avoid calling it again in the callback resolver.
-      await TwoFactorAuthLib.enforceForAccount(req, collective);
+      await TwoFactorAuthLib.enforceForAccount(req, collective, { alwaysAskForToken: true });
 
       return transferwise.oauth.redirectUrl(req.remoteUser, collective.id, { redirect: args.redirect });
     },

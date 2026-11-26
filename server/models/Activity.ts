@@ -27,6 +27,7 @@ class Activity extends ModelWithPublicId<
 
   declare public readonly id: CreationOptional<number>;
   declare public type: ActivityTypes;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Activity.data is a free-form JSONB payload deep-read across activity dispatch, email templates and GraphQL resolvers; narrowing it would cascade errors without a full payload schema
   declare public data: CreationOptional<Record<string, any> & { notify?: boolean }>;
   declare public CollectiveId: CreationOptional<number>;
   declare public Collective?: NonAttribute<Collective>;

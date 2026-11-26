@@ -21,9 +21,7 @@ import Tier from './Tier';
 import User from './User';
 
 const invalidateContributorsCacheUsingInstance = instance => {
-  if (instance.role !== roles.FOLLOWER) {
-    invalidateContributorsCache(instance.CollectiveId);
-  }
+  invalidateContributorsCache(instance.CollectiveId);
   return null;
 };
 

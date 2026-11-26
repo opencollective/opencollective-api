@@ -4,7 +4,7 @@ import { isEmail } from 'validator';
 
 import { roles } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
+import { MemberRolesForPrivateAccounts } from '../../constants/roles';
 import { fetchCollectiveId } from '../../lib/cache';
 import logger from '../../lib/logger';
 import { getConsolidatedInvoicesData } from '../../lib/pdf';
@@ -12,6 +12,7 @@ import { assertCanSeeAccount } from '../../lib/private-accounts';
 import rawQueries from '../../lib/queries';
 import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/sql-search';
 import models, { Op, sequelize } from '../../models';
+import { isRemoteUserRoot } from '../common/scope-check';
 import { NotFound, Unauthorized } from '../errors';
 
 import { CollectiveInterfaceType, CollectiveSearchResultsType, TypeOfCollectiveType } from './CollectiveInterface';
@@ -58,8 +59,17 @@ const queries = {
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
-    resolve(_, args) {
-      return models.Tier.findByPk(args.id);
+    async resolve(_, args, req) {
+      const tier = await models.Tier.findByPk(args.id);
+      if (tier) {
+        const collective = await req.loaders.Collective.byId.load(tier.CollectiveId);
+        if (!collective) {
+          // The tier's collective was deleted: treat the tier as not found
+          return null;
+        }
+        await assertCanSeeAccount(req, collective);
+      }
+      return tier;
     },
   },
 
@@ -125,7 +135,7 @@ const queries = {
       kinds: { type: new GraphQLList(GraphQLString) },
       includeExpenseTransactions: {
         type: GraphQLBoolean,
-        default: true,
+        default: { value: true },
         description: 'If false, only the transactions not linked to an expense (orders/refunds) will be returned',
       },
       includeHostedCollectivesTransactions: {
@@ -158,75 +168,6 @@ const queries = {
         kinds: args.kinds,
         excludePrivateAccounts: true,
       });
-    },
-  },
-
-  /*
-   * Given a Transaction id, returns a transaction details
-   * Still used by the REST API v1 endpoints.
-   */
-  Transaction: {
-    type: TransactionInterfaceType,
-    deprecationReason: '2025-07-10: Please use GraphQL V2',
-    args: {
-      id: {
-        type: GraphQLInt,
-      },
-      uuid: {
-        type: GraphQLString,
-      },
-    },
-    resolve(_, args) {
-      return models.Transaction.findOne({ where: { ...args } });
-    },
-  },
-
-  /*
-   * Still used by "Create Gift Cards" form
-   * Returns all hosts
-   */
-  allHosts: {
-    type: CollectiveSearchResultsType,
-    deprecationReason: '2025-07-10: Please use GraphQL V2',
-    description: 'Returns all public hosts that are open for applications',
-    args: {
-      tags: {
-        type: new GraphQLList(GraphQLString),
-        description: 'Fetch all collectives that match at least one of the tags',
-      },
-      currency: {
-        type: GraphQLString,
-        description: 'Filter hosts by currency',
-      },
-      limit: {
-        defaultValue: 10,
-        type: GraphQLInt,
-      },
-      offset: {
-        defaultValue: 0,
-        type: GraphQLInt,
-      },
-      onlyOpenHosts: {
-        type: GraphQLBoolean,
-        defaultValue: true,
-      },
-      minNbCollectivesHosted: {
-        type: new GraphQLNonNull(GraphQLInt),
-        defaultValue: 0,
-      },
-    },
-    async resolve(_, args) {
-      const { collectives, total } = await rawQueries.getHosts({
-        ...args,
-        orderBy: 'collectives',
-        orderDirection: 'DESC',
-      });
-      return {
-        total,
-        collectives,
-        limit: args.limit,
-        offset: args.offset,
-      };
     },
   },
 
@@ -284,13 +225,48 @@ const queries = {
         where.HostCollectiveId = args.MemberCollectiveId;
       }
 
+      // Preload which private collectives the current user is allowed to see. This mirrors the
+      // logic used in the GraphQL V2 `HasMembers` interface: root users see everything, users
+      // with an ADMIN/ACCOUNTANT role see the related private collectives, everyone else only
+      // sees public collectives.
+      const canSeeAllPrivateCollectives = isRemoteUserRoot(req);
+      const privateCollectiveAccessIds =
+        req.remoteUser && !canSeeAllPrivateCollectives
+          ? Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts))
+          : [];
+
+      // Builds a fresh set of Sequelize conditions restricting private collectives visibility.
+      const getPrivateCollectiveConditions = () => {
+        const conditions = { isPrivate: false };
+        if (canSeeAllPrivateCollectives) {
+          delete conditions.isPrivate;
+        } else if (privateCollectiveAccessIds.length > 0) {
+          delete conditions.isPrivate;
+          conditions[Op.or] = [
+            { isPrivate: false },
+            { id: privateCollectiveAccessIds }, // User is an admin or accountant of the collective
+            { ParentCollectiveId: privateCollectiveAccessIds }, // ...of the collective's parent (events/projects)
+            { HostCollectiveId: privateCollectiveAccessIds }, // ...of the collective's fiscal host
+          ];
+        }
+        return conditions;
+      };
+
       if (['totalDonations', 'balance'].indexOf(args.orderBy) !== -1) {
-        const queryName = args.orderBy === 'totalDonations' ? 'getMembersWithTotalDonations' : 'getMembersWithBalance';
+        // Do not break reference to query object
+        const query =
+          args.orderBy === 'totalDonations'
+            ? rawQueries.getMembersWithTotalDonations
+            : rawQueries.getMembersWithBalance;
         const tiersById = {};
 
-        const options = args.isActive ? { ...args, limit: args.limit * 2 } : args;
+        const options = {
+          ...(args.isActive ? { ...args, limit: args.limit * 2 } : args),
+          canSeeAllPrivateCollectives,
+          privateCollectiveAccessIds,
+        };
 
-        let results = await rawQueries[queryName](where, options);
+        let results = await query(where, options);
 
         if (args.isActive) {
           const TierIds = uniq(results.map(r => r.dataValues.TierId));
@@ -325,25 +301,34 @@ const queries = {
           }),
         );
       } else {
-        const query = { where, include: [] };
+        const includes = {
+          collective: {
+            model: models.Collective,
+            as: 'collective',
+            required: true,
+            where: getPrivateCollectiveConditions(),
+          },
+          memberCollective: {
+            model: models.Collective,
+            as: 'memberCollective',
+            required: true,
+            where: getPrivateCollectiveConditions(),
+          },
+        };
+        const query = { where };
         if (args.TierId) {
           query.where.TierId = args.TierId;
         }
 
         // If we request the data of the member, we do a JOIN query
         // that allows us to sort by Member.member.name
-        const memberCond = {};
+        const memberCond = getPrivateCollectiveConditions();
         if (req.body.query.match(/ member ?\{/) || args.type) {
           if (args.type) {
             const types = args.type.split(',');
             memberCond.type = { [Op.in]: types };
           }
-          query.include.push({
-            model: models.Collective,
-            as: memberTable,
-            required: true,
-            where: memberCond,
-          });
+          includes[memberTable].where = memberCond;
           query.order = [[sequelize.literal(`"${memberTable}".name`), 'ASC']];
         }
         if (args.limit) {
@@ -368,6 +353,7 @@ const queries = {
 
         query.where[attr] = { [Op.in]: collectiveIds };
         query.where.role = { [Op.ne]: 'HOST' };
+        query.include = Object.values(includes);
         const members = await models.Member.findAll(query);
 
         // also fetch the list of collectives that are members of the host
@@ -377,13 +363,10 @@ const queries = {
             role: 'HOST',
           };
           query.order = [[sequelize.literal('collective.name'), 'ASC']];
-          query.include = [
-            {
-              model: models.Collective,
-              as: 'collective',
-              required: true,
-            },
-          ];
+          // Only join the hosted `collective` here (the `memberCollective` is always the host
+          // itself). We still apply the private-collective conditions so private hosted
+          // collectives stay hidden from unauthorized users.
+          query.include = [includes.collective];
           const hostedMembers = await models.Member.findAll(query);
           await Promise.all(
             hostedMembers.map(m => {
@@ -403,15 +386,14 @@ const queries = {
   },
 
   /*
-   * Given a prepaid code, return validity and amount
-   * Still used by the "Update Payment Method" page + redeemed gift card page.
+   * Given an id, return a payment method
+   * Still used by the "Update Payment Method" page.
    */
   PaymentMethod: {
     type: PaymentMethodType,
     deprecationReason: '2025-07-10: Please use GraphQL V2',
     args: {
       id: { type: GraphQLInt },
-      code: { type: GraphQLString },
     },
     async resolve(_, args, req) {
       if (args.id) {
@@ -424,23 +406,8 @@ const queries = {
         } else {
           return paymentMethod;
         }
-      } else if (args.code) {
-        const redeemCodeRegex = /^[a-zA-Z0-9]{8}$/;
-        if (!redeemCodeRegex.test(args.code)) {
-          throw Error(`Code "${args.code}" has invalid format`);
-        }
-
-        return models.PaymentMethod.findOne({
-          where: sequelize.and(
-            sequelize.where(sequelize.cast(sequelize.col('uuid'), 'text'), {
-              [Op.like]: `${args.code}%`,
-            }),
-            { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE },
-            { type: PAYMENT_METHOD_TYPE.GIFTCARD },
-          ),
-        });
       } else {
-        return new Error('Please provide an id or a code.');
+        return new Error('Please provide an id.');
       }
     },
   },
@@ -527,7 +494,7 @@ const queries = {
         includeAllVendors,
       } = args;
 
-      if (includeAllVendors && !req.remoteUser?.isRoot()) {
+      if (includeAllVendors && !isRemoteUserRoot(req)) {
         throw new Unauthorized('You must be root to include all vendors');
       }
 

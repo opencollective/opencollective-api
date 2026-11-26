@@ -15,24 +15,29 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { groupBy, isNil, pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
-import { CollectiveType } from '../../../constants/collectives';
+import ActivityTypes from '../../../constants/activities';
 import { Service } from '../../../constants/connected-account';
 import expenseStatus from '../../../constants/expense-status';
 import logger from '../../../lib/logger';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import RateLimit from '../../../lib/rate-limit';
+import { reportErrorToSentry } from '../../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import ExpenseModel, { ExpenseLockableFields } from '../../../models/Expense';
+import { checkIsValidBalanceAccountingCategory } from '../../common/balance-accounting-categories';
 import { createComment } from '../../common/comment';
 import {
   approveExpense,
   canDeleteExpense,
+  canEditExpenseAccountingCategory,
   canEditPaidBy,
   canPayExpense,
   canVerifyDraftExpense,
+  checkCanCreateExpenseForCollective,
+  checkCanReceiveExpense,
   checkExpenseType,
   createExpense,
   declineInvitedExpense,
@@ -40,6 +45,7 @@ import {
   editExpense,
   editExpenseDraft,
   holdExpense,
+  isDraftPayee,
   markAsPaidWithStripe,
   markExpenseAsIncomplete,
   markExpenseAsSpam,
@@ -66,7 +72,10 @@ import { GraphQLExpenseProcessAction } from '../enum/ExpenseProcessAction';
 import { GraphQLFeesPayer } from '../enum/FeesPayer';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { fetchAccountingCategoryWithReference } from '../input/AccountingCategoryInput';
+import {
+  fetchAccountingCategoryWithReference,
+  GraphQLAccountingCategoryReferenceInput,
+} from '../input/AccountingCategoryInput';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLExpenseCreateInput } from '../input/ExpenseCreateInput';
 import { GraphQLExpenseInviteDraftInput } from '../input/ExpenseInviteDraftInput';
@@ -123,6 +132,11 @@ const expenseMutations = {
         type: GraphQLTransactionsImportRowReferenceInput,
         description: 'If the expense was imported, this is the reference to the row',
       },
+      balanceAccountingCategory: {
+        type: GraphQLAccountingCategoryReferenceInput,
+        description:
+          'Balance/clearing accounting category to record the expense against. Host admins only; defaults to the matched bank account category when created from an import row',
+      },
       privateComment: {
         type: GraphQLString,
         description: 'A optional private comment to add to the created expense',
@@ -144,44 +158,44 @@ const expenseMutations = {
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
       // here and cleaned.
-      const expense = await createExpense(
-        req,
-        {
-          ...pick(args.expense, [
-            'description',
-            'longDescription',
-            'tags',
-            'type',
-            'privateMessage',
-            'attachedFiles',
-            'invoiceFile',
-            'invoiceInfo',
-            'payeeLocation',
-            'currency',
-            'items',
-            'tax',
-            'customData',
-            'reference',
-          ]),
-          payoutMethod,
-          collective,
-          fromCollective,
-          accountingCategory:
-            args.expense.accountingCategory &&
-            (await fetchAccountingCategoryWithReference(args.expense.accountingCategory, {
-              throwIfMissing: true,
-              loaders: req.loaders,
-            })),
-          transactionsImportRow:
-            args.transactionsImportRow &&
-            (await fetchTransactionsImportRowWithReference(args.transactionsImportRow, {
-              throwIfMissing: true,
-            })),
-        },
-        {
-          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
-        },
-      );
+      const expense = await createExpense(req, {
+        ...pick(args.expense, [
+          'description',
+          'longDescription',
+          'tags',
+          'type',
+          'privateMessage',
+          'attachedFiles',
+          'invoiceFile',
+          'invoiceInfo',
+          'payeeLocation',
+          'currency',
+          'items',
+          'tax',
+          'customData',
+          'reference',
+        ]),
+        payoutMethod,
+        collective,
+        fromCollective,
+        accountingCategory:
+          args.expense.accountingCategory &&
+          (await fetchAccountingCategoryWithReference(args.expense.accountingCategory, {
+            throwIfMissing: true,
+            loaders: req.loaders,
+          })),
+        transactionsImportRow:
+          args.transactionsImportRow &&
+          (await fetchTransactionsImportRowWithReference(args.transactionsImportRow, {
+            throwIfMissing: true,
+          })),
+        balanceAccountingCategory:
+          args.balanceAccountingCategory &&
+          (await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
+            throwIfMissing: true,
+            loaders: req.loaders,
+          })),
+      });
 
       if (args.recurring) {
         await models.RecurringExpense.createFromExpense(expense, args.recurring.interval, args.recurring.endsAt);
@@ -308,33 +322,26 @@ const expenseMutations = {
             }),
       };
 
-      const userIsOriginalPayee = originalPayee && req.remoteUser?.isAdminOfCollective(originalPayee);
       const userIsAuthor = req.remoteUser?.id === existingExpense.UserId;
+      const userIsOriginalPayee = originalPayee
+        ? req.remoteUser?.isAdminOfCollective(originalPayee)
+        : !userIsAuthor && (await isDraftPayee(req, existingExpense));
       const isRecurring = Boolean(existingExpense.RecurringExpenseId);
       // Draft can be edited by the author of the expense if the expense is not recurring
       if (
         (existingExpense.status === expenseStatus.DRAFT && !userIsOriginalPayee && userIsAuthor && !isRecurring) ||
         (existingExpense.status === expenseStatus.DRAFT && userIsAuthor && isRecurring && args.isDraftEdit)
       ) {
-        return editExpenseDraft(req, expenseData, args, {
-          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
-        });
+        return editExpenseDraft(req, expenseData, args);
       }
-      // Draft can be submitted by: new user with draft-key, payee of the original expense or author of the original expense (in the case of Recurring Expense draft)
+      // Draft can be submitted with a draft key, by the invited account/email, or by the author of a recurring draft.
       else if (
         existingExpense.status === expenseStatus.DRAFT &&
         (args.draftKey || userIsOriginalPayee || (userIsAuthor && isRecurring))
       ) {
-        return submitExpenseDraft(req, expenseData, {
-          args,
-          requestedPayee,
-          originalPayee,
-          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
-        });
+        return submitExpenseDraft(req, expenseData, { args, requestedPayee, originalPayee });
       } else {
-        return editExpense(req, expenseData, {
-          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
-        });
+        return editExpense(req, expenseData);
       }
     },
   },
@@ -393,6 +400,46 @@ const expenseMutations = {
     },
   },
 
+  updateExpenseBalanceAccountingCategory: {
+    type: new GraphQLNonNull(GraphQLExpense),
+    description: 'Update the balance/clearing accounting category of an expense. Scope: "expenses".',
+    args: {
+      expense: {
+        type: new GraphQLNonNull(GraphQLExpenseReferenceInput),
+        description: 'Reference to the expense to update',
+      },
+      accountingCategory: {
+        type: GraphQLAccountingCategoryReferenceInput,
+        description: 'The balance/clearing accounting category to set. Pass null to unset.',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
+      checkRemoteUserCanUseExpenses(req);
+
+      const expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
+      expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+      if (!(await canEditExpenseAccountingCategory(req, expense, { throw: true }))) {
+        throw new Forbidden("You don't have permission to edit the accounting category for this expense");
+      }
+
+      const hostId = expense.HostCollectiveId || expense.collective.HostCollectiveId;
+      const host = hostId && (await req.loaders.Collective.byId.load(hostId));
+      if (!host || !req.remoteUser.isAdmin(host.id)) {
+        throw new Forbidden('Only host admins can update the balance accounting category of an expense');
+      }
+
+      let accountingCategory = null;
+      if (args.accountingCategory) {
+        accountingCategory = await fetchAccountingCategoryWithReference(args.accountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        });
+        checkIsValidBalanceAccountingCategory(accountingCategory, host);
+      }
+
+      return expense.update({ BalanceAccountingCategoryId: accountingCategory?.id || null });
+    },
+  },
   deleteExpense: {
     type: new GraphQLNonNull(GraphQLExpense),
     description: `Delete an expense. Only work if the expense is rejected - please check permissions.canDelete. Scope: "expenses".`,
@@ -426,8 +473,18 @@ const expenseMutations = {
       const accountsFor2FA = [expense.fromCollective, expense.collective, expense.collective.host].filter(Boolean);
       await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
 
+      // Load items before deleting: they get soft-deleted in `afterDestroy`, and we want them in the activity
+      expense.items = await expense.getItems();
+
       // Associations are deleted/updated in `afterDestroy`
       await expense.destroy();
+
+      // Keep a trace of who deleted the expense
+      await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_DELETED, req.remoteUser).catch(e => {
+        logger.error('An error happened when creating the COLLECTIVE_EXPENSE_DELETED activity', e);
+        reportErrorToSentry(e, { req });
+      });
+
       return expense;
     },
   },
@@ -514,6 +571,10 @@ const expenseMutations = {
               type: GraphQLPaymentMethodService,
               description: 'Payment method using for paying the expense',
             },
+            balanceAccountingCategory: {
+              type: GraphQLAccountingCategoryReferenceInput,
+              description: 'The balance/clearing accounting category the funds were paid from (for manual payments)',
+            },
             clearedAt: {
               type: GraphQLDateTime,
               description:
@@ -580,6 +641,7 @@ const expenseMutations = {
             forceManual: args.paymentParams?.forceManual,
             feesPayer: args.paymentParams?.feesPayer,
             paymentMethodService: args.paymentParams?.paymentMethodService,
+            balanceAccountingCategory: args.paymentParams?.balanceAccountingCategory,
             paymentProcessorFeeInHostCurrency: args.paymentParams?.paymentProcessorFeeInHostCurrency,
             totalAmountPaidInHostCurrency: args.paymentParams?.totalAmountPaidInHostCurrency,
             transferDetails: args.paymentParams?.transfer?.details,
@@ -665,18 +727,8 @@ const expenseMutations = {
         ],
       });
 
-      const isAllowedType = [
-        CollectiveType.COLLECTIVE,
-        CollectiveType.EVENT,
-        CollectiveType.FUND,
-        CollectiveType.PROJECT,
-      ].includes(collective.type);
-      const isActiveHost = collective.type === CollectiveType.ORGANIZATION && collective.isActive;
-      if (!isAllowedType && !isActiveHost) {
-        throw new ValidationFailed(
-          'Expenses can only be submitted to Collectives, Events, Funds, Projects and active Hosts.',
-        );
-      }
+      checkCanReceiveExpense(collective);
+      checkCanCreateExpenseForCollective(collective, req);
 
       const collectiveWithAccounts = await models.Collective.findByPk(collective.id, {
         include: [
@@ -760,7 +812,6 @@ const expenseMutations = {
           reference: expenseData.reference,
           notify: !args.skipInvite,
           lockedFields: args.lockedFields,
-          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true' ? true : undefined,
         },
       });
 

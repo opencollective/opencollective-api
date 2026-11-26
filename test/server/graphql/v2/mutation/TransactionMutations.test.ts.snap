@@ -48,18 +48,28 @@ exports[`refundTransaction legacy tests Stripe Transaction - for hosts created b
 | CREDIT | CONTRIBUTION            | true     | Phil Mod       | Scouts d'Arlon | 467500  | 0          | 25000       | 7500  | 500000                        |"
 `;
 
-exports[`refundTransaction legacy tests should create negative transactions with all the fees refunded 1`] = `
+exports[`server/graphql/v2/mutation/TransactionMutations refundTransaction regression: refunds a cross-host contribution with platform tip, platform tip debt, host fee and payment processor fee transactions 1`] = `
 "
-| type   | kind                    | isRefund | To             | From           | amount  | paymentFee | platformFee | tax   | netAmountInCollectiveCurrency |
-| ------ | ----------------------- | -------- | -------------- | -------------- | ------- | ---------- | ----------- | ----- | ----------------------------- |
-| DEBIT  | HOST_FEE                | false    | Scouts d'Arlon | WWCode         | -50000  | 0          | 0           |       | -50000                        |
-| CREDIT | HOST_FEE                | false    | WWCode         | Scouts d'Arlon | 50000   | 0          | 0           |       | 50000                         |
-| DEBIT  | CONTRIBUTION            | false    | Phil Mod       | Scouts d'Arlon | -450000 | -17500     | -25000      | -7500 | -500000                       |
-| CREDIT | CONTRIBUTION            | false    | Scouts d'Arlon | Phil Mod       | 500000  | -17500     | -25000      | -7500 | 450000                        |
-| DEBIT  | PAYMENT_PROCESSOR_COVER | true     | WWCode         | Scouts d'Arlon | -17500  | 0          | 0           |       | -17500                        |
-| CREDIT | PAYMENT_PROCESSOR_COVER | true     | Scouts d'Arlon | WWCode         | 17500   | 0          | 0           |       | 17500                         |
-| DEBIT  | HOST_FEE                | true     | WWCode         | Scouts d'Arlon | -50000  | 0          | 0           | 0     | -50000                        |
-| CREDIT | HOST_FEE                | true     | Scouts d'Arlon | WWCode         | 50000   | 0          | 0           | 0     | 50000                         |
-| DEBIT  | CONTRIBUTION            | true     | Scouts d'Arlon | Phil Mod       | -500000 | 0          | 25000       | 7500  | -467500                       |
-| CREDIT | CONTRIBUTION            | true     | Phil Mod       | Scouts d'Arlon | 467500  | 0          | 25000       | 7500  | 500000                        |"
+| type   | kind                    | isRefund | To          | From        | amount  | paymentFee | platformFee | tax | netAmountInCollectiveCurrency |
+| ------ | ----------------------- | -------- | ----------- | ----------- | ------- | ---------- | ----------- | --- | ----------------------------- |
+| DEBIT  | PLATFORM_TIP            | false    | Contributor | OFiCo       | -10000  | 0          | 0           |     | -10000                        |
+| CREDIT | PLATFORM_TIP            | false    | OFiCo       | Contributor | 10000   | 0          | 0           |     | 10000                         |
+| DEBIT  | PLATFORM_TIP_DEBT       | false    | OFiCo       | OSE         | -10000  | 0          | 0           |     | -10000                        |
+| CREDIT | PLATFORM_TIP_DEBT       | false    | OSE         | OFiCo       | 10000   | 0          | 0           |     | 10000                         |
+| DEBIT  | HOST_FEE                | false    | Collective  | OSE         | -8000   | 0          | 0           |     | -8000                         |
+| CREDIT | HOST_FEE                | false    | OSE         | Collective  | 8000    | 0          | 0           |     | 8000                          |
+| DEBIT  | PAYMENT_PROCESSOR_FEE   | false    | Collective  | Stripe      | -3600   | 0          | 0           |     | -3600                         |
+| CREDIT | PAYMENT_PROCESSOR_FEE   | false    | Stripe      | Collective  | 3600    | 0          | 0           |     | 3600                          |
+| DEBIT  | CONTRIBUTION            | false    | Contributor | Collective  | -100000 | 0          | 0           |     | -100000                       |
+| CREDIT | CONTRIBUTION            | false    | Collective  | Contributor | 100000  | 0          | 0           |     | 100000                        |
+| DEBIT  | PLATFORM_TIP            | true     | OFiCo       | Contributor | -10000  | 0          | 0           | 0   | -10000                        |
+| CREDIT | PLATFORM_TIP            | true     | Contributor | OFiCo       | 10000   | 0          | 0           | 0   | 10000                         |
+| DEBIT  | PLATFORM_TIP_DEBT       | true     | OSE         | OFiCo       | -10000  | 0          | 0           | 0   | -10000                        |
+| CREDIT | PLATFORM_TIP_DEBT       | true     | OFiCo       | OSE         | 10000   | 0          | 0           | 0   | 10000                         |
+| DEBIT  | PAYMENT_PROCESSOR_COVER | true     | OSE         | Collective  | -3600   | 0          | 0           |     | -3600                         |
+| CREDIT | PAYMENT_PROCESSOR_COVER | true     | Collective  | OSE         | 3600    | 0          | 0           |     | 3600                          |
+| DEBIT  | HOST_FEE                | true     | OSE         | Collective  | -8000   | 0          | 0           | 0   | -8000                         |
+| CREDIT | HOST_FEE                | true     | Collective  | OSE         | 8000    | 0          | 0           | 0   | 8000                          |
+| DEBIT  | CONTRIBUTION            | true     | Collective  | Contributor | -100000 | 0          | 0           | 0   | -100000                       |
+| CREDIT | CONTRIBUTION            | true     | Contributor | Collective  | 100000  | 0          | 0           | 0   | 100000                        |"
 `;

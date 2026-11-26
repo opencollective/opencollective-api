@@ -1,6 +1,7 @@
 import assert from 'assert';
 
 import config from 'config';
+import cryptoRandomString from 'crypto-random-string';
 import debugLib from 'debug';
 import * as ics from 'ics';
 import slugify from 'limax';
@@ -32,6 +33,7 @@ import pMap from 'p-map';
 import {
   Attributes,
   CreationOptional,
+  FindAttributeOptions,
   FindOptions,
   HasManyCountAssociationsMixin,
   HasManyCreateAssociationMixin,
@@ -40,25 +42,26 @@ import {
   InferAttributes,
   InferCreationAttributes,
   NonAttribute,
+  ProjectionAlias,
   WhereOptions,
 } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
 import validator from 'validator';
 
 import activities from '../constants/activities';
-import { CollectiveType, CollectiveTypesList } from '../constants/collectives';
+import { CollectiveType, CollectiveTypesList, PLACEHOLDER_USER_NAME } from '../constants/collectives';
 import { Service } from '../constants/connected-account';
 import { SupportedCurrency } from '../constants/currencies';
 import expenseStatus from '../constants/expense-status';
 import expenseTypes from '../constants/expense-type';
-import FEATURE from '../constants/feature';
+import FEATURE, { NEW_PLATFORM_TIPS_LEDGER_FLAG } from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans, { HostPlan, PlatformSubscriptionTiers } from '../constants/plans';
 import PlatformConstants from '../constants/platform';
 import POLICIES, { DEFAULT_POLICIES, Policies, UseVendorPolicyValue } from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
+import type { VirtualCardLimitIntervals } from '../constants/virtual-cards';
 import {
   getBalanceAmount,
   getBalanceTimeSeries,
@@ -67,6 +70,7 @@ import {
   getTotalAmountReceivedAmount,
   getTotalAmountReceivedTimeSeries,
   getTotalAmountSpentAmount,
+  getTotalAmountSpentTimeSeries,
   getTotalMoneyManagedAmount,
   getYearlyBudgetAmount,
 } from '../lib/budget';
@@ -89,13 +93,13 @@ import { isValidUploadedImage } from '../lib/images';
 import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
 import { normalizeZoneCode } from '../lib/normalize-zone';
-import { openSearchFullAccountReIndex } from '../lib/open-search/sync-postgres';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { getPolicy, POLICIES_EDITABLE_BY_HOST_ONLY } from '../lib/policies';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, optsSanitizeHtmlForSimplified, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, Sequelize, Transaction as SequelizeTransaction } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, SpamAnalysisReport } from '../lib/spam';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { isValidURL, prependHttp } from '../lib/url-utils';
@@ -160,9 +164,11 @@ type Settings = {
   // @deprecated Use `data.features` instead
   features?: {
     contactForm?: boolean;
+    conversations?: boolean;
     paypalDonations?: boolean;
     paypalPayouts?: boolean;
     stripePaymentIntent?: boolean;
+    publicProfile?: boolean;
   };
   transferwise?: {
     ignorePaymentProcessorFees?: boolean;
@@ -177,6 +183,8 @@ type Settings = {
       period: number;
     };
     requestcard?: boolean;
+    /** Spending limit intervals (`VirtualCardLimitIntervals`) that collectives can pick when requesting a card. All allowed by default. */
+    allowedSpendingLimitIntervals?: Partial<Record<VirtualCardLimitIntervals, boolean>>;
   };
   payoutsTwoFactorAuth?: {
     enabled?: boolean;
@@ -189,6 +197,10 @@ type Settings = {
   apply?: boolean;
   applyMessage?: string;
   tos?: string;
+  hostApplication?: {
+    /** Whether the eligibility rules block applicants from submitting (defaults to true) */
+    blockOnErrors?: boolean;
+  };
   expenseTypes?: Partial<Record<ExpenseType, boolean>>;
   disabledTierTypes?: string[];
   /** Set when the account was automatically migrated to the new platform subscription pricing. */
@@ -228,6 +240,9 @@ type Data = Partial<{
   canBeUsedWithAccountIds?: number[];
   useVendorPolicy?: UseVendorPolicyValue;
   requiresProfileCompletion: boolean;
+  isBlockedForUnpaidPlatformBilling?: boolean;
+  isUSEntity?: boolean;
+  taxableCountry?: string;
 }> &
   Record<string, unknown>;
 
@@ -384,24 +399,6 @@ class Collective extends ModelWithPublicId<
   declare public parent?: NonAttribute<Collective>;
   declare public children?: NonAttribute<Collective[]>;
 
-  static async createOrganization(collectiveData, adminUser, creator) {
-    const CreatedByUserId = creator?.id || adminUser.id;
-    const collective = await Collective.create({
-      CreatedByUserId,
-      ...collectiveData,
-      type: CollectiveType.ORGANIZATION,
-      isActive: true,
-    });
-    await Member.create({
-      CreatedByUserId,
-      CollectiveId: collective.id,
-      MemberCollectiveId: adminUser.CollectiveId,
-      role: roles.ADMIN,
-    });
-    await collective.generateCollectiveCreatedActivity(creator || adminUser, null, { collective: collective.info });
-    return collective;
-  }
-
   static createMany = (collectives, defaultValues, sequelizeParams) => {
     return pMap(collectives, u => Collective.create(defaults({}, u, defaultValues), sequelizeParams), {
       concurrency: 1,
@@ -409,15 +406,6 @@ class Collective extends ModelWithPublicId<
       logger.error(error);
       reportErrorToSentry(error);
     });
-  };
-
-  static getTopBackers = async (since, until, tags, limit) => {
-    const backers = await queries.getTopBackers(since || 0, until || new Date(), tags, limit || 5);
-    debug(
-      'getTopBackers',
-      backers.map(b => b.dataValues),
-    );
-    return backers;
   };
 
   static getHostCollectiveId = async CollectiveId => {
@@ -432,7 +420,10 @@ class Collective extends ModelWithPublicId<
    * Generates a unique slug based on the provided base, appending a random suffix if needed.
    * E.g. "Hello World" -> "hello-world". If taken: "hello-world-agb5d6".
    */
-  static generateSlug = async (nameOrSlug: string): Promise<string> => {
+  static generateSlug = async (
+    nameOrSlug: string,
+    { transaction }: { transaction?: SequelizeTransaction } = {},
+  ): Promise<string> => {
     const getRandomHash = () => uuid().split('-')[0];
     const generateRandomSlug = () => `user-${getRandomHash()}`;
     if (!nameOrSlug) {
@@ -450,6 +441,7 @@ class Collective extends ModelWithPublicId<
       attributes: ['id'],
       where: { slug: baseSlug },
       paranoid: false,
+      transaction,
     });
 
     if (!slugExists) {
@@ -474,6 +466,16 @@ class Collective extends ModelWithPublicId<
     });
   };
 
+  static generatePrivateSlug = async ({ transaction }: { transaction: SequelizeTransaction }) => {
+    let exists = true;
+    let slug: string;
+    while (exists) {
+      slug = cryptoRandomString({ length: 16, type: 'alphanumeric' });
+      exists = (await Collective.findOne({ where: { slug }, paranoid: false, transaction })) !== null;
+    }
+    return slug;
+  };
+
   get previewImage() {
     if (!this.image) {
       return null;
@@ -492,19 +494,18 @@ class Collective extends ModelWithPublicId<
       currency: this.currency,
       image: this.image,
       previewImage: this.previewImage,
-      data: this.data,
       backgroundImage: this.backgroundImage,
       startsAt: this.startsAt,
       endsAt: this.endsAt,
       timezone: this.timezone,
-      status: (this as any).status,
+      status: (this as unknown as { status?: unknown }).status,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       isActive: this.isActive,
       hasMoneyManagement: this.hasMoneyManagement,
       hasHosting: this.hasHosting,
       slug: this.slug,
-      tiers: (this as any).tiers,
+      tiers: this.tiers,
       type: this.type,
       settings: this.settings,
       website: this.website,
@@ -862,7 +863,7 @@ class Collective extends ModelWithPublicId<
     }
 
     if (this.type === 'USER') {
-      if (user && user.email && this.name && this.name !== 'incognito') {
+      if (user && user.email && this.name && !['incognito', PLACEHOLDER_USER_NAME].includes(this.name)) {
         const emailHash = md5(user.email.toLowerCase().trim());
         const avatar = `https://www.gravatar.com/avatar/${emailHash}?default=404`;
         return this.checkAndUpdateImage(avatar, force);
@@ -920,7 +921,7 @@ class Collective extends ModelWithPublicId<
         return existingProfile;
       }
 
-      const user = await this.getUser({ transaction }); // Ideally we should store the user that created the profile (can be a root admin), but User.getIncognitoProfile relies on this
+      const user = await this.getUser({ transaction });
       const account = await Collective.create(
         {
           name: 'Incognito',
@@ -1142,7 +1143,8 @@ class Collective extends ModelWithPublicId<
       // Cancel the platform subscription if it exists
       const currentSubscription = await PlatformSubscription.getCurrentSubscription(this.id, { transaction });
       if (currentSubscription) {
-        // Inclusive: false in case they start a new subscription on the same day. This also means we won't bill for the last day.
+        // The subscription is terminated at the start of the day (we don't bill for the deactivation day),
+        // so that a new one can be created if money management is reactivated the same day.
         await currentSubscription.terminate({ inclusive: false, transaction });
       }
     };
@@ -1364,6 +1366,15 @@ class Collective extends ModelWithPublicId<
   };
 
   /**
+   * Whether this host opted in to the new platform-tips ledger (PLATFORM_TIP credits routed to
+   * the host's own platform-tips account, APPLICATION_FEE pair on the Stripe app-fee path, and
+   * settlement billed directly against the platform-tips account).
+   */
+  hasNewPlatformTipsLedger = function (): boolean {
+    return Boolean(this.settings?.[NEW_PLATFORM_TIPS_LEDGER_FLAG]);
+  };
+
+  /**
    * Activate Budget (so the "Host Organization" can receive financial contributions and manage expenses)
    */
   activateBudget = async function ({ transaction }: { transaction?: SequelizeTransaction } = {}) {
@@ -1468,7 +1479,9 @@ class Collective extends ModelWithPublicId<
    * Returns true if Collective is a host account open to applications.
    */
   canApply = function () {
-    return Boolean(this.hasHosting && !this.isPrivate && this.settings?.apply);
+    return Boolean(
+      this.hasHosting && !this.isPrivate && this.settings?.apply && !this.data?.isBlockedForUnpaidPlatformBilling,
+    );
   };
 
   /**
@@ -1476,21 +1489,6 @@ class Collective extends ModelWithPublicId<
    */
   canBeUsedAsPayoutProfile = function () {
     return !this.isIncognito;
-  };
-
-  /**
-   * Checks if the has been approved by a host.
-   * This function will throw if you try to call it with an event, as you should check the
-   * `isApproved` of the `parentCollective` instead.
-   */
-  isApproved = function () {
-    if (this.type === CollectiveType.EVENT) {
-      throw new Error("isApproved must be called on event's parent collective");
-    } else if (this.id === this.HostCollectiveId) {
-      return true;
-    } else {
-      return Boolean(this.HostCollectiveId && this.isActive && this.approvedAt);
-    }
   };
 
   // This is quite ugly, and only needed for events.
@@ -1553,7 +1551,7 @@ class Collective extends ModelWithPublicId<
     paranoid = true,
     transaction = undefined,
   }: {
-    collectiveAttributes?: any;
+    collectiveAttributes?: FindAttributeOptions;
     paranoid?: boolean;
     transaction?: SequelizeTransaction;
   } = {}): Promise<User[]> {
@@ -1716,7 +1714,7 @@ class Collective extends ModelWithPublicId<
    * @param {*} endDate end of the time period
    */
   getCancelledOrders = async function (startDate = 0, endDate = new Date()) {
-    let orders = <Array<any>>await Order.findAll({
+    let orders = <Array<Order & { totalTransactions?: number }>>await Order.findAll({
       where: {
         CollectiveId: this.id,
       },
@@ -1768,25 +1766,33 @@ class Collective extends ModelWithPublicId<
    * type: COLLECTIVE/USER/ORGANIZATION or an array of types
    * until: date till when to count the number of backers
    */
-  getBackersCount = function (options: any = {}) {
-    const query = <any>{
-      attributes: [[Sequelize.fn('COUNT', Sequelize.fn('DISTINCT', Sequelize.col('FromCollectiveId'))), 'count']],
-      where: {
-        CollectiveId: this.id,
-        FromCollectiveId: { [Op.ne]: this.HostCollectiveId },
-        type: 'CREDIT',
-      },
+  getBackersCount = function (
+    options: {
+      since?: Date | string | number;
+      until?: Date | string | number;
+      type?: string | string[];
+      group?: string;
+    } = {},
+  ) {
+    const where: WhereOptions = {
+      CollectiveId: this.id,
+      FromCollectiveId: { [Op.ne]: this.HostCollectiveId },
+      type: 'CREDIT',
     };
+    const attributes: (string | ProjectionAlias)[] = [
+      [Sequelize.fn('COUNT', Sequelize.fn('DISTINCT', Sequelize.col('FromCollectiveId'))), 'count'],
+    ];
 
     if (options.since) {
-      query.where.createdAt = query.where.createdAt || {};
-      query.where.createdAt[Op.gte] = options.since;
+      where.createdAt = where.createdAt || {};
+      where.createdAt[Op.gte] = options.since;
     }
     if (options.until) {
-      query.where.createdAt = query.where.createdAt || {};
-      query.where.createdAt[Op.lt] = options.until;
+      where.createdAt = where.createdAt || {};
+      where.createdAt[Op.lt] = options.until;
     }
 
+    const query: FindOptions = { attributes, where };
     if (options.type) {
       const types = typeof options.type === 'string' ? [options.type] : options.type;
       query.include = [
@@ -1803,7 +1809,7 @@ class Collective extends ModelWithPublicId<
 
     let method;
     if (options.group) {
-      query.attributes.push('fromCollective.type');
+      attributes.push('fromCollective.type');
       query.include = [
         {
           model: Collective,
@@ -1890,70 +1896,6 @@ class Collective extends ModelWithPublicId<
   };
 
   /**
-   * returns the tiers with their users
-   * e.g. collective.tiers = [
-   *  { name: 'core contributor', users: [ {UserObject} ], range: [], ... },
-   *  { name: 'backer', users: [ {UserObject}, {UserObject} ], range: [], ... }
-   * ]
-   */
-  getTiersWithUsers = async function (
-    options = {
-      active: false,
-      attributes: ['id', 'username', 'image', 'firstDonation', 'lastDonation', 'totalDonations', 'website'],
-    },
-  ) {
-    const tiersById = {};
-
-    // Get the list of tiers for the collective (including deleted ones)
-    const tiers = await Tier.findAll({ where: { CollectiveId: this.id }, paranoid: false });
-    for (const tier of tiers) {
-      tiersById[tier.id] = tier;
-    }
-
-    const backerCollectives = <Array<any>>(
-      await queries.getMembersWithTotalDonations({ CollectiveId: this.id, role: 'BACKER' }, options)
-    );
-
-    // Map the users to their respective tier
-    await Promise.all(
-      backerCollectives.map(backerCollective => {
-        const include = options.active ? [{ model: Subscription, attributes: ['isActive'] }] : [];
-        return Order.findOne({
-          attributes: ['TierId'],
-          where: {
-            FromCollectiveId: backerCollective.id,
-            CollectiveId: this.id,
-            TierId: { [Op.ne]: null },
-          },
-          include,
-        }).then(order => {
-          if (!order) {
-            debug('Collective.getTiersWithUsers: no order for a tier for ', {
-              FromCollectiveId: backerCollective.id,
-              CollectiveId: this.id,
-            });
-            return null;
-          }
-          const TierId = order.TierId;
-          tiersById[TierId] = tiersById[TierId] || order.Tier;
-          if (!tiersById[TierId]) {
-            logger.error(">>> Couldn't find a tier with id", order.TierId, 'collective: ', this.slug);
-            tiersById[TierId] = { dataValues: { users: [] } };
-          }
-          tiersById[TierId].dataValues.users = tiersById[TierId].dataValues.users || [];
-          if (options.active) {
-            backerCollective.isActive = order.Subscription.isActive;
-          }
-          debug('adding to tier', TierId, 'backer: ', backerCollective.dataValues.slug);
-          tiersById[TierId].dataValues.users.push(backerCollective.dataValues);
-        });
-      }),
-    );
-
-    return Object.values(tiersById);
-  };
-
-  /**
    * Get the Tier object of a user
    * @param {*} user
    */
@@ -1982,7 +1924,10 @@ class Collective extends ModelWithPublicId<
     role,
     defaultAttributes: { TierId?: number; CreatedByUserId?: number; description?: string; since?: Date } = {},
     context: {
-      skipActivity?: any;
+      skipActivity?: boolean;
+      /** Do not send the "new member" email. The caller is responsible for calling `sendNewMemberEmail` */
+      skipNewMemberEmail?: boolean;
+      order?: Order;
     } = {},
     transaction = undefined,
   ) {
@@ -2028,7 +1973,7 @@ class Collective extends ModelWithPublicId<
       case roles.MEMBER:
       case roles.ACCOUNTANT:
       case roles.ADMIN: {
-        if (![CollectiveType.FUND, CollectiveType.PROJECT, CollectiveType.EVENT].includes(this.type)) {
+        if (!context?.skipNewMemberEmail) {
           await this.sendNewMemberEmail(user, role, member, sequelizeParams);
         }
 
@@ -2099,7 +2044,11 @@ class Collective extends ModelWithPublicId<
     );
   };
 
-  sendNewMemberEmail = async function (user, role, member, sequelizeParams) {
+  sendNewMemberEmail = async function (user, role, member, sequelizeParams = undefined) {
+    if ([CollectiveType.FUND, CollectiveType.PROJECT, CollectiveType.EVENT].includes(this.type)) {
+      return;
+    }
+
     const remoteUser = await User.findByPk(member.CreatedByUserId, {
       ...sequelizeParams,
       include: [{ model: Collective, as: 'collective' }],
@@ -2267,6 +2216,8 @@ class Collective extends ModelWithPublicId<
 
   /**
    * Similar to `updateHostFeeAsUser`, but doesn't check for permissions.
+   * Passing `undefined` is a no-op. Any other value must be a number between 0 and 100: hosted collectives
+   * are updated in bulk without hooks, so an invalid value here would be cascaded to all of them.
    */
   updateHostFeeAsSystem = async function (
     hostFeePercent: number,
@@ -2275,7 +2226,16 @@ class Collective extends ModelWithPublicId<
       dropCustomHostedCollectivesFees = false,
     }: { transaction?: SequelizeTransaction; dropCustomHostedCollectivesFees?: boolean } = {},
   ): Promise<Collective> {
-    if (typeof hostFeePercent === 'undefined' || hostFeePercent === this.hostFeePercent) {
+    if (typeof hostFeePercent === 'undefined') {
+      return this;
+    } else if (
+      typeof hostFeePercent !== 'number' ||
+      !Number.isFinite(hostFeePercent) ||
+      hostFeePercent < 0 ||
+      hostFeePercent > 100
+    ) {
+      throw new Error(`Invalid host fee percent: ${hostFeePercent}. It must be a number between 0 and 100.`);
+    } else if (hostFeePercent === this.hostFeePercent) {
       return this;
     } else if (
       [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.FUND, CollectiveType.PROJECT].includes(this.type)
@@ -2465,6 +2425,27 @@ class Collective extends ModelWithPublicId<
         await pMap(projects, project => project.setCurrency(currency, { transaction }), { concurrency: 3 });
       }
 
+      // Update internal payment methods (budget & added funds) as they're expected to be in the account currency.
+      // Payment methods that were already used are left untouched to preserve the history.
+      const paymentMethods = await PaymentMethod.findAll({
+        where: {
+          CollectiveId: this.id,
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: [PAYMENT_METHOD_TYPE.COLLECTIVE, PAYMENT_METHOD_TYPE.HOST],
+          currency: { [Op.ne]: currency },
+        },
+        transaction,
+      });
+      for (const paymentMethod of paymentMethods) {
+        const pmTransactionCount = await Transaction.count({
+          where: { PaymentMethodId: paymentMethod.id },
+          transaction,
+        });
+        if (pmTransactionCount === 0) {
+          await paymentMethod.update({ currency }, { transaction });
+        }
+      }
+
       return this.update({ currency }, { transaction });
     };
 
@@ -2492,6 +2473,10 @@ class Collective extends ModelWithPublicId<
 
     if (options?.message && options?.message.length > 3000) {
       throw new Error('The message is too long');
+    }
+
+    if (hostCollective.data?.isBlockedForUnpaidPlatformBilling) {
+      throw new Error('This host is not open to applications');
     }
 
     const member = {
@@ -2621,7 +2606,6 @@ class Collective extends ModelWithPublicId<
             'githubHandle',
             'website',
             'tags',
-            'data',
             'settings',
           ]),
           user: {
@@ -2872,9 +2856,6 @@ class Collective extends ModelWithPublicId<
       });
     }
 
-    // Update search
-    openSearchFullAccountReIndex(this.id);
-
     return this;
   };
 
@@ -2904,7 +2885,7 @@ class Collective extends ModelWithPublicId<
     });
 
     // Load existing data
-    const [oldMembers, oldInvitations] = <[Array<any>, Array<any>]>await Promise.all([
+    const [oldMembers, oldInvitations] = <[Array<Member>, Array<MemberInvitation>]>await Promise.all([
       this.getMembers({ where: { role: { [Op.in]: allowedRoles } } }),
       MemberInvitation.findAll({
         where: { CollectiveId: this.id, role: { [Op.in]: allowedRoles } },
@@ -2913,18 +2894,18 @@ class Collective extends ModelWithPublicId<
 
     // remove the members that are not present anymore
     const { remoteUserCollectiveId } = defaultAttributes;
-    const diff = differenceBy(oldMembers, members, m => m.id);
-    if (diff.length > 0) {
-      const nbAdminsBefore = oldMembers.filter(m => m.role === roles.ADMIN && m.id).length;
-      const nbAdmins = members.filter(m => m.role === roles.ADMIN && m.id).length;
-      if (nbAdminsBefore && !nbAdmins) {
-        throw new Error('There must be at least one admin for the account');
-      }
 
-      debug('editMembers', 'delete', diff);
-      const diffMemberIds = diff.map(m => m.id);
-      await Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diffMemberIds } } });
+    // At least one admin must remain once the edit is applied. Pending invitations don't count,
+    // only existing members and the remote user adding themselves (which creates a membership directly).
+    const nbAdminsBefore = oldMembers.filter(m => m.role === roles.ADMIN).length;
+    const nbAdmins = members.filter(
+      m => m.role === roles.ADMIN && (m.id || (remoteUserCollectiveId && m.member?.id === remoteUserCollectiveId)),
+    ).length;
+    if (nbAdminsBefore && !nbAdmins) {
+      throw new Error('There must be at least one admin for the account');
     }
+
+    const diff: Member[] = differenceBy(oldMembers, members, (m: Member) => m.id);
 
     // Remove the invitations that are not present anymore
     const invitationsDiff = oldInvitations.filter(invitation => {
@@ -2933,75 +2914,100 @@ class Collective extends ModelWithPublicId<
       );
     });
 
-    if (invitationsDiff.length > 0) {
-      await MemberInvitation.update(
-        { deletedAt: new Date() },
-        {
-          where: {
-            id: { [Op.in]: invitationsDiff.map(i => i.id) },
-            CollectiveId: this.id,
-          },
-        },
-      );
-    }
-
-    // Add new members
-    for (const member of members) {
-      const memberAttributes = {
-        ...defaultAttributes,
-        description: member.description,
-        since: member.since,
-        role: member.role,
-      };
-
-      if (member.id) {
-        // Edit an existing membership (edit the role/description)
-        const editableAttributes = pick(member, ['role', 'description', 'since']);
-        debug('editMembers', 'update member', member.id, editableAttributes);
-        await Member.update(editableAttributes, {
-          where: {
-            id: member.id,
-            CollectiveId: this.id,
-            role: { [Op.in]: allowedRoles },
-          },
-        });
-      } else if (remoteUserCollectiveId && member.member?.id === remoteUserCollectiveId) {
-        // When users try to add themselves (ie. when creating a collective) we don't need to send an invitation
-        await Member.create({
-          ...memberAttributes,
-          MemberCollectiveId: member.member.id,
-          CollectiveId: this.id,
-        });
-      } else if (member.member?.id) {
-        // Create new membership invitation
-        await MemberInvitation.invite(this, { ...memberAttributes, MemberCollectiveId: member.member.id });
-      } else if (member.member?.email) {
-        // Add user by email
-        const user = await User.findOne({
-          include: {
-            model: Collective,
-            as: 'collective',
-            where: { type: CollectiveType.USER, isIncognito: false },
-          },
-          where: { email: member.member.email },
-        });
-
-        if (user) {
-          // If user exists for this email, send an invitation
-          await MemberInvitation.invite(this, { ...memberAttributes, MemberCollectiveId: user.collective.id });
-        } else {
-          // Otherwise create and add the user directly
-          const userFields = ['email', 'name', 'company', 'website'];
-          const user = await User.createUserWithCollective(pick(member.member, userFields));
-          await this.addUserWithRole(user, member.role, {
-            ...memberAttributes,
-            MemberCollectiveId: user.collective.id,
-          });
-        }
-      } else {
-        throw new Error('Invited member collective has not been set');
+    // Run all the writes in one transaction, so that an error (e.g. a failed invitation) does not leave
+    // members or invitations removed. "New member" emails are only sent once the transaction is committed.
+    const newMemberEmails: Array<{ user: User; role: string; member: Member }> = [];
+    await sequelize.transaction(async transaction => {
+      if (diff.length > 0) {
+        debug('editMembers', 'delete', diff);
+        const diffMemberIds = diff.map(m => m.id);
+        await Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diffMemberIds } }, transaction });
       }
-    }
+
+      if (invitationsDiff.length > 0) {
+        await MemberInvitation.update(
+          { deletedAt: new Date() },
+          {
+            where: {
+              id: { [Op.in]: invitationsDiff.map(i => i.id) },
+              CollectiveId: this.id,
+            },
+            transaction,
+          },
+        );
+      }
+
+      // Add new members
+      for (const member of members) {
+        const memberAttributes = {
+          ...defaultAttributes,
+          description: member.description,
+          since: member.since,
+          role: member.role,
+        };
+
+        if (member.id) {
+          // Edit an existing membership (edit the role/description)
+          const editableAttributes = pick(member, ['role', 'description', 'since']);
+          debug('editMembers', 'update member', member.id, editableAttributes);
+          await Member.update(editableAttributes, {
+            where: {
+              id: member.id,
+              CollectiveId: this.id,
+              role: { [Op.in]: allowedRoles },
+            },
+            transaction,
+          });
+        } else if (remoteUserCollectiveId && member.member?.id === remoteUserCollectiveId) {
+          // When users try to add themselves (ie. when creating a collective) we don't need to send an invitation
+          await Member.create(
+            { ...memberAttributes, MemberCollectiveId: member.member.id, CollectiveId: this.id },
+            { transaction },
+          );
+        } else if (member.member?.id) {
+          // Create new membership invitation
+          await MemberInvitation.invite(
+            this,
+            { ...memberAttributes, MemberCollectiveId: member.member.id },
+            { transaction },
+          );
+        } else if (member.member?.email) {
+          // Add user by email
+          const user = await User.findOne({
+            include: {
+              model: Collective,
+              as: 'collective',
+              where: { type: CollectiveType.USER, isIncognito: false },
+            },
+            where: { email: member.member.email },
+            transaction,
+          });
+
+          if (user) {
+            // If user exists for this email, send an invitation
+            await MemberInvitation.invite(
+              this,
+              { ...memberAttributes, MemberCollectiveId: user.collective.id },
+              { transaction },
+            );
+          } else {
+            // Otherwise create and add the user directly
+            const userFields = ['email', 'name', 'company', 'website'];
+            const user = await User.createUserWithCollective(pick(member.member, userFields), transaction);
+            const newMember = await this.addUserWithRole(
+              user,
+              member.role,
+              { ...memberAttributes, MemberCollectiveId: user.collective.id },
+              { skipNewMemberEmail: true },
+              transaction,
+            );
+            newMemberEmails.push({ user, role: member.role, member: newMember });
+          }
+        } else {
+          throw new Error('Invited member collective has not been set');
+        }
+      }
+    });
 
     /**
      * Because we don't update the model directly (we use Model.update(..., {where}))
@@ -3012,6 +3018,19 @@ class Collective extends ModelWithPublicId<
     invalidateContributorsCache(this.id);
     purgeCacheForCollective(this.slug);
 
+    // Send all the emails, then report the first failure (if any). Memberships are already committed.
+    let emailError;
+    for (const { user, role, member } of newMemberEmails) {
+      try {
+        await this.sendNewMemberEmail(user, role, member);
+      } catch (e) {
+        emailError = emailError || e;
+      }
+    }
+    if (emailError) {
+      throw emailError;
+    }
+
     return this.getMembers({
       where: { role: { [Op.in]: allowedRoles } },
     });
@@ -3019,7 +3038,7 @@ class Collective extends ModelWithPublicId<
 
   // Where `this` collective is a type == ORGANIZATION collective.
   getExpensesForHost = function (status, startDate, endDate = new Date(), createdByUserId, excludedTypes) {
-    const where: any = {
+    const where: WhereOptions = {
       createdAt: { [Op.lt]: endDate },
     };
     if (status) {
@@ -3049,7 +3068,7 @@ class Collective extends ModelWithPublicId<
   };
 
   getExpenses = function (status, startDate, endDate = new Date(), createdByUserId, excludedTypes) {
-    const where: any = {
+    const where: WhereOptions = {
       createdAt: { [Op.lt]: endDate },
       CollectiveId: this.id,
     };
@@ -3073,7 +3092,7 @@ class Collective extends ModelWithPublicId<
   };
 
   getUpdates = function (status, startDate = 0, endDate = new Date()) {
-    const where: any = {
+    const where: WhereOptions = {
       createdAt: { [Op.lt]: endDate },
       CollectiveId: this.id,
     };
@@ -3091,15 +3110,14 @@ class Collective extends ModelWithPublicId<
   };
 
   // Returns the last payment method that has been confirmed attached to this collective
-  getPaymentMethod = async function (where, mustBeConfirmed = true) {
-    const query: any = {
-      where: {
-        ...where,
-        CollectiveId: this.id,
-      },
-    };
+  getPaymentMethod = async function (where: WhereOptions, mustBeConfirmed = true) {
+    // NB: built with Object.assign (rather than spread) so `whereOptions` keeps a plain
+    // object-literal type that supports dotted mutations below
+    const whereOptions: WhereOptions = { CollectiveId: this.id };
+    Object.assign(whereOptions, where, { CollectiveId: this.id });
+    const query: FindOptions = { where: whereOptions };
     if (mustBeConfirmed) {
-      query.where.confirmedAt = { [Op.ne]: null };
+      whereOptions.confirmedAt = { [Op.ne]: null };
       query.order = [['confirmedAt', 'DESC']];
     } else {
       query.order = [['createdAt', 'DESC']];
@@ -3117,20 +3135,20 @@ class Collective extends ModelWithPublicId<
     return getBalanceAmount(this, { ...options, withBlockedFunds: true });
   };
 
-  getBalanceWithBlockedFunds = function (options: any = {}) {
+  getBalanceWithBlockedFunds = function (options: Record<string, unknown> = {}) {
     return getBalanceAmount(this, { ...options, withBlockedFunds: true }).then(result => result.value);
   };
 
-  getBalanceAmount = function (options: any = {}) {
+  getBalanceAmount = function (options: Record<string, unknown> = {}) {
     return getBalanceAmount(this, options);
   };
 
-  getBalance = function (options: any = {}) {
+  getBalance = function (options: Record<string, unknown> = {}) {
     return getBalanceAmount(this, options).then(result => result.value);
   };
 
-  getYearlyBudgetAmount = function () {
-    return getYearlyBudgetAmount(this);
+  getYearlyBudgetAmount = function (options: Record<string, unknown> = {}) {
+    return getYearlyBudgetAmount(this, options);
   };
 
   getYearlyBudget = function () {
@@ -3163,6 +3181,10 @@ class Collective extends ModelWithPublicId<
 
   getTotalAmountReceivedTimeSeries = function (options) {
     return getTotalAmountReceivedTimeSeries(this, options);
+  };
+
+  getTotalAmountSpentTimeSeries = function (options) {
+    return getTotalAmountSpentTimeSeries(this, options);
   };
 
   getBalanceTimeSeries = function (options) {
@@ -3242,9 +3264,25 @@ class Collective extends ModelWithPublicId<
     includeUsedGiftCardsEmittedByOthers = true,
     includeExpenseTransactions = true,
     excludePrivateAccounts = false,
-  }: any = {}) {
-    // Base query
-    const query: any = { where: this.transactionsWhereQuery(includeUsedGiftCardsEmittedByOthers) };
+  }: {
+    HostCollectiveId?: number;
+    startDate?: Date | string;
+    endDate?: Date | string;
+    type?: string;
+    offset?: number;
+    limit?: number;
+    attributes?: FindAttributeOptions;
+    kinds?: string | string[];
+    order?: Array<[string, string]>;
+    includeUsedGiftCardsEmittedByOthers?: boolean;
+    includeExpenseTransactions?: boolean;
+    excludePrivateAccounts?: boolean;
+  } = {}) {
+    // NB: built with Object.assign (rather than spread) so `where` keeps a plain
+    // object-literal type that supports dotted mutations below
+    const where: WhereOptions = {};
+    Object.assign(where, this.transactionsWhereQuery(includeUsedGiftCardsEmittedByOthers));
+    const query: FindOptions = { where };
 
     // Select attributes
     if (attributes) {
@@ -3253,31 +3291,31 @@ class Collective extends ModelWithPublicId<
 
     // Hide expenses transactions on demand
     if (includeExpenseTransactions === false) {
-      query.where.ExpenseId = null;
+      where.ExpenseId = null;
     }
 
     // Filter on host
     if (HostCollectiveId) {
-      query.where.HostCollectiveId = HostCollectiveId;
+      where.HostCollectiveId = HostCollectiveId;
     }
 
     // Filter on kind
     if (kinds) {
-      query.where.kind = kinds;
+      where.kind = kinds;
     }
 
     // Filter on date
     if (startDate && endDate) {
-      query.where.createdAt = { [Op.gte]: startDate, [Op.lt]: endDate };
+      where.createdAt = { [Op.gte]: startDate, [Op.lt]: endDate };
     } else if (startDate) {
-      query.where.createdAt = { [Op.gte]: startDate };
+      where.createdAt = { [Op.gte]: startDate };
     } else if (endDate) {
-      query.where.createdAt = { [Op.lt]: endDate };
+      where.createdAt = { [Op.lt]: endDate };
     }
 
     // Filter on type
     if (type) {
-      query.where.type = type;
+      where.type = type;
     }
 
     // Pagination
@@ -3294,10 +3332,11 @@ class Collective extends ModelWithPublicId<
     }
 
     if (excludePrivateAccounts) {
-      query.include = query.include || [];
-      query.include.push({ association: 'collective', attributes: [] });
-      query.include.push({ association: 'fromCollective', attributes: [] });
-      query.include.push({ association: 'host', attributes: [] });
+      query.include = [
+        { association: 'collective', attributes: [] },
+        { association: 'fromCollective', attributes: [] },
+        { association: 'host', attributes: [] },
+      ];
       query.where[Op.and] = query.where[Op.and] || [];
       query.where[Op.and].push({
         [Op.and]: [
@@ -3340,7 +3379,7 @@ class Collective extends ModelWithPublicId<
    * @param {*} tags if not null, only takes into account donations made to collectives that contains one of those tags
    */
   getLatestTransactions = function (since, until, tags) {
-    const conditionOnCollective: any = {};
+    const conditionOnCollective: WhereOptions<Attributes<Collective>> = {};
     if (tags) {
       conditionOnCollective.tags = { [Op.overlap]: tags };
     }
@@ -3442,7 +3481,7 @@ class Collective extends ModelWithPublicId<
     });
   };
 
-  getHostStripeAccount = function () {
+  getHostStripeAccount = function (): Promise<ConnectedAccount> {
     let HostCollectiveId;
     return this.getHostCollectiveId()
       .then(id => {
@@ -3479,6 +3518,12 @@ class Collective extends ModelWithPublicId<
     },
   ) {
     const where: WhereOptions<ConnectedAccount> = { service: provider, CollectiveId: this.id };
+    if (provider === Service.PAYPAL) {
+      // "Log in with PayPal" payee accounts (see `connectPaypalPayoutMethod`) share the 'paypal' service but have no
+      // `clientId`: they must never be used as the host's payments/payouts credentials.
+      where.clientId = { [Op.ne]: null };
+      where.token = { [Op.ne]: null };
+    }
     if (options.CreatedByUserId) {
       where.CreatedByUserId = options.CreatedByUserId;
     }
@@ -3505,18 +3550,6 @@ class Collective extends ModelWithPublicId<
     }
 
     return connectedAccount;
-  };
-
-  getTopBackers = async function (since, until, limit) {
-    const backers = await queries.getMembersWithTotalDonations(
-      { CollectiveId: this.id, role: 'BACKER' },
-      { since, until, limit },
-    );
-    debug(
-      'getTopBackers',
-      backers.map(b => b.dataValues),
-    );
-    return backers;
   };
 
   getImageUrl = function (args = {}) {
@@ -4121,7 +4154,7 @@ Collective.init(
         },
         isValidImage(url) {
           // Only validate for new images
-          if (!url || (this.id && this.previous('image') === undefined)) {
+          if (!url || (this.id && this.previous('backgroundImage') === undefined)) {
             return;
           } else if (!isValidUploadedImage(url, { allowTrustedThirdPartyImages: true })) {
             throw new Error('The background image URL is not valid');
@@ -4357,7 +4390,7 @@ Collective.init(
     paranoid: true,
     sequelize,
     hooks: {
-      beforeValidate: instance => {
+      beforeValidate: (instance, options) => {
         if (instance.slug) {
           return Promise.resolve();
         }
@@ -4376,7 +4409,9 @@ Collective.init(
         ];
 
         const baseSlug = compact(potentialSlugs)[0];
-        return Collective.generateSlug(baseSlug).then(slug => {
+        // Sequelize passes the save options (including the transaction) to validation hooks, but does not type it
+        const { transaction } = (options || {}) as { transaction?: SequelizeTransaction };
+        return Collective.generateSlug(baseSlug, { transaction }).then(slug => {
           if (!slug) {
             return Promise.reject(new Error("We couldn't generate a unique slug for this collective"));
           }

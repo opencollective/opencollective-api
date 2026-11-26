@@ -227,6 +227,13 @@ export interface PlatformSubscriptionPlan {
   title: string;
   type: PlatformSubscriptionTierTypes;
   basePlanId: string;
+  /**
+   * Set on a secondary host (e.g. one host per currency): its activity is counted on this host's bill.
+   * The plan should have no price of its own, so that the organization pays a single base price.
+   * The whole month's activity counts as soon as the subscription overlaps it, so links must only start,
+   * end or change at a month boundary.
+   */
+  billedToCollectiveId?: number;
   pricing: {
     /** The monthly price in the smallest currency unit (e.g., cents) */
     pricePerMonth: number;
@@ -246,7 +253,7 @@ export interface PlatformSubscriptionPlan {
     /** Whether this plan has platform tips enabled */
     platformTips: boolean;
 
-    /** If tips are not enabled, the fixed platform fee percentage on contributions */
+    /** Opt-in: the fee percentage on contributions not subject to tips. No fee is charged unless this is set. */
     crowdfundingFeePercent?: number;
   };
   features: Partial<Record<CommercialFeaturesType, boolean>>;
@@ -256,7 +263,6 @@ export const freeFeatures: CommercialFeaturesType[] = [
   PlatformFeature.ACCOUNT_MANAGEMENT,
   PlatformFeature.USE_EXPENSES,
   PlatformFeature.RECEIVE_EXPENSES,
-  PlatformFeature.RECEIVE_GRANTS,
   PlatformFeature.UPDATES,
   PlatformFeature.VENDORS,
   PlatformFeature.RECEIVE_FINANCIAL_CONTRIBUTIONS,
@@ -452,7 +458,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
     title: 'Pro 50',
     type: PlatformSubscriptionTierTypes.PRO,
     pricing: {
-      pricePerMonth: 90000,
+      pricePerMonth: 80000,
       includedCollectives: 50,
       pricePerAdditionalCollective: 2000,
       includedExpensesPerMonth: 500,
@@ -466,11 +472,11 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
     title: 'Pro 100',
     type: PlatformSubscriptionTierTypes.PRO,
     pricing: {
-      pricePerMonth: 180000,
+      pricePerMonth: 120000,
       includedCollectives: 100,
-      pricePerAdditionalCollective: 2000,
+      pricePerAdditionalCollective: 1600,
       includedExpensesPerMonth: 1000,
-      pricePerAdditionalExpense: 200,
+      pricePerAdditionalExpense: 160,
       platformTips: true,
     },
     features: featuresForPro,
@@ -480,11 +486,11 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
     title: 'Pro 200',
     type: PlatformSubscriptionTierTypes.PRO,
     pricing: {
-      pricePerMonth: 360000,
+      pricePerMonth: 240000,
       includedCollectives: 200,
-      pricePerAdditionalCollective: 2000,
+      pricePerAdditionalCollective: 1600,
       includedExpensesPerMonth: 2000,
-      pricePerAdditionalExpense: 200,
+      pricePerAdditionalExpense: 160,
       platformTips: true,
     },
     features: featuresForPro,

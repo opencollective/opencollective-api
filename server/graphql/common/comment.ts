@@ -2,16 +2,19 @@ import { lowerCase, pick } from 'lodash';
 
 import ActivityTypes from '../../constants/activities';
 import ExpenseStatuses from '../../constants/expense-status';
+import MemberRoles from '../../constants/roles';
 import { mustBeLoggedInTo } from '../../lib/auth';
 import { assertCanSeeAccount } from '../../lib/private-accounts';
-import models, { HostApplication, User } from '../../models';
-import Comment, { CommentType } from '../../models/Comment';
+import { reportErrorToSentry } from '../../lib/sentry';
+import models, { HostApplication, sequelize, User } from '../../models';
+import Comment, { CommentMainRole, CommentType } from '../../models/Comment';
 import Conversation from '../../models/Conversation';
 import Expense from '../../models/Expense';
 import Order from '../../models/Order';
 import Update from '../../models/Update';
 import { canComment as canCommentOrder } from '../common/orders';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
+import type { Loaders } from '../loaders';
 
 import { canComment as canCommentExpense, canUsePrivateNotes as canUseExpensePrivateNotes } from './expenses';
 import { canCommentHostApplication, canMakePrivateNoteOnHostApplication } from './host-applications';
@@ -27,11 +30,11 @@ type CommentAssociationData = Pick<
 
 const loadCommentedEntity = async (
   commentValues: CommentAssociationData,
-  loaders: any,
-): Promise<[CommentableEntity, ActivityTypes, Record<string, any>]> => {
+  loaders: Loaders,
+): Promise<[CommentableEntity, ActivityTypes, Record<string, unknown>]> => {
   let activityType = ActivityTypes.COLLECTIVE_COMMENT_CREATED;
   let entity: CommentableEntity;
-  let activityData: Record<string, any> = {};
+  let activityData: Record<string, unknown> = {};
 
   if (commentValues.ExpenseId) {
     activityType = ActivityTypes.EXPENSE_COMMENT_CREATED;
@@ -69,6 +72,7 @@ const loadCommentedEntity = async (
     entity = (await loaders.Order.byId.load(commentValues.OrderId)) as Order;
     if (entity) {
       entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
+      entity.fromCollective = await loaders.Collective.byId.load(entity.FromCollectiveId);
       if (!entity.collective) {
         return [null, activityType, activityData];
       }
@@ -283,6 +287,73 @@ async function deleteComment(id: number, req): Promise<void> {
   return comment.destroy();
 }
 
+type CommentEntityContext = {
+  hostCollectiveId: number | null;
+  collectiveId: number;
+  fromCollectiveId?: number | null;
+  submitterUserId?: number | null;
+};
+
+function getEntityContext(commentedEntity: CommentableEntity): CommentEntityContext {
+  if (commentedEntity instanceof Expense) {
+    return {
+      hostCollectiveId: commentedEntity.HostCollectiveId ?? commentedEntity.collective?.HostCollectiveId ?? null,
+      collectiveId: commentedEntity.CollectiveId,
+      fromCollectiveId: commentedEntity.FromCollectiveId,
+      submitterUserId: commentedEntity.UserId,
+    };
+  } else if (commentedEntity instanceof Order) {
+    return {
+      hostCollectiveId: commentedEntity.collective?.HostCollectiveId ?? null,
+      collectiveId: commentedEntity.CollectiveId,
+      fromCollectiveId: commentedEntity.FromCollectiveId,
+      submitterUserId: commentedEntity.CreatedByUserId,
+    };
+  } else if (commentedEntity instanceof Conversation) {
+    return {
+      hostCollectiveId: commentedEntity.collective?.HostCollectiveId ?? null,
+      collectiveId: commentedEntity.CollectiveId,
+      submitterUserId: commentedEntity.CreatedByUserId,
+    };
+  } else if (commentedEntity instanceof Update) {
+    return {
+      hostCollectiveId: commentedEntity.collective?.HostCollectiveId ?? null,
+      collectiveId: commentedEntity.CollectiveId,
+      submitterUserId: commentedEntity.CreatedByUserId,
+    };
+  } else if (commentedEntity instanceof HostApplication) {
+    return {
+      hostCollectiveId: commentedEntity.HostCollectiveId,
+      collectiveId: commentedEntity.CollectiveId,
+      submitterUserId: commentedEntity.CreatedByUserId,
+    };
+  }
+
+  return { hostCollectiveId: null, collectiveId: null };
+}
+
+function computeMainCommenterRole(remoteUser: User, commentedEntity: CommentableEntity): CommentMainRole {
+  const { hostCollectiveId, submitterUserId } = getEntityContext(commentedEntity);
+
+  if (hostCollectiveId && remoteUser.isAdmin(hostCollectiveId)) {
+    return CommentMainRole.HOST_ADMIN;
+  } else if (commentedEntity.collective && remoteUser.isAdminOfCollective(commentedEntity.collective)) {
+    return CommentMainRole.COLLECTIVE_ADMIN;
+  } else if (
+    (commentedEntity instanceof Expense || commentedEntity instanceof Order) &&
+    commentedEntity.fromCollective &&
+    remoteUser.isAdminOfCollective(commentedEntity.fromCollective)
+  ) {
+    return CommentMainRole.FROM_COLLECTIVE_ADMIN;
+  } else if (submitterUserId && remoteUser.id === submitterUserId) {
+    return CommentMainRole.SUBMITTER;
+  } else if (commentedEntity.collective && remoteUser.hasRole([MemberRoles.BACKER], commentedEntity.collective.id)) {
+    return CommentMainRole.BACKER;
+  } else {
+    return CommentMainRole.PUBLIC;
+  }
+}
+
 async function createComment(commentData, req): Promise<Comment> {
   const { remoteUser } = req;
   mustBeLoggedInTo(remoteUser, 'create a comment');
@@ -313,47 +384,74 @@ async function createComment(commentData, req): Promise<Comment> {
   }
 
   // Create comment
-  const comment = await Comment.create({
-    CreatedByUserId: remoteUser.id,
-    FromCollectiveId: remoteUser.CollectiveId,
-    CollectiveId: commentedEntity.collective.id,
-    ExpenseId,
-    UpdateId,
-    ConversationId,
-    HostApplicationId,
-    html, // HTML is sanitized at the model level, no need to do it here
-    type,
-  });
+  const mainCommenterRole = computeMainCommenterRole(remoteUser, commentedEntity);
 
-  // Create activity
-  await models.Activity.create({
-    type: activityType,
-    UserId: comment.CreatedByUserId,
-    CollectiveId: comment.CollectiveId,
-    FromCollectiveId: comment.FromCollectiveId,
-    HostCollectiveId:
-      commentedEntity instanceof HostApplication
-        ? commentedEntity.HostCollectiveId
-        : commentedEntity.collective.approvedAt
-          ? commentedEntity.collective.HostCollectiveId
-          : null,
-    ExpenseId: comment.ExpenseId,
-    OrderId: comment.OrderId,
-    data: {
-      CommentId: comment.id,
-      comment: { id: comment.id, html: comment.html, type: comment.type, publicId: comment.publicId },
-      FromCollectiveId: comment.FromCollectiveId,
-      ExpenseId: comment.ExpenseId,
-      UpdateId: comment.UpdateId,
-      OrderId: comment.OrderId,
-      ConversationId: comment.ConversationId,
-      HostApplicationId: comment.HostApplicationId,
-      ...activityData,
-    },
+  const comment = await sequelize.transaction(async transaction => {
+    const comment = await Comment.create(
+      {
+        CreatedByUserId: remoteUser.id,
+        FromCollectiveId: remoteUser.CollectiveId,
+        CollectiveId: commentedEntity.collective.id,
+        ExpenseId,
+        UpdateId,
+        ConversationId,
+        HostApplicationId,
+        OrderId,
+        html, // HTML is sanitized at the model level, no need to do it here
+        type,
+        mainCommenterRole,
+      },
+      {
+        transaction,
+      },
+    );
+
+    // Create activity
+    await models.Activity.create(
+      {
+        type: activityType,
+        UserId: comment.CreatedByUserId,
+        CollectiveId: comment.CollectiveId,
+        FromCollectiveId: comment.FromCollectiveId,
+        HostCollectiveId:
+          commentedEntity instanceof HostApplication
+            ? commentedEntity.HostCollectiveId
+            : commentedEntity.collective.approvedAt
+              ? commentedEntity.collective.HostCollectiveId
+              : null,
+        ExpenseId: comment.ExpenseId,
+        OrderId: comment.OrderId,
+        data: {
+          CommentId: comment.id,
+          comment: {
+            id: comment.id,
+            html: comment.html,
+            type: comment.type,
+            publicId: comment.publicId,
+            mainCommenterRole: comment.mainCommenterRole,
+          },
+          FromCollectiveId: comment.FromCollectiveId,
+          ExpenseId: comment.ExpenseId,
+          UpdateId: comment.UpdateId,
+          OrderId: comment.OrderId,
+          ConversationId: comment.ConversationId,
+          HostApplicationId: comment.HostApplicationId,
+          ...activityData,
+        },
+      },
+      {
+        transaction,
+      },
+    );
+
+    return comment;
   });
 
   if (ConversationId) {
-    models.ConversationFollower.follow(remoteUser.id, ConversationId);
+    // Async and out of the transaction - we don't care if this fails
+    models.ConversationFollower.follow(remoteUser.id, ConversationId).catch((error: Error) => {
+      reportErrorToSentry(error, { req });
+    });
   }
 
   return comment;

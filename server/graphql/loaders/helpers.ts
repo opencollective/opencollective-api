@@ -1,6 +1,6 @@
 import DataLoader from 'dataloader';
 import { get } from 'lodash';
-import { Association, Model, ModelStatic } from 'sequelize';
+import { Association, Model, ModelStatic, WhereOptions } from 'sequelize';
 
 import { ModelNames } from '../../models';
 
@@ -155,7 +155,7 @@ export function buildLoaderForAssociation<SM extends Model, AM extends Model>(
         } else {
           // Otherwise fallback on making a query using the model + foreign key
           loadedAssociations = await associationInfo.target.findAll({
-            where: { [associationInfo.target.primaryKeyAttribute]: associationsIdsToLoad } as any,
+            where: { [associationInfo.target.primaryKeyAttribute]: associationsIdsToLoad } as WhereOptions<AM>,
           });
         }
 

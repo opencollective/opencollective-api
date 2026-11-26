@@ -4,7 +4,7 @@ import path from 'path';
 import bayes from 'bayes';
 import config from 'config';
 import getUrls from 'get-urls';
-import { clamp } from 'lodash';
+import { clamp, pick } from 'lodash';
 import sanitizeHtml from 'sanitize-html';
 
 import slackLib, { OPEN_COLLECTIVE_SLACK_CHANNEL } from '../lib/slack';
@@ -35,6 +35,13 @@ type BayesClassifier = {
 
 // Watched content
 const ANALYZED_FIELDS: string[] = ['name', 'website', 'description', 'longDescription'];
+
+const SPAM_REPORT_SNAPSHOT_FIELDS = ['id', 'slug', 'type', ...ANALYZED_FIELDS];
+
+/** Slim collective snapshot for spam reports (avoids embedding Collectives.data JSONB). */
+export const getSpamReportCollectiveSnapshot = (
+  collective: Collective | Record<string, unknown>,
+): Record<string, unknown> => pick(collective, SPAM_REPORT_SNAPSHOT_FIELDS);
 
 // A map of spam keywords<>score. Please keep everything in there lowercase.
 const SPAM_KEYWORDS: { [keyword: string]: number } = {
@@ -942,7 +949,7 @@ export const collectiveSpamCheck = async (collective: Collective, context: strin
     bayes: bayesCheck,
     keywords: Array.from(result.keywords),
     domains: Array.from(result.domains),
-    data: collective.info || (collective as unknown as Record<string, unknown>),
+    data: getSpamReportCollectiveSnapshot(collective),
     context,
   };
 };

@@ -18,7 +18,7 @@ export const validateTags = (tags: string[] | null, { maxNbTags = 30, maxTagLeng
     // Limit to max 30 tags
     if (tags.length > maxNbTags) {
       throw new Error(
-        `Sorry, you can't add more than ${maxNbTags} tags. Please remove ${maxNbTags - tags.length} tag(s).`,
+        `Sorry, you can't add more than ${maxNbTags} tags. Please remove ${tags.length - maxNbTags} tag(s).`,
       );
     }
 

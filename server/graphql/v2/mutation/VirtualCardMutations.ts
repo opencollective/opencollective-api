@@ -10,6 +10,7 @@ import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/en
 import { getPolicy } from '../../../lib/policies';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
+import { getAllowedSpendingLimitIntervals } from '../../../lib/virtual-cards';
 import models from '../../../models';
 import VirtualCardModel, { VirtualCardStatus } from '../../../models/VirtualCard';
 import VirtualCardRequest, { VirtualCardRequestStatus } from '../../../models/VirtualCardRequest';
@@ -152,14 +153,14 @@ const virtualCardMutations = {
         host,
         POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL,
       );
-      const maximumLimitForInterval = virtualCardMaximumLimitForIntervalPolicy[limitInterval];
+      const maximumLimitForIntervalInCents = virtualCardMaximumLimitForIntervalPolicy[limitInterval];
 
-      if (limitAmountInCents > maximumLimitForInterval * 100) {
+      if (limitAmountInCents > maximumLimitForIntervalInCents) {
         throw new BadRequest(
-          `Limit for interval should not exceed ${maximumLimitForInterval} ${host.currency}`,
+          `Limit for interval should not exceed ${maximumLimitForIntervalInCents / 100} ${host.currency}`,
           undefined,
           {
-            limitAmount: `Limit for interval should not exceed ${maximumLimitForInterval} ${host.currency}`,
+            limitAmount: `Limit for interval should not exceed ${maximumLimitForIntervalInCents / 100} ${host.currency}`,
           },
         );
       }
@@ -285,8 +286,14 @@ const virtualCardMutations = {
         throw new NotFound('Could not find Virtual Card');
       }
 
-      if (args.limitAmount && !req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
-        throw new Unauthorized("You don't have permission to update this Virtual Card's limit");
+      if (args.limitAmount) {
+        if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
+          throw new Unauthorized("You don't have permission to update this Virtual Card's limit");
+        }
+
+        // A limit change is a host-scoped financial action: always step up against the host,
+        // regardless of any additional collective-admin role (see resumeVirtualCard).
+        await twoFactorAuthLib.enforceForAccount(req, virtualCard.host);
       } else if (req.remoteUser.isAdminOfCollective(virtualCard.collective)) {
         await twoFactorAuthLib.enforceForAccount(req, virtualCard.collective);
       } else if (req.remoteUser.isAdminOfCollective(virtualCard.host)) {
@@ -329,18 +336,18 @@ const virtualCardMutations = {
           virtualCard.host,
           POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL,
         );
-        const maximumLimitForInterval = virtualCardMaximumLimitForIntervalPolicy[limitInterval];
+        const maximumLimitForIntervalInCents = virtualCardMaximumLimitForIntervalPolicy[limitInterval];
 
         const limitAmountInCents = getValueInCentsFromAmountInput(args.limitAmount, {
           expectedCurrency: virtualCard.host.currency,
         });
 
-        if (limitAmountInCents > maximumLimitForInterval * 100) {
+        if (limitAmountInCents > maximumLimitForIntervalInCents) {
           throw new BadRequest(
-            `Limit for interval should not exceed ${maximumLimitForInterval} ${virtualCard.host.currency}`,
+            `Limit for interval should not exceed ${maximumLimitForIntervalInCents / 100} ${virtualCard.host.currency}`,
             undefined,
             {
-              limitAmount: `Limit for interval should not exceed ${maximumLimitForInterval} ${virtualCard.host.currency}`,
+              limitAmount: `Limit for interval should not exceed ${maximumLimitForIntervalInCents / 100} ${virtualCard.host.currency}`,
             },
           );
         }
@@ -406,6 +413,13 @@ const virtualCardMutations = {
 
       const spendingLimitAmount = args.budget ? args.budget : getValueInCentsFromAmountInput(args.spendingLimitAmount);
       const spendingLimitInterval = args.spendingLimitInterval ?? VirtualCardLimitIntervals.MONTHLY;
+
+      const allowedSpendingLimitIntervals = getAllowedSpendingLimitIntervals(host);
+      if (!allowedSpendingLimitIntervals.includes(spendingLimitInterval)) {
+        throw new BadRequest(
+          `The ${spendingLimitInterval} limit interval is not available for virtual card requests from this host`,
+        );
+      }
 
       const virtualCardRequest = await VirtualCardRequest.create({
         CollectiveId: collective.id,
@@ -532,7 +546,7 @@ const virtualCardMutations = {
 
       const card = await virtualCard.pause({ pauseReason: 'MANUAL' });
       const data = {
-        virtualCard,
+        virtualCard: card.info,
         host: virtualCard.host.info,
         collective: virtualCard.collective.info,
       };
@@ -576,6 +590,8 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to edit this Virtual Card");
       }
 
+      await twoFactorAuthLib.enforceForAccount(req, virtualCard.host);
+
       if (virtualCard.data.status === VirtualCardStatus.CANCELED) {
         throw new BadRequest('This Virtual Card cannot be activated');
       }
@@ -588,7 +604,7 @@ const virtualCardMutations = {
         HostCollectiveId: virtualCard.host.id,
         UserId: req.remoteUser.id,
         data: {
-          virtualCard: resumedVirtualCard,
+          virtualCard: resumedVirtualCard.info,
           host: resumedVirtualCard.host.info,
           collective: resumedVirtualCard.collective.info,
         },

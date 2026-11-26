@@ -1,5 +1,6 @@
 /* eslint-disable camelcase */
 import { isNil, omit, round, toNumber, truncate } from 'lodash';
+import assert from 'node:assert';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
@@ -7,15 +8,25 @@ import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import FEATURE from '../../constants/feature';
+import { applyBalanceAccountingCategoryFromConnectedAccount } from '../../lib/accounting/categorization/balance-accounts';
 import { floatAmountToCents, getFxRate, roundCentsAmount } from '../../lib/currency';
 import logger from '../../lib/logger';
 import * as paypal from '../../lib/paypal';
 import { safeJsonStringify } from '../../lib/safe-json-stringify';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
+import {
+  ErrorType,
+  mapErrorToType,
+  MetricEvent,
+  MetricFlow,
+  MetricProvider,
+  recordPaymentOutcome,
+} from '../../lib/sentry/metrics';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import models, { Collective } from '../../models';
 import Expense from '../../models/Expense';
-import { PayoutItemDetails } from '../../types/paypal';
+import { PayoutMethodTypes } from '../../models/PayoutMethod';
+import { PayoutError, PayoutItemDetails, PayoutRequestResult } from '../../types/paypal';
 
 const PROVIDER_NAME = Service.PAYPAL;
 
@@ -49,6 +60,9 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
   }
 
   const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
+  await Promise.all(
+    expenses.map(expense => applyBalanceAccountingCategoryFromConnectedAccount(expense, connectedAccount)),
+  );
 
   const getExpenseItem = expense => ({
     note: getPayoutItemNote(expense),
@@ -74,29 +88,99 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
     items,
   };
 
+  let response: PayoutRequestResult | PayoutError;
+  let parsedErrorResponse: PayoutError | undefined;
   try {
-    const response = await paypal.executePayouts(connectedAccount, requestBody);
-    const updateExpenses = expenses.map(async e => {
-      await e.update({ data: { ...e.data, ...response.batch_header }, status: status.PROCESSING });
-      const user = await models.User.findByPk(e.lastEditedById);
-      await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user, { payoutResponse: response.batch_header });
-      return e;
-    });
-    return Promise.all(updateExpenses);
+    response = await paypal.executePayouts(connectedAccount, requestBody);
+    // Detect and throw parsed PayoutError
+    if (!('batch_header' in response) && 'name' in response) {
+      parsedErrorResponse = response;
+      throw response;
+    }
+    // Safeguard against unexpected responses.
+    assert(
+      'batch_header' in response && response.batch_header.payout_batch_id,
+      'PayPal Payouts response failed to return batch_header',
+    );
   } catch (error) {
     reportErrorToSentry(error, { feature: FEATURE.PAYPAL_PAYOUTS });
+    // Parsed PayPal error responses are persisted as-is so their structured `details` items reach
+    // host admins. Anything else is stringified.
+    const activityError = parsedErrorResponse ?? { message: error.message, details: safeJsonStringify(error) };
     const updateExpenses = expenses.map(async e => {
       await e.update({ status: status.ERROR, data: { ...e.data, error } });
       const user = await models.User.findByPk(e.lastEditedById);
       await e.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
-        error: { message: error.message, details: safeJsonStringify(error) },
+        error: activityError,
         isSystem: true,
       });
+
+      // Terminal failure of each payout attempt (batch submit)
+      recordPaymentOutcome({
+        provider: MetricProvider.PAYPAL,
+        flow: MetricFlow.PAYOUT,
+        method: e.PayoutMethod?.type ?? PayoutMethodTypes.PAYPAL,
+        outcome: MetricEvent.FAILED,
+        errorType: mapErrorToType(error),
+      });
+
       return e;
     });
     return Promise.all(updateExpenses);
   }
+
+  const updateExpenses = expenses.map(async e => {
+    await e.update({ data: { ...e.data, ...response.batch_header }, status: status.PROCESSING });
+    const user = await models.User.findByPk(e.lastEditedById);
+    await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user, {
+      payoutResponse: response.batch_header,
+    });
+    return e;
+  });
+  return Promise.all(updateExpenses);
 };
+
+type PayoutItemError = NonNullable<PayoutItemDetails['errors']> | { message: string };
+
+/** Stored when the provider reports a failed item without any error payload. */
+const getStatusDerivedError = (item: PayoutItemDetails): PayoutItemError => ({
+  message: `PayPal payout item ${item.transaction_status}`,
+});
+
+/**
+ * PayPal omits `errors` from some failed batch items, and the webhook that used to fetch them is
+ * disabled (see opencollective/opencollective#8789). Ask the payout item endpoint instead and fall
+ * back to a status-derived message so the stored error is never empty.
+ *
+ * Provider payloads are stored as-is: `sanitizeErrorData` (`server/graphql/common/activities.ts`)
+ * is what filters them before they reach clients, so keeping the raw item and error preserves
+ * debugging data (`debug_id`, error `details`, links, transaction ids).
+ */
+const fetchPayoutItemError = async (
+  item: PayoutItemDetails,
+  expense: Expense,
+  host: Collective,
+): Promise<{ error: PayoutItemError; payoutItem: PayoutItemDetails; retrievalFailed?: boolean }> => {
+  if (item.errors) {
+    return { error: item.errors, payoutItem: item };
+  }
+
+  try {
+    const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
+    const payoutItem = await paypal.getPayoutItem(connectedAccount, item.payout_item_id);
+    return { error: payoutItem?.errors ?? getStatusDerivedError(item), payoutItem: payoutItem ?? item };
+  } catch (e) {
+    logger.error(`PayPal: failed to fetch payout item ${item.payout_item_id} for expense #${expense.id}`, e);
+    reportErrorToSentry(e, {
+      feature: FEATURE.PAYPAL_PAYOUTS,
+      extra: { expenseId: expense.id, payoutItemId: item.payout_item_id },
+    });
+    // Flag the activity so the backfill script retries: the fallback message below is not conclusive
+    return { error: getStatusDerivedError(item), payoutItem: item, retrievalFailed: true };
+  }
+};
+
+const PAYOUT_BATCH_DATA_KEYS = ['payout_batch_id', 'batch_status', 'sender_batch_header'];
 
 export const checkBatchItemStatus = async (
   item: PayoutItemDetails,
@@ -109,6 +193,8 @@ export const checkBatchItemStatus = async (
     throw new Error(`Item does not belongs to expense it claims it does.`);
   }
 
+  // Merged into `expense.data` at the end: it also holds taxes and other keys that must be kept
+  let itemData: Partial<PayoutItemDetails> = item;
   switch (item.transaction_status) {
     case 'SUCCESS':
       if (expense.status !== status.PAID) {
@@ -119,8 +205,7 @@ export const checkBatchItemStatus = async (
         // requested expense currency, PayPal will use that and there will be no currency conversion.
         // But because we record the transactions in the host/collective currency, we need still need to
         // get an FX rate from somewhere. We therefore use our internal system to estimate one.
-        const payoutItemCurrency = item['payout_item']?.['amount']?.['currency'];
-        const isMultiCurrency = payoutItemCurrency && payoutItemCurrency !== expense.currency;
+        const isMultiCurrency = expense.currency !== host.currency;
         if (isMultiCurrency && !item.currency_conversion?.exchange_rate) {
           try {
             fxRate = await getFxRate(expense.currency, host.currency);
@@ -154,6 +239,14 @@ export const checkBatchItemStatus = async (
         });
         // Mark Expense as Paid, create activity and send notifications
         await expense.markAsPaid({ paidAt: clearedAt, activityData: { payoutItem: item } });
+
+        // Terminal success of the payout attempt (the PAID guard above makes redeliveries no-ops)
+        recordPaymentOutcome({
+          provider: MetricProvider.PAYPAL,
+          flow: MetricFlow.PAYOUT,
+          method: expense.PayoutMethod?.type ?? PayoutMethodTypes.PAYPAL,
+          outcome: MetricEvent.SUCCEEDED,
+        });
       }
       break;
     case 'FAILED':
@@ -162,14 +255,30 @@ export const checkBatchItemStatus = async (
     case 'RETURNED':
     case 'REVERSED':
       if (expense.status !== status.ERROR) {
+        const { error: payoutItemError, payoutItem, retrievalFailed } = await fetchPayoutItemError(item, expense, host);
         await expense.setError(expense.lastEditedById);
-        const data = omit(expense.data, ['payout_batch_id', 'batch_status', 'sender_batch_header']);
-        await expense.update({ data });
+        // Drop the batch reference so that the expense can be paid again
+        itemData = omit(item, PAYOUT_BATCH_DATA_KEYS);
+        await expense.update({ data: omit(expense.data, PAYOUT_BATCH_DATA_KEYS) });
         await expense.createActivity(
           activities.COLLECTIVE_EXPENSE_ERROR,
           { id: expense.lastEditedById },
-          { error: item.errors, isSystem: true, payoutItem: item },
+          {
+            error: payoutItemError,
+            isSystem: true,
+            payoutItem,
+            ...(retrievalFailed && { errorRetrievalFailed: true }),
+          },
         );
+
+        // Terminal failure of the payout attempt (the ERROR guard above makes redeliveries no-ops)
+        recordPaymentOutcome({
+          provider: MetricProvider.PAYPAL,
+          flow: MetricFlow.PAYOUT,
+          method: expense.PayoutMethod?.type ?? PayoutMethodTypes.PAYPAL,
+          outcome: MetricEvent.FAILED,
+          errorType: item.transaction_status === 'REFUNDED' ? ErrorType.FUNDS_REFUNDED : ErrorType.PROVIDER_ERROR,
+        });
       }
       break;
     // Ignore cases
@@ -180,7 +289,7 @@ export const checkBatchItemStatus = async (
       logger.debug(`Expense is still being processed, nothing to do but wait.`);
       break;
   }
-  await expense.update({ data: item });
+  await expense.update({ data: { ...expense.data, ...itemData } });
   return expense;
 };
 
@@ -222,6 +331,7 @@ export const checkBatchStatus = async (batch: Expense[]): Promise<Expense[]> => 
 };
 
 // See https://www.paypal.com/lu/business/paypal-business-fees#statement-10
+// Amounts are in cents (x100), including for zero-decimal currencies like JPY (¥1,200 => 1200_00).
 const PAYPAL_PAYOUT_CAPS_BY_CURRENCY: Partial<
   Record<SupportedCurrency, { domesticMax: number; internationalMax: number }>
 > = {
@@ -234,7 +344,7 @@ const PAYPAL_PAYOUT_CAPS_BY_CURRENCY: Partial<
   HKD: { domesticMax: 110_00, internationalMax: 660_00 },
   HUF: { domesticMax: 3080_00, internationalMax: 18_500_00 },
   ILS: { domesticMax: 50_00, internationalMax: 320_00 },
-  JPY: { domesticMax: 1200, internationalMax: 8000 },
+  JPY: { domesticMax: 1200_00, internationalMax: 8000_00 },
   MYR: { domesticMax: 50_00, internationalMax: 300_00 },
   MXN: { domesticMax: 170_00, internationalMax: 1080_00 },
   TWD: { domesticMax: 440_00, internationalMax: 2700_00 },
@@ -276,11 +386,11 @@ const PAYPAL_PAYOUT_CAPS_BY_CURRENCY: Partial<
 export const estimatePaypalPayoutFeeInExpenseCurrency = async (host: Collective, expense: Expense): Promise<number> => {
   const hostCountry = host.countryISO;
   const payee = expense.fromCollective || (await expense.getFromCollective());
-  const hostCurrency = host.currency;
   const payeeCountry = payee.countryISO;
   const isDomestic = hostCountry === payeeCountry;
   const baseFee = roundCentsAmount(expense.amount * 0.02, expense.currency);
-  const caps = PAYPAL_PAYOUT_CAPS_BY_CURRENCY[hostCurrency];
+  // Payouts are sent (and fees charged) in the expense currency, so the cap must be in that currency too
+  const caps = PAYPAL_PAYOUT_CAPS_BY_CURRENCY[expense.currency];
 
   // No known cap for this currency => best-effort: return 2% uncapped (can overestimate for large payouts).
   if (!caps) {

@@ -16,6 +16,7 @@ import {
   APPLICATION_FEE_INCOMPATIBLE_CURRENCIES,
   attachCardToPlatformCustomer,
   createChargeTransactions,
+  getPaymentIntentCharge,
   refundTransaction,
   refundTransactionOnlyInDatabase,
   resolvePaymentMethodForOrder,
@@ -134,8 +135,8 @@ const createChargeAndTransactions = async (
     },
   });
 
-  const charge = (stripePaymentIntent as any).charges.data[0];
-  const transaction = await createChargeTransactions(charge as Stripe.Charge, { order });
+  const charge = getPaymentIntentCharge(stripePaymentIntent);
+  const transaction = await createChargeTransactions(charge, { order });
   if (order.SubscriptionId) {
     const subscription = await models.Subscription.findByPk(order.SubscriptionId);
     await subscription.update({ lastChargedAt: transaction.clearedAt });

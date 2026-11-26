@@ -4,10 +4,9 @@ import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults, get, intersection, isEmpty, pick, uniq } from 'lodash';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute, Transaction } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
-import { CollectiveType } from '../constants/collectives';
+import { CollectiveType, PLACEHOLDER_USER_NAME } from '../constants/collectives';
 import { Service } from '../constants/connected-account';
 import FEATURE from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
@@ -18,6 +17,7 @@ import emailLib from '../lib/email';
 import logger from '../lib/logger';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 import twoFactorAuthLib from '../lib/two-factor-authentication';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
 
@@ -179,7 +179,7 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     }
   };
 
-  setPassword = async function (password, { userToken = null } = {}) {
+  setPassword = async function (password) {
     const passwordBuffer = Buffer.from(password);
     if (passwordBuffer.length > 72) {
       throw new Error('Password is too long, should not be more than 72 bytes.');
@@ -196,7 +196,6 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
       UserId: this.id,
       FromCollectiveId: this.CollectiveId,
       CollectiveId: this.CollectiveId,
-      UserTokenId: userToken?.id,
     });
 
     return this;
@@ -326,6 +325,11 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
         collectiveIds.add(Number(CollectiveId));
       }
     });
+
+    // Users always administrate their own account
+    if (rolesSet.has(MemberRoles.ADMIN)) {
+      collectiveIds.add(this.CollectiveId);
+    }
 
     return collectiveIds;
   }
@@ -544,9 +548,12 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
   async safeDestroy({ transaction }: { transaction?: Transaction } = {}) {
     // Update user email in order to free up for future reuse
     // Split the email, username from host domain
-    const splitedEmail = this.email.split('@');
-    // Add the current timestamp to email username
-    const newEmail = `${splitedEmail[0]}-${Date.now()}@${splitedEmail[1]}`;
+    const [localPart, domain] = this.email.split('@');
+    // Add the current timestamp to email username. Truncate the local part so the new address still
+    // passes the email validators (64 characters max for the local part, 128 for the whole address).
+    const suffix = `-${Date.now()}`;
+    const maxLocalPartLength = Math.min(64, 128 - domain.length - 1) - suffix.length;
+    const newEmail = `${localPart.slice(0, Math.max(0, maxLocalPartLength))}${suffix}@${domain}`;
 
     const destroyInTransaction = async transaction => {
       await this.update({ email: newEmail }, { transaction });
@@ -587,15 +594,17 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     }
     const sequelizeParams = transaction ? { transaction } : undefined;
     let collectiveName = userData.name;
-    if (!collectiveName || collectiveName.trim().length === 0) {
-      collectiveName = 'incognito';
-    } else if (slugify(collectiveName).length === 0) {
-      collectiveName = 'user';
+    let slug: string;
+    if (!collectiveName || collectiveName.trim().length === 0 || slugify(collectiveName).length === 0) {
+      // No usable name: a neutral placeholder with a `user-…` slug. `editAccount` derives the slug from the name once set
+      collectiveName = PLACEHOLDER_USER_NAME;
+      slug = await Collective.generateSlug(null);
     }
 
     const userCollectiveData = {
       type: CollectiveType.USER,
       name: collectiveName,
+      slug,
       legalName: userData.legalName,
       image: userData.image,
       description: userData.description,
@@ -607,10 +616,11 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
       currency: userData.currency,
       hostFeePercent: userData.hostFeePercent,
       isActive: false,
+      isPrivate: userData.isPrivate ?? false,
       hasMoneyManagement: Boolean(userData.hasMoneyManagement),
       hasHosting: userData.hasHosting,
       CreatedByUserId: userData.CreatedByUserId || this.id,
-      data: { ...(userData.data || {}), UserId: this.id },
+      data: { requiresProfileCompletion: true, ...(userData.data || {}), UserId: this.id },
       settings: userData.settings,
     };
     return await Collective.create(userCollectiveData, sequelizeParams);
@@ -635,7 +645,12 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     // It's difficult to predict when the image will be updated by findImageForUser
     // So we skip that in test environment to make it more predictable
     if (!['ci', 'test'].includes(config.env)) {
-      user.collective.findImageForUser(user);
+      // The image update runs outside of the transaction, so wait for the profile to be committed
+      if (transaction) {
+        transaction.afterCommit(() => void user.collective.findImageForUser(user));
+      } else {
+        user.collective.findImageForUser(user);
+      }
     }
     user.CollectiveId = user.collective.id;
     await user.save(sequelizeParams);

@@ -22,6 +22,10 @@ export enum GoCardlessRequisitionStatus {
   SU = 'SU',
 }
 
+/** Level of information an End User Agreement grants access to. */
+// ts-unused-exports:disable-next-line
+export type AccessScope = 'balances' | 'details' | 'transactions';
+
 /** AccountSerializer. */
 // ts-unused-exports:disable-next-line
 export interface Account {
@@ -278,7 +282,7 @@ export interface EndUserAgreement {
    * Array containing one or several values of ['balances', 'details', 'transactions']
    * @default ["balances","details","transactions"]
    */
-  access_scope?: any[];
+  access_scope?: AccessScope[];
   /**
    * Accepted Date
    * The date & time at which the end user accepted the agreement.
@@ -321,7 +325,7 @@ export interface EndUserAgreementRequest {
    * Array containing one or several values of ['balances', 'details', 'transactions']
    * @default ["balances","details","transactions"]
    */
-  access_scope?: any[];
+  access_scope?: AccessScope[];
   /**
    * if this agreement can be extended. Supported by GB banks only.
    * @default false
@@ -376,8 +380,8 @@ export interface IntegrationRetrieve {
   max_access_valid_for_days?: string;
   countries: string[];
   logo: string;
-  supported_features: any[];
-  identification_codes: any[];
+  supported_features: string[];
+  identification_codes: Record<string, unknown>[];
 }
 
 /** Obtain JWT pair. */
@@ -692,7 +696,7 @@ export interface SpectacularRequisition {
    * array of account IDs retrieved within a scope of this requisition
    * @default []
    */
-  accounts?: any[];
+  accounts?: string[];
   /**
    * A two-letter country code (ISO 639-1)
    * @maxLength 5
@@ -797,7 +801,7 @@ export interface TransactionSchema {
 }
 
 // ts-unused-exports:disable-next-line
-export type QueryParamsType = Record<string | number, any>;
+export type QueryParamsType = Record<string | number, string | number | boolean | readonly (string | number)[]>;
 
 // ts-unused-exports:disable-next-line
 export type ResponseFormat = keyof Omit<Body, 'body' | 'bodyUsed'>;

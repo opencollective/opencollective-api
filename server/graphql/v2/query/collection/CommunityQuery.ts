@@ -1,37 +1,79 @@
 import assert from 'assert';
 
 import type Express from 'express';
-import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { sql } from 'kysely';
+import { GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { type SelectQueryBuilder, sql } from 'kysely';
 import { isNil } from 'lodash';
 
-import { getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
+import { roles } from '../../../../constants';
+import { CollectiveType } from '../../../../constants/collectives';
+import { findCommunitySearchAccountIds } from '../../../../lib/community-search';
+import { type DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
 import { assertCanSeeAccount } from '../../../../lib/private-accounts';
-import { parseSearchTerm, sanitizeSearchTermForILike } from '../../../../lib/sql-search';
+import SQLQueries from '../../../../lib/queries';
+import { isPostgresInteger, parseSearchTerm, sanitizeSearchTermForILike } from '../../../../lib/sql-search';
 import { Collective } from '../../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../common/context-permissions';
-import { enforceScope } from '../../../common/scope-check';
+import { enforceScope, isRemoteUserRoot } from '../../../common/scope-check';
 import { BadRequest } from '../../../errors';
 import { GraphQLAccountCollection } from '../../collection/AccountCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../../enum/AccountType';
 import { GraphQLCommunityRelationType } from '../../enum/CommunityRelationType';
+import { GraphQLMissingInformationField, type MissingInformationField } from '../../enum/MissingInformationField';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
-import { getAmountRangeQuery, GraphQLAmountRangeInput } from '../../input/AmountRangeInput';
+import { getAmountRangeQuery } from '../../input/AmountRangeInput';
+import {
+  type AmountRangeWithYearInputType,
+  GraphQLAmountRangeWithYearInput,
+} from '../../input/AmountRangeWithYearInput';
 import { GraphQLOrderByInput } from '../../input/OrderByInput';
+import { collectionLimitArg, collectionOffsetArg } from '../../interface/Collection';
 
 const DEFAULT_LIMIT = 100;
 
 type CommunitySummaryArgs = {
   limit: number;
   offset: number;
-  type?: string[];
+  type?: CollectiveType[];
   HostCollectiveId?: number;
   CollectiveId?: number;
   searchTerm?: string;
   relation?: string;
   totalExpendedExpression?: string;
   totalContributedExpression?: string;
+  /** Calendar year (UTC) the `totalExpended` filter and ordering apply to. All time when not set */
+  totalExpendedYear?: number;
+  /** Calendar year (UTC) the `totalContributed` filter and ordering apply to. All time when not set */
+  totalContributedYear?: number;
+  missingInformation?: MissingInformationField[];
+  /** Accounts that require a US tax form for the current year but have not received one (`US_TAX_FORM_CURRENT_YEAR`) */
+  missingCurrentYearTaxFormAccountIds?: number[];
+  /** Accounts that require a US tax form for the previous year but have not received one (`US_TAX_FORM_PREVIOUS_YEAR`) */
+  missingPreviousYearTaxFormAccountIds?: number[];
 };
+
+/**
+ * Query builder with every conditionally-joined table in scope, so dynamic
+ * joins and filters typecheck without per-clause casts. Table aliases are
+ * mapped to their row types, mirroring what Kysely infers for each join.
+ *
+ * The base builder is cast to this once: from there on, column names and
+ * comparison values are still checked, but the select list is not tracked
+ * (the final selection depends on the dynamic joins above).
+ */
+type CommunitySummaryQueryBuilder = SelectQueryBuilder<
+  DatabaseWithViews & {
+    cas: DatabaseWithViews['AdminCommunityActivitySummary'];
+    fc: DatabaseWithViews['Collectives'];
+    u: DatabaseWithViews['Users'];
+    m: DatabaseWithViews['Members'];
+    // Contributed (credit) and expended (debit) totals are joined separately: they can target different years
+    chtsc: DatabaseWithViews['AdminCommunityHostTransactionSummary'];
+    chtse: DatabaseWithViews['AdminCommunityHostTransactionSummary'];
+  },
+  'cas' | 'fc' | 'u' | 'm' | 'chtsc' | 'chtse',
+  DatabaseWithViews['AdminCommunityActivitySummary']
+>;
 
 type CommunitySummaryOptions = {
   orderBy?: {
@@ -46,15 +88,24 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
   const searchTerm = replacements.searchTerm;
   const parsed = searchTerm ? parseSearchTerm(searchTerm) : null;
 
-  const needsTransactionsAggregated =
-    replacements.totalContributedExpression ||
-    replacements.totalExpendedExpression ||
-    options?.orderBy?.field === 'TOTAL_CONTRIBUTED' ||
-    options?.orderBy?.field === 'TOTAL_EXPENDED';
+  const needsContributedTotals = Boolean(
+    replacements.totalContributedExpression || options?.orderBy?.field === 'TOTAL_CONTRIBUTED',
+  );
+  const needsExpendedTotals = Boolean(
+    replacements.totalExpendedExpression || options?.orderBy?.field === 'TOTAL_EXPENDED',
+  );
+
+  // Text search: where it is faster, look for the matching accounts first (see `findCommunitySearchAccountIds`).
+  // `null` means that the regular conditions below apply.
+  const searchAccountIds =
+    parsed?.term && parsed.type === 'text'
+      ? await findCommunitySearchAccountIds(parsed.term.toString(), replacements)
+      : null;
 
   // Determine if we need Users join for search
   const needsUsersJoin =
     parsed?.term &&
+    !searchAccountIds &&
     (parsed.type === 'email' ||
       (parsed.type !== 'slug' && parsed.type !== 'id' && parsed.type !== 'number' && parsed.type !== 'publicId'));
 
@@ -63,7 +114,7 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
       .selectFrom('AdminCommunityActivitySummary as cas')
       .innerJoin('Collectives as fc', join =>
         join.onRef('fc.id', '=', 'cas.FromCollectiveId').on('fc.deletedAt', 'is', null),
-      );
+      ) as unknown as CommunitySummaryQueryBuilder;
 
     // Users join for search
     if (parsed?.term) {
@@ -73,11 +124,11 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
             .onRef('u.CollectiveId', '=', 'fc.id')
             .on('u.deletedAt', 'is', null)
             .on('u.email', '=', parsed.term.toString().toLowerCase()),
-        ) as any;
+        );
       } else if (needsUsersJoin) {
         query = query.leftJoin('Users as u', join =>
           join.onRef('u.CollectiveId', '=', 'fc.id').on('u.deletedAt', 'is', null),
-        ) as any;
+        );
       }
     }
 
@@ -86,67 +137,127 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
       query = query.innerJoin('Members as m', join =>
         join
           .onRef('m.CollectiveId', '=', 'cas.CollectiveId')
-          .onRef('m.MemberCollectiveId', '=', 'cas.FromCollectiveId' as any)
-          .on('m.role' as any, '=', 'ADMIN')
+          .onRef('m.MemberCollectiveId', '=', 'cas.FromCollectiveId')
+          .on('m.role', '=', roles.ADMIN)
           .on('m.deletedAt', 'is', null),
-      ) as any;
+      );
     }
 
-    // CommunityHostTransactionSummary join
-    if (needsTransactionsAggregated) {
-      query = query.leftJoin('AdminCommunityHostTransactionSummary as chts', join =>
-        join
-          .onRef('chts.FromCollectiveId', '=', 'cas.FromCollectiveId')
-          .onRef('chts.HostCollectiveId', '=', 'cas.HostCollectiveId')
-          .on('chts.kind', 'is', null),
-      ) as any;
+    // Transaction summary joins: all-time view, or yearly view when a year is requested
+    const joinTransactionSummary = (alias: 'chtsc' | 'chtse', year: number | undefined) => {
+      query = isNil(year)
+        ? query.leftJoin(`AdminCommunityHostTransactionSummary as ${alias}`, join =>
+            join
+              .onRef(`${alias}.FromCollectiveId`, '=', 'cas.FromCollectiveId')
+              .onRef(`${alias}.HostCollectiveId`, '=', 'cas.HostCollectiveId')
+              .on(`${alias}.kind`, 'is', null),
+          )
+        : (query.leftJoin(`AdminCommunityHostYearlyTransactionSummary as ${alias}`, join =>
+            join
+              .onRef(`${alias}.FromCollectiveId`, '=', 'cas.FromCollectiveId')
+              .onRef(`${alias}.HostCollectiveId`, '=', 'cas.HostCollectiveId')
+              .on(`${alias}.kind`, 'is', null)
+              .on(`${alias}.year`, '=', year),
+          ) as unknown as CommunitySummaryQueryBuilder);
+    };
+    if (needsContributedTotals) {
+      joinTransactionSummary('chtsc', replacements.totalContributedYear);
+    }
+    if (needsExpendedTotals) {
+      joinTransactionSummary('chtse', replacements.totalExpendedYear);
     }
 
     // WHERE conditions
     if ('HostCollectiveId' in replacements && replacements.HostCollectiveId !== undefined) {
-      query = query.where('cas.HostCollectiveId', '=', replacements.HostCollectiveId) as any;
+      query = query.where('cas.HostCollectiveId', '=', replacements.HostCollectiveId);
     }
     if ('CollectiveId' in replacements && replacements.CollectiveId !== undefined) {
-      query = query.where('cas.CollectiveId', '=', replacements.CollectiveId) as any;
+      query = query.where('cas.CollectiveId', '=', replacements.CollectiveId);
     }
     if ('type' in replacements && replacements.type && replacements.type.length > 0) {
-      query = query.where('fc.type' as any, 'in', replacements.type as any) as any;
+      query = query.where('fc.type', 'in', replacements.type);
     }
     if ('relation' in replacements && replacements.relation && replacements.relation.length > 0) {
-      query = query.where(({ eb }) => eb(sql`cas."relations"`, '@>', sql`${replacements.relation}::jsonb`)) as any;
+      query = query.where(({ eb }) => eb(sql`cas."relations"`, '@>', sql`${replacements.relation}::jsonb`));
+    }
+    if (replacements.missingInformation?.length) {
+      query = query.where(({ eb, or }) =>
+        or(
+          replacements.missingInformation.map(field => {
+            switch (field) {
+              case 'LEGAL_NAME':
+                return sql<boolean>`(fc."legalName" IS NULL OR TRIM(fc."legalName") = '')`;
+              case 'ADDRESS':
+                // A location has an address if its formatted `address` is not blank, or (for legacy rows where
+                // the formatted address was never generated) if `structured` has at least one non-blank value
+                return sql<boolean>`NOT EXISTS (
+                  SELECT 1 FROM "Locations" l
+                  WHERE l."CollectiveId" = fc.id
+                  AND l."deletedAt" IS NULL
+                  AND (
+                    TRIM(COALESCE(l.address, '')) <> ''
+                    OR CASE
+                      WHEN jsonb_typeof(l.structured) = 'object'
+                      THEN EXISTS (SELECT 1 FROM jsonb_each_text(l.structured) kv WHERE TRIM(kv.value) <> '')
+                      ELSE FALSE
+                    END
+                  )
+                )`;
+              case 'COUNTRY_OF_INCORPORATION':
+                return eb.or([
+                  sql<boolean>`fc."data" ->> 'taxableCountry' IS NULL`,
+                  sql<boolean>`TRIM(fc."data" ->> 'taxableCountry') = ''`,
+                ]);
+              case 'US_TAX_FORM_CURRENT_YEAR':
+                return replacements.missingCurrentYearTaxFormAccountIds?.length
+                  ? eb('fc.id', 'in', replacements.missingCurrentYearTaxFormAccountIds)
+                  : sql<boolean>`FALSE`;
+              case 'US_TAX_FORM_PREVIOUS_YEAR':
+                return replacements.missingPreviousYearTaxFormAccountIds?.length
+                  ? eb('fc.id', 'in', replacements.missingPreviousYearTaxFormAccountIds)
+                  : sql<boolean>`FALSE`;
+            }
+          }),
+        ),
+      );
     }
     if (replacements.totalExpendedExpression) {
-      query = query.where(sql<boolean>`chts."debitTotal" ${sql.raw(replacements.totalExpendedExpression)}`) as any;
+      query = query.where(
+        sql<boolean>`COALESCE(chtse."debitTotal", 0) ${sql.raw(replacements.totalExpendedExpression)}`,
+      );
     }
     if (replacements.totalContributedExpression) {
-      query = query.where(sql<boolean>`chts."creditTotal" ${sql.raw(replacements.totalContributedExpression)}`) as any;
+      query = query.where(
+        sql<boolean>`COALESCE(chtsc."creditTotal", 0) ${sql.raw(replacements.totalContributedExpression)}`,
+      );
     }
 
     // Search WHERE conditions
     if (parsed?.term) {
       if (parsed.type === 'slug') {
         const sanitizedSlug = sanitizeSearchTermForILike(parsed.term.toString());
-        query = query.where('fc.slug', 'ilike', `%${sanitizedSlug}%`) as any;
+        query = query.where('fc.slug', 'ilike', `%${sanitizedSlug}%`);
       } else if (parsed.type === 'id' || parsed.type === 'number') {
-        query = query.where(({ eb, or }) =>
-          or([
-            eb('cas.CollectiveId' as any, '=', Number(parsed.term)),
-            eb('cas.FromCollectiveId' as any, '=', Number(parsed.term)),
-          ]),
-        ) as any;
+        const id = parsed.term;
+        if (!isPostgresInteger(id)) {
+          query = query.where(sql<boolean>`FALSE`); // Out-of-range or non-integer: no account can have this ID
+        } else {
+          query = query.where(({ eb, or }) =>
+            or([eb('cas.CollectiveId', '=', id), eb('cas.FromCollectiveId', '=', id)]),
+          );
+        }
       } else if (parsed.type === 'publicId') {
-        query = query.where('fc.publicId' as any, '=', parsed.term) as any;
+        query = query.where(sql.ref('fc.publicId'), '=', parsed.term);
+      } else if (searchAccountIds) {
+        // Same accounts as the generic text search below. One array parameter, whatever the number of IDs.
+        query = query.where(sql<boolean>`fc.id = ANY(${searchAccountIds}::int[])`);
       } else if (parsed.type !== 'email') {
         // Generic text search (email case is handled by the INNER JOIN above)
         const sanitizedTerm = sanitizeSearchTermForILike(parsed.term.toString());
         const pattern = `%${sanitizedTerm}%`;
         query = query.where(({ eb, or }) =>
-          or([
-            eb('fc.name' as any, 'ilike', pattern),
-            eb('fc.slug' as any, 'ilike', pattern),
-            eb('u.email' as any, 'ilike', pattern),
-          ]),
-        ) as any;
+          or([eb('fc.name', 'ilike', pattern), eb('fc.slug', 'ilike', pattern), eb('u.email', 'ilike', pattern)]),
+        );
       }
     }
 
@@ -154,6 +265,9 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
   };
 
   // Build ORDER BY / GROUP BY
+  // Accounts without a summary row (e.g. no activity in the requested year) count as zero, like in the filters
+  const CREDIT_TOTAL_SQL = 'COALESCE(chtsc."creditTotal", 0)';
+  const DEBIT_TOTAL_SQL = 'COALESCE(chtse."debitTotal", 0)';
   const buildOrderBy = () => {
     const orderBy: Array<{ field: string; direction: 'asc' | 'desc' }> = [];
     const extraGroupBy: string[] = [];
@@ -165,12 +279,12 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
           orderBy.push({ field: 'fc.name', direction: dir });
           break;
         case 'TOTAL_CONTRIBUTED':
-          orderBy.push({ field: 'chts."creditTotal"', direction: dir });
-          extraGroupBy.push('chts."creditTotal"');
+          orderBy.push({ field: CREDIT_TOTAL_SQL, direction: dir });
+          extraGroupBy.push(CREDIT_TOTAL_SQL);
           break;
         case 'TOTAL_EXPENDED':
-          orderBy.push({ field: 'chts."debitTotal"', direction: dir });
-          extraGroupBy.push('chts."debitTotal"');
+          orderBy.push({ field: DEBIT_TOTAL_SQL, direction: dir });
+          extraGroupBy.push(DEBIT_TOTAL_SQL);
           break;
         case 'CREATED_AT':
           orderBy.push({ field: 'fc."createdAt"', direction: dir });
@@ -180,12 +294,12 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
       }
     } else {
       if (replacements.totalExpendedExpression) {
-        orderBy.push({ field: 'chts."debitTotal"', direction: 'desc' });
-        extraGroupBy.push('chts."debitTotal"');
+        orderBy.push({ field: DEBIT_TOTAL_SQL, direction: 'desc' });
+        extraGroupBy.push(DEBIT_TOTAL_SQL);
       }
       if (replacements.totalContributedExpression) {
-        orderBy.push({ field: 'chts."creditTotal"', direction: 'desc' });
-        extraGroupBy.push('chts."creditTotal"');
+        orderBy.push({ field: CREDIT_TOTAL_SQL, direction: 'desc' });
+        extraGroupBy.push(CREDIT_TOTAL_SQL);
       }
       orderBy.push({ field: 'fc.name', direction: 'asc' });
     }
@@ -197,21 +311,25 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
 
   const nodes = async () => {
     let query = buildBaseQuery()
-      .select(sql`fc.*` as any)
+      .selectAll('fc')
       .groupBy(['cas.FromCollectiveId', 'fc.id', ...extraGroupBy.map(f => sql.raw(f))]);
 
     for (const ob of orderBy) {
       if (ob.direction === 'desc') {
-        query = query.orderBy(sql.raw(`${ob.field} DESC NULLS LAST`)) as any;
+        query = query.orderBy(sql.raw(`${ob.field} DESC NULLS LAST`));
       } else {
-        query = query.orderBy(sql.raw(`${ob.field} ASC`)) as any;
+        query = query.orderBy(sql.raw(`${ob.field} ASC`));
       }
     }
+
+    // Many people have the same name or the same total: without a last key that is unique, PostgreSQL returns them
+    // in an order that depends on the plan, and the same account can come back on two pages.
+    query = query.orderBy(sql.raw('fc.id ASC'));
 
     query = query.limit(replacements.limit).offset(replacements.offset);
 
     const result = await query.execute();
-    return kyselyToSequelizeModels(Collective)(result as any[]);
+    return kyselyToSequelizeModels(Collective)(result);
   };
 
   const totalCount = async () => {
@@ -244,19 +362,25 @@ const CommunityQuery = {
     relation: {
       type: new GraphQLList(new GraphQLNonNull(GraphQLCommunityRelationType)),
     },
+    missingInformation: {
+      type: new GraphQLList(new GraphQLNonNull(GraphQLMissingInformationField)),
+      description: 'Filter accounts missing any of the given information',
+    },
     orderBy: {
       type: GraphQLOrderByInput,
     },
     totalContributed: {
-      type: GraphQLAmountRangeInput,
-      description: 'Only return accounts that contributed within this amount range',
+      type: GraphQLAmountRangeWithYearInput,
+      description:
+        'Only return accounts that contributed within this amount range (optionally in a given year). Also scopes the TOTAL_CONTRIBUTED ordering.',
     },
     totalExpended: {
-      type: GraphQLAmountRangeInput,
-      description: 'Only return accounts that expended within this amount range',
+      type: GraphQLAmountRangeWithYearInput,
+      description:
+        'Only return accounts that were paid (received) within this amount range through expenses (optionally in a given year). Also scopes the TOTAL_EXPENDED ordering.',
     },
-    limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: DEFAULT_LIMIT },
-    offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
+    limit: collectionLimitArg(DEFAULT_LIMIT),
+    offset: collectionOffsetArg(0),
   },
   async resolve(_: void, args, req: Express.Request) {
     enforceScope(req, 'host');
@@ -266,7 +390,7 @@ const CommunityQuery = {
     if (isNil(args.offset) || args.offset < 0) {
       args.offset = 0;
     }
-    if (args.limit > DEFAULT_LIMIT && !req.remoteUser?.isRoot()) {
+    if (args.limit > DEFAULT_LIMIT && !isRemoteUserRoot(req)) {
       throw new Error(`Cannot fetch more than ${DEFAULT_LIMIT} members at the same time, please adjust the limit`);
     }
 
@@ -292,21 +416,46 @@ const CommunityQuery = {
       replacements.CollectiveId = account.id;
     }
 
-    const hasCommunityHostTransactionsArgs = args.totalContributed || args.totalExpended;
-    if (hasCommunityHostTransactionsArgs) {
-      if (args.totalExpended) {
-        replacements.totalExpendedExpression = getAmountRangeQuery(args.totalExpended);
+    const parseTotalsArg = (arg: AmountRangeWithYearInputType | undefined) => {
+      if (!arg) {
+        return {};
       }
-      if (args.totalContributed) {
-        replacements.totalContributedExpression = getAmountRangeQuery(args.totalContributed);
+      if (!isNil(arg.year)) {
+        assert(Number.isInteger(arg.year) && arg.year >= 1970 && arg.year <= 9999, new BadRequest('Invalid year'));
       }
-    }
+      return {
+        // The year also scopes the ordering, so it is kept even when there is no amount range
+        year: arg.year ?? undefined,
+        expression: arg.gte || arg.lte ? getAmountRangeQuery(arg) : undefined,
+      };
+    };
+    const totalExpended = parseTotalsArg(args.totalExpended);
+    replacements.totalExpendedExpression = totalExpended.expression;
+    replacements.totalExpendedYear = totalExpended.year;
+    const totalContributed = parseTotalsArg(args.totalContributed);
+    replacements.totalContributedExpression = totalContributed.expression;
+    replacements.totalContributedYear = totalContributed.year;
 
     if (args.type && args.type.length > 0) {
       replacements.type = args.type.map(value => AccountTypeToModelMapping[value]);
     }
     if (args.relation && args.relation.length > 0) {
       replacements.relation = JSON.stringify(args.relation);
+    }
+    if (args.missingInformation && args.missingInformation.length > 0) {
+      replacements.missingInformation = args.missingInformation;
+      // Accounts required to file a US tax form for the given year that has not been received
+      const getAccountIdsMissingTaxForm = async (year: number) =>
+        Array.from(
+          await SQLQueries.getTaxFormsRequiredForAccounts({ HostCollectiveId: host.id, year, ignoreReceived: true }),
+        );
+      const currentYear = new Date().getUTCFullYear();
+      if (args.missingInformation.includes('US_TAX_FORM_CURRENT_YEAR')) {
+        replacements.missingCurrentYearTaxFormAccountIds = await getAccountIdsMissingTaxForm(currentYear);
+      }
+      if (args.missingInformation.includes('US_TAX_FORM_PREVIOUS_YEAR')) {
+        replacements.missingPreviousYearTaxFormAccountIds = await getAccountIdsMissingTaxForm(currentYear - 1);
+      }
     }
     if (args.searchTerm) {
       replacements.searchTerm = args.searchTerm;

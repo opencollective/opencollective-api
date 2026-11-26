@@ -2,7 +2,12 @@ import { expect } from 'chai';
 
 import { CollectiveType } from '../../../server/constants/collectives';
 import FEATURE from '../../../server/constants/feature';
-import { checkFeatureAccess, getFeatureAccess, getFeaturesAccessMap } from '../../../server/lib/allowed-features';
+import {
+  checkFeatureAccess,
+  getFeatureAccess,
+  getFeaturesAccessMap,
+  isFeatureBlockedForAccount,
+} from '../../../server/lib/allowed-features';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -20,6 +25,33 @@ describe('server/lib/allowed-features', () => {
 
   before(async () => {
     platform = await getOrCreatePlatformAccount();
+  });
+
+  describe('isFeatureBlockedForAccount', () => {
+    it('blocks a regular feature when suspended, globally blocked, or specifically blocked', async () => {
+      const suspended = { data: { isSuspended: true } } as any;
+      expect(isFeatureBlockedForAccount(suspended, FEATURE.CONVERSATIONS)).to.be.true;
+
+      const globallyBlocked = { data: { features: { ALL: false } } } as any;
+      expect(isFeatureBlockedForAccount(globallyBlocked, FEATURE.CONVERSATIONS)).to.be.true;
+
+      const specificallyBlocked = { data: { features: { [FEATURE.CONVERSATIONS]: false } } } as any;
+      expect(isFeatureBlockedForAccount(specificallyBlocked, FEATURE.CONVERSATIONS)).to.be.true;
+
+      const notBlocked = {} as any;
+      expect(isFeatureBlockedForAccount(notBlocked, FEATURE.CONVERSATIONS)).to.be.false;
+    });
+
+    it('does not block PUBLIC_PROFILE when suspended or globally blocked, only when explicitly disabled', async () => {
+      const suspended = { data: { isSuspended: true } } as any;
+      expect(isFeatureBlockedForAccount(suspended, FEATURE.PUBLIC_PROFILE)).to.be.false;
+
+      const globallyBlocked = { data: { features: { ALL: false } } } as any;
+      expect(isFeatureBlockedForAccount(globallyBlocked, FEATURE.PUBLIC_PROFILE)).to.be.false;
+
+      const explicitlyDisabled = { data: { isSuspended: true, features: { [FEATURE.PUBLIC_PROFILE]: false } } } as any;
+      expect(isFeatureBlockedForAccount(explicitlyDisabled, FEATURE.PUBLIC_PROFILE)).to.be.true;
+    });
   });
 
   // This test case is expected to be the most comprehensive one, covering all the feature flags
@@ -47,6 +79,29 @@ describe('server/lib/allowed-features', () => {
     it('returns DISABLED if feature is specifically blocked', async () => {
       const collective = await fakeCollective({ data: { features: { [FEATURE.CONVERSATIONS]: false } } });
       expect(await getFeatureAccess(collective, FEATURE.CONVERSATIONS)).to.deep.eq({
+        access: 'DISABLED',
+        reason: 'BLOCKED',
+      });
+    });
+
+    it('does not block PUBLIC_PROFILE for suspended accounts or when globally blocked, only when explicitly disabled', async () => {
+      const suspended = await fakeCollective({ isActive: true, data: { isSuspended: true } });
+      expect(await getFeatureAccess(suspended, FEATURE.PUBLIC_PROFILE)).to.deep.eq({
+        access: 'AVAILABLE',
+        reason: null,
+      });
+
+      const globallyBlocked = await fakeCollective({ isActive: true, data: { features: { ALL: false } } });
+      expect(await getFeatureAccess(globallyBlocked, FEATURE.PUBLIC_PROFILE)).to.deep.eq({
+        access: 'AVAILABLE',
+        reason: null,
+      });
+
+      const explicitlyDisabled = await fakeCollective({
+        isActive: true,
+        data: { isSuspended: true, features: { [FEATURE.PUBLIC_PROFILE]: false } },
+      });
+      expect(await getFeatureAccess(explicitlyDisabled, FEATURE.PUBLIC_PROFILE)).to.deep.eq({
         access: 'DISABLED',
         reason: 'BLOCKED',
       });
@@ -565,6 +620,19 @@ describe('server/lib/allowed-features', () => {
         });
       });
 
+      it('is DISABLED when the host is on hold for unpaid platform billing', async () => {
+        const host = await fakeActiveHost({
+          plan: 'start-plan-2021',
+          hasHosting: true,
+          settings: { apply: true },
+          data: { isBlockedForUnpaidPlatformBilling: true },
+        });
+        expect(await getFeatureAccess(host, FEATURE.RECEIVE_HOST_APPLICATIONS)).to.deep.eq({
+          access: 'DISABLED',
+          reason: 'BLOCKED',
+        });
+      });
+
       describe('with the new pricing', () => {
         it('is AVAILABLE for active hosts if opted in, DISABLED if not, UNSUPPORTED for others', async () => {
           const host = await fakeActiveHost({ hasHosting: true, settings: { apply: true } });
@@ -657,6 +725,37 @@ describe('server/lib/allowed-features', () => {
         });
         const flagOverride = await fakeCollective({ settings: { features: { stripePaymentIntent: true } } });
         expect(await getFeatureAccess(flagOverride, FEATURE.STRIPE_PAYMENT_INTENT)).to.deep.eq({
+          access: 'AVAILABLE',
+          reason: null,
+        });
+      });
+    });
+
+    describe('PUBLIC_PROFILE', () => {
+      it('is AVAILABLE for allowed account types, DISABLED if opted out via flagOverride, UNSUPPORTED for others', async () => {
+        const collective = await fakeCollective({ isActive: true });
+        expect(await getFeatureAccess(collective, FEATURE.PUBLIC_PROFILE)).to.deep.eq({
+          access: 'AVAILABLE',
+          reason: null,
+        });
+        const user = await fakeUser({ isActive: true });
+        expect(await getFeatureAccess(user.collective, FEATURE.PUBLIC_PROFILE)).to.deep.eq({
+          access: 'AVAILABLE',
+          reason: null,
+        });
+        const disabled = await fakeCollective({
+          isActive: true,
+          settings: { features: { publicProfile: false } },
+        });
+        expect(await getFeatureAccess(disabled, FEATURE.PUBLIC_PROFILE)).to.deep.eq({
+          access: 'DISABLED',
+          reason: 'BLOCKED',
+        });
+        const enabled = await fakeCollective({
+          isActive: true,
+          settings: { features: { publicProfile: true } },
+        });
+        expect(await getFeatureAccess(enabled, FEATURE.PUBLIC_PROFILE)).to.deep.eq({
           access: 'AVAILABLE',
           reason: null,
         });
@@ -815,7 +914,6 @@ describe('server/lib/allowed-features', () => {
         CONVERSATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CREATE_COLLECTIVE: { access: 'AVAILABLE', reason: null },
         EMAIL_NOTIFICATIONS_PANEL: { access: 'AVAILABLE', reason: null },
-        EMIT_GIFT_CARDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EVENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -889,7 +987,6 @@ describe('server/lib/allowed-features', () => {
         CONVERSATIONS: { access: 'AVAILABLE', reason: null },
         CREATE_COLLECTIVE: { access: 'AVAILABLE', reason: null },
         EMAIL_NOTIFICATIONS_PANEL: { access: 'AVAILABLE', reason: null },
-        EMIT_GIFT_CARDS: { access: 'AVAILABLE', reason: null },
         EVENTS: { access: 'AVAILABLE', reason: null },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -904,6 +1001,7 @@ describe('server/lib/allowed-features', () => {
         PUBLIC_PROFILE: { access: 'AVAILABLE', reason: null },
         RECEIVE_EXPENSES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECEIVE_GRANTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECEIVE_HOST_APPLICATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECURRING_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
@@ -924,7 +1022,6 @@ describe('server/lib/allowed-features', () => {
         CHART_OF_ACCOUNTS: { access: 'AVAILABLE', reason: null },
         EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
         EXPENSE_SECURITY_CHECKS: { access: 'AVAILABLE', reason: null },
-        FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
         TAX_FORMS: { access: 'AVAILABLE', reason: null },
         VENDORS: { access: 'AVAILABLE', reason: null },
       };
@@ -946,6 +1043,7 @@ describe('server/lib/allowed-features', () => {
           PAYPAL_PAYOUTS: { access: 'DISABLED', reason: 'OPT_IN' },
           RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
           RECEIVE_GRANTS: { access: 'AVAILABLE', reason: null },
+          FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
           RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
           RECEIVE_HOST_APPLICATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
           TRANSFERWISE: { access: 'AVAILABLE', reason: null },
@@ -964,7 +1062,6 @@ describe('server/lib/allowed-features', () => {
         CONVERSATIONS: { access: 'AVAILABLE', reason: null },
         CREATE_COLLECTIVE: { access: 'AVAILABLE', reason: null },
         EMAIL_NOTIFICATIONS_PANEL: { access: 'AVAILABLE', reason: null },
-        EMIT_GIFT_CARDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EVENTS: { access: 'AVAILABLE', reason: null },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -979,6 +1076,7 @@ describe('server/lib/allowed-features', () => {
         PUBLIC_PROFILE: { access: 'AVAILABLE', reason: null },
         RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
         RECEIVE_GRANTS: { access: 'AVAILABLE', reason: null },
+        FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
         RECEIVE_HOST_APPLICATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECURRING_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
@@ -999,7 +1097,6 @@ describe('server/lib/allowed-features', () => {
         CHART_OF_ACCOUNTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EXPECTED_FUNDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EXPENSE_SECURITY_CHECKS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-        FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
       };
@@ -1077,7 +1174,6 @@ describe('server/lib/allowed-features', () => {
         CONVERSATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CREATE_COLLECTIVE: { access: 'AVAILABLE', reason: null },
         EMAIL_NOTIFICATIONS_PANEL: { access: 'AVAILABLE', reason: null },
-        EMIT_GIFT_CARDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EVENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -1092,6 +1188,7 @@ describe('server/lib/allowed-features', () => {
         PUBLIC_PROFILE: { access: 'AVAILABLE', reason: null },
         RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
         RECEIVE_GRANTS: { access: 'AVAILABLE', reason: null },
+        FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
         RECEIVE_HOST_APPLICATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECURRING_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
@@ -1112,7 +1209,6 @@ describe('server/lib/allowed-features', () => {
         CHART_OF_ACCOUNTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EXPECTED_FUNDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EXPENSE_SECURITY_CHECKS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-        FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
       };
@@ -1135,7 +1231,6 @@ describe('server/lib/allowed-features', () => {
         CONVERSATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CREATE_COLLECTIVE: { access: 'AVAILABLE', reason: null },
         EMAIL_NOTIFICATIONS_PANEL: { access: 'AVAILABLE', reason: null },
-        EMIT_GIFT_CARDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EVENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -1150,6 +1245,7 @@ describe('server/lib/allowed-features', () => {
         PUBLIC_PROFILE: { access: 'AVAILABLE', reason: null },
         RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
         RECEIVE_GRANTS: { access: 'AVAILABLE', reason: null },
+        FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
         RECEIVE_HOST_APPLICATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECURRING_CONTRIBUTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -1170,7 +1266,6 @@ describe('server/lib/allowed-features', () => {
         CHART_OF_ACCOUNTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EXPECTED_FUNDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EXPENSE_SECURITY_CHECKS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-        FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
       };
@@ -1193,7 +1288,6 @@ describe('server/lib/allowed-features', () => {
         CONVERSATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CREATE_COLLECTIVE: { access: 'AVAILABLE', reason: null },
         EMAIL_NOTIFICATIONS_PANEL: { access: 'AVAILABLE', reason: null },
-        EMIT_GIFT_CARDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EVENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -1208,6 +1302,7 @@ describe('server/lib/allowed-features', () => {
         PUBLIC_PROFILE: { access: 'AVAILABLE', reason: null },
         RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
         RECEIVE_GRANTS: { access: 'AVAILABLE', reason: null },
+        FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
         RECEIVE_HOST_APPLICATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECURRING_CONTRIBUTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -1228,7 +1323,6 @@ describe('server/lib/allowed-features', () => {
         CHART_OF_ACCOUNTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EXPECTED_FUNDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EXPENSE_SECURITY_CHECKS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-        FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
       };

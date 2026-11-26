@@ -5,7 +5,7 @@ export interface ExpenseOCRParseResult {
   description: string;
   amount: AmountWithExchangeRate;
   date: Date;
-  raw: Record<string, any>;
+  raw: Record<string, unknown>;
   items: Array<{
     description: string;
     amount: AmountWithExchangeRate;

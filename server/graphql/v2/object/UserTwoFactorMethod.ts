@@ -38,8 +38,7 @@ export const UserTwoFactorMethod = new GraphQLObjectType({
       description: <
         GraphQLFieldConfig<
           UserTwoFactorMethodModel<TwoFactorMethod.TOTP | TwoFactorMethod.YUBIKEY_OTP | TwoFactorMethod.WEBAUTHN>,
-          any,
-          any
+          Express.Request
         >
       >{
         type: GraphQLString,
@@ -54,8 +53,7 @@ export const UserTwoFactorMethod = new GraphQLObjectType({
       icon: <
         GraphQLFieldConfig<
           UserTwoFactorMethodModel<TwoFactorMethod.TOTP | TwoFactorMethod.YUBIKEY_OTP | TwoFactorMethod.WEBAUTHN>,
-          any,
-          any
+          Express.Request
         >
       >{
         type: GraphQLString,

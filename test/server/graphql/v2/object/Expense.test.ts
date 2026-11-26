@@ -3,14 +3,18 @@ import gql from 'fake-tag';
 
 import ActivityTypes from '../../../../../server/constants/activities';
 import FEATURE from '../../../../../server/constants/feature';
+import roles from '../../../../../server/constants/roles';
 import { KYCProviderName } from '../../../../../server/lib/kyc/providers';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import {
+  fakeActiveHost,
   fakeActivity,
   fakeCollective,
   fakeExpense,
   fakeKYCVerification,
+  fakeMember,
   fakeOrganization,
+  fakeTransactionsImportRow,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
@@ -296,6 +300,38 @@ describe('server/graphql/v2/object/Expense', () => {
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.expense.kycStatus).to.be.null;
+    });
+  });
+
+  describe('transactionImportRow', () => {
+    const transactionImportRowQuery = gql`
+      query Expense($id: Int!) {
+        expense(expense: { legacyId: $id }) {
+          id
+          transactionImportRow {
+            id
+          }
+        }
+      }
+    `;
+
+    it('host accountant can see the transaction import row', async () => {
+      const hostAdmin = await fakeUser();
+      const hostAccountant = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin.collective });
+      await fakeMember({
+        CollectiveId: host.id,
+        MemberCollectiveId: hostAccountant.CollectiveId,
+        role: roles.ACCOUNTANT,
+      });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const expense = await fakeExpense({ CollectiveId: collective.id, status: 'PENDING' });
+      await fakeTransactionsImportRow({ ExpenseId: expense.id });
+
+      const result = await graphqlQueryV2(transactionImportRowQuery, { id: expense.id }, hostAccountant);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.expense.transactionImportRow).to.not.be.null;
     });
   });
 });

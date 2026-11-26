@@ -69,3 +69,61 @@ export function prependHttp(url: string, options: { https?: boolean } = {}) {
 
   return url.replace(/^(?!(?:\w+:)?\/\/)/, options.https ? 'https://' : 'http://');
 }
+
+export const YOUTUBE_VIDEO_ID_PATTERN = /^[a-zA-Z0-9_-]{11}$/;
+
+export const constructYouTubeWatchUrl = (videoId: string): string => {
+  return `https://www.youtube.com/watch?v=${videoId}`;
+};
+
+export const parseYouTubeVideoId = (videoLink: string): string | null => {
+  try {
+    const cleanLink = videoLink.replace(/\?showinfo=0$/, '');
+    const url = new URL(cleanLink);
+    const hostname = url.hostname.replace(/^www\./, '');
+
+    if (hostname === 'youtu.be') {
+      const id = url.pathname.slice(1).split('/')[0];
+      return YOUTUBE_VIDEO_ID_PATTERN.test(id) ? id : null;
+    }
+
+    if (hostname === 'youtube.com' || hostname === 'youtube-nocookie.com') {
+      if (url.pathname.startsWith('/embed/') || url.pathname.startsWith('/shorts/')) {
+        const id = url.pathname.split('/')[2];
+        return YOUTUBE_VIDEO_ID_PATTERN.test(id) ? id : null;
+      }
+
+      const id = url.searchParams.get('v');
+      return id && YOUTUBE_VIDEO_ID_PATTERN.test(id) ? id : null;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+};
+
+const ANCHOR_FM_PATH_PATTERN = /^\/([^/]+)(?:\/embed)?(?:\/episodes\/([^/]+))?\/?$/;
+
+export const parseAnchorFmURL = (videoLink: string): string | null => {
+  try {
+    const url = new URL(videoLink);
+    const hostname = url.hostname.replace(/^www\./, '');
+
+    if (hostname !== 'anchor.fm') {
+      return null;
+    }
+
+    const matches = ANCHOR_FM_PATH_PATTERN.exec(url.pathname);
+    if (!matches) {
+      return null;
+    }
+
+    const podcastName = matches[1];
+    const episodeId = matches[2];
+    const podcastUrl = `${podcastName}/embed`;
+    return episodeId ? `${podcastUrl}/episodes/${episodeId}` : podcastUrl;
+  } catch {
+    return null;
+  }
+};

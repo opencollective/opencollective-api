@@ -42,6 +42,7 @@ const VendorInputFields = {
   imageUrl: { type: GraphQLString, deprecationReason: '2024-11-26: Please use image + backgroundImage fields' },
   vendorInfo: { type: GraphQLVendorInfoInput },
   payoutMethod: { type: GraphQLPayoutMethodInput },
+  hasPublicProfile: { type: GraphQLBoolean },
   canBeUsedWithAccounts: {
     type: new GraphQLList(GraphQLAccountReferenceInput),
     description:

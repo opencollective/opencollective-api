@@ -47,12 +47,28 @@ class MemberInvitation extends ModelWithPublicId<
   declare collective?: Collective;
   declare memberCollective?: Collective;
 
-  declare sendEmail: (remoteUser: User, skipDefaultAdmin, sequelizeParams?: CreateOptions) => Promise<void>;
+  declare sendEmail: (
+    remoteUser: User,
+    skipDefaultAdmin: boolean,
+    sequelizeParams?: CreateOptions,
+    privateNote?: string,
+    options?: { isNewUser?: boolean },
+  ) => Promise<void>;
 
   declare invite: (
     collective,
     memberParams,
-    { transaction, skipDefaultAdmin }?: { transaction?: Transaction; skipDefaultAdmin?: boolean },
+    {
+      transaction,
+      skipDefaultAdmin,
+      privateNote,
+      isNewUser,
+    }?: {
+      transaction?: Transaction;
+      skipDefaultAdmin?: boolean;
+      privateNote?: string;
+      isNewUser?: boolean;
+    },
   ) => Promise<MemberInvitation>;
 
   declare accept: () => Promise<MemberInvitation>;
@@ -65,7 +81,15 @@ class MemberInvitation extends ModelWithPublicId<
   static async invite(
     collective,
     memberParams,
-    { transaction, skipDefaultAdmin }: { transaction?: Transaction; skipDefaultAdmin?: boolean } = {},
+    {
+      transaction,
+      skipDefaultAdmin,
+      privateNote,
+    }: {
+      transaction?: Transaction;
+      skipDefaultAdmin?: boolean;
+      privateNote?: string;
+    } = {},
   ) {
     const sequelizeParams = transaction ? { transaction } : undefined;
 
@@ -76,6 +100,11 @@ class MemberInvitation extends ModelWithPublicId<
       throw new Error(`Private accounts do not support the ${memberParams.role} role`);
     } else if (collective.type === CollectiveType.USER) {
       throw new Error('Individual accounts do not support members');
+    }
+
+    const inviteeCollective = await Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
+    if (!inviteeCollective || inviteeCollective.type !== CollectiveType.USER) {
+      throw new Error('Invitee does not exists');
     }
 
     // Ensure the user is not already a member
@@ -125,6 +154,7 @@ class MemberInvitation extends ModelWithPublicId<
           CollectiveId: collective.id,
           FromCollectiveId: memberParams.MemberCollectiveId,
           HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
+          UserId: memberParams.CreatedByUserId,
           data: {
             notify: false,
             memberCollective: memberCollective.activity,
@@ -143,7 +173,9 @@ class MemberInvitation extends ModelWithPublicId<
       ...sequelizeParams,
     });
 
-    await invitation.sendEmail(createdByUser, skipDefaultAdmin, sequelizeParams);
+    await invitation.sendEmail(createdByUser, skipDefaultAdmin, sequelizeParams, privateNote, {
+      isNewUser: inviteeCollective.data?.requiresProfileCompletion === true,
+    });
     return invitation;
   }
 }
@@ -323,7 +355,13 @@ MemberInvitation.prototype.decline = async function () {
   });
 };
 
-MemberInvitation.prototype.sendEmail = async function (remoteUser, skipDefaultAdmin = false, sequelizeParams = null) {
+MemberInvitation.prototype.sendEmail = async function (
+  remoteUser,
+  skipDefaultAdmin = false,
+  sequelizeParams = null,
+  privateNote = null,
+  { isNewUser = false }: { isNewUser?: boolean } = {},
+) {
   // Load invitee
   const invitedUser = await User.findOne({
     where: { CollectiveId: this.MemberCollectiveId },
@@ -345,13 +383,16 @@ MemberInvitation.prototype.sendEmail = async function (remoteUser, skipDefaultAd
       CollectiveId: collective.id,
       FromCollectiveId: this.MemberCollectiveId,
       HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
+      UserId: remoteUser?.id,
       data: {
         role: MemberRoleLabels[this.role] || this.role.toLowerCase(),
         invitation: pick(this, ['id', 'role', 'description', 'since']),
-        collective: pick(collective, ['id', 'slug', 'name']),
-        memberCollective: pick(invitedUser.collective, ['id', 'slug', 'name']),
-        invitedByUser: pick(remoteUser, ['collective.id', 'collective.slug', 'collective.name']),
+        collective: collective.activity,
+        memberCollective: invitedUser.collective.activity,
+        invitedByUser: remoteUser ? { collective: remoteUser.collective?.activity } : null,
         skipDefaultAdmin: skipDefaultAdmin,
+        privateNote: privateNote || null,
+        isNewUser: isNewUser || false,
       },
     },
     sequelizeParams,

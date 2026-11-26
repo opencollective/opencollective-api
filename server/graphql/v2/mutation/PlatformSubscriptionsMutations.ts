@@ -1,10 +1,12 @@
 import assert from 'assert';
 
+import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { PlatformSubscriptionPlan, PlatformSubscriptionTiers } from '../../../constants/plans';
-import { Collective, PlatformSubscription } from '../../../models';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
+import { Collective, PlatformSubscription, sequelize } from '../../../models';
+import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLPlatformSubscriptionInput } from '../input/PlatformSubcriptionInput';
 import { GraphQLAccount } from '../interface/Account';
@@ -25,7 +27,7 @@ const platformSubscriptionMutations = {
         description: 'The new platform subscription tier to apply to the account',
       },
     },
-    async resolve(_, args, req: Express.Request): Promise<Collective> {
+    async resolve(_, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseAccount(req, {
         signedOutMessage: 'You need to be logged in to update a platform subscription',
       });
@@ -38,13 +40,11 @@ const platformSubscriptionMutations = {
           throw new Error('Invalid plan ID');
         }
 
-        if (!req.remoteUser.isRoot() && !req.remoteUser.isAdminOfCollective(account)) {
-          throw new Error('User cannot update subscription');
+        if (!req.remoteUser.isAdminOfCollective(account)) {
+          checkRemoteUserCanRoot(req, { rootOnlyMessage: 'User cannot update subscription' });
         }
       } else {
-        if (!req.remoteUser.isRoot()) {
-          throw new Error('Only root users can set custom platform plans');
-        }
+        checkRemoteUserCanRoot(req, { rootOnlyMessage: 'Only root users can set custom platform plans' });
 
         assert(
           args.subscription.plan.pricing.pricePerMonth.currency === 'USD',
@@ -75,11 +75,16 @@ const platformSubscriptionMutations = {
         };
       }
 
-      await PlatformSubscription.replaceCurrentSubscription(account, new Date(), plan, req.remoteUser, {
-        UserTokenId: req.userToken?.id,
-      });
+      await twoFactorAuthLib.enforceForAccount(req, account, { alwaysAskForToken: true });
 
-      return account.update({ plan: null });
+      return sequelize.transaction(async transaction => {
+        await PlatformSubscription.replaceCurrentSubscription(account, new Date(), plan, req.remoteUser, {
+          UserTokenId: req.userToken?.id,
+          transaction,
+        });
+
+        return account.update({ plan: null }, { transaction });
+      });
     },
   },
 };

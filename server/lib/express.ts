@@ -1,4 +1,5 @@
-import cloudflareIps from 'cloudflare-ip/ips.json';
+import http from 'http';
+
 import config from 'config';
 import { RedisStore } from 'connect-redis';
 import cookieParser from 'cookie-parser';
@@ -11,15 +12,46 @@ import passport from 'passport';
 import { Strategy as GitHubStrategy } from 'passport-github';
 import { RedisClientType } from 'redis';
 
+import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import { loadersMiddleware } from '../graphql/loaders';
 
+import cloudflareIps from './cloudflare-ips.json';
 import hyperwatch from './hyperwatch';
 import logger from './logger';
+import { HandlerType, reportMessageToSentry } from './sentry';
+import { parseToBoolean } from './utils';
 
-export default function setupExpress(app: express.Application, redisClient?: RedisClientType) {
+const CANONICAL_HOSTNAME = new URL(config.host.api).hostname;
+
+export default function setupExpress(app: express.Application, redisClient?: RedisClientType, server?: http.Server) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
   // Keep Express 4 query parsing behavior (extended) for compatibility in v5.
   app.set('query parser', 'extended');
+
+  // Logs requests received on a non-canonical host (e.g. direct, IP, *.herokuapp.com, etc) to Sentry.
+  // Intended as an observability step before blocking such requests.
+  if (['production', 'staging'].includes(config.env) && parseToBoolean(process.env.OC_ENABLE_CANONICAL_HOST_CHECK)) {
+    app.use((req, res, next) => {
+      if (req.hostname !== CANONICAL_HOSTNAME) {
+        reportMessageToSentry('Request received on non-canonical host', {
+          severity: 'warning',
+          handler: HandlerType.EXPRESS,
+          domain: ENGINEERING_DOMAINS.SECURITY_PROGRAM,
+          tags: {
+            receivedHost: req.hostname,
+            canonicalHost: CANONICAL_HOSTNAME,
+          },
+          extra: {
+            path: req.path,
+            method: req.method,
+            ip: req.ip,
+          },
+          req,
+        });
+      }
+      next();
+    });
+  }
 
   app.use(
     helmet({
@@ -55,7 +87,7 @@ export default function setupExpress(app: express.Application, redisClient?: Red
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // Hyperwatch
-  hyperwatch(app);
+  hyperwatch(app, server);
 
   // Cors.
   app.use(cors());
@@ -84,6 +116,7 @@ export default function setupExpress(app: express.Application, redisClient?: Red
         cookie: {
           maxAge: 24 * 60 * 60 * 1000, // 1 day
           httpOnly: true,
+          sameSite: 'lax',
           secure: config.env === 'production' || config.env === 'staging',
         },
       }),

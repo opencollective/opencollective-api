@@ -1,7 +1,7 @@
 import config from 'config';
+import type express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { TOKEN_EXPIRATION_SESSION } from '../../../lib/auth';
 import { confirmGuestAccountByEmail } from '../../../lib/guest-accounts';
 import RateLimit from '../../../lib/rate-limit';
 import { Collective } from '../../../models';
@@ -42,7 +42,7 @@ const guestMutations = {
     async resolve(
       _: void,
       args: Record<string, unknown>,
-      req: Record<string, unknown>,
+      req: express.Request,
     ): Promise<{ account: Collective; accessToken: string }> {
       // NOTE(oauth-scope): No scope needed
 
@@ -62,7 +62,9 @@ const guestMutations = {
         <string>args.emailConfirmationToken,
       );
 
-      const accessToken = user.jwt({}, TOKEN_EXPIRATION_SESSION);
+      const accessToken = await user.generateSessionToken({
+        req,
+      });
       return { account: collective, accessToken };
     },
   },

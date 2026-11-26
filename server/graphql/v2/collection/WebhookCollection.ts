@@ -1,11 +1,18 @@
 import express from 'express';
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
+import { channels } from '../../../constants';
 import models from '../../../models';
 import { checkRemoteUserCanUseWebhooks } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
-import { CollectionArgs, CollectionFields, GraphQLCollection } from '../interface/Collection';
+import {
+  COLLECTION_DEFAULT_LIMIT,
+  COLLECTION_DEFAULT_OFFSET,
+  CollectionArgs,
+  CollectionFields,
+  GraphQLCollection,
+} from '../interface/Collection';
 import { GraphQLWebhook } from '../object/Webhook';
 
 export const GraphQLWebhookCollection = new GraphQLObjectType({
@@ -33,10 +40,10 @@ export const WebhookCollectionResolver = async (args, req: express.Request) => {
 
   // Check Pagination arguments
   if (args.limit <= 0) {
-    args.limit = CollectionArgs.limit.defaultValue;
+    args.limit = COLLECTION_DEFAULT_LIMIT;
   }
   if (args.offset <= 0) {
-    args.offset = CollectionArgs.offset.defaultValue;
+    args.offset = COLLECTION_DEFAULT_OFFSET;
   }
 
   // Check and Fetch account
@@ -45,7 +52,7 @@ export const WebhookCollectionResolver = async (args, req: express.Request) => {
     throw new Forbidden();
   }
 
-  const where = { CollectiveId: account.id };
+  const where = { CollectiveId: account.id, channel: channels.WEBHOOK };
 
   const { offset, limit } = args;
 
@@ -53,6 +60,10 @@ export const WebhookCollectionResolver = async (args, req: express.Request) => {
     where,
     limit,
     offset,
+    order: [
+      ['createdAt', 'ASC'],
+      ['id', 'ASC'],
+    ],
   });
 
   return {

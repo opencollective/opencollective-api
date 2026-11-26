@@ -163,7 +163,10 @@ export const userCanUseOCR = async (user: User | undefined | null): Promise<bool
 
   if (!user) {
     return false;
-  } else if (user.isRoot()) {
+  }
+
+  // eslint-disable-next-line oauth-scopes/no-bare-is-root -- feature availability only, grants no data access
+  if (user.isRoot()) {
     return true;
   }
 

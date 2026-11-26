@@ -318,5 +318,34 @@ describe('server/controllers/connectedAccounts', () => {
 
       expect(next).to.have.been.calledOnceWith(githubError);
     });
+
+    it('calls next with Unauthorized when GitHub rejects the stored token (401)', async () => {
+      const user = await fakeUser();
+      const connectedAccount = await fakeConnectedAccount({
+        service: 'github',
+        CollectiveId: user.CollectiveId,
+        token: randStr('gh-token-'),
+      });
+      const githubError = Object.assign(new Error('Bad credentials - https://docs.github.com/rest'), { status: 401 });
+      sandbox.stub(github, 'getAllUserPublicRepos').rejects(githubError);
+
+      const next = sandbox.stub();
+      const req = httpMocks.createRequest({
+        ip: randIPV4(),
+        params: { service: 'github' },
+      });
+      req.jwtPayload = {
+        scope: 'connected-account',
+        connectedAccountId: connectedAccount.id,
+      } as any;
+      req.setTimeout = sandbox.stub();
+      const res = httpMocks.createResponse();
+
+      await fetchAllRepositories(req, res, next);
+
+      expect(next).to.have.been.calledOnce;
+      expect(next.firstCall.args[0]).to.be.instanceOf(errors.Unauthorized);
+      expect(next.firstCall.args[0].message).to.include('reconnect your GitHub account');
+    });
   });
 });

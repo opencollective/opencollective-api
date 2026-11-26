@@ -13,8 +13,6 @@ enum MemberRoles {
   BACKER = 'BACKER',
   /** Someone who registered for a free tier (typically a free event ticket) */
   ATTENDEE = 'ATTENDEE',
-  /** Someone interested to follow the activities of the collective/event */
-  FOLLOWER = 'FOLLOWER',
   /** This memberCollective is a connected-collective of the collective */
   CONNECTED_COLLECTIVE = 'CONNECTED_COLLECTIVE',
   /** Has read access to all financial information and receipts/invoices */
@@ -29,7 +27,6 @@ export const MemberRoleLabels = {
   [MemberRoles.CONTRIBUTOR]: 'Contributor',
   [MemberRoles.BACKER]: 'Financial Contributor',
   [MemberRoles.ATTENDEE]: 'Attendee',
-  [MemberRoles.FOLLOWER]: 'Follower',
   [MemberRoles.CONNECTED_COLLECTIVE]: 'Connected-collective',
   [MemberRoles.ACCOUNTANT]: 'Accountant',
 };

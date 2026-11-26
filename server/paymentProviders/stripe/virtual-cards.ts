@@ -12,7 +12,7 @@ import { VirtualCardLimitIntervals } from '../../constants/virtual-cards';
 import { isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { reportMessageToSentry } from '../../lib/sentry';
-import stripe, { convertToStripeAmount, StripeCustomToken } from '../../lib/stripe';
+import stripe, { convertFromStripeAmount, convertToStripeAmount, StripeCustomToken } from '../../lib/stripe';
 import models from '../../models';
 import VirtualCard from '../../models/VirtualCard';
 import { getOrCreateVendor, getVirtualCardForTransaction, persistVirtualCardTransaction } from '../utils';
@@ -87,7 +87,7 @@ export const createVirtualCard = async (
       // eslint-disable-next-line camelcase
       spending_limits: [
         {
-          amount: limitAmount,
+          amount: convertToStripeAmount(host.currency, limitAmount),
           interval: <Stripe.Issuing.CardUpdateParams.SpendingControls.SpendingLimit.Interval>(
             limitInterval.toLowerCase()
           ),
@@ -121,7 +121,7 @@ export const updateVirtualCardLimit = async (
       // eslint-disable-next-line camelcase
       spending_limits: [
         {
-          amount: limitAmount,
+          amount: convertToStripeAmount(virtualCard.currency || host.currency, limitAmount),
           interval: <Stripe.Issuing.CardUpdateParams.SpendingControls.SpendingLimit.Interval>(
             limitInterval.toLowerCase()
           ),
@@ -181,7 +181,7 @@ export const processAuthorization = async (event: Stripe.Event) => {
     reportMessageToSentry('Unsupported currency for Stripe Virtual Card', { extra: { currency, event } });
   }
 
-  const amount = convertToStripeAmount(currency, Math.abs(stripeAuthorization.pending_request.amount));
+  const amount = convertFromStripeAmount(currency, Math.abs(stripeAuthorization.pending_request.amount));
   const collective = virtualCard.collective;
   const balance = await collective.getBalanceAmount({ currency, withBlockedFunds: true });
   const stripe = await getStripeClient(host);
@@ -285,7 +285,8 @@ export const processDeclinedAuthorization = async (event: Stripe.Event) => {
 };
 
 export const processTransaction = async (stripeTransaction: Stripe.Issuing.Transaction) => {
-  const virtualCard = await getVirtualCardForTransaction(stripeTransaction.card);
+  const cardId = typeof stripeTransaction.card === 'string' ? stripeTransaction.card : stripeTransaction.card.id;
+  const virtualCard = await getVirtualCardForTransaction(cardId);
   if (!virtualCard) {
     logger.error(
       `Stripe: could not find virtual card ${
@@ -298,7 +299,7 @@ export const processTransaction = async (stripeTransaction: Stripe.Issuing.Trans
   }
 
   const currency = stripeTransaction.currency.toUpperCase();
-  const amount = convertToStripeAmount(currency, stripeTransaction.amount);
+  const amount = convertFromStripeAmount(currency, stripeTransaction.amount);
   const isRefund = stripeTransaction.type === 'refund';
   const clearedAt = moment.unix(stripeTransaction.created).toDate();
 
@@ -364,7 +365,10 @@ const createCard = (stripeCard, name, collectiveId, hostId, userId, VirtualCardR
     UserId: userId,
     VirtualCardRequestId,
     provider: VirtualCardProviders.STRIPE,
-    spendingLimitAmount: stripeCard['spending_controls']['spending_limits'][0]['amount'],
+    spendingLimitAmount: convertFromStripeAmount(
+      stripeCard.currency,
+      stripeCard['spending_controls']['spending_limits'][0]['amount'],
+    ),
     spendingLimitInterval: stripeCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),
     currency: stripeCard.currency.toUpperCase(),
   };
@@ -383,7 +387,10 @@ export const processCardUpdate = async (event: Stripe.Event) => {
 
   await virtualCard.update({
     data: omit(stripeCard, ['number', 'cvc', 'exp_year', 'exp_month']),
-    spendingLimitAmount: stripeCard['spending_controls']['spending_limits'][0]['amount'],
+    spendingLimitAmount: convertFromStripeAmount(
+      stripeCard.currency,
+      stripeCard['spending_controls']['spending_limits'][0]['amount'],
+    ),
     spendingLimitInterval: stripeCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),
   });
 

@@ -40,7 +40,9 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Query.transactions': 'entry-gate', // TransactionsCollectionResolver checks account privacy
   'Query.orders': 'entry-gate', // OrdersCollectionResolver checks account privacy
   'Query.expenses': 'entry-gate', // ExpensesCollectionQueryResolver checks account privacy
-  'Query.search': 'skipped', // #8734: private account search exclusion is tracked separately
+  // Private Accounts and the rows they own are excluded in SQL, even for root, and `account`/`host` scopes are gated
+  // (see docs/private-organizations.md)
+  'Query.search': 'skipped',
   'Query.update': 'entry-gate',
   'Query.conversation': 'entry-gate',
   'Query.expense': 'entry-gate', // assertExpenseAccessibleForPrivateCollective + expense permissions
@@ -52,7 +54,6 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Account.members': 'parent-gate',
   'Account.memberOf': 'parent-gate',
   'Account.transactions': 'parent-gate',
-  'Account.transactionGroups': 'parent-gate',
   'Account.orders': 'parent-gate',
   'Account.expenses': 'parent-gate',
   'Account.updates': 'parent-gate', // has own canSeePrivateAccount check
@@ -106,8 +107,6 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'ProcessHostApplicationResponse.account': 'no-private',
   'SetPasswordResponse.individual': 'no-private',
   'IndividualConfirmEmailResponse.individual': 'no-private',
-  'FollowAccountResult.individual': 'no-private',
-  'UnfollowAccountResult.individual': 'no-private',
   'MergeAccountsResponse.account': 'admin-only',
   'BanAccountResponse.accounts': 'admin-only',
   'TransactionsImportEditResponse.host': 'admin-only',
@@ -126,6 +125,8 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Mutation.editTwoFactorAuthenticationMethod': 'skipped',
   'Mutation.editAccount': 'skipped',
   'Mutation.setPolicies': 'skipped',
+  'Mutation.archiveAccount': 'skipped',
+  'Mutation.unarchiveAccount': 'skipped',
   'Mutation.deleteAccount': 'skipped',
   'Mutation.convertAccountToOrganization': 'skipped',
   'Mutation.editAccountingCategories': 'skipped',
@@ -134,6 +135,7 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Mutation.removeHost': 'skipped',
   'Mutation.setChangelogViewDate': 'skipped',
   'Mutation.setNewsletterOptIn': 'skipped',
+  'Mutation.requestEmailChange': 'skipped',
   'Mutation.startResumeOrdersProcess': 'skipped',
   'Mutation.createOrganization': 'skipped',
   'Mutation.editOrganizationMoneyManagementAndHosting': 'skipped',
@@ -191,6 +193,13 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Organization.host': 'parent-gate',
   'Organization.mainProfile': 'parent-gate',
 
+  // ---- Platform nested fields ----
+  'Platform.parentAccount': 'parent-gate',
+  'Platform.duplicatedFromAccount': 'parent-gate',
+  'Platform.host': 'parent-gate',
+  'Platform.parent': 'parent-gate',
+  'Platform.mainProfile': 'parent-gate',
+
   // ---- Vendor nested fields ----
   'Vendor.parentAccount': 'parent-gate',
   'Vendor.duplicatedFromAccount': 'parent-gate',
@@ -235,10 +244,6 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Activity.host': 'parent-gate',
   'Activity.individual': 'parent-gate',
 
-  // ---- TransactionGroup ----
-  'TransactionGroup.host': 'parent-gate',
-  'TransactionGroup.account': 'parent-gate',
-
   // ---- CommunityAssociatedAccount ----
   'CommunityAssociatedAccount.account': 'parent-gate',
 
@@ -246,6 +251,10 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'KYCVerification.requestedByAccount': 'admin-only',
   'KYCVerification.account': 'admin-only',
   'KYCVerification.createdByUser': 'admin-only',
+
+  // ---- FiscalHostNote ----
+  // Only reachable through the host-admin gated `Account.fiscalHostNote` field and mutations
+  'FiscalHostNote.updatedBy': 'admin-only',
 
   // ---- Webhook ----
   'Webhook.account': 'admin-only',
@@ -358,6 +367,9 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'HostedCollectivesMembershipMetricsGroup.account': 'parent-gate',
   'HostedCollectivesHostingMetricsGroup.account': 'parent-gate',
   'HostedCollectivesHostingMetricsGroup.parent': 'parent-gate',
+  'HostedCollectivesTransactionSizesMetricsGroup.account': 'parent-gate',
+  'HostedCollectivesTransactionSizesMetricsGroup.parent': 'parent-gate',
+  'HostedCollectivesTransactionSizesMetricsGroup.mainAccount': 'parent-gate',
 };
 
 // ---------------------------------------------------------------------------

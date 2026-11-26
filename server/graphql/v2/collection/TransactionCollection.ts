@@ -28,7 +28,7 @@ export const GraphQLTransactionCollection = new GraphQLObjectType({
 });
 
 type AnyTransactionKind = TransactionKind | `${TransactionKind}`;
-type AnyPaymentMethodType = PAYMENT_METHOD_TYPE | `${PAYMENT_METHOD_TYPE}`;
+export type AnyPaymentMethodType = PAYMENT_METHOD_TYPE | `${PAYMENT_METHOD_TYPE}`;
 
 export interface GraphQLTransactionsCollectionReturnType {
   nodes: Transaction[] | Promise<Transaction[]> | (() => Promise<Transaction[]>);
@@ -37,7 +37,5 @@ export interface GraphQLTransactionsCollectionReturnType {
   offset: number;
   kinds?: AnyTransactionKind[] | (() => AnyTransactionKind[]) | (() => Promise<AnyTransactionKind[]>);
   paymentMethodTypes?:
-    | AnyPaymentMethodType[]
-    | (() => AnyPaymentMethodType[])
-    | (() => Promise<AnyPaymentMethodType[]>);
+    AnyPaymentMethodType[] | (() => AnyPaymentMethodType[]) | (() => Promise<AnyPaymentMethodType[]>);
 }

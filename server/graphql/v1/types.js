@@ -16,6 +16,7 @@ import { pick } from 'lodash';
 import moment from 'moment';
 
 import FEATURE from '../../constants/feature';
+import FEATURE_STATUS from '../../constants/feature-status';
 import INTERVALS from '../../constants/intervals';
 import { maxInteger } from '../../constants/math';
 import orderStatus from '../../constants/order-status';
@@ -25,33 +26,13 @@ import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { filterContributors } from '../../lib/contributors';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { Op, sequelize } from '../../models';
+import { getFeatureStatusResolver } from '../common/features';
+import { isRemoteUserRoot } from '../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../common/user';
-import { Unauthorized } from '../errors';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { CollectiveInterfaceType } from './CollectiveInterface';
 import { TransactionInterfaceType } from './TransactionInterface';
-
-/**
- * Take a graphql type and return a wrapper type that adds pagination. The pagination
- * object has limit, offset and total keys to manage pages and stores the result
- * of the query under the `values` key.
- *
- * @param {object} GraphQL type to paginate
- * @param {string} The name of the type, used to generate name and description.
- */
-const paginatedList = (type, typeName, valuesKey = 'nodes') => {
-  return new GraphQLObjectType({
-    name: `Paginated${typeName}`,
-    description: `A list of ${typeName} with pagination info`,
-    fields: {
-      [valuesKey]: { type: new GraphQLList(type) },
-      total: { type: GraphQLInt },
-      limit: { type: GraphQLInt },
-      offset: { type: GraphQLInt },
-    },
-  });
-};
 
 export const DateString = new GraphQLScalarType({
   name: 'DateString',
@@ -161,7 +142,7 @@ export const UserType = new GraphQLObjectType({
 
           // Handle private accounts
           if (req.remoteUser) {
-            if (req.remoteUser.isRoot()) {
+            if (isRemoteUserRoot(req)) {
               // Allow all private accounts to be seen by root admins
               delete collectiveConditions.isPrivate;
             } else {
@@ -237,6 +218,7 @@ export const UserType = new GraphQLObjectType({
       isRoot: {
         type: new GraphQLNonNull(GraphQLBoolean),
         resolve(user) {
+          // eslint-disable-next-line oauth-scopes/no-bare-is-root -- informational only, grants nothing
           return user.isRoot();
         },
       },
@@ -491,6 +473,24 @@ export const ContributorType = new GraphQLObjectType({
     publicMessage: {
       type: GraphQLString,
       description: 'A public message from contributors to describe their contributions',
+    },
+    hasPublicProfile: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether this contributor has a public profile that can be linked to',
+      async resolve(contributor, _, req) {
+        // Incognito contributors never have a linkable profile
+        if (contributor.isIncognito || !contributor.collectiveSlug) {
+          return false;
+        }
+
+        const collective = await req.loaders.Collective.byId.load(contributor.id);
+        if (!collective) {
+          return false;
+        }
+
+        const status = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(collective, _, req);
+        return status === FEATURE_STATUS.ACTIVE;
+      },
     },
   }),
 });
@@ -1081,8 +1081,9 @@ export const ConnectedAccountType = new GraphQLObjectType({
         type: UserType,
         description: 'The account who connected this account',
         async resolve(connectedAccount, _, req) {
-          if (!req.remoteUser?.isAdmin(connectedAccount.CollectiveId)) {
-            throw new Unauthorized('You need to be logged in as an admin of the account');
+          const collective = await req.loaders.Collective.byId.load(connectedAccount.CollectiveId);
+          if (!req.remoteUser?.isAdminOfCollective(collective)) {
+            return null;
           }
           return connectedAccount.CreatedByUserId && req.loaders.User.byId.load(connectedAccount.CreatedByUserId);
         },
@@ -1090,6 +1091,39 @@ export const ConnectedAccountType = new GraphQLObjectType({
     };
   },
 });
+
+/**
+ * Checks if the user has permission to access the payment method.
+ * @param {Request} req - The request object.
+ * @param {PaymentMethod} paymentMethod - The payment method to check permission for.
+ * @returns {Promise<boolean>} - True if the user has permission, false otherwise.
+ */
+const hasPermissionOnPaymentMethod = async (req, paymentMethod) => {
+  if (!req.remoteUser) {
+    return false;
+  }
+
+  const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+  if (!collective) {
+    return false;
+  } else if (req.remoteUser.isAdminOfCollectiveOrHost(collective)) {
+    return true;
+  }
+
+  if (paymentMethod.SourcePaymentMethodId) {
+    const sourcePaymentMethod = await req.loaders.PaymentMethod.byId.load(paymentMethod.SourcePaymentMethodId);
+    if (sourcePaymentMethod) {
+      const sourceCollective = await req.loaders.Collective.byId.load(sourcePaymentMethod.CollectiveId);
+      if (!sourceCollective) {
+        return false;
+      }
+
+      return req.remoteUser.isAdminOfCollectiveOrHost(sourceCollective);
+    }
+  }
+
+  return false;
+};
 
 export const PaymentMethodType = new GraphQLObjectType({
   name: 'PaymentMethodType',
@@ -1192,13 +1226,19 @@ export const PaymentMethodType = new GraphQLObjectType({
       },
       monthlyLimitPerMember: {
         type: GraphQLFloat,
-        resolve(paymentMethod) {
+        async resolve(paymentMethod, _, req) {
+          if (!(await hasPermissionOnPaymentMethod(req, paymentMethod))) {
+            return null;
+          }
           return paymentMethod.monthlyLimitPerMember;
         },
       },
       initialBalance: {
         type: GraphQLFloat,
-        resolve(paymentMethod) {
+        async resolve(paymentMethod, _, req) {
+          if (!(await hasPermissionOnPaymentMethod(req, paymentMethod))) {
+            return null;
+          }
           return paymentMethod.initialBalance;
         },
       },
@@ -1206,6 +1246,9 @@ export const PaymentMethodType = new GraphQLObjectType({
         type: GraphQLFloat,
         description: 'Returns the balance in the currency of this paymentMethod',
         async resolve(paymentMethod, args, req) {
+          if (!(await hasPermissionOnPaymentMethod(req, paymentMethod))) {
+            return null;
+          }
           const balance = await paymentMethod.getBalanceForUser(req.remoteUser);
           return balance.amount;
         },
@@ -1242,7 +1285,10 @@ export const PaymentMethodType = new GraphQLObjectType({
             description: 'Only returns orders that have an active subscription (monthly/yearly)',
           },
         },
-        resolve(paymentMethod, args) {
+        async resolve(paymentMethod, args, req) {
+          if (!(await hasPermissionOnPaymentMethod(req, paymentMethod))) {
+            return null;
+          }
           const query = {};
           if (args.hasActiveSubscription) {
             query.where = { status: { [Op.or]: [orderStatus.ACTIVE, orderStatus.ERROR] } };
@@ -1289,18 +1335,3 @@ export const SubscriptionType = new GraphQLObjectType({
     };
   },
 });
-
-export const PaymentMethodBatchInfo = new GraphQLObjectType({
-  name: 'PaymentMethodBatchInfo',
-  description: 'Provides rich information about a payment methods batch',
-  fields: () => ({
-    id: { type: new GraphQLNonNull(GraphQLString) }, // For caching
-    count: { type: new GraphQLNonNull(GraphQLInt) },
-    name: {
-      type: GraphQLString,
-      description: 'The batch name, or null for unbatched payment methods',
-    },
-  }),
-});
-
-export const PaginatedPaymentMethodsType = paginatedList(PaymentMethodType, 'PaymentMethod', 'paymentMethods');

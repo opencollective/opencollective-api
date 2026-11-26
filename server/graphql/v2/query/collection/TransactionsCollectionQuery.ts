@@ -4,6 +4,7 @@ import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import { Expression, sql, SqlBool } from 'kysely';
 import { cloneDeep, flatten, intersection, isEmpty, isNil, pick, pickBy, uniq } from 'lodash';
 import { Op, type Order as SequelizeOrder, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
@@ -13,17 +14,19 @@ import { RefundKind } from '../../../../constants/refund-kind';
 import { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import cache, { memoize } from '../../../../lib/cache';
+import { compileToInlineSQL } from '../../../../lib/kysely';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
-import { buildSearchConditions } from '../../../../lib/sql-search';
+import { buildSearchArms, buildSearchConditions } from '../../../../lib/sql-search';
 import { getTransactionKindPriorityCase } from '../../../../lib/transactions/kind-priority';
 import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Collective, Expense, PaymentMethod, sequelize } from '../../../../models';
 import Order from '../../../../models/Order';
 import Transaction, { MERCHANT_ID_PATHS } from '../../../../models/Transaction';
-import { checkScope, enforceScope } from '../../../common/scope-check';
+import { checkScope, enforceScope, isRemoteUserRoot } from '../../../common/scope-check';
 import { BadRequest, Forbidden, NotFound } from '../../../errors';
 import {
+  type AnyPaymentMethodType,
   GraphQLTransactionCollection,
   GraphQLTransactionsCollectionReturnType,
 } from '../../collection/TransactionCollection';
@@ -58,7 +61,7 @@ import {
   GraphQLPayoutMethodReferenceInput,
 } from '../../input/PayoutMethodReferenceInput';
 import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
-import { CollectionArgs } from '../../interface/Collection';
+import { CollectionArgs, collectionLimitArg } from '../../interface/Collection';
 
 const oneDayInSeconds = 60 * 60 * 24;
 
@@ -72,7 +75,7 @@ const LEDGER_ORDERED_TRANSACTIONS_FIELDS = {
 const { PLATFORM_TIP, HOST_FEE_SHARE } = TransactionKind;
 
 export const TransactionsCollectionArgs = {
-  limit: { ...CollectionArgs.limit, defaultValue: 100 },
+  limit: collectionLimitArg(100),
   offset: CollectionArgs.offset,
   type: {
     type: GraphQLTransactionType,
@@ -262,7 +265,7 @@ export const TransactionsCollectionResolver = async (
   if (isNil(args.offset) || args.offset < 0) {
     args.offset = 0;
   }
-  if (args.limit > 10000 && !req.remoteUser?.isRoot()) {
+  if (args.limit > 10000 && !isRemoteUserRoot(req)) {
     throw new Error('Cannot fetch more than 10,000 transactions at the same time, please adjust the limit');
   }
 
@@ -317,6 +320,7 @@ export const TransactionsCollectionResolver = async (
   }
 
   let accountsFromAccountParam: Collective[];
+  let searchScopeAccountIds: number[] | null = null; // Set when all results are transactions of these accounts
   if (args.account) {
     const accountCondition = [];
     const attributes = ['id', 'HostCollectiveId', 'isPrivate']; // Include isPrivate for privacy checks
@@ -365,6 +369,7 @@ export const TransactionsCollectionResolver = async (
       });
     } else {
       where.push({ CollectiveId: accountCondition });
+      searchScopeAccountIds = accountCondition;
     }
     if (args.includeEditedReversedTransactions === false) {
       where.push({ [Op.or]: [{ refundKind: { [Op.is]: null } }, { refundKind: { [Op.ne]: RefundKind.EDIT } }] });
@@ -422,21 +427,47 @@ export const TransactionsCollectionResolver = async (
   const baseWhere = cloneDeep(where);
 
   // Handle search query
-  const searchTermConditions = buildSearchConditions(args.searchTerm, {
-    idFields: ['id', 'ExpenseId', 'OrderId'],
-    slugFields: ['$fromCollective.slug$', '$collective.slug$'],
-    textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
-    amountFields: ['amount'],
-    publicIdFields: [
-      { field: 'publicId', prefix: EntityShortIdPrefix.Transaction },
-      { field: ['$fromCollective.publicId$', '$collective.publicId$'], prefix: EntityShortIdPrefix.Collective },
-    ],
-  });
+  // On large hosts, searching through the joined accounts has to visit every transaction of the host. When the search
+  // has a scope that gives each arm an index (the host or the accounts) and the term is selective, look for the
+  // matching transactions first, then apply the other filters to them.
+  const searchScope: Expression<SqlBool>[] = [];
+  if (host) {
+    searchScope.push(sql<SqlBool>`"Transactions"."HostCollectiveId" = ${host.id}`);
+  }
+  if (searchScopeAccountIds?.length) {
+    searchScope.push(sql<SqlBool>`"Transactions"."CollectiveId" IN (${sql.join(searchScopeAccountIds)})`);
+  }
+
+  const searchArms =
+    !args.searchTerm || !searchScope.length
+      ? null
+      : await buildSearchArms(args.searchTerm, {
+          table: 'Transactions',
+          scope: searchScope,
+          accountIdFields: ['Transactions.FromCollectiveId', 'Transactions.CollectiveId'],
+          idFields: ['Transactions.id', 'Transactions.ExpenseId', 'Transactions.OrderId'],
+          textFields: ['Transactions.description'],
+          amountFields: ['Transactions.amount'],
+          publicIdFields: [{ field: 'Transactions.publicId', prefix: EntityShortIdPrefix.Transaction }],
+        });
+
+  const searchTermConditions = searchArms
+    ? [sequelize.literal(`"Transaction"."id" IN (${compileToInlineSQL(searchArms)})`)]
+    : buildSearchConditions(args.searchTerm, {
+        idFields: ['id', 'ExpenseId', 'OrderId'],
+        slugFields: ['$fromCollective.slug$', '$collective.slug$'],
+        textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
+        amountFields: ['amount'],
+        publicIdFields: [
+          { field: 'publicId', prefix: EntityShortIdPrefix.Transaction },
+          { field: ['$fromCollective.publicId$', '$collective.publicId$'], prefix: EntityShortIdPrefix.Collective },
+        ],
+      });
 
   if (searchTermConditions.length) {
     where.push({ [Op.or]: searchTermConditions });
 
-    // Must include associations to search their fields
+    // Must include associations to search their fields (and to only return transactions between existing accounts)
     include.push(
       { association: 'fromCollective', attributes: [], required: true },
       { association: 'collective', attributes: [], required: true },
@@ -468,7 +499,7 @@ export const TransactionsCollectionResolver = async (
   if (
     !req.remoteUser ||
     !(
-      req.remoteUser.isRoot() || // Root users can see all transactions
+      isRemoteUserRoot(req) || // Root users can see all transactions
       args.expense || // We already checked above that remote user could see all parties (fromCollective/collective)
       (host && req.remoteUser.hasRole(MemberRolesForPrivateAccounts, host.id)) || // Host admins can see external transactions from/to private accounts
       (fromAccount && req.remoteUser.hasRole(MemberRolesForPrivateAccounts, fromAccount.id)) ||
@@ -552,14 +583,8 @@ export const TransactionsCollectionResolver = async (
               WHEN "Transaction"."hostCurrency" = :currency THEN ABS("Transaction"."amountInHostCurrency")
               ELSE ABS(
                 COALESCE(
-                  (SELECT rate FROM "CurrencyExchangeRates"
-                    WHERE "from" = "Transaction"."currency"
-                    AND "to" = :currency
-                    -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
-                    AND "createdAt" <= COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")
-                    ORDER BY "createdAt" DESC
-                    LIMIT 1
-                  ) * "Transaction"."amount",
+                  -- Most recent rate that is older than the transaction
+                  fx_rate("Transaction"."currency", :currency, COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")) * "Transaction"."amount",
                   "Transaction"."amount"
                 )
               )
@@ -811,7 +836,7 @@ const getCacheKey = (resource, condition) => {
   }
 };
 
-const fetchWithCache = async (resource: string, condition, fetchFunction: () => Promise<any>) => {
+const fetchWithCache = async <T>(resource: string, condition, fetchFunction: () => Promise<T>): Promise<T> => {
   let cacheKey;
   if (condition) {
     cacheKey = getCacheKey(resource, condition);
@@ -829,7 +854,7 @@ const fetchWithCache = async (resource: string, condition, fetchFunction: () => 
   return results;
 };
 
-const fetchTransactionsKinds = async whereKinds => {
+const fetchTransactionsKinds = async (whereKinds): Promise<TransactionKind[]> => {
   const condition = whereKinds.length === 1 ? whereKinds[0] : null;
 
   return fetchWithCache('kinds', condition, () =>
@@ -842,7 +867,7 @@ const fetchTransactionsKinds = async whereKinds => {
   );
 };
 
-const fetchTransactionsPaymentMethodTypes = async whereKinds => {
+const fetchTransactionsPaymentMethodTypes = async (whereKinds): Promise<AnyPaymentMethodType[]> => {
   const condition = whereKinds.length === 1 ? whereKinds[0] : null;
 
   return fetchWithCache('paymentMethodTypes', condition, () =>
@@ -852,7 +877,7 @@ const fetchTransactionsPaymentMethodTypes = async whereKinds => {
       include: [{ model: PaymentMethod, required: false, attributes: [] }],
       group: ['PaymentMethod.type'],
       raw: true,
-    }).then(results => results.map(result => result.type || null)),
+    }).then(results => results.map(result => (result.type as AnyPaymentMethodType) || null)),
   );
 };
 

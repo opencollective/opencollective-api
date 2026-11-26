@@ -1,9 +1,9 @@
 import config from 'config';
-import { truncate, uniq } from 'lodash';
+import { truncate, unescape, uniq } from 'lodash';
 import LibSanitize from 'sanitize-html';
 
 import { isValidUploadedImage } from './images';
-import { prependHttp } from './url-utils';
+import { parseAnchorFmURL, parseYouTubeVideoId, prependHttp } from './url-utils';
 
 interface AllowedContentType {
   /** Allows titles  supported by RichTextEditor (`h3` only) */
@@ -32,6 +32,40 @@ interface SanitizeOptions {
   allowedIframeHostnames: string[];
   transformTags: Record<string, unknown>;
 }
+
+export const parseServiceLink = (videoLink: string) => {
+  const youtubeId = parseYouTubeVideoId(videoLink);
+  if (youtubeId) {
+    return { service: 'youtube', id: youtubeId };
+  }
+
+  const anchorFmId = parseAnchorFmURL(videoLink);
+  if (anchorFmId) {
+    return { service: 'anchorFm', id: anchorFmId };
+  }
+
+  return {};
+};
+
+export const YOUTUBE_IFRAME_REFERRER_POLICY = 'strict-origin-when-cross-origin';
+
+const transformIframe = (_, attribs) => {
+  const { service } = parseServiceLink(attribs.src);
+
+  if (!service) {
+    return {}; // Strip unsupported iframes
+  } else if (service === 'youtube') {
+    return {
+      tagName: 'iframe',
+      attribs: {
+        ...attribs,
+        referrerpolicy: YOUTUBE_IFRAME_REFERRER_POLICY, // Inject referrer policy for YouTube, to avoir "153" errors (see https://github.com/opencollective/opencollective/issues/8868)
+      },
+    };
+  }
+
+  return { tagName: 'iframe', attribs };
+};
 
 export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): SanitizeOptions => {
   const allowedTags = []; // Nothing allowed by default
@@ -104,6 +138,7 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
       'src',
       'allowfullscreen',
       'frameborder',
+      'referrerpolicy',
       'autoplay',
       'width',
       'height',
@@ -113,6 +148,7 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
         values: ['autoplay', 'encrypted-media', 'gyroscope'],
       },
     ];
+    transformTags['iframe'] = transformIframe;
   }
 
   return {
@@ -154,6 +190,19 @@ export const optsSanitizedSimplifiedWithImages = buildSanitizerOptions({
 });
 
 /**
+ * Options preset matching Update.html sanitizer rules.
+ */
+export const optsSanitizeUpdateHtml = buildSanitizerOptions({
+  titles: true,
+  mainTitles: true,
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  images: true,
+  links: true,
+  videoIframes: true,
+});
+
+/**
  * Sanitize the given input to strip the HTML content.
  *
  * This function is a specialization of the one provided by `sanitize-html` with
@@ -165,20 +214,36 @@ export function sanitizeHTML(content: string, options: SanitizeOptions = optsStr
 }
 
 /**
- * Will remove all HTML content from the string.
+ * Will remove all HTML content from the string, keeping HTML-escaped text.
+ * Use `sanitizeHostApplicationData`/`sanitizeHostApplicationMessage` for plain-text host data.
  */
 export const stripHTML = (content: string): string => sanitizeHTML(content, optsStripAll);
 
 /**
- * A safer version of `stripHTML` that returns an empty string if the input contains invalid HTML.
+ * Recursively strips the HTML from all the string values of a JSON-like structure (e.g. the
+ * `customData` of a host application). Non-string values are preserved as-is and unknown keys are
+ * kept: this is a sanitizer, not a schema whitelist.
  */
-export const stripHTMLOrEmpty = (content: string): string => {
-  try {
-    return sanitizeHTML(content, optsStripAll);
-  } catch {
-    return '';
+export function sanitizeHostApplicationData<T>(data: T): T {
+  if (typeof data === 'string') {
+    return unescape(stripHTML(data)) as T;
+  } else if (Array.isArray(data)) {
+    return data.map(item => sanitizeHostApplicationData(item)) as T;
+  } else if (data && typeof data === 'object') {
+    return Object.fromEntries(
+      Object.entries(data).map(([key, value]) => [key, sanitizeHostApplicationData(value)]),
+    ) as T;
+  } else {
+    return data;
   }
-};
+}
+
+/**
+ * Strips the HTML from a host application message and trims it. Returns null/undefined as-is.
+ */
+export function sanitizeHostApplicationMessage<T extends string | null | undefined>(message: T): T {
+  return (message ? unescape(stripHTML(message)).trim() : message) as T;
+}
 
 /**
  * An helper to generate a summary for an HTML content. A summary is defined as a single
@@ -230,10 +295,15 @@ const formatLinkHref = (url: string): string => {
   }
 
   const baseUrl = prependHttp(url);
-  if (isTrustedLinkUrl(baseUrl)) {
-    return baseUrl;
-  } else {
-    return `${config.host.website}/redirect?url=${encodeURIComponent(baseUrl)}`;
+  try {
+    if (isTrustedLinkUrl(baseUrl)) {
+      return baseUrl;
+    } else {
+      return `${config.host.website}/redirect?url=${encodeURIComponent(baseUrl)}`;
+    }
+  } catch {
+    // If the URL is invalid, return a placeholder
+    return '#';
   }
 };
 
@@ -260,6 +330,7 @@ const isTrustedLinkUrl = (url: string): boolean => {
     /^(.+\.)?meetup\.com$/,
     /^(.+\.)?wikipedia\.com$/,
     /^(.+\.)?youtube\.com$/,
+    /^(.+\.)?youtube-nocookie\.com$/,
     /^(.+\.)?vimeo\.com$/,
     /^(.+\.)?anchor\.fm$/,
     // Trusted organizations
@@ -269,13 +340,11 @@ const isTrustedLinkUrl = (url: string): boolean => {
     /^(.+\.)?xwiki\.com$/,
     /^(.+\.)?platform6\.coop$/,
     /^(.+\.)?ferrous-systems\.com$/,
-    /^(.+\.)?compassionate-revolution\.net$/,
     /^(.+\.)?e-nable\.org$/,
     /^(.+\.)?womenwhocode\.com$/,
     /^(.+\.)?codeforscience\.org$/,
     /^(.+\.)?allforclimate\.earth$/,
     /^(.+\.)?permaculture\.org\.uk$/,
-    /^(.+\.)?fission\.codes$/,
     /^(.+\.)?schumacherinstitute\.org\.uk$/,
     /^(.+\.)?numfocus\.org$/,
     /^(.+\.)?piratpartiet\.se$/,

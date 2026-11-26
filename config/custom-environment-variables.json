@@ -3,7 +3,6 @@
   "env": "OC_ENV",
   "services": {
     "server": "ENABLE_SERVICE_SERVER",
-    "searchSync": "ENABLE_SERVICE_SEARCH_SYNC",
     "exports": "ENABLE_SERVICE_EXPORTS"
   },
   "mailpit": {
@@ -11,10 +10,15 @@
     "smtpPort": "MAILPIT_SMTP_PORT",
     "host": "MAILPIT_HOST"
   },
-  "opensearch": {
-    "url": "OPENSEARCH_URL",
-    "maxSyncDelay": "OPENSEARCH_MAX_SYNC_DELAY",
-    "indexesPrefix": "OPENSEARCH_INDEXES_PREFIX"
+  "search": {
+    "postgres": {
+      "enabled": "SEARCH_POSTGRES_ENABLED",
+      "concurrencyPerRequest": "SEARCH_POSTGRES_CONCURRENCY_PER_REQUEST",
+      "maxConcurrentQueries": "SEARCH_POSTGRES_MAX_CONCURRENT_QUERIES",
+      "workMem": "SEARCH_POSTGRES_WORK_MEM",
+      "typoSimilarityThreshold": "SEARCH_POSTGRES_TYPO_SIMILARITY_THRESHOLD",
+      "maxCountedMatches": "SEARCH_POSTGRES_MAX_COUNTED_MATCHES"
+    }
   },
   "exports": {
     "concurrency": "EXPORTS_CONCURRENCY"
@@ -166,6 +170,10 @@
       "perMask": "ORDERS_LIMIT_MASK",
       "forCollective": "ORDERS_LIMIT_COLLECTIVE"
     },
+    "manualOrdersPerHour": {
+      "perUser": "MANUAL_ORDERS_LIMIT_USER",
+      "perIp": "MANUAL_ORDERS_LIMIT_IP"
+    },
     "skipCleanOrdersLimitSlugs": "ORDERS_LIMIT_SKIP_CLEAN_SLUGS",
     "enabledMasks": "ORDERS_LIMIT_ENABLED_MASKS",
     "userSignUpPerHour": "LIMIT_USER_SIGNUP_PER_HOUR",
@@ -225,8 +233,7 @@
     "blockedCurrenciesForBusinessProfiles": "TRANSFERWISE_BLOCKED_CURRENCIES_BUSINESS",
     "recipientTypesBlockedForBusinessProfiles": "TRANSFERWISE_BLOCKED_RECIPIENT_TYPES_BUSINESS",
     "blockedCurrenciesForNonProfits": "TRANSFERWISE_BLOCKED_CURRENCIES_NONPROFIT",
-    "useTransferRefundHandler": "TRANSFERWISE_USE_TRANSFER_REFUND_HANDLER",
-    "useSimplifiedQuote": "TRANSFERWISE_USE_SIMPLIFIED_QUOTE"
+    "useTransferRefundHandler": "TRANSFERWISE_USE_TRANSFER_REFUND_HANDLER"
   },
   "hyperwatch": {
     "enabled": "HYPERWATCH_ENABLED",
@@ -283,13 +290,11 @@
     "apiUrl": "GITBOOK_API_URL",
     "spaceId": "GITBOOK_SPACE_ID"
   },
-  "opentelemetry": {
-    "enabled": "OPENTELEMETRY_ENABLED"
-  },
   "features": {
     "newPricing": "NEW_PRICING"
   },
   "settlement": {
-    "minimumAmountInUSD": "SETTLEMENT_MINIMUM_AMOUNT_IN_USD"
+    "minimumAmountInUSD": "SETTLEMENT_MINIMUM_AMOUNT_IN_USD",
+    "maximumStripeAmountInUSD": "SETTLEMENT_MAXIMUM_STRIPE_AMOUNT_IN_USD"
   }
 }

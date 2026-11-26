@@ -7,11 +7,12 @@ import { ApolloArmor } from '@escape.tech/graphql-armor';
 import config from 'config';
 import type express from 'express';
 import { print as convertASTToString } from 'graphql';
-import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.js';
-import { get, pick } from 'lodash';
+import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.mjs';
+import { get } from 'lodash';
 import multer from 'multer';
 
 import * as connectedAccounts from './controllers/connectedAccounts';
+import * as ecosystems from './controllers/ecosystems';
 import * as filesController from './controllers/files';
 import * as gitbook from './controllers/gitbook';
 import uploadImage from './controllers/images';
@@ -21,25 +22,28 @@ import * as transferwise from './controllers/transferwise';
 import * as users from './controllers/users';
 import { paypalWebhook, plaidWebhook, stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
 import { getGraphqlCacheProperties } from './graphql/cache';
+import { formatGraphQLError } from './graphql/format-error';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import { apolloSlowRequestCachePlugin, apolloSlowResolverDebugPlugin, apolloStudioUsagePlugin } from './lib/apollo';
 import cache from './lib/cache';
 import errors from './lib/errors';
+import { runBeforeRoutesHooks } from './lib/express-hooks';
 import expressLimiter from './lib/express-limiter';
 import logger from './lib/logger';
 import { withTiming } from './lib/middleware-timing';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
 import { handlePermalink } from './lib/permalink/handler';
+import { ONE_HOUR_IN_SECONDS } from './lib/rate-limit';
 import { createRedisClient, RedisInstanceType } from './lib/redis';
 import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
 import { checkIfSentryConfigured } from './lib/sentry/init';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error-handler';
+import { rateLimitPerUserOrIp } from './middleware/rate-limit';
 import required from './middleware/required-param';
 import sanitizer from './middleware/sanitizer';
-import paypal from './paymentProviders/paypal';
 
 const upload = multer();
 
@@ -49,6 +53,7 @@ const noCache = (req, res, next) => {
 };
 
 export default async (app: express.Application) => {
+  await runBeforeRoutesHooks(app);
   /**
    * Extract GraphQL API Key
    */
@@ -280,27 +285,7 @@ export default async (app: express.Application) => {
     // https://www.apollographql.com/docs/apollo-server/api/apollo-server#csrfprevention
     csrfPrevention: { requestHeaders: ['Authorization'] },
     // https://www.apollographql.com/docs/apollo-server/api/apollo-server#formaterror
-    formatError: (formattedError, error) => {
-      logger.error(`GraphQL error: ${formattedError.message}`);
-      const extra = pick(formattedError, ['locations', 'path']);
-      if (Object.keys(extra).length) {
-        logger.error(JSON.stringify(extra));
-      }
-
-      const stacktrace = get(formattedError, 'extensions.exception.stacktrace');
-      if (stacktrace) {
-        logger.error(stacktrace);
-      }
-
-      if (parseToBoolean(config.graphql.error.detailed)) {
-        /* eslint-disable no-console */
-        console.log(formattedError);
-        console.log(error);
-        /* eslint-enable no-console */
-      }
-
-      return formattedError;
-    },
+    formatError: formatGraphQLError,
     ...graphqlProtection,
     plugins: graphqlPlugins,
   };
@@ -363,11 +348,6 @@ export default async (app: express.Application) => {
     return authentication.authenticateServiceCallback(req, res, next);
   }); // oauth callback
 
-  /** Returns the PayPal Connect client ID when configured on this platform (used to initialize the SDK button) */
-  app.get('/connected-accounts/paypal/connect-config', noCache, paypal.oauth.connectConfig);
-  /** PayPal Connect JSON endpoint (used by the PayPal SDK button in the expense form) */
-  app.post('/connected-accounts/paypal/connect', noCache, paypal.oauth.connect);
-
   /**
    * Contact Form
    */
@@ -388,22 +368,41 @@ export default async (app: express.Application) => {
   app.post('/images', upload.single('file'), uploadImage);
 
   // backward compatibility
-  app.get('/connected-accounts/:service', noCache, (req, res, next) => {
-    if (!oauthServiceAllowlist.has(req.params.service)) {
-      return next(new errors.NotFound('Service not supported'));
-    }
-    return authentication.authenticateService(req, res, next);
-  });
-  app.get('/connected-accounts/:service/oauthUrl', noCache, (req, res, next) => {
-    if (!oauthServiceAllowlist.has(req.params.service)) {
-      return next(new errors.NotFound('Service not supported'));
-    }
-    return authentication.authenticateService(req, res, next);
-  });
+  app.get(
+    '/connected-accounts/:service',
+    noCache,
+    authentication.rateLimitServiceAuthentication,
+    authentication.requireSessionToken,
+    (req, res, next) => {
+      if (!oauthServiceAllowlist.has(req.params.service)) {
+        return next(new errors.NotFound('Service not supported'));
+      }
+      return authentication.authenticateService(req, res, next);
+    },
+  );
+  app.get(
+    '/connected-accounts/:service/oauthUrl',
+    noCache,
+    authentication.rateLimitServiceAuthentication,
+    authentication.requireSessionToken,
+    (req, res, next) => {
+      if (!oauthServiceAllowlist.has(req.params.service)) {
+        return next(new errors.NotFound('Service not supported'));
+      }
+      return authentication.authenticateService(req, res, next);
+    },
+  );
   app.get('/connected-accounts/:service/verify', noCache, connectedAccounts.verify);
 
   /* TransferWise OTT Request Endpoint */
-  app.post('/services/transferwise/pay-batch', noCache, transferwise.payBatch);
+  app.post(
+    '/services/transferwise/pay-batch',
+    noCache,
+    // Before the limiter, so rejected OAuth/personal tokens don't consume the user's budget
+    authentication.requireSessionToken,
+    rateLimitPerUserOrIp('wise-pay-batch', config.limits.wiseBatchPaymentPerHour, ONE_HOUR_IN_SECONDS),
+    transferwise.payBatch,
+  );
 
   /**
    * External services
@@ -419,13 +418,18 @@ export default async (app: express.Application) => {
   /**
    * File downloads
    */
-  app.get('/legal-documents/:id/download', LegalDocumentsController.download as any);
-  app.get('/files/:uploadedFileId', filesController.getFile as any);
+  app.get('/legal-documents/:id/download', (req, res) => LegalDocumentsController.download(req, res));
+  app.get('/files/:uploadedFileId', filesController.getFile);
 
   /**
    * Gitbook Search API
    */
   app.get('/docs/search', gitbook.search);
+
+  /**
+   * Ecosyste.ms repository info proxy (public, rate limited)
+   */
+  app.get('/ecosystems/repository', ecosystems.getRepositoryInfo);
 
   /**
    * Status endpoint

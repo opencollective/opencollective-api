@@ -4,16 +4,39 @@ import type Express from 'express';
 import { Service } from '../constants/connected-account';
 import expenseStatus from '../constants/expense-status';
 import { getExpenseFees, setTransferWiseExpenseAsProcessing } from '../graphql/common/expenses';
+import { checkRemoteUserCanUseExpenses } from '../graphql/common/scope-check';
 import { fetchAccountWithReference } from '../graphql/v2/input/AccountReferenceInput';
 import { fetchExpenseWithReference } from '../graphql/v2/input/ExpenseReferenceInput';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import { simulateTransferSuccess } from '../lib/transferwise';
+import { wiseIdsEqual } from '../lib/wise-id';
 import models, { Op } from '../models';
 import transferwise from '../paymentProviders/transferwise';
 import { handleTransferStateChange } from '../paymentProviders/transferwise/webhook';
-import { BatchGroup } from '../types/transferwise';
+import { BatchGroup, TransferStateChangeEvent } from '../types/transferwise';
+
+const getErrorStatusCode = (e: unknown): number => {
+  if (typeof e === 'object' && e !== null && 'code' in e && typeof e.code === 'number') {
+    return e.code;
+  }
+  const extensionsCode =
+    typeof e === 'object' && e !== null && 'extensions' in e
+      ? (e.extensions as { code?: unknown } | undefined)?.code
+      : undefined;
+  switch (extensionsCode) {
+    case 'Unauthorized':
+      return 401;
+    case 'Forbidden':
+    case 'FeatureNotAllowedForUser':
+      return 403;
+    case 'NotFound':
+      return 404;
+    default:
+      return 500;
+  }
+};
 
 const processPaidExpense = (host, remoteUser, batchGroup: BatchGroup) => async expense => {
   try {
@@ -35,7 +58,7 @@ const processPaidExpense = (host, remoteUser, batchGroup: BatchGroup) => async e
 };
 
 export async function payBatch(
-  req: Express.Request<any, any, { expenseIds: Array<string>; hostId: string }>,
+  req: Express.Request<Record<string, string>, unknown, { expenseIds: Array<string>; hostId: string }>,
   res: Express.Response,
 ): Promise<void> {
   try {
@@ -43,6 +66,7 @@ export async function payBatch(
     if (!remoteUser) {
       throw new errors.Unauthorized('User needs to be logged in');
     }
+    checkRemoteUserCanUseExpenses(req);
 
     const host = await fetchAccountWithReference({ id: body.hostId });
     if (!host) {
@@ -50,6 +74,9 @@ export async function payBatch(
     }
     if (!remoteUser.isAdmin(host.id)) {
       throw new errors.Unauthorized('User must be admin of host collective');
+    }
+    if (host.settings?.transferwise?.ott !== true) {
+      throw new errors.Forbidden('Wise batch payments require the host to use Wise SCA (transferwise.ott)');
     }
     const expenseIds = await Promise.all(
       body.expenseIds?.map(id => fetchExpenseWithReference({ id }).then(expense => expense?.id)),
@@ -105,14 +132,14 @@ export async function payBatch(
         for (const transferId of fundResponse.transferIds) {
           const response = await simulateTransferSuccess(connectedAccount, transferId);
           logger.debug(`Wise: Simulated transfer success for transfer ${transferId}`);
-          const expense = expenses.find(e => e.data.transfer.id === transferId);
+          const expense = expenses.find(e => wiseIdsEqual(e.data.transfer.id, transferId));
           await expense.update({ data: { ...expense.data, transfer: response } });
           // In development mode we don't have webhooks set up, so we need to manually trigger the event handler.
           if (config.env === 'development') {
             await handleTransferStateChange({
               // eslint-disable-next-line camelcase
               data: { resource: response, current_state: 'outgoing_payment_sent' },
-            } as any);
+            } as unknown as TransferStateChangeEvent);
           }
         }
       }
@@ -122,9 +149,7 @@ export async function payBatch(
   } catch (e) {
     logger.error('Error paying Wise batch group', e);
     reportErrorToSentry(e);
-    res
-      .status(e.code || 500)
-      .send(e.toString())
-      .end();
+    const message = e.message || 'An error occurred while processing the Wise batch payment.';
+    res.status(getErrorStatusCode(e)).send(message).end();
   }
 }

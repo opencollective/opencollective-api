@@ -1,5 +1,5 @@
 import { TaxType } from '@opencollective/taxes';
-import { get, isEmpty, pick, sumBy } from 'lodash';
+import { get, isEmpty, pick, sumBy, uniq } from 'lodash';
 import { isMoment } from 'moment';
 import {
   BelongsToGetAssociationMixin,
@@ -11,7 +11,6 @@ import {
   InferCreationAttributes,
   NonAttribute,
 } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 import Stripe from 'stripe';
 import validator from 'validator';
 
@@ -23,12 +22,12 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import roles from '../constants/roles';
 import { reduceArrayToCurrency } from '../lib/currency';
 import logger from '../lib/logger';
-import { deletePaymentIntentForSource, syncPaymentIntentFromExpense } from '../lib/payment-intents/sync';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import SQLQueries from '../lib/queries';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import CustomDataTypes from '../models/DataTypes';
 import { Location } from '../types/Location';
@@ -106,6 +105,7 @@ class Expense extends ModelWithPublicId<
   declare public VirtualCardId: ForeignKey<VirtualCard['id']>;
   declare public RecurringExpenseId: ForeignKey<RecurringExpense['id']>;
   declare public AccountingCategoryId: ForeignKey<AccountingCategory['id']>;
+  declare public BalanceAccountingCategoryId: ForeignKey<AccountingCategory['id']>;
   declare public InvoiceFileId: UploadedFile['id'];
 
   declare public payeeLocation: Location;
@@ -172,6 +172,7 @@ class Expense extends ModelWithPublicId<
   declare public attachedFiles?: ExpenseAttachedFile[];
   declare public invoiceFile?: NonAttribute<UploadedFile>;
   declare public accountingCategory?: AccountingCategory;
+  declare public balanceAccountingCategory?: AccountingCategory;
   declare public reference: string;
 
   // Association getters
@@ -259,6 +260,7 @@ class Expense extends ModelWithPublicId<
         ...pick(data, [
           'isManualPayout',
           'error',
+          'errorRetrievalFailed',
           'payee',
           'draftKey',
           'inviteUrl',
@@ -271,6 +273,8 @@ class Expense extends ModelWithPublicId<
           'reference',
           'estimatedDelivery',
           'previousData',
+          'newData',
+          'taxForm',
           'payoutResponse',
           'payoutItem',
         ]),
@@ -278,7 +282,8 @@ class Expense extends ModelWithPublicId<
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },
         user: submittedByUserCollective.minimal,
         fromCollective: fromCollective.minimal,
-        expense: this.info,
+        // `this.info.grossAmount` relies on `this.items`, which most callers don't load: use the items resolved above
+        expense: { ...this.info, grossAmount: Expense.computeTotalAmountForExpense(items || [], []) },
         transaction: transaction?.info,
         amountInHostCurrency: Math.abs(transaction?.info?.amountInHostCurrency),
         payoutMethod: payoutMethod && pick(payoutMethod.dataValues, ['id', 'type', 'data']),
@@ -509,6 +514,71 @@ class Expense extends ModelWithPublicId<
   }
 
   // Static methods
+
+  /**
+   * Creates silent system `COLLECTIVE_EXPENSE_UPDATED` activities for a page of expenses in one insert,
+   * for the tax-form and payout-method fan-out (see opencollective/opencollective#8702). Rows carry the same
+   * columns and summary data as `createActivity`, without its per-expense lookups (items, files, transaction,
+   * payout method).
+   */
+  static createSystemUpdatedActivities = async (
+    expenses: Expense[],
+    user: User | { id: number } | null,
+    getData: (expense: Expense) => Record<string, unknown>,
+  ): Promise<void> => {
+    if (!expenses.length) {
+      return;
+    }
+
+    const submitters = await User.findAll({
+      where: { id: uniq(expenses.map(expense => expense.UserId)) },
+      attributes: ['id', 'CollectiveId'],
+    });
+    const submitterCollectiveIds = new Map(submitters.map(submitter => [submitter.id, submitter.CollectiveId]));
+    const collectiveIds = [
+      ...expenses.flatMap(expense => [expense.CollectiveId, expense.FromCollectiveId]),
+      ...submitters.map(submitter => submitter.CollectiveId),
+    ];
+    const collectives = await Collective.findAll({ where: { id: uniq(collectiveIds) } });
+    const collectivesById = new Map(collectives.map(collective => [collective.id, collective]));
+
+    // Same host as `createActivity`: the expense collective's host while the collective is active
+    const getHostId = (collective?: Collective): number | null =>
+      (collective?.isActive && collective.HostCollectiveId) || null;
+    const missingHostIds = uniq(expenses.map(expense => getHostId(collectivesById.get(expense.CollectiveId)))).filter(
+      hostId => hostId && !collectivesById.has(hostId),
+    );
+    if (missingHostIds.length) {
+      const hosts = await Collective.findAll({ where: { id: missingHostIds } });
+      hosts.forEach(host => collectivesById.set(host.id, host));
+    }
+
+    await Activity.bulkCreate(
+      expenses.map(expense => {
+        const collective = collectivesById.get(expense.CollectiveId);
+        const host = collectivesById.get(getHostId(collective));
+        return {
+          type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
+          UserId: user?.id,
+          CollectiveId: expense.CollectiveId,
+          FromCollectiveId: expense.FromCollectiveId,
+          HostCollectiveId: host?.id,
+          ExpenseId: expense.id,
+          data: {
+            ...pick(expense.data, ['payee', 'bill']),
+            ...getData(expense),
+            isSystem: true,
+            notify: false,
+            host: host?.minimal,
+            collective: collective && { ...collective.minimal, isActive: collective.isActive },
+            user: collectivesById.get(submitterCollectiveIds.get(expense.UserId))?.minimal,
+            fromCollective: collectivesById.get(expense.FromCollectiveId)?.minimal,
+            expense: expense.info,
+          },
+        };
+      }),
+    );
+  };
 
   /**
    * Get the total amount of all expenses filed by the given UserId
@@ -845,6 +915,14 @@ Expense.init(
       allowNull: true,
     },
 
+    BalanceAccountingCategoryId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'AccountingCategories' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+
     CollectiveId: {
       type: DataTypes.INTEGER,
       references: {
@@ -1045,18 +1123,6 @@ Expense.init(
     paranoid: true,
     tableName: 'Expenses',
     hooks: {
-      async afterCreate(expense: Expense, options) {
-        await syncPaymentIntentFromExpense(expense, options.transaction);
-      },
-      async afterUpdate(expense: Expense, options) {
-        if (expense.changed('status')) {
-          // PAID is finalized by the ledger hook in Transaction.createDoubleEntry
-          if (expense.status === ExpenseStatus.PAID) {
-            return;
-          }
-          await syncPaymentIntentFromExpense(expense, options.transaction);
-        }
-      },
       async afterDestroy(expense: Expense, options) {
         // Not considering ExpensesAttachedFiles because they don't support soft delete (they should)
         const promises = [
@@ -1080,7 +1146,6 @@ Expense.init(
         }
 
         await Promise.all(promises);
-        await deletePaymentIntentForSource({ expense }, options.transaction);
       },
     },
   },

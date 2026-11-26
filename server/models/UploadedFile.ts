@@ -3,7 +3,7 @@ import path from 'path';
 import { ObjectCannedACL, PutObjectCommand } from '@aws-sdk/client-s3';
 import { encode } from 'blurhash';
 import config from 'config';
-import type { FileUpload as GraphQLFileUpload } from 'graphql-upload/Upload.js';
+import type { FileUpload as GraphQLFileUpload } from 'graphql-upload/processRequest.mjs';
 import { kebabCase } from 'lodash';
 import type { Readable } from 'node:stream';
 import {

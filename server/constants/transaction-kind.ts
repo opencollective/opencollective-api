@@ -1,6 +1,8 @@
 export enum TransactionKind {
   /** Transactions coming from the "Add Funds" */
   ADDED_FUNDS = 'ADDED_FUNDS',
+  /** Stripe application fee transferring a platform tip from the host's platform-tips slice directly to the platform's own account */
+  APPLICATION_FEE = 'APPLICATION_FEE',
   /** Transactions from transferring the remaining balance from a project/event/collective **/
   BALANCE_TRANSFER = 'BALANCE_TRANSFER',
   /** Transactions coming from the "Contribution Flow" */

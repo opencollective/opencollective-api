@@ -14,19 +14,20 @@ import { get, has, isNil, isNull, merge, omitBy } from 'lodash';
 
 import { CollectiveType as CollectiveTypeEnum } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
+import FEATURE_STATUS from '../../constants/feature-status';
 import MemberRoles, { MemberRolesForPrivateAccounts } from '../../constants/roles';
 import { hasFeature } from '../../lib/allowed-features';
 import { isCollectiveDeletable } from '../../lib/collectivelib';
 import { filterContributors } from '../../lib/contributors';
 import logger from '../../lib/logger';
-import queries from '../../lib/queries';
 import { canSeeLegalName } from '../../lib/user-permissions';
 import models, { Op } from '../../models';
 import Tier, { AllTierTypes } from '../../models/Tier';
 import { hostResolver } from '../common/collective';
 import { GraphQLCollectiveFeatures } from '../common/CollectiveFeatures';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
+import { getFeatureStatusResolver } from '../common/features';
+import { checkScope, isRemoteUserRoot } from '../common/scope-check';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { GraphQLPolicies } from '../v2/object/Policies';
 import { GraphQLSocialLink } from '../v2/object/SocialLink';
@@ -41,8 +42,6 @@ import {
   NotificationType,
   OrderStatusType,
   OrderType,
-  PaginatedPaymentMethodsType,
-  PaymentMethodBatchInfo,
   PaymentMethodType,
   TierType,
 } from './types';
@@ -58,6 +57,7 @@ export const TypeOfCollectiveType = new GraphQLEnumType({
     PROJECT: {},
     FUND: {},
     VENDOR: {},
+    PLATFORM: {},
   },
 });
 
@@ -209,6 +209,8 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         return 'Fund';
       case CollectiveTypeEnum.VENDOR:
         return 'Vendor';
+      case CollectiveTypeEnum.PLATFORM:
+        return 'Platform';
       default:
         return null;
     }
@@ -273,6 +275,10 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       isPrivate: { type: new GraphQLNonNull(GraphQLBoolean) },
       isFrozen: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is frozen' },
       isSuspended: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is suspended' },
+      hasPublicProfile: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Whether this account has a public profile that can be linked to',
+      },
       isGuest: { type: GraphQLBoolean },
       canApply: { type: GraphQLBoolean },
       canContact: { type: new GraphQLNonNull(GraphQLBoolean) },
@@ -284,7 +290,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       members: {
         type: new GraphQLList(MemberType),
         description:
-          'List of all collectives that are related to this collective with their membership relationship. Can filter by role (BACKER/MEMBER/ADMIN/HOST/FOLLOWER)',
+          'List of all collectives that are related to this collective with their membership relationship. Can filter by role (BACKER/MEMBER/ADMIN/HOST)',
         args: {
           limit: { type: GraphQLInt, defaultValue: 100 },
           offset: { type: GraphQLInt, defaultValue: 0 },
@@ -301,7 +307,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       memberOf: {
         type: new GraphQLList(MemberType),
         description:
-          'List of all collectives that this collective is a member of with their membership relationship. Can filter by role (BACKER/MEMBER/ADMIN/HOST/FOLLOWER)',
+          'List of all collectives that this collective is a member of with their membership relationship. Can filter by role (BACKER/MEMBER/ADMIN/HOST)',
         args: {
           limit: { type: GraphQLInt },
           offset: { type: GraphQLInt },
@@ -350,6 +356,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       },
       tiers: {
         type: new GraphQLList(TierType),
+        deprecationReason: '2025-12-05: Will be deleted soon. Use GraphQL v2',
         args: {
           id: { type: GraphQLInt },
           slug: { type: GraphQLString },
@@ -368,7 +375,10 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           status: { type: OrderStatusType },
         },
       },
-      stats: { type: CollectiveStatsType },
+      stats: {
+        type: CollectiveStatsType,
+        deprecationReason: '2025-07-10: Please use GraphQL V2',
+      },
       supportedExpenseTypes: {
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLString))),
         description: 'The list of expense types supported by this account',
@@ -426,29 +436,15 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           },
         },
       },
-      giftCardsBatches: {
-        type: new GraphQLList(PaymentMethodBatchInfo),
-        description:
-          'List all the gift cards batches emitted by this collective. May include `null` as key for unbatched gift cards.',
-      },
-      createdGiftCards: {
-        type: PaginatedPaymentMethodsType,
-        args: {
-          limit: { type: GraphQLInt },
-          offset: { type: GraphQLInt },
-          batch: { type: GraphQLString },
-          isConfirmed: {
-            type: GraphQLBoolean,
-            description: 'Whether the gift card has been claimed or not',
-          },
-        },
-      },
       connectedAccounts: { type: new GraphQLList(ConnectedAccountType) },
       features: {
         type: new GraphQLNonNull(GraphQLCollectiveFeatures),
         description: 'Describes the features enabled and available for this collective',
       },
-      plan: { type: PlanType },
+      plan: {
+        type: PlanType,
+        deprecationReason: '2026-04-02: Replaced by new pricing',
+      },
       contributionPolicy: { type: GraphQLString },
       categories: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
@@ -462,6 +458,34 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
     };
   },
 });
+
+/**
+ * Builds a fresh set of Sequelize conditions restricting the visibility of private accounts for
+ * the requesting user. This mirrors the logic used by the GraphQL V2 `HasMembers` interface and by
+ * the V1 `allMembers` query: root users see everything, users with an ADMIN/ACCOUNTANT role see the
+ * related private accounts, everyone else only sees public accounts.
+ */
+const getPrivateAccountsVisibilityConditions = req => {
+  if (!req.remoteUser) {
+    return { isPrivate: false };
+  } else if (isRemoteUserRoot(req)) {
+    return {};
+  } else {
+    let conditions = { isPrivate: false };
+    const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
+    if (directAccess.length > 0) {
+      conditions = {
+        [Op.or]: [
+          { isPrivate: false },
+          { id: directAccess }, // User is an admin or accountant of the account
+          { ParentCollectiveId: directAccess }, // ...of the account's parent account (for events/projects)
+          { HostCollectiveId: directAccess, approvedAt: { [Op.ne]: null } }, // ...of the account's fiscal host (must be approved by the host)
+        ],
+      };
+    }
+    return conditions;
+  }
+};
 
 const CollectiveFields = () => {
   return {
@@ -739,7 +763,7 @@ const CollectiveFields = () => {
       type: GraphQLBoolean,
       description: 'Returns whether this user has two factor authentication enabled',
       async resolve(collective, _, req) {
-        if (req.remoteUser?.isAdmin(collective.id) || req.remoteUser?.isRoot()) {
+        if (req.remoteUser?.isAdmin(collective.id) || isRemoteUserRoot(req)) {
           if (collective.type === CollectiveTypeEnum.USER) {
             const user = await models.User.findOne({
               where: { CollectiveId: collective.id },
@@ -798,6 +822,14 @@ const CollectiveFields = () => {
         return get(collective, `data.isSuspended`) === true;
       },
     },
+    hasPublicProfile: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether this account has a public profile that can be linked to',
+      async resolve(collective, _, req) {
+        const status = await getFeatureStatusResolver(FEATURE.PUBLIC_PROFILE)(collective, _, req);
+        return status === FEATURE_STATUS.ACTIVE;
+      },
+    },
     isArchived: {
       description: 'Returns whether this collective is archived',
       type: GraphQLBoolean,
@@ -808,17 +840,8 @@ const CollectiveFields = () => {
     isApproved: {
       description: 'Returns whether this collective is approved',
       type: GraphQLBoolean,
-      async resolve(collective, _, req) {
-        if (!collective.HostCollectiveId) {
-          return false;
-        } else if (collective.type === CollectiveTypeEnum.EVENT) {
-          const ParentCollectiveId = collective.ParentCollectiveId;
-          const parentCollective = ParentCollectiveId && (await req.loaders.Collective.byId.load(ParentCollectiveId));
-          // In the future, we should make it possible to directly read the approvedAt of the event
-          return parentCollective && (parentCollective.hasMoneyManagement || parentCollective.isApproved());
-        } else {
-          return collective.isApproved();
-        }
+      resolve(collective, _, req) {
+        return req.loaders.Collective.isApproved.load(collective.id);
       },
     },
     isDeletable: {
@@ -847,7 +870,7 @@ const CollectiveFields = () => {
       },
     },
     members: {
-      description: 'Get all the members of this collective (admins, members, backers, followers)',
+      description: 'Get all the members of this collective (admins, members, backers)',
       type: new GraphQLList(MemberType),
       args: {
         limit: { type: GraphQLInt, defaultValue: 100 },
@@ -870,7 +893,7 @@ const CollectiveFields = () => {
         if (isNil(args.offset) || args.offset < 0) {
           args.offset = 0;
         }
-        if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+        if (args.limit > 1000 && !isRemoteUserRoot(req)) {
           logger.warn('GraphQL v1: members limit over 1,000, using 1,000 as maximum limit');
           args.limit = 1000;
           // throw new Error('Cannot fetch more than 1,000 members at the same time, please adjust the limit');
@@ -892,10 +915,13 @@ const CollectiveFields = () => {
           query.where.role = { [Op.in]: roles };
         }
 
-        let conditionOnMemberCollective;
+        // Never expose private accounts (the member collectives) to users who are not allowed to
+        // see them. Without this, the `slug`/`name` of private organizations backing a public
+        // collective would be returned to anyone, including unauthenticated users.
+        const conditionOnMemberCollective = getPrivateAccountsVisibilityConditions(req);
         if (args.type) {
           const types = args.type.split(',');
-          conditionOnMemberCollective = { type: { [Op.in]: types } };
+          conditionOnMemberCollective.type = { [Op.in]: types };
         }
 
         query.include = [
@@ -918,7 +944,7 @@ const CollectiveFields = () => {
       },
     },
     memberOf: {
-      description: 'Get all the collective this collective is a member of (as a member, backer, follower, etc.)',
+      description: 'Get all the collective this collective is a member of (as a member, backer, etc.)',
       type: new GraphQLList(MemberType),
       args: {
         limit: { type: GraphQLInt },
@@ -954,13 +980,13 @@ const CollectiveFields = () => {
         if (args.onlyActiveCollectives) {
           collectiveConditions.isActive = true;
         }
-        if (!args.includeIncognito || !(req.remoteUser?.isAdmin(collective.id) || req.remoteUser?.isRoot())) {
+        if (!args.includeIncognito || !(req.remoteUser?.isAdmin(collective.id) || isRemoteUserRoot(req))) {
           collectiveConditions.isIncognito = false; // only admins can see incognito profiles
         }
 
         // Handle private accounts
         if (req.remoteUser) {
-          if (req.remoteUser.isRoot()) {
+          if (isRemoteUserRoot(req)) {
             // Allow all private accounts to be seen by root admins
             delete collectiveConditions.isPrivate;
           } else {
@@ -1304,79 +1330,14 @@ const CollectiveFields = () => {
         return paymentMethods.filter(pm => !pm.expiryDate || pm.expiryDate > now);
       },
     },
-    giftCardsBatches: {
-      type: new GraphQLList(PaymentMethodBatchInfo),
-      description:
-        'List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.',
-      resolve: async (collective, _args, req) => {
-        // Must be admin of the collective
-        if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
-          return [];
-        }
-
-        return queries.getGiftCardBatchesForCollective(collective.id);
-      },
-    },
-    createdGiftCards: {
-      type: PaginatedPaymentMethodsType,
-      description: 'Get the gift cards created by this collective. RemoteUser must be a collective admin.',
-      args: {
-        limit: { type: GraphQLInt },
-        offset: { type: GraphQLInt },
-        batch: { type: GraphQLString },
-        isConfirmed: {
-          type: GraphQLBoolean,
-          description: 'Whether the gift card has been claimed or not',
-        },
-      },
-      resolve: async (collective, args, req) => {
-        // Must be admin of the collective
-        if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
-          return [];
-        }
-
-        const offset = args.offset || 0;
-        const limit = args.limit || 15;
-        const query = {
-          where: { type: PAYMENT_METHOD_TYPE.GIFTCARD, service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE },
-          limit: args.limit,
-          offset: args.offset,
-          order: [
-            ['createdAt', 'DESC'],
-            ['id', 'DESC'],
-          ],
-          include: [
-            {
-              model: models.PaymentMethod,
-              as: 'sourcePaymentMethod',
-              where: { CollectiveId: collective.id },
-              required: true,
-              attributes: [],
-            },
-          ],
-        };
-
-        if (args.isConfirmed !== undefined) {
-          query.where.confirmedAt = { [args.isConfirmed ? Op.ne : Op.eq]: null };
-        }
-
-        if (args.batch !== undefined) {
-          query.where.batch = args.batch;
-        }
-
-        const result = await models.PaymentMethod.findAndCountAll(query);
-
-        return {
-          paymentMethods: result.rows,
-          total: result.count,
-          limit,
-          offset,
-        };
-      },
-    },
     connectedAccounts: {
       type: new GraphQLList(ConnectedAccountType),
+      description: 'The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".',
       async resolve(collective, args, req) {
+        if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'connectedAccounts')) {
+          return null;
+        }
+
         const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(collective.id);
         return connectedAccounts;
       },
@@ -1475,6 +1436,13 @@ export const OrganizationCollectiveType = new GraphQLObjectType({
 export const EventCollectiveType = new GraphQLObjectType({
   name: 'Event',
   description: 'This represents an Event',
+  interfaces: [CollectiveInterfaceType],
+  fields: CollectiveFields,
+});
+
+export const PlatformCollectiveType = new GraphQLObjectType({
+  name: 'Platform',
+  description: 'This represents a Platform account (e.g. a per-host platform-tips account)',
   interfaces: [CollectiveInterfaceType],
   fields: CollectiveFields,
 });

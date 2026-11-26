@@ -1,18 +1,21 @@
 import { expect } from 'chai';
+import config from 'config';
 import gql from 'fake-tag';
-import { PlaidApi } from 'plaid';
+import { AccountSubtype, AccountType, PlaidApi } from 'plaid';
 import sinon from 'sinon';
 
 import { Service } from '../../../../../server/constants/connected-account';
 import OrderStatuses from '../../../../../server/constants/order-status';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
+import { sessionCache } from '../../../../../server/lib/cache';
 import * as GoCardlessConnect from '../../../../../server/lib/gocardless/connect';
 import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import * as PlaidClient from '../../../../../server/lib/plaid/client';
 import twoFactorAuthLib from '../../../../../server/lib/two-factor-authentication';
 import models, { ConnectedAccount } from '../../../../../server/models';
 import {
+  fakeAccountingCategory,
   fakeActiveHost,
   fakeCollective,
   fakeConnectedAccount,
@@ -24,7 +27,7 @@ import {
   fakeUploadedFile,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import { graphqlQueryV2, resetCaches } from '../../../../utils';
 
 describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
   let platform;
@@ -49,6 +52,99 @@ describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
 
   afterEach(() => {
     sandbox.restore();
+  });
+
+  describe('importTransactions', () => {
+    const IMPORT_TRANSACTIONS_MUTATION = gql`
+      mutation ImportTransactions($id: NonEmptyString!, $data: [TransactionsImportRowCreateInput!]!) {
+        importTransactions(id: $id, data: $data) {
+          id
+        }
+      }
+    `;
+
+    const rows = [
+      {
+        sourceId: 'row-1',
+        description: 'Row 1',
+        date: '2024-01-01T00:00:00Z',
+        amount: { valueInCents: 1000, currency: 'USD' },
+      },
+      {
+        sourceId: 'row-2',
+        description: 'Row 2',
+        date: '2024-01-02T00:00:00Z',
+        amount: { valueInCents: 2000, currency: 'USD' },
+      },
+    ];
+
+    afterEach(async () => {
+      await resetCaches();
+    });
+
+    it('counts the imported rows against the hourly rows limit', async () => {
+      const user = await fakeUser();
+      const transactionsImport = await fakeTransactionsImport({ CollectiveId: user.CollectiveId });
+      const result = await graphqlQueryV2(
+        IMPORT_TRANSACTIONS_MUTATION,
+        { id: idEncode(transactionsImport.id, 'transactions-import'), data: rows },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(await sessionCache.get(`transactions-imports-rows-${user.id}`)).to.eq(2);
+    });
+
+    it('rejects a malformed amount without counting the rows or the import', async () => {
+      const user = await fakeUser();
+      const transactionsImport = await fakeTransactionsImport({ CollectiveId: user.CollectiveId });
+      const result = await graphqlQueryV2(
+        IMPORT_TRANSACTIONS_MUTATION,
+        {
+          id: idEncode(transactionsImport.id, 'transactions-import'),
+          data: [rows[0], { ...rows[1], amount: { currency: 'USD' } }],
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('You must either set a `value` or a `valueInCents`');
+      expect(await sessionCache.get(`transactions-imports-rows-${user.id}`)).to.be.undefined;
+      expect(await sessionCache.get(`transactions-imports-${user.id}`)).to.be.undefined;
+    });
+
+    it('rejects a missing currency without counting the rows or the import', async () => {
+      const user = await fakeUser();
+      const transactionsImport = await fakeTransactionsImport({ CollectiveId: user.CollectiveId });
+      const result = await graphqlQueryV2(
+        IMPORT_TRANSACTIONS_MUTATION,
+        {
+          id: idEncode(transactionsImport.id, 'transactions-import'),
+          data: [rows[0], { ...rows[1], amount: { valueInCents: 2000 } }],
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('A currency is required for the amount of row row-2');
+      expect(await sessionCache.get(`transactions-imports-rows-${user.id}`)).to.be.undefined;
+      expect(await sessionCache.get(`transactions-imports-${user.id}`)).to.be.undefined;
+    });
+
+    it('gives the rows back when the imports per hour limit is reached', async () => {
+      const user = await fakeUser();
+      const transactionsImport = await fakeTransactionsImport({ CollectiveId: user.CollectiveId });
+      await sessionCache.set(`transactions-imports-${user.id}`, config.limits.transactionsImports.perHourPerUser, 3600);
+      const result = await graphqlQueryV2(
+        IMPORT_TRANSACTIONS_MUTATION,
+        { id: idEncode(transactionsImport.id, 'transactions-import'), data: rows },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('You have reached the limit of transactions imports per hour');
+      expect(await sessionCache.get(`transactions-imports-rows-${user.id}`)).to.eq(0);
+    });
   });
 
   describe('deleteTransactionsImport', () => {
@@ -227,6 +323,58 @@ describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.editTransactionsImport.name).to.equal('New Name 2');
       expect(result.data.editTransactionsImport.source).to.equal('New Source 2');
+    });
+
+    it('stamps the balance accounting category when linking rows to orders and expenses', async () => {
+      const remoteUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: remoteUser });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const category = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+      const transactionsImport = await fakeTransactionsImport({
+        CollectiveId: host.id,
+        type: 'PLAID',
+        settings: { balanceAccountingCategories: { 'plaid-acc-1': category.id } },
+      });
+      const orderRow = await fakeTransactionsImportRow({
+        TransactionsImportId: transactionsImport.id,
+        accountId: 'plaid-acc-1',
+      });
+      const expenseRow = await fakeTransactionsImportRow({
+        TransactionsImportId: transactionsImport.id,
+        accountId: 'plaid-acc-1',
+      });
+      const order = await fakeOrder({ CollectiveId: collective.id, status: OrderStatuses.PAID });
+      const expense = await fakeExpense({ CollectiveId: collective.id });
+
+      const result = await graphqlQueryV2(
+        gql`
+          mutation UpdateTransactionsImportRows(
+            $rows: [TransactionsImportRowUpdateInput!]!
+            $action: TransactionsImportRowAction!
+          ) {
+            updateTransactionsImportRows(rows: $rows, action: $action) {
+              rows {
+                id
+                status
+              }
+            }
+          }
+        `,
+        {
+          action: 'UPDATE_ROWS',
+          rows: [
+            { id: idEncode(orderRow.id, 'transactions-import-row'), order: { legacyId: order.id } },
+            { id: idEncode(expenseRow.id, 'transactions-import-row'), expense: { legacyId: expense.id } },
+          ],
+        },
+        remoteUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      await Promise.all([order.reload(), expense.reload()]);
+      expect(order.BalanceAccountingCategoryId).to.eq(category.id);
+      expect(expense.BalanceAccountingCategoryId).to.eq(category.id);
     });
 
     it('can associate an expense to multiple import rows', async () => {
@@ -593,6 +741,148 @@ describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('Some rows are not linked');
+    });
+  });
+
+  describe('setTransactionsImportAccountBalanceAccountingCategory', () => {
+    const SET_BALANCE_CATEGORY_MUTATION = gql`
+      mutation SetTransactionsImportAccountBalanceAccountingCategory(
+        $transactionsImport: TransactionsImportReferenceInput!
+        $importedAccountId: NonEmptyString!
+        $accountingCategory: AccountingCategoryReferenceInput
+      ) {
+        setTransactionsImportAccountBalanceAccountingCategory(
+          transactionsImport: $transactionsImport
+          importedAccountId: $importedAccountId
+          accountingCategory: $accountingCategory
+        ) {
+          id
+          institutionAccounts {
+            id
+            balanceAccountingCategory {
+              id
+              code
+            }
+          }
+        }
+      }
+    `;
+
+    const fakePlaidImport = (hostId: number) =>
+      fakeTransactionsImport({
+        CollectiveId: hostId,
+        type: 'PLAID',
+        data: {
+          plaid: {
+            availableAccounts: [
+              {
+                accountId: 'plaid-acc-1',
+                mask: '0444',
+                name: 'Checking',
+                officialName: 'Checking',
+                subtype: AccountSubtype.Checking,
+                type: AccountType.Depository,
+              },
+            ],
+          },
+        },
+      });
+
+    it('sets, exposes and unsets the category on a bank sub-account', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
+      const transactionsImport = await fakePlaidImport(host.id);
+      const category = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT', code: '1051' });
+
+      const result = await graphqlQueryV2(
+        SET_BALANCE_CATEGORY_MUTATION,
+        {
+          transactionsImport: { id: idEncode(transactionsImport.id, 'transactions-import-row') },
+          importedAccountId: 'plaid-acc-1',
+          accountingCategory: { id: idEncode(category.id, 'accounting-category') },
+        },
+        admin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const accounts = result.data.setTransactionsImportAccountBalanceAccountingCategory.institutionAccounts;
+      expect(accounts[0].balanceAccountingCategory.code).to.eq('1051');
+      await transactionsImport.reload();
+      expect(transactionsImport.settings.balanceAccountingCategories).to.deep.eq({ 'plaid-acc-1': category.id });
+
+      // Unset
+      const unsetResult = await graphqlQueryV2(
+        SET_BALANCE_CATEGORY_MUTATION,
+        {
+          transactionsImport: { id: idEncode(transactionsImport.id, 'transactions-import-row') },
+          importedAccountId: 'plaid-acc-1',
+          accountingCategory: null,
+        },
+        admin,
+      );
+      expect(unsetResult.errors).to.not.exist;
+      await transactionsImport.reload();
+      expect(transactionsImport.settings.balanceAccountingCategories).to.deep.eq({});
+    });
+
+    it('rejects invalid categories, unknown accounts and non-admins', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
+      const transactionsImport = await fakePlaidImport(host.id);
+      const category = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'BALANCE_ACCOUNT' });
+      const importRef = { id: idEncode(transactionsImport.id, 'transactions-import-row') };
+
+      // Wrong kind
+      const expenseCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
+      const wrongKind = await graphqlQueryV2(
+        SET_BALANCE_CATEGORY_MUTATION,
+        {
+          transactionsImport: importRef,
+          importedAccountId: 'plaid-acc-1',
+          accountingCategory: { id: idEncode(expenseCategory.id, 'accounting-category') },
+        },
+        admin,
+      );
+      expect(wrongKind.errors[0].message).to.eq('This accounting category is not a balance or clearing account');
+
+      // Foreign category
+      const foreignCategory = await fakeAccountingCategory({ kind: 'BALANCE_ACCOUNT' });
+      const foreign = await graphqlQueryV2(
+        SET_BALANCE_CATEGORY_MUTATION,
+        {
+          transactionsImport: importRef,
+          importedAccountId: 'plaid-acc-1',
+          accountingCategory: { id: idEncode(foreignCategory.id, 'accounting-category') },
+        },
+        admin,
+      );
+      expect(foreign.errors[0].message).to.eq('This accounting category is not allowed for this host');
+
+      // Unknown account
+      const unknownAccount = await graphqlQueryV2(
+        SET_BALANCE_CATEGORY_MUTATION,
+        {
+          transactionsImport: importRef,
+          importedAccountId: 'nope',
+          accountingCategory: { id: idEncode(category.id, 'accounting-category') },
+        },
+        admin,
+      );
+      expect(unknownAccount.errors[0].message).to.eq('Account nope does not exist on this import');
+
+      // Non-admin
+      const randomUser = await fakeUser();
+      const nonAdmin = await graphqlQueryV2(
+        SET_BALANCE_CATEGORY_MUTATION,
+        {
+          transactionsImport: importRef,
+          importedAccountId: 'plaid-acc-1',
+          accountingCategory: { id: idEncode(category.id, 'accounting-category') },
+        },
+        randomUser,
+      );
+      expect(nonAdmin.errors[0].message).to.eq('You need to be an admin of the account to edit an import');
     });
   });
 });

@@ -5,6 +5,7 @@ import {
   difference,
   flatten,
   get,
+  groupBy,
   isEmpty,
   isNil,
   isNull,
@@ -12,6 +13,7 @@ import {
   keyBy,
   keys,
   mapValues,
+  omit,
   omitBy,
   pick,
   uniq,
@@ -26,12 +28,18 @@ import { Service } from '../../../constants/connected-account';
 import FEATURE from '../../../constants/feature';
 import OrderStatuses from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { getBalanceAccountingCategoryIdForImportRow } from '../../../lib/accounting/categorization/balance-accounts';
 import { applyContributionAccountingCategoryRules } from '../../../lib/accounting/categorization/contribution-rules';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
 import { roundCentsAmount } from '../../../lib/currency';
 import logger from '../../../lib/logger';
+import {
+  createOrderUpdatedActivity,
+  moveBackerMembership,
+  syncBackerMembershipTier,
+} from '../../../lib/order-tier-change';
 import { isBalanceOnlyCollectiveType } from '../../../lib/payments';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../../lib/sanitize-html';
@@ -52,6 +60,7 @@ import {
   isPaypalSubscriptionPaymentMethod,
   updateSubscriptionWithPaypal,
 } from '../../../paymentProviders/paypal/subscription';
+import { checkIsValidBalanceAccountingCategory } from '../../common/balance-accounting-categories';
 import { checkReceiveFinancialContributions } from '../../common/features';
 import * as OrdersLib from '../../common/orders';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
@@ -163,11 +172,16 @@ const getOrderBaseAmount = order => {
 };
 
 /**
- * A wrapper around `getOrderTaxInfoFromTaxInput` that will throw if the tax amount doesn't match the tax percentage.
+ * A wrapper around `getOrderTaxInfoFromTaxInput` that will throw if the tax rate is out of bounds or if the
+ * tax amount doesn't match the tax percentage.
  */
 const getOrderTaxInfo = (taxInput, quantity, orderAmount, fromAccount, toAccount, host, currency) => {
   let taxInfo, taxAmount;
   if (taxInput) {
+    if (taxInput.rate < 0 || taxInput.rate > 1) {
+      throw new ValidationFailed('Tax rate must be between 0 and 1');
+    }
+
     const grossAmount = quantity * getValueInCentsFromAmountInput(orderAmount);
     taxInfo = getOrderTaxInfoFromTaxInput(taxInput, fromAccount, toAccount, host);
     taxAmount = getTaxAmount(grossAmount, taxInput, currency);
@@ -209,6 +223,9 @@ const orderMutations = {
       const tax = order.tax || order.taxes?.[0];
       const platformTip = order.platformTipAmount;
       const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+      if (platformTipAmount < 0) {
+        throw new ValidationFailed('Platform tip amount cannot be negative');
+      }
       const loadersParams = { loaders: req.loaders, throwIfMissing: true };
       const loadAccount = account => fetchAccountWithReference(account, loadersParams);
       const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
@@ -237,7 +254,10 @@ const orderMutations = {
       });
 
       const amountInCents = getValueInCentsFromAmountInput(order.amount);
-      const quantity = order.quantity || 1;
+      const quantity = order.quantity ?? 1;
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        throw new ValidationFailed('Quantity must be at least 1');
+      }
       const legacyOrderObj = {
         quantity,
         amount: amountInCents,
@@ -487,9 +507,11 @@ const orderMutations = {
 
       if (!order) {
         throw new ValidationFailed('This order does not seem to exist');
-      } else if (!req.remoteUser.isAdminOfCollective(order.fromCollective) && !req.remoteUser.isRoot()) {
-        throw new Unauthorized("You don't have permission to update this order");
-      } else if (!order.Subscription.isActive && order.status !== OrderStatuses.PAUSED) {
+      }
+      if (!req.remoteUser.isAdminOfCollective(order.fromCollective)) {
+        checkRemoteUserCanRoot(req, { rootOnlyMessage: "You don't have permission to update this order" });
+      }
+      if (!order.Subscription.isActive && order.status !== OrderStatuses.PAUSED) {
         throw new Error('Order must be active to be updated');
       } else if (args.paypalSubscriptionId && args.paymentMethod) {
         throw new Error('paypalSubscriptionId and paymentMethod are mutually exclusive');
@@ -520,23 +542,20 @@ const orderMutations = {
         );
       }
 
-      let previousOrderValues, previousSubscriptionValues;
+      let detailsUpdate: Awaited<ReturnType<typeof updateSubscriptionDetails>> | undefined;
 
       // Update details (eg. amount, tier)
       if (haveDetailsChanged) {
-        // Update details (eg. amount, tier)
+        // When the tier is not provided, keep targeting the current one, or the pending one if an upgrade is waiting
+        // for a payment (see `server/lib/order-tier-change.ts`).
         const tier =
           isNull(args.tier) || args.tier?.isCustom
             ? null
             : args.tier
               ? await fetchTierWithReference(args.tier, { throwIfMissing: true })
-              : order.Tier;
+              : (order.data?.pendingTierChange && (await models.Tier.findByPk(order.data.pendingTierChange.TierId))) ||
+                order.Tier;
 
-        const membership =
-          !isNull(order) &&
-          (await models.Member.findOne({
-            where: { MemberCollectiveId: order.FromCollectiveId, CollectiveId: order.CollectiveId, role: 'BACKER' },
-          }));
         const expectedCurrency = order.currency;
         if (!isUndefined(args.amount)) {
           assertAmountInputCurrency(args.amount, expectedCurrency, { name: 'amount' });
@@ -553,14 +572,13 @@ const orderMutations = {
         const platformTipAmount = isNil(args.platformTipAmount)
           ? order.platformTipAmount
           : getValueInCentsFromAmountInput(args.platformTipAmount, { expectedCurrency });
+        if (platformTipAmount < 0) {
+          throw new ValidationFailed('Platform tip amount cannot be negative');
+        }
         const newTotalAmount = amountWithoutTip + platformTipAmount;
-        ({ previousOrderValues, previousSubscriptionValues } = await updateSubscriptionDetails(
-          order,
-          tier,
-          membership,
-          newTotalAmount,
-          platformTipAmount,
-        ));
+        detailsUpdate = await updateSubscriptionDetails(order, tier, newTotalAmount, platformTipAmount, {
+          remoteUser: req.remoteUser,
+        });
       }
 
       if (hasPaymentMethodChanged) {
@@ -575,8 +593,21 @@ const orderMutations = {
             order = await updateSubscriptionWithPaypal(req.remoteUser, order, args.paypalSubscriptionId);
           } catch (error) {
             // Restore original subscription if it was modified
-            if (haveDetailsChanged) {
-              await updateOrderSubscription(order, previousOrderValues, previousSubscriptionValues);
+            if (detailsUpdate) {
+              await updateOrderSubscription(
+                order,
+                detailsUpdate.previousOrderValues,
+                detailsUpdate.previousSubscriptionValues,
+                {
+                  onUpdate:
+                    detailsUpdate.tierChange === 'APPLIED'
+                      ? transaction =>
+                          syncBackerMembershipTier(order, detailsUpdate.requestedTierId, detailsUpdate.previousTierId, {
+                            transaction,
+                          })
+                      : undefined,
+                },
+              );
             }
 
             reportErrorToSentry(error, { req });
@@ -598,7 +629,67 @@ const orderMutations = {
         }
       }
 
+      // Audit trail for amount/tier changes
+      if (detailsUpdate) {
+        const changedFields = Object.keys(omit(detailsUpdate.previousOrderValues, ['data']));
+        if (changedFields.length || detailsUpdate.tierChange !== 'NONE') {
+          await createOrderUpdatedActivity(order, {
+            user: req.remoteUser,
+            UserTokenId: req.userToken?.id,
+            changes: {
+              previousValues: pick(detailsUpdate.previousOrderValues, changedFields),
+              newValues: pick(order.dataValues, changedFields),
+              tierChange: detailsUpdate.tierChange,
+              previousTierId: detailsUpdate.previousTierId,
+              requestedTierId: detailsUpdate.requestedTierId,
+              pendingTierChange: order.data?.pendingTierChange ?? null,
+              paypalSubscriptionId: args.paypalSubscriptionId ?? null,
+            },
+          });
+        }
+
+        if (detailsUpdate.tierChange === 'APPLIED') {
+          purgeCacheForCollective(order.collective.slug);
+        }
+      }
+
       return order;
+    },
+  },
+  updateOrderBalanceAccountingCategory: {
+    type: new GraphQLNonNull(GraphQLOrder),
+    description: 'Update the balance/clearing accounting category of an order. Scope: "orders".',
+    args: {
+      order: {
+        type: new GraphQLNonNull(GraphQLOrderReferenceInput),
+        description: 'Reference to the Order to update',
+      },
+      accountingCategory: {
+        type: GraphQLAccountingCategoryReferenceInput,
+        description: 'The balance/clearing accounting category to set. Pass null to unset.',
+      },
+    },
+    async resolve(_, args, req) {
+      checkRemoteUserCanUseOrders(req);
+
+      const order = await fetchOrderWithReference(args.order, {
+        throwIfMissing: true,
+        include: [{ association: 'collective', required: true, include: [{ association: 'host', required: true }] }],
+      });
+      if (!req.remoteUser.isAdmin(order.collective.HostCollectiveId)) {
+        throw new Unauthorized('Only host admins can update the balance accounting category of an order');
+      }
+
+      let accountingCategory = null;
+      if (args.accountingCategory) {
+        accountingCategory = await fetchAccountingCategoryWithReference(args.accountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        });
+        checkIsValidBalanceAccountingCategory(accountingCategory, order.collective.host);
+      }
+
+      return order.update({ BalanceAccountingCategoryId: accountingCategory?.id || null });
     },
   },
   updateOrderAccountingCategory: {
@@ -762,6 +853,9 @@ const orderMutations = {
           if (!isNil(amount)) {
             const amountInCents = getValueInCentsFromAmountInput(amount);
             const platformTipInCents = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+            if (platformTipInCents < 0) {
+              throw new ValidationFailed('Platform tip amount cannot be negative');
+            }
             const totalAmount = amountInCents + platformTipInCents;
             order.set('totalAmount', totalAmount);
           }
@@ -771,14 +865,19 @@ const orderMutations = {
             }
 
             const paymentProcessorFeeInCents = getValueInCentsFromAmountInput(paymentProcessorFee);
+            if (paymentProcessorFeeInCents < 0) {
+              throw new ValidationFailed('Payment processor fee cannot be negative');
+            }
             order.set('data', { ...order.data, paymentProcessorFee: paymentProcessorFeeInCents });
           }
+          // Read the base amount before `taxAmount` or `platformTipAmount` change: without a new amount, it stays the same
+          const existingBaseAmount = getOrderBaseAmount(order);
           if (!isNil(tax)) {
             const quantity = 1; // Not supported yet by OrderUpdateInput
             const { taxInfo, taxAmount } = getOrderTaxInfo(
               args.order.tax,
               quantity,
-              args.order.amount,
+              args.order.amount ?? { valueInCents: existingBaseAmount },
               fromAccount,
               toAccount,
               host,
@@ -789,6 +888,9 @@ const orderMutations = {
           }
           if (!isNil(platformTip)) {
             const platformTipInCents = getValueInCentsFromAmountInput(platformTip);
+            if (platformTipInCents < 0) {
+              throw new ValidationFailed('Platform tip amount cannot be negative');
+            }
             order.set('platformTipAmount', platformTipInCents);
           }
           if (!isNil(hostFeePercent)) {
@@ -800,9 +902,12 @@ const orderMutations = {
           }
 
           // Re-compute total amount
-          const baseAmount = !isNil(args.order.amount)
-            ? getValueInCentsFromAmountInput(args.order.amount)
-            : getOrderBaseAmount(order);
+          let baseAmount;
+          if (!isNil(args.order.amount)) {
+            baseAmount = getValueInCentsFromAmountInput(args.order.amount);
+          } else {
+            baseAmount = existingBaseAmount;
+          }
           order.set(
             'totalAmount',
             getTotalAmountForOrderInput(
@@ -812,6 +917,11 @@ const orderMutations = {
               order.currency,
             ),
           );
+
+          // The payment processor fee is taken from the contribution, it cannot be higher than it
+          if (order.data?.paymentProcessorFee > order.totalAmount - (order.platformTipAmount || 0)) {
+            throw new ValidationFailed('Payment processor fee cannot be higher than the contribution amount');
+          }
 
           // Link transactions import row
           let transactionsImportRow;
@@ -829,6 +939,14 @@ const orderMutations = {
             } else if (transactionsImport.CollectiveId !== host.id) {
               throw new ValidationFailed('This import does not belong to the host');
             }
+
+            // Default the balance accounting category from the bank sub-account the row belongs to
+            if (!order.BalanceAccountingCategoryId) {
+              order.set(
+                'BalanceAccountingCategoryId',
+                getBalanceAccountingCategoryIdForImportRow(transactionsImportRow, transactionsImport),
+              );
+            }
           }
 
           await sequelize.transaction(async transaction => {
@@ -837,6 +955,11 @@ const orderMutations = {
               await transactionsImportRow.update({ OrderId: order.id, status: 'LINKED' }, { transaction });
             }
           });
+        }
+
+        if (order.TierId) {
+          const tierForValidation = await req.loaders.Tier.byId.load(order.TierId);
+          OrdersLib.assertTierBelongsToAccount(tierForValidation, toAccount);
         }
 
         order = await order.markAsPaid(req.remoteUser);
@@ -895,6 +1018,11 @@ const orderMutations = {
         type: GraphQLBoolean,
         description: 'If true, the orders will be moved to the incognito account of "fromAccount"',
       },
+      force: {
+        type: GraphQLBoolean,
+        description:
+          'Bypass the tier amount validation when moving orders to a tier that does not match their amount (root only, for data repair)',
+      },
     },
     async resolve(_, args, req) {
       checkRemoteUserCanRoot(req);
@@ -933,7 +1061,7 @@ const orderMutations = {
       const orders = await fetchOrdersWithReferences(args.orders, {
         include: [
           { association: 'paymentMethod' },
-          { association: 'fromCollective', attributes: ['id', 'slug'] },
+          { association: 'fromCollective', attributes: ['id', 'slug', 'HostCollectiveId'] },
           { association: 'collective', attributes: ['id', 'slug', 'HostCollectiveId'] },
         ],
       });
@@ -989,6 +1117,24 @@ const orderMutations = {
         if (tier && tier !== 'custom' && orders.some(o => o.CollectiveId !== tier.CollectiveId)) {
           throw new ValidationFailed(`Can't move orders to a different collective tier`);
         }
+
+        // The order amount must match the tier it's moved to (can be bypassed for data repair)
+        if (tier && tier !== 'custom' && !args.force) {
+          try {
+            OrdersLib.assertOrderAmountMatchesTier(tier, {
+              baseAmountInCents: getOrderBaseAmount(order),
+              totalAmountInCents: order.totalAmount,
+              quantity: order.quantity,
+              currency: order.currency,
+              taxPercentage: order.data?.tax?.percentage || 0,
+            });
+          } catch (error) {
+            if (error instanceof ValidationFailed) {
+              throw new ValidationFailed(`Order #${order.id}: ${error.message}`);
+            }
+            throw error;
+          }
+        }
       }
 
       // -- Move orders --
@@ -1032,26 +1178,38 @@ const orderMutations = {
           );
         }
 
-        // Update members
-        const membersPayload = {};
-        if (fromAccount) {
-          membersPayload['MemberCollectiveId'] = fromAccount.id;
+        // Update members. Contributions moved together share their source membership: move each membership once,
+        // merging into the target one if it exists, and keeping it if contributions that are not moved rely on it.
+        const updatedMembers = [];
+        const createdMembers = [];
+        const removedMembers = [];
+        const ordersByMembership = groupBy(orders, o => `${o.FromCollectiveId}-${o.CollectiveId}-${o.TierId || null}`);
+        for (const membershipOrders of Object.values(ordersByMembership)) {
+          const { FromCollectiveId, CollectiveId, TierId } = membershipOrders[0];
+          const { member, createdMember, removedMember } = await moveBackerMembership(
+            {
+              CollectiveId,
+              from: { MemberCollectiveId: FromCollectiveId, TierId },
+              to: {
+                MemberCollectiveId: fromAccount ? fromAccount.id : FromCollectiveId,
+                TierId: !tier ? TierId : tier === 'custom' ? null : tier.id,
+              },
+              movedOrderIds: ordersIds,
+              CreatedByUserId: req.remoteUser.id,
+              onlyIfSourceExists: true,
+            },
+            { transaction: dbTransaction },
+          );
+          if (member) {
+            updatedMembers.push(member);
+          }
+          if (createdMember) {
+            createdMembers.push(createdMember);
+          }
+          if (removedMember) {
+            removedMembers.push(removedMember);
+          }
         }
-        if (tier) {
-          membersPayload['TierId'] = tier === 'custom' ? null : tier.id;
-        }
-        const [, updatedMembers] = await models.Member.update(membersPayload, {
-          transaction: dbTransaction,
-          returning: ['id'],
-          where: {
-            [Op.or]: orders.map(order => ({
-              MemberCollectiveId: order.FromCollectiveId,
-              CollectiveId: order.CollectiveId,
-              TierId: order.TierId,
-              role: roles.BACKER,
-            })),
-          },
-        });
 
         // Update orders
         const ordersPayload = {};
@@ -1060,6 +1218,8 @@ const orderMutations = {
         }
         if (tier) {
           ordersPayload['TierId'] = tier === 'custom' ? null : tier.id;
+          // An explicit move supersedes any tier change still waiting for a payment
+          ordersPayload['data'] = sequelize.literal(`"data" - 'pendingTierChange'`);
         }
 
         const [, updatedOrders] = await models.Order.update(ordersPayload, {
@@ -1088,8 +1248,11 @@ const orderMutations = {
               orders: updatedOrders.map(o => o.id),
               fromAccount: fromAccount?.id,
               tier: tier?.id,
+              force: args.force || undefined,
               paymentMethods: updatedPaymentMethods.map(pm => pm.id),
-              members: updatedMembers.map(m => m.id),
+              members: uniq(updatedMembers.map(m => m.id)),
+              createdMembers: createdMembers.map(m => m.id),
+              removedMembers: removedMembers.map(m => m.id),
               transactions: [...updatedCredits.map(t => t.id), ...updatedDebits.map(t => t.id)],
               previousOrdersValues: mapValues(keyBy(orders, 'id'), order =>
                 pick(order, ['FromCollectiveId', 'CollectiveId', 'TierId']),
@@ -1287,18 +1450,20 @@ const orderMutations = {
       const toAccount = await fetchAccountWithReference(args.order.toAccount, { throwIfMissing: true });
       const host = await toAccount.getHostCollective({ loaders: req.loaders });
       const tier = args.order.tier && (await fetchTierWithReference(args.order.tier, { throwIfMissing: true }));
+      OrdersLib.assertTierBelongsToAccount(tier, toAccount);
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
         throw new Unauthorized('Only host admins can create pending orders');
-      } else if (
+      }
+      if (
         fromAccount.HostCollectiveId !== host.id &&
-        !req.remoteUser.isRoot() &&
         !(fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId === host.id) &&
         !(!host.isPrivate && (host.data?.allowAddFundsFromAllAccounts || host.data?.isTrustedHost))
       ) {
-        throw new Error(
-          "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
-        );
+        checkRemoteUserCanRoot(req, {
+          rootOnlyMessage:
+            "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
+        });
       }
 
       await checkFeatureAccess(host, FEATURE.EXPECTED_FUNDS, { loaders: req.loaders });
@@ -1325,6 +1490,10 @@ const orderMutations = {
         }
       });
 
+      if (!(getValueInCentsFromAmountInput(args.order.amount) > 0)) {
+        throw new ValidationFailed('Amount should be greater than 0');
+      }
+
       // Get tax info
       const quantity = 1; // Not supported yet by PendingOrderCreateInput
       const { taxInfo, taxAmount } = getOrderTaxInfo(
@@ -1338,6 +1507,15 @@ const orderMutations = {
       );
 
       const baseAmountInCents = getValueInCentsFromAmountInput(args.order.amount);
+
+      // The amount must match the tier (fixed amount or minimum) if there's one
+      OrdersLib.assertOrderAmountMatchesTier(tier, {
+        baseAmountInCents,
+        totalAmountInCents: getTotalAmountForOrderInput(baseAmountInCents, null, args.order.tax, expectedCurrency),
+        quantity,
+        currency: expectedCurrency,
+        taxPercentage: taxInfo?.percentage || 0,
+      });
 
       const valuesByRole = {
         ...(accountingCategory
@@ -1468,18 +1646,19 @@ const orderMutations = {
         : await req.loaders.Collective.byId.load(order.FromCollectiveId);
       const tier = args.order.tier
         ? await fetchTierWithReference(args.order.tier, { throwIfMissing: true })
-        : order.tier;
+        : order.Tier; // The `Order.belongsTo(Tier)` association is populated as `order.Tier`
+      OrdersLib.assertTierBelongsToAccount(tier, order.collective);
 
       if (
         fromAccount &&
         fromAccount.HostCollectiveId !== host.id &&
         !(fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId === host.id) &&
-        !req.remoteUser.isRoot() &&
         !(!host.isPrivate && (host.data?.allowAddFundsFromAllAccounts || host.data?.isTrustedHost))
       ) {
-        throw new Error(
-          "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
-        );
+        checkRemoteUserCanRoot(req, {
+          rootOnlyMessage:
+            "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
+        });
       }
 
       // Check accounting category
@@ -1504,6 +1683,10 @@ const orderMutations = {
         }
       });
 
+      if (!(getValueInCentsFromAmountInput(args.order.amount) > 0)) {
+        throw new ValidationFailed('Amount should be greater than 0');
+      }
+
       // Get tax info
       const quantity = 1; // Not supported yet by PendingOrderCreateInput
       const { taxInfo, taxAmount } = getOrderTaxInfo(
@@ -1520,6 +1703,18 @@ const orderMutations = {
       const tax = !isUndefined(args.order.tax) ? args.order.tax : order.data?.tax;
       const platformTip = args.order.platformTipAmount;
       const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+      if (platformTipAmount < 0) {
+        throw new ValidationFailed('Platform tip amount cannot be negative');
+      }
+
+      // The amount must match the tier (fixed amount or minimum) if there's one
+      OrdersLib.assertOrderAmountMatchesTier(tier, {
+        baseAmountInCents,
+        totalAmountInCents: getTotalAmountForOrderInput(baseAmountInCents, platformTipAmount, tax, expectedCurrency),
+        quantity,
+        currency: expectedCurrency,
+        taxPercentage: taxInfo?.percentage || 0,
+      });
 
       const valuesByRole = {
         ...(order.data?.valuesByRole || {}),

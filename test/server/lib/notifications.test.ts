@@ -8,12 +8,15 @@ import channels from '../../../server/constants/channels';
 import roles from '../../../server/constants/roles';
 import emailLib from '../../../server/lib/email';
 import notifyLib from '../../../server/lib/notifications';
-import { notify } from '../../../server/lib/notifications/email';
+import { notify, notifyByEmail } from '../../../server/lib/notifications/email';
 import slackLib from '../../../server/lib/slack';
+import { CommentType } from '../../../server/models/Comment';
 import {
+  fakeActiveHost,
   fakeActivity,
   fakeCollective,
   fakeEvent,
+  fakeExpense,
   fakeMember,
   fakeNotification,
   fakeOrganization,
@@ -157,7 +160,18 @@ describe('server/lib/notification', () => {
           activity.data.update = await fakeUpdate({ CollectiveId: collective.id, html });
           await notifyLib(activity);
           const modifiedHtml =
-            '<div>Testing valid html content for notification email<img src="https://img.youtube.com/vi/JODaYjDyjyQ/0.jpg" alt="youtube content" /></div>';
+            '<div>Testing valid html content for notification email<a href="https://www.youtube.com/watch?v=JODaYjDyjyQ"><img src="https://img.youtube.com/vi/JODaYjDyjyQ/0.jpg" alt="youtube content" /></a></div>';
+          await utils.waitForCondition(() => sendEmailSpy.callCount === 1);
+          expect(sendEmailSpy.firstCall.args[2].update.html).to.equal(modifiedHtml);
+        });
+
+        it('are converted to images for youtube-nocookie embed iframes in figure', async () => {
+          const html =
+            '<div>Content before<br /><figure data-trix-content-type="--embed-iframe-video"><iframe src="https://www.youtube-nocookie.com/embed/KLeHuFu_zIM?showinfo=0" width="100%" height="394"></iframe><figcaption></figcaption></figure><br />Content after</div>';
+          activity.data.update = await fakeUpdate({ CollectiveId: collective.id, html });
+          await notifyLib(activity);
+          const modifiedHtml =
+            '<div>Content before<br /><figure data-trix-content-type="--embed-iframe-video"><a href="https://www.youtube.com/watch?v=KLeHuFu_zIM"><img src="https://img.youtube.com/vi/KLeHuFu_zIM/0.jpg" alt="youtube content" /></a><figcaption></figcaption></figure><br />Content after</div>';
           await utils.waitForCondition(() => sendEmailSpy.callCount === 1);
           expect(sendEmailSpy.firstCall.args[2].update.html).to.equal(modifiedHtml);
         });
@@ -302,6 +316,290 @@ describe('server/lib/notification', () => {
       expect(sendEmailSpy.callCount).to.equal(2);
       assert.calledWithMatch(sendEmailSpy, 'all', adminUser.email);
       assert.calledWithMatch(sendEmailSpy, 'all', accountantUser.email);
+    });
+  });
+
+  describe('notifyByEmail replyTo', () => {
+    let sendEmailSpy;
+    const replyToEmail = 'host-reply@example.com';
+
+    beforeEach(() => {
+      sendEmailSpy = sandbox.stub(emailLib, 'send').resolves();
+    });
+
+    const getReplyToFromSendCall = call => call.args[3]?.replyTo;
+
+    describe('COLLECTIVE_APPROVED', () => {
+      it('sets replyTo from host replyToEmail', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin, data: { replyToEmail } });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+        const activity = await fakeActivity({
+          type: activities.COLLECTIVE_APPROVED,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          data: {
+            collective: collective.info,
+            host: host.info,
+            user: { email: hostAdmin.email },
+          },
+        });
+
+        await notifyByEmail(activity);
+        await utils.waitForCondition(() => sendEmailSpy.callCount >= 1);
+        expect(getReplyToFromSendCall(sendEmailSpy.firstCall)).to.equal(replyToEmail);
+      });
+
+      it('does not set replyTo when host has no replyToEmail', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+        const activity = await fakeActivity({
+          type: activities.COLLECTIVE_APPROVED,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          data: {
+            collective: collective.info,
+            host: host.info,
+            user: { email: hostAdmin.email },
+          },
+        });
+
+        await notifyByEmail(activity);
+        await utils.waitForCondition(() => sendEmailSpy.callCount >= 1);
+        expect(getReplyToFromSendCall(sendEmailSpy.firstCall)).to.be.undefined;
+      });
+    });
+
+    describe('COLLECTIVE_REJECTED', () => {
+      it('sets replyTo from host replyToEmail', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin, data: { replyToEmail } });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+        const activity = await fakeActivity({
+          type: activities.COLLECTIVE_REJECTED,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          data: {
+            collective: collective.info,
+            host: host.info,
+            user: { email: hostAdmin.email },
+          },
+        });
+
+        await notifyByEmail(activity);
+        await utils.waitForCondition(() => sendEmailSpy.callCount >= 1);
+        expect(getReplyToFromSendCall(sendEmailSpy.firstCall)).to.equal(replyToEmail);
+      });
+    });
+
+    describe('COLLECTIVE_UNHOSTED', () => {
+      it('sets replyTo from host replyToEmail', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin, data: { replyToEmail } });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+        const activity = await fakeActivity({
+          type: activities.COLLECTIVE_UNHOSTED,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          data: {
+            collective: collective.info,
+            host: host.info,
+          },
+        });
+
+        await notifyByEmail(activity);
+        await utils.waitForCondition(() => sendEmailSpy.callCount >= 1);
+        expect(getReplyToFromSendCall(sendEmailSpy.firstCall)).to.equal(replyToEmail);
+      });
+
+      it('falls back to support@opencollective.com when host has no replyToEmail', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+        const activity = await fakeActivity({
+          type: activities.COLLECTIVE_UNHOSTED,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          data: {
+            collective: collective.info,
+            host: host.info,
+          },
+        });
+
+        await notifyByEmail(activity);
+        await utils.waitForCondition(() => sendEmailSpy.callCount >= 1);
+        expect(getReplyToFromSendCall(sendEmailSpy.firstCall)).to.equal('support@opencollective.com');
+      });
+    });
+
+    describe('HOST_APPLICATION_COMMENT_CREATED', () => {
+      it('sets replyTo from host replyToEmail when comment is from a host admin', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin, data: { replyToEmail } });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({
+          HostCollectiveId: host.id,
+          admin: collectiveAdmin,
+          isActive: false,
+          approvedAt: null,
+        });
+        const activity = await fakeActivity({
+          type: activities.HOST_APPLICATION_COMMENT_CREATED,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          FromCollectiveId: hostAdmin.CollectiveId,
+          UserId: hostAdmin.id,
+          data: {
+            collective: collective.info,
+            host: host.info,
+            comment: { type: CommentType.COMMENT },
+          },
+        });
+
+        await notifyByEmail(activity);
+        await utils.waitForCondition(() => sendEmailSpy.callCount >= 1);
+        expect(getReplyToFromSendCall(sendEmailSpy.firstCall)).to.equal(replyToEmail);
+      });
+    });
+
+    describe('COLLECTIVE_APPLY', () => {
+      it('sets replyTo to the applicant email on the host notification', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin, data: { replyToEmail } });
+        const applicant = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: applicant });
+        const activity = await fakeActivity({
+          type: activities.COLLECTIVE_APPLY,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          data: {
+            collective: collective.info,
+            host: host.info,
+            user: { email: applicant.email },
+          },
+        });
+
+        await notifyByEmail(activity);
+        await utils.waitForCondition(() => sendEmailSpy.callCount >= 2);
+        const hostAdminEmailCall = sendEmailSpy.getCalls().find(call => call.args[1] === hostAdmin.email);
+        expect(hostAdminEmailCall).to.exist;
+        expect(getReplyToFromSendCall(hostAdminEmailCall)).to.equal(applicant.email);
+      });
+    });
+  });
+
+  describe('notifyByEmail EXPENSE_COMMENT_CREATED', () => {
+    let sendEmailSpy;
+
+    beforeEach(() => {
+      sendEmailSpy = sandbox.stub(emailLib, 'send').resolves();
+    });
+
+    const notifyExpenseComment = async (collective, commenter, expense) => {
+      const activity = await fakeActivity(
+        {
+          type: activities.EXPENSE_COMMENT_CREATED,
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.HostCollectiveId,
+          FromCollectiveId: commenter.CollectiveId,
+          UserId: commenter.id,
+          ExpenseId: expense.id,
+          data: {
+            comment: { id: 1, html: 'Hello', type: CommentType.COMMENT },
+            FromCollectiveId: commenter.CollectiveId,
+            expense: expense.info, // Same shape as `createComment`
+          },
+        },
+        { hooks: false },
+      );
+      await notifyByEmail(activity);
+      return sendEmailSpy.getCalls().map(call => call.args[1]);
+    };
+
+    it('notifies the author of a self-submitted expense only once', async () => {
+      const host = await fakeActiveHost({ admin: await fakeUser() });
+      const collectiveAdmin = await fakeUser();
+      const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+      await fakeUser(); // Shift user ids so that `User.id` and `User.CollectiveId` don't match by coincidence
+      const author = await fakeUser();
+      expect(author.id).to.not.equal(author.CollectiveId);
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        UserId: author.id,
+        FromCollectiveId: author.CollectiveId,
+      });
+
+      const recipients = await notifyExpenseComment(collective, collectiveAdmin, expense);
+      expect(recipients.filter(email => email === author.email)).to.have.length(1);
+    });
+
+    it('notifies a user who is admin of both the host and the collective only once', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, admin });
+      const author = await fakeUser();
+      const commenter = await fakeUser();
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        UserId: author.id,
+        FromCollectiveId: author.CollectiveId,
+      });
+
+      const recipients = await notifyExpenseComment(collective, commenter, expense);
+      expect(recipients.filter(email => email === admin.email)).to.have.length(1);
+    });
+
+    it('still notifies an admin of both host and collective who unsubscribed on the host only', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, admin });
+      await fakeNotification({
+        channel: channels.EMAIL,
+        type: activities.EXPENSE_COMMENT_CREATED,
+        active: false,
+        CollectiveId: host.id,
+        UserId: admin.id,
+      });
+      await fakeNotification({
+        channel: channels.EMAIL,
+        type: activities.EXPENSE_COMMENT_CREATED,
+        active: true,
+        CollectiveId: collective.id,
+        UserId: admin.id,
+      });
+      const author = await fakeUser();
+      const commenter = await fakeUser();
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        UserId: author.id,
+        FromCollectiveId: author.CollectiveId,
+      });
+
+      const recipients = await notifyExpenseComment(collective, commenter, expense);
+      expect(recipients.filter(email => email === admin.email)).to.have.length(1);
+    });
+
+    it('notifies the admins only once for an expense on the host own account', async () => {
+      const commenter = await fakeUser();
+      const otherAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: commenter });
+      await host.addUserWithRole(otherAdmin, roles.ADMIN);
+      expect(host.HostCollectiveId).to.eq(host.id);
+      const author = await fakeUser();
+      const expense = await fakeExpense({
+        CollectiveId: host.id,
+        UserId: author.id,
+        FromCollectiveId: author.CollectiveId,
+      });
+
+      const recipients = await notifyExpenseComment(host, commenter, expense);
+      expect(recipients.filter(email => email === otherAdmin.email)).to.have.length(1);
     });
   });
 });

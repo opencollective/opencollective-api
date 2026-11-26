@@ -1,0 +1,144 @@
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
+import { FindAndCountOptions, InferAttributes, Order } from 'sequelize';
+
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
+import models, { type Comment, Op } from '../../../models';
+import { GraphQLAccountCollection } from '../collection/AccountCollection';
+import { CommentCollection } from '../collection/CommentCollection';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
+import { GraphQLAccount } from '../interface/Account';
+
+import { GraphQLComment } from './Comment';
+
+const GraphQLConversation: GraphQLObjectType = new GraphQLObjectType({
+  name: 'Conversation',
+  description: 'A conversation thread',
+  fields: () => {
+    return {
+      id: {
+        type: new GraphQLNonNull(GraphQLString),
+        resolve(conversation) {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.Conversation, conversation.createdAt)) {
+            return conversation.publicId;
+          } else {
+            return idEncode(conversation.id, IDENTIFIER_TYPES.CONVERSATION);
+          }
+        },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${models.Conversation.nanoIdPrefix}_xxxxxxxx)`,
+      },
+      slug: { type: new GraphQLNonNull(GraphQLString) },
+      title: { type: new GraphQLNonNull(GraphQLString) },
+      createdAt: { type: new GraphQLNonNull(GraphQLDateTime) },
+      updatedAt: { type: new GraphQLNonNull(GraphQLDateTime) },
+      tags: { type: new GraphQLList(GraphQLString) },
+      summary: { type: new GraphQLNonNull(GraphQLString) },
+      account: {
+        type: GraphQLAccount,
+        async resolve(conversation, args, req) {
+          const collective = await req.loaders.Collective.byId.load(conversation.CollectiveId);
+          if (!collective) {
+            return null;
+          }
+
+          await assertCanSeeAccount(req, collective);
+          return collective;
+        },
+      },
+      fromAccount: {
+        type: GraphQLAccount,
+        async resolve(conversation, args, req) {
+          const fromCollective = await req.loaders.Collective.byId.load(conversation.FromCollectiveId);
+          if (!fromCollective) {
+            return null;
+          }
+
+          await assertCanSeeAccount(req, fromCollective);
+          return fromCollective;
+        },
+      },
+      body: {
+        type: GraphQLComment,
+        description: 'The root comment / starter for this conversation',
+        resolve(conversation) {
+          return models.Comment.findByPk(conversation.RootCommentId);
+        },
+      },
+      comments: {
+        type: new GraphQLNonNull(CommentCollection),
+        description: "List the comments for this conversation. Not backed by a loader, don't use this in lists.",
+        args: {
+          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 150 },
+          offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
+        },
+        async resolve(conversation, { limit, offset }) {
+          const where = { ConversationId: conversation.id, id: { [Op.not]: conversation.RootCommentId } };
+          const order: Order = [['createdAt', 'ASC']];
+          const query: FindAndCountOptions<InferAttributes<Comment>> = { where, order };
+
+          if (limit) {
+            query.limit = limit;
+          }
+          if (offset) {
+            query.offset = offset;
+          }
+
+          const result = await models.Comment.findAndCountAll(query);
+          return { nodes: result.rows, totalCount: result.count, limit, offset };
+        },
+      },
+      followers: {
+        type: new GraphQLNonNull(GraphQLAccountCollection),
+        args: {
+          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 10 },
+          offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
+        },
+        async resolve(conversation, { offset, limit }, req) {
+          const followers = await req.loaders.Conversation.followers.load(conversation.id);
+          return {
+            nodes: followers.slice(offset, offset + limit),
+            totalCount: followers.length,
+            offset,
+            limit,
+          };
+        },
+      },
+      stats: {
+        type: new GraphQLObjectType({
+          name: 'ConversationStats',
+          fields: () => ({
+            id: {
+              type: new GraphQLNonNull(GraphQLString),
+              resolve(conversation) {
+                if (
+                  conversation.createdAt &&
+                  isEntityMigratedToPublicId(EntityShortIdPrefix.Conversation, conversation.createdAt)
+                ) {
+                  return conversation.publicId;
+                } else {
+                  return idEncode(conversation.id, IDENTIFIER_TYPES.CONVERSATION);
+                }
+              },
+            },
+            commentsCount: {
+              type: GraphQLInt,
+              description: 'Total number of comments for this conversation',
+              resolve(conversation, _, req) {
+                return req.loaders.Conversation.commentsCount.load(conversation.id);
+              },
+            },
+          }),
+        }),
+        resolve(conversation) {
+          return conversation;
+        },
+      },
+    };
+  },
+});
+
+export default GraphQLConversation;

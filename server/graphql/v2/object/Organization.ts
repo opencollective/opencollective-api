@@ -17,12 +17,14 @@ import POLICIES, { UseVendorPolicyValue } from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
+import { getSuggestedBalanceAccountingCategoryIds } from '../../../lib/accounting/categorization/balance-accounts';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { getKysely, kyselyToSequelizeModels } from '../../../lib/kysely';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { getPolicy } from '../../../lib/policies';
 import sequelize from '../../../lib/sequelize';
 import { buildKyselySearchConditions, buildSearchConditions } from '../../../lib/sql-search';
+import { getTransactionsImportRowLinkedIdSearchConditions } from '../../../lib/transactions-imports';
 import { parseToBoolean } from '../../../lib/utils';
 import { expandAccountIdsWithParents } from '../../../lib/vendor-visibility';
 import models, { Collective, ConnectedAccount, Op, TransactionsImportRow } from '../../../models';
@@ -30,7 +32,12 @@ import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory'
 import { AccountingCategoryRule } from '../../../models/AccountingCategoryRule';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkRemoteUserCanUseHost, checkRemoteUserCanUseTransactions, checkScope } from '../../common/scope-check';
+import {
+  checkRemoteUserCanUseHost,
+  checkRemoteUserCanUseTransactions,
+  checkScope,
+  isRemoteUserRoot,
+} from '../../common/scope-check';
 import { Forbidden, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
@@ -58,7 +65,9 @@ import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../input/ChronologicalOrderInput';
+import { fetchExpenseWithReference, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput';
 import { GraphQLOrderByInput } from '../input/OrderByInput';
+import { fetchOrderWithReference, GraphQLOrderReferenceInput } from '../input/OrderReferenceInput';
 import { GraphQLTransactionsImportRowOrderInput } from '../input/TransactionsImportRowOrderInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
@@ -68,7 +77,7 @@ import {
 } from '../interface/AccountWithPlatformSubscription';
 import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
 
-import { GraphQLContributionAccountingCategoryRule } from './AccountingCategory';
+import { GraphQLAccountingCategory, GraphQLContributionAccountingCategoryRule } from './AccountingCategory';
 import { GraphQLContributionStats } from './ContributionStats';
 import { GraphQLExpenseStats } from './ExpenseStats';
 import { GraphQLHost } from './Host';
@@ -304,7 +313,12 @@ export const getOrganizationFields = () => ({
             .where('m.deletedAt', 'is', null)
             .where('ac.deletedAt', 'is', null)
             // filter by host or collectives hosted by this host
-            .where(({ or, eb }) => or([eb('ac.HostCollectiveId', '=', host.id), eb('ac.id', '=', host.id)]))
+            .where(({ or, and, eb }) =>
+              or([
+                and([eb('ac.HostCollectiveId', '=', host.id), eb('ac.approvedAt', 'is not', null)]),
+                eb('ac.id', '=', host.id),
+              ]),
+            )
             .select('m.CollectiveId as id')
             .union(
               // children accounts that the user can view vendors for given that vendors attached to parents
@@ -321,7 +335,12 @@ export const getOrganizationFields = () => ({
                 .where('m.role', '=', MemberRoles.ADMIN)
                 .where('m.deletedAt', 'is', null)
                 .where('parent.deletedAt', 'is', null)
-                .where(({ or, eb }) => or([eb('parent.HostCollectiveId', '=', host.id), eb('parent.id', '=', host.id)]))
+                .where(({ or, and, eb }) =>
+                  or([
+                    and([eb('parent.HostCollectiveId', '=', host.id), eb('parent.approvedAt', 'is not', null)]),
+                    eb('parent.id', '=', host.id),
+                  ]),
+                )
                 .select('c.id'),
             ),
         );
@@ -750,11 +769,15 @@ export const getOrganizationFields = () => ({
 
       // Search term
       if (args.searchTerm) {
+        const linkedIdConditions = await getTransactionsImportRowLinkedIdSearchConditions(args.searchTerm, req.loaders);
         where.push({
-          [Op.or]: buildSearchConditions(args.searchTerm, {
-            textFields: ['description', 'sourceId'],
-            publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.TransactionsImportRow }],
-          }),
+          [Op.or]: [
+            ...buildSearchConditions(args.searchTerm, {
+              textFields: ['description', 'sourceId'],
+              publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.TransactionsImportRow }],
+            }),
+            ...linkedIdConditions,
+          ],
         });
       }
 
@@ -1115,7 +1138,7 @@ export const getOrganizationFields = () => ({
       // Handle archived
       if (!args.includeArchived) {
         where.archivedAt = null;
-      } else if (!req.remoteUser?.isAdmin(collective.id) && !req.remoteUser?.isRoot()) {
+      } else if (!req.remoteUser?.isAdmin(collective.id) && !isRemoteUserRoot(req)) {
         throw new Forbidden('You are not authorized to see archived manual payment providers for this account');
       }
 
@@ -1201,7 +1224,7 @@ export const getOrganizationFields = () => ({
         where.kind = uniq(args.kind);
       }
 
-      if (!req.remoteUser?.isAdmin(host.id)) {
+      if (!req.remoteUser?.hasRole([roles.ADMIN, roles.ACCOUNTANT], host.id)) {
         where.hostOnly = false;
       }
 
@@ -1222,6 +1245,55 @@ export const getOrganizationFields = () => ({
         limit: categories.length,
         offset: 0,
       };
+    },
+  },
+  suggestedBalanceAccountingCategories: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLAccountingCategory))),
+    description:
+      'Suggested balance/clearing accounting categories for a context: the rail the money moved through, then the bank accounts assigned to the account. Only computed for host admins and accountants.',
+    args: {
+      account: {
+        type: GraphQLAccountReferenceInput,
+        description: 'Suggest from the bank accounts assigned to this account',
+      },
+      order: {
+        type: GraphQLOrderReferenceInput,
+        description: 'Suggest from the payment rail of this order',
+      },
+      expense: {
+        type: GraphQLExpenseReferenceInput,
+        description: 'Suggest from the payout rail of this expense',
+      },
+    },
+    async resolve(host, args, req) {
+      if (!req.remoteUser?.hasRole([roles.ADMIN, roles.ACCOUNTANT], host.id)) {
+        return [];
+      }
+
+      const collective = args.account ? await fetchAccountWithReference(args.account, { loaders: req.loaders }) : null;
+      let order = args.order ? await fetchOrderWithReference(args.order) : null;
+      let expense = args.expense ? await fetchExpenseWithReference(args.expense, { loaders: req.loaders }) : null;
+
+      // Ignore intents that are not under this host
+      if (order) {
+        const orderCollective = await req.loaders.Collective.byId.load(order.CollectiveId);
+        if (orderCollective?.HostCollectiveId !== host.id) {
+          order = null;
+        }
+      }
+      if (expense) {
+        const expenseCollective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+        if ((expense.HostCollectiveId || expenseCollective?.HostCollectiveId) !== host.id) {
+          expense = null;
+        }
+      }
+      if (collective && collective.HostCollectiveId !== host.id && collective.id !== host.id) {
+        return [];
+      }
+
+      const ids = await getSuggestedBalanceAccountingCategoryIds({ host, collective, order, expense });
+      const categories = await Promise.all(ids.map(id => req.loaders.AccountingCategory.byId.load(id)));
+      return categories.filter(Boolean);
     },
   },
   contributionAccountingCategoryRules: {

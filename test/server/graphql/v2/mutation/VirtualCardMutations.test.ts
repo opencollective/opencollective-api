@@ -50,12 +50,13 @@ const EDIT_VIRTUAL_CARD_MUTATION = gql`
 `;
 
 const REQUEST_VIRTUAL_CARD_MUTATION = gql`
-  mutation RequestVirtualCard($account: AccountReferenceInput!) {
+  mutation RequestVirtualCard($account: AccountReferenceInput!, $spendingLimitInterval: VirtualCardLimitInterval) {
     requestVirtualCard(
       account: $account
       purpose: "Test purpose"
       notes: "Test notes"
       spendingLimitAmount: { valueInCents: 50000 }
+      spendingLimitInterval: $spendingLimitInterval
     )
   }
 `;
@@ -88,6 +89,44 @@ const CREATE_VIRTUAL_CARD_MUTATION = gql`
     }
   }
 `;
+
+const PAUSE_VIRTUAL_CARD_MUTATION = gql`
+  mutation PauseVirtualCard($virtualCard: VirtualCardReferenceInput!) {
+    pauseVirtualCard(virtualCard: $virtualCard) {
+      id
+      name
+      last4
+      status
+    }
+  }
+`;
+
+const RESUME_VIRTUAL_CARD_MUTATION = gql`
+  mutation ResumeVirtualCard($virtualCard: VirtualCardReferenceInput!) {
+    resumeVirtualCard(virtualCard: $virtualCard) {
+      id
+      name
+      last4
+      status
+    }
+  }
+`;
+
+const PRIVATE_CARD_DATA = { cardNumber: '4111111111114242', cvv: 'FAKESECRET_q3r4s5t6u7v8w9x0y1z2' };
+
+const expectPublicVirtualCardSnapshot = (snapshot, virtualCard) => {
+  expect(snapshot).to.include({
+    id: virtualCard.id,
+    name: virtualCard.name,
+    last4: virtualCard.last4,
+    provider: virtualCard.provider,
+    CollectiveId: virtualCard.CollectiveId,
+    HostCollectiveId: virtualCard.HostCollectiveId,
+  });
+  expect(snapshot).to.not.have.property('privateData');
+  expect(snapshot).to.not.have.property('cardNumber');
+  expect(snapshot).to.not.have.property('cvv');
+};
 
 describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
   describe('deleteVirtualCard', () => {
@@ -437,6 +476,55 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
       expect(result.errors[0].message).to.equal(`You don't have permission to update this Virtual Card's limit`);
     });
 
+    it('rejects host admin without 2FA when editing a limit on a host that requires 2FA', async () => {
+      await host.update({ data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+      const virtualCard = await fakeVirtualCard({
+        HostCollectiveId: host.id,
+        CollectiveId: collective.id,
+        provider: VirtualCardProviders.STRIPE,
+      });
+      const updateVirtualCardLimitStub = sandbox.stub(stripeVirtualCards, 'updateVirtualCardLimit').resolves();
+
+      const result = await graphqlQueryV2(
+        EDIT_VIRTUAL_CARD_MUTATION,
+        {
+          virtualCard: { id: virtualCard.id },
+          limitAmount: { valueInCents: 10000 },
+          limitInterval: VirtualCardLimitIntervals.MONTHLY,
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+      expect(updateVirtualCardLimitStub.called).to.equal(false);
+    });
+
+    it('enforces the host 2FA policy when the host admin also admins the collective', async () => {
+      await host.update({ data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+      const weakCollective = await fakeCollective({ HostCollectiveId: host.id, admin: hostAdminUser });
+      const virtualCard = await fakeVirtualCard({
+        HostCollectiveId: host.id,
+        CollectiveId: weakCollective.id,
+        provider: VirtualCardProviders.STRIPE,
+      });
+      const updateVirtualCardLimitStub = sandbox.stub(stripeVirtualCards, 'updateVirtualCardLimit').resolves();
+
+      const result = await graphqlQueryV2(
+        EDIT_VIRTUAL_CARD_MUTATION,
+        {
+          virtualCard: { id: virtualCard.id },
+          limitAmount: { valueInCents: 10000 },
+          limitInterval: VirtualCardLimitIntervals.MONTHLY,
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+      expect(updateVirtualCardLimitStub.called).to.equal(false);
+    });
+
     it('validates limit is less than maximum monthly limit', async () => {
       const virtualCard = await fakeVirtualCard({
         HostCollectiveId: host.id,
@@ -600,6 +688,55 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
     });
   });
 
+  describe('resumeVirtualCard', () => {
+    let hostAdminUser, host, collective;
+    let sandbox;
+
+    beforeEach(resetTestDB);
+    beforeEach(async () => {
+      hostAdminUser = await fakeUser();
+      host = await fakeHost({
+        admin: hostAdminUser,
+        data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+      });
+      collective = await fakeCollective({ HostCollectiveId: host.id });
+    });
+
+    beforeEach(() => {
+      sandbox = createSandbox();
+    });
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('rejects host admin without 2FA when host requires 2FA for admins', async () => {
+      const virtualCard = await fakeVirtualCard({
+        HostCollectiveId: host.id,
+        CollectiveId: collective.id,
+        provider: VirtualCardProviders.STRIPE,
+        data: { status: VirtualCardStatus.INACTIVE, pauseReason: 'MANUAL' },
+      });
+      const resumeCardStub = sandbox.stub(stripeVirtualCards, 'resumeCard').resolves();
+
+      const result = await graphqlQueryV2(
+        RESUME_VIRTUAL_CARD_MUTATION,
+        {
+          virtualCard: {
+            id: virtualCard.id,
+          },
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+      expect(resumeCardStub.called).to.equal(false);
+
+      await virtualCard.reload();
+      expect(virtualCard.data.status).to.equal(VirtualCardStatus.INACTIVE);
+    });
+  });
+
   describe('requestVirtualCard', () => {
     let collectiveAdminUser, host, collective;
 
@@ -612,6 +749,17 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
       });
       collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdminUser });
     });
+
+    const giveBalanceToCollective = async () => {
+      await fakeTransaction({
+        type: 'CREDIT',
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        amount: 5000,
+      });
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+    };
 
     it('rejects when host disabled virtual card requests in settings', async () => {
       await host.update({
@@ -642,14 +790,7 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
     });
 
     it('creates a pending request when the feature is available', async () => {
-      await fakeTransaction({
-        type: 'CREDIT',
-        CollectiveId: collective.id,
-        HostCollectiveId: host.id,
-        amount: 5000,
-      });
-      await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
-      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+      await giveBalanceToCollective();
 
       const result = await graphqlQueryV2(
         REQUEST_VIRTUAL_CARD_MUTATION,
@@ -665,6 +806,293 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
 
       const activity = await models.Activity.findOne({ where: { type: ActivityTypes.VIRTUAL_CARD_REQUESTED } });
       expect(activity).to.exist;
+    });
+
+    it('allows any limit interval by default', async () => {
+      await giveBalanceToCollective();
+
+      const result = await graphqlQueryV2(
+        REQUEST_VIRTUAL_CARD_MUTATION,
+        { account: { legacyId: collective.id }, spendingLimitInterval: VirtualCardLimitIntervals.YEARLY },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      const pending = await models.VirtualCardRequest.findOne({ where: { CollectiveId: collective.id } });
+      expect(pending.spendingLimitInterval).to.equal(VirtualCardLimitIntervals.YEARLY);
+    });
+
+    it('rejects limit intervals that the host does not allow', async () => {
+      await giveBalanceToCollective();
+      await host.update({
+        settings: {
+          ...host.settings,
+          virtualcards: {
+            ...host.settings?.virtualcards,
+            allowedSpendingLimitIntervals: {
+              [VirtualCardLimitIntervals.ALL_TIME]: true,
+              [VirtualCardLimitIntervals.DAILY]: false,
+              [VirtualCardLimitIntervals.MONTHLY]: false,
+              [VirtualCardLimitIntervals.PER_AUTHORIZATION]: false,
+              [VirtualCardLimitIntervals.WEEKLY]: false,
+              [VirtualCardLimitIntervals.YEARLY]: false,
+            },
+          },
+        },
+      });
+
+      const result = await graphqlQueryV2(
+        REQUEST_VIRTUAL_CARD_MUTATION,
+        { account: { legacyId: collective.id }, spendingLimitInterval: VirtualCardLimitIntervals.MONTHLY },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'The MONTHLY limit interval is not available for virtual card requests from this host',
+      );
+      expect(await models.VirtualCardRequest.count()).to.equal(0);
+    });
+
+    it('allows limit intervals that the host kept enabled', async () => {
+      await giveBalanceToCollective();
+      await host.update({
+        settings: {
+          ...host.settings,
+          virtualcards: {
+            ...host.settings?.virtualcards,
+            allowedSpendingLimitIntervals: {
+              [VirtualCardLimitIntervals.ALL_TIME]: true,
+              [VirtualCardLimitIntervals.DAILY]: false,
+              [VirtualCardLimitIntervals.MONTHLY]: false,
+              [VirtualCardLimitIntervals.PER_AUTHORIZATION]: false,
+              [VirtualCardLimitIntervals.WEEKLY]: false,
+              [VirtualCardLimitIntervals.YEARLY]: false,
+            },
+          },
+        },
+      });
+
+      const result = await graphqlQueryV2(
+        REQUEST_VIRTUAL_CARD_MUTATION,
+        { account: { legacyId: collective.id }, spendingLimitInterval: VirtualCardLimitIntervals.ALL_TIME },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.requestVirtualCard).to.equal(true);
+      const pending = await models.VirtualCardRequest.findOne({ where: { CollectiveId: collective.id } });
+      expect(pending.spendingLimitInterval).to.equal(VirtualCardLimitIntervals.ALL_TIME);
+    });
+  });
+
+  describe('pauseVirtualCard', () => {
+    let hostAdminUser, collectiveAdminUser, host, collective;
+    let sandbox;
+
+    beforeEach(resetTestDB);
+    beforeEach(async () => {
+      hostAdminUser = await fakeUser();
+      collectiveAdminUser = await fakeUser();
+      host = await fakeHost({ admin: hostAdminUser });
+      collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdminUser });
+    });
+
+    beforeEach(() => {
+      sandbox = createSandbox();
+      sandbox.stub(stripeVirtualCards, 'pauseCard').resolves();
+    });
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    const createCard = (overrides = {}) =>
+      fakeVirtualCard({
+        HostCollectiveId: host.id,
+        CollectiveId: collective.id,
+        provider: VirtualCardProviders.STRIPE,
+        name: 'Ops card',
+        last4: '4242',
+        privateData: PRIVATE_CARD_DATA,
+        ...overrides,
+      });
+
+    it('requires authenticated user', async () => {
+      const virtualCard = await createCard();
+      const result = await graphqlQueryV2(PAUSE_VIRTUAL_CARD_MUTATION, { virtualCard: { id: virtualCard.id } });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage virtual cards.');
+    });
+
+    it('validates request has permission to pause card', async () => {
+      const virtualCard = await createCard();
+      const user = await fakeUser();
+      const result = await graphqlQueryV2(PAUSE_VIRTUAL_CARD_MUTATION, { virtualCard: { id: virtualCard.id } }, user);
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal("You don't have permission to pause this Virtual Card");
+    });
+
+    it('validates virtual card exist', async () => {
+      const result = await graphqlQueryV2(
+        PAUSE_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: 'does-not-exist' } },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Could not find Virtual Card');
+    });
+
+    it('rejects pausing a canceled card', async () => {
+      const virtualCard = await createCard({ data: { status: VirtualCardStatus.CANCELED } });
+      const result = await graphqlQueryV2(
+        PAUSE_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: virtualCard.id } },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('This Virtual Card cannot be paused');
+    });
+
+    it('pauses card using host admin and stores a public virtual card snapshot on the activity', async () => {
+      const virtualCard = await createCard();
+      const result = await graphqlQueryV2(
+        PAUSE_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: virtualCard.id } },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.pauseVirtualCard.status).to.equal('INACTIVE');
+
+      await virtualCard.reload();
+      expect(virtualCard.data.status).to.eq(VirtualCardStatus.INACTIVE);
+      expect(virtualCard.data.pauseReason).to.eq('MANUAL');
+
+      const activity = await models.Activity.findOne({
+        where: { type: ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED },
+      });
+      expectPublicVirtualCardSnapshot(activity.data.virtualCard, virtualCard);
+      expect(activity.UserId).to.equal(hostAdminUser.id);
+    });
+
+    it('pauses card using collective admin and does not persist privateData on the activity', async () => {
+      const virtualCard = await createCard();
+      const result = await graphqlQueryV2(
+        PAUSE_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: virtualCard.id } },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.pauseVirtualCard.status).to.equal('INACTIVE');
+
+      const activity = await models.Activity.findOne({
+        where: { type: ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED },
+      });
+      expectPublicVirtualCardSnapshot(activity.data.virtualCard, virtualCard);
+      expect(activity.UserId).to.equal(collectiveAdminUser.id);
+    });
+  });
+
+  describe('resumeVirtualCard', () => {
+    let hostAdminUser, collectiveAdminUser, host, collective;
+    let sandbox;
+
+    beforeEach(resetTestDB);
+    beforeEach(async () => {
+      hostAdminUser = await fakeUser();
+      collectiveAdminUser = await fakeUser();
+      host = await fakeHost({ admin: hostAdminUser });
+      collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdminUser });
+    });
+
+    beforeEach(() => {
+      sandbox = createSandbox();
+      sandbox.stub(stripeVirtualCards, 'resumeCard').resolves();
+    });
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    const createPausedCard = (overrides = {}) =>
+      fakeVirtualCard({
+        HostCollectiveId: host.id,
+        CollectiveId: collective.id,
+        provider: VirtualCardProviders.STRIPE,
+        name: 'Ops card',
+        last4: '4242',
+        privateData: PRIVATE_CARD_DATA,
+        data: { status: VirtualCardStatus.INACTIVE, pauseReason: 'MANUAL' },
+        ...overrides,
+      });
+
+    it('requires authenticated user', async () => {
+      const virtualCard = await createPausedCard();
+      const result = await graphqlQueryV2(RESUME_VIRTUAL_CARD_MUTATION, { virtualCard: { id: virtualCard.id } });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage virtual cards.');
+    });
+
+    it('rejects collective admin', async () => {
+      const virtualCard = await createPausedCard();
+      const result = await graphqlQueryV2(
+        RESUME_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: virtualCard.id } },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal("You don't have permission to edit this Virtual Card");
+    });
+
+    it('validates virtual card exist', async () => {
+      const result = await graphqlQueryV2(
+        RESUME_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: 'does-not-exist' } },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Could not find Virtual Card');
+    });
+
+    it('rejects resuming a canceled card', async () => {
+      const virtualCard = await createPausedCard({ data: { status: VirtualCardStatus.CANCELED } });
+      const result = await graphqlQueryV2(
+        RESUME_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: virtualCard.id } },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('This Virtual Card cannot be activated');
+    });
+
+    it('resumes card using host admin and stores a public virtual card snapshot on the activity', async () => {
+      const virtualCard = await createPausedCard();
+      const result = await graphqlQueryV2(
+        RESUME_VIRTUAL_CARD_MUTATION,
+        { virtualCard: { id: virtualCard.id } },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.resumeVirtualCard.status).to.equal('ACTIVE');
+
+      await virtualCard.reload();
+      expect(virtualCard.data.status).to.eq(VirtualCardStatus.ACTIVE);
+      expect(virtualCard.data).to.not.have.property('pauseReason');
+
+      const activity = await models.Activity.findOne({
+        where: { type: ActivityTypes.COLLECTIVE_VIRTUAL_CARD_RESUMED },
+      });
+      expectPublicVirtualCardSnapshot(activity.data.virtualCard, virtualCard);
+      expect(activity.UserId).to.equal(hostAdminUser.id);
     });
   });
 });

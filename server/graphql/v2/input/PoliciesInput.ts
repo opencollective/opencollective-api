@@ -69,5 +69,15 @@ export const GraphQLPoliciesInput = new GraphQLInputObjectType({
         }),
       }),
     },
+    [POLICIES.TAX_FORM_THRESHOLDS]: {
+      type: new GraphQLInputObjectType({
+        name: 'PoliciesTaxFormThresholdsInput',
+        fields: () => ({
+          US: { type: GraphQLInt },
+          NON_US: { type: GraphQLInt },
+          includePayPalExpenses: { type: GraphQLBoolean },
+        }),
+      }),
+    },
   }),
 });

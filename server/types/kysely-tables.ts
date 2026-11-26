@@ -22,7 +22,7 @@ export const MODEL_TABLE_NAMES: { [K in keyof typeof models]: string } = Object.
  * inferred from that model via KyselifyModel.
  */
 export type Database = {
-  [K in keyof typeof models as (typeof models)[K] extends ModelWithTableName
-    ? (typeof models)[K]['tableName']
-    : never]: KyselifyModel<InstanceType<(typeof models)[K]>>;
+  [
+    K in keyof typeof models as (typeof models)[K] extends ModelWithTableName ? (typeof models)[K]['tableName'] : never
+  ]: KyselifyModel<InstanceType<(typeof models)[K]>>;
 };

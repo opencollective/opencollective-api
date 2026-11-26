@@ -2,7 +2,9 @@ import type Express from 'express';
 import { GraphQLNonNull } from 'graphql';
 import { Order } from 'sequelize';
 
+import { assertCanSeeAccount } from '../../../../lib/private-accounts';
 import models from '../../../../models';
+import { canUseExportRequestsForAccount } from '../../../common/export-requests';
 import { checkRemoteUserCanUseExportRequests } from '../../../common/scope-check';
 import { Forbidden } from '../../../errors';
 import { GraphQLExportRequestCollection } from '../../collection/ExportRequestCollection';
@@ -33,7 +35,8 @@ const ExportRequestsCollectionQuery = {
 
     // Fetch account and check permissions
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
-    if (!req.remoteUser.isAdminOfCollective(account)) {
+    await assertCanSeeAccount(req, account);
+    if (!canUseExportRequestsForAccount(req.remoteUser, account)) {
       throw new Forbidden('You do not have permission to view export requests for this account');
     }
 

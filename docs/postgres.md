@@ -100,6 +100,8 @@ The development database should be automatically installed after `npm install`.
 
 To trigger the postinstall script again, run `npm run postinstall`.
 
+If the postinstall script can't connect to Postgres as the `postgres` user (e.g. a password is required), it skips the database setup with a warning. Provide credentials with `PGPASSWORD` or `~/.pgpass` and run `npm run postinstall` again, or set `SKIP_POSTINSTALL=1` to skip it.
+
 To force a restore run `npm run db:restore`, then `npm run db:migrate`.
 
 #### Test

@@ -31,6 +31,13 @@ export const checkRemoteUserCanUseAccount = (
   enforceScope(req, 'account');
 };
 
+const checkRemoteUserCanUseIncognito = (req: Express.Request): void => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage incognito details.');
+  }
+  enforceScope(req, 'incognito');
+};
+
 export const checkRemoteUserCanUseExportRequests = (req: Express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage export requests.');
@@ -126,15 +133,20 @@ export const checkRemoteUserCanUseComment = (comment: Comment, req: Express.Requ
     checkRemoteUserCanUseExpenses(req);
   } else if (comment.HostApplicationId) {
     checkRemoteUserCanUseHostApplications(req);
+  } else if (comment.OrderId) {
+    checkRemoteUserCanUseOrders(req);
   }
 };
 
-export const checkRemoteUserCanRoot = (req: Express.Request): void => {
+export const checkRemoteUserCanRoot = (
+  req: Express.Request,
+  { rootOnlyMessage = 'You need to be logged in as root.' } = {},
+): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in.');
   }
   if (!req.remoteUser.isRoot()) {
-    throw new Forbidden('You need to be logged in as root.');
+    throw new Forbidden(rootOnlyMessage);
   }
   enforceScope(req, 'root');
 };
@@ -148,6 +160,7 @@ export const checkScopeForExportRequest = (
 ): void => {
   if (exportRequest.type === ExportRequestTypes.TRANSACTIONS) {
     checkRemoteUserCanUseTransactions(req);
+    checkRemoteUserCanUseIncognito(req);
     if (exportRequest.parameters?.isHostReport) {
       checkRemoteUserCanUseHost(req);
     }
@@ -179,6 +192,18 @@ export const checkScope = (req: Express.Request, scope: OAuthScope): boolean => 
   return true;
 };
 
+/**
+ * Returns true if the remote user is root AND the current authentication method grants the `root` scope.
+ * Use this instead of `req.remoteUser?.isRoot()` to make sure root privileges are not used through
+ * OAuth/Personal tokens that were not granted the `root` scope.
+ */
+export const isRemoteUserRoot = (req: Express.Request): boolean => {
+  return Boolean(req.remoteUser?.isRoot() && checkScope(req, 'root'));
+};
+
+/**
+ * Enforces the scope **only** if the remoteUser is authenticated with a OAuth or Personal Token.
+ */
 export const enforceScope = (req: Express.Request, scope: OAuthScope): void => {
   if (!checkScope(req, scope)) {
     if (req.userToken) {
@@ -195,6 +220,20 @@ export const rejectOAuthAndPersonalTokenAuth = (
   message = 'OAuth and personal tokens cannot be used to manage tokens. Please use the web interface.',
 ): void => {
   if (req.userToken || req.personalToken) {
+    throw new Forbidden(message);
+  }
+};
+
+/**
+ * Rejects scoped credentials other than sessions. Legacy session JWTs have no explicit scope.
+ * Authentication and account permissions must still be checked by the caller.
+ */
+export const requireSessionToken = (
+  req: Express.Request,
+  message = 'A session token is required. Please use the web interface.',
+): void => {
+  rejectOAuthAndPersonalTokenAuth(req, message);
+  if (req.jwtPayload?.scope && req.jwtPayload.scope !== 'session') {
     throw new Forbidden(message);
   }
 };

@@ -2,7 +2,6 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import querystring from 'querystring';
 import { Readable } from 'stream';
 
 import { expect } from 'chai';
@@ -10,9 +9,9 @@ import config from 'config';
 import debug from 'debug';
 import { Request } from 'express';
 import { graphql } from 'graphql';
-import Upload from 'graphql-upload/Upload.js';
+import Upload from 'graphql-upload/Upload.mjs';
 import { cloneDeep, get, groupBy, isArray, omit, values } from 'lodash';
-import markdownTable from 'markdown-table';
+import { markdownTable } from 'markdown-table';
 import nock from 'nock';
 import { generateSync } from 'otplib';
 import sinon, { assert } from 'sinon';
@@ -93,15 +92,15 @@ export const resetTestDB = async ({ groupedTruncate = true, retries = 5 } = {}) 
 
 export const seedDefaultVendors = async () => {
   return sequelize.query(`
-    INSERT INTO "Collectives" ("type", "slug", "name", "website", "createdAt", "updatedAt")
+    INSERT INTO "Collectives" ("type", "slug", "name", "website", "isActive", "createdAt", "updatedAt")
     VALUES
-      ('VENDOR', 'stripe-payment-processor-vendor', 'Stripe', 'https://stripe.com', NOW(), NOW()),
-      ('VENDOR', 'paypal-payment-processor-vendor', 'PayPal', 'https://paypal.com', NOW(), NOW()),
-      ('VENDOR', 'wise-payment-processor-vendor', 'Wise', 'https://wise.com', NOW(), NOW()),
-      ('VENDOR', 'other-payment-processor-vendor', 'Other Payment Processor', NULL, NOW(), NOW()),
-      ('VENDOR', 'eu-vat-tax-vendor', 'European VAT', NULL, NOW(), NOW()),
-      ('VENDOR', 'nz-gst-tax-vendor', 'New Zealand GST', NULL, NOW(), NOW()),
-      ('VENDOR', 'other-tax-vendor', 'Other Tax', NULL, NOW(), NOW())
+      ('VENDOR', 'stripe-payment-processor-vendor', 'Stripe', 'https://stripe.com', FALSE, NOW(), NOW()),
+      ('VENDOR', 'paypal-payment-processor-vendor', 'PayPal', 'https://paypal.com', FALSE, NOW(), NOW()),
+      ('VENDOR', 'wise-payment-processor-vendor', 'Wise', 'https://wise.com', FALSE, NOW(), NOW()),
+      ('VENDOR', 'other-payment-processor-vendor', 'Other Payment Processor', NULL, FALSE, NOW(), NOW()),
+      ('VENDOR', 'eu-vat-tax-vendor', 'European VAT', NULL, FALSE, NOW(), NOW()),
+      ('VENDOR', 'nz-gst-tax-vendor', 'New Zealand GST', NULL, FALSE, NOW(), NOW()),
+      ('VENDOR', 'other-tax-vendor', 'Other Tax', NULL, FALSE, NOW(), NOW())
     ON CONFLICT DO NOTHING;
   `);
 };
@@ -139,6 +138,7 @@ export const makeRequest = (
     get: a => {
       return headers[a];
     },
+    setTimeout: () => {}, // Express `req.setTimeout` - the timeout itself is not relevant in tests
     userToken,
     personalToken,
     res: {
@@ -674,8 +674,12 @@ export const nockFixerRates = ratesConfig => {
         return false;
       }
     })
-    .reply(url => {
-      const { base, symbols } = querystring.parse(url) as { base: string; symbols: string };
+    .reply((uri: string | { url: string }) => {
+      // nock passes the request path (v14) or a fetch `Request` (absolute URL, v15) to reply functions
+      const requestUrl = typeof uri === 'string' ? uri : uri.url;
+      const searchParams = new URL(requestUrl, 'https://data.fixer.io').searchParams;
+      const base = searchParams.get('base');
+      const symbols = searchParams.get('symbols');
       return [
         200,
         {
@@ -811,8 +815,9 @@ export const generateValid2FAHeader = user => {
   return `totp ${twoFactorAuthenticatorCode}`;
 };
 
-export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNocks = x => x) => {
+export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNocks = x => x, sanitizeNocks = x => x) => {
   if (process.env.RECORD) {
+    console.log(`Recording integration test for ${baseUrl} to ${testFileName}.responses.json`);
     nock.recorder.rec({
       output_objects: true,
       dont_print: true,
@@ -826,13 +831,17 @@ export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNock
     } else {
       nock.cleanAll();
       const nocks = nock.loadDefs(recordFile).map(preProcessNocks);
+      console.log(`Loaded ${nocks.length} nocks from ${recordFile}`);
       nock.define(nocks);
     }
   });
 
   after(() => {
     if (process.env.RECORD) {
-      const nockCalls = nock.recorder.play();
+      let nockCalls = nock.recorder.play();
+      if (sanitizeNocks) {
+        nockCalls = nockCalls.map(sanitizeNocks);
+      }
       fs.writeFileSync(recordFile, JSON.stringify(nockCalls, null, 2));
     }
     nock.cleanAll();
@@ -842,10 +851,7 @@ export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNock
 
 export const getMockFileUpload = (
   mockFile:
-    | 'images/camera.png'
-    | 'images/empty.jpg'
-    | 'images/corrupt.jpg'
-    | 'files/transactions.csv' = 'images/camera.png',
+    'images/camera.png' | 'images/empty.jpg' | 'images/corrupt.jpg' | 'files/transactions.csv' = 'images/camera.png',
   { simulatedSize }: { simulatedSize?: number } = {},
 ) => {
   const file = new Upload();

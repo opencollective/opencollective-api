@@ -115,6 +115,7 @@ export const GraphQLPolicies = new GraphQLObjectType({
             (acc, policyKey: string) => ({
               ...acc,
               [policyKey]: {
+                // Policy limits are stored in cents
                 value: policy[policyKey],
                 currency: account.currency,
               },
@@ -168,17 +169,35 @@ export const GraphQLPolicies = new GraphQLObjectType({
             ? await req.loaders.Collective.byId.load(account.HostCollectiveId)
             : account;
         let thresholds = await getPolicy(host, POLICIES.CONTRIBUTOR_INFO_THRESHOLDS, req);
-        let fxRate = 1;
         if (!thresholds) {
           if (host?.currency === 'USD') {
             thresholds = DEFAULT_CONTRIBUTION_INFO_USD_THRESHOLDS;
           } else {
             return null;
           }
-        } else if (host.currency !== account.currency) {
-          fxRate = await getFxRate(host.currency, account.currency);
         }
+
+        const fxRate = host.currency !== account.currency ? await getFxRate(host.currency, account.currency) : 1;
         return mapValues(thresholds, threshold => (isNil(threshold) ? null : Math.round(threshold * fxRate)));
+      },
+    },
+    [POLICIES.TAX_FORM_THRESHOLDS]: {
+      type: new GraphQLObjectType({
+        name: POLICIES.TAX_FORM_THRESHOLDS,
+        fields: () => ({
+          US: { type: GraphQLInt, description: 'Threshold in cents for US entities (0 means always collect)' },
+          NON_US: { type: GraphQLInt, description: 'Threshold in cents for non-US entities (0 means always collect)' },
+          includePayPalExpenses: {
+            type: GraphQLBoolean,
+            description: 'Whether expenses paid through PayPal are included in threshold calculations',
+          },
+        }),
+      }),
+      description: 'Tax form thresholds for US and non-US entities in cents (0 means always collect)',
+      async resolve(account, _, req) {
+        if (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'account')) {
+          return await getPolicy(account, POLICIES.TAX_FORM_THRESHOLDS);
+        }
       },
     },
   }),

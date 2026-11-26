@@ -43,7 +43,8 @@ function renderExpression(fn: SqlExpressionFn<keyof DatabaseWithViews>): Express
 
 export function renderDimension(dim: Dimension): Expression<unknown> {
   if ('column' in dim) {
-    return dim.kind === 'enum' ? sql`${sql.id(dim.column)}::text` : sql`${sql.id(dim.column)}`;
+    const asText = dim.kind === 'enum' || dim.kind === 'enumValues';
+    return asText ? sql`${sql.id(dim.column)}::text` : sql`${sql.id(dim.column)}`;
   }
   return renderExpression(dim.expression);
 }

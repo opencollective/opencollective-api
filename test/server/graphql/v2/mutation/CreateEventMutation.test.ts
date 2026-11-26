@@ -27,9 +27,10 @@ describe('server/graphql/v2/mutation/CreateEventMutation', () => {
     await utils.resetTestDB();
   });
 
-  it('must be an admin or member of parent', async () => {
+  it('must be an admin of parent', async () => {
     const parentCollective = await fakeCollective();
     const account = { legacyId: parentCollective.id };
+    const expectedMessage = `You must be logged in as an admin of the ${parentCollective.slug} collective to create an Event`;
 
     const resultUnauthenticated = await utils.graphqlQueryV2(createEventMutation, {
       account,
@@ -44,7 +45,25 @@ describe('server/graphql/v2/mutation/CreateEventMutation', () => {
       await fakeUser(),
     );
     expect(resultRandomUser.errors).to.exist;
+    expect(resultRandomUser.errors[0].message).to.equal(expectedMessage);
     expect(resultRandomUser.errors[0].extensions.code).to.equal('Unauthorized');
+  });
+
+  it('rejects core contributors (MEMBER role)', async () => {
+    const coreContributor = await fakeUser();
+    const parentCollective = await fakeCollective();
+    await parentCollective.addUserWithRole(coreContributor, 'MEMBER');
+
+    const result = await utils.graphqlQueryV2(
+      createEventMutation,
+      { account: { legacyId: parentCollective.id }, event: validEventArgs() },
+      coreContributor,
+    );
+    expect(result.errors).to.exist;
+    expect(result.errors[0].message).to.equal(
+      `You must be logged in as an admin of the ${parentCollective.slug} collective to create an Event`,
+    );
+    expect(result.errors[0].extensions.code).to.equal('Unauthorized');
   });
 
   it('rejects event creation when the parent is frozen', async () => {

@@ -7,9 +7,17 @@ export enum CollectiveType {
   PROJECT = 'PROJECT',
   FUND = 'FUND',
   VENDOR = 'VENDOR',
+  PLATFORM = 'PLATFORM',
 }
 
 export const CollectiveTypesList = Object.values(CollectiveType);
+
+/**
+ * Name of an individual profile created without a usable one: no name (e.g. `/users/signup`, before the user completes
+ * their profile) or a name that cannot be slugified. Not "incognito": that is the name of the profiles used for incognito
+ * contributions.
+ */
+export const PLACEHOLDER_USER_NAME = 'user';
 
 /**
  * Defines the account types that are allowed to create projects.

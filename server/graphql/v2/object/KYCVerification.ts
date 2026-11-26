@@ -9,6 +9,7 @@ import { GraphQLKYCVerificationStatus } from '../enum/KYCVerificationStatus';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 
+import { GraphQLIndividual } from './Individual';
 import { GraphQLKYCVerificationPermissions } from './KYCVerificationPermissions';
 
 export const GraphQLKYCVerification = new GraphQLObjectType({
@@ -50,7 +51,7 @@ export const GraphQLKYCVerification = new GraphQLObjectType({
     },
     createdByUser: {
       description: 'The user who added this account to the KYC verification list',
-      type: GraphQLAccount,
+      type: GraphQLIndividual,
       resolve(kycVerification: KYCVerification, _, req: Express.Request) {
         if (kycVerification.CreatedByUserId) {
           return req.loaders.Collective.byUserId.load(kycVerification.CreatedByUserId);

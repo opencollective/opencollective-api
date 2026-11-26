@@ -1,0 +1,106 @@
+import type { Request } from 'express';
+import { GraphQLNonNull } from 'graphql';
+import slugify from 'limax';
+import { pick } from 'lodash';
+import { v4 as uuid } from 'uuid';
+
+import { CollectiveType } from '../../../constants/collectives';
+import roles from '../../../constants/roles';
+import { canUseSlug } from '../../../lib/collectivelib';
+import { canSeePrivateAccount } from '../../../lib/private-accounts';
+import models, { sequelize } from '../../../models';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { BadRequest, NotFound, Unauthorized } from '../../errors';
+import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLEventCreateInput } from '../input/EventCreateInput';
+import { GraphQLEvent } from '../object/Event';
+
+const DEFAULT_EVENT_SETTINGS = {};
+
+async function createEvent(_, args, req: Request) {
+  checkRemoteUserCanUseAccount(req);
+
+  const parent = await fetchAccountWithReference(args.account);
+  if (!parent) {
+    throw new NotFound('Parent account not found');
+  } else if (!(await canSeePrivateAccount(req, parent))) {
+    throw new Unauthorized('You are not authorized to create an event under this parent account');
+  } else if (!['COLLECTIVE', 'ORGANIZATION'].includes(parent.type)) {
+    throw new BadRequest('Parent account must be a collective or organization');
+  } else if (!req.remoteUser.hasRole([roles.ADMIN], parent.id)) {
+    throw new Unauthorized(`You must be logged in as an admin of the ${parent.slug} collective to create an Event`);
+  } else if (parent.isFrozen()) {
+    throw new Unauthorized('This account is frozen and cannot create new events at this time.');
+  }
+
+  const eventData: Parameters<typeof models.Collective.build>[0] = {
+    type: CollectiveType.EVENT,
+    slug: `${slugify(args.event.slug || args.event.name)}-${uuid().substr(0, 8)}`,
+    ...pick(args.event, ['name', 'description']),
+    ...pick(parent.info, ['currency', 'HostCollectiveId', 'isActive', 'platformFeePercent', 'hostFeePercent']),
+    approvedAt: parent.isActive ? new Date() : null,
+    startsAt: args.event.startsAt,
+    endsAt: args.event.endsAt,
+    timezone: args.event.timezone,
+    ParentCollectiveId: parent.id,
+    CreatedByUserId: req.remoteUser.id,
+    isPrivate: parent.isPrivate,
+    settings: { ...DEFAULT_EVENT_SETTINGS, ...args.event.settings },
+    data: {
+      ...pick(parent.data, 'allowedTierTypes'),
+    },
+  };
+
+  if (!canUseSlug(eventData.slug, req.remoteUser)) {
+    throw new Error(`The slug '${eventData.slug}' is not allowed.`);
+  }
+  const checkSlug = await models.Collective.findOne({ where: { slug: eventData.slug } });
+  if (checkSlug) {
+    throw new Error(`The slug '${eventData.slug}' is already taken. Please use another slug for the Event.`);
+  }
+
+  if (args.event.privateInstructions) {
+    eventData.data.privateInstructions = args.event.privateInstructions;
+  }
+
+  // Validate now to avoid uploading images if the collective is invalid
+  const event = models.Collective.build(eventData);
+  await event.validate();
+
+  // Attach images
+  const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.event);
+  event.image = avatar?.url ?? event.image;
+  event.backgroundImage = banner?.url ?? event.backgroundImage;
+
+  await sequelize.transaction(async transaction => {
+    await event.save({ transaction });
+    if (args.event.location) {
+      await event.setLocation(args.event.location, transaction);
+    }
+  });
+
+  event.generateCollectiveCreatedActivity(req.remoteUser, req.userToken);
+  return event;
+}
+
+const createEventMutation = {
+  type: GraphQLEvent,
+  description: 'Create an Event. Scope: "account".',
+  args: {
+    event: {
+      description: 'Information about the Event to create (name, slug, description, tags, settings)',
+      type: new GraphQLNonNull(GraphQLEventCreateInput),
+    },
+    account: {
+      description: 'Reference to the parent Account creating the Event.',
+      type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+    },
+  },
+  // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside createEvent
+  resolve: (_, args, req) => {
+    return createEvent(_, args, req);
+  },
+};
+
+export default createEventMutation;

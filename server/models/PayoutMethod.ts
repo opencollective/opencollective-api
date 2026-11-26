@@ -13,6 +13,7 @@ import isEmail from 'validator/lib/isEmail';
 import { SUPPORTED_CURRENCIES, SupportedCurrency } from '../constants/currencies';
 import ExpenseStatuses from '../constants/expense-status';
 import logger from '../lib/logger';
+import { cleanName } from '../lib/name-matching';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { reportMessageToSentry } from '../lib/sentry';
 import sequelize, { Op } from '../lib/sequelize';
@@ -21,7 +22,7 @@ import { PayPalSupportedCurrencies } from '../paymentProviders/paypal/constants'
 import { PaypalUserInfo } from '../paymentProviders/paypal/types';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
-import type { Collective, Expense, User } from '.';
+import type { Collective, ConnectedAccount, Expense, User } from '.';
 import { ModelWithPublicId } from './ModelWithPublicId';
 
 /**
@@ -63,8 +64,6 @@ export const IDENTIFIABLE_DATA_FIELDS = [
 /** An interface for the values stored in `data` field for PayPal payout methods */
 export interface PaypalPayoutMethodData {
   email: string;
-  /** ID of the ConnectedAccount that verified this PayPal account via OAuth */
-  connectedAccountId?: number;
   verifiedAt?: string;
   currency?: string;
   paypalUserInfo?: PaypalUserInfo;
@@ -72,7 +71,6 @@ export interface PaypalPayoutMethodData {
 }
 
 interface StripePayoutMethodData {
-  connectedAccountId: number;
   stripeAccountId: string;
   publishableKey: string;
 }
@@ -113,6 +111,8 @@ class PayoutMethod extends ModelWithPublicId<
   declare public data: PayoutMethodDataType;
   declare public isSaved: boolean;
   declare public CollectiveId: number;
+  /** Connected account linked by the payment provider, never by user-submitted data. */
+  declare public ConnectedAccountId: ForeignKey<ConnectedAccount['id']> | null;
   declare public CreatedByUserId: ForeignKey<User['id']>;
   declare public currency: SupportedCurrency | null;
 
@@ -383,16 +383,7 @@ PayoutMethod.init(
           if (this.type === PayoutMethodTypes.PAYPAL) {
             if (!value || !value.email || !isEmail(value.email)) {
               throw new Error('Invalid PayPal email address');
-            } else if (
-              !objHasOnlyKeys(value, [
-                'email',
-                'currency',
-                'connectedAccountId',
-                'isPayPalOAuth',
-                'verifiedAt',
-                'paypalUserInfo',
-              ])
-            ) {
+            } else if (!objHasOnlyKeys(value, ['email', 'currency', 'isPayPalOAuth', 'verifiedAt', 'paypalUserInfo'])) {
               throw new Error('Data for this payout method contains too much information');
             } else if (!PayPalSupportedCurrencies.includes(value.currency)) {
               throw new Error('This currency is not supported by PayPal');
@@ -406,13 +397,15 @@ PayoutMethod.init(
           } else if (this.type === PayoutMethodTypes.BANK_ACCOUNT) {
             if (!value || !value.accountHolderName || !value.currency || !value.type || !value.details) {
               throw new Error('Invalid format of BANK_ACCOUNT payout method data');
+            } else if (typeof value.accountHolderName !== 'string' || value.accountHolderName.length > 255) {
+              throw new Error('Invalid account holder name');
             }
           } else if (this.type === PayoutMethodTypes.CREDIT_CARD) {
             if (!value || !value.token) {
               throw new Error('Invalid format of CREDIT_CARD payout method data');
             }
           } else if (this.type === PayoutMethodTypes.STRIPE) {
-            if (!value || !value.stripeAccountId || !value.connectedAccountId) {
+            if (!value || !value.stripeAccountId || !this.ConnectedAccountId) {
               throw new Error('Invalid format of STRIPE payout method data');
             }
           } else if (!value || Object.keys(value).length > 0) {
@@ -450,6 +443,13 @@ PayoutMethod.init(
       onUpdate: 'CASCADE',
       allowNull: false,
     },
+    ConnectedAccountId: {
+      type: DataTypes.INTEGER,
+      references: { model: 'ConnectedAccounts', key: 'id' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
     CreatedByUserId: {
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'Users' },
@@ -482,13 +482,21 @@ PayoutMethod.init(
     },
     hooks: {
       beforeValidate: (instance: PayoutMethod) => {
-        // Auto-extract currency from data field if not explicitly set on the column
         const data = instance.getDataValue('data') as Record<string, unknown> | undefined;
+
+        // Trim and remove double spaces from the account holder name
+        if (typeof data?.accountHolderName === 'string') {
+          const cleanedName = cleanName(data.accountHolderName);
+          if (cleanedName !== data.accountHolderName) {
+            instance.data = { ...data, accountHolderName: cleanedName } as PayoutMethodDataType;
+          }
+        }
+        // Auto-extract currency from data field if not explicitly set on the column
         if (!instance.currency && data?.currency) {
           reportMessageToSentry(`Missing currency while creating payout method`, { extra: { data } });
           instance.currency = data.currency as SupportedCurrency;
         } else if (instance.currency && !data?.currency) {
-          instance.data = { ...data, currency: instance.currency };
+          instance.data = { ...instance.data, currency: instance.currency };
         }
       },
     },

@@ -1,5 +1,8 @@
+import type Stripe from 'stripe';
+
 import { SupportedCurrency } from '../constants/currencies';
 import { RefundKind } from '../constants/refund-kind';
+import Collective from '../models/Collective';
 import Order from '../models/Order';
 import PaymentMethod from '../models/PaymentMethod';
 import Transaction from '../models/Transaction';
@@ -115,8 +118,16 @@ export interface CardProviderService {
   resumeCard(virtualCard: VirtualCardModel): Promise<VirtualCardModel>;
 
   // To be standardized
-  processTransaction: any;
-  assignCardToCollective: any;
+  processTransaction: (stripeTransaction: Stripe.Issuing.Transaction) => Promise<void>;
+  assignCardToCollective: (
+    cardNumber: string,
+    expiryDate: string,
+    cvv: string,
+    name: string,
+    collectiveId: number,
+    host: Collective,
+    userId: number,
+  ) => Promise<VirtualCardModel>;
   autoPauseResumeCard(virtualCard: VirtualCardModel): Promise<void>;
 }
 

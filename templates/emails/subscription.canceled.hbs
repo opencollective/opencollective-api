@@ -11,13 +11,13 @@ Subject: Contribution to {{escapeForSubject collective.name}} cancelled{{#if (is
 {{/if}}
 
 {{#if (isEqual messageSource "HOST")}}
-<p>Your recurring contribution to {{>linkCollective collective=collective}} for {{currency subscription.amount currency=subscription.currency}}/{{subscription.interval}} has been cancelled by {{host.name}}, the Fiscal Host of {{collective.name}}.</p>
+<p>Your recurring contribution to {{>linkCollective collective=collective}} for {{currency order.totalAmount currency=order.currency}}/{{order.interval}} has been cancelled by {{host.name}}, the Fiscal Host of {{collective.name}}.</p>
 <p>No further charges will be made for this contribution.</p>
 {{#if hostAction.removeAsContributor}}
 <p>You have also been removed as a contributor and will no longer appear on the Collective's public profile.</p>
 {{/if}}
 {{else}}
-<p>Your recurring contribution to {{>linkCollective collective=collective}} (cced) for {{currency subscription.amount currency=subscription.currency}}/{{subscription.interval}} has been cancelled.</p>
+<p>Your recurring contribution to {{>linkCollective collective=collective}} (cced) for {{currency order.totalAmount currency=order.currency}}/{{order.interval}} has been cancelled.</p>
 {{/if}}
 
 {{#if messageForContributors}}

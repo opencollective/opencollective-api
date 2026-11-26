@@ -1,15 +1,7 @@
 type BatchStatus = 'DENIED' | 'PENDING' | 'PROCESSING' | 'SUCCESS' | 'CANCELED';
 
 type TransactionStatus =
-  | 'SUCCESS'
-  | 'FAILED'
-  | 'PENDING'
-  | 'UNCLAIMED'
-  | 'RETURNED'
-  | 'ONHOLD'
-  | 'BLOCKED'
-  | 'REFUNDED'
-  | 'REVERSED';
+  'SUCCESS' | 'FAILED' | 'PENDING' | 'UNCLAIMED' | 'RETURNED' | 'ONHOLD' | 'BLOCKED' | 'REFUNDED' | 'REVERSED';
 
 export type PayoutRequestBody = {
   sender_batch_header: {
@@ -38,6 +30,27 @@ export type PayoutRequestResult = {
       sender_batch_id: string;
     };
   };
+};
+
+export type PayoutError = {
+  name: string;
+  message: string;
+  debug_id: string;
+  information_link?: string;
+  details?: {
+    field?: string;
+    value?: string;
+    location?: 'body' | 'path' | 'query';
+    issue: string;
+    description?: string;
+  }[];
+  links?: [
+    {
+      href: string;
+      rel: string;
+      method?: 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT';
+    },
+  ];
 };
 
 export type PayoutItemDetails = {
@@ -70,7 +83,14 @@ export type PayoutItemDetails = {
     debug_id: string;
     message: string;
     information_link: string;
-    payout_errors_details: {
+    details?: {
+      field?: string;
+      value?: string;
+      location?: string;
+      issue: string;
+      description?: string;
+    }[];
+    payout_errors_details?: {
       field: string;
       issue: string;
     }[];
@@ -269,6 +289,77 @@ export type PaypalCapture = {
     rel: string;
     method: string;
   }>;
+};
+
+/**
+ * A refund, as returned by `payments/refunds/{refund_id}` or the `payments/captures/{capture_id}/refund` operation.
+ * Based on the `refund` schema from PayPal's Orders v2 OpenAPI spec.
+ * See https://raw.githubusercontent.com/paypal/paypal-js/refs/heads/main/packages/paypal-js/types/apis/openapi/checkout_orders_v2.d.ts
+ */
+export type PaypalRefund = {
+  /** The PayPal-generated ID for the refund. */
+  id?: string;
+  /** The status of the refund. */
+  status?: 'CANCELLED' | 'FAILED' | 'PENDING' | 'COMPLETED';
+  /** The details of the refund status. */
+  status_details?: {
+    /** The reason why the refund has the `PENDING` or `FAILED` status. */
+    reason?: 'ECHECK';
+  };
+  /** The amount that the payee refunded to the payer. */
+  amount?: PaypalTransactionAmount;
+  /** The API caller-provided external invoice number for this order. */
+  invoice_id?: string;
+  /** The API caller-provided external ID. Used to reconcile API caller-initiated transactions with PayPal transactions. */
+  custom_id?: string;
+  /** Reference ID issued for the card transaction. Can be used to track the transaction across processors, card brands and issuing banks. */
+  acquirer_reference_number?: string;
+  /** The reason for the refund. Appears in both the payer's transaction history and the emails that the payer receives. */
+  note_to_payer?: string;
+  /** The breakdown of the refund. */
+  seller_payable_breakdown?: {
+    /** The amount that the payee refunded to the payer. */
+    gross_amount?: PaypalTransactionAmount;
+    /** The PayPal fee that was refunded to the payer in the currency of the transaction. */
+    paypal_fee?: PaypalTransactionAmount;
+    /** The PayPal fee that was refunded to the payer in the receivable currency. */
+    paypal_fee_in_receivable_currency?: PaypalTransactionAmount;
+    /** The net amount that the payee's account is debited in the transaction currency. */
+    net_amount?: PaypalTransactionAmount;
+    /** The net amount that the payee's account is debited in the receivable currency. */
+    net_amount_in_receivable_currency?: PaypalTransactionAmount;
+    /** An array of platform or partner fees, commissions, or brokerage fees for the refund. */
+    platform_fees?: Array<{
+      amount: PaypalTransactionAmount;
+      payee?: {
+        email_address?: string;
+        merchant_id?: string;
+      };
+    }>;
+    /** Breakdown values for the net amount, returned when the refund currency differs from the currency of the PayPal account where the payee holds their funds. */
+    net_amount_breakdown?: Array<{
+      payable_amount?: PaypalTransactionAmount;
+      converted_amount?: PaypalTransactionAmount;
+      exchange_rate?: {
+        source_currency?: string;
+        target_currency?: string;
+        value?: string;
+      };
+    }>;
+    /** The total amount refunded from the original capture to date. */
+    total_refunded_amount?: PaypalTransactionAmount;
+  };
+  /** The details associated with the merchant for this transaction. */
+  payer?: {
+    email_address?: string;
+    merchant_id?: string;
+  };
+  /** An array of related HATEOAS links. */
+  links?: PayPalLink[];
+  /** The date and time when the refund occurred. */
+  create_time?: string;
+  /** The date and time when the refund was last updated. */
+  update_time?: string;
 };
 
 export type PaypalOrder = {

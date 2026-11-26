@@ -18,6 +18,8 @@ export const fetchExpenseCategoryPredictions = async ({
   type,
   description,
   items,
+  isHostExpense,
+  includeHostOnly,
   timeoutInMs = 6_000,
 }: {
   hostSlug: string;
@@ -25,6 +27,8 @@ export const fetchExpenseCategoryPredictions = async ({
   type: ExpenseType;
   description: string;
   items: Array<{ description?: string }>;
+  isHostExpense?: boolean;
+  includeHostOnly?: boolean;
   timeoutInMs?: number;
 }) => {
   if (!ML_SERVICE_URL) {
@@ -44,6 +48,13 @@ export const fetchExpenseCategoryPredictions = async ({
       .filter(Boolean)
       .join(' | '),
   );
+
+  if (isHostExpense !== undefined) {
+    urlParams.append('is_host_expense', String(isHostExpense));
+  }
+  if (includeHostOnly !== undefined) {
+    urlParams.append('include_host_only', String(includeHostOnly));
+  }
 
   const response = await fetchWithTimeout(`${ML_SERVICE_URL}/models/expense-category?${urlParams}`, {
     timeoutInMs,

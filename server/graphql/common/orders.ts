@@ -3,20 +3,24 @@ import { isNil } from 'lodash';
 import { InferCreationAttributes } from 'sequelize';
 
 import { CollectiveType } from '../../constants/collectives';
+import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/order-status';
 import roles from '../../constants/roles';
+import { getBalanceAccountingCategoryIdForImportRow } from '../../lib/accounting/categorization/balance-accounts';
 import { purgeCacheForCollective } from '../../lib/cache';
 import { roundCentsAmount } from '../../lib/currency';
-import { executeOrder } from '../../lib/payments';
+import { calcFee, executeOrder } from '../../lib/payments';
 import { canSeePrivateAccount } from '../../lib/private-accounts';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../lib/sanitize-html';
-import models, { AccountingCategory, Collective, sequelize, Tier, TransactionsImportRow, User } from '../../models';
+import { formatCurrency } from '../../lib/utils';
+import models, { AccountingCategory, Collective, sequelize, Tier, TransactionsImportRow } from '../../models';
 import { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 import Order from '../../models/Order';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 import { getOrderTaxInfoFromTaxInput } from '../v1/mutations/orders';
 import { TaxInput } from '../v2/input/TaxInput';
 
+import { checkIsValidBalanceAccountingCategory } from './balance-accounting-categories';
 import { checkScope } from './scope-check';
 
 type AddFundsInput = {
@@ -33,6 +37,7 @@ type AddFundsInput = {
   invoiceTemplate: string;
   tax: TaxInput;
   accountingCategory?: AccountingCategory;
+  balanceAccountingCategory?: AccountingCategory;
   transactionsImportRow?: TransactionsImportRow;
 };
 
@@ -89,10 +94,89 @@ export const checkCanUseAccountingCategoryForOrder = (
   }
 };
 
-export const canAddFundsFromAccount = (fromCollective: Collective, host: Collective, remoteUser: User) => {
+export const assertTierBelongsToAccount = (tier: Tier | null | undefined, account: Collective): void => {
+  if (tier && tier.CollectiveId !== account.id) {
+    throw new ValidationFailed(`Tier #${tier.id} is not part of collective #${account.id}`);
+  }
+};
+
+type OrderAmountValidationParams = {
+  /** The net amount for the collective: order total excluding taxes and platform tips. */
+  baseAmountInCents: number;
+  /**
+   * The unit amount of the order (`Order.amount`). Only used to check the consistency of the
+   * order amounts when the tier does not dictate one (ie. non-fixed tiers and custom contributions).
+   */
+  unitAmountInCents?: number;
+  /** The tax amount charged on the order. When provided, it's checked against the expected tax. */
+  taxAmountInCents?: number;
+  /** The order total (including taxes and platform tips). Only used in error messages. */
+  totalAmountInCents?: number;
+  quantity?: number;
+  currency?: SupportedCurrency;
+  taxPercentage?: number;
+};
+
+/**
+ * Throws if the given amount does not match the tier requirements. Tier amounts are always
+ * pre-tax: `baseAmountInCents` must therefore exclude taxes and platform tips.
+ *
+ * - Fixed tiers have a single price: the amount must match it exactly (`tier.amount × quantity`)
+ * - Tiers with a `minimumAmount` must never be below it (`tier.minimumAmount × quantity`)
+ */
+export const assertOrderAmountMatchesTier = (
+  tier: Tier | null | undefined,
+  {
+    baseAmountInCents,
+    unitAmountInCents,
+    taxAmountInCents,
+    totalAmountInCents,
+    quantity = 1,
+    currency,
+    taxPercentage = 0,
+  }: OrderAmountValidationParams,
+): void => {
+  const quantityOrOne = quantity ?? 1; // `Order.quantity` is nullable
+  const expectedUnitAmount = tier?.amountType === 'FIXED' ? tier.amount || 0 : unitAmountInCents;
+
+  if (!isNil(expectedUnitAmount)) {
+    const expectedBaseAmount = roundCentsAmount(expectedUnitAmount * quantityOrOne, currency);
+    const expectedTaxAmount = calcFee(expectedBaseAmount, taxPercentage, currency);
+    const hasInvalidTaxAmount = !isNil(taxAmountInCents) && taxAmountInCents !== expectedTaxAmount;
+    if (baseAmountInCents !== expectedBaseAmount || hasInvalidTaxAmount) {
+      const prettyExpectedAmount = formatCurrency(expectedBaseAmount, currency, 2);
+      const prettyTotalAmount = formatCurrency(
+        totalAmountInCents ?? baseAmountInCents + (taxAmountInCents || 0),
+        currency,
+        2,
+      );
+      const taxInfoStr = expectedTaxAmount ? ` + ${formatCurrency(expectedTaxAmount, currency, 2)} tax` : '';
+      const prefix = tier?.amountType === 'FIXED' ? 'This tier uses a fixed amount. ' : 'Invalid order amount. ';
+      throw new ValidationFailed(
+        `${prefix}Order total must be ${prettyExpectedAmount}${taxInfoStr}. You set: ${prettyTotalAmount}`,
+      );
+    }
+  }
+
+  // If using a named tier, amount can never be less than the minimum amount
+  if (tier?.minimumAmount) {
+    const minBaseAmount = roundCentsAmount(tier.minimumAmount * quantityOrOne, currency);
+    if (baseAmountInCents < minBaseAmount) {
+      const minTotalAmount = taxPercentage
+        ? roundCentsAmount(minBaseAmount * (1 + taxPercentage / 100), currency)
+        : minBaseAmount;
+      throw new ValidationFailed(
+        `The amount you set is below minimum tier value, it should be at least ${formatCurrency(minTotalAmount, currency)}`,
+      );
+    }
+  }
+};
+
+export const canAddFundsFromAccount = (fromCollective: Collective, host: Collective, req: express.Request) => {
+  const { remoteUser } = req;
   if (!remoteUser) {
     return false;
-  } else if (remoteUser.isRoot()) {
+  } else if (remoteUser.isRoot() && checkScope(req, 'root')) {
     return true;
   } else if (!remoteUser.isAdmin(host.id)) {
     return false;
@@ -115,7 +199,8 @@ export const canAddFundsFromAccount = (fromCollective: Collective, host: Collect
   }
 };
 
-export async function addFunds(order: AddFundsInput, remoteUser: User) {
+export async function addFunds(order: AddFundsInput, req: express.Request) {
+  const { remoteUser } = req;
   if (!remoteUser) {
     throw new Error('You need to be logged in to add fund to collective');
   }
@@ -130,17 +215,18 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     throw new Error('Host not found');
   } else if (!remoteUser.isAdmin(host.id)) {
     throw new Error("You don't have the permission to add funds to this host");
-  } else if (!canAddFundsFromAccount(fromCollective, host, remoteUser)) {
+  } else if (!canAddFundsFromAccount(fromCollective, host, req)) {
     throw new Error(
       "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
     );
   }
 
-  if (order.tier && order.tier.CollectiveId !== order.collective.id) {
-    throw new Error(`Tier #${order.tier.id} is not part of collective #${order.collective.id}`);
-  } else if (order.accountingCategory) {
+  assertTierBelongsToAccount(order.tier, order.collective);
+  if (order.accountingCategory) {
     checkCanUseAccountingCategoryForOrder(order.accountingCategory, host, collective);
   }
+
+  checkIsValidBalanceAccountingCategory(order.balanceAccountingCategory, host);
 
   const orderData: Partial<InferCreationAttributes<Order>> = {
     CreatedByUserId: remoteUser.id,
@@ -152,6 +238,7 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     status: status.NEW,
     TierId: order.tier?.id || null,
     AccountingCategoryId: order.accountingCategory?.id || null,
+    BalanceAccountingCategoryId: order.balanceAccountingCategory?.id || null,
     data: {
       hostFeePercent: order.hostFeePercent,
       paymentProcessorFee: order.paymentProcessorFee,
@@ -191,6 +278,14 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
       throw new NotFound('TransactionsImport not found');
     } else if (transactionsImport.CollectiveId !== host.id) {
       throw new ValidationFailed('This import does not belong to the host');
+    }
+
+    // Default the balance accounting category from the bank sub-account the row belongs to
+    if (!orderData.BalanceAccountingCategoryId) {
+      orderData.BalanceAccountingCategoryId = getBalanceAccountingCategoryIdForImportRow(
+        order.transactionsImportRow,
+        transactionsImport,
+      );
     }
   }
 
@@ -285,14 +380,14 @@ export const canEdit = async (req: express.Request, order: Order): Promise<boole
 };
 
 export const canComment = async (req: express.Request, order: Order): Promise<boolean> => {
-  return isOrderHostAdmin(req, order);
+  return validateOrderScope(req) && isOrderHostAdmin(req, order);
 };
 
 export const canSeeOrderPrivateActivities = async (req: express.Request, order: Order): Promise<boolean> => {
-  return isOrderHostAdminOrAccountant(req, order);
+  return validateOrderScope(req) && isOrderHostAdminOrAccountant(req, order);
 };
 
-const validateOrderScope = (req: express.Request, options: { throw?: boolean } = { throw: false }) => {
+export const validateOrderScope = (req: express.Request, options: { throw?: boolean } = { throw: false }) => {
   if (!checkScope(req, 'orders')) {
     if (options.throw) {
       throw new Forbidden('You do not have the necessary scope to perform this action');
@@ -342,7 +437,7 @@ export const canCancelOrder = async (
   const fromCollective = order.fromCollective || (await req.loaders.Collective.byId.load(order.FromCollectiveId));
   const isContributor = Boolean(fromCollective && req.remoteUser.isAdminOfCollective(fromCollective));
   const isHostAdmin = await isOrderHostAdmin(req, order);
-  const isRootAdmin = req.remoteUser.isRoot();
+  const isRootAdmin = req.remoteUser.isRoot() && checkScope(req, 'root');
 
   if (!isHostAdmin && !isContributor && !isRootAdmin) {
     if (options.throw) {

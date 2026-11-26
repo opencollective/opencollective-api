@@ -142,5 +142,47 @@ describe('lockUntilOrThrow', () => {
 
       await assert.isRejected(pFirst, /first/);
     });
+
+    it('only deletes the lock it still owns when releasing (fenced release)', async () => {
+      const redis = await createRedisClient();
+      await lockUntilOrThrow('test', async () => {
+        // Simulate the lock expiring and being taken over by another run
+        await redis.set('lock:test', 'another-owner');
+      });
+
+      // The stale run must not delete the lock that now belongs to someone else
+      assert.equal(await redis.get('lock:test'), 'another-owner');
+    });
+
+    it('renews the lock TTL when extend is called', async () => {
+      const redis = await createRedisClient();
+      await lockUntilOrThrow(
+        'test',
+        async (_release, extend) => {
+          const ttlBefore = await redis.ttl('lock:test');
+          assert.isTrue(ttlBefore > 0 && ttlBefore <= 30);
+          const renewed = await extend(120_000);
+          assert.isTrue(renewed);
+          assert.isAbove(await redis.ttl('lock:test'), 60);
+        },
+        { unlockTimeoutMs: 30_000 },
+      );
+    });
+
+    it('does not renew a lock that was taken over', async () => {
+      const redis = await createRedisClient();
+      await lockUntilOrThrow(
+        'test',
+        async (_release, extend) => {
+          await redis.set('lock:test', 'another-owner', { PX: 30_000 });
+          const renewed = await extend(120_000);
+          assert.isFalse(renewed);
+        },
+        { unlockTimeoutMs: 1000 },
+      );
+
+      assert.equal(await redis.get('lock:test'), 'another-owner');
+      assert.isBelow(await redis.ttl('lock:test'), 60);
+    });
   }
 });

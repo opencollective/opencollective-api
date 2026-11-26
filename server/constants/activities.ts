@@ -11,7 +11,7 @@ enum ActivityTypes {
   CONNECTED_ACCOUNT_ERROR = 'connected_account.error', // Not used yet
   CONNECTED_ACCOUNT_REMOVED = 'connected_account.removed',
   // Collective creation & applications
-  COLLECTIVE_CREATED_GITHUB = 'collective.created.github', // Not used since 2020-03-17 (`createCollectiveFromGithub` is only used in e2e tests)
+  COLLECTIVE_CREATED_GITHUB = 'collective.created.github', // Not created since 2020-03-17, kept for existing activities
   COLLECTIVE_APPLY = 'collective.apply',
   COLLECTIVE_APPROVED = 'collective.approved',
   COLLECTIVE_REJECTED = 'collective.rejected',
@@ -53,6 +53,13 @@ enum ActivityTypes {
   COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT = 'collective.expense.scheduledForPayment',
   COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT = 'collective.expense.unscheduledForPayment',
   COLLECTIVE_EXPENSE_ERROR = 'collective.expense.error',
+  /**
+   * Similar to `COLLECTIVE_EXPENSE_ERROR`, but for synchronous errors that happen while trying to create a
+   * payment (e.g. Wise transfer creation failures). Unlike `COLLECTIVE_EXPENSE_ERROR`, this activity should
+   * never be exposed publicly nor trigger a notification to the payee: it's only meant to be surfaced to
+   * fiscal host admins.
+   */
+  COLLECTIVE_EXPENSE_PAYMENT_ERROR = 'collective.expense.payment.error',
   COLLECTIVE_EXPENSE_INVITE_DRAFTED = 'collective.expense.invite.drafted',
   COLLECTIVE_EXPENSE_INVITE_DECLINED = 'collective.expense.invite.declined',
   COLLECTIVE_EXPENSE_RECURRING_DRAFTED = 'collective.expense.recurring.drafted',
@@ -163,8 +170,6 @@ enum ActivityTypes {
   // Webhooks
   WEBHOOK_STRIPE_RECEIVED = 'webhook.stripe.received',
   WEBHOOK_PAYPAL_RECEIVED = 'webhook.paypal.received',
-  // Reports
-  COLLECTIVE_MONTHLY_REPORT = 'collective.monthlyreport',
   // Host
   ACTIVATED_COLLECTIVE_AS_HOST = 'activated.collective.as.host', // deprecated
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT = 'activated.collective.as.independent', // deprecated
@@ -175,6 +180,10 @@ enum ActivityTypes {
   // Hosting
   ACTIVATED_HOSTING = 'activated.hosting',
   DEACTIVATED_HOSTING = 'deactivated.hosting',
+
+  // Fiscal host notes
+  FISCAL_HOST_NOTE_SET = 'fiscal.host.note.set',
+  FISCAL_HOST_NOTE_REMOVED = 'fiscal.host.note.removed',
 
   // Agreements
   AGREEMENT_CREATED = 'agreement.created',
@@ -201,6 +210,13 @@ enum ActivityTypes {
   KYC_REVOKED = 'kyc.revoked',
   KYC_VERIFIED = 'kyc.verified',
 }
+
+/** Activities recorded on the applicant collective that the host must also be notified about. */
+export const HostApplicationActivities = [
+  ActivityTypes.COLLECTIVE_APPLY,
+  ActivityTypes.COLLECTIVE_APPROVED,
+  ActivityTypes.COLLECTIVE_REJECTED,
+];
 
 /** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */
 export const TransactionalActivities = [
@@ -235,7 +251,6 @@ export enum ActivityClasses {
   ACTIVITIES_UPDATES = 'activitiesUpdates',
   VIRTUAL_CARDS = 'virtualCards',
   FUND_EVENTS = 'fundsEvents',
-  REPORTS = 'reports',
 }
 
 export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
@@ -267,12 +282,15 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.COLLECTIVE_TRANSACTION_CREATED, // TODO: Should not be here. See https://github.com/opencollective/opencollective/issues/5903
     ActivityTypes.COLLECTIVE_EDITED,
     ActivityTypes.COLLECTIVE_DELETED,
+    ActivityTypes.FISCAL_HOST_NOTE_SET,
+    ActivityTypes.FISCAL_HOST_NOTE_REMOVED,
   ],
   [ActivityClasses.EXPENSES]: [
     ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
     ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
     ActivityTypes.COLLECTIVE_EXPENSE_DELETED,
     ActivityTypes.COLLECTIVE_EXPENSE_ERROR,
+    ActivityTypes.COLLECTIVE_EXPENSE_PAYMENT_ERROR,
     ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
     ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,
     ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_SPAM,
@@ -340,7 +358,6 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.VIRTUAL_CARD_REQUESTED,
     ActivityTypes.VIRTUAL_CARD_PURCHASE,
   ],
-  [ActivityClasses.REPORTS]: [ActivityTypes.COLLECTIVE_MONTHLY_REPORT],
 };
 
 export default ActivityTypes;

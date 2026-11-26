@@ -5,11 +5,12 @@
 | PORT                                          | .port                                                  | Application port                                                                   |
 | OC_ENV                                        | .env                                                   | Application Environment variable                                                   |
 | ENABLE_SERVICE_SERVER                         | .services.server                                       | Enable server service                                                              |
-| ENABLE_SERVICE_SEARCH_SYNC                    | .services.searchSync                                   | Enable search sync service                                                         |
 | MAILPIT_CLIENT                                | .mailpit.client                                        | Mailpit client configuration                                                       |
-| OPENSEARCH_URL                                | .opensearch.url                                        | OpenSearch URL                                                                     |
-| OPENSEARCH_MAX_SYNC_DELAY                     | .opensearch.maxSyncDelay                               | Maximum sync delay for OpenSearch                                                  |
-| OPENSEARCH_INDEXES_PREFIX                     | .opensearch.indexesPrefix                              | Prefix for OpenSearch indexes                                                      |
+| SEARCH_POSTGRES_ENABLED                       | .search.postgres.enabled                               | Search kill switch (`false`: every search fails). Default `true`                   |
+| SEARCH_POSTGRES_CONCURRENCY_PER_REQUEST       | .search.postgres.concurrencyPerRequest                 | PostgreSQL search: entity queries run in parallel per request. Default `2`         |
+| SEARCH_POSTGRES_MAX_CONCURRENT_QUERIES        | .search.postgres.maxConcurrentQueries                  | PostgreSQL search: concurrent search statements per API process. Default `8`       |
+| SEARCH_POSTGRES_WORK_MEM                      | .search.postgres.workMem                               | PostgreSQL search: transaction-local `work_mem`. Default `32MB`                    |
+| SEARCH_POSTGRES_TYPO_SIMILARITY_THRESHOLD     | .search.postgres.typoSimilarityThreshold               | PostgreSQL search: Account name typo threshold, in [0, 1]. Default `0.5`           |
 | PG_URL                                        | .database.url                                          | Postgres database URL                                                              |
 | PG_DATABASE                                   | .database.override.database                            | Postgres database name                                                             |
 | PG_USERNAME                                   | .database.override.username                            | Postgres database username                                                         |
@@ -126,7 +127,7 @@
 | HYPERWATCH_USERNAME                           | .hyperwatch.username                                   | Hyperwatch username                                                                |
 | HYPERWATCH_SECRET                             | .hyperwatch.secret                                     | Hyperwatch secret                                                                  |
 | DB_ENCRYPTION_SECRET_KEY                      | .dbEncryption.secretKey                                | Database encryption secret key                                                     |
-| DB_ENCRYPTION_CIPHER                          | .dbEncryption.cipher                                   | Database encryption cipher                                                         |
+| DB_ENCRYPTION_CIPHER                          | .dbEncryption.cipher                                   | Database encryption cipher (`AES`, `DES` or `TripleDES`)                           |
 | FETCH_TRANSACTIONS_RECEIPTS                   | .pdfService.fetchTransactionsReceipts                  | Fetch transactions receipts                                                        |
 | FETCH_COLLECTIVE_TRANSACTIONS_CSV             | .restService.fetchCollectiveTransactionsCsv            | Fetch collective transactions CSV                                                  |
 | FETCH_HOST_TRANSACTIONS_CSV                   | .restService.fetchHostTransactionsCsv                  | Fetch host transactions CSV                                                        |
@@ -149,6 +150,5 @@
 | FRAUD_ORDER_IP                                | .fraud.order.ip                                        | Fraud order IP settings                                                            |
 | FRAUD_PROTECTION_SUSPEND_ASSET                | .fraud.enforceSuspendedAsset                           | Enforce suspended asset for fraud protection                                       |
 | GITBOOK_API_KEY                               | .gitbook.apiKey                                        | GitBook API key                                                                    |
-| OPENTELEMETRY_ENABLED                         | .opentelemetry.enabled                                 | Enable OpenTelemetry                                                               |
 | SETTLEMENT_MINIMUM_AMOUNT_IN_USD              | .settlement.minimumAmountInUSD                         | Minimum settlement amount in USD                                                   |
 | NEW_PRICING                                   | .features.newPricing                                   | New pricing feature                                                                |

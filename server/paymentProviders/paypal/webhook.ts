@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import Debug from 'debug';
 import { Request } from 'express';
-import { get, toNumber } from 'lodash';
+import { get, omit, toNumber } from 'lodash';
 import moment from 'moment';
 
 import FEATURE from '../../constants/feature';
@@ -10,19 +10,25 @@ import OrderStatus from '../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE } from '../../constants/paymentMethods';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
-import { floatAmountToCents } from '../../lib/currency';
 import logger from '../../lib/logger';
+import { applyPendingTierChangeAfterCharge } from '../../lib/order-tier-change';
 import { createRefundTransaction, pauseOrderInDb } from '../../lib/payments';
 import { validateWebhookEvent, WatchedPaypalWebhookEvent } from '../../lib/paypal';
 import { recordOrderProcessed } from '../../lib/recurring-contributions';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
+import { MetricEvent, MetricFlow, MetricProvider, recordPaymentOutcome } from '../../lib/sentry/metrics';
 import models from '../../models';
-import { PayoutWebhookRequest, PaypalCapture } from '../../types/paypal';
+import { PayoutWebhookRequest, PaypalCapture, PaypalRefund } from '../../types/paypal';
 
 import { paypalRequestV2 } from './api';
-import { findTransactionByPaypalId, recordPaypalCapture, recordPaypalSale } from './payment';
+import {
+  findTransactionByPaypalId,
+  getRefundedPaypalFeeInHostCurrency,
+  recordPaypalCapture,
+  recordPaypalSale,
+} from './payment';
 import { checkBatchItemStatus } from './payouts';
-import { CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON, CONTRIBUTION_PAUSED_MSG } from './subscription';
+import { CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON, markPaypalSubscriptionAsCancelledInDb } from './subscription';
 
 const debug = Debug('paypal:webhook');
 
@@ -122,6 +128,12 @@ async function handleSaleCompleted(req: Request): Promise<void> {
   let transaction;
   const { order } = await loadSubscriptionForWebhookEvent(req, subscriptionId);
   await order.lock(async () => {
+    // `lock` works on its own copy of the row: reload to get what was committed before the lock was acquired
+    // (e.g. a tier change), rather than what was loaded before waiting for it.
+    await order.reload();
+    // ...without the lock's own marker: it's released in SQL, later updates of `data` must not write it back
+    order.set('data', omit(order.data, ['lockedAt']), { raw: true });
+
     // 2.1 Make sure the sale hasn't already been recorded
     const existingTransaction = await findTransactionByPaypalId(sale.id, { OrderId: order.id });
     if (existingTransaction) {
@@ -132,27 +144,45 @@ async function handleSaleCompleted(req: Request): Promise<void> {
     // 2.2 Record the transaction
     transaction = await recordPaypalSale(order, sale);
 
-    // 2.3 Mark order/subscription as active
-    if (order.status !== OrderStatus.ACTIVE) {
+    // Terminal success of the payment attempt. Emitted after the existing-transaction dedupe above and
+    // once the ledger records the payment, so redeliveries count exactly once.
+    recordPaymentOutcome({
+      provider: MetricProvider.PAYPAL,
+      flow: MetricFlow.CONTRIBUTION,
+      method: order.paymentMethod.type,
+      outcome: MetricEvent.SUCCEEDED,
+    });
+
+    // 2.3 Mark order/subscription as active, unless the contribution was ended before this sale arrived:
+    // a late sale for an earlier billing cycle must not resume a cancelled or paused contribution.
+    const isEnded = [OrderStatus.CANCELLED, OrderStatus.PAUSED, OrderStatus.EXPIRED, OrderStatus.REJECTED].includes(
+      order.status,
+    );
+    if (!isEnded && order.status !== OrderStatus.ACTIVE) {
       await order.update({ status: OrderStatus.ACTIVE, processedAt: new Date() });
     }
 
     const nextChargeDate = moment().add(1, order.interval);
     await order.Subscription.update({
       chargeNumber: (order.Subscription.chargeNumber || 0) + 1,
-      nextChargeDate: nextChargeDate,
-      nextPeriodStart: nextChargeDate,
-      isActive: true,
-      activatedAt: order.Subscription.activatedAt || new Date(),
       lastChargedAt: transaction.clearedAt || transaction.createdAt,
+      ...(!isEnded && {
+        nextChargeDate: nextChargeDate,
+        nextPeriodStart: nextChargeDate,
+        isActive: true,
+        activatedAt: order.Subscription.activatedAt || new Date(),
+      }),
     });
   });
 
-  // 3. Send "Thank you" (order.processed) email & record activity
+  // 3. Apply a tier change waiting for this payment (e.g. tier upgrade approved through a new PayPal subscription)
+  await applyPendingTierChangeAfterCharge(order, transaction);
+
+  // 4. Send "Thank you" (order.processed) email & record activity
   const isFirstPayment = order.Subscription.chargeNumber === 1;
   await recordOrderProcessed(order, transaction, { isFirstPayment });
 
-  // 4. Register user as a member, since the transaction is not created in `processOrder`
+  // 5. Register user as a member, since the transaction is not created in `processOrder`
   // for PayPal subscriptions.
   await order.getOrCreateMembers();
 }
@@ -212,8 +242,22 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
 
     // Record the transaction
     transaction = await recordPaypalCapture(order, capture);
+
+    // Terminal success of the payment attempt (after the existing-transaction dedupe above, inside the lock)
+    recordPaymentOutcome({
+      provider: MetricProvider.PAYPAL,
+      flow: MetricFlow.CONTRIBUTION,
+      method: order.paymentMethod.type,
+      outcome: MetricEvent.SUCCEEDED,
+    });
+
     await order.update({ processedAt: new Date(), status: OrderStatus.PAID });
   });
+
+  // Already recorded (e.g. by the synchronous `processPaypalOrder`), which also handles members & emails
+  if (!transaction) {
+    return;
+  }
 
   await Promise.all([
     // Register user as a member, since the transaction is not created in `processOrder`
@@ -287,12 +331,14 @@ async function handleSaleRefunded(req: Request): Promise<void> {
       return;
     }
 
-    const rawRefundedPaypalFee = <string>get(refund, 'transaction_fee.value', '0.00');
-    const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
+    // v1 Refund resources report the returned PayPal fee as `refund_from_transaction_fee`
+    const rawRefundedPaypalFee: string =
+      get(refund, 'refund_from_transaction_fee.value') || get(refund, 'transaction_fee.value', '0.00');
+    const refundedPaypalFee = getRefundedPaypalFeeInHostCurrency(transaction, rawRefundedPaypalFee);
     await createRefundTransaction(
       transaction,
       refundedPaypalFee,
-      { paypalResponse: refund, isRefundedFromPayPal: true },
+      { ...transaction.data, refund: refund, isRefundedFromPayPal: true, paypalRefundId: refund.id },
       null,
     );
   });
@@ -300,11 +346,12 @@ async function handleSaleRefunded(req: Request): Promise<void> {
 
 /**
  * Handles `PAYMENT.SALE.REVERSED` (chargeback / reversal on a subscription sale).
- * resource = Sale object in reversed state; `resource.id` is the original sale ID.
+ * resource = Refund object (resource_type "refund"): `resource.sale_id` is the original sale ID and
+ * `resource.id` is the reversal ID. Falls back to `resource.id` if `sale_id` is missing.
  */
 async function handleSaleReversed(req: Request): Promise<void> {
   const sale = req.body.resource;
-  const saleId = sale?.id;
+  const saleId = sale?.sale_id || sale?.id;
   if (!saleId) {
     logger.debug('PayPal: PAYMENT.SALE.REVERSED - no id in resource, ignoring');
     return;
@@ -334,7 +381,12 @@ async function handleSaleReversed(req: Request): Promise<void> {
       return;
     }
 
-    await createRefundTransaction(transaction, 0, { paypalResponse: sale, isRefundedFromPayPal: true }, null);
+    await createRefundTransaction(
+      transaction,
+      0,
+      { ...transaction.data, refund: sale, isRefundedFromPayPal: true, paypalRefundId: sale.id },
+      null,
+    );
   });
 }
 
@@ -350,7 +402,7 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
 
   // Retrieve the data for this event
   const refund = req.body.resource;
-  const refundDetails = await paypalRequestV2(`payments/refunds/${refund.id}`, host, 'GET');
+  const refundDetails = (await paypalRequestV2(`payments/refunds/${refund.id}`, host, 'GET')) as PaypalRefund;
   const refundLinks = <Record<string, string>[]>refundDetails.links;
   const captureLink = refundLinks.find(l => l.rel === 'up' && l.method === 'GET');
   const capturePath = captureLink.href.replace(/^.+\/v2\//, ''); // https://api.sandbox.paypal.com/v2/payments/captures/... -> payments/captures/...
@@ -398,8 +450,13 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
 
     // Record the refund transactions
     const rawRefundedPaypalFee = <string>get(refundDetails, 'seller_payable_breakdown.paypal_fee.value', '0.00');
-    const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
-    const dataPayload = { paypalResponse: refundDetails, isRefundedFromPayPal: true };
+    const refundedPaypalFee = getRefundedPaypalFeeInHostCurrency(transaction, rawRefundedPaypalFee);
+    const dataPayload = {
+      ...transaction.data,
+      refund: refundDetails,
+      isRefundedFromPayPal: true,
+      paypalRefundId: refundDetails.id,
+    };
     await createRefundTransaction(transaction, refundedPaypalFee, dataPayload, null);
   });
 }
@@ -427,22 +484,10 @@ async function handleSubscriptionCancelled(req: Request): Promise<void> {
   }
 
   const { order } = result;
-  if (order.status !== OrderStatus.CANCELLED) {
-    const shouldKeepPaused = subscription.status_change_note === CONTRIBUTION_PAUSED_MSG;
-    await order.update({
-      status: order.status === OrderStatus.PAUSED && shouldKeepPaused ? OrderStatus.PAUSED : OrderStatus.CANCELLED,
-      data: { ...order.data, paypalStatusChangeNote: subscription.status_change_note },
-    });
-  }
-
-  if (order.Subscription.isActive || !order.Subscription.deactivatedAt) {
-    await order.Subscription.update({
-      isActive: false,
-      deactivatedAt: new Date(),
-      nextChargeDate: null,
-      data: { ...order.Subscription.data, deactivatedFromPayPalWebhook: true },
-    });
-  }
+  await markPaypalSubscriptionAsCancelledInDb(order, {
+    statusChangeNote: subscription.status_change_note,
+    subscriptionData: { deactivatedFromPayPalWebhook: true },
+  });
 }
 
 /**
@@ -494,7 +539,7 @@ const ignoreWebhookEvent = (req: Request): Promise<void> => {
 
 const EventHandlers: Record<WatchedPaypalWebhookEvent, (req: Request) => Promise<void>> = {
   // These payout events are all ignored, especially since https://github.com/opencollective/opencollective-api/commit/641ce51e57e818530571e86d23d54b292bee52a8#diff-439d2ae7fe1dcbd7d538ed0df2359e38309366f6a9785f9e7ebc297e5e0a7068
-  // opencollective-api/cron/hourly/11-check-pending-paypal-expenses.js is handling the sync, so data should still be up-to-date
+  // opencollective-api/cron/hourly/11-check-pending-paypal-expenses.ts is handling the sync, so data should still be up-to-date
   // Handling them would allow for faster sync: https://github.com/opencollective/opencollective/issues/8789
   [WatchedPaypalWebhookEvent.PAYOUTS_BATCH_DENIED]: ignoreWebhookEvent,
   [WatchedPaypalWebhookEvent.PAYOUTS_BATCH_PROCESSING]: ignoreWebhookEvent,

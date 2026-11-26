@@ -1,4 +1,15 @@
-import { GraphQLBoolean, GraphQLFloat, GraphQLInputType, GraphQLInt, GraphQLOutputType, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLEnumType,
+  GraphQLFloat,
+  GraphQLInputObjectType,
+  GraphQLInputType,
+  GraphQLInt,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLOutputType,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLDate } from 'graphql-scalars';
 
 import {
@@ -8,13 +19,40 @@ import {
 } from '../../../../graphql/v2/input/AccountReferenceInput';
 import { GraphQLAccount } from '../../../../graphql/v2/interface/Account';
 import { GraphQLAmount } from '../../../../graphql/v2/object/Amount';
-import { Dimension, FilterValue, Measure, MetricRow } from '../../internal/types';
+import { Dimension, EnumValueDef, FilterValue, Measure, MetricRow } from '../../internal/types';
 
 import {
   GraphQLMetricsAccountReferenceFilter,
   GraphQLMetricsIntFilter,
   GraphQLMetricsStringFilter,
 } from './shared-types';
+
+export type EnumDimensionTypes = { enumType: GraphQLEnumType; filterInput: GraphQLInputObjectType };
+
+export function buildEnumDimensionTypes(name: string, values: ReadonlyArray<EnumValueDef>): EnumDimensionTypes {
+  const enumType = new GraphQLEnumType({
+    name,
+    values: Object.fromEntries(values.map(v => [v.value, { value: v.value, description: v.description }])),
+  });
+  const filterInput = new GraphQLInputObjectType({
+    name: `${name}Filter`,
+    isOneOf: true,
+    fields: () => ({
+      eq: { type: enumType },
+      in: { type: new GraphQLList(new GraphQLNonNull(enumType)) },
+      isNull: { type: GraphQLBoolean },
+    }),
+  });
+  return { enumType, filterInput };
+}
+
+function requireEnumTypes(d: Dimension, enumTypes?: Map<string, EnumDimensionTypes>): EnumDimensionTypes {
+  const t = enumTypes?.get(d.name);
+  if (!t) {
+    throw new Error(`Missing GraphQL enum type for enumValues dimension '${d.name}'`);
+  }
+  return t;
+}
 
 export function measureGraphQLType(m: Measure): GraphQLOutputType {
   switch (m.kind) {
@@ -51,7 +89,7 @@ export function measureGraphQLResolver(
   }
 }
 
-export function dimensionGraphQLType(d: Dimension): GraphQLOutputType {
+export function dimensionGraphQLType(d: Dimension, enumTypes?: Map<string, EnumDimensionTypes>): GraphQLOutputType {
   switch (d.kind) {
     case 'int':
       return GraphQLInt;
@@ -59,12 +97,14 @@ export function dimensionGraphQLType(d: Dimension): GraphQLOutputType {
     case 'enum':
     case 'date':
       return GraphQLString;
+    case 'enumValues':
+      return requireEnumTypes(d, enumTypes).enumType;
     case 'boolean':
       return GraphQLBoolean;
     case 'account':
       return GraphQLAccount;
     default:
-      throw new Error(`Unknown dimension kind: ${d.kind}`);
+      throw new Error(`Unknown dimension kind: ${d['kind']}`);
   }
 }
 
@@ -75,6 +115,7 @@ export function dimensionGraphQLResolver(
     case 'int':
     case 'string':
     case 'enum':
+    case 'enumValues':
     case 'date':
     case 'boolean':
       return (ctx, value) => {
@@ -88,11 +129,11 @@ export function dimensionGraphQLResolver(
         return req.loaders.Collective.byId.load(value as number);
       };
     default:
-      throw new Error(`Unknown dimension kind: ${d.kind}`);
+      throw new Error(`Unknown dimension kind: ${d['kind']}`);
   }
 }
 
-export function dimensionGraphQLInputType(d: Dimension): GraphQLInputType {
+export function dimensionGraphQLInputType(d: Dimension, enumTypes?: Map<string, EnumDimensionTypes>): GraphQLInputType {
   switch (d.kind) {
     case 'int':
       return GraphQLMetricsIntFilter;
@@ -100,12 +141,14 @@ export function dimensionGraphQLInputType(d: Dimension): GraphQLInputType {
     case 'enum':
     case 'date':
       return GraphQLMetricsStringFilter;
+    case 'enumValues':
+      return requireEnumTypes(d, enumTypes).filterInput;
     case 'boolean':
       return GraphQLBoolean;
     case 'account':
       return GraphQLMetricsAccountReferenceFilter;
     default:
-      throw new Error(`Unknown dimension kind: ${d.kind}`);
+      throw new Error(`Unknown dimension kind: ${d['kind']}`);
   }
 }
 

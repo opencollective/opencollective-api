@@ -5,6 +5,7 @@ import {
   HostedCollectivesFinancialActivity,
   HostedCollectivesHostingPeriods,
   HostedCollectivesMembership,
+  HostedCollectivesTransactionSizes,
 } from '../sources';
 
 import { buildSourceField } from './internal/source-builder';
@@ -32,6 +33,12 @@ const HostMetricsNamespaceType = new GraphQLObjectType({
       source: HostedCollectivesHostingPeriods,
       schemaPrefix: 'HostedCollectivesHosting',
       description: 'Distinct collectives hosted by this host in a period.',
+      bindFromParent: { host: ({ host }) => host.id },
+    }),
+    hostedCollectivesTransactionSizes: buildSourceField<HostMetricsParent>({
+      source: HostedCollectivesTransactionSizes,
+      schemaPrefix: 'HostedCollectivesTransactionSizes',
+      description: 'Contribution/payout transactions bucketed by amount band, for size-distribution histograms.',
       bindFromParent: { host: ({ host }) => host.id },
     }),
   }),

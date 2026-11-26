@@ -3,14 +3,7 @@ import { GraphQLEnumType, GraphQLEnumValueConfig } from 'graphql';
 import { CollectiveType } from '../../../constants/collectives';
 
 export type GraphQLAccountTypeKeys =
-  | 'BOT'
-  | 'COLLECTIVE'
-  | 'EVENT'
-  | 'FUND'
-  | 'INDIVIDUAL'
-  | 'ORGANIZATION'
-  | 'PROJECT'
-  | 'VENDOR';
+  'BOT' | 'COLLECTIVE' | 'EVENT' | 'FUND' | 'INDIVIDUAL' | 'ORGANIZATION' | 'PLATFORM' | 'PROJECT' | 'VENDOR';
 
 export const GraphQLAccountType = new GraphQLEnumType({
   name: 'AccountType',
@@ -22,6 +15,7 @@ export const GraphQLAccountType = new GraphQLEnumType({
     FUND: {},
     INDIVIDUAL: {},
     ORGANIZATION: {},
+    PLATFORM: {},
     PROJECT: {},
     VENDOR: {},
   } satisfies Record<GraphQLAccountTypeKeys, GraphQLEnumValueConfig>,
@@ -34,6 +28,7 @@ export const AccountTypeToModelMapping: Record<GraphQLAccountTypeKeys, Collectiv
   FUND: CollectiveType.FUND,
   INDIVIDUAL: CollectiveType.USER,
   ORGANIZATION: CollectiveType.ORGANIZATION,
+  PLATFORM: CollectiveType.PLATFORM,
   PROJECT: CollectiveType.PROJECT,
   VENDOR: CollectiveType.VENDOR,
 };

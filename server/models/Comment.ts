@@ -1,9 +1,9 @@
 import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute, Op } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 
 import Collective from './Collective';
 import Conversation from './Conversation';
@@ -27,6 +27,15 @@ export enum CommentType {
   PRIVATE_NOTE = 'PRIVATE_NOTE',
 }
 
+export enum CommentMainRole {
+  HOST_ADMIN = 'HOST_ADMIN',
+  COLLECTIVE_ADMIN = 'COLLECTIVE_ADMIN',
+  FROM_COLLECTIVE_ADMIN = 'FROM_COLLECTIVE_ADMIN',
+  SUBMITTER = 'SUBMITTER',
+  BACKER = 'BACKER',
+  PUBLIC = 'PUBLIC',
+}
+
 class Comment extends ModelWithPublicId<
   EntityShortIdPrefix.Comment,
   InferAttributes<Comment>,
@@ -46,6 +55,7 @@ class Comment extends ModelWithPublicId<
   declare public ConversationId: number;
   declare public html: string;
   declare public type: CommentType;
+  declare public mainCommenterRole: CommentMainRole;
   declare public createdAt: CreationOptional<Date>;
   declare public updatedAt: CreationOptional<Date>;
   declare public deletedAt: CreationOptional<Date>;
@@ -58,7 +68,7 @@ class Comment extends ModelWithPublicId<
   declare public conversation?: NonAttribute<Conversation>;
   declare public commentUpdate?: NonAttribute<Update>;
 
-  // Returns the User model of the User that created this Update
+  // Returns the User model of the User that created this Comment
   getUser = function () {
     return User.findByPk(this.CreatedByUserId);
   };
@@ -220,14 +230,31 @@ Comment.init(
       defaultValue: CommentType.COMMENT,
       allowNull: false,
     },
+
+    mainCommenterRole: {
+      type: DataTypes.ENUM(...Object.values(CommentMainRole)),
+      defaultValue: CommentMainRole.PUBLIC,
+      allowNull: false,
+      validate: {
+        isIn: [Object.values(CommentMainRole)],
+      },
+    },
   },
   {
     sequelize,
     paranoid: true,
     hooks: {
       beforeCreate: instance => {
-        if (!instance.ExpenseId && !instance.UpdateId && !instance.ConversationId && !instance.HostApplicationId) {
-          throw new Error('Comment must be linked to an expense, an update, a conversation or a host application');
+        if (
+          !instance.ExpenseId &&
+          !instance.UpdateId &&
+          !instance.ConversationId &&
+          !instance.HostApplicationId &&
+          !instance.OrderId
+        ) {
+          throw new Error(
+            'Comment must be linked to an expense, an update, a conversation, a host application or an order',
+          );
         }
       },
       beforeDestroy: async (comment, options) => {

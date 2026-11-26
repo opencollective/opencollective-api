@@ -1,6 +1,7 @@
 import {
   GraphQLBoolean,
   GraphQLEnumType,
+  GraphQLFloat,
   GraphQLInputObjectType,
   GraphQLInt,
   GraphQLList,
@@ -11,6 +12,7 @@ import {
 import { GraphQLDateTime } from 'graphql-scalars';
 import moment from 'moment';
 
+import { isBlockedForUnpaidPlatformBilling } from '../../../lib/platform-subscriptions';
 import { Expense } from '../../../models';
 import { ExpenseType } from '../../../models/Expense';
 import PlatformSubscription, {
@@ -19,6 +21,7 @@ import PlatformSubscription, {
   BillingPeriod,
   UtilizationType,
 } from '../../../models/PlatformSubscription';
+import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
 
 import { GraphQLAmount } from './Amount';
 import { GraphQLExpense } from './Expense';
@@ -37,6 +40,14 @@ export const GraphQLPlatformSubscription = new GraphQLObjectType({
     },
     isCurrent: {
       type: new GraphQLNonNull(GraphQLBoolean),
+    },
+    isAccountOnHold: {
+      type: GraphQLBoolean,
+      description: 'Whether the subscription account is on hold.',
+      async resolve(subscription: PlatformSubscription, _, req) {
+        const collective = await req.loaders.Collective.byId.load(subscription.CollectiveId);
+        return isBlockedForUnpaidPlatformBilling(collective);
+      },
     },
     plan: { type: new GraphQLNonNull(GraphQLPlatformSubscriptionTier) },
   }),
@@ -89,6 +100,17 @@ export const GraphQLPlatformBilling = new GraphQLObjectType({
         };
       },
     },
+    crowdfunding: {
+      type: new GraphQLNonNull(GraphQLPlatformBillingCrowdfunding),
+      description: 'Crowdfunding fee charged on contributions for plans without platform tips',
+      resolve(billing: Billing) {
+        return {
+          totalAmount: { value: billing.crowdfunding?.totalAmount ?? 0, currency: 'USD' },
+          feePercent: billing.crowdfunding?.feePercent ?? 0,
+          fee: { value: billing.crowdfunding?.fee ?? 0, currency: 'USD' },
+        };
+      },
+    },
     totalAmount: {
       type: new GraphQLNonNull(GraphQLAmount),
       resolve(billing: Billing) {
@@ -97,7 +119,8 @@ export const GraphQLPlatformBilling = new GraphQLObjectType({
     },
     expenses: {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpense))),
-      resolve(billing: Billing) {
+      resolve(billing: Billing, _, req) {
+        checkRemoteUserCanUseExpenses(req);
         return Expense.findAll({
           where: {
             CollectiveId: billing.collectiveId,
@@ -212,6 +235,24 @@ const GraphQLPlatformBillingAdditional = new GraphQLObjectType({
     },
     utilization: {
       type: new GraphQLNonNull(GraphQLPlatformUtilization),
+    },
+  }),
+});
+
+const GraphQLPlatformBillingCrowdfunding = new GraphQLObjectType({
+  name: 'PlatformBillingCrowdfunding',
+  fields: () => ({
+    totalAmount: {
+      type: new GraphQLNonNull(GraphQLAmount),
+      description: 'Crowdfunding contributions subject to the fee during the billing period',
+    },
+    feePercent: {
+      type: new GraphQLNonNull(GraphQLFloat),
+      description: 'The fee percentage applied to crowdfunding contributions',
+    },
+    fee: {
+      type: new GraphQLNonNull(GraphQLAmount),
+      description: 'The resulting crowdfunding fee',
     },
   }),
 });

@@ -98,12 +98,11 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
   AccountingCategory: () => {},
   EmojiReaction: () => {},
   ExportRequest: () => {},
+  FiscalHostNote: () => null, // Host-private notes should never be exported
   Conversation: () => {},
   ConversationFollower: () => {},
-  CurrencyExchangeRate: () => {},
   ManualPaymentProvider: () => {},
   Member: () => {},
-  PaymentIntent: () => {},
   PaypalPlan: () => {},
   PaypalProduct: () => {},
   RecurringExpense: () => {}, // Private data only exists in the expense itself
@@ -294,6 +293,7 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
       return null;
     }
   },
+  UsdExchangeRate: () => {},
   Update: async (update, req) => {
     if (!(await canSeeUpdate(req, update))) {
       return null;

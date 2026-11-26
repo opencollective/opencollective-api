@@ -1,5 +1,5 @@
 import { GraphQLFieldConfig, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
-import { FileUpload } from 'graphql-upload/Upload.js';
+import type { FileUpload } from 'graphql-upload/processRequest.mjs';
 import { difference } from 'lodash';
 
 import { FileKind } from '../../../constants/file-kind';

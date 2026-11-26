@@ -5,7 +5,7 @@ import RateLimit from '../../../lib/rate-limit';
 import PaypalPlanModel from '../../../models/PaypalPlan';
 import Tier from '../../../models/Tier';
 import { getOrCreatePlan } from '../../../paymentProviders/paypal/subscription';
-import { RateLimitExceeded } from '../../errors';
+import { RateLimitExceeded, ValidationFailed } from '../../errors';
 import { GraphQLContributionFrequency } from '../enum';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -82,6 +82,12 @@ const PaypalPlanQuery = {
     }
 
     const host = await collective.getHostCollective({ loaders: req.loaders });
+    if (!host) {
+      throw new ValidationFailed(
+        'This account does not have an active fiscal host and cannot accept PayPal contributions',
+      );
+    }
+
     return getOrCreatePlan(host, collective, interval, amount, currency, tier);
   },
 };

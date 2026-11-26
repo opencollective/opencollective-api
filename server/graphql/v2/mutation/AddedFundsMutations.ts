@@ -16,8 +16,14 @@ import { getDiffBetweenInstances } from '../../../lib/data';
 import { executeOrder } from '../../../lib/payments';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Order } from '../../../models';
-import { addFunds, canAddFundsFromAccount, checkCanUseAccountingCategoryForOrder } from '../../common/orders';
-import { checkRemoteUserCanUseHost } from '../../common/scope-check';
+import { checkIsValidBalanceAccountingCategory } from '../../common/balance-accounting-categories';
+import {
+  addFunds,
+  assertOrderAmountMatchesTier,
+  canAddFundsFromAccount,
+  checkCanUseAccountingCategoryForOrder,
+} from '../../common/orders';
+import { checkRemoteUserCanRoot, checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { refundTransaction } from '../../common/transactions';
 import { ValidationFailed } from '../../errors';
 import { getOrderTaxInfoFromTaxInput } from '../../v1/mutations/orders';
@@ -56,6 +62,7 @@ type AddFundsMutationArgs = {
   invoiceTemplate: string;
   tax: TaxInput;
   accountingCategory: GraphQLAccountingCategoryReferenceInputFields;
+  balanceAccountingCategory?: GraphQLAccountingCategoryReferenceInputFields;
   transactionsImportRow: GraphQLTransactionsImportRowReferenceInputFields;
 };
 
@@ -111,8 +118,8 @@ const validateAddFundsArgs = ({
   if (!host) {
     throw new ValidationFailed('Adding funds is only possible for account with a host or independent.');
   }
-  if (!req.remoteUser.isAdmin(host.id) && !req.remoteUser.isRoot()) {
-    throw new Error('Only an site admin or collective host admin can add fund');
+  if (!req.remoteUser.isAdmin(host.id)) {
+    checkRemoteUserCanRoot(req, { rootOnlyMessage: 'Only an site admin or collective host admin can add fund' });
   }
   if (fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId !== host.id) {
     throw new Error('You can only add funds from a vendor account that belongs to the same host');
@@ -121,6 +128,18 @@ const validateAddFundsArgs = ({
     if (tier.CollectiveId !== account.id) {
       throw new Error(`Tier #${tier.id} is not part of collective #${account.id}`);
     }
+
+    // The amount must match the tier (fixed amount or minimum). Added funds amounts include taxes:
+    // tier amounts are pre-tax, so we compare the net amount for the collective.
+    const taxRate = args.tax?.rate || 0;
+    const baseAmountInCents = taxRate ? roundCentsAmount(totalAmount / (1 + taxRate), account.currency) : totalAmount;
+    assertOrderAmountMatchesTier(tier, {
+      baseAmountInCents,
+      totalAmountInCents: totalAmount,
+      quantity: 1,
+      currency: account.currency,
+      taxPercentage: taxRate * 100,
+    });
   }
   if (accountingCategory) {
     checkCanUseAccountingCategoryForOrder(accountingCategory, host, account);
@@ -180,6 +199,10 @@ export default {
         type: GraphQLAccountingCategoryReferenceInput,
         description: 'The accounting category of this order',
       },
+      balanceAccountingCategory: {
+        type: GraphQLAccountingCategoryReferenceInput,
+        description: 'The balance/clearing accounting category the funds were received through',
+      },
       transactionsImportRow: {
         type: GraphQLTransactionsImportRowReferenceInput,
         description: 'The transaction import row to associate with this order',
@@ -198,6 +221,13 @@ export default {
           throwIfMissing: true,
           loaders: req.loaders,
         }));
+      const balanceAccountingCategory =
+        args.balanceAccountingCategory &&
+        (await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        }));
+      checkIsValidBalanceAccountingCategory(balanceAccountingCategory, host);
 
       // Check amounts
       const totalAmount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency: account.currency });
@@ -242,8 +272,9 @@ export default {
           tax: args.tax,
           transactionsImportRow,
           accountingCategory,
+          balanceAccountingCategory,
         },
-        req.remoteUser,
+        req,
       );
     },
   },
@@ -303,6 +334,10 @@ export default {
         type: GraphQLAccountingCategoryReferenceInput,
         description: 'The accounting category of this order',
       },
+      balanceAccountingCategory: {
+        type: GraphQLAccountingCategoryReferenceInput,
+        description: 'The balance/clearing accounting category the funds were received through',
+      },
     },
     resolve: async (
       _,
@@ -315,6 +350,9 @@ export default {
       const account: Collective = await fetchAccountWithReference(args.account, { throwIfMissing: true });
       const fromAccount: Collective = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
       const tier = args.tier && (await fetchTierWithReference(args.tier, { throwIfMissing: true }));
+      // When `tier` is not specified the order keeps its current tier: validate the amounts against it as well
+      const effectiveTier =
+        tier === undefined ? (order.TierId ? await req.loaders.Tier.byId.load(order.TierId) : null) : tier;
       const host = await account.getHostCollective({ loaders: req.loaders });
       const accountingCategory =
         args.accountingCategory &&
@@ -322,6 +360,13 @@ export default {
           throwIfMissing: true,
           loaders: req.loaders,
         }));
+      const balanceAccountingCategory =
+        args.balanceAccountingCategory &&
+        (await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        }));
+      checkIsValidBalanceAccountingCategory(balanceAccountingCategory, host);
 
       // Check amounts
       const totalAmount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency: account.currency });
@@ -336,12 +381,12 @@ export default {
         paymentProcessorFee,
         totalAmount,
         host,
-        tier,
+        tier: effectiveTier,
         accountingCategory,
         req,
       });
 
-      if (!canAddFundsFromAccount(fromAccount, host, req.remoteUser)) {
+      if (!canAddFundsFromAccount(fromAccount, host, req)) {
         throw new Error(
           "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
         );
@@ -387,6 +432,10 @@ export default {
         status: OrderStatuses.NEW,
         TierId: tier === null ? null : tier?.id || order.TierId,
         AccountingCategoryId: accountingCategory === null ? null : accountingCategory?.id || order.AccountingCategoryId,
+        BalanceAccountingCategoryId:
+          balanceAccountingCategory === null
+            ? null
+            : balanceAccountingCategory?.id || order.BalanceAccountingCategoryId,
         processedAt: args.processedAt || order.processedAt,
         data: {
           ...order.data,

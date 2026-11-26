@@ -26,11 +26,14 @@ export const GraphQLAmountRangeInput = new GraphQLInputObjectType({
 
 export const getAmountRangeValueAndOperator = (args: AmountRangeInputType) => {
   const operator = args.gte && args.lte ? Op.between : args.gte ? Op.gte : Op.lte;
+  // Beware of zero amounts: `valueInCents: 0` is a valid bound, it must not be skipped by a truthiness check
+  const singleAmount = operator === Op.gte ? args.gte : args.lte;
   const value =
     operator === Op.between
       ? [getValueInCentsFromAmountInput(args.gte), getValueInCentsFromAmountInput(args.lte)]
-      : (args.gte && getValueInCentsFromAmountInput(args.gte)) ||
-        (args.lte && getValueInCentsFromAmountInput(args.lte));
+      : singleAmount
+        ? getValueInCentsFromAmountInput(singleAmount)
+        : undefined;
   return { operator, value };
 };
 
@@ -51,7 +54,18 @@ export const ACCOUNT_BALANCE_QUERY = sequelize.literal(
   '(SELECT COALESCE("CurrentCollectiveBalance"."netAmountInHostCurrency", 0) FROM "CurrentCollectiveBalance" WHERE "CurrentCollectiveBalance"."CollectiveId" = "Collective"."id")',
 );
 
-export const makeConsolidatedBalanceSubquery = (collectiveTableName: string) =>
-  `(SELECT COALESCE(SUM(COALESCE("CurrentCollectiveBalance"."netAmountInHostCurrency", 0)), 0) FROM "CurrentCollectiveBalance" WHERE "CurrentCollectiveBalance"."CollectiveId" IN (SELECT id FROM "Collectives" WHERE "deletedAt" IS NULL AND "isActive" IS TRUE AND ("ParentCollectiveId" = ${collectiveTableName}."id" OR id = ${collectiveTableName}."id")))`;
+/**
+ * Balance of an account and its active children. In host currency by default, which only compares
+ * within one host; `inUsd` converts the balances so accounts of different hosts can be compared.
+ * In USD, balances are summed per currency first (exact, in cents) and each total is converted once:
+ * converting each balance would leave a floating-point residue where they cancel out (-6 + 6 x 1).
+ */
+export const makeConsolidatedBalanceSubquery = (collectiveTableName: string, { inUsd = false } = {}) => {
+  const accounts = `"CurrentCollectiveBalance"."CollectiveId" IN (SELECT id FROM "Collectives" WHERE "deletedAt" IS NULL AND "isActive" IS TRUE AND ("ParentCollectiveId" = ${collectiveTableName}."id" OR id = ${collectiveTableName}."id"))`;
+  if (!inUsd) {
+    return `(SELECT COALESCE(SUM(COALESCE("CurrentCollectiveBalance"."netAmountInHostCurrency", 0)), 0) FROM "CurrentCollectiveBalance" WHERE ${accounts})`;
+  }
+  return `(SELECT COALESCE(SUM(COALESCE(balances."amount" * fx_rate(balances."currency", 'USD'), 0)), 0) FROM (SELECT "CurrentCollectiveBalance"."hostCurrency" AS "currency", SUM("CurrentCollectiveBalance"."netAmountInHostCurrency") AS "amount" FROM "CurrentCollectiveBalance" WHERE ${accounts} GROUP BY "CurrentCollectiveBalance"."hostCurrency") balances)`;
+};
 
 export const ACCOUNT_CONSOLIDATED_BALANCE_QUERY = sequelize.literal(makeConsolidatedBalanceSubquery('"Collective"'));

@@ -108,7 +108,8 @@ const getLastAccountingCategoryPick = (userId: number, expense: Expense): number
     return undefined;
   }
 
-  const userActivities = expense.activities.filter(a => a.UserId === userId);
+  // System activities (e.g. payout method or tax form fan-out) carry the expense's current category but are not picks
+  const userActivities = expense.activities.filter(a => a.UserId === userId && !a.data?.isSystem);
   const orderedUserActivities = orderBy(userActivities, 'id', 'desc');
   const lastCategoryPick = orderedUserActivities.find(a => has(a.data, 'expense.AccountingCategoryId'));
   return lastCategoryPick?.data.expense.AccountingCategoryId;

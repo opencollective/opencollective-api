@@ -80,9 +80,55 @@ export const generateCountAdminMembersOfCollective = () => {
       },
     });
     const result = _.keyBy(adminsByCollective, 'CollectiveId');
-    return collectiveIds.map(collectiveId => (result[collectiveId]?.dataValues as any)?.adminCount || 0);
+    return collectiveIds.map(
+      collectiveId => (result[collectiveId]?.dataValues as { adminCount?: number })?.adminCount || 0,
+    );
   });
 };
+
+/**
+ * Join condition on a non-refunded contribution charged recently enough for the tier interval: in the last year for
+ * yearly tiers, 45 days for monthly ones. Expects the aliases `tr` (Transactions), `o` (Orders) and `t` (Tiers, with a
+ * monthly or yearly interval). Written so that `transactions__order_contribution_date` serves it: the latest
+ * contribution of the order is one index seek, instead of reading the order's whole transaction history.
+ */
+const RECENT_CONTRIBUTION_TRANSACTION_CONDITION = `
+  tr."OrderId" = o.id
+  AND tr."deletedAt" IS NULL
+  AND tr.type = 'CREDIT'
+  AND tr.kind = 'CONTRIBUTION'
+  AND tr."RefundTransactionId" IS NULL
+  AND COALESCE(tr."clearedAt", tr."createdAt") >= NOW() - CASE t.interval WHEN 'year' THEN INTERVAL '1 year' ELSE INTERVAL '45 days' END
+`;
+
+/**
+ * SQL condition matching active members, with the same rule as `generateMemberIsActiveLoader` (keep both in sync):
+ * members without a tier, or with a tier that has no monthly/yearly interval, are always active; the others need a
+ * non-refunded contribution for an order on that tier in the last year (yearly) or 45 days (monthly).
+ *
+ * @param memberAlias the SQL alias of the "Members" table in the query (must be a trusted constant)
+ */
+export const getMemberIsActiveSQLCondition = (memberAlias: string): string => `(
+  NOT EXISTS (
+    SELECT 1 FROM "Tiers" t
+    WHERE t.id = "${memberAlias}"."TierId"
+    AND t."deletedAt" IS NULL
+    AND t.interval IN ('month', 'year')
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM "Collectives" mc
+    INNER JOIN "Orders" o
+      ON mc.id = o."FromCollectiveId"
+      AND o."CollectiveId" = "${memberAlias}"."CollectiveId"
+      AND o."TierId" = "${memberAlias}"."TierId"
+      AND o."deletedAt" IS NULL
+    INNER JOIN "Tiers" t ON o."TierId" = t.id AND t."deletedAt" IS NULL
+    INNER JOIN "Transactions" tr ON ${RECENT_CONTRIBUTION_TRANSACTION_CONDITION}
+    WHERE mc.id = "${memberAlias}"."MemberCollectiveId"
+    AND mc."deletedAt" IS NULL
+  )
+)`;
 
 export const generateMemberIsActiveLoader = (req: Express.Request) => {
   return new DataLoader(async (memberIds: number[]): Promise<boolean[]> => {
@@ -125,15 +171,7 @@ export const generateMemberIsActiveLoader = (req: Express.Request) => {
             AND o."TierId" = m."TierId"
             AND o."deletedAt" IS NULL
           INNER JOIN "Tiers" t ON o."TierId" = t."id" AND t."deletedAt" IS NULL
-          INNER JOIN "Transactions" tr
-            ON tr."deletedAt" IS NULL
-            AND tr."OrderId" = o."id"
-            AND tr."RefundTransactionId" IS NULL
-            AND CASE
-              WHEN t.interval = 'year' THEN tr."createdAt" >= NOW() - INTERVAL '1 year'
-              WHEN t.interval = 'month' THEN tr."createdAt" >= NOW() - INTERVAL '45 days'
-              ELSE FALSE
-            END
+          INNER JOIN "Transactions" tr ON ${RECENT_CONTRIBUTION_TRANSACTION_CONDITION}
           WHERE m.id IN (:membersIds)
           AND m."deletedAt" IS NULL
         `,
@@ -176,8 +214,11 @@ export const generateRemoteUserIsAdminOfHostedAccountLoader = req => {
       },
     });
 
-    const groupedResults = groupBy(results, 'HostCollectiveId');
-    return hostIds.map(id => Boolean(groupedResults[id] && (groupedResults[id][0] as any).MembersCount > 0));
+    const groupedResults = groupBy(
+      results as unknown as { HostCollectiveId: number; MembersCount: number }[],
+      'HostCollectiveId',
+    );
+    return hostIds.map(id => Boolean(groupedResults[id] && groupedResults[id][0].MembersCount > 0));
   });
 };
 

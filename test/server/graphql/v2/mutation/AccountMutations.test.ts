@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import config from 'config';
-import crypto from 'crypto-js';
 import gql from 'fake-tag';
 import { generateSecret, generateSync } from 'otplib';
 import { createSandbox } from 'sinon';
@@ -8,33 +7,45 @@ import { createSandbox } from 'sinon';
 import { activities as ACTIVITY, roles } from '../../../../../server/constants';
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import FEATURE from '../../../../../server/constants/feature';
+import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import OrderStatuses from '../../../../../server/constants/order-status';
 import { PlatformSubscriptionTiers } from '../../../../../server/constants/plans';
 import POLICIES from '../../../../../server/constants/policies';
 import MemberRoles from '../../../../../server/constants/roles';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
+import { crypto } from '../../../../../server/lib/encryption';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
+import * as webauthn from '../../../../../server/lib/two-factor-authentication/webauthn';
 import * as yubikeyOtp from '../../../../../server/lib/two-factor-authentication/yubikey-otp';
-import models from '../../../../../server/models';
+import models, { sequelize } from '../../../../../server/models';
 import {
   fakeActiveHost,
   fakeCollective,
   fakeEvent,
+  fakeExpense,
   fakeHost,
   fakeLocation,
   fakeMember,
   fakeOrder,
+  fakePersonalToken,
+  fakePlatformSubscription,
   fakeProject,
   fakeTier,
   fakeUser,
+  fakeUserToken,
   fakeUserTwoFactorMethod,
+  randEmail,
   randStr,
 } from '../../../../test-helpers/fake-data';
-import { getOrCreatePlatformAccount, graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
-
-const SECRET_KEY = config.dbEncryption.secretKey;
-const CIPHER = config.dbEncryption.cipher;
+import {
+  getOrCreatePlatformAccount,
+  graphqlQueryV2,
+  oAuthGraphqlQueryV2,
+  resetCaches,
+  resetTestDB,
+  waitForCondition,
+} from '../../../../utils';
 
 const editSettingsMutation = gql`
   mutation EditSettings($account: AccountReferenceInput!, $key: AccountSettingsKey!, $value: JSON!) {
@@ -93,6 +104,12 @@ const createWebAuthnRegistrationOptionsMutation = gql`
   }
 `;
 
+const regenerateRecoveryCodesMutation = gql`
+  mutation RegenerateRecoveryCodes {
+    regenerateRecoveryCodes
+  }
+`;
+
 const duplicateAccountMutation = gql`
   mutation DuplicateAccount(
     $account: AccountReferenceInput!
@@ -122,6 +139,50 @@ const duplicateAccountMutation = gql`
 
 describe('server/graphql/v2/mutation/AccountMutations', () => {
   let adminUser, secondAdminUser, randomUser, hostAdminUser, backerUser, collective;
+
+  const TWO_FACTOR_TOKEN_REJECTION_MESSAGE = 'A session token is required to manage two-factor authentication.';
+
+  /**
+   * 2FA management is session-only: these mutations must reject login, reset-password, OAuth and personal tokens, even when the token
+   * has the "account" scope. Returns the user owning the tokens so that callers can assert nothing was changed.
+   */
+  const expectTwoFactorMutationsToRejectTokens = async (
+    mutation,
+    getVariables: (user) => Record<string, unknown>,
+    setup?: (user) => Promise<void>,
+  ) => {
+    const user = await fakeUser();
+    if (setup) {
+      await setup(user);
+    }
+
+    const userToken = await fakeUserToken({ type: 'OAUTH', UserId: user.id, scope: [OAuthScopes.account] });
+    const oAuthResult = await graphqlQueryV2(mutation, getVariables(user), user, null, null, userToken);
+    expect(oAuthResult.errors).to.exist;
+    expect(oAuthResult.errors[0].message).to.equal(TWO_FACTOR_TOKEN_REJECTION_MESSAGE);
+
+    const personalToken = await fakePersonalToken({ user, scope: [OAuthScopes.account] });
+    const personalTokenResult = await graphqlQueryV2(
+      mutation,
+      getVariables(user),
+      user,
+      null,
+      null,
+      null,
+      personalToken,
+    );
+    expect(personalTokenResult.errors).to.exist;
+    expect(personalTokenResult.errors[0].message).to.equal(TWO_FACTOR_TOKEN_REJECTION_MESSAGE);
+
+    for (const scope of ['login', 'reset-password']) {
+      const result = await graphqlQueryV2(mutation, getVariables(user), user, { scope });
+      expect(result.errors, `${scope} tokens must be rejected`).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      expect(result.errors[0].message).to.equal(TWO_FACTOR_TOKEN_REJECTION_MESSAGE);
+    }
+
+    return user;
+  };
 
   before(async () => {
     await resetTestDB();
@@ -169,7 +230,11 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
   describe('editAccountSetting', () => {
     beforeEach(async () => {
-      await collective.update({ settings: {} });
+      // `update` is a no-op when the instance's in-memory settings already equal `{}`, which
+      // silently leaves the previous tests' settings in the database. Force the write instead.
+      collective.set('settings', {});
+      collective.changed('settings', true);
+      await collective.save();
     });
 
     it('must be authenticated', async () => {
@@ -256,7 +321,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       );
 
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.match(/Variable "\$key" got invalid value "anInvalidKey\!"/);
+      expect(result.errors[0].message).to.match(/Variable "\$key" has invalid value.*anInvalidKey!/);
     });
 
     it('can set nested values', async () => {
@@ -356,6 +421,84 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(activity).to.not.exist;
     });
 
+    it('can set the host application rules setting', async () => {
+      const result = await graphqlQueryV2(
+        editSettingsMutation,
+        {
+          account: { legacyId: collective.id },
+          key: 'hostApplication.blockOnErrors',
+          value: false,
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccountSetting.settings).to.deep.eq({ hostApplication: { blockOnErrors: false } });
+    });
+
+    it('can set the virtual card spending limit intervals allowed for requests', async () => {
+      const value = {
+        ALL_TIME: true,
+        DAILY: true,
+        MONTHLY: true,
+        PER_AUTHORIZATION: true,
+        WEEKLY: true,
+        YEARLY: false,
+      };
+
+      const result = await graphqlQueryV2(
+        editSettingsMutation,
+        {
+          account: { legacyId: collective.id },
+          key: 'virtualcards.allowedSpendingLimitIntervals',
+          value,
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccountSetting.settings).to.deep.eq({
+        virtualcards: { allowedSpendingLimitIntervals: value },
+      });
+    });
+
+    it('rejects virtual card spending limit intervals settings that disable every interval', async () => {
+      const result = await graphqlQueryV2(
+        editSettingsMutation,
+        {
+          account: { legacyId: collective.id },
+          key: 'virtualcards.allowedSpendingLimitIntervals',
+          value: {
+            ALL_TIME: false,
+            DAILY: false,
+            MONTHLY: false,
+            PER_AUTHORIZATION: false,
+            WEEKLY: false,
+            YEARLY: false,
+          },
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/At least one virtual card spending limit interval must be allowed/);
+    });
+
+    it('rejects invalid virtual card spending limit intervals settings', async () => {
+      const result = await graphqlQueryV2(
+        editSettingsMutation,
+        {
+          account: { legacyId: collective.id },
+          key: 'virtualcards.allowedSpendingLimitIntervals',
+          value: { FORTNIGHTLY: true },
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Invalid virtual card spending limit interval: FORTNIGHTLY/);
+    });
+
     it('validates settings and refuses bad values for specific keys', async () => {
       const result = await graphqlQueryV2(
         editSettingsMutation,
@@ -414,6 +557,15 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
+    });
+
+    it('cannot be used with non-session tokens', async () => {
+      const user = await expectTwoFactorMutationsToRejectTokens(addTwoFactorAuthTokenMutation, user => ({
+        account: { id: idEncode(user.collective.id, 'account') },
+        token: secret,
+      }));
+
+      expect(await models.UserTwoFactorMethod.count({ where: { UserId: user.id } })).to.eq(0);
     });
 
     it('adds 2FA to the user', async () => {
@@ -486,6 +638,40 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.addTwoFactorAuthTokenToIndividual.account.hasTwoFactorAuth).to.eq(true);
       expect(result.data.addTwoFactorAuthTokenToIndividual.recoveryCodes).to.be.null;
+    });
+
+    it('truncates the name of WebAuthn devices with a long description', async () => {
+      const user = await fakeUser();
+      // No network: metadata refresh fails and the bundled cached-metadata.json is used
+      sandbox.stub(global, 'fetch').rejects(new Error('No network in tests'));
+      sandbox.stub(webauthn, 'verifyRegistrationResponse').resolves({
+        verified: true,
+        registrationInfo: {
+          aaguid: 'b90e7dc1-316e-4fee-a25a-56a666a670fe', // "YubiKey 5 Series with Lightning (Enterprise Profile)" (52 chars)
+          credential: { id: 'cred-id', publicKey: new Uint8Array([1, 2, 3]), counter: 0 },
+          credentialDeviceType: 'singleDevice',
+          credentialType: 'public-key',
+          fmt: 'packed',
+          attestationObject: new Uint8Array([4, 5, 6]),
+        },
+      } as Awaited<ReturnType<typeof webauthn.verifyRegistrationResponse>>);
+
+      const result = await graphqlQueryV2(
+        addTwoFactorAuthTokenMutation,
+        {
+          account: { id: idEncode(user.collective.id, 'account') },
+          token: Buffer.from(JSON.stringify({ id: 'cred-id' })).toString('base64'),
+          type: 'WEBAUTHN',
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.addTwoFactorAuthTokenToIndividual.account.hasTwoFactorAuth).to.eq(true);
+      const method = await models.UserTwoFactorMethod.findOne({ where: { UserId: user.id } });
+      expect(method.method).to.eq('webauthn');
+      expect(method.name).to.have.lengthOf(50);
+      expect(method.name).to.match(/^YubiKey 5 Series with Lightning/);
     });
   });
 
@@ -619,6 +805,18 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(result.errors).to.not.exist;
       expect(result.data.removeTwoFactorAuthTokenFromIndividual.hasTwoFactorAuth).to.eq(false);
+    });
+
+    it('cannot be used with non-session tokens', async () => {
+      const tokenUser = await expectTwoFactorMutationsToRejectTokens(
+        removeTwoFactorAuthTokenMutation,
+        user => ({ account: { id: idEncode(user.collective.id, 'account') }, type: 'TOTP' }),
+        async user => {
+          await fakeUserTwoFactorMethod({ UserId: user.id });
+        },
+      );
+
+      expect(await models.UserTwoFactorMethod.count({ where: { UserId: tokenUser.id } })).to.eq(1);
     });
   });
 
@@ -1251,6 +1449,182 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         },
       });
     });
+
+    it('should fail if user is not authorized to remove a policy', async () => {
+      // Set the policy first
+      await graphqlQueryV2(
+        setPoliciesMutation,
+        {
+          account: { legacyId: collective.id },
+          policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } },
+        },
+        adminUser,
+      );
+
+      // Try to remove it with `null` from an account that is not an admin of the collective
+      const mutationParams = {
+        account: { legacyId: collective.id },
+        policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: null },
+      };
+      const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, hostAdminUser);
+      expect(result.errors).to.have.lengthOf(1);
+      expect(result.errors[0].message).to.include('You are not allowed to edit the following policies');
+
+      // The policy must be retained
+      await collective.reload();
+      expect(collective.data.policies[POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]).to.deep.equal({ enabled: true });
+    });
+
+    it('should fail if a hosted collective admin tries to remove a policy from its host', async () => {
+      const host = await collective.getHostCollective();
+
+      // Set the policy on the host first
+      await graphqlQueryV2(
+        setPoliciesMutation,
+        {
+          account: { legacyId: host.id },
+          policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } },
+        },
+        hostAdminUser,
+      );
+
+      // Try to remove it with `null` as an admin of the hosted collective
+      const mutationParams = {
+        account: { legacyId: host.id },
+        policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: null },
+      };
+      const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
+      expect(result.errors).to.have.lengthOf(1);
+      expect(result.errors[0].message).to.include('You need to be an admin of the account or of its host');
+
+      // The policy must be retained
+      await host.reload();
+      expect(host.data.policies[POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]).to.deep.equal({ enabled: true });
+    });
+
+    it('should fail if a collective admin tries to remove a host-only policy', async () => {
+      // Set the host-only policy first
+      await graphqlQueryV2(
+        setPoliciesMutation,
+        {
+          account: { legacyId: collective.id },
+          policies: { [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: true },
+        },
+        hostAdminUser,
+      );
+
+      // Try to remove it with `null` as a collective admin
+      const mutationParams = {
+        account: { legacyId: collective.id },
+        policies: { [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: null },
+      };
+      const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
+      expect(result.errors).to.have.lengthOf(1);
+      expect(result.errors[0].message).to.include('You are not allowed to edit the following policies');
+
+      // The policy must be retained
+      await collective.reload();
+      expect(collective.data.policies[POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]).to.be.true;
+    });
+
+    describe('should fail for a user who is not an admin, even when the policies do not change', () => {
+      const countEditedActivities = () =>
+        models.Activity.count({ where: { type: ACTIVITY.COLLECTIVE_EDITED, CollectiveId: collective.id } });
+
+      const cases = {
+        'no policies': () => ({}),
+        'an unchanged value': () => ({
+          [POLICIES.EXPENSE_POLICIES]: collective.data.policies[POLICIES.EXPENSE_POLICIES],
+        }),
+        'null for a policy that is not set': () => ({ [POLICIES.COLLECTIVE_ADMINS_CAN_REFUND]: null }),
+      };
+
+      for (const [name, getPolicies] of Object.entries(cases)) {
+        it(`with ${name}`, async () => {
+          const activitiesBefore = await countEditedActivities();
+          const mutationParams = { account: { legacyId: collective.id }, policies: getPolicies() };
+          const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, randomUser);
+          expect(result.errors).to.have.lengthOf(1);
+          expect(result.errors[0].extensions.code).to.equal('Forbidden');
+          expect(await countEditedActivities()).to.equal(activitiesBefore);
+        });
+      }
+    });
+
+    describe('TAX_FORM_THRESHOLDS policy', () => {
+      const setTaxFormThresholdsMutation = gql`
+        mutation SetPolicies($account: AccountReferenceInput!, $policies: PoliciesInput!) {
+          setPolicies(account: $account, policies: $policies) {
+            id
+            policies {
+              TAX_FORM_THRESHOLDS {
+                US
+                NON_US
+                includePayPalExpenses
+              }
+            }
+          }
+        }
+      `;
+
+      it('should fail if host does not have access to TAX_FORMS feature', async () => {
+        const otherHost = await fakeActiveHost({ admin: hostAdminUser, countryISO: 'FR' });
+        const mutationParams = {
+          account: { legacyId: otherHost.id },
+          policies: { [POLICIES.TAX_FORM_THRESHOLDS]: { US: 0, NON_US: 50000 } },
+        };
+        const result = await graphqlQueryV2(setTaxFormThresholdsMutation, mutationParams, hostAdminUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('This feature is not supported for your account');
+      });
+
+      it('should fail if threshold is negative', async () => {
+        const usHost = await fakeActiveHost({
+          admin: hostAdminUser,
+          countryISO: 'US',
+        });
+        await fakePlatformSubscription({
+          CollectiveId: usHost.id,
+          plan: { features: { [FEATURE.TAX_FORMS]: true } },
+        });
+        const mutationParams = {
+          account: { legacyId: usHost.id },
+          policies: { [POLICIES.TAX_FORM_THRESHOLDS]: { US: -100 } },
+        };
+        const result = await graphqlQueryV2(setTaxFormThresholdsMutation, mutationParams, hostAdminUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('US threshold must be greater than or equal to 0');
+      });
+
+      it('should succeed for host with TAX_FORMS feature', async () => {
+        const usHost = await fakeActiveHost({
+          admin: hostAdminUser,
+          countryISO: 'US',
+        });
+        await fakePlatformSubscription({
+          CollectiveId: usHost.id,
+          plan: { features: { [FEATURE.TAX_FORMS]: true } },
+        });
+        const mutationParams = {
+          account: { legacyId: usHost.id },
+          policies: { [POLICIES.TAX_FORM_THRESHOLDS]: { US: 0, NON_US: 100000, includePayPalExpenses: false } },
+        };
+        const result = await graphqlQueryV2(setTaxFormThresholdsMutation, mutationParams, hostAdminUser);
+        expect(result.errors).to.not.exist;
+        expect(result.data.setPolicies.policies.TAX_FORM_THRESHOLDS).to.deep.equal({
+          US: 0,
+          NON_US: 100000,
+          includePayPalExpenses: false,
+        });
+
+        await usHost.reload();
+        expect(usHost.data.policies.TAX_FORM_THRESHOLDS).to.deep.equal({
+          US: 0,
+          NON_US: 100000,
+          includePayPalExpenses: false,
+        });
+      });
+    });
   });
 
   describe('sendMessage', () => {
@@ -1267,6 +1641,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     let sandbox, sendEmailSpy, collectiveWithContact, collectiveWithoutContact;
 
     before(async () => {
+      await resetCaches();
       sandbox = createSandbox();
       collectiveWithContact = await fakeCollective({
         name: 'Test Collective',
@@ -1299,6 +1674,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         randomUser,
       );
 
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.sendMessage.success).to.equal(true);
 
@@ -1516,6 +1892,12 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
+    });
+
+    it('cannot be used with non-session tokens', async () => {
+      await expectTwoFactorMutationsToRejectTokens(createWebAuthnRegistrationOptionsMutation, user => ({
+        account: { id: idEncode(user.collective.id, 'account') },
+      }));
     });
 
     it('creates a public key request options', async () => {
@@ -1793,6 +2175,41 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.data.editTwoFactorAuthenticationMethod.twoFactorMethods).to.have.lengthOf(1);
       expect(result.data.editTwoFactorAuthenticationMethod.twoFactorMethods[0].name).to.equal('New name');
     });
+
+    it('cannot be used with non-session tokens', async () => {
+      let method;
+      await expectTwoFactorMutationsToRejectTokens(
+        editTwoFactorAuthenticationMethodMutation,
+        () => ({
+          userTwoFactorMethod: { id: idEncode(method.id, 'user-two-factor-method') },
+          name: 'Hacked name',
+        }),
+        async user => {
+          method = await fakeUserTwoFactorMethod({ UserId: user.id, name: 'Authenticator' });
+        },
+      );
+
+      await method.reload();
+      expect(method.name).to.equal('Authenticator');
+    });
+  });
+
+  describe('regenerateRecoveryCodes', () => {
+    it('cannot be used with non-session tokens', async () => {
+      let initialRecoveryCodes;
+      const user = await expectTwoFactorMutationsToRejectTokens(
+        regenerateRecoveryCodesMutation,
+        () => ({}),
+        async user => {
+          await fakeUserTwoFactorMethod({ UserId: user.id });
+          initialRecoveryCodes = [crypto.hash('initial-code-1'), crypto.hash('initial-code-2')];
+          await user.update({ twoFactorAuthRecoveryCodes: initialRecoveryCodes });
+        },
+      );
+
+      await user.reload();
+      expect(user.twoFactorAuthRecoveryCodes).to.deep.equal(initialRecoveryCodes);
+    });
   });
 
   describe('convertAccountToOrganization', () => {
@@ -1845,6 +2262,52 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal("Can't convert an hosted Collective.");
+    });
+
+    it('must not be archived', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({
+        admin: user,
+        HostCollectiveId: null,
+        deactivatedAt: new Date(),
+        isActive: false,
+      });
+
+      const result = await graphqlQueryV2(
+        convertAccountToOrganizationMutation,
+        {
+          account: { legacyId: collective.id },
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal("Can't convert an archived account. Please unarchive it first.");
+
+      // Verify the account was left untouched
+      await collective.reload();
+      expect(collective.type).to.equal(CollectiveType.COLLECTIVE);
+    });
+
+    it('converts a COLLECTIVE that is not active', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user, HostCollectiveId: null, isActive: false });
+
+      expect(collective.deactivatedAt).to.not.exist;
+
+      const result = await graphqlQueryV2(
+        convertAccountToOrganizationMutation,
+        {
+          account: { legacyId: collective.id },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.convertAccountToOrganization.type).to.equal('ORGANIZATION');
+
+      await collective.reload();
+      expect(collective.type).to.equal(CollectiveType.ORGANIZATION);
     });
 
     it('converts a COLLECTIVE to ORGANIZATION', async () => {
@@ -1939,6 +2402,16 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       const platform = await getOrCreatePlatformAccount();
       await fakeMember({ MemberCollectiveId: rootUser.CollectiveId, CollectiveId: platform.id, role: roles.ADMIN });
 
+      const scopedResult = await oAuthGraphqlQueryV2(
+        convertAccountToOrganizationMutation,
+        { account: { legacyId: collective.id } },
+        await fakeUserToken({ user: rootUser, scope: ['account'] }),
+      );
+      expect(scopedResult.errors).to.not.be.empty;
+      expect(scopedResult.errors[0].extensions.code).to.equal('Forbidden');
+      expect(scopedResult.errors[0].message).to.equal('The User Token is not allowed for operations in scope "root".');
+      expect((await collective.reload()).type).to.equal(CollectiveType.COLLECTIVE);
+
       const result = await graphqlQueryV2(
         convertAccountToOrganizationMutation,
         {
@@ -1956,7 +2429,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
     it('enforces 2FA when enabled on account', async () => {
       const secret = generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const encryptedToken = crypto.encrypt(secret);
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
 
       const collective = await fakeCollective({ admin: user, HostCollectiveId: null });
@@ -2021,6 +2494,570 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         // Since the subscription starts today, it is immediately provisioned
         expect(subscription.featureProvisioningStatus).to.equal('PROVISIONED');
       });
+    });
+  });
+
+  describe('editAccount', () => {
+    const editAccountMutation = gql`
+      mutation EditAccount($account: AccountUpdateInput!) {
+        editAccount(account: $account) {
+          id
+          isUSEntity
+        }
+      }
+    `;
+
+    describe('profile created without a name (`/users/signup`)', () => {
+      const completeProfileMutation = gql`
+        mutation CompleteProfile($account: AccountUpdateInput!) {
+          editAccount(account: $account) {
+            id
+            slug
+            name
+          }
+        }
+      `;
+
+      // As `/users/signup` does: no name, so the profile gets a placeholder name and a `user-…` slug
+      const createUserWithoutName = async () => {
+        const user = await models.User.create({ email: randEmail(), confirmedAt: new Date() });
+        const collective = await user.createCollective({ data: { requiresProfileCompletion: true } });
+        await user.update({ CollectiveId: collective.id });
+        return { user, collective };
+      };
+
+      // Profiles created before the placeholder changed are named "incognito", with an `incognito-…` slug
+      const createLegacyUserWithoutName = async () => {
+        const { user, collective } = await createUserWithoutName();
+        await collective.update({ name: 'incognito', slug: `incognito-${randStr().toLowerCase().slice(0, 8)}` });
+        return { user, collective };
+      };
+
+      it('derives the slug from the name when the profile is completed', async () => {
+        const { user, collective } = await createUserWithoutName();
+        expect(collective.name).to.equal('user');
+        expect(collective.slug).to.match(/^user-/);
+
+        const result = await graphqlQueryV2(
+          completeProfileMutation,
+          { account: { id: idEncode(collective.id, 'account'), name: 'Jane Newslug' } },
+          user,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.editAccount.slug).to.match(/^jane-newslug/);
+      });
+
+      it('derives the slug from the name for a legacy "incognito" profile', async () => {
+        const { user, collective } = await createLegacyUserWithoutName();
+        expect(collective.slug).to.match(/^incognito-/);
+
+        const result = await graphqlQueryV2(
+          completeProfileMutation,
+          { account: { id: idEncode(collective.id, 'account'), name: 'Jane Slugtest' } },
+          user,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.editAccount.slug).to.match(/^jane-slugtest/);
+        await collective.reload();
+        expect(collective.slug).to.match(/^jane-slugtest/);
+        expect(collective.data.requiresProfileCompletion).to.be.false;
+      });
+
+      it('keeps the slug when the name is not set', async () => {
+        for (const create of [createUserWithoutName, createLegacyUserWithoutName]) {
+          const { user, collective } = await create();
+          const initialSlug = collective.slug;
+
+          const result = await graphqlQueryV2(
+            completeProfileMutation,
+            { account: { id: idEncode(collective.id, 'account'), legalName: 'Jane Legal Slugtest' } },
+            user,
+          );
+          expect(result.errors).to.not.exist;
+          expect(result.data.editAccount.slug).to.equal(initialSlug);
+        }
+      });
+    });
+
+    it('requires root scope to edit an unrelated account', async () => {
+      const root = await fakeUser({ data: { isRoot: true } });
+      const platform = await getOrCreatePlatformAccount();
+      await fakeMember({ MemberCollectiveId: root.CollectiveId, CollectiveId: platform.id, role: roles.ADMIN });
+      const collective = await fakeCollective({ admin: await fakeUser() });
+      const variables = { account: { id: idEncode(collective.id, 'account'), isUSEntity: true } };
+
+      const rejected = await oAuthGraphqlQueryV2(
+        editAccountMutation,
+        variables,
+        await fakeUserToken({ user: root, scope: ['account'] }),
+      );
+      expect(rejected.errors).to.not.be.empty;
+      expect(rejected.errors[0].extensions.code).to.equal('Forbidden');
+      expect(rejected.errors[0].message).to.equal('The User Token is not allowed for operations in scope "root".');
+      expect((await collective.reload()).data?.isUSEntity).to.be.undefined;
+
+      const allowed = await oAuthGraphqlQueryV2(
+        editAccountMutation,
+        variables,
+        await fakeUserToken({ user: root, scope: ['account', 'root'] }),
+      );
+      expect(allowed.errors).to.not.exist;
+      expect((await collective.reload()).data.isUSEntity).to.be.true;
+    });
+
+    it('allows a root user to edit an administered account without root scope', async () => {
+      const root = await fakeUser({ data: { isRoot: true } });
+      const platform = await getOrCreatePlatformAccount();
+      await fakeMember({ MemberCollectiveId: root.CollectiveId, CollectiveId: platform.id, role: roles.ADMIN });
+      const collective = await fakeCollective({ admin: root });
+
+      const result = await oAuthGraphqlQueryV2(
+        editAccountMutation,
+        { account: { id: idEncode(collective.id, 'account'), isUSEntity: true } },
+        await fakeUserToken({ user: root, scope: ['account'] }),
+      );
+      expect(result.errors).to.not.exist;
+      expect((await collective.reload()).data.isUSEntity).to.be.true;
+    });
+
+    it('can update isUSEntity', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+
+      expect(collective.data?.isUSEntity).to.be.undefined;
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: true,
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccount.isUSEntity).to.be.true;
+
+      await collective.reload();
+      expect(collective.data.isUSEntity).to.be.true;
+
+      // The previous version is archived in CollectiveHistories (see server/lib/sequelize-temporal.ts)
+      const getHistory = () =>
+        sequelize.models.CollectiveHistory.findAll({ where: { id: collective.id }, order: [['hid', 'ASC']] });
+      const historyAfterFirstUpdate = await getHistory();
+      expect(historyAfterFirstUpdate).to.have.length(1);
+      expect(historyAfterFirstUpdate[0].get('slug')).to.equal(collective.slug);
+      expect(historyAfterFirstUpdate[0].get('data')?.['isUSEntity']).to.be.undefined;
+      expect(historyAfterFirstUpdate[0].get('archivedAt')).to.be.an.instanceOf(Date);
+
+      // Update to false
+      const result2 = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: false,
+          },
+        },
+        user,
+      );
+
+      expect(result2.errors).to.not.exist;
+      expect(result2.data.editAccount.isUSEntity).to.be.false;
+
+      await collective.reload();
+      expect(collective.data.isUSEntity).to.be.false;
+
+      const historyAfterSecondUpdate = await getHistory();
+      expect(historyAfterSecondUpdate).to.have.length(2);
+      expect(historyAfterSecondUpdate[1].get('data')?.['isUSEntity']).to.be.true;
+    });
+
+    it('must be an admin to update isUSEntity', async () => {
+      const user = await fakeUser();
+      const otherUser = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: true,
+          },
+        },
+        otherUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
+    });
+
+    it('creates a COLLECTIVE_EDITED activity when isUSEntity is updated standalone', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+
+      expect(collective.data?.isUSEntity).to.be.undefined;
+
+      // Reset activities for this user so we can count new ones precisely
+      await models.Activity.destroy({ where: { UserId: user.id, type: ACTIVITY.COLLECTIVE_EDITED } });
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            isUSEntity: true,
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccount.isUSEntity).to.be.true;
+
+      const activities = await models.Activity.findAll({
+        where: { UserId: user.id, CollectiveId: collective.id, type: ACTIVITY.COLLECTIVE_EDITED },
+      });
+      expect(activities.length).to.equal(1);
+
+      const activity = activities[0];
+      expect(activity.data).to.containSubset({
+        previousData: { 'data.isUSEntity': undefined },
+        newData: { 'data.isUSEntity': true },
+      });
+    });
+
+    it('persists both data fields when privateInstructions and isUSEntity are updated in the same mutation', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+
+      expect(collective.data?.privateInstructions).to.be.undefined;
+      expect(collective.data?.isUSEntity).to.be.undefined;
+
+      const result = await graphqlQueryV2(
+        editAccountMutation,
+        {
+          account: {
+            id: idEncode(collective.id, 'account'),
+            privateInstructions: 'Please invoice monthly',
+            isUSEntity: true,
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+
+      await collective.reload();
+      expect(collective.data.privateInstructions).to.equal('Please invoice monthly');
+      expect(collective.data.isUSEntity).to.be.true;
+
+      // The activity must record both changes
+      const activities = await models.Activity.findAll({
+        where: { UserId: user.id, CollectiveId: collective.id, type: ACTIVITY.COLLECTIVE_EDITED },
+      });
+      expect(activities.length).to.equal(1);
+      expect(activities[0].data).to.containSubset({
+        previousData: { 'data.privateInstructions': undefined, 'data.isUSEntity': undefined },
+        newData: { 'data.privateInstructions': 'Please invoice monthly', 'data.isUSEntity': true },
+      });
+    });
+
+    describe('hostFeePercent', () => {
+      const editAccountHostFeeMutation = gql`
+        mutation EditAccountHostFee($account: AccountUpdateInput!) {
+          editAccount(account: $account) {
+            id
+            description
+            ... on AccountWithHost {
+              hostFeePercent
+            }
+          }
+        }
+      `;
+
+      it('ignores a null hostFeePercent and does not cascade it to hosted collectives', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin, hostFeePercent: 0 });
+        const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, hostFeePercent: 0 });
+
+        const result = await graphqlQueryV2(
+          editAccountHostFeeMutation,
+          { account: { id: idEncode(host.id, 'account'), hostFeePercent: null, description: 'Updated description' } },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await host.reload();
+        await hostedCollective.reload();
+        expect(host.description).to.equal('Updated description');
+        expect(host.hostFeePercent).to.equal(0);
+        expect(hostedCollective.hostFeePercent).to.equal(0);
+      });
+
+      it('updates the host fee and cascades it to hosted collectives', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin, hostFeePercent: 0 });
+        const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, hostFeePercent: 0 });
+
+        const result = await graphqlQueryV2(
+          editAccountHostFeeMutation,
+          { account: { id: idEncode(host.id, 'account'), hostFeePercent: 5 } },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await host.reload();
+        await hostedCollective.reload();
+        expect(host.hostFeePercent).to.equal(5);
+        expect(hostedCollective.hostFeePercent).to.equal(5);
+      });
+
+      it('rejects an out-of-range hostFeePercent', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin, hostFeePercent: 0 });
+        const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, hostFeePercent: 0 });
+
+        const result = await graphqlQueryV2(
+          editAccountHostFeeMutation,
+          { account: { id: idEncode(host.id, 'account'), hostFeePercent: 150 } },
+          hostAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/Invalid host fee percent/);
+        await host.reload();
+        await hostedCollective.reload();
+        expect(host.hostFeePercent).to.equal(0);
+        expect(hostedCollective.hostFeePercent).to.equal(0);
+      });
+    });
+  });
+
+  describe('archiveAccount / unarchiveAccount', () => {
+    const archiveAccountMutation = gql`
+      mutation ArchiveAccount($account: AccountReferenceInput!) {
+        archiveAccount(account: $account) {
+          id
+          isArchived
+        }
+      }
+    `;
+
+    const unarchiveAccountMutation = gql`
+      mutation UnarchiveAccount($account: AccountReferenceInput!) {
+        unarchiveAccount(account: $account) {
+          id
+          isArchived
+        }
+      }
+    `;
+
+    it('must be authenticated', async () => {
+      const account = await fakeCollective();
+      for (const mutation of [archiveAccountMutation, unarchiveAccountMutation]) {
+        const result = await graphqlQueryV2(mutation, { account: { legacyId: account.id } });
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('Unauthorized');
+      }
+    });
+
+    it('must be an admin of the account', async () => {
+      const account = await fakeCollective();
+      const user = await fakeUser();
+      for (const mutation of [archiveAccountMutation, unarchiveAccountMutation]) {
+        const result = await graphqlQueryV2(mutation, { account: { legacyId: account.id } }, user);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('You need to be logged in as an Admin.');
+      }
+    });
+
+    it('archives the account and its children, cancels contributions and unprocessed expenses', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost();
+      const account = await fakeCollective({ admin, HostCollectiveId: host.id });
+      const project = await fakeProject({ ParentCollectiveId: account.id, HostCollectiveId: host.id });
+      const order = await fakeOrder(
+        { CollectiveId: account.id, status: OrderStatuses.ACTIVE, subscription: { isManagedExternally: true } },
+        { withSubscription: true },
+      );
+      const pendingExpense = await fakeExpense({ status: 'PENDING', CollectiveId: project.id });
+      const paidExpense = await fakeExpense({ status: 'PAID', CollectiveId: account.id });
+
+      const result = await graphqlQueryV2(archiveAccountMutation, { account: { legacyId: account.id } }, admin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.archiveAccount.isArchived).to.be.true;
+
+      await Promise.all([account, project, order, pendingExpense, paidExpense].map(e => e.reload()));
+      expect(account.isActive).to.be.false;
+      expect(account.deactivatedAt).to.be.a('date');
+      expect(account.HostCollectiveId).to.be.null;
+      expect(project.isActive).to.be.false;
+      expect(project.deactivatedAt).to.be.a('date');
+      expect(order.status).to.equal(OrderStatuses.CANCELLED);
+      expect(pendingExpense.status).to.equal('CANCELED');
+      expect(pendingExpense.data.cancelledWhileArchivedFromCollective).to.be.true;
+      expect(pendingExpense.data.previousStatus).to.equal('PENDING');
+      expect(paidExpense.status).to.equal('PAID');
+
+      const activity = await models.Activity.findOne({
+        where: { type: ACTIVITY.COLLECTIVE_ARCHIVED, CollectiveId: account.id },
+      });
+      expect(activity).to.exist;
+      expect(activity.HostCollectiveId).to.equal(host.id);
+      expect(activity.data.notify).to.be.false;
+    });
+
+    it('cancels the contributions to its children and flags them for deactivation', async () => {
+      const admin = await fakeUser();
+      const parent = await fakeCollective({ admin });
+      const project = await fakeProject({ ParentCollectiveId: parent.id });
+      const order = await fakeOrder(
+        { CollectiveId: project.id, status: OrderStatuses.ACTIVE },
+        { withSubscription: true },
+      );
+
+      const result = await graphqlQueryV2(archiveAccountMutation, { account: { legacyId: parent.id } }, admin);
+      expect(result.errors).to.not.exist;
+
+      await order.reload();
+      expect(order.status).to.equal(OrderStatuses.CANCELLED);
+      expect(order.data.needsAsyncDeactivation).to.be.true;
+    });
+
+    it('leaves the account and its contributions untouched when refused because of a processing expense', async () => {
+      const admin = await fakeUser();
+      const parent = await fakeCollective({ admin });
+      const project = await fakeProject({ ParentCollectiveId: parent.id });
+      const orders = await Promise.all(
+        [parent, project].map(account =>
+          fakeOrder({ CollectiveId: account.id, status: OrderStatuses.ACTIVE }, { withSubscription: true }),
+        ),
+      );
+      await fakeExpense({ status: 'PROCESSING', CollectiveId: project.id });
+
+      const result = await graphqlQueryV2(archiveAccountMutation, { account: { legacyId: parent.id } }, admin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'Unable to change host: there are still 1 expenses in a processing state',
+      );
+
+      for (const order of orders) {
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.ACTIVE);
+        expect(order.data?.needsAsyncDeactivation).to.not.be.true;
+      }
+
+      await project.reload();
+      expect(project.deactivatedAt).to.be.null;
+      expect(project.approvedAt).to.be.a('date');
+    });
+
+    it('cancels the contributions the account makes and flags them for deactivation', async () => {
+      const admin = await fakeUser();
+      const archivedAccount = await fakeCollective({ admin });
+      const recipient = await fakeCollective();
+      const order = await fakeOrder(
+        {
+          status: OrderStatuses.ACTIVE,
+          CollectiveId: recipient.id,
+          FromCollectiveId: archivedAccount.id,
+          subscription: { isManagedExternally: true },
+        },
+        { withSubscription: true },
+      );
+
+      const result = await graphqlQueryV2(archiveAccountMutation, { account: { legacyId: archivedAccount.id } }, admin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.archiveAccount.isArchived).to.be.true;
+
+      // The order is cancelled and flagged for asynchronous deactivation (see #8915)
+      await order.reload();
+      expect(order.status).to.equal(OrderStatuses.CANCELLED);
+      expect(order.data.needsAsyncDeactivation).to.be.true;
+      await order.Subscription.reload();
+      expect(order.Subscription.isActive).to.be.true;
+    });
+
+    it('clears approvedAt even when HostCollectiveId is already null', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost();
+      const account = await fakeCollective({
+        admin,
+        HostCollectiveId: host.id,
+        isActive: true,
+        approvedAt: new Date('2024-01-01'),
+      });
+      const project = await fakeProject({
+        ParentCollectiveId: account.id,
+        HostCollectiveId: host.id,
+        isActive: true,
+        approvedAt: new Date('2024-01-01'),
+      });
+
+      // Host already removed without clearing approvedAt
+      await account.update({ HostCollectiveId: null }, { hooks: false });
+      await project.update({ HostCollectiveId: null }, { hooks: false });
+
+      const result = await graphqlQueryV2(archiveAccountMutation, { account: { legacyId: account.id } }, admin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.archiveAccount.isArchived).to.be.true;
+
+      await Promise.all([account, project].map(e => e.reload()));
+      for (const archived of [account, project]) {
+        expect(archived.isActive).to.be.false;
+        expect(archived.deactivatedAt).to.be.a('date');
+        expect(archived.approvedAt).to.be.null;
+        expect(archived.HostCollectiveId).to.be.null;
+      }
+    });
+
+    it('cannot archive a host', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
+      const result = await graphqlQueryV2(archiveAccountMutation, { account: { legacyId: host.id } }, admin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include("You can't archive your collective while being a host");
+    });
+
+    it('unarchives an account', async () => {
+      const admin = await fakeUser();
+      const account = await fakeCollective({ admin, isActive: false, deactivatedAt: new Date() });
+
+      const result = await graphqlQueryV2(unarchiveAccountMutation, { account: { slug: account.slug } }, admin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.unarchiveAccount.isArchived).to.be.false;
+
+      await account.reload();
+      expect(account.deactivatedAt).to.be.null;
+    });
+
+    it('unarchives a project with the status of its parent', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost();
+      const parent = await fakeCollective({ admin, HostCollectiveId: host.id, isActive: true, approvedAt: new Date() });
+      const project = await fakeProject({
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: null,
+        isActive: false,
+        approvedAt: null,
+        deactivatedAt: new Date(),
+      });
+
+      const result = await graphqlQueryV2(unarchiveAccountMutation, { account: { legacyId: project.id } }, admin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.unarchiveAccount.isArchived).to.be.false;
+
+      await project.reload();
+      expect(project.deactivatedAt).to.be.null;
+      expect(project.isActive).to.be.true;
+      expect(project.HostCollectiveId).to.equal(host.id);
+      expect(project.approvedAt).to.be.a('date');
     });
   });
 });

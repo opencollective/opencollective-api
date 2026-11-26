@@ -134,7 +134,7 @@
         </tr>
         <tr>
           {{#if order.Subscription}}
-            <td><p>You’re contributing <b>{{currency order.Subscription.amount currency=order.Subscription.currency}}</b>{{#if order.platformTipAmount}} (including a {{currency order.platformTipAmount currency=order.Subscription.currency}} tip to the Open Collective Platform){{/if}} per {{order.Subscription.interval}} since {{moment order.Subscription.createdAt format="MMMM YYYY"}}</p></td>
+            <td><p>You’re contributing <b>{{currency order.recurringAmount currency=order.recurringCurrency}}</b>{{#if order.platformTipAmount}} (including a {{currency order.platformTipAmount currency=order.recurringCurrency}} tip to the Open Collective Platform){{/if}} per {{order.Subscription.interval}} since {{moment order.Subscription.createdAt format="MMMM YYYY"}}</p></td>
           {{else}}
             <td><p>You've contributed <b>{{order.totalAmount}}</b>{{#if order.platformTipAmount}} (including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}}</p></td>
           {{/if}}
@@ -164,7 +164,7 @@
               {{#each events.upcoming}}
                 <li>{{moment startsAt timezone=timezone format="MMMM Do HH:mm"}} @ {{location.name}}<br />
                 <a href="{{config.host.website}}/{{../slug}}/events/{{slug}}">{{name}}</a><br />
-                RSVPs: {{stats.confirmed}} {{#if stats.interested}}(+{{stats.interested}} interested){{/if}}</li>
+                RSVPs: {{stats.confirmed}}</li>
               {{/each}}
               </ul>
             </td>
@@ -180,7 +180,7 @@
               {{#each events.past}}
                 <li>{{moment startsAt timezone=timezone format="MMMM Do HH:mm"}} @ {{location.name}}<br />
                 <a href="{{config.host.website}}/{{../slug}}/events/{{slug}}">{{name}}</a><br />
-                RSVPs: {{stats.confirmed}} {{#if stats.interested}}(+{{stats.interested}} interested){{/if}}</li>
+                RSVPs: {{stats.confirmed}}</li>
               {{/each}}
               </ul>
             </td>

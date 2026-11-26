@@ -10,5 +10,6 @@ export type PlaidWebhookRequest = {
 };
 
 export type PlaidWebhookDecodedJWTToken = Jwt & {
+  iat: number;
   request_body_sha256: string;
 };

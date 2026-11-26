@@ -5,6 +5,7 @@ import moment from 'moment';
 import { Order, Transaction as SequelizeTransaction } from 'sequelize';
 import Stripe from 'stripe';
 
+import { CollectiveType } from '../constants/collectives';
 import { SupportedCurrency } from '../constants/currencies';
 import ExpenseType from '../constants/expense-type';
 import { PAYMENT_METHOD_SERVICE } from '../constants/paymentMethods';
@@ -646,6 +647,84 @@ export const getTaxVendor = memoize(async (taxId): Promise<Collective> => {
 
   return Collective.findBySlug(vendorByTaxId[taxId] || vendorByTaxId['OTHER']);
 });
+
+/**
+ * `data` flag that definitively marks a collective as a per-host platform-tips account, so it can be
+ * recognized without relying on the slug (which carries a random suffix on collision) or on it being
+ * the only PLATFORM child of the host.
+ */
+export const PLATFORM_TIPS_ACCOUNT_DATA_FLAG = 'isPlatformTipsAccount';
+
+// Namespace for the per-host advisory lock that serializes first-time platform-tips account creation
+// (pg_advisory_xact_lock takes two int4 keys: this namespace + the host id). Arbitrary but stable.
+const PLATFORM_TIPS_ACCOUNT_LOCK_NAMESPACE = 20260513;
+
+/**
+ * Returns the per-host platform-tips account for a host, or null if it has not been created yet.
+ * Identified by the explicit `data.isPlatformTipsAccount` flag.
+ */
+export const getHostPlatformTipsAccount = async (
+  host: Collective,
+  { transaction }: { transaction?: SequelizeTransaction } = {},
+): Promise<Collective | null> => {
+  return Collective.findOne({
+    where: { ParentCollectiveId: host.id, data: { [PLATFORM_TIPS_ACCOUNT_DATA_FLAG]: true } },
+    transaction,
+  });
+};
+
+/**
+ * Returns (creating if needed) the per-host PLATFORM-type account that holds platform tips for a
+ * given host under the NEW_PLATFORM_TIPS_LEDGER feature. The account is a regular hosted child of
+ * the host (ParentCollectiveId = HostCollectiveId = host) denominated in the host's currency, so
+ * its balance, permissions and settlement all behave like any other internal account — no
+ * host-scoping needed. Keyed on the `data.isPlatformTipsAccount` flag (not the slug, which carries a
+ * random suffix on collision like Events/Users).
+ */
+export const getOrCreateHostPlatformTipsAccount = async (
+  host: Collective,
+  { transaction }: { transaction?: SequelizeTransaction } = {},
+): Promise<Collective> => {
+  const existing = await getHostPlatformTipsAccount(host, { transaction });
+  if (existing) {
+    return existing;
+  }
+
+  // First-time creation only: serialize concurrent creates for this host so two racing tips can't both
+  // insert a platform-tips account (which would split tips/settlements across accounts). The advisory
+  // lock is held until the caller's transaction commits; we re-check after acquiring it (double-checked
+  // locking) so the loser of the race returns the winner's account. Requires a transaction to be
+  // xact-scoped; the only caller without one (the backfill script) is single-threaded.
+  if (transaction) {
+    await sequelize.query('SELECT pg_advisory_xact_lock(:namespace, :hostId)', {
+      replacements: { namespace: PLATFORM_TIPS_ACCOUNT_LOCK_NAMESPACE, hostId: host.id },
+      transaction,
+    });
+    const afterLock = await getHostPlatformTipsAccount(host, { transaction });
+    if (afterLock) {
+      return afterLock;
+    }
+  }
+
+  return Collective.create(
+    {
+      type: CollectiveType.PLATFORM,
+      slug: await Collective.generateSlug('platform-tips'),
+      name: 'Platform Tips',
+      ParentCollectiveId: host.id,
+      HostCollectiveId: host.id,
+      currency: host.currency,
+      isActive: true,
+      approvedAt: new Date(),
+      CreatedByUserId: host.CreatedByUserId,
+      // Hidden from public account search/autocomplete: it's an internal billing account, not a
+      // user-facing collective (same intent as VENDOR exclusion). Only affects search; balances,
+      // transactions and children aggregations still include it.
+      data: { [PLATFORM_TIPS_ACCOUNT_DATA_FLAG]: true, hideFromSearch: true },
+    },
+    { transaction },
+  );
+};
 
 /**
  * Returns the Vendor account associated with a payment processor service. This function is memoized as

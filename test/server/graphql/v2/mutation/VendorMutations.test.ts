@@ -398,6 +398,21 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       expect(location.address).to.equal('Zorg Avenue, 1');
     });
 
+    it('saves the tax ID in settings when only vendorInfo is provided', async () => {
+      const vendor = await fakeCollective({ type: CollectiveType.VENDOR, ParentCollectiveId: host.id, settings: {} });
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        { vendor: { legacyId: vendor.id, vendorInfo: { taxType: 'VAT', taxId: 'BE0411905847' } } },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await vendor.reload();
+      expect(vendor.settings.VAT).to.deep.equal({ number: 'BE0411905847', type: 'OWN' });
+      expect(vendor.data.vendorInfo).to.deep.include({ taxType: 'VAT', taxId: 'BE0411905847' });
+    });
+
     it('invalidates existing Payout Method and updates existing Expenses', async () => {
       const vendor = await fakeCollective({
         type: CollectiveType.VENDOR,
@@ -445,6 +460,46 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
 
       await models.PayoutMethod.destroy({ where: { CollectiveId: vendor.id }, force: true });
       await models.Expense.destroy({ where: { FromCollectiveId: vendor.id }, force: true });
+    });
+
+    it('updates the data (e.g. currency) of an existing payout method when its id is provided', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { vendorInfo: vendorData.vendorInfo },
+      });
+      const existingPayoutMethod = await fakePayoutMethod({
+        CollectiveId: vendor.id,
+        type: PayoutMethodTypes.PAYPAL,
+        isSaved: true,
+        data: { email: 'zorg@zorg.com', currency: 'USD' },
+      });
+
+      const newVendorData = {
+        legacyId: vendor.id,
+        payoutMethod: {
+          id: existingPayoutMethod.publicId,
+          type: 'PAYPAL',
+          name: null,
+          data: { email: 'zorg@zorg.com', currency: 'AUD' },
+        },
+      };
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: newVendorData,
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await existingPayoutMethod.reload();
+      expect(existingPayoutMethod.currency).to.equal('AUD');
+      expect((existingPayoutMethod.data as { currency: string }).currency).to.equal('AUD');
+      expect(existingPayoutMethod.isSaved).to.be.true;
+
+      await models.PayoutMethod.destroy({ where: { CollectiveId: vendor.id }, force: true });
     });
 
     it('blocks payout-method changes when host requires 2FA for admins', async () => {

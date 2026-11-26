@@ -1,47 +1,28 @@
 import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import FEATURE_STATUS from '../../constants/feature-status';
 import { checkCaptcha, isCaptchaSetup } from '../../lib/check-captcha';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit';
 import { reportMessageToSentry } from '../../lib/sentry';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
+import { parseToBoolean } from '../../lib/utils';
 import models from '../../models';
-import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
-import { checkCanEmitGiftCards } from '../common/features';
-import { editPublicMessage } from '../common/members';
-import {
-  checkRemoteUserCanUseAccount,
-  checkRemoteUserCanUseHost,
-  checkRemoteUserCanUseOrders,
-  checkRemoteUserCanUseWebhooks,
-} from '../common/scope-check';
+import { checkCanEditTeam } from '../common/members';
+import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseOrders } from '../common/scope-check';
 import { createUser } from '../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../errors';
 
-import {
-  activateCollectiveAsHost,
-  archiveCollective,
-  createCollective,
-  createCollectiveFromGithub,
-  deactivateCollectiveAsHost,
-  deleteCollective,
-  editCollective,
-  unarchiveCollective,
-} from './mutations/collectives';
-import { editWebhooks } from './mutations/notifications';
+import { createCollective, editCollective } from './mutations/collectives';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
-import { updateUserEmail } from './mutations/users';
 import { CollectiveInterfaceType } from './CollectiveInterface';
 import {
   CaptchaInputType,
   CollectiveInputType,
   MemberInputType,
-  NotificationInputType,
   StripeCreditCardDataInputType,
   UserInputType,
 } from './inputTypes';
-import { MemberType, NotificationType, PaymentMethodType, UserType } from './types';
+import { PaymentMethodType, UserType } from './types';
 
 const mutations = {
   createCollective: {
@@ -56,17 +37,6 @@ const mutations = {
       return createCollective(_, args, req);
     },
   },
-  createCollectiveFromGithub: {
-    type: CollectiveInterfaceType,
-    deprecationReason: '2022-05-03: This mutation is deprecated and can only be used in test environments.',
-    args: {
-      collective: { type: new GraphQLNonNull(CollectiveInputType) },
-    },
-    // eslint-disable-next-line graphql-mutations/require-scope-check -- deprecated mutation only available in test environments
-    resolve(_, args, req) {
-      return createCollectiveFromGithub(_, args, req);
-    },
-  },
   editCollective: {
     type: CollectiveInterfaceType,
     args: {
@@ -77,48 +47,6 @@ const mutations = {
         signedOutMessage: 'You need to be logged in to edit a collective',
       });
       return editCollective(_, args, req);
-    },
-  },
-  deleteCollective: {
-    type: CollectiveInterfaceType,
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      checkRemoteUserCanUseAccount(req);
-      return deleteCollective(_, args, req);
-    },
-  },
-  deleteUserCollective: {
-    type: CollectiveInterfaceType,
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      checkRemoteUserCanUseAccount(req);
-      return deleteCollective(_, args, req);
-    },
-  },
-  archiveCollective: {
-    type: CollectiveInterfaceType,
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      checkRemoteUserCanUseAccount(req, {
-        signedOutMessage: 'You need to be logged in to archive a collective',
-      });
-      return archiveCollective(_, args, req);
-    },
-  },
-  unarchiveCollective: {
-    type: CollectiveInterfaceType,
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      checkRemoteUserCanUseAccount(req);
-      return unarchiveCollective(_, args, req);
     },
   },
   createUser: {
@@ -183,10 +111,33 @@ const mutations = {
         });
       }
 
+      // An explicitly provided `null` overrides the GraphQL default, so normalize it to the documented default.
+      const throwIfExists = args.throwIfExists ?? true;
+
+      // Cypress E2E helpers lazily create fixture users through this mutation with
+      // `throwIfExists: false`. Keep that convenience in E2E/development stacks only:
+      // in staging/production it would let an anonymous caller act on an existing account.
+      // Unit tests do not set `E2E_TEST`, so they still exercise the production behavior.
+      const allowLegacyUserAdoption =
+        !['staging', 'production'].includes(config.env) &&
+        (parseToBoolean(process.env.E2E_TEST) || config.env === 'development');
+
+      // `throwIfExists: false` (get-or-create) is only allowed for the authenticated owner of the email.
+      // Otherwise, an anonymous caller could act on behalf of an existing account.
+      if (throwIfExists === false && !allowLegacyUserAdoption && args.user.email) {
+        const existingUser = await models.User.findOne({ where: { email: args.user.email.toLowerCase().trim() } });
+        if (existingUser && existingUser.id !== remoteUser?.id) {
+          throw new ValidationFailed(
+            'It looks like that email already exists, please sign in instead',
+            'EMAIL_ALREADY_EXISTS',
+          );
+        }
+      }
+
       return createUser(args.user, {
         organizationData: args.organization,
         sendSignInLink: args.sendSignInLink,
-        throwIfExists: args.throwIfExists,
+        throwIfExists,
         redirect: args.redirect,
         websiteUrl: args.websiteUrl,
         creationRequest: {
@@ -194,21 +145,6 @@ const mutations = {
           userAgent: req.header('user-agent'),
         },
       });
-    },
-  },
-  updateUserEmail: {
-    type: UserType,
-    description: 'Update the email address for logged in user',
-    args: {
-      email: {
-        type: new GraphQLNonNull(GraphQLString),
-        description: 'The new email address for user',
-      },
-    },
-    resolve: async (_, { email }, req) => {
-      checkRemoteUserCanUseAccount(req);
-      await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
-      return updateUserEmail(req.remoteUser, email);
     },
   },
   editCoreContributors: {
@@ -227,6 +163,7 @@ const mutations = {
       } else if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized();
       } else {
+        await checkCanEditTeam(collective, req);
         await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
         await collective.editMembers(args.members, {
@@ -236,17 +173,6 @@ const mutations = {
         return collective;
       }
     },
-  },
-  editPublicMessage: {
-    type: new GraphQLList(MemberType),
-    description: 'A mutation to edit the public message of all matching members.',
-    deprecationReason: '2021-01-27: Please use editPublicMessage from GraphQLV2',
-    args: {
-      FromCollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      message: { type: GraphQLString },
-    },
-    resolve: editPublicMessage,
   },
   replaceCreditCard: {
     type: PaymentMethodType,
@@ -261,150 +187,6 @@ const mutations = {
     resolve: async (_, args, req) => {
       checkRemoteUserCanUseOrders(req);
       return paymentMethodsMutation.replaceCreditCard(args, req);
-    },
-  },
-  createGiftCards: {
-    type: new GraphQLList(PaymentMethodType),
-    args: {
-      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      PaymentMethodId: { type: GraphQLInt },
-      emails: {
-        type: new GraphQLList(GraphQLString),
-        description: 'A list of emails to generate gift cards for (only if numberOfGiftCards is not provided)',
-      },
-      numberOfGiftCards: {
-        type: GraphQLInt,
-        description: 'Number of gift cards to generate (only if emails is not provided)',
-      },
-      currency: {
-        type: GraphQLString,
-        description: 'An optional currency. If not provided, will use the collective currency.',
-      },
-      amount: {
-        type: GraphQLInt,
-        description: 'The amount as an Integer with cents.',
-      },
-      batch: {
-        type: GraphQLString,
-        description: 'Batch name for the created gift cards.',
-      },
-      monthlyLimitPerMember: { type: GraphQLInt },
-      limitedToTags: {
-        type: new GraphQLList(GraphQLString),
-        description: 'Limit this payment method to make donations to collectives having those tags',
-      },
-      limitedToHostCollectiveIds: {
-        type: new GraphQLList(GraphQLInt),
-        description: 'Limit this payment method to make donations to the collectives hosted by those hosts',
-      },
-      limitedToOpenSourceCollectives: {
-        type: GraphQLBoolean,
-        description: 'Set `limitedToHostCollectiveIds` to open-source collectives only',
-      },
-      description: {
-        type: GraphQLString,
-        description: 'A custom message attached to the email that will be sent for this gift card',
-      },
-      customMessage: {
-        type: GraphQLString,
-        description: 'A custom message that will be sent in the invitation email',
-      },
-      expiryDate: { type: GraphQLString },
-    },
-    resolve: async (_, { emails, numberOfGiftCards, ...args }, req) => {
-      checkRemoteUserCanUseHost(req);
-      if (numberOfGiftCards && emails && numberOfGiftCards !== emails.length) {
-        throw Error("numberOfGiftCards and emails counts doesn't match");
-      } else if (args.limitedToOpenSourceCollectives && args.limitedToHostCollectiveIds) {
-        throw Error('limitedToOpenSourceCollectives and limitedToHostCollectiveIds cannot be used at the same time');
-      }
-
-      if (args.limitedToOpenSourceCollectives) {
-        const openSourceHost = await models.Collective.findOne({
-          attributes: ['id'],
-          where: { slug: 'opensource' },
-        });
-        if (!openSourceHost) {
-          throw new Error(
-            'Cannot find the host "Open Source Collective". You can disable the opensource-only limitation, or contact us at support@opencollective.com if this keeps happening',
-          );
-        }
-        args.limitedToHostCollectiveIds = [openSourceHost.id];
-      }
-
-      const collective = await req.loaders.Collective.byId.load(args.CollectiveId);
-      if (!collective) {
-        throw new Error('Collective does not exist');
-      } else if (!req.remoteUser.isAdminOfCollective(collective)) {
-        throw new Error('User must be admin of collective');
-      } else if ((await checkCanEmitGiftCards(collective)) === FEATURE_STATUS.UNSUPPORTED) {
-        throw new Error('Cannot create gift cards from this account');
-      }
-
-      await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
-
-      if (numberOfGiftCards) {
-        return bulkCreateGiftCards(collective, args, req.remoteUser, numberOfGiftCards);
-      } else if (emails) {
-        return createGiftCardsForEmails(collective, args, req.remoteUser, emails, args.customMessage);
-      }
-
-      throw new Error('You must either pass numberOfGiftCards of an email list');
-    },
-  },
-  claimPaymentMethod: {
-    type: new GraphQLNonNull(PaymentMethodType),
-    args: {
-      code: { type: new GraphQLNonNull(GraphQLString) },
-      user: { type: UserInputType },
-    },
-    // eslint-disable-next-line graphql-mutations/require-scope-check -- public mutation for claiming gift cards, usable without authentication
-    resolve: async (_, args, req) => paymentMethodsMutation.claimPaymentMethod(args, req),
-  },
-  editWebhooks: {
-    type: new GraphQLList(NotificationType),
-    description: 'Edits (by replacing) the admin-level webhooks for a collective.',
-    args: {
-      collectiveId: {
-        type: new GraphQLNonNull(GraphQLInt),
-        description: 'ID of the collective whose webhooks are edited.',
-      },
-      notifications: {
-        type: new GraphQLList(NotificationInputType),
-        description: 'New notifications for the collective.',
-      },
-    },
-    resolve(_, args, req) {
-      checkRemoteUserCanUseWebhooks(req);
-      return editWebhooks(args, req);
-    },
-  },
-  activateCollectiveAsHost: {
-    type: CollectiveInterfaceType,
-    description: 'Activate a collective as Host.',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-        description: 'ID of the collective (Organization or User)',
-      },
-    },
-    resolve(_, args, req) {
-      checkRemoteUserCanUseHost(req);
-      return activateCollectiveAsHost(_, args, req);
-    },
-  },
-  deactivateCollectiveAsHost: {
-    type: CollectiveInterfaceType,
-    description: 'Deactivate a collective as Host.',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-        description: 'ID of the collective (Organization or User)',
-      },
-    },
-    resolve(_, args, req) {
-      checkRemoteUserCanUseHost(req);
-      return deactivateCollectiveAsHost(_, args, req);
     },
   },
 };

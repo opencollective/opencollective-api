@@ -237,21 +237,6 @@ describe('server/lib/permalink/handler', () => {
     });
   });
 
-  describe('Expense edit query param', () => {
-    it('preserves edit for anonymous visitors', async () => {
-      const expense = await fakeExpense();
-      const url = await invokePermalink(expense.publicId, null, { edit: '1' });
-      expect(url).to.equal(`/${expense.collective.slug}/expenses/${expense.id}?edit=1`);
-    });
-
-    it('preserves edit in signin next for private collectives', async () => {
-      const ctx = await createPrivateAccountFixture();
-      const expense = await fakeExpense({ CollectiveId: ctx.privateCollective.id });
-      const url = await invokePermalink(expense.publicId, null, { edit: '1' });
-      expect(url).to.equal(`/signin?next=${encodeURIComponent(`/permalink/${expense.publicId}?edit=1`)}`);
-    });
-  });
-
   runCases('Order', [
     {
       title: 'routes collective admins to the outgoing contributions drawer',

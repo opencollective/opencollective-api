@@ -111,8 +111,12 @@ describe('server/models/Activity', () => {
 
     it('is a no-op when dispatch tracking is disabled', async () => {
       let dispatchCompleted = false;
+      let releaseDispatches: () => void = () => undefined;
+      const dispatchGate = new Promise<void>(resolve => {
+        releaseDispatches = () => resolve();
+      });
       sandbox.stub(notify, 'collective').callsFake(async () => {
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await dispatchGate;
         dispatchCompleted = true;
         return [];
       });
@@ -134,6 +138,7 @@ describe('server/models/Activity', () => {
 
       await Activity.waitAllDispatch();
       expect(dispatchCompleted).to.be.false;
+      releaseDispatches();
     });
 
     it('resolves immediately when nothing is pending', async () => {
@@ -144,7 +149,12 @@ describe('server/models/Activity', () => {
     it('waits for immediate dispatches to complete', async () => {
       enableActivityDispatchTracking();
       let dispatchCompleted = false;
+      let releaseDispatches: () => void = () => undefined;
+      const dispatchGate = new Promise<void>(resolve => {
+        releaseDispatches = () => resolve();
+      });
       sandbox.stub(notify, 'collective').callsFake(async () => {
+        await dispatchGate;
         await new Promise(resolve => setTimeout(resolve, 50));
         dispatchCompleted = true;
         return [];
@@ -166,6 +176,7 @@ describe('server/models/Activity', () => {
       });
 
       expect(dispatchCompleted).to.be.false;
+      releaseDispatches();
       await Activity.waitAllDispatch();
       expect(dispatchCompleted).to.be.true;
     });
@@ -209,7 +220,12 @@ describe('server/models/Activity', () => {
     it('waits for all concurrent dispatches to complete', async () => {
       enableActivityDispatchTracking();
       let completedCount = 0;
+      let releaseDispatches: () => void = () => undefined;
+      const dispatchGate = new Promise<void>(resolve => {
+        releaseDispatches = () => resolve();
+      });
       sandbox.stub(notify, 'collective').callsFake(async () => {
+        await dispatchGate;
         await new Promise(resolve => setTimeout(resolve, 50));
         completedCount++;
         return [];
@@ -234,6 +250,7 @@ describe('server/models/Activity', () => {
       await Promise.all([createActivity(), createActivity(), createActivity()]);
 
       expect(completedCount).to.eq(0);
+      releaseDispatches();
       await Activity.waitAllDispatch();
       expect(completedCount).to.eq(3);
     });

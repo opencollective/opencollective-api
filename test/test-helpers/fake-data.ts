@@ -19,13 +19,12 @@ import { SupportedCurrency } from '../../server/constants/currencies';
 import { SUPPORTED_FILE_KINDS } from '../../server/constants/file-kind';
 import OAuthScopes from '../../server/constants/oauth-scopes';
 import OrderStatuses from '../../server/constants/order-status';
-import PaymentIntentStatus from '../../server/constants/payment-intent-status';
-import PaymentIntentType from '../../server/constants/payment-intent-type';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import MemberRoles from '../../server/constants/roles';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { VirtualCardLimitIntervals } from '../../server/constants/virtual-cards';
+import { createAccountAdminMembers } from '../../server/lib/account-admins';
 import { crypto } from '../../server/lib/encryption';
 import { KYCProviderName } from '../../server/lib/kyc/providers';
 import { createTransactionsForManuallyPaidExpense } from '../../server/lib/transactions';
@@ -66,7 +65,6 @@ import ManualPaymentProvider, { ManualPaymentProviderTypes } from '../../server/
 import Member from '../../server/models/Member';
 import MemberInvitation from '../../server/models/MemberInvitation';
 import Order from '../../server/models/Order';
-import PaymentIntent from '../../server/models/PaymentIntent';
 import PaymentMethod from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { Billing } from '../../server/models/PlatformSubscription';
@@ -255,9 +253,9 @@ export const fakeActiveHost = async (hostData: Parameters<typeof fakeCollective>
     slug: randStr('host-'),
     HostCollectiveId: null,
     hasMoneyManagement: true,
+    hasHosting: true,
     isActive: true,
     approvedAt: new Date(),
-    hasHosting: true,
     ...hostData,
   });
 
@@ -352,20 +350,7 @@ export const fakeCollective = async (
   if (collectiveData.admin) {
     try {
       const admins = Array.isArray(collectiveData.admin) ? collectiveData.admin : [collectiveData.admin];
-      await Promise.all(
-        admins.map(admin => {
-          const isUser = admin instanceof models.User;
-          return models.Member.create(
-            {
-              CollectiveId: collective.id,
-              MemberCollectiveId: isUser ? admin.CollectiveId : admin.id,
-              role: roles.ADMIN,
-              CreatedByUserId: isUser ? admin.id : admin.CreatedByUserId,
-            },
-            sequelizeParams,
-          );
-        }),
-      );
+      await createAccountAdminMembers(collective, admins, sequelizeParams);
 
       // Re-populate roles for affected users
       await Promise.all(
@@ -529,7 +514,6 @@ export const fakePayoutMethod = async ({
     } else if (type === PayoutMethodTypes.STRIPE) {
       return {
         stripeAccountId: 'stripeAccountId',
-        connectedAccountId: 'connectedAccountId',
         ...data,
       };
     } else if (type === PayoutMethodTypes.CREDIT_CARD) {
@@ -543,6 +527,10 @@ export const fakePayoutMethod = async ({
   };
 
   type = type || PayoutMethodTypes.PAYPAL;
+  CollectiveId = CollectiveId || (await fakeCollective()).id;
+  if (type === PayoutMethodTypes.STRIPE && !props.ConnectedAccountId) {
+    props.ConnectedAccountId = (await fakeConnectedAccount({ service: 'stripe', CollectiveId }, { hooks: false })).id;
+  }
   return models.PayoutMethod.create({
     name: randStr('Fake Payout Method '),
     data: generateData(type),
@@ -645,6 +633,8 @@ export const fakeComment = async (
   let ExpenseId = get(commentData, 'ExpenseId') || get(commentData, 'expense.id');
   const ConversationId = get(commentData, 'ConversationId') || get(commentData, 'conversation.id');
   const HostApplicationId = get(commentData, 'HostApplicationId') || get(commentData, 'hostApplication.id');
+  const OrderId = get(commentData, 'OrderId') || get(commentData, 'order.id');
+  const UpdateId = get(commentData, 'UpdateId') || get(commentData, 'commentUpdate.id');
   if (!FromCollectiveId) {
     FromCollectiveId = (await fakeCollective({}, sequelizeParams)).id;
   }
@@ -654,7 +644,7 @@ export const fakeComment = async (
   if (!CreatedByUserId) {
     CreatedByUserId = (await fakeUser()).id;
   }
-  if (!ExpenseId && !ConversationId && !HostApplicationId) {
+  if (!ExpenseId && !ConversationId && !HostApplicationId && !OrderId && !UpdateId) {
     ExpenseId = (await fakeExpense()).id;
   }
 
@@ -666,7 +656,9 @@ export const fakeComment = async (
       CollectiveId: <number>CollectiveId,
       CreatedByUserId: <number>CreatedByUserId,
       ExpenseId: <number>ExpenseId,
+      OrderId: <number>OrderId,
       ConversationId: <number>ConversationId,
+      UpdateId: <number>UpdateId,
     },
     sequelizeParams,
   );
@@ -801,11 +793,9 @@ export const fakeOrder = async (
 
   if (withSubscription) {
     const subscriptionData = {
-      amount: order.totalAmount,
       interval: order.interval || 'month',
       currency: order.currency,
       isActive: true,
-      quantity: order.quantity,
       ...orderData.subscription,
     };
 
@@ -874,11 +864,9 @@ export const fakeSocialLink = async (data: Partial<InferCreationAttributes<Socia
 
 export const fakeSubscription = (params = {}) => {
   return models.Subscription.create({
-    amount: randAmount(),
     currency: sample<SupportedCurrency>(['USD', 'EUR']),
     interval: <'month' | 'year'>sample(['month', 'year']),
     isActive: true,
-    quantity: 1,
     ...params,
   });
 };
@@ -1099,7 +1087,7 @@ export const fakeLegalDocument = async (data: Partial<InferCreationAttributes<Le
     year: new Date().getFullYear(),
     requestStatus: 'REQUESTED',
     ...data,
-    service: sample([LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS, LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE]),
+    service: data.service || sample([LEGAL_DOCUMENT_SERVICE.DROPBOX_FORMS, LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE]),
     CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
   });
 };
@@ -1122,14 +1110,23 @@ export const fakeLocation = async (data: Partial<InferCreationAttributes<Locatio
   });
 };
 
-export const fakeCurrencyExchangeRate = async (data: Record<string, unknown> = {}) => {
-  const currencies = ['USD', 'NSG', 'EUR', 'CZK', 'JPY', 'MYR', 'AUD'];
-  return models.CurrencyExchangeRate.create({
-    from: sample(currencies),
-    to: sample(currencies),
-    rate: randNumber(0, 100) / 100.0,
-    ...data,
-  });
+/**
+ * Stores a rate from or to USD in `UsdExchangeRates` (X -> USD is stored as USD -> X = 1 / rate).
+ * Other pairs are computed from them and can't be stored.
+ */
+export const fakeCurrencyExchangeRate = async (
+  data: { from?: string; to?: string; rate?: number; createdAt?: Date | string | moment.Moment } = {},
+) => {
+  const from = data.from || 'USD';
+  const to = data.to || sample(['EUR', 'CZK', 'JPY', 'MYR', 'AUD'].filter(currency => currency !== from));
+  const rate = data.rate ?? randNumber(1, 100) / 100.0;
+  const createdAt = data.createdAt ? moment(data.createdAt).toDate() : new Date();
+  if (from !== 'USD' && to !== 'USD') {
+    throw new Error(`Only rates from or to USD are stored, got ${from} -> ${to}`);
+  }
+
+  await models.UsdExchangeRate.record(from === 'USD' ? { [to]: rate } : { [from]: 1 / rate }, createdAt);
+  return { from, to, rate, createdAt };
 };
 
 export const fakeVirtualCard = async (virtualCardData: Partial<InferCreationAttributes<VirtualCard>> = {}) => {
@@ -1349,6 +1346,11 @@ export const fakePlatformBill = (data: Partial<Billing> = {}): Billing => {
           activeCollectives: 0,
         },
       },
+      crowdfunding: {
+        totalAmount: 0,
+        feePercent: 0,
+        fee: 0,
+      },
       baseAmount: totalAmount,
       totalAmount: totalAmount,
       utilization: {
@@ -1505,23 +1507,5 @@ export const fakeExportRequest = async (exportRequestData: Partial<InferCreation
     CollectiveId: collective.id,
     CreatedByUserId: createdByUser.id,
     ...exportRequestData,
-  });
-};
-
-/**
- * Creates a fake payment intent. All params are optional.
- */
-export const fakePaymentIntent = async (
-  data: Partial<InferCreationAttributes<PaymentIntent>> = {},
-): Promise<PaymentIntent> => {
-  const PayerCollectiveId = data.PayerCollectiveId !== undefined ? data.PayerCollectiveId : (await fakeCollective()).id;
-  const PayeeCollectiveId = data.PayeeCollectiveId !== undefined ? data.PayeeCollectiveId : (await fakeCollective()).id;
-
-  return PaymentIntent.create({
-    status: PaymentIntentStatus.PENDING,
-    type: PaymentIntentType.Contribution,
-    ...data,
-    PayerCollectiveId,
-    PayeeCollectiveId,
   });
 };

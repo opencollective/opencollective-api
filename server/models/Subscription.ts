@@ -1,8 +1,8 @@
 import { InferAttributes, InferCreationAttributes, Model, Transaction } from 'sequelize';
-import Temporal from 'sequelize-temporal';
 
 import { SupportedCurrency } from '../constants/currencies';
 import sequelize, { DataTypes } from '../lib/sequelize';
+import Temporal from '../lib/sequelize-temporal';
 import { cancelPaypalSubscription } from '../paymentProviders/paypal/subscription';
 
 import Collective from './Collective';
@@ -12,14 +12,12 @@ class Subscription extends Model<InferAttributes<Subscription>, InferCreationAtt
   public static readonly tableName = 'Subscriptions' as const;
 
   declare id: number;
-  declare amount: number;
   declare currency: SupportedCurrency;
   declare interval: 'month' | 'year' | null;
   declare isActive: boolean;
   declare nextChargeDate: Date;
   declare nextPeriodStart: Date;
   declare chargeRetryCount: number;
-  declare quantity: number;
   declare chargeNumber: number;
   declare data: Record<string, unknown>;
   declare stripeSubscriptionId: string;
@@ -45,11 +43,6 @@ Subscription.init(
       autoIncrement: true,
     },
 
-    amount: {
-      type: DataTypes.INTEGER,
-      validate: { min: 0 },
-    },
-
     currency: CustomDataTypes(DataTypes).currency,
 
     interval: {
@@ -72,8 +65,6 @@ Subscription.init(
     nextPeriodStart: DataTypes.DATE,
 
     chargeRetryCount: DataTypes.INTEGER,
-
-    quantity: DataTypes.INTEGER,
 
     chargeNumber: DataTypes.INTEGER,
 
@@ -106,6 +97,8 @@ Subscription.init(
 Subscription.prototype.activate = function () {
   this.isActive = true;
   this.activatedAt = new Date();
+  // `ordersWithPendingCharges` skips subscriptions with a `deactivatedAt`, so a stale one would never be charged again
+  this.deactivatedAt = null;
 
   return this.save();
 };
