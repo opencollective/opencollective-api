@@ -536,6 +536,7 @@ export const run = async () => {
     return;
   } else if (!fromDate || !toDate || fromDate.isAfter(toDate)) {
     logger.error(`Invalid date range: ${fromDate} - ${toDate}`);
+    return;
   }
 
   logger.info(`Starting reconciliation job for PayPal transactions between ${fromDate} and ${toDate}`);
