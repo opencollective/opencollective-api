@@ -1,5 +1,7 @@
+import { randomUUID } from 'crypto';
+
 import config from 'config';
-import type { Transaction } from 'sequelize';
+import type { Transaction as DatabaseTransaction } from 'sequelize';
 import sharp from 'sharp';
 import type { z } from 'zod';
 
@@ -10,6 +12,8 @@ import expenseType from '../constants/expense-type';
 import type { FileKind } from '../constants/file-kind';
 import POLICIES, { type UseVendorPolicyValue } from '../constants/policies';
 import roles from '../constants/roles';
+import { TransactionKind } from '../constants/transaction-kind';
+import { TransactionTypes } from '../constants/transactions';
 import { createAccountAdminMembers } from '../lib/account-admins';
 import { TOKEN_EXPIRATION_SESSION } from '../lib/auth';
 import { checkS3Configured, uploadToS3 } from '../lib/awsS3';
@@ -20,6 +24,7 @@ import {
   ExpenseItem,
   Member,
   PayoutMethod,
+  Transaction,
   UploadedFile,
   User,
 } from '../models';
@@ -33,7 +38,7 @@ import type { SUPPORTED_FILE_TYPES } from '../models/UploadedFile';
  * send no mail and record no activity a journey could mistake for its own.
  */
 type FixtureContext = {
-  transaction: Transaction;
+  transaction: DatabaseTransaction;
   /** sha256 of the owner run, attempt identity and request ID. */
   key: string;
   attempt: Record<string, unknown>;
@@ -137,7 +142,14 @@ export async function createHost(
     currency = 'USD',
     label = 'host',
     useVendorPolicy,
-  }: { currency?: SupportedCurrency; label?: string; useVendorPolicy?: UseVendorPolicyValue } = {},
+    openToApplications = false,
+  }: {
+    currency?: SupportedCurrency;
+    label?: string;
+    useVendorPolicy?: UseVendorPolicyValue;
+    /** Listed among the hosts Collectives can apply to, with the apply button on its profile (`settings.apply`). */
+    openToApplications?: boolean;
+  } = {},
 ): Promise<Collective> {
   ctx.checkConnection();
   const { transaction } = ctx;
@@ -149,6 +161,7 @@ export async function createHost(
       description: 'An independent Playwright fiscal host',
       currency,
       CreatedByUserId: admin.id,
+      settings: openToApplications ? { apply: true } : {},
       data: arrangedBy(ctx),
     },
     { transaction },
@@ -260,6 +273,81 @@ export async function createHostedCollective(
   }
   await createAccountAdminMembers(account, admins, { transaction });
   return account;
+}
+
+/** A Collective nobody hosts yet, administered by `admin`: it can apply to a host. */
+export async function createUnhostedCollective(ctx: FixtureContext, label: string, admin: User): Promise<Collective> {
+  ctx.checkConnection();
+  const { transaction } = ctx;
+  const slug = ctx.slug(label);
+  const account = await Collective.create(
+    {
+      type: CollectiveType.COLLECTIVE,
+      name: `${slug} Collective`,
+      slug,
+      description: 'An independent Playwright Collective without a host',
+      currency: 'USD',
+      HostCollectiveId: null,
+      isActive: false,
+      CreatedByUserId: admin.id,
+      data: arrangedBy(ctx),
+    },
+    { transaction },
+  );
+  await createAccountAdminMembers(account, [admin], { transaction });
+  return account;
+}
+
+/**
+ * Money a host already added to one of its Collectives from its own account: the two ledger entries
+ * `addFunds` records (the host's debit makes it an account with financial activity), without the order,
+ * activity or email around them.
+ */
+export async function createAddedFunds(
+  ctx: FixtureContext,
+  { host, collective, creator, amount }: { host: Collective; collective: Collective; creator: User; amount: number },
+): Promise<void> {
+  ctx.checkConnection();
+  const clearedAt = new Date();
+  const ledger = {
+    kind: TransactionKind.ADDED_FUNDS,
+    description: `Funds added by ${host.name}`,
+    currency: collective.currency,
+    hostCurrency: host.currency,
+    hostCurrencyFxRate: 1,
+    hostFeeInHostCurrency: 0,
+    platformFeeInHostCurrency: 0,
+    paymentProcessorFeeInHostCurrency: 0,
+    HostCollectiveId: host.id,
+    CreatedByUserId: creator.id,
+    TransactionGroup: randomUUID(),
+    clearedAt,
+  };
+  // Hooks are skipped: no activity or email.
+  await Transaction.create(
+    {
+      ...ledger,
+      type: TransactionTypes.CREDIT,
+      amount,
+      amountInHostCurrency: amount,
+      netAmountInCollectiveCurrency: amount,
+      CollectiveId: collective.id,
+      FromCollectiveId: host.id,
+    },
+    { transaction: ctx.transaction, hooks: false },
+  );
+  await Transaction.create(
+    {
+      ...ledger,
+      type: TransactionTypes.DEBIT,
+      amount: -amount,
+      amountInHostCurrency: -amount,
+      netAmountInCollectiveCurrency: -amount,
+      CollectiveId: host.id,
+      FromCollectiveId: collective.id,
+    },
+    { transaction: ctx.transaction, hooks: false },
+  );
 }
 
 /**
