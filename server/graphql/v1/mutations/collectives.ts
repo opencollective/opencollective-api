@@ -413,14 +413,20 @@ export async function archiveCollective(_, args, req) {
     }
   }
 
-  // `changeHost` below refuses to remove the host while the account or one of its children has processing expenses.
-  // Check it before changing anything, so that a refused archive does not leave contributions cancelled (and queued
-  // for cancellation on the payment provider) or children archived.
+  // `changeHost` below refuses to remove the host while the account or one of its children has a positive balance or
+  // processing expenses. Check it before changing anything, so that a refused archive does not leave contributions
+  // cancelled (and queued for cancellation on the payment provider) or children archived.
   if (collective.HostCollectiveId) {
     const hostedChildren = await collective.getChildren({
-      attributes: ['id'],
       where: { HostCollectiveId: { [Op.ne]: null } },
     });
+    // The combined balance checked above can be 0 while one account has a positive balance offset by a negative one
+    // elsewhere in the family, so check each account on its own like `changeHost` does.
+    for (const account of [collective, ...hostedChildren]) {
+      if ((await account.getBalance()) > 0) {
+        throw new Error('Cannot archive collective with balance > 0');
+      }
+    }
     const processingExpensesCount = await models.Expense.count({
       where: { CollectiveId: [collective.id, ...hostedChildren.map(c => c.id)], status: ExpenseStatuses.PROCESSING },
     });
