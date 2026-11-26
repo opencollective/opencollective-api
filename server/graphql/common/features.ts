@@ -1,7 +1,6 @@
 import config from 'config';
 import type Express from 'express';
 import { get } from 'lodash';
-import { QueryOptions, QueryTypes } from 'sequelize';
 
 import { CollectiveType } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
@@ -9,39 +8,40 @@ import FEATURE_STATUS from '../../constants/feature-status';
 import { getFeatureAccess, isFeatureBlockedForAccount } from '../../lib/allowed-features';
 import { isPastEvent } from '../../lib/collectivelib';
 import { getSupportedExpenseTypes } from '../../lib/expenses';
-import { Collective, sequelize } from '../../models';
+import { Collective } from '../../models';
+import { type FeatureProbe, queryFeatureProbes } from '../loaders/feature-probes';
 
 import { hasMultiCurrency } from './expenses';
 
 /**
- * Wraps the given query in a `EXISTS` call and returns the result as a boolean.
- * Would be great to replace with https://github.com/sequelize/sequelize/issues/10187 if it gets implemented
+ * Whether the account has the data that the probe looks for.
+ *
+ * With `req`, the probe joins the other probes of the request in one statement, and its result is cached for the
+ * request. Without it, the probe runs alone and is never cached: mutations must use this form, as they would
+ * otherwise return what was true before their own write.
  */
-const checkExistsInDB = async (query: string | string[], queryOptions: QueryOptions = null): Promise<boolean> => {
-  const queriesArray = Array.isArray(query) ? query : [query];
-  const queries = queriesArray.map(q => `EXISTS (${q})`).join(' OR ');
-  return sequelize
-    .query(`SELECT ${queries} AS result`, { type: QueryTypes.SELECT, plain: true, ...queryOptions })
-    .then(returnedValue => (returnedValue as unknown as { result?: boolean }).result);
+const hasData = async (collective, probe: FeatureProbe, req = null): Promise<boolean> => {
+  const key = { accountId: collective.id, probe };
+  const loader = req?.loaders?.Collective?.featureProbes;
+  return loader ? loader.load(key) : queryFeatureProbes([key]).then(([result]) => result);
 };
 
 const checkIsActive = async (
-  promise: Promise<number | boolean>,
+  promise: Promise<boolean>,
   fallback = FEATURE_STATUS.AVAILABLE,
 ): Promise<FEATURE_STATUS> => {
   return promise.then(result => (result ? FEATURE_STATUS.ACTIVE : fallback));
 };
 
-/** A simple wrapper around checkExistsInDB + checkIsActive */
-const checkIsActiveIfExistsInDB = async (
-  query: string | string[],
-  queryOptions: QueryOptions = null,
-  fallback = FEATURE_STATUS.AVAILABLE,
-): Promise<FEATURE_STATUS> => {
-  return checkIsActive(checkExistsInDB(query, queryOptions), fallback);
-};
-
-export const checkReceiveFinancialContributions = async (collective, req, { ignoreActive = false } = {}) => {
+/**
+ * @param batchProbes - Answer the data probes through the request loaders. Only for resolvers: see `hasData`.
+ */
+export const checkReceiveFinancialContributions = async (
+  collective,
+  req,
+  { ignoreActive = false, batchProbes = false } = {},
+) => {
+  const probesReq = batchProbes ? req : null;
   if (!collective.HostCollectiveId || !collective.approvedAt) {
     return FEATURE_STATUS.DISABLED;
   } else if (!collective.isActive) {
@@ -72,10 +72,7 @@ export const checkReceiveFinancialContributions = async (collective, req, { igno
 
   // If `/donate` is disabled, the collective needs to have at least one active tier
   if (collective.settings?.disableCustomContributions) {
-    const hasSomeActiveTiers = await checkExistsInDB(
-      'SELECT * FROM "Tiers" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL',
-      { replacements: { CollectiveId: collective.id } },
-    );
+    const hasSomeActiveTiers = await hasData(collective, 'HAS_TIERS', probesReq);
     if (!hasSomeActiveTiers) {
       return FEATURE_STATUS.DISABLED;
     }
@@ -85,58 +82,30 @@ export const checkReceiveFinancialContributions = async (collective, req, { igno
     return FEATURE_STATUS.AVAILABLE;
   }
 
-  return checkIsActiveIfExistsInDB(
-    `SELECT 1 FROM "Orders"
-      WHERE "CollectiveId" = :CollectiveId
-      AND "status" IN ('ACTIVE', 'PAID')
-      AND "deletedAt" IS NULL
-    `,
-    {
-      replacements: { CollectiveId: collective.id },
-    },
-  );
+  return checkIsActive(hasData(collective, 'HAS_RECEIVED_CONTRIBUTIONS', probesReq));
 };
 
-const checkVirtualCardFeatureStatus = async account => {
+const checkVirtualCardFeatureStatus = async (account, req) => {
   if (account.hasMoneyManagement) {
     if (get(account.settings, 'features.virtualCards')) {
-      return checkIsActiveIfExistsInDB(
-        'SELECT 1 FROM "VirtualCards" WHERE "HostCollectiveId" = :CollectiveId AND "deletedAt" IS NULL',
-        { replacements: { CollectiveId: account.id } },
-      );
+      return checkIsActive(hasData(account, 'HAS_HOSTED_VIRTUAL_CARDS', req));
     }
   } else if (account.HostCollectiveId) {
-    const host = account.host || (await account.getHostCollective());
+    const host = account.host || (await account.getHostCollective({ loaders: req?.loaders }));
     if (host && get(host.settings, 'features.virtualCards')) {
-      return checkIsActiveIfExistsInDB(
-        'SELECT 1 FROM "VirtualCards" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL',
-        { replacements: { CollectiveId: account.id } },
-      );
+      return checkIsActive(hasData(account, 'HAS_VIRTUAL_CARDS', req));
     }
   }
 
   return FEATURE_STATUS.DISABLED;
 };
 
-export const checkCanUsePaymentMethods = async collective => {
+/**
+ * @param req - Pass it from resolvers only, to answer the data probe through the request loaders: see `hasData`.
+ */
+export const checkCanUsePaymentMethods = async (collective, req = null) => {
   // Ignore type if the account already has some payment methods setup. Useful for Organizations that were turned into Funds.
-  const hasPaymentMethods = await checkExistsInDB(
-    `
-    SELECT 1 FROM "PaymentMethods"
-    WHERE "CollectiveId" = :CollectiveId
-    AND "deletedAt" IS NULL
-    AND (
-      (service = 'opencollective' AND type = 'prepaid')
-      OR (service = 'opencollective' AND type = 'giftcard')
-      OR (service = 'stripe' AND type = 'creditcard')
-    )
-  `,
-    {
-      replacements: { CollectiveId: collective.id },
-    },
-  );
-
-  if (hasPaymentMethods) {
+  if (await hasData(collective, 'HAS_USABLE_PAYMENT_METHODS', req)) {
     return FEATURE_STATUS.ACTIVE;
   } else if ([CollectiveType.USER, CollectiveType.ORGANIZATION].includes(collective.type)) {
     return FEATURE_STATUS.AVAILABLE;
@@ -177,10 +146,7 @@ const checkCanReceiveGrants = async (collective, req: Express.Request) => {
   if (!supportedTypes.includes('GRANT')) {
     return FEATURE_STATUS.DISABLED;
   } else {
-    return checkIsActiveIfExistsInDB(
-      `SELECT 1 FROM "Expenses" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "type" = 'GRANT'`,
-      { replacements: { CollectiveId: collective.id } },
-    );
+    return checkIsActive(hasData(collective, 'HAS_RECEIVED_GRANTS', req));
   }
 };
 
@@ -189,10 +155,7 @@ const checkCanReceiveExpenses = async (collective, req: Express.Request) => {
   if (!supportedTypes.includes('INVOICE') && !supportedTypes.includes('RECEIPT')) {
     return FEATURE_STATUS.DISABLED;
   } else {
-    return checkIsActiveIfExistsInDB(
-      `SELECT 1 FROM "Expenses" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "type" IN ('INVOICE', 'RECEIPT')`,
-      { replacements: { CollectiveId: collective.id } },
-    );
+    return checkIsActive(hasData(collective, 'HAS_RECEIVED_EXPENSES', req));
   }
 };
 
@@ -225,7 +188,7 @@ export const getFeatureStatusResolver =
       case FEATURE.ABOUT:
         return collective.longDescription ? FEATURE_STATUS.ACTIVE : FEATURE_STATUS.AVAILABLE;
       case FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS:
-        return checkReceiveFinancialContributions(collective, req);
+        return checkReceiveFinancialContributions(collective, req, { batchProbes: true });
       case FEATURE.RECEIVE_EXPENSES:
         return checkCanReceiveExpenses(collective, req);
       case FEATURE.RECEIVE_GRANTS:
@@ -233,62 +196,29 @@ export const getFeatureStatusResolver =
       case FEATURE.MULTI_CURRENCY_EXPENSES:
         return checkMultiCurrencyExpense(collective, req);
       case FEATURE.UPDATES:
-        return checkIsActiveIfExistsInDB(
-          `SELECT 1 FROM "Updates" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "publishedAt" IS NOT NULL`,
-          { replacements: { CollectiveId: collective.id } },
-        );
+        return checkIsActive(hasData(collective, 'HAS_PUBLISHED_UPDATES', req));
       case FEATURE.CONVERSATIONS:
-        return checkIsActiveIfExistsInDB(
-          'SELECT 1 FROM "Conversations" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL',
-          { replacements: { CollectiveId: collective.id } },
-        );
+        return checkIsActive(hasData(collective, 'HAS_CONVERSATIONS', req));
       case FEATURE.RECURRING_CONTRIBUTIONS:
-        return checkIsActiveIfExistsInDB(
-          `SELECT 1 FROM "Orders" WHERE "FromCollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "SubscriptionId" IS NOT NULL AND "status" = 'ACTIVE'`,
-          { replacements: { CollectiveId: collective.id } },
-        );
+        return checkIsActive(hasData(collective, 'HAS_ACTIVE_RECURRING_CONTRIBUTIONS', req));
       case FEATURE.TRANSFERWISE:
-        return checkIsActiveIfExistsInDB(
-          `SELECT 1 FROM "ConnectedAccounts" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "service" = 'transferwise'`,
-          { replacements: { CollectiveId: collective.id } },
-        );
+        return checkIsActive(hasData(collective, 'HAS_WISE_ACCOUNT', req));
       case FEATURE.EVENTS:
-        return checkIsActiveIfExistsInDB(
-          `SELECT 1 FROM "Collectives" WHERE "ParentCollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "type" = 'EVENT'`,
-          { replacements: { CollectiveId: collective.id } },
-        );
+        return checkIsActive(hasData(collective, 'HAS_EVENTS', req));
       case FEATURE.PROJECTS:
-        return checkIsActiveIfExistsInDB(
-          `SELECT 1 FROM "Collectives" WHERE "ParentCollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "type" = 'PROJECT'`,
-          { replacements: { CollectiveId: collective.id } },
-        );
+        return checkIsActive(hasData(collective, 'HAS_PROJECTS', req));
       case FEATURE.CONNECTED_ACCOUNTS:
-        return checkIsActiveIfExistsInDB(
-          `SELECT 1 FROM "Members" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND role = 'CONNECTED_COLLECTIVE'`,
-          { replacements: { CollectiveId: collective.id } },
-        );
+        return checkIsActive(hasData(collective, 'HAS_CONNECTED_COLLECTIVES', req));
       case FEATURE.TRANSACTIONS:
-        return checkIsActiveIfExistsInDB(
-          [
-            // Using two EXISTS as Postgres is not using the best indexes otherwise
-            `SELECT 1 FROM "Transactions" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL`,
-            // `SELECT 1 FROM "Transactions" WHERE "FromCollectiveId" = :CollectiveId AND "deletedAt" IS NULL`,
-          ],
-          { replacements: { CollectiveId: collective.id } },
-        );
+        return checkIsActive(hasData(collective, 'HAS_TRANSACTIONS', req));
       case FEATURE.USE_PAYMENT_METHODS:
-        return checkCanUsePaymentMethods(collective);
+        return checkCanUsePaymentMethods(collective, req);
       case FEATURE.VIRTUAL_CARDS:
-        return checkVirtualCardFeatureStatus(collective);
+        return checkVirtualCardFeatureStatus(collective, req);
       case FEATURE.REQUEST_VIRTUAL_CARDS:
         return checkCanRequestVirtualCards(req, collective);
-      case FEATURE.PAYPAL_PAYOUTS: {
-        return checkIsActiveIfExistsInDB(
-          `SELECT 1 FROM "ConnectedAccounts" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "service" = 'paypal'`,
-          { replacements: { CollectiveId: collective.id } },
-          FEATURE_STATUS.DISABLED,
-        );
-      }
+      case FEATURE.PAYPAL_PAYOUTS:
+        return checkIsActive(hasData(collective, 'HAS_PAYPAL_ACCOUNT', req), FEATURE_STATUS.DISABLED);
       case FEATURE.PUBLIC_PROFILE: {
         if (collective.isIncognito) {
           return FEATURE_STATUS.DISABLED;
