@@ -338,11 +338,12 @@ async function handleSaleRefunded(req: Request): Promise<void> {
 
 /**
  * Handles `PAYMENT.SALE.REVERSED` (chargeback / reversal on a subscription sale).
- * resource = Sale object in reversed state; `resource.id` is the original sale ID.
+ * resource = Refund object (resource_type "refund"): `resource.sale_id` is the original sale ID and
+ * `resource.id` is the reversal ID. Falls back to `resource.id` if `sale_id` is missing.
  */
 async function handleSaleReversed(req: Request): Promise<void> {
   const sale = req.body.resource;
-  const saleId = sale?.id;
+  const saleId = sale?.sale_id || sale?.id;
   if (!saleId) {
     logger.debug('PayPal: PAYMENT.SALE.REVERSED - no id in resource, ignoring');
     return;
