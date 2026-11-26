@@ -56,6 +56,8 @@ const GraphQLBanAccountResponse = new GraphQLObjectType({
     },
     accounts: {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLAccount))),
+      // The banned account and the accounts banned with it
+      extensions: { cost: { listSize: 100 } },
       description: 'The accounts impacted by the mutation',
     },
   }),
@@ -337,6 +339,8 @@ export default {
   },
   moveExpenses: {
     type: new GraphQLNonNull(new GraphQLList(GraphQLExpense)),
+    // One per moved expense
+    extensions: { cost: { listSize: 100 } },
     description: '[Root only] A mutation to move expenses from one account to another',
     args: {
       expenses: {

@@ -7,6 +7,9 @@ export const GraphQLTransactionsImportAssignment = new GraphQLObjectType({
   name: 'TransactionsImportAssignment',
   fields: () => ({
     importedAccountId: { type: new GraphQLNonNull(GraphQLNonEmptyString) },
-    accounts: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLAccount))) },
+    accounts: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLAccount))),
+      extensions: { cost: { listSize: 50 } },
+    },
   }),
 });

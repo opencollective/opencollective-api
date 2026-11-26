@@ -307,6 +307,8 @@ const transactionFieldsDefinition = () => ({
   },
   relatedTransactions: {
     type: new GraphQLNonNull(new GraphQLList(GraphQLTransaction)),
+    // The transactions of the same group (fees, tips, refunds...)
+    extensions: { cost: { listSize: 20 } },
     args: {
       kind: {
         type: new GraphQLList(GraphQLTransactionKind),
@@ -785,6 +787,8 @@ export const TransactionFields = () => {
     },
     relatedTransactions: {
       type: new GraphQLNonNull(new GraphQLList(GraphQLTransaction)),
+      // The transactions of the same group (fees, tips, refunds...)
+      extensions: { cost: { listSize: 20 } },
       args: {
         kind: {
           type: new GraphQLList(GraphQLTransactionKind),

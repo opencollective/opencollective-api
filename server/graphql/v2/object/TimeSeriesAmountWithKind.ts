@@ -23,6 +23,8 @@ export const GraphQLTimeSeriesAmountWithKind = new GraphQLObjectType({
     ...getTimeSeriesFields(),
     nodes: {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTimeSeriesAmountWithKindNodes))),
+      // Time series are not paginated: one per time unit (and kind) in the date range
+      extensions: { cost: { listSize: 100 } },
       description: 'Time series data points',
     },
   }),

@@ -3,7 +3,17 @@ import path from 'path';
 
 import { expect } from 'chai';
 import type { DocumentNode, FieldNode, OperationDefinitionNode } from 'graphql';
-import { buildSchema, GraphQLInt, GraphQLObjectType, GraphQLSchema, parse, validate } from 'graphql';
+import {
+  buildSchema,
+  GraphQLID,
+  GraphQLInt,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLSchema,
+  parse,
+  validate,
+} from 'graphql';
 
 import {
   DEFAULT_FIELD_WEIGHT,
@@ -13,7 +23,7 @@ import {
   PAGINATED_FIELD_WEIGHT,
   QueryCostOptions,
 } from '../../../../server/graphql/cost';
-import { getFieldCostExtension } from '../../../../server/graphql/cost/extensions';
+import { getFieldCostExtension, PARENT_LIMIT } from '../../../../server/graphql/cost/extensions';
 import { DEFAULT_MAX_LIMIT, resolveLimitArgument } from '../../../../server/graphql/cost/limit';
 import schemaV1 from '../../../../server/graphql/v1/schema';
 import schemaV2 from '../../../../server/graphql/v2/schema';
@@ -556,6 +566,104 @@ describe('server/graphql/cost', () => {
       });
 
       expect(getQueryCost(weightedSchema, parse('{ cheap expensive paginatedButCheap }')).cost).to.eq(1 + 50 + 2);
+    });
+  });
+
+  describe('extensions.cost.listSize', () => {
+    const Tag = new GraphQLObjectType({ name: 'Tag', fields: { id: { type: GraphQLID } } });
+    const tagList = (listSize?: number | typeof PARENT_LIMIT) => ({
+      type: new GraphQLNonNull(new GraphQLList(Tag)),
+      ...(listSize === undefined ? {} : { extensions: { cost: { listSize } } }),
+    });
+    const Item = new GraphQLObjectType({
+      name: 'Item',
+      fields: { id: { type: GraphQLID }, tags: tagList(5) },
+    });
+    const TagCollection = new GraphQLObjectType({
+      name: 'TagCollection',
+      fields: { totalCount: { type: GraphQLInt }, nodes: tagList() },
+    });
+    const ItemCollection = new GraphQLObjectType({
+      name: 'ItemCollection',
+      fields: {
+        totalCount: { type: GraphQLInt },
+        nodes: { type: new GraphQLList(Item) },
+        // Next to `nodes`, but not one per item of the page
+        tags: tagList(3),
+        // One per item of the page
+        scores: tagList(PARENT_LIMIT),
+        // A single object without arguments, which the limit passes through
+        summary: {
+          type: new GraphQLObjectType({ name: 'ItemSummary', fields: { topTags: tagList(2), allTags: tagList() } }),
+        },
+      },
+    });
+    const listSizeSchema = new GraphQLSchema({
+      query: new GraphQLObjectType({
+        name: 'Query',
+        fields: {
+          items: { type: ItemCollection, args: { limit: { type: GraphQLInt, defaultValue: 10 } } },
+          item: { type: Item },
+          tags: tagList(4),
+          noTags: tagList(0),
+          undeclaredTags: tagList(),
+          tagCollection: { type: TagCollection, extensions: { cost: { listSize: 6 } } },
+          paginatedTags: {
+            type: tagList().type,
+            args: { limit: { type: GraphQLInt, defaultValue: 7 } },
+            extensions: { cost: { listSize: 1000 } },
+          },
+        },
+      }),
+    });
+
+    const cost = (query: string) => getCost(query, {}, listSizeSchema).cost;
+
+    it('reads valid sizes and ignores invalid ones', () => {
+      const field = (cost: unknown) =>
+        ({ extensions: { cost } }) as unknown as Parameters<typeof getFieldCostExtension>[0];
+      expect(getFieldCostExtension(field({ listSize: 20 }))).to.deep.eq({ listSize: 20 });
+      expect(getFieldCostExtension(field({ listSize: 0 }))).to.deep.eq({ listSize: 0 });
+      expect(getFieldCostExtension(field({ listSize: PARENT_LIMIT }))).to.deep.eq({ listSize: PARENT_LIMIT });
+      expect(getFieldCostExtension(field({ weight: 3, listSize: 20 }))).to.deep.eq({ weight: 3, listSize: 20 });
+      for (const invalid of [-1, 1.5, Infinity, NaN, '20', 'limit', null]) {
+        expect(getFieldCostExtension(field({ listSize: invalid }))).to.deep.eq({});
+      }
+    });
+
+    it('multiplies the children of a list by its declared size', () => {
+      expect(cost('{ tags { id } }')).to.eq(1 + 4 * 1);
+      expect(cost('{ noTags { id } }')).to.eq(1);
+      expect(cost('{ undeclaredTags { id } }')).to.eq(1 + 1);
+    });
+
+    it('applies the size of a collection without limit to its nodes', () => {
+      expect(cost('{ tagCollection { totalCount nodes { id } } }')).to.eq(1 + 1 + (1 + 6 * 1));
+    });
+
+    it('multiplies an unpaginated list nested in a paginated one', () => {
+      // items(limit) > nodes > tags (listSize 5)
+      const nested = (limit: number) => cost(`{ items(limit: ${limit}) { nodes { id tags { id } } } }`);
+      expect(nested(10)).to.eq(P + 1 + 10 * (1 + (1 + 5 * 1)));
+      expect(nested(20) - nested(10)).to.eq(10 * (1 + 1 + 5 * 1));
+      expect(cost('{ items { nodes { tags { id } } } }')).to.eq(nested(10) - 10); // Schema default, without `id`
+    });
+
+    it('does not multiply a sized list next to nodes by the limit of the collection', () => {
+      expect(cost('{ items(limit: 100) { tags { id } } }')).to.eq(P + (1 + 3 * 1));
+      expect(cost('{ items(limit: 100) { summary { topTags { id } } } }')).to.eq(P + 1 + (1 + 2 * 1));
+    });
+
+    it('applies the limit of the collection to lists declared with PARENT_LIMIT and to undeclared ones', () => {
+      expect(cost('{ items(limit: 100) { scores { id } } }')).to.eq(P + (1 + 100 * 1));
+      expect(cost('{ items(limit: 100) { summary { allTags { id } } } }')).to.eq(P + 1 + (1 + 100 * 1));
+      // Without an enclosing limit, they count as a single item
+      expect(cost('{ item { tags { id } } }')).to.eq(1 + (1 + 5 * 1));
+    });
+
+    it('uses the limit rather than the size on paginated fields', () => {
+      expect(cost('{ paginatedTags { id } }')).to.eq(P + 7 * 1);
+      expect(cost('{ paginatedTags(limit: 2) { id } }')).to.eq(P + 2 * 1);
     });
   });
 

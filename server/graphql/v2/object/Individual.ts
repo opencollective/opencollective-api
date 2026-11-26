@@ -293,6 +293,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
       },
       twoFactorMethods: {
         type: new GraphQLList(UserTwoFactorMethodObject),
+        extensions: { cost: { listSize: 10 } },
         description: 'User two factor methods',
         async resolve(collective, _, req) {
           if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'account')) {
@@ -308,6 +309,8 @@ export const GraphQLIndividual = new GraphQLObjectType({
       },
       contributorProfiles: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLContributorProfile)),
+        // The accounts administered by the user
+        extensions: { cost: { listSize: 50 } },
         args: {
           forAccount: {
             type: new GraphQLNonNull(GraphQLAccountReferenceInput),

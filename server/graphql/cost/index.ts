@@ -9,6 +9,8 @@
  *   declares `extensions.cost.weight`.
  * - `size` is 1, except for lists under a field that takes a `limit`, where it is the requested limit. For a
  *   collection (`{ totalCount, limit, offset, nodes }`), the limit applies to `nodes` and not to the other fields.
+ *   Fields that return a list without taking a `limit` declare their size in `extensions.cost.listSize`, which
+ *   works the same way.
  *
  * This is a pure function with no dependency on Apollo or the database, so that the server, the tests and CI can
  * all call it. It never throws.
@@ -37,7 +39,7 @@ import {
   Kind,
 } from 'graphql';
 
-import { getFieldCostExtension } from './extensions';
+import { getFieldCostExtension, PARENT_LIMIT } from './extensions';
 import { DEFAULT_MAX_LIMIT, resolveLimitArgument } from './limit';
 
 /** Cost of a field that does not declare a weight */
@@ -261,9 +263,10 @@ const getSelectionCostCacheKey = (
 /**
  * Cost of the selection sets of a field returning `type`.
  *
- * `pendingListSize` is the limit of a paginated field that returns a single object (a collection). It is applied
- * to the first list found below it (`nodes`), passing through fields that return a single object without
- * arguments (as in `search { results { accounts(limit: 10) { collection { nodes } } } }`).
+ * `pendingListSize` is the limit (or the declared `listSize`) of a field that returns a single object (a collection).
+ * It is applied to the first list found below it (`nodes`), passing through fields that return a single object
+ * without arguments (as in `search { results { accounts(limit: 10) { collection { nodes } } } }`), unless that list
+ * declares its own `listSize`.
  */
 const getSelectionCost = (
   context: AnalysisContext,
@@ -368,6 +371,13 @@ const getFieldCost = (
       size = limit;
     } else {
       childrenPendingListSize = limit;
+    }
+  } else if (costExtension.listSize !== undefined && costExtension.listSize !== PARENT_LIMIT) {
+    // A declared size replaces the limit of an enclosing paginated field, which stops here
+    if (isList) {
+      size = costExtension.listSize;
+    } else {
+      childrenPendingListSize = costExtension.listSize;
     }
   } else if (pendingListSize !== undefined) {
     if (isList) {

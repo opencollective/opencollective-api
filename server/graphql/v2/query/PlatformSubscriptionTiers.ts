@@ -5,6 +5,7 @@ import { GraphQLPlatformSubscriptionTier } from '../object/PlatformSubscriptionT
 
 const platformSubscriptionTiers = {
   type: new GraphQLList(GraphQLPlatformSubscriptionTier),
+  extensions: { cost: { listSize: 20 } },
   resolve() {
     return PlatformSubscriptionTiers;
   },

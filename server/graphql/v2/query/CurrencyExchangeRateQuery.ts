@@ -6,6 +6,8 @@ import GraphQLCurrencyExchangeRate, { GraphQLCurrencyExchangeRateFields } from '
 
 const CurrencyExchangeRateQuery = {
   type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLCurrencyExchangeRate))),
+  // One per request
+  extensions: { cost: { listSize: 50 } },
   description: 'Get exchange rates from Open Collective',
   args: {
     requests: {

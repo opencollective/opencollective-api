@@ -32,7 +32,11 @@ const GraphQLTransferWiseFieldGroup = new GraphQLObjectType({
     maxLength: { type: GraphQLInt },
     validationRegexp: { type: GraphQLString },
     validationAsync: { type: GraphQLString },
-    valuesAllowed: { type: new GraphQLList(GraphQLTransferWiseFieldGroupValuesAllowed) },
+    // Countries, currencies...
+    valuesAllowed: {
+      type: new GraphQLList(GraphQLTransferWiseFieldGroupValuesAllowed),
+      extensions: { cost: { listSize: 250 } },
+    },
   }),
 });
 
@@ -40,7 +44,7 @@ const GraphQLTransferWiseField = new GraphQLObjectType({
   name: 'TransferWiseField',
   fields: () => ({
     name: { type: GraphQLString },
-    group: { type: new GraphQLList(GraphQLTransferWiseFieldGroup) },
+    group: { type: new GraphQLList(GraphQLTransferWiseFieldGroup), extensions: { cost: { listSize: 10 } } },
   }),
 });
 
@@ -49,7 +53,7 @@ export const GraphQLTransferWiseRequiredField = new GraphQLObjectType({
   fields: () => ({
     type: { type: GraphQLString },
     title: { type: GraphQLString },
-    fields: { type: new GraphQLList(GraphQLTransferWiseField) },
+    fields: { type: new GraphQLList(GraphQLTransferWiseField), extensions: { cost: { listSize: 20 } } },
   }),
 });
 
@@ -84,6 +88,8 @@ export const GraphQLTransferWise = new GraphQLObjectType({
         },
       },
       type: new GraphQLList(GraphQLTransferWiseRequiredField),
+      // One per transfer type
+      extensions: { cost: { listSize: 10 } },
       async resolve(host, args) {
         if (host) {
           return await transferwise.getRequiredBankInformation(host, args.currency, args.accountDetails);
@@ -114,6 +120,8 @@ export const GraphQLTransferWise = new GraphQLObjectType({
     },
     balances: {
       type: new GraphQLList(new GraphQLNonNull(GraphQLAmount)),
+      // One per currency
+      extensions: { cost: { listSize: 50 } },
       description:
         'Transferwise balances. Returns null if Transferwise account is not connected or if the user is not an admin of the account.',
       resolve: async (host, _, req) => {

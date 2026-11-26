@@ -44,6 +44,7 @@ const GraphQLExpenseParsedFileInfo = new GraphQLObjectType({
     date: { type: GraphQLDate },
     items: {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpenseItemParsedFileInfo))),
+      extensions: { cost: { listSize: 50 } },
     },
   }),
 });

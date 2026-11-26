@@ -253,6 +253,7 @@ const accountFieldsDefinition = () => ({
   },
   socialLinks: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLSocialLink))),
+    extensions: { cost: { listSize: 20 } },
     async resolve(collective: Collective, _, req) {
       return req.loaders.SocialLink.byCollectiveId.load(collective.id);
     },
@@ -434,12 +435,15 @@ const accountFieldsDefinition = () => ({
   memberInvitations: {
     description: 'Get pending member invitations for this account',
     type: new GraphQLList(GraphQLMemberInvitation),
+    extensions: { cost: { listSize: 50 } },
     args: {
       role: { type: new GraphQLList(GraphQLMemberRole) },
     },
   },
   legalDocuments: {
     type: new GraphQLList(GraphQLLegalDocument),
+    // One per type and year
+    extensions: { cost: { listSize: 20 } },
     description: 'The legal documents associated with this account',
     args: {
       type: {
@@ -593,6 +597,7 @@ const accountFieldsDefinition = () => ({
   },
   payoutMethods: {
     type: new GraphQLList(new GraphQLNonNull(GraphQLPayoutMethod)),
+    extensions: { cost: { listSize: 20 } },
     description: 'The list of payout methods that this account can use to get paid',
     args: {
       includeArchived: {
@@ -604,6 +609,7 @@ const accountFieldsDefinition = () => ({
   },
   paymentMethods: {
     type: new GraphQLList(GraphQLPaymentMethod),
+    extensions: { cost: { listSize: 100 } },
     description: 'The list of payment methods that this account can use to pay for Orders',
     args: {
       type: {
@@ -628,11 +634,13 @@ const accountFieldsDefinition = () => ({
   },
   paymentMethodsWithPendingConfirmation: {
     type: new GraphQLList(GraphQLPaymentMethod),
+    extensions: { cost: { listSize: 10 } },
     description:
       'The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)',
   },
   connectedAccounts: {
     type: new GraphQLList(GraphQLConnectedAccount),
+    extensions: { cost: { listSize: 20 } },
     description: 'The list of connected accounts (Stripe, PayPal, etc ...)',
     args: {
       service: {
@@ -1022,6 +1030,8 @@ const accountFieldsDefinition = () => ({
   },
   activitySubscriptions: {
     type: new GraphQLList(GraphQLActivitySubscription),
+    // One per activity type and channel
+    extensions: { cost: { listSize: 50 } },
     description: 'List of activities that the logged-in user is subscribed for this collective',
     args: {
       channel: {
@@ -1589,6 +1599,7 @@ export const AccountFields = {
   },
   payoutMethods: {
     type: new GraphQLList(new GraphQLNonNull(GraphQLPayoutMethod)),
+    extensions: { cost: { listSize: 20 } },
     description:
       'The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".',
     args: {
@@ -1622,6 +1633,7 @@ export const AccountFields = {
   },
   paymentMethods: {
     type: new GraphQLList(GraphQLPaymentMethod),
+    extensions: { cost: { listSize: 100 } },
     args: {
       type: {
         type: new GraphQLList(GraphQLPaymentMethodType),
@@ -1671,6 +1683,7 @@ export const AccountFields = {
   },
   paymentMethodsWithPendingConfirmation: {
     type: new GraphQLList(GraphQLPaymentMethod),
+    extensions: { cost: { listSize: 10 } },
     description:
       'The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)',
     async resolve(collective, _, req) {
@@ -1700,6 +1713,7 @@ export const AccountFields = {
   },
   connectedAccounts: {
     type: new GraphQLList(GraphQLConnectedAccount),
+    extensions: { cost: { listSize: 20 } },
     description: 'The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".',
     // Only for admins, no pagination
     args: {

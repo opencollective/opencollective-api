@@ -386,6 +386,8 @@ const transactionImportsMutations = {
           },
           rows: {
             type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportRow))),
+            // One per edited row
+            extensions: { cost: { listSize: 100 } },
             description: 'The rows updated by the mutation',
           },
         },

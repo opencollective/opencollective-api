@@ -81,6 +81,8 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
       },
       transactionSummary: {
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLCommunityTransactionSummary))),
+        // One per currency and kind
+        extensions: { cost: { listSize: 20 } },
         async resolve(account, _, req) {
           const FromCollectiveId = account.id;
           const HostCollectiveId = account.dataValues.contextualHostCollectiveId;

@@ -653,6 +653,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
       activeRecurringContributionsBreakdown: {
         description: 'Returns some statistics about active recurring contributions, broken down by frequency',
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLAmountStats))),
+        // Monthly and yearly
+        extensions: { cost: { listSize: 2 } },
         args: {
           frequency: {
             type: GraphQLContributionFrequency,
@@ -790,6 +792,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
       },
       contributionsAmount: {
         type: new GraphQLList(GraphQLAmountStats),
+        // One-time and recurring, per currency
+        extensions: { cost: { listSize: 20 } },
         description: 'Return amount stats for contributions (default, and only for now: one-time vs recurring)',
         args: {
           ...pick(TransactionArgs, ['dateFrom', 'dateTo', 'includeChildren', 'kind']),

@@ -6,6 +6,8 @@ import { GraphQLOffPlatformTransactionsInstitution } from '../object/OffPlatform
 
 const OffPlatformTransactionsInstitutionsQuery = {
   type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLOffPlatformTransactionsInstitution))),
+  // Banks of a country
+  extensions: { cost: { listSize: 500 } },
   description: 'Get financial institutions for off-platform transactions',
   args: {
     country: {

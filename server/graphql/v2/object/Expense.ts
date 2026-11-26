@@ -197,6 +197,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
       },
       taxes: {
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTaxInfo))),
+        extensions: { cost: { listSize: 5 } },
         description: 'Taxes applied to this expense',
         resolve(expense, _, req) {
           if (!expense.data?.taxes) {
@@ -283,6 +284,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
       },
       approvedBy: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
+        extensions: { cost: { listSize: 10 } },
         description: 'The accounts who approved this expense',
         async resolve(expense, _, req) {
           const activities: Activity[] = await req.loaders.Expense.activities.load(expense.id);
@@ -462,6 +464,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
       },
       attachedFiles: {
         type: new GraphQLList(new GraphQLNonNull(GraphQLExpenseAttachedFile)),
+        extensions: { cost: { listSize: 20 } },
         description: '(Optional) files attached to the expense',
         async resolve(expense, _, req) {
           if (await ExpenseLib.canSeeExpenseAttachments(req, expense)) {
@@ -486,6 +489,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
       },
       items: {
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpenseItem))),
+        extensions: { cost: { listSize: 50 } },
         async resolve(expense, _, req) {
           if (await ExpenseLib.canSeeExpenseAttachments(req, expense)) {
             allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, expense.id);
@@ -526,6 +530,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
       },
       activities: {
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLActivity))),
+        extensions: { cost: { listSize: 100 } },
         description: 'The list of activities (ie. approved, edited, etc) for this expense ordered by date ascending',
         async resolve(expense, _, req) {
           let activities = await req.loaders.Expense.activities.load(expense.id);
@@ -746,6 +751,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
       },
       validateTransferRequirements: {
         type: new GraphQLList(GraphQLTransferWiseRequiredField),
+        extensions: { cost: { listSize: 10 } },
         args: {
           details: {
             type: GraphQLJSON,
@@ -783,6 +789,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
       },
       securityChecks: {
         type: new GraphQLList(GraphQLSecurityCheck),
+        extensions: { cost: { listSize: 20 } },
         description: '[Admin only] Security checks for this expense. Only available to expenses under trusted hosts.',
         async resolve(expense, _, req) {
           if (expense.type === ExpenseTypes.CHARGE) {

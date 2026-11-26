@@ -152,6 +152,7 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
     },
     assignedAccounts: {
       type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
+      extensions: { cost: { listSize: 50 } },
       description: 'The accounts assigned to the row, based on its account ID',
       resolve: async (row: TransactionsImportRow, _, req) => {
         const transactionsImport = await req.loaders.TransactionsImport.byId.load(row.TransactionsImportId);
