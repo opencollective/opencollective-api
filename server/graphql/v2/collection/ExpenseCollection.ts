@@ -30,6 +30,8 @@ export const GraphQLExpenseCollection = new GraphQLObjectType({
           },
           amountsByCurrency: {
             type: new GraphQLList(GraphQLAmount),
+            // One per currency
+            extensions: { cost: { listSize: 20 } },
           },
         },
       }),

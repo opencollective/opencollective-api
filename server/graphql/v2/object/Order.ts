@@ -251,6 +251,8 @@ export const GraphQLOrder = new GraphQLObjectType({
       transactions: {
         description: 'Transactions for this order ordered by createdAt ASC. Scope: "transactions".',
         type: new GraphQLNonNull(new GraphQLList(GraphQLTransaction)),
+        // Grows with each charge of a recurring contribution
+        extensions: { cost: { listSize: 200 } },
         resolve(order, _, req) {
           enforceScope(req, 'transactions');
           return req.loaders.Transaction.byOrderId.load(order.id);
@@ -390,6 +392,8 @@ export const GraphQLOrder = new GraphQLObjectType({
       },
       taxes: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLOrderTax)),
+        // Deprecated, returns at most one tax
+        extensions: { cost: { listSize: 1 } },
         deprecationReason: '2023-04-13: Please use `tax` instead.',
         resolve(order) {
           if (order.data?.tax) {
@@ -454,6 +458,7 @@ export const GraphQLOrder = new GraphQLObjectType({
       activities: {
         // We're not paginating yet, but already using the collection type to introduce it without breaking changes in the future
         type: new GraphQLNonNull(GraphQLActivityCollection),
+        extensions: { cost: { listSize: 100 } },
         description: 'The list of activities (ie. approved, edited, etc) for this Order ordered by date ascending',
         async resolve(order, _, req) {
           let activities = await req.loaders.Order.activities.load(order.id);

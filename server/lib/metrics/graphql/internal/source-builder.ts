@@ -301,7 +301,11 @@ function buildResultType(prefix: string, resultTypeName: string, rowType: GraphQ
         resolve: (r: { bucket?: string }) => (r.bucket ? r.bucket.toUpperCase() : null),
       },
       groupBy: { type: new GraphQLList(new GraphQLNonNull(GraphQLString)) },
-      rows: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(rowType))) },
+      // Capped when `input.limit` is set
+      rows: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(rowType))),
+        extensions: { cost: { listSize: METRICS_LIMIT_CAP } },
+      },
     }),
   });
 }

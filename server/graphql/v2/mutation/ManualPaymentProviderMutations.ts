@@ -254,6 +254,7 @@ const manualPaymentProviderMutations = {
 
   reorderManualPaymentProviders: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLManualPaymentProvider))),
+    extensions: { cost: { listSize: 20 } },
     description: 'Reorder manual payment providers for a host. Scope: "host".',
     args: {
       host: {

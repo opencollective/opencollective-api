@@ -81,6 +81,7 @@ export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, E
     },
     accountsMirrored: {
       type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
+      extensions: { cost: { listSize: 20 } },
       description: 'The accounts that are mirroring this connected account',
       async resolve(connectedAccount, _, req) {
         if (!req.remoteUser?.isAdmin(connectedAccount.CollectiveId)) {

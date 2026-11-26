@@ -118,6 +118,8 @@ const memberInvitationMutations = {
   },
   inviteMembers: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLMemberInvitation))),
+    // One per invited member
+    extensions: { cost: { listSize: 50 } },
     description: 'Creates and invites admins to an existing Account. Scope: "account".',
     args: {
       account: {

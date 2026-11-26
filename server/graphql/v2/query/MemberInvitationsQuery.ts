@@ -28,6 +28,7 @@ const canViewMemberInvitationsForAccount = (account: Collective, remoteUser: Use
 
 const MemberInvitationsQuery = {
   type: new GraphQLList(GraphQLMemberInvitation),
+  extensions: { cost: { listSize: 50 } },
   description: 'Returns the pending invitations, or null if not allowed.',
   args: {
     memberAccount: {

@@ -1117,6 +1117,7 @@ export const getOrganizationFields = () => ({
   },
   manualPaymentProviders: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLManualPaymentProvider))),
+    extensions: { cost: { listSize: 20 } },
     description: 'Manual payment providers configured for this host',
     args: {
       type: {
@@ -1205,6 +1206,8 @@ export const getOrganizationFields = () => ({
   },
   accountingCategories: {
     type: new GraphQLNonNull(GraphQLAccountingCategoryCollection),
+    // Not paginated yet
+    extensions: { cost: { listSize: 200 } },
     description: 'List of accounting categories for this host',
     args: {
       kind: {
@@ -1249,6 +1252,7 @@ export const getOrganizationFields = () => ({
   },
   suggestedBalanceAccountingCategories: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLAccountingCategory))),
+    extensions: { cost: { listSize: 20 } },
     description:
       'Suggested balance/clearing accounting categories for a context: the rail the money moved through, then the bank accounts assigned to the account. Only computed for host admins and accountants.',
     args: {
@@ -1298,6 +1302,7 @@ export const getOrganizationFields = () => ({
   },
   contributionAccountingCategoryRules: {
     type: new GraphQLList(new GraphQLNonNull(GraphQLContributionAccountingCategoryRule)),
+    extensions: { cost: { listSize: 50 } },
     resolve(host, _, req) {
       if (!req?.remoteUser?.isAdmin(host.id)) {
         return [];

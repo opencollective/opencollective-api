@@ -95,6 +95,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     },
     plaidAccounts: {
       type: new GraphQLList(GraphQLPlaidAccount),
+      extensions: { cost: { listSize: 20 } },
       description: 'List of available accounts for the import',
       deprecationReason: '2025-07-02: Please use the generic accounts field instead.',
       resolve: (importInstance: TransactionsImport) => importInstance.data?.plaid?.availableAccounts || null,
@@ -106,6 +107,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     },
     institutionAccounts: {
       type: new GraphQLList(GraphQLTransactionsImportAccount),
+      extensions: { cost: { listSize: 20 } },
       description: 'List of available accounts for the import',
       resolve: async (importInstance: TransactionsImport) => {
         const balanceAccountingCategories = importInstance.settings?.balanceAccountingCategories || {};
@@ -137,6 +139,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     },
     assignments: {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportAssignment))),
+      extensions: { cost: { listSize: 50 } },
       description:
         'Assignments for the import, as a map of account id to legacy collective IDs. The `__default__` key can be use to set the default assignment.',
       resolve: (importInstance: TransactionsImport, _, req) => {

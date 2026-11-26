@@ -78,6 +78,7 @@ export const GraphQLVendor = new GraphQLObjectType({
       },
       canBeUsedWithAccounts: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
+        extensions: { cost: { listSize: 50 } },
         description:
           'The accounts this vendor can be used with. If empty, the vendor can be used with any collective under the vendor host.',
         async resolve(vendor: Collective, _, req) {
@@ -92,6 +93,7 @@ export const GraphQLVendor = new GraphQLObjectType({
       },
       visibleToAccounts: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
+        extensions: { cost: { listSize: 50 } },
         deprecationReason: 'Use canBeUsedWithAccounts instead.',
         async resolve(vendor: Collective, _, req) {
           const canBeUsedWithAccountIds = vendor.data?.canBeUsedWithAccountIds || [];

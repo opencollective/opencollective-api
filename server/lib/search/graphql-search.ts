@@ -18,6 +18,7 @@ import { keyBy, mapValues } from 'lodash';
 import OAuthScopes from '../../constants/oauth-scopes';
 import { checkScope } from '../../graphql/common/scope-check';
 import { FieldsToGraphQLFieldConfigArgumentMap } from '../../graphql/common/typescript-helpers';
+import { PARENT_LIMIT } from '../../graphql/cost/extensions';
 import { GraphQLAccountCollection } from '../../graphql/v2/collection/AccountCollection';
 import { CommentCollection } from '../../graphql/v2/collection/CommentCollection';
 import { GraphQLExpenseCollection } from '../../graphql/v2/collection/ExpenseCollection';
@@ -138,7 +139,8 @@ const buildSearchResultsType = (entity: SearchEntity, name: string, collectionTy
     type: new GraphQLObjectType({
       name: `SearchResults${name}`,
       fields: {
-        collection: { type: new GraphQLNonNull(collectionType) },
+        // Holds the page of results of the parent
+        collection: { type: new GraphQLNonNull(collectionType), extensions: { cost: { listSize: PARENT_LIMIT } } },
         totalCountIsCapped: {
           type: new GraphQLNonNull(GraphQLBoolean),
           description:
@@ -150,6 +152,8 @@ const buildSearchResultsType = (entity: SearchEntity, name: string, collectionTy
         },
         scores: {
           type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLSearchResultScore))),
+          // One per result of the page
+          extensions: { cost: { listSize: PARENT_LIMIT } },
           description: 'Score of each result of the page, in the same order as the collection nodes',
         },
         highlights: {

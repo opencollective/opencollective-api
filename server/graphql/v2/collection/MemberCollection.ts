@@ -45,6 +45,8 @@ export const GraphQLMemberOfCollection = new GraphQLObjectType({
       },
       roles: {
         type: new GraphQLList(GraphQLMemberOfCollectionRole),
+        // One per role, account type and host flag
+        extensions: { cost: { listSize: 30 } },
       },
     };
   },

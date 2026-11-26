@@ -999,6 +999,8 @@ const orderMutations = {
   },
   moveOrders: {
     type: new GraphQLNonNull(new GraphQLList(GraphQLOrder)),
+    // One per moved order
+    extensions: { cost: { listSize: 100 } },
     description: '[Root only] A mutation to move orders from one account to another',
     args: {
       orders: {

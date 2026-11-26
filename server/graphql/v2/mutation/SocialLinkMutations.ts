@@ -12,6 +12,7 @@ const socialLinkMutations: GraphQLFieldConfigMap<void, express.Request> = {
   updateSocialLinks: {
     description: 'Updates collective social links',
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLSocialLink))),
+    extensions: { cost: { listSize: 20 } },
     args: {
       account: {
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),

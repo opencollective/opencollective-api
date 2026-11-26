@@ -25,6 +25,8 @@ export const GraphQLHostTransactionReports = new GraphQLObjectType({
     ...getTimeSeriesFields(),
     nodes: {
       type: new GraphQLList(new GraphQLNonNull(GraphQLHostTransactionReportNodes)),
+      // Not paginated: one per time unit in the date range
+      extensions: { cost: { listSize: 100 } },
     },
   }),
 });

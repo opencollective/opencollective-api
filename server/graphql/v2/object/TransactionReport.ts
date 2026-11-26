@@ -42,6 +42,8 @@ export const GraphQLTransactionReport = new GraphQLObjectType({
     },
     groups: {
       type: new GraphQLNonNull(new GraphQLList(GraphQLTransactionsAmountGroup)),
+      // One per type, kind, isRefund, isHost and expenseType
+      extensions: { cost: { listSize: 50 } },
     },
   }),
 });

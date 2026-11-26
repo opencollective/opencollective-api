@@ -61,6 +61,7 @@ export const GraphQLPlatformBilling = new GraphQLObjectType({
     },
     subscriptions: {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLPlatformSubscription))),
+      extensions: { cost: { listSize: 10 } },
     },
     utilization: {
       type: new GraphQLNonNull(GraphQLPlatformUtilization),
@@ -119,6 +120,8 @@ export const GraphQLPlatformBilling = new GraphQLObjectType({
     },
     expenses: {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpense))),
+      // One per billing period
+      extensions: { cost: { listSize: 100 } },
       resolve(billing: Billing, _, req) {
         checkRemoteUserCanUseExpenses(req);
         return Expense.findAll({
@@ -287,6 +290,7 @@ const GraphQLPlatformBillingBase = new GraphQLObjectType({
           }),
         ),
       ),
+      extensions: { cost: { listSize: 10 } },
     },
   }),
 });

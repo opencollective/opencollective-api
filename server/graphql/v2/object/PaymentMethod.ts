@@ -151,6 +151,7 @@ export const GraphQLPaymentMethod = new GraphQLObjectType({
       },
       limitedToHosts: {
         type: new GraphQLList(GraphQLHost),
+        extensions: { cost: { listSize: 10 } },
         async resolve(paymentMethod, args, req) {
           let hosts;
           if (paymentMethod.type === 'prepaid') {

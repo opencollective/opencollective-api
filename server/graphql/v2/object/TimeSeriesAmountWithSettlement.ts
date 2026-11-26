@@ -23,6 +23,8 @@ export const GraphQLTimeSeriesAmountWithSettlement = new GraphQLObjectType({
     ...getTimeSeriesFields(),
     nodes: {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTimeSeriesAmountWithSettlementNodes))),
+      // Time series are not paginated: one per time unit (and settlement status) in the date range
+      extensions: { cost: { listSize: 100 } },
       description: 'Time series data points',
     },
   }),

@@ -34,6 +34,8 @@ const MAX_UPLOAD_TIME = 10e3;
 const uploadedFileMutations = {
   uploadFile: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLUploadFileResult))),
+    // At most 15 files per call
+    extensions: { cost: { listSize: 15 } },
     args: {
       files: {
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLUploadFileInput))),

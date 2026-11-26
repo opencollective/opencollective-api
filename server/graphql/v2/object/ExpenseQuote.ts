@@ -32,6 +32,7 @@ const GraphQLExpenseQuote = new GraphQLObjectType({
     },
     notices: {
       type: new GraphQLList(GraphQLExpenseQuoteNotice),
+      extensions: { cost: { listSize: 10 } },
       description: 'Notices related to this quote',
     },
   }),
