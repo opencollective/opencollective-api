@@ -10,6 +10,7 @@ import OrderStatuses from '../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../../../server/constants/transactions';
+import * as PaymentsLib from '../../../../server/lib/payments';
 import * as PaypalLib from '../../../../server/lib/paypal';
 import * as Sentry from '../../../../server/lib/sentry';
 import models from '../../../../server/models';
@@ -568,6 +569,24 @@ describe('server/paymentProviders/paypal/webhook', () => {
       expect(refundTransaction.data.refund).to.exist;
       // Original transaction data (e.g. paypalCaptureId) is preserved on the refund transaction
       expect(refundTransaction.data.paypalCaptureId).to.equal(saleId);
+    });
+
+    it('uses refund_from_transaction_fee as the refunded PayPal fee', async () => {
+      const saleId = 'SALE-REFUND-FEE';
+      const { host } = await setupPayPalSubscriptionContributionCredit({ saleId });
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+      const createRefundTransactionStub = sandbox.stub(PaymentsLib, 'createRefundTransaction').resolves(null);
+      await callPaymentSaleRefunded(host.id, {
+        resource: {
+          id: 'REFUND-FEE',
+          sale_id: saleId,
+          amount: { total: '-10.00', currency: 'USD' },
+          refund_from_transaction_fee: { value: '0.30', currency: 'USD' },
+        },
+      });
+
+      expect(createRefundTransactionStub.calledOnce).to.be.true;
+      expect(createRefundTransactionStub.firstCall.args[1]).to.equal(30);
     });
   });
 
