@@ -3528,13 +3528,17 @@ class Collective extends ModelWithPublicId<
       where.CreatedByUserId = options.CreatedByUserId;
     }
 
+    // A host can have several PayPal accounts: use the newest one, like `getHostPaypalAccount` (it holds the webhook)
+    const order: FindOptions['order'] = provider === Service.PAYPAL ? [['createdAt', 'DESC']] : undefined;
     let connectedAccount = await ConnectedAccount.findOne({
       where,
+      order,
     });
 
     if (!connectedAccount && options.fallbackToNonUserAccount) {
       connectedAccount = await ConnectedAccount.findOne({
         where: omit(where, ['CreatedByUserId']),
+        order,
       });
     }
 
