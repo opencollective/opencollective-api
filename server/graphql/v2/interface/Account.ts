@@ -1301,7 +1301,7 @@ const accountFieldsDefinition = () => ({
   },
   communityStats: {
     // Batched by a loader
-    extensions: { cost: { weight: CostTier.Query } },
+    extensions: { cost: { weight: CostTier.Report } },
     type: GraphQLCommunityStats,
     description: 'Various stats about how this account is connected to the rest of the community',
     args: {
