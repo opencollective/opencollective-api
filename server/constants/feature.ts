@@ -60,8 +60,6 @@ enum FEATURE {
   HOST_DASHBOARD = 'HOST_DASHBOARD',
   /** Whether this profile has connected accounts */
   CONNECTED_ACCOUNTS = 'CONNECTED_ACCOUNTS',
-  /** Whether this profile can receive donations using AliPay */
-  ALIPAY = 'ALIPAY',
   /** Wheter this profile accepts SEPA or ACH payments through Stripe */
   STRIPE_PAYMENT_INTENT = 'STRIPE_PAYMENT_INTENT',
 
