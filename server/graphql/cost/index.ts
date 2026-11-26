@@ -81,7 +81,11 @@ interface QueryCostField {
 }
 
 interface QueryCostResult {
-  /** Total cost of the operation. `Infinity` when the analysis was aborted or failed. */
+  /**
+   * Total cost of the operation. `Infinity` when the analysis was aborted or failed unexpectedly. `0` with `error` set
+   * when there is nothing to execute (no matching operation, unsupported root type): check `error` before reading
+   * a zero cost as a successful estimate.
+   */
   cost: number;
   operationName: string | null;
   operationType: OperationDefinitionNode['operation'] | null;
@@ -91,7 +95,7 @@ interface QueryCostResult {
   visitedNodes: number;
   /** Set when the analysis stopped because the document is too expensive to analyze */
   abortReason?: 'MAX_NODES' | 'MAX_DEPTH';
-  /** Set when the operation could not be analyzed (no matching operation, unexpected error) */
+  /** Set when the operation could not be analyzed: no matching operation or root type (cost 0), unexpected error (cost Infinity) */
   error?: string;
 }
 
@@ -111,9 +115,17 @@ interface AnalysisContext {
   maxDepth: number;
   visitedNodes: number;
   /** Cost of a selection on a type, see `getSelectionCostCacheKey` */
-  cache: Map<string, number>;
+  cache: Map<string, CachedSelectionCost>;
+  /** Deepest selection set reached so far in the subtree being analyzed, used to check the depth of cached subtrees */
+  deepestDepth: number;
   selectionSetIds: WeakMap<SelectionSetNode, number>;
   lastSelectionSetId: number;
+}
+
+interface CachedSelectionCost {
+  cost: number;
+  /** Number of nested selection set levels in the subtree, this one included */
+  height: number;
 }
 
 /** Fields selected on a type, grouped by response key */
@@ -236,6 +248,7 @@ const getSelectionSetId = (context: AnalysisContext, selectionSet: SelectionSetN
 /**
  * The cost of a selection only depends on the type, the selection sets and the pending list size, so it can be
  * cached. This keeps fragments that are spread in many places (or nested abstract types) linear to analyze.
+ * The depth is not part of the key: the height of the subtree is cached with its cost and checked on reuse.
  */
 const getSelectionCostCacheKey = (
   context: AnalysisContext,
@@ -271,8 +284,16 @@ const getSelectionCost = (
   const cacheKey = getSelectionCostCacheKey(context, type, selectionSets, pendingListSize);
   const cached = context.cache.get(cacheKey);
   if (cached !== undefined) {
-    return cached;
+    const deepestDepth = depth + cached.height - 1;
+    if (deepestDepth > context.maxDepth) {
+      throw new AnalysisAbortedError('MAX_DEPTH');
+    }
+    context.deepestDepth = Math.max(context.deepestDepth, deepestDepth);
+    return cached.cost;
   }
+
+  const outerDeepestDepth = context.deepestDepth;
+  context.deepestDepth = depth;
 
   let cost: number;
   if (isAbstractType(type) && hasTypeConditions(context, type, selectionSets)) {
@@ -287,7 +308,8 @@ const getSelectionCost = (
     cost = getFieldsCost(context, type, fields, pendingListSize, depth);
   }
 
-  context.cache.set(cacheKey, cost);
+  context.cache.set(cacheKey, { cost, height: context.deepestDepth - depth + 1 });
+  context.deepestDepth = Math.max(outerDeepestDepth, context.deepestDepth);
   return cost;
 };
 
@@ -367,7 +389,8 @@ const getFieldCost = (
 
   const selectionSets = fieldNodes.map(node => node.selectionSet).filter(Boolean);
   const childrenCost = getSelectionCost(context, returnType, selectionSets, childrenPendingListSize, depth + 1);
-  return weight + size * childrenCost;
+  // `0 × Infinity` is NaN, which compares as under any budget. Fail closed: an infinite subtree stays infinite.
+  return weight + (size === 0 && childrenCost === Infinity ? Infinity : size * childrenCost);
 };
 
 const getOperation = (document: DocumentNode, operationName: string | null | undefined) => {
@@ -399,17 +422,11 @@ const getRootType = (schema: GraphQLSchema, operation: OperationDefinitionNode):
 export const getQueryCost = (
   schema: GraphQLSchema,
   document: DocumentNode,
-  {
-    variables,
-    operationName,
-    maxLimit = DEFAULT_MAX_LIMIT,
-    maxNodes = DEFAULT_MAX_NODES,
-    maxDepth = DEFAULT_MAX_DEPTH,
-  }: QueryCostOptions = {},
+  options: QueryCostOptions | null = {},
 ): QueryCostResult => {
   const result: QueryCostResult = {
     cost: 0,
-    operationName: operationName ?? null,
+    operationName: null,
     operationType: null,
     fields: [],
     visitedNodes: 0,
@@ -417,6 +434,14 @@ export const getQueryCost = (
 
   let context: AnalysisContext;
   try {
+    const {
+      variables,
+      operationName,
+      maxLimit = DEFAULT_MAX_LIMIT,
+      maxNodes = DEFAULT_MAX_NODES,
+      maxDepth = DEFAULT_MAX_DEPTH,
+    } = options ?? {};
+    result.operationName = operationName ?? null;
     const operation = getOperation(document, operationName);
     if (!operation) {
       // Execution fails the same way, nothing runs
@@ -443,20 +468,29 @@ export const getQueryCost = (
       variableDefinitions: new Map(
         (operation.variableDefinitions ?? []).map(definition => [definition.variable.name.value, definition]),
       ),
-      maxLimit,
+      maxLimit: Number.isInteger(maxLimit) && maxLimit >= 0 ? maxLimit : DEFAULT_MAX_LIMIT,
       maxNodes,
       maxDepth,
       visitedNodes: 0,
       cache: new Map(),
+      deepestDepth: 0,
       selectionSetIds: new WeakMap(),
       lastSelectionSetId: 0,
     };
+
+    if (context.maxDepth < 1) {
+      throw new AnalysisAbortedError('MAX_DEPTH'); // The operation's own selection set is at depth 1
+    }
 
     const fields = collectFields(context, rootType, [operation.selectionSet]);
     for (const [responseKey, fieldNodes] of fields) {
       const cost = getFieldCost(context, rootType, fieldNodes, undefined, 1);
       result.fields.push({ responseKey, fieldName: fieldNodes[0].name.value, cost });
       result.cost += cost;
+    }
+
+    if (Number.isNaN(result.cost)) {
+      result.cost = Infinity; // Defensive: NaN would compare as under any budget
     }
   } catch (error) {
     // Fail closed: an operation that cannot be analyzed counts as over budget
