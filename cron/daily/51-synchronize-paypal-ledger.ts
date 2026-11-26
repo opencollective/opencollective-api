@@ -21,7 +21,7 @@ import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, Order, sequelize } from '../../server/models';
 import Transaction from '../../server/models/Transaction';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
-import { recordPaypalCapture } from '../../server/paymentProviders/paypal/payment';
+import { getRefundedPaypalFeeInHostCurrency, recordPaypalCapture } from '../../server/paymentProviders/paypal/payment';
 import { PaypalCapture, PaypalTransactionSearchResult } from '../../server/types/paypal';
 import { runCronJob } from '../utils';
 
@@ -477,9 +477,11 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
           parseFloat(get(paypalPayload, 'seller_payable_breakdown.paypal_fee.value', '0.00') as string),
         );
 
-        // Flag partial refunds/reversals for manual investigation
-        const totalRefundedCents = floatAmountToCents(
-          parseFloat(get(paypalPayload, 'seller_payable_breakdown.total_refunded_amount.value', '0') as string),
+        // Flag partial refunds/reversals for manual investigation. PayPal returns the refunded amount in the
+        // capture currency, so convert it to the host currency before comparing it with the ledger.
+        const totalRefundedCents = getRefundedPaypalFeeInHostCurrency(
+          transaction,
+          get(paypalPayload, 'seller_payable_breakdown.total_refunded_amount.value', '0') as string,
         );
         const originalProcessorFee = Math.abs(
           transaction.paymentProcessorFeeInHostCurrency ||
