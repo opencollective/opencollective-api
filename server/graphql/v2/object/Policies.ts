@@ -115,6 +115,7 @@ export const GraphQLPolicies = new GraphQLObjectType({
             (acc, policyKey: string) => ({
               ...acc,
               [policyKey]: {
+                // Policy limits are stored in cents
                 value: policy[policyKey],
                 currency: account.currency,
               },

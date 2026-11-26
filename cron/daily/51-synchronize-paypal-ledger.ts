@@ -21,7 +21,7 @@ import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, Order, sequelize } from '../../server/models';
 import Transaction from '../../server/models/Transaction';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
-import { recordPaypalCapture } from '../../server/paymentProviders/paypal/payment';
+import { getRefundedPaypalFeeInHostCurrency, recordPaypalCapture } from '../../server/paymentProviders/paypal/payment';
 import { PaypalCapture, PaypalTransactionSearchResult } from '../../server/types/paypal';
 import { runCronJob } from '../utils';
 
@@ -460,10 +460,17 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
         }
 
         // Handle the transaction differently based on its type
-        if (transaction.transaction_info.transaction_event_code === 'T0002') {
-          await handleSubscriptionTransaction(host, transaction, captureDetails);
-        } else if (transaction.transaction_info.transaction_event_code === 'T0006') {
-          await handleCheckoutTransaction(host, transaction, captureDetails);
+        try {
+          if (transaction.transaction_info.transaction_event_code === 'T0002') {
+            await handleSubscriptionTransaction(host, transaction, captureDetails);
+          } else if (transaction.transaction_info.transaction_event_code === 'T0006') {
+            await handleCheckoutTransaction(host, transaction, captureDetails);
+          }
+        } catch (e) {
+          logger.error(
+            `Error while recording PayPal transaction ${transaction.transaction_info.transaction_id}: ${e.message}`,
+          );
+          reportErrorToSentry(e, { extra: { transaction, hostSlug: host.slug }, feature: FEATURE.PAYPAL_DONATIONS });
         }
       }
 
@@ -473,8 +480,9 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
       const paypalRefundedTransactions = await getMissingRefundTransactions(transactions, host);
       for (const { dbTransaction: transaction, eventCode, paypalPayload } of paypalRefundedTransactions) {
         const isReversal = eventCode === 'T1106';
-        const refundedPaypalFee = floatAmountToCents(
-          parseFloat(get(paypalPayload, 'seller_payable_breakdown.paypal_fee.value', '0.00') as string),
+        const refundedPaypalFee = getRefundedPaypalFeeInHostCurrency(
+          transaction,
+          get(paypalPayload, 'seller_payable_breakdown.paypal_fee.value', '0.00') as string,
         );
 
         // Flag partial refunds/reversals for manual investigation
@@ -503,12 +511,20 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
         const msg = `Record missing ${isReversal ? 'reversal' : 'refund'} for PayPal capture ${(transaction.data as { paypalCaptureId?: string }).paypalCaptureId} (transaction #${transaction.id})`;
         logger.info(DRY_RUN ? `DRY RUN: ${msg}` : msg);
         if (!DRY_RUN) {
-          await createRefundTransaction(
-            transaction,
-            refundedPaypalFee,
-            { paypalResponse: paypalPayload, isRefundedFromPayPal: true },
-            null,
-          );
+          try {
+            await createRefundTransaction(
+              transaction,
+              refundedPaypalFee,
+              { paypalResponse: paypalPayload, isRefundedFromPayPal: true },
+              null,
+            );
+          } catch (e) {
+            logger.error(`Error while recording refund for transaction #${transaction.id}: ${e.message}`);
+            reportErrorToSentry(e, {
+              extra: { transactionId: transaction.id, hostSlug: host.slug },
+              feature: FEATURE.PAYPAL_DONATIONS,
+            });
+          }
         }
       }
     } while (currentPage++ < totalPages);
@@ -536,6 +552,7 @@ export const run = async () => {
     return;
   } else if (!fromDate || !toDate || fromDate.isAfter(toDate)) {
     logger.error(`Invalid date range: ${fromDate} - ${toDate}`);
+    return;
   }
 
   logger.info(`Starting reconciliation job for PayPal transactions between ${fromDate} and ${toDate}`);
