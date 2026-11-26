@@ -5645,6 +5645,7 @@ enum PaymentMethodType {
   payout @deprecated(reason: "Please use uppercase values")
   virtual_card @deprecated(reason: "Please use uppercase values")
   swish @deprecated(reason: "Please use uppercase values")
+  bitcoin @deprecated(reason: "This payment method type is not supported anymore")
   DEFAULT
   CREDITCARD
   PREPAID
@@ -5666,6 +5667,7 @@ enum PaymentMethodType {
   PAYOUT
   VIRTUAL_CARD
   SWISH
+  BITCOIN @deprecated(reason: "This payment method type is not supported anymore")
 }
 
 enum PaymentMethodService {
