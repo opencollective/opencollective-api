@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import { after, afterEach, before, beforeEach, describe, it } from 'mocha';
 import sinon from 'sinon';
-import request from 'supertest';
+import supertest from 'supertest';
 
 import * as SentryLib from '../../../server/lib/sentry';
 import { startTestServer, stopTestServer } from '../../test-helpers/server';
@@ -45,6 +45,19 @@ const buildQueryWithManyDirectives = (rootField: string): string => {
 
 describe('GraphQL Armor Protection Tests', () => {
   let app, sandbox, reportMessageToSentry;
+
+  /**
+   * Requests made with the internal API key, so they don't consume the anonymous rate limit of the test IP
+   * (10 requests per minute), which other test files rely on.
+   */
+  const request = expressApp => {
+    const agent = supertest(expressApp);
+    const withApiKey = test => test.query({ api_key: config.keys.opencollective.apiKey }); // eslint-disable-line camelcase
+    return {
+      get: (path: string) => withApiKey(agent.get(path)),
+      post: (path: string) => withApiKey(agent.post(path)),
+    };
+  };
 
   before(async () => {
     app = await startTestServer();
