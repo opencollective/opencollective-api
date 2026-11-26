@@ -6,7 +6,7 @@
  *     cost(field) = weight + size × Σ cost(selected children)
  *
  * - `weight` is `DEFAULT_FIELD_WEIGHT`, or `PAGINATED_FIELD_WEIGHT` for fields that take a `limit`, unless the field
- *   declares `extensions.cost.weight`.
+ *   declares `extensions.cost.weight` (one of the `CostTier` values).
  * - `size` is 1, except for lists under a field that takes a `limit`, where it is the requested limit. For a
  *   collection (`{ totalCount, limit, offset, nodes }`), the limit applies to `nodes` and not to the other fields.
  *   Fields that return a list without taking a `limit` declare their size in `extensions.cost.listSize`, which
@@ -39,14 +39,14 @@ import {
   Kind,
 } from 'graphql';
 
-import { getFieldCostExtension, PARENT_LIMIT } from './extensions';
+import { CostTier, getFieldCostExtension, PARENT_LIMIT } from './extensions';
 import { DEFAULT_MAX_LIMIT, resolveLimitArgument } from './limit';
 
 /** Cost of a field that does not declare a weight */
-export const DEFAULT_FIELD_WEIGHT = 1;
+export const DEFAULT_FIELD_WEIGHT = CostTier.Default;
 
 /** Cost of a paginated field (one that takes a `limit`): at least one SQL query per parent item */
-export const PAGINATED_FIELD_WEIGHT = 10;
+export const PAGINATED_FIELD_WEIGHT = CostTier.Query;
 
 /** Maximum number of selections visited before giving up. Going over it counts as going over budget. */
 export const DEFAULT_MAX_NODES = 20_000;

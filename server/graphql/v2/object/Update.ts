@@ -6,6 +6,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models, { type Comment } from '../../../models';
 import { canSeeUpdate, hasUpdatesScopeForNonPublicUpdate } from '../../common/update';
+import { CostTier } from '../../cost/extensions';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLUpdateAudienceType } from '../enum';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -67,6 +68,8 @@ const GraphQLUpdate: GraphQLObjectType = new GraphQLObjectType({
       publishedAt: { type: GraphQLDateTime },
       notificationAudience: { type: GraphQLUpdateAudienceType },
       audienceStats: {
+        // Counts the members of the account, or of all its hosted accounts for a host
+        extensions: { cost: { weight: CostTier.Report } },
         type: GraphQLUpdateAudienceStats,
         description: `Some stats about the target audience. Will be null if the update is already published or if you don't have enough permissions so see this information. Not backed by a loader, avoid using this field in lists.`,
         args: {

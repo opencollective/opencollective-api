@@ -13,6 +13,7 @@ import sequelize, { QueryTypes } from '../../../lib/sequelize';
 import { computeDatesAsISOStrings } from '../../../lib/utils';
 import models, { Collective } from '../../../models';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
+import { CostTier } from '../../cost/extensions';
 import { ValidationFailed } from '../../errors';
 import { GraphQLContributionFrequency } from '../enum/ContributionFrequency';
 import { GraphQLCurrency } from '../enum/Currency';
@@ -95,6 +96,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         description: `The resource public id (ie: ${Collective.nanoIdPrefix}_xxxxxxxx)`,
       },
       balanceWithBlockedFunds: {
+        // Batched by a loader
+        extensions: { cost: { weight: CostTier.Query } },
         description: 'Amount of money in cents in the currency of the collective currently available to spend',
         deprecationReason: '2022-12-13: Use balance + withBlockedFunds instead',
         type: new GraphQLNonNull(GraphQLAmount),
@@ -103,6 +106,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       balance: {
+        // Batched by a loader
+        extensions: { cost: { weight: CostTier.Query } },
         description: 'Amount of money in cents in the currency of the collective',
         type: new GraphQLNonNull(GraphQLAmount),
         args: {
@@ -124,6 +129,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       consolidatedBalance: {
+        // Loads the children, then their balances
+        extensions: { cost: { weight: CostTier.Aggregate } },
         description: 'The consolidated amount of all the events and projects combined.',
         deprecationReason: '2022-09-02: Use balance + includeChildren instead',
         type: new GraphQLNonNull(GraphQLAmount),
@@ -156,6 +163,7 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       monthlySpending: {
+        extensions: { cost: { weight: CostTier.Aggregate } },
         description: 'Average amount spent per month based on the last 90 days',
         type: new GraphQLNonNull(GraphQLAmount),
         async resolve(collective) {
@@ -174,6 +182,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       totalAmountSpent: {
+        // Batched by a loader
+        extensions: { cost: { weight: CostTier.Query } },
         description: 'Total amount spent',
         type: new GraphQLNonNull(GraphQLAmount),
         args: {
@@ -214,6 +224,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       totalAmountReceived: {
+        // Batched by a loader
+        extensions: { cost: { weight: CostTier.Query } },
         description: 'Total amount received',
         type: new GraphQLNonNull(GraphQLAmount),
         args: {
@@ -254,6 +266,7 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       amountPledgedTimeSeries: {
+        extensions: { cost: { weight: CostTier.Aggregate } },
         description: 'Amount pledged time series',
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
         args: {
@@ -430,6 +443,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       totalAmountReceivedTimeSeries: {
+        // Batched by a loader
+        extensions: { cost: { weight: CostTier.Query } },
         description: 'Total amount received time series',
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
         args: {
@@ -460,6 +475,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       totalAmountSpentTimeSeries: {
+        // Batched by a loader
+        extensions: { cost: { weight: CostTier.Query } },
         description: 'Total amount spent time series',
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
         args: {
@@ -490,6 +507,7 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       balanceTimeSeries: {
+        extensions: { cost: { weight: CostTier.Aggregate } },
         description: 'Balance time series',
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
         args: {
@@ -520,6 +538,7 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       totalPaidExpenses: {
+        extensions: { cost: { weight: CostTier.Aggregate } },
         description: 'Total of paid expenses to the account, filter per expense type',
         type: new GraphQLNonNull(GraphQLAmount),
         args: {
@@ -539,12 +558,16 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       yearlyBudget: {
+        // Batched by a loader
+        extensions: { cost: { weight: CostTier.Query } },
         type: new GraphQLNonNull(GraphQLAmount),
         async resolve(collective, args, req) {
           return collective.getYearlyBudgetAmount({ loaders: req.loaders });
         },
       },
       yearlyBudgetManaged: {
+        // Sums the yearly budgets of all the hosted accounts
+        extensions: { cost: { weight: CostTier.Report } },
         type: new GraphQLNonNull(GraphQLAmount),
         deprecationReason: '2023-03-01: This field will be removed soon, please use totalMoneyManaged',
         async resolve(collective) {
@@ -562,6 +585,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       totalNetAmountReceived: {
+        // Batched by a loader
+        extensions: { cost: { weight: CostTier.Query } },
         description: 'Total net amount received',
         deprecationReason: '2022-12-13: Use totalAmountReceived + net=true instead',
         type: new GraphQLNonNull(GraphQLAmount),
@@ -587,6 +612,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       totalNetAmountReceivedTimeSeries: {
+        // Batched by a loader
+        extensions: { cost: { weight: CostTier.Query } },
         description: 'Total net amount received time series',
         deprecationReason: '2022-12-13: Use totalAmountReceivedTimeSeries + net=true instead',
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
@@ -615,6 +642,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       activeRecurringContributions: {
+        // Batched by a loader
+        extensions: { cost: { weight: CostTier.Query } },
         type: GraphQLJSON,
         deprecationReason: '2022-10-21: Use activeRecurringContributionsV2 while we migrate to better semantics.',
         resolve(collective, args, req) {
@@ -625,6 +654,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       activeRecurringContributionsV2: {
+        // Batched by a loader
+        extensions: { cost: { weight: CostTier.Query } },
         type: GraphQLAmount,
         deprecationReason:
           '2024-03-04: Use activeRecurringContributionsBreakdown while we migrate to better semantics.',
@@ -654,7 +685,7 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         description: 'Returns some statistics about active recurring contributions, broken down by frequency',
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLAmountStats))),
         // Monthly and yearly
-        extensions: { cost: { listSize: 2 } },
+        extensions: { cost: { weight: CostTier.Query, listSize: 2 } },
         args: {
           frequency: {
             type: GraphQLContributionFrequency,
@@ -692,6 +723,7 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       expensesTags: {
+        extensions: { cost: { weight: CostTier.Aggregate } },
         type: new GraphQLList(GraphQLAmountStats),
         description: 'Returns expense tags for collective sorted by popularity',
         args: {
@@ -726,6 +758,7 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       expensesTagsTimeSeries: {
+        extensions: { cost: { weight: CostTier.Aggregate } },
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
         args: {
           ...TimeSeriesArgs, // dateFrom / dateTo / timeUnit
@@ -755,6 +788,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       contributionsCount: {
+        // Batched by a loader
+        extensions: { cost: { weight: CostTier.Query } },
         type: new GraphQLNonNull(GraphQLInt),
         args: {
           ...pick(TransactionArgs, ['dateFrom', 'dateTo', 'includeChildren']),
@@ -773,6 +808,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       contributorsCount: {
+        // Batched by a loader
+        extensions: { cost: { weight: CostTier.Query } },
         type: new GraphQLNonNull(GraphQLInt),
         args: {
           ...pick(TransactionArgs, ['dateFrom', 'dateTo', 'includeChildren']),
@@ -793,7 +830,7 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
       contributionsAmount: {
         type: new GraphQLList(GraphQLAmountStats),
         // One-time and recurring, per currency
-        extensions: { cost: { listSize: 20 } },
+        extensions: { cost: { weight: CostTier.Aggregate, listSize: 20 } },
         description: 'Return amount stats for contributions (default, and only for now: one-time vs recurring)',
         args: {
           ...pick(TransactionArgs, ['dateFrom', 'dateTo', 'includeChildren', 'kind']),
@@ -836,6 +873,7 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       contributionsAmountTimeSeries: {
+        extensions: { cost: { weight: CostTier.Aggregate } },
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
         description: 'Return amount time series for contributions (default, and only for now: one-time vs recurring)',
         args: {
@@ -893,6 +931,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       managedAmount: {
+        // Host-wide, batched by a loader
+        extensions: { cost: { weight: CostTier.Aggregate } },
         type: GraphQLAmount,
         description:
           '[Root only] The total amount managed by the account, including all its children accounts (events and projects), calculated using existing balance checkpoint. This is not a real-time value and may not reflect the current state of the account.',

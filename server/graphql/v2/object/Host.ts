@@ -43,6 +43,7 @@ import {
   checkRemoteUserCanUseTransactions,
   checkRemoteUserCanUseVirtualCards,
 } from '../../common/scope-check';
+import { CostTier } from '../../cost/extensions';
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
@@ -164,6 +165,7 @@ export const GraphQLHost = new GraphQLObjectType({
         },
       },
       hostTransactionsReports: {
+        extensions: { cost: { weight: CostTier.Report } },
         type: GraphQLHostTransactionReports,
         description: 'EXPERIMENTAL (this may change or be removed)',
         args: {
@@ -368,6 +370,8 @@ export const GraphQLHost = new GraphQLObjectType({
         },
       },
       hostStats: {
+        // Loads the IDs of the hosted accounts
+        extensions: { cost: { weight: CostTier.Query } },
         type: new GraphQLNonNull(GraphQLHostStats),
         args: {
           hostContext: {
@@ -453,6 +457,7 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       metrics: hostMetricsField,
       hostExpensesReport: {
+        extensions: { cost: { weight: CostTier.Report } },
         type: GraphQLHostExpensesReports,
         description: 'EXPERIMENTAL (this may change or be removed)',
         args: {
@@ -530,6 +535,7 @@ export const GraphQLHost = new GraphQLObjectType({
         },
       },
       hostContributionsReport: {
+        extensions: { cost: { weight: CostTier.Report } },
         type: GraphQLHostExpensesReports,
         description: 'EXPERIMENTAL (this may change or be removed)',
         args: {

@@ -16,12 +16,13 @@ Private organizations: `docs/private-organizations.md`.
 - **Money:** Amounts are stored ×100 for every currency, including zero-decimal (JPY, KRW). ¥15 → `1500`. List: `ZERO_DECIMAL_CURRENCIES` in `server/constants/currencies.ts`.
 - **PayPal recurring** (`Subscription.isManagedExternally` + `paypalSubscriptionId`): `Orders.totalAmount` must match the PayPal billing plan (`PaypalPlans`). PayPal is the source of truth. `updateOrder` requires a new `paypalSubscriptionId` after PayPal approval when changing amount or tier. Audit: `scripts/paypal/check-subscriptions-amounts.ts` (default last 7 days; `PAYPAL_SUBSCRIPTION_AMOUNT_CHECK_LOOKBACK_DAYS` or `--lookback-days`).
 
-**New or changed V2 resolvers** - check all four (mirror nearby resolvers; OWASP GraphQL + Authorization):
+**New or changed V2 resolvers** - check all five (mirror nearby resolvers; OWASP GraphQL + Authorization):
 
 1. **Permissions** - host (`req.remoteUser.isAdminOfCollective(host)`), collective admin/accountant, contributor, root (`isRoot()`), or public/guest. Throw `Unauthorized` / `Forbidden` from `server/graphql/errors`.
 2. **Private accounts** - `assertCanSeeAccount` / `assertCanSeeAllAccounts` (throw `Forbidden`) or `canSeePrivateAccount` / `canSeeAllPrivateAccounts` from `server/lib/private-accounts.ts`. Top-level account queries are gated in `AccountQuery.ts`; collection filters and nested resolvers are easy to miss.
 3. **2FA** - `twoFactorAuthLib` from `server/lib/two-factor-authentication`: `enforceForAccount`, `enforceForAccountsUserIsAdminOf`, `validateRequest`. Clients send `x-two-factor-authentication`; reuse `TWO_FACTOR_SESSIONS_PARAMS` for short sessions.
 4. **OAuth scopes** - mutations must call a helper from `server/graphql/common/scope-check.ts` (ESLint `graphql-mutations/require-scope-check`). Prefer domain helpers (`checkRemoteUserCanUseExpenses`, …) or `enforceScope` / `checkScope` (`server/constants/oauth-scopes.ts`). Session-only: `rejectOAuthAndPersonalTokenAuth(req)`. Public/guest mutations: ESLint opt-out plus a comment explaining why.
+5. **Cost** - a resolver that does more than read a property or a batched loader sets `extensions: { cost: { weight: CostTier.X } }` from `server/graphql/cost/extensions.ts`: `Query` (one query per parent, or a batched aggregate), `Aggregate` (aggregate over one account's transactions, expenses or orders), `Report` (scan across a host or the platform, search). A loader-batched field takes the tier below the same work done per parent. Fields taking a `limit` already default to `Query`; lists without a `limit` declare `listSize`. Update the snapshot in `test/server/graphql/cost/weights.test.ts.snap`.
 
 **Not defects:** public GraphQL introspection, permissive API CORS.
 

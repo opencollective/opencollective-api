@@ -10,6 +10,7 @@ import {
   AdminCommunityHostTransactionSummaryRow,
   AdminCommunityHostYearlyTransactionSummaryRow,
 } from '../../../types/kysely-views';
+import { CostTier } from '../../cost/extensions';
 import { GraphQLActivityCollection } from '../collection/ActivityCollection';
 import { GraphQLCommunityRelationType } from '../enum/CommunityRelationType';
 import { CollectionArgs } from '../interface/Collection';
@@ -82,7 +83,7 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
       transactionSummary: {
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLCommunityTransactionSummary))),
         // One per currency and kind
-        extensions: { cost: { listSize: 20 } },
+        extensions: { cost: { weight: CostTier.Query, listSize: 20 } },
         async resolve(account, _, req) {
           const FromCollectiveId = account.id;
           const HostCollectiveId = account.dataValues.contextualHostCollectiveId;
@@ -122,6 +123,8 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
         },
       },
       transactionSummaryTimeSeries: {
+        // Reads a pre-aggregated view
+        extensions: { cost: { weight: CostTier.Query } },
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
         args: {
           type: {

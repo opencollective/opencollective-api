@@ -3,6 +3,7 @@ import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import * as HostMetricsLib from '../../../lib/host-metrics';
+import { CostTier } from '../../cost/extensions';
 import { getTimeSeriesFields } from '../interface/TimeSeries';
 
 import { GraphQLTimeSeriesAmount } from './TimeSeriesAmount';
@@ -47,6 +48,7 @@ export const GraphQLHostMetricsTimeSeries = new GraphQLObjectType({
       },
     },
     hostFees: {
+      extensions: { cost: { weight: CostTier.Report } },
       type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
       description: 'History of the host fees collected',
       resolve: async ({ host, dateFrom, dateTo, timeUnit }) => {
@@ -56,6 +58,7 @@ export const GraphQLHostMetricsTimeSeries = new GraphQLObjectType({
       },
     },
     hostFeeShare: {
+      extensions: { cost: { weight: CostTier.Report } },
       type: new GraphQLNonNull(GraphQLTimeSeriesAmountWithSettlement),
       description: 'History of the share of host fees collected owed to the platform (OFi Technologies LLC).',
       resolve: async ({ host, dateFrom, dateTo, timeUnit }) => {
@@ -65,6 +68,7 @@ export const GraphQLHostMetricsTimeSeries = new GraphQLObjectType({
       },
     },
     totalMoneyManaged: {
+      extensions: { cost: { weight: CostTier.Report } },
       type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
       description: 'History of the total money managed by this host',
       resolve: async ({ host, collectiveIds, dateFrom, dateTo, timeUnit }) => {
@@ -74,6 +78,7 @@ export const GraphQLHostMetricsTimeSeries = new GraphQLObjectType({
       },
     },
     totalReceived: {
+      extensions: { cost: { weight: CostTier.Report } },
       type: new GraphQLNonNull(GraphQLTimeSeriesAmountWithKind),
       description: 'History of the total money received by this host',
       resolve: async ({ host, collectiveIds, dateFrom, dateTo, timeUnit }) => {
@@ -88,6 +93,7 @@ export const GraphQLHostMetricsTimeSeries = new GraphQLObjectType({
       },
     },
     totalSpent: {
+      extensions: { cost: { weight: CostTier.Report } },
       type: new GraphQLNonNull(GraphQLTimeSeriesAmountWithKind),
       description: 'History of the total money spent by this host',
       resolve: async ({ host, collectiveIds, dateFrom, dateTo, timeUnit }) => {

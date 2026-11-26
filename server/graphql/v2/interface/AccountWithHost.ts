@@ -9,6 +9,7 @@ import Agreement from '../../../models/Agreement';
 import Collective from '../../../models/Collective';
 import HostApplication from '../../../models/HostApplication';
 import { hostResolver } from '../../common/collective';
+import { CostTier } from '../../cost/extensions';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
@@ -192,6 +193,8 @@ export const AccountWithHostFields = {
     },
   },
   summary: {
+    // Batched by a loader
+    extensions: { cost: { weight: CostTier.Query } },
     type: HostedAccountSummary,
     args: {
       dateFrom: {
