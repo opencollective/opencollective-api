@@ -13,6 +13,7 @@ import {
   fakeActiveHost,
   fakeCollective,
   fakeEvent,
+  fakeIncognitoProfile,
   fakeManualPaymentProvider,
   fakeOrder,
   fakePrivateHost,
@@ -1797,6 +1798,110 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
     });
   });
 
+  describe('incognito contributions', () => {
+    let host, hostAdmin, collective, collectiveAdmin, contributor, incognitoProfile, publicContributor, randomUser;
+
+    before(async () => {
+      hostAdmin = await fakeUser();
+      host = await fakeActiveHost({ admin: hostAdmin });
+      collectiveAdmin = await fakeUser();
+      collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin, approvedAt: new Date() });
+      contributor = await fakeUser(null, { name: 'Secret Contributor' });
+      incognitoProfile = await fakeIncognitoProfile(contributor);
+      publicContributor = await fakeUser(null, { name: 'Public Contributor' });
+      randomUser = await fakeUser();
+
+      await fakeOrder({
+        CollectiveId: collective.id,
+        FromCollectiveId: incognitoProfile.id,
+        CreatedByUserId: contributor.id,
+        status: OrderStatuses.PAID,
+      });
+      await fakeOrder({
+        CollectiveId: collective.id,
+        FromCollectiveId: publicContributor.CollectiveId,
+        CreatedByUserId: publicContributor.id,
+        status: OrderStatuses.PAID,
+      });
+    });
+
+    describe('createdByUsers', () => {
+      const getCreatorIds = async remoteUser => {
+        const result = await graphqlQueryV2(
+          ordersWithCreatedByUsersQuery,
+          { account: { legacyId: collective.id }, filter: 'INCOMING' },
+          remoteUser,
+        );
+        expect(result.errors).to.not.exist;
+        const ids = result.data.orders.createdByUsers.nodes.map(node => node.legacyId);
+        expect(result.data.orders.createdByUsers.totalCount).to.eq(ids.length);
+        return ids;
+      };
+
+      it('does not reveal the creator of incognito contributions to unauthenticated users', async () => {
+        expect(await getCreatorIds(null)).to.deep.eq([publicContributor.CollectiveId]);
+      });
+
+      it('does not reveal the creator of incognito contributions to unrelated users', async () => {
+        expect(await getCreatorIds(randomUser)).to.deep.eq([publicContributor.CollectiveId]);
+      });
+
+      it('does not reveal the creator of incognito contributions to collective admins', async () => {
+        expect(await getCreatorIds(collectiveAdmin)).to.deep.eq([publicContributor.CollectiveId]);
+      });
+
+      it('does not leak the creator through the search term', async () => {
+        const result = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+          account: { legacyId: collective.id },
+          filter: 'INCOMING',
+          createdByUsersSearchTerm: 'Secret Contributor',
+        });
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.createdByUsers.totalCount).to.eq(0);
+        expect(result.data.orders.createdByUsers.nodes).to.be.empty;
+      });
+
+      it('reveals the creator of incognito contributions to host admins', async () => {
+        const ids = await getCreatorIds(hostAdmin);
+        expect(ids).to.have.length(2);
+        expect(ids).to.include.members([contributor.CollectiveId, publicContributor.CollectiveId]);
+      });
+
+      it('reveals the creator of incognito contributions to the contributor themselves', async () => {
+        const ids = await getCreatorIds(contributor);
+        expect(ids).to.have.length(2);
+        expect(ids).to.include.members([contributor.CollectiveId, publicContributor.CollectiveId]);
+      });
+    });
+
+    describe('createdBy', () => {
+      const countOrdersCreatedByContributor = async remoteUser => {
+        const result = await graphqlQueryV2(
+          ordersQuery,
+          {
+            account: { legacyId: collective.id },
+            filter: 'INCOMING',
+            createdBy: [{ legacyId: contributor.CollectiveId }],
+          },
+          remoteUser,
+        );
+        expect(result.errors).to.not.exist;
+        return result.data.orders.totalCount;
+      };
+
+      it('cannot be used to find incognito contributions of a user without permission', async () => {
+        expect(await countOrdersCreatedByContributor(null)).to.eq(0);
+        expect(await countOrdersCreatedByContributor(randomUser)).to.eq(0);
+        expect(await countOrdersCreatedByContributor(collectiveAdmin)).to.eq(0);
+      });
+
+      it('returns incognito contributions to host admins and to the contributor themselves', async () => {
+        expect(await countOrdersCreatedByContributor(hostAdmin)).to.eq(1);
+        expect(await countOrdersCreatedByContributor(contributor)).to.eq(1);
+      });
+    });
+  });
+
   describe('oppositeAccountScope filter', () => {
     const oppositeAccountScopeQuery = gql`
       query OrdersWithOppositeAccountScope(
@@ -2403,6 +2508,29 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         );
         expect(orderFromPrivateOrg?.fromAccount).to.be.null;
       });
+    });
+
+    it('createdByUsers keeps the creators of orders to private accounts visible to the sender', async () => {
+      const sender = await fakeUser();
+      await fakeOrder({
+        FromCollectiveId: sender.CollectiveId,
+        CollectiveId: privateCollective.id,
+        CreatedByUserId: sender.id,
+        status: OrderStatuses.PAID,
+      });
+
+      const variables = { account: { legacyId: sender.CollectiveId }, filter: 'OUTGOING' };
+      const resultAsSender = await graphqlQueryV2(ordersWithCreatedByUsersQuery, variables, sender);
+      expect(resultAsSender.errors).to.not.exist;
+      expect(resultAsSender.data.orders.totalCount).to.eq(1);
+      expect(resultAsSender.data.orders.createdByUsers.totalCount).to.eq(1);
+      expect(resultAsSender.data.orders.createdByUsers.nodes.map(n => n.legacyId)).to.deep.eq([sender.CollectiveId]);
+
+      const resultAsRandomUser = await graphqlQueryV2(ordersWithCreatedByUsersQuery, variables, randomUser);
+      expect(resultAsRandomUser.errors).to.not.exist;
+      expect(resultAsRandomUser.data.orders.totalCount).to.eq(0);
+      expect(resultAsRandomUser.data.orders.createdByUsers.totalCount).to.eq(0);
+      expect(resultAsRandomUser.data.orders.createdByUsers.nodes).to.be.empty;
     });
   });
 });

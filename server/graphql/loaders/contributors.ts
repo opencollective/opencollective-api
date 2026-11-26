@@ -32,9 +32,12 @@ const loaders = {
   generateTotalContributedToHost: () =>
     new DataLoader<{ CollectiveId: number; HostId: number; since: string }, TotalContributedToHost, string>(
       async requests => {
+        // Only count transactions in the current host currency: summing amounts in different currencies would be
+        // wrong, and grouping by currency would return one row per currency where only one can be kept.
         const baseQuery = `
             SELECT t."FromCollectiveId" as "CollectiveId", SUM (t."amountInHostCurrency") as amount, t."hostCurrency" as currency, t."HostCollectiveId", :since as since
             FROM "Transactions" t
+            INNER JOIN "Collectives" h ON h.id = t."HostCollectiveId" AND h.currency = t."hostCurrency"
             WHERE t."FromCollectiveId" IN (:CollectiveIds)
               AND t."HostCollectiveId" = :HostId
               AND t."createdAt" >= :since
