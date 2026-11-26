@@ -167,6 +167,10 @@ describe('server/graphql/cost', () => {
     it('counts a missing limit without default as the maximum limit', () => {
       expect(getCost('{ expenses { id } }').cost).to.eq(P + DEFAULT_MAX_LIMIT);
       expect(getCost('{ expenses { id } }', { maxLimit: 50 }).cost).to.eq(P + 50);
+      expect(getCost('{ expenses { id } }', { maxLimit: 0 }).cost).to.eq(P);
+      for (const maxLimit of [-20, 1.5, NaN, Infinity, '50', null]) {
+        expect(getCost('{ expenses { id } }', { maxLimit } as QueryCostOptions).cost).to.eq(P + DEFAULT_MAX_LIMIT);
+      }
     });
 
     it('reports where the limit comes from', () => {
@@ -422,6 +426,32 @@ describe('server/graphql/cost', () => {
   });
 
   describe('analysis limits', () => {
+    it('checks the depth of a cached selection reused deeper in the document', () => {
+      // The first spread caches the selections of F at depth 3, the second one reuses them at depth 6
+      const query = `
+        {
+          account(slug: "x") { ...F }
+          me { members { nodes { account { ...F } } } }
+        }
+        fragment F on Account { members { nodes { account { id } } } }
+      `;
+      expect(getQueryCost(schema, parse(query), { maxDepth: 8 }).abortReason).to.be.undefined;
+      expect(getQueryCost(schema, parse(query), { maxDepth: 7 })).to.deep.include({
+        cost: Infinity,
+        abortReason: 'MAX_DEPTH',
+      });
+    });
+
+    it('never returns NaN when a zero limit multiplies an infinite cost', () => {
+      // 34 nested limits of the largest Int overflow to Infinity, then `limit: 0` multiplies it
+      const nested = `${'members(limit: 2147483647) { nodes { account { '.repeat(34)}id${' } } }'.repeat(34)}`;
+      const query = `{ accounts(limit: 0) { nodes { ${nested} } } }`;
+      const result = getQueryCost(schema, parse(query), { maxDepth: 200 });
+      expect(result.abortReason).to.be.undefined;
+      expect(result.cost).to.eq(Infinity); // Fail closed: an infinite subtree stays over budget
+      expect(result.fields[0].cost).to.eq(Infinity);
+    });
+
     it('stops at the node cap and counts as over budget', () => {
       const fields = Array.from({ length: DEFAULT_MAX_NODES }, (_, i) => `a${i}: me { id }`).join('\n');
       const result = getQueryCost(schema, parse(`{ ${fields} }`));
@@ -436,6 +466,14 @@ describe('server/graphql/cost', () => {
       expect(getQueryCost(schema, parse(query), { maxNodes: 5 })).to.deep.include({
         cost: Infinity,
         abortReason: 'MAX_NODES',
+      });
+    });
+
+    it('checks the depth of the root selection', () => {
+      expect(getQueryCost(schema, parse('{ __typename }'), { maxDepth: 1 }).abortReason).to.be.undefined;
+      expect(getQueryCost(schema, parse('{ __typename }'), { maxDepth: 0 })).to.deep.include({
+        cost: Infinity,
+        abortReason: 'MAX_DEPTH',
       });
     });
 
@@ -463,6 +501,7 @@ describe('server/graphql/cost', () => {
         [{} as GraphQLSchema, parse('{ me { id } }')],
       ];
 
+      expect(getQueryCost(schema, parse('{ me { id } }'), null).cost).to.eq(2); // Null options use the defaults
       for (const [badSchema, badDocument] of badInputs) {
         const result = getQueryCost(badSchema, badDocument);
         expect(result).to.be.an('object');
@@ -548,11 +587,15 @@ describe('server/graphql/cost', () => {
         expect(result.abortReason).to.be.undefined;
         expect(result.error).to.be.undefined;
         expect(result.cost).to.be.greaterThan(0);
+        expect(Number.isFinite(result.cost)).to.be.true;
         return Number(process.hrtime.bigint() - start) / 1e6;
       });
 
+      // It takes about 1 ms locally. The bound is generous to absorb CI contention and coverage instrumentation, the
+      // median ignores one-off pauses (GC), and the number of visited nodes is the deterministic part of the check.
       const median = durations.sort((a, b) => a - b)[Math.floor(durations.length / 2)];
-      expect(median).to.be.lessThan(10);
+      expect(median).to.be.lessThan(50);
+      expect(getQueryCost(schemaV2, document, options).visitedNodes).to.be.lessThan(DEFAULT_MAX_NODES / 4);
     });
   });
 });
