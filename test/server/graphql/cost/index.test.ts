@@ -422,6 +422,32 @@ describe('server/graphql/cost', () => {
   });
 
   describe('analysis limits', () => {
+    it('checks the depth of a cached selection reused deeper in the document', () => {
+      // The first spread caches the selections of F at depth 3, the second one reuses them at depth 6
+      const query = `
+        {
+          account(slug: "x") { ...F }
+          me { members { nodes { account { ...F } } } }
+        }
+        fragment F on Account { members { nodes { account { id } } } }
+      `;
+      expect(getQueryCost(schema, parse(query), { maxDepth: 8 }).abortReason).to.be.undefined;
+      expect(getQueryCost(schema, parse(query), { maxDepth: 7 })).to.deep.include({
+        cost: Infinity,
+        abortReason: 'MAX_DEPTH',
+      });
+    });
+
+    it('never returns NaN when a zero limit multiplies an infinite cost', () => {
+      // 34 nested limits of the largest Int overflow to Infinity, then `limit: 0` multiplies it
+      const nested = `${'members(limit: 2147483647) { nodes { account { '.repeat(34)}id${' } } }'.repeat(34)}`;
+      const query = `{ accounts(limit: 0) { nodes { ${nested} } } }`;
+      const result = getQueryCost(schema, parse(query), { maxDepth: 200 });
+      expect(result.abortReason).to.be.undefined;
+      expect(result.cost).to.eq(Infinity); // Fail closed: an infinite subtree stays over budget
+      expect(result.fields[0].cost).to.eq(Infinity);
+    });
+
     it('stops at the node cap and counts as over budget', () => {
       const fields = Array.from({ length: DEFAULT_MAX_NODES }, (_, i) => `a${i}: me { id }`).join('\n');
       const result = getQueryCost(schema, parse(`{ ${fields} }`));
@@ -551,8 +577,11 @@ describe('server/graphql/cost', () => {
         return Number(process.hrtime.bigint() - start) / 1e6;
       });
 
+      // It takes about 1 ms locally. The bound is generous to absorb CI contention and coverage instrumentation, the
+      // median ignores one-off pauses (GC), and the number of visited nodes is the deterministic part of the check.
       const median = durations.sort((a, b) => a - b)[Math.floor(durations.length / 2)];
-      expect(median).to.be.lessThan(10);
+      expect(median).to.be.lessThan(50);
+      expect(getQueryCost(schemaV2, document, options).visitedNodes).to.be.lessThan(DEFAULT_MAX_NODES / 4);
     });
   });
 });
