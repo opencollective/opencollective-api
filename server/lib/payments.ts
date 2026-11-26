@@ -504,7 +504,11 @@ async function refundPaymentProcessorFee(
     // Load processor fee transaction if using separate transactions
     let processorFeeTransaction;
     if (!transaction.paymentProcessorFeeInHostCurrency) {
-      processorFeeTransaction = await transaction.getPaymentProcessorFeeTransaction(null, { sqlTransaction });
+      // Always refund the CREDIT leg (vendor side): `transaction` stays a DEBIT for expenses paid to the collective itself
+      processorFeeTransaction = await transaction.getPaymentProcessorFeeTransaction(
+        { type: CREDIT },
+        { sqlTransaction },
+      );
       if (!processorFeeTransaction) {
         // If there is no processor fee on the original transaction and no separate processor fee transaction, there is nothing to refund
         reportMessageToSentry('No processor fee found for refund with refundedPaymentProcessorFee set', {
@@ -762,6 +766,19 @@ export async function createRefundTransaction(
       throw new Error('This transaction has already been refunded');
     }
 
+    // The instance we received may have been loaded before another refund was recorded. Lock the row and
+    // re-check it so that refunds of the same transaction are serialized and only the first one goes through.
+    const lockedTransaction = await Transaction.findByPk(transaction.id, {
+      attributes: ['id', 'RefundTransactionId'],
+      transaction: sqlTransaction,
+      lock: sqlTransaction.LOCK.UPDATE,
+    });
+    if (!lockedTransaction) {
+      throw new Error('Cannot find any CREDIT transaction to refund');
+    } else if (lockedTransaction.RefundTransactionId) {
+      throw new Error('This transaction has already been refunded');
+    }
+
     const transactionGroup = transactionGroupId || uuid();
     const buildRefund = transaction => {
       return {
@@ -1014,7 +1031,6 @@ export const sendEmailNotifications = (
 
 export const createSubscription = async (order: Order, data?: { lastChargedAt?: Date }): Promise<void> => {
   const subscription = await Subscription.create({
-    amount: order.totalAmount,
     interval: order.interval,
     currency: order.currency,
     lastChargedAt: data?.lastChargedAt,

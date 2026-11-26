@@ -767,6 +767,38 @@ describe('server/lib/recurring-contributions', () => {
       expect(rows[0].id).to.equal(activeOrder.id);
     });
 
+    it('should return orders whose subscription was deactivated then activated again', async () => {
+      // Given a due subscription that was deactivated (e.g. Stripe fraud review opened) then activated (review approved)
+      const payment = { amount: 1000, currency: 'USD' as SupportedCurrency, interval: 'month' as const };
+      const subscription = await models.Subscription.create({
+        ...payment,
+        isActive: true,
+        activatedAt: new Date('2018-01-29'),
+        nextChargeDate: new Date('2018-01-29'),
+      });
+      const order = await models.Order.create({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        TierId: tier.id,
+        SubscriptionId: subscription.id,
+        totalAmount: payment.amount,
+        currency: payment.currency,
+        interval: payment.interval,
+        status: status.ACTIVE,
+      });
+      await subscription.deactivate();
+      await subscription.activate();
+
+      // When the orders with pending charges are listed
+      const { rows } = await ordersWithPendingCharges();
+
+      // Then the reactivated subscription is charged again
+      await subscription.reload();
+      expect(subscription.deactivatedAt).to.be.null;
+      expect(rows.map(o => o.id)).to.deep.equal([order.id]);
+    });
+
     it('should exclude orders in CANCELLED and PAUSED status', async () => {
       const payment = { amount: 1000, currency: 'USD' as SupportedCurrency, interval: 'month' as const };
       const createDueOrder = async orderStatus => {

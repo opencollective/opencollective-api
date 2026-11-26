@@ -1,8 +1,10 @@
 /* eslint-disable camelcase */
 import { expect } from 'chai';
 import type Express from 'express';
+import { pick } from 'lodash';
 
 import ActivityTypes from '../../../../server/constants/activities';
+import MemberRoles from '../../../../server/constants/roles';
 import { sanitizeActivityData } from '../../../../server/graphql/common/activities';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../../server/graphql/common/context-permissions';
 import { fakeCollective, fakeExpense, fakeHost, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data';
@@ -196,6 +198,53 @@ describe('server/graphql/common/activities', () => {
       expect(sanitized).to.deep.equal({
         error: { name: 'transfers#state-change', message: 'Wise transfer cancelled' },
       });
+    });
+  });
+
+  describe('sanitizeActivityData - ADDED_FUNDS_EDITED', () => {
+    let host, collective, activity;
+
+    before(async () => {
+      await resetTestDB();
+      host = await fakeHost();
+      collective = await fakeCollective({ HostCollectiveId: host.id });
+      activity = {
+        type: ActivityTypes.ADDED_FUNDS_EDITED,
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        data: {
+          previousData: { data: { memo: 'SECRET-OLD-MEMO', hostFeePercent: 10 }, totalAmount: 2000 },
+          newData: { data: { memo: 'SECRET-NEW-MEMO', hostFeePercent: 0 }, totalAmount: 3000 },
+          editedTransactions: [1, 2],
+        },
+      };
+    });
+
+    it('does not expose the diff to unauthenticated users', async () => {
+      const req = makeRequest(null) as unknown as Express.Request;
+      expect(await sanitizeActivityData(req, activity)).to.deep.equal({});
+    });
+
+    it('does not expose the diff to random users or collective admins', async () => {
+      const randomUser = await fakeUser();
+      const collectiveAdmin = await fakeUser();
+      await collective.addUserWithRole(collectiveAdmin, MemberRoles.ADMIN);
+      for (const user of [randomUser, collectiveAdmin]) {
+        await user.populateRoles();
+        const req = makeRequest(user) as unknown as Express.Request;
+        expect(await sanitizeActivityData(req, activity)).to.deep.equal({});
+      }
+    });
+
+    it('exposes the diff to host admins and accountants', async () => {
+      for (const role of [MemberRoles.ADMIN, MemberRoles.ACCOUNTANT]) {
+        const user = await fakeUser();
+        await host.addUserWithRole(user, role);
+        await user.populateRoles();
+        const req = makeRequest(user) as unknown as Express.Request;
+        const sanitized = await sanitizeActivityData(req, activity);
+        expect(sanitized).to.deep.equal(pick(activity.data, ['previousData', 'newData']));
+      }
     });
   });
 });

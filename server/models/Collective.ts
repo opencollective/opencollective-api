@@ -49,7 +49,7 @@ import { v4 as uuid } from 'uuid';
 import validator from 'validator';
 
 import activities from '../constants/activities';
-import { CollectiveType, CollectiveTypesList } from '../constants/collectives';
+import { CollectiveType, CollectiveTypesList, PLACEHOLDER_USER_NAME } from '../constants/collectives';
 import { Service } from '../constants/connected-account';
 import { SupportedCurrency } from '../constants/currencies';
 import expenseStatus from '../constants/expense-status';
@@ -93,7 +93,6 @@ import { isValidUploadedImage } from '../lib/images';
 import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
 import { normalizeZoneCode } from '../lib/normalize-zone';
-import { openSearchFullAccountReIndex } from '../lib/open-search/sync-postgres';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { getPolicy, POLICIES_EDITABLE_BY_HOST_ONLY } from '../lib/policies';
 import queries from '../lib/queries';
@@ -421,7 +420,10 @@ class Collective extends ModelWithPublicId<
    * Generates a unique slug based on the provided base, appending a random suffix if needed.
    * E.g. "Hello World" -> "hello-world". If taken: "hello-world-agb5d6".
    */
-  static generateSlug = async (nameOrSlug: string): Promise<string> => {
+  static generateSlug = async (
+    nameOrSlug: string,
+    { transaction }: { transaction?: SequelizeTransaction } = {},
+  ): Promise<string> => {
     const getRandomHash = () => uuid().split('-')[0];
     const generateRandomSlug = () => `user-${getRandomHash()}`;
     if (!nameOrSlug) {
@@ -439,6 +441,7 @@ class Collective extends ModelWithPublicId<
       attributes: ['id'],
       where: { slug: baseSlug },
       paranoid: false,
+      transaction,
     });
 
     if (!slugExists) {
@@ -860,7 +863,7 @@ class Collective extends ModelWithPublicId<
     }
 
     if (this.type === 'USER') {
-      if (user && user.email && this.name && this.name !== 'incognito') {
+      if (user && user.email && this.name && !['incognito', PLACEHOLDER_USER_NAME].includes(this.name)) {
         const emailHash = md5(user.email.toLowerCase().trim());
         const avatar = `https://www.gravatar.com/avatar/${emailHash}?default=404`;
         return this.checkAndUpdateImage(avatar, force);
@@ -1922,6 +1925,8 @@ class Collective extends ModelWithPublicId<
     defaultAttributes: { TierId?: number; CreatedByUserId?: number; description?: string; since?: Date } = {},
     context: {
       skipActivity?: boolean;
+      /** Do not send the "new member" email. The caller is responsible for calling `sendNewMemberEmail` */
+      skipNewMemberEmail?: boolean;
       order?: Order;
     } = {},
     transaction = undefined,
@@ -1968,7 +1973,7 @@ class Collective extends ModelWithPublicId<
       case roles.MEMBER:
       case roles.ACCOUNTANT:
       case roles.ADMIN: {
-        if (![CollectiveType.FUND, CollectiveType.PROJECT, CollectiveType.EVENT].includes(this.type)) {
+        if (!context?.skipNewMemberEmail) {
           await this.sendNewMemberEmail(user, role, member, sequelizeParams);
         }
 
@@ -2039,7 +2044,11 @@ class Collective extends ModelWithPublicId<
     );
   };
 
-  sendNewMemberEmail = async function (user, role, member, sequelizeParams) {
+  sendNewMemberEmail = async function (user, role, member, sequelizeParams = undefined) {
+    if ([CollectiveType.FUND, CollectiveType.PROJECT, CollectiveType.EVENT].includes(this.type)) {
+      return;
+    }
+
     const remoteUser = await User.findByPk(member.CreatedByUserId, {
       ...sequelizeParams,
       include: [{ model: Collective, as: 'collective' }],
@@ -2861,9 +2870,6 @@ class Collective extends ModelWithPublicId<
       });
     }
 
-    // Update search
-    openSearchFullAccountReIndex(this.id);
-
     return this;
   };
 
@@ -2902,18 +2908,18 @@ class Collective extends ModelWithPublicId<
 
     // remove the members that are not present anymore
     const { remoteUserCollectiveId } = defaultAttributes;
-    const diff: Member[] = differenceBy(oldMembers, members, (m: Member) => m.id);
-    if (diff.length > 0) {
-      const nbAdminsBefore = oldMembers.filter(m => m.role === roles.ADMIN && m.id).length;
-      const nbAdmins = members.filter(m => m.role === roles.ADMIN && m.id).length;
-      if (nbAdminsBefore && !nbAdmins) {
-        throw new Error('There must be at least one admin for the account');
-      }
 
-      debug('editMembers', 'delete', diff);
-      const diffMemberIds = diff.map(m => m.id);
-      await Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diffMemberIds } } });
+    // At least one admin must remain once the edit is applied. Pending invitations don't count,
+    // only existing members and the remote user adding themselves (which creates a membership directly).
+    const nbAdminsBefore = oldMembers.filter(m => m.role === roles.ADMIN).length;
+    const nbAdmins = members.filter(
+      m => m.role === roles.ADMIN && (m.id || (remoteUserCollectiveId && m.member?.id === remoteUserCollectiveId)),
+    ).length;
+    if (nbAdminsBefore && !nbAdmins) {
+      throw new Error('There must be at least one admin for the account');
     }
+
+    const diff: Member[] = differenceBy(oldMembers, members, (m: Member) => m.id);
 
     // Remove the invitations that are not present anymore
     const invitationsDiff = oldInvitations.filter(invitation => {
@@ -2922,75 +2928,100 @@ class Collective extends ModelWithPublicId<
       );
     });
 
-    if (invitationsDiff.length > 0) {
-      await MemberInvitation.update(
-        { deletedAt: new Date() },
-        {
-          where: {
-            id: { [Op.in]: invitationsDiff.map(i => i.id) },
-            CollectiveId: this.id,
-          },
-        },
-      );
-    }
-
-    // Add new members
-    for (const member of members) {
-      const memberAttributes = {
-        ...defaultAttributes,
-        description: member.description,
-        since: member.since,
-        role: member.role,
-      };
-
-      if (member.id) {
-        // Edit an existing membership (edit the role/description)
-        const editableAttributes = pick(member, ['role', 'description', 'since']);
-        debug('editMembers', 'update member', member.id, editableAttributes);
-        await Member.update(editableAttributes, {
-          where: {
-            id: member.id,
-            CollectiveId: this.id,
-            role: { [Op.in]: allowedRoles },
-          },
-        });
-      } else if (remoteUserCollectiveId && member.member?.id === remoteUserCollectiveId) {
-        // When users try to add themselves (ie. when creating a collective) we don't need to send an invitation
-        await Member.create({
-          ...memberAttributes,
-          MemberCollectiveId: member.member.id,
-          CollectiveId: this.id,
-        });
-      } else if (member.member?.id) {
-        // Create new membership invitation
-        await MemberInvitation.invite(this, { ...memberAttributes, MemberCollectiveId: member.member.id });
-      } else if (member.member?.email) {
-        // Add user by email
-        const user = await User.findOne({
-          include: {
-            model: Collective,
-            as: 'collective',
-            where: { type: CollectiveType.USER, isIncognito: false },
-          },
-          where: { email: member.member.email },
-        });
-
-        if (user) {
-          // If user exists for this email, send an invitation
-          await MemberInvitation.invite(this, { ...memberAttributes, MemberCollectiveId: user.collective.id });
-        } else {
-          // Otherwise create and add the user directly
-          const userFields = ['email', 'name', 'company', 'website'];
-          const user = await User.createUserWithCollective(pick(member.member, userFields));
-          await this.addUserWithRole(user, member.role, {
-            ...memberAttributes,
-            MemberCollectiveId: user.collective.id,
-          });
-        }
-      } else {
-        throw new Error('Invited member collective has not been set');
+    // Run all the writes in one transaction, so that an error (e.g. a failed invitation) does not leave
+    // members or invitations removed. "New member" emails are only sent once the transaction is committed.
+    const newMemberEmails: Array<{ user: User; role: string; member: Member }> = [];
+    await sequelize.transaction(async transaction => {
+      if (diff.length > 0) {
+        debug('editMembers', 'delete', diff);
+        const diffMemberIds = diff.map(m => m.id);
+        await Member.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diffMemberIds } }, transaction });
       }
-    }
+
+      if (invitationsDiff.length > 0) {
+        await MemberInvitation.update(
+          { deletedAt: new Date() },
+          {
+            where: {
+              id: { [Op.in]: invitationsDiff.map(i => i.id) },
+              CollectiveId: this.id,
+            },
+            transaction,
+          },
+        );
+      }
+
+      // Add new members
+      for (const member of members) {
+        const memberAttributes = {
+          ...defaultAttributes,
+          description: member.description,
+          since: member.since,
+          role: member.role,
+        };
+
+        if (member.id) {
+          // Edit an existing membership (edit the role/description)
+          const editableAttributes = pick(member, ['role', 'description', 'since']);
+          debug('editMembers', 'update member', member.id, editableAttributes);
+          await Member.update(editableAttributes, {
+            where: {
+              id: member.id,
+              CollectiveId: this.id,
+              role: { [Op.in]: allowedRoles },
+            },
+            transaction,
+          });
+        } else if (remoteUserCollectiveId && member.member?.id === remoteUserCollectiveId) {
+          // When users try to add themselves (ie. when creating a collective) we don't need to send an invitation
+          await Member.create(
+            { ...memberAttributes, MemberCollectiveId: member.member.id, CollectiveId: this.id },
+            { transaction },
+          );
+        } else if (member.member?.id) {
+          // Create new membership invitation
+          await MemberInvitation.invite(
+            this,
+            { ...memberAttributes, MemberCollectiveId: member.member.id },
+            { transaction },
+          );
+        } else if (member.member?.email) {
+          // Add user by email
+          const user = await User.findOne({
+            include: {
+              model: Collective,
+              as: 'collective',
+              where: { type: CollectiveType.USER, isIncognito: false },
+            },
+            where: { email: member.member.email },
+            transaction,
+          });
+
+          if (user) {
+            // If user exists for this email, send an invitation
+            await MemberInvitation.invite(
+              this,
+              { ...memberAttributes, MemberCollectiveId: user.collective.id },
+              { transaction },
+            );
+          } else {
+            // Otherwise create and add the user directly
+            const userFields = ['email', 'name', 'company', 'website'];
+            const user = await User.createUserWithCollective(pick(member.member, userFields), transaction);
+            const newMember = await this.addUserWithRole(
+              user,
+              member.role,
+              { ...memberAttributes, MemberCollectiveId: user.collective.id },
+              { skipNewMemberEmail: true },
+              transaction,
+            );
+            newMemberEmails.push({ user, role: member.role, member: newMember });
+          }
+        } else {
+          throw new Error('Invited member collective has not been set');
+        }
+      }
+    });
 
     /**
      * Because we don't update the model directly (we use Model.update(..., {where}))
@@ -3000,6 +3031,19 @@ class Collective extends ModelWithPublicId<
      */
     invalidateContributorsCache(this.id);
     purgeCacheForCollective(this.slug);
+
+    // Send all the emails, then report the first failure (if any). Memberships are already committed.
+    let emailError;
+    for (const { user, role, member } of newMemberEmails) {
+      try {
+        await this.sendNewMemberEmail(user, role, member);
+      } catch (e) {
+        emailError = emailError || e;
+      }
+    }
+    if (emailError) {
+      throw emailError;
+    }
 
     return this.getMembers({
       where: { role: { [Op.in]: allowedRoles } },
@@ -4368,7 +4412,7 @@ Collective.init(
     paranoid: true,
     sequelize,
     hooks: {
-      beforeValidate: instance => {
+      beforeValidate: (instance, options) => {
         if (instance.slug) {
           return Promise.resolve();
         }
@@ -4387,7 +4431,9 @@ Collective.init(
         ];
 
         const baseSlug = compact(potentialSlugs)[0];
-        return Collective.generateSlug(baseSlug).then(slug => {
+        // Sequelize passes the save options (including the transaction) to validation hooks, but does not type it
+        const { transaction } = (options || {}) as { transaction?: SequelizeTransaction };
+        return Collective.generateSlug(baseSlug, { transaction }).then(slug => {
           if (!slug) {
             return Promise.reject(new Error("We couldn't generate a unique slug for this collective"));
           }

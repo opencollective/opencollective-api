@@ -214,7 +214,7 @@ const vendorMutations = {
                 publicProfile: args.vendor.hasPublicProfile ?? false,
               }),
             })
-          : vendor.settings;
+          : { ...vendor.settings }; // Copy, so that the tax ID set below is detected as a change by Sequelize
       const vendorData = {
         image,
         backgroundImage,

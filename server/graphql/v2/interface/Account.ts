@@ -1528,11 +1528,14 @@ export const AccountFields = {
     },
     resolve(collective: Collective, args, req) {
       const accountConditions = {};
-      if (!args.direction || args.direction === 'SUBMITTED') {
+      if (args.direction === 'SUBMITTED') {
         accountConditions['fromAccount'] = { legacyId: collective.id };
-      }
-      if (!args.direction || args.direction === 'RECEIVED') {
+      } else if (args.direction === 'RECEIVED') {
         accountConditions['account'] = { legacyId: collective.id };
+      } else {
+        // No direction: expenses submitted by OR received by the account
+        accountConditions['account'] = { legacyId: collective.id };
+        accountConditions['includeSubmittedByAccount'] = true;
       }
 
       args = omit({ ...args, ...accountConditions }, ['direction']);

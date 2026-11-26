@@ -13,6 +13,7 @@ import isEmail from 'validator/lib/isEmail';
 import { SUPPORTED_CURRENCIES, SupportedCurrency } from '../constants/currencies';
 import ExpenseStatuses from '../constants/expense-status';
 import logger from '../lib/logger';
+import { cleanName } from '../lib/name-matching';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { reportMessageToSentry } from '../lib/sentry';
 import sequelize, { Op } from '../lib/sequelize';
@@ -396,6 +397,8 @@ PayoutMethod.init(
           } else if (this.type === PayoutMethodTypes.BANK_ACCOUNT) {
             if (!value || !value.accountHolderName || !value.currency || !value.type || !value.details) {
               throw new Error('Invalid format of BANK_ACCOUNT payout method data');
+            } else if (typeof value.accountHolderName !== 'string' || value.accountHolderName.length > 255) {
+              throw new Error('Invalid account holder name');
             }
           } else if (this.type === PayoutMethodTypes.CREDIT_CARD) {
             if (!value || !value.token) {
@@ -479,13 +482,21 @@ PayoutMethod.init(
     },
     hooks: {
       beforeValidate: (instance: PayoutMethod) => {
-        // Auto-extract currency from data field if not explicitly set on the column
         const data = instance.getDataValue('data') as Record<string, unknown> | undefined;
+
+        // Trim and remove double spaces from the account holder name
+        if (typeof data?.accountHolderName === 'string') {
+          const cleanedName = cleanName(data.accountHolderName);
+          if (cleanedName !== data.accountHolderName) {
+            instance.data = { ...data, accountHolderName: cleanedName } as PayoutMethodDataType;
+          }
+        }
+        // Auto-extract currency from data field if not explicitly set on the column
         if (!instance.currency && data?.currency) {
           reportMessageToSentry(`Missing currency while creating payout method`, { extra: { data } });
           instance.currency = data.currency as SupportedCurrency;
         } else if (instance.currency && !data?.currency) {
-          instance.data = { ...data, currency: instance.currency };
+          instance.data = { ...instance.data, currency: instance.currency };
         }
       },
     },

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import config from 'config';
-import { isEmpty, isNil, kebabCase } from 'lodash';
+import { isEmpty, isNil, kebabCase, omit } from 'lodash';
 import moment from 'moment';
 import assert from 'node:assert';
 import Stream from 'node:stream';
@@ -30,6 +30,10 @@ type TransactionExportRequestVariables = {
   };
   paymentMethodService?: string | string[];
   paymentMethodType?: string | string[];
+  manualPaymentProvider?: Array<{ id: string }>;
+  paymentMethod?: Array<{ id: string }>;
+  payoutMethod?: { id: string };
+  virtualCard?: Array<{ id: string }>;
   type?: string;
   searchTerm?: string;
   dateFrom?: string;
@@ -55,6 +59,12 @@ type TransactionExportRequestParameters = {
 
 const safeJoinString = (value: string[] | string) => (Array.isArray(value) ? value.join(',') : value);
 
+/** Encodes a value as a single URL path segment, so that it can never add or remove path segments. */
+const encodePathSegment = (value: string): string => {
+  assert(typeof value === 'string' && value && value !== '.' && value !== '..', 'Invalid account slug for export URL');
+  return encodeURIComponent(value);
+};
+
 /** If neither the download nor the upload moves data for this long, the export stream is considered wedged. */
 export const EXPORT_IDLE_TIMEOUT_MS = 15 * 60_000;
 
@@ -68,9 +78,9 @@ export const makeUrl = ({
   fetchAll,
 }: TransactionExportRequestParameters & { account: AccountReferenceInput }) => {
   const queryFilter = { variables };
-  const url = isHostReport
-    ? new URL(`${config.host.rest}/v2/${account?.slug}/hostTransactions.csv`)
-    : new URL(`${config.host.rest}/v2/${account?.slug}/transactions.csv`);
+  const url = new URL(config.host.rest);
+  const endpoint = isHostReport ? 'hostTransactions.csv' : 'transactions.csv';
+  url.pathname = `${url.pathname.replace(/\/$/, '')}/v2/${encodePathSegment(account?.slug)}/${endpoint}`;
 
   if (isHostReport) {
     if (queryFilter.variables.account) {
@@ -107,6 +117,21 @@ export const makeUrl = ({
   }
   if (queryFilter.variables.paymentMethodType) {
     url.searchParams.set('paymentMethodType', safeJoinString(queryFilter.variables.paymentMethodType));
+  }
+  if (!isEmpty(queryFilter.variables.manualPaymentProvider)) {
+    url.searchParams.set(
+      'manualPaymentProvider',
+      queryFilter.variables.manualPaymentProvider.map(provider => provider.id).join(','),
+    );
+  }
+  if (!isEmpty(queryFilter.variables.paymentMethod)) {
+    url.searchParams.set('paymentMethod', queryFilter.variables.paymentMethod.map(pm => pm.id).join(','));
+  }
+  if (queryFilter.variables.payoutMethod?.id) {
+    url.searchParams.set('payoutMethod', queryFilter.variables.payoutMethod.id);
+  }
+  if (!isEmpty(queryFilter.variables.virtualCard)) {
+    url.searchParams.set('virtualCard', queryFilter.variables.virtualCard.map(vc => vc.id).join(','));
   }
   if (queryFilter.variables.type) {
     url.searchParams.set('type', queryFilter.variables.type);
@@ -180,11 +205,10 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
   const account = await request.getCollective();
   assert(account, 'ExportRequest must have a Collective');
   const token = await user.generateSessionToken({ createActivity: false, updateLastLoginAt: false });
-  const params = request.parameters as TransactionExportRequestParameters;
-  const url = makeUrl({
-    account: { slug: account.slug },
-    ...params,
-  });
+  // The exported account is always the one the request was created (and permission-checked) for. Any `account`
+  // key in the stored parameters is ignored: clients pass account filters through `variables` instead.
+  const params = omit(request.parameters, ['account']) as TransactionExportRequestParameters;
+  const url = makeUrl({ ...params, account: { slug: account.slug } });
 
   const abortController = new AbortController();
   // Propagate worker abort signal to the upload and download stream

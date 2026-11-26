@@ -415,9 +415,9 @@ const getSteps = (
   `;
 
   const subscriptions = `
-    INSERT INTO "Subscriptions" (id, amount, "interval", "isActive", "paypalSubscriptionId", "isManagedExternally", "deletedAt",
+    INSERT INTO "Subscriptions" (id, "interval", "isActive", "paypalSubscriptionId", "isManagedExternally", "deletedAt",
       "createdAt", "updatedAt", "nextChargeDate", quantity, "chargeNumber", currency)
-    SELECT ${SUB} + i, 500 + i % 10000, CASE WHEN i % 5 = 0 THEN 'year' ELSE 'month' END, i % 3 <> 0,
+    SELECT ${SUB} + i, CASE WHEN i % 5 = 0 THEN 'year' ELSE 'month' END, i % 3 <> 0,
       CASE WHEN i % 10 < 3 THEN 'I-' || upper(substr(md5('sub' || i || '-' || ${SUB}), 1, 12)) END,
       i % 10 < 3, CASE WHEN i % 50 = 0 THEN now() END, now(), now(), now(), 1, i % 40, 'USD'
     FROM generate_series(0, ${s.subscriptions - 1}) i;

@@ -1054,6 +1054,15 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
   }
 };
 
+// ERROR is live: a failed recurring charge keeps the subscription active for retries, which must stop during the review
+const REVIEWABLE_ORDER_STATUSES = [
+  OrderStatuses.NEW,
+  OrderStatuses.PROCESSING,
+  OrderStatuses.PAID,
+  OrderStatuses.ACTIVE,
+  OrderStatuses.ERROR,
+];
+
 // Charge on Stripe had a fraud review opened
 export const reviewOpened = async (event: Stripe.Event) => {
   const review = event.data.object as Stripe.Review;
@@ -1097,7 +1106,9 @@ export const reviewOpened = async (event: Stripe.Event) => {
     transactions.map(async transaction => {
       await transaction.update({ isInReview: true });
       const order = transaction.Order;
-      if (order.status !== OrderStatuses.IN_REVIEW) {
+      // Only put live orders in review: approving the review restores them as ACTIVE/PAID, which must not
+      // revive an order that was cancelled, refunded, disputed or paused in the meantime
+      if (REVIEWABLE_ORDER_STATUSES.includes(order.status)) {
         await order.update({ status: OrderStatuses.IN_REVIEW });
 
         if (order.SubscriptionId) {
@@ -1413,6 +1424,22 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
   }
 }
 
+type WebhookEventGate = (event: Stripe.Event, handle: () => Promise<unknown>) => Promise<unknown>;
+
+let webhookEventGate: WebhookEventGate | null = null;
+
+/**
+ * Lets the E2E entry point (`server/e2e/stripe-ownership.ts`) decide whether a received event may reach the
+ * mutating handlers below: E2E stacks share one Stripe test account, so a valid signature does not prove that
+ * an event belongs to them. Never set outside an owned E2E stack, where every event goes straight to its handler.
+ */
+export const setWebhookEventGate = (gate: WebhookEventGate | null): void => {
+  webhookEventGate = gate;
+};
+
+const gated = (event: Stripe.Event, handle: () => Promise<unknown>) =>
+  webhookEventGate ? webhookEventGate(event, handle) : handle();
+
 export const webhook = async (request: Request<unknown, Stripe.Event>) => {
   debug(`Stripe webhook event received : ${request.rawBody}`);
 
@@ -1436,7 +1463,7 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
   }
 
   if (event.type.startsWith('issuing')) {
-    return handleIssuingWebhooks(request);
+    return gated(event, () => handleIssuingWebhooks(request));
   }
 
   try {
@@ -1449,6 +1476,10 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
     throw new Error('Source of event not recognized');
   }
 
+  return gated(event, () => dispatchWebhookEvent(event));
+};
+
+async function dispatchWebhookEvent(event: Stripe.Event) {
   switch (event.type) {
     case 'charge.dispute.created':
       return chargeDisputeCreated(event);
@@ -1474,4 +1505,4 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
       logger.debug(`Stripe: Webhooks: Received an unsupported event type: ${event.type}`);
       return;
   }
-};
+}

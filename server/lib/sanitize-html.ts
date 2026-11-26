@@ -246,17 +246,6 @@ export function sanitizeHostApplicationMessage<T extends string | null | undefin
 }
 
 /**
- * A safer version of `stripHTML` that returns an empty string if the input contains invalid HTML.
- */
-export const stripHTMLOrEmpty = (content: string): string => {
-  try {
-    return sanitizeHTML(content, optsStripAll);
-  } catch {
-    return '';
-  }
-};
-
-/**
  * An helper to generate a summary for an HTML content. A summary is defined as a single
  * line content truncated to a max length, with tags like code blocks removed. It still
  * allows the use of bold, italic and other single-line format options.
@@ -351,13 +340,11 @@ const isTrustedLinkUrl = (url: string): boolean => {
     /^(.+\.)?xwiki\.com$/,
     /^(.+\.)?platform6\.coop$/,
     /^(.+\.)?ferrous-systems\.com$/,
-    /^(.+\.)?compassionate-revolution\.net$/,
     /^(.+\.)?e-nable\.org$/,
     /^(.+\.)?womenwhocode\.com$/,
     /^(.+\.)?codeforscience\.org$/,
     /^(.+\.)?allforclimate\.earth$/,
     /^(.+\.)?permaculture\.org\.uk$/,
-    /^(.+\.)?fission\.codes$/,
     /^(.+\.)?schumacherinstitute\.org\.uk$/,
     /^(.+\.)?numfocus\.org$/,
     /^(.+\.)?piratpartiet\.se$/,

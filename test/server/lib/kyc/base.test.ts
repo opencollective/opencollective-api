@@ -4,7 +4,12 @@ import sinon from 'sinon';
 import ActivityTypes from '../../../../server/constants/activities';
 import * as kycExpensesCheck from '../../../../server/lib/kyc/expenses/kyc-expenses-check';
 import { KYCProviderName } from '../../../../server/lib/kyc/providers';
-import { KYCProvider, ProviderKYCRequestBase, ProviderKYCSubmitBase } from '../../../../server/lib/kyc/providers/base';
+import {
+  KYCProvider,
+  KYCRequest,
+  ProviderKYCRequestBase,
+  ProviderKYCSubmitBase,
+} from '../../../../server/lib/kyc/providers/base';
 import Activity from '../../../../server/models/Activity';
 import { KYCVerification, KYCVerificationStatus } from '../../../../server/models/KYCVerification';
 import { fakeKYCVerification, fakeOrganization, fakeUser } from '../../../test-helpers/fake-data';
@@ -23,20 +28,27 @@ class TestProvider extends KYCProvider<ProviderKYCRequestBase, ProviderKYCSubmit
     throw new Error('Method not implemented.');
   }
 
-  async triggerKycRequested(kycVerification: KYCVerification, providerParams: ProviderKYCRequestBase) {
-    return this.handleKycRequested(kycVerification, providerParams);
+  async triggerKycRequested(kycVerification: KYCVerification, params: KYCRequest) {
+    return this.handleKycRequested(kycVerification, params);
   }
 
   async triggerKycRevoked(kycVerification: KYCVerification, userId: number, userTokenId: number | null) {
     return this.handleKycRevoked(kycVerification, userId, userTokenId);
   }
 
-  async triggerKycVerified(kycVerification: KYCVerification) {
-    return this.handleKycVerified(kycVerification);
+  async triggerKycVerified(kycVerification: KYCVerification, params: KYCRequest) {
+    return this.handleKycVerified(kycVerification, params);
   }
 }
 
 const testProvider = new TestProvider();
+
+const kycRequestParams = (kycVerification: KYCVerification, userId: number): KYCRequest => ({
+  CollectiveId: kycVerification.CollectiveId,
+  RequestedByCollectiveId: kycVerification.RequestedByCollectiveId,
+  CreatedByUserId: userId,
+  UserTokenId: null,
+});
 
 describe('server/lib/kyc/base', () => {
   describe('revoke', () => {
@@ -92,7 +104,7 @@ describe('server/lib/kyc/base', () => {
         RequestedByCollectiveId: org.id,
         status: KYCVerificationStatus.VERIFIED,
       });
-      await testProvider.triggerKycRequested(kycVerification, { UserTokenId: null });
+      await testProvider.triggerKycRequested(kycVerification, kycRequestParams(kycVerification, user.id));
       const activity = await Activity.findOne({
         where: {
           type: ActivityTypes.KYC_REQUESTED,
@@ -115,7 +127,7 @@ describe('server/lib/kyc/base', () => {
         RequestedByCollectiveId: org.id,
         status: KYCVerificationStatus.VERIFIED,
       });
-      await testProvider.triggerKycRequested(kycVerification, { UserTokenId: null });
+      await testProvider.triggerKycRequested(kycVerification, kycRequestParams(kycVerification, user.id));
 
       expect(handleExpenseKycRequestedStub).to.have.been.calledWith(kycVerification);
     });
@@ -192,7 +204,7 @@ describe('server/lib/kyc/base', () => {
         RequestedByCollectiveId: org.id,
         status: KYCVerificationStatus.VERIFIED,
       });
-      await testProvider.triggerKycVerified(kycVerification);
+      await testProvider.triggerKycVerified(kycVerification, kycRequestParams(kycVerification, user.id));
       const activity = await Activity.findOne({
         where: {
           type: ActivityTypes.KYC_VERIFIED,
@@ -215,7 +227,7 @@ describe('server/lib/kyc/base', () => {
         RequestedByCollectiveId: org.id,
         status: KYCVerificationStatus.VERIFIED,
       });
-      await testProvider.triggerKycVerified(kycVerification);
+      await testProvider.triggerKycVerified(kycVerification, kycRequestParams(kycVerification, user.id));
 
       expect(handleExpenseKycVerifiedStub).to.have.been.calledWith(kycVerification);
     });

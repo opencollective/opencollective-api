@@ -14,7 +14,7 @@ import {
 import { runWithTimeout } from '../../../../server/lib/promises';
 import { UploadedFile } from '../../../../server/models';
 import { ExportRequestStatus, ExportRequestTypes } from '../../../../server/models/ExportRequest';
-import { fakeExportRequest, fakeUploadedFile, fakeUser } from '../../../test-helpers/fake-data';
+import { fakeCollective, fakeExportRequest, fakeUploadedFile, fakeUser } from '../../../test-helpers/fake-data';
 import { resetTestDB, waitForCondition } from '../../../utils';
 
 describe('server/lib/export-requests/export-csv', () => {
@@ -87,6 +87,61 @@ describe('server/lib/export-requests/export-csv', () => {
       expect(url.searchParams.get('accountingCategory')).to.equal('cat-a,cat-b');
       expect(url.searchParams.get('paymentMethodService')).to.equal('STRIPE,PAYPAL');
       expect(url.searchParams.get('paymentMethodType')).to.equal('creditcard');
+    });
+
+    it('maps manual payment provider references to a comma-joined list of ids', () => {
+      const url = parseUrl({
+        account: { slug: 'my-host' },
+        isHostReport: true,
+        variables: {
+          paymentMethodService: ['OPENCOLLECTIVE'],
+          paymentMethodType: ['MANUAL'],
+          manualPaymentProvider: [{ id: 'mpp_abc123' }, { id: 'mpp_def456' }],
+        },
+      });
+      expect(url.searchParams.get('paymentMethodType')).to.equal('MANUAL');
+      expect(url.searchParams.get('manualPaymentProvider')).to.equal('mpp_abc123,mpp_def456');
+    });
+
+    it('omits the manual payment provider filter when empty', () => {
+      const url = parseUrl({ account: { slug: 'my-collective' }, variables: { manualPaymentProvider: [] } });
+      expect(url.searchParams.has('manualPaymentProvider')).to.be.false;
+    });
+
+    it('forwards the payment method filter as a list of ids', () => {
+      const url = parseUrl({
+        account: { slug: 'my-collective' },
+        variables: { paymentMethod: [{ id: 'pm_abc123' }, { id: 'pm_def456' }] },
+      });
+      expect(url.searchParams.get('paymentMethod')).to.equal('pm_abc123,pm_def456');
+    });
+
+    it('omits the payment method filter when empty', () => {
+      const url = parseUrl({ account: { slug: 'my-collective' }, variables: { paymentMethod: [] } });
+      expect(url.searchParams.has('paymentMethod')).to.be.false;
+    });
+
+    it('forwards the payout method filter as its id', () => {
+      const url = parseUrl({ account: { slug: 'my-collective' }, variables: { payoutMethod: { id: 'po_abc123' } } });
+      expect(url.searchParams.get('payoutMethod')).to.equal('po_abc123');
+    });
+
+    it('omits the payout method filter when not set', () => {
+      const url = parseUrl();
+      expect(url.searchParams.has('payoutMethod')).to.be.false;
+    });
+
+    it('forwards the virtual card filter as a list of ids', () => {
+      const url = parseUrl({
+        account: { slug: 'my-collective' },
+        variables: { virtualCard: [{ id: 'vc_abc123' }, { id: 'vc_def456' }] },
+      });
+      expect(url.searchParams.get('virtualCard')).to.equal('vc_abc123,vc_def456');
+    });
+
+    it('omits the virtual card filter when empty', () => {
+      const url = parseUrl({ account: { slug: 'my-collective' }, variables: { virtualCard: [] } });
+      expect(url.searchParams.has('virtualCard')).to.be.false;
     });
 
     it('maps amount bounds to min/maxAmount', () => {
@@ -169,6 +224,23 @@ describe('server/lib/export-requests/export-csv', () => {
       expect(url.searchParams.has('flattenTax')).to.be.false;
       expect(url.searchParams.has('flattenPaymentProcessorFee')).to.be.false;
       expect(url.searchParams.has('expenseType')).to.be.false;
+    });
+
+    it('encodes the account slug as a single path segment', () => {
+      const url = parseUrl({ account: { slug: 'a/b?c=d#e' } });
+      expect(url.origin).to.equal(new URL(config.host.rest).origin);
+      expect(url.pathname).to.equal('/v2/a%2Fb%3Fc%3Dd%23e/transactions.csv');
+      expect(url.searchParams.has('c')).to.be.false;
+      expect(url.hash).to.equal('');
+
+      const hostUrl = parseUrl({ account: { slug: 'a/b' }, isHostReport: true });
+      expect(hostUrl.pathname).to.equal('/v2/a%2Fb/hostTransactions.csv');
+    });
+
+    it('rejects account slugs that are relative path segments or empty', () => {
+      for (const slug of ['.', '..', '', undefined]) {
+        expect(() => makeUrl({ account: { slug } }), String(slug)).to.throw('Invalid account slug for export URL');
+      }
     });
   });
 
@@ -526,6 +598,42 @@ describe('server/lib/export-requests/export-csv', () => {
       expect(abortRegistration.args[2]).to.have.property('once', true);
       const abortRemoval = removeEventListenerSpy.getCalls().find(call => call.args[0] === 'abort');
       expect(abortRemoval.args[1]).to.equal(abortRegistration.args[1]);
+    });
+
+    it('always exports the account the request was created for, ignoring `parameters.account`', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user, slug: 'my-admin-collective' });
+      const exportRequest = await fakeExportRequest({
+        CreatedByUserId: user.id,
+        CollectiveId: collective.id,
+        parameters: { account: { slug: 'other-collective/other?c=d' } },
+      });
+      const axiosGetStub = sandbox.stub(axios, 'get').resolves({ data: Readable.from(['a\n']) } as any);
+      sandbox.stub(UploadedFile, 'uploadStream').resolves(await fakeUploadedFile({ CreatedByUserId: user.id }));
+
+      await processTransactionsRequest(exportRequest, new AbortController().signal);
+
+      const url = new URL(axiosGetStub.getCall(0).args[0]);
+      expect(url.origin).to.equal(new URL(config.host.rest).origin);
+      expect(url.pathname).to.equal('/v2/my-admin-collective/transactions.csv');
+      expect(url.searchParams.has('c')).to.be.false;
+    });
+
+    it('ignores `parameters.account` for host reports too', async () => {
+      const user = await fakeUser();
+      const host = await fakeCollective({ admin: user, slug: 'my-admin-host' });
+      const exportRequest = await fakeExportRequest({
+        CreatedByUserId: user.id,
+        CollectiveId: host.id,
+        parameters: { isHostReport: true, account: { slug: 'another-host' } },
+      });
+      const axiosGetStub = sandbox.stub(axios, 'get').resolves({ data: Readable.from(['a\n']) } as any);
+      sandbox.stub(UploadedFile, 'uploadStream').resolves(await fakeUploadedFile({ CreatedByUserId: user.id }));
+
+      await processTransactionsRequest(exportRequest, new AbortController().signal);
+
+      const url = new URL(axiosGetStub.getCall(0).args[0]);
+      expect(url.pathname).to.equal('/v2/my-admin-host/hostTransactions.csv');
     });
   });
 });

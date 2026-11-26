@@ -12,7 +12,6 @@ import type { Collective, User } from '../../models';
  * Search backends, exposed in GraphQL as `SearchBackend`.
  */
 export enum SearchProvider {
-  OPENSEARCH = 'OPENSEARCH',
   POSTGRES = 'POSTGRES',
 }
 

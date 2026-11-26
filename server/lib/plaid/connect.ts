@@ -1,6 +1,6 @@
 import config from 'config';
 import { omit, truncate } from 'lodash';
-import { CountryCode, ItemPublicTokenExchangeResponse, LinkTokenCreateRequest, Products } from 'plaid';
+import { AccountSubtype, CountryCode, ItemPublicTokenExchangeResponse, LinkTokenCreateRequest, Products } from 'plaid';
 
 import { Service } from '../../constants/connected-account';
 import PlatformConstants from '../../constants/platform';
@@ -284,18 +284,23 @@ export const refreshPlaidSubAccounts = async (
 
   const PlaidClient = getPlaidClient();
   const { data } = await PlaidClient.accountsGet({ access_token: connectedAccount.token }); // eslint-disable-line camelcase
-  await transactionsImport.update({
-    data: {
-      plaid: {
-        availableAccounts: data.accounts.map(account => ({
-          accountId: account.account_id,
-          mask: account.mask,
-          name: account.name,
-          officialName: account.official_name,
-          subtype: account.subtype,
-          type: account.type,
-        })),
-      },
-    },
+  const availableAccounts = data.accounts.map(account => ({
+    accountId: account.account_id,
+    // `mask`, `official_name` and `subtype` are nullable in Plaid's API, but required in our data schema
+    mask: account.mask ?? '',
+    name: account.name,
+    officialName: account.official_name ?? account.name,
+    subtype: account.subtype ?? AccountSubtype.Other,
+    type: account.type,
+  }));
+
+  // Only replace `availableAccounts`: `data` also holds the sync cursor, the sync attempts and the `lockedAt` mutex.
+  // Lock the row while doing the read-modify-write so we don't overwrite a concurrent `TransactionsImport.lock`.
+  await sequelize.transaction(async sqlTransaction => {
+    await transactionsImport.reload({ transaction: sqlTransaction, lock: true });
+    await transactionsImport.update(
+      { data: { ...transactionsImport.data, plaid: { ...transactionsImport.data?.plaid, availableAccounts } } },
+      { transaction: sqlTransaction },
+    );
   });
 };

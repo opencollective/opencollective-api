@@ -5,6 +5,7 @@ import {
   difference,
   flatten,
   get,
+  groupBy,
   isEmpty,
   isNil,
   isNull,
@@ -34,7 +35,11 @@ import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/
 import { checkCaptcha } from '../../../lib/check-captcha';
 import { roundCentsAmount } from '../../../lib/currency';
 import logger from '../../../lib/logger';
-import { createOrderUpdatedActivity, syncBackerMembershipTier } from '../../../lib/order-tier-change';
+import {
+  createOrderUpdatedActivity,
+  moveBackerMembership,
+  syncBackerMembershipTier,
+} from '../../../lib/order-tier-change';
 import { isBalanceOnlyCollectiveType } from '../../../lib/payments';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../../lib/sanitize-html';
@@ -865,7 +870,7 @@ const orderMutations = {
             }
             order.set('data', { ...order.data, paymentProcessorFee: paymentProcessorFeeInCents });
           }
-          // Read the base amount before `taxAmount` changes: without a new amount, the tax applies to this one
+          // Read the base amount before `taxAmount` or `platformTipAmount` change: without a new amount, it stays the same
           const existingBaseAmount = getOrderBaseAmount(order);
           if (!isNil(tax)) {
             const quantity = 1; // Not supported yet by OrderUpdateInput
@@ -900,10 +905,8 @@ const orderMutations = {
           let baseAmount;
           if (!isNil(args.order.amount)) {
             baseAmount = getValueInCentsFromAmountInput(args.order.amount);
-          } else if (!isNil(tax)) {
-            baseAmount = existingBaseAmount;
           } else {
-            baseAmount = getOrderBaseAmount(order);
+            baseAmount = existingBaseAmount;
           }
           order.set(
             'totalAmount',
@@ -1175,26 +1178,38 @@ const orderMutations = {
           );
         }
 
-        // Update members
-        const membersPayload = {};
-        if (fromAccount) {
-          membersPayload['MemberCollectiveId'] = fromAccount.id;
+        // Update members. Contributions moved together share their source membership: move each membership once,
+        // merging into the target one if it exists, and keeping it if contributions that are not moved rely on it.
+        const updatedMembers = [];
+        const createdMembers = [];
+        const removedMembers = [];
+        const ordersByMembership = groupBy(orders, o => `${o.FromCollectiveId}-${o.CollectiveId}-${o.TierId || null}`);
+        for (const membershipOrders of Object.values(ordersByMembership)) {
+          const { FromCollectiveId, CollectiveId, TierId } = membershipOrders[0];
+          const { member, createdMember, removedMember } = await moveBackerMembership(
+            {
+              CollectiveId,
+              from: { MemberCollectiveId: FromCollectiveId, TierId },
+              to: {
+                MemberCollectiveId: fromAccount ? fromAccount.id : FromCollectiveId,
+                TierId: !tier ? TierId : tier === 'custom' ? null : tier.id,
+              },
+              movedOrderIds: ordersIds,
+              CreatedByUserId: req.remoteUser.id,
+              onlyIfSourceExists: true,
+            },
+            { transaction: dbTransaction },
+          );
+          if (member) {
+            updatedMembers.push(member);
+          }
+          if (createdMember) {
+            createdMembers.push(createdMember);
+          }
+          if (removedMember) {
+            removedMembers.push(removedMember);
+          }
         }
-        if (tier) {
-          membersPayload['TierId'] = tier === 'custom' ? null : tier.id;
-        }
-        const [, updatedMembers] = await models.Member.update(membersPayload, {
-          transaction: dbTransaction,
-          returning: ['id'],
-          where: {
-            [Op.or]: orders.map(order => ({
-              MemberCollectiveId: order.FromCollectiveId,
-              CollectiveId: order.CollectiveId,
-              TierId: order.TierId,
-              role: roles.BACKER,
-            })),
-          },
-        });
 
         // Update orders
         const ordersPayload = {};
@@ -1235,7 +1250,9 @@ const orderMutations = {
               tier: tier?.id,
               force: args.force || undefined,
               paymentMethods: updatedPaymentMethods.map(pm => pm.id),
-              members: updatedMembers.map(m => m.id),
+              members: uniq(updatedMembers.map(m => m.id)),
+              createdMembers: createdMembers.map(m => m.id),
+              removedMembers: removedMembers.map(m => m.id),
               transactions: [...updatedCredits.map(t => t.id), ...updatedDebits.map(t => t.id)],
               previousOrdersValues: mapValues(keyBy(orders, 'id'), order =>
                 pick(order, ['FromCollectiveId', 'CollectiveId', 'TierId']),

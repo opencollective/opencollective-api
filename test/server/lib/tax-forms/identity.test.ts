@@ -5,6 +5,7 @@ import {
   getLegalDocumentCountryMismatchDetails,
   getLegalDocumentIdentity,
   getLegalDocumentNameMismatchDetails,
+  getLegalDocumentNamePartialMatchDetails,
   LegalDocumentIdentity,
 } from '../../../../server/lib/tax-forms/identity';
 import LegalDocument, {
@@ -219,6 +220,29 @@ describe('server/lib/tax-forms/identity', () => {
       );
 
       expect(identity).to.be.null;
+    });
+  });
+
+  describe('getLegalDocumentNamePartialMatchDetails', () => {
+    it('returns details when the names only partially match', () => {
+      expect(
+        getLegalDocumentNamePartialMatchDetails(buildIdentity({ individualName: 'Jane Doe' }), 'Jane Marie Doe'),
+      ).to.eq('The name on the legal document ("Jane Doe") only partially matches the payee name ("Jane Marie Doe").');
+    });
+
+    it('returns null for exact matches, mismatches and missing names', () => {
+      expect(getLegalDocumentNamePartialMatchDetails(buildIdentity({ individualName: 'Jane Doe' }), 'Doe, Jane')).to.be
+        .null;
+      expect(
+        getLegalDocumentNamePartialMatchDetails(
+          buildIdentity({ individualName: 'Jane Doe', entityName: 'Acme Inc' }),
+          'Acme Inc',
+        ),
+      ).to.be.null;
+      expect(getLegalDocumentNamePartialMatchDetails(buildIdentity({ individualName: 'Jane Doe' }), 'John Smith')).to.be
+        .null;
+      expect(getLegalDocumentNamePartialMatchDetails(buildIdentity(), 'Jane Doe')).to.be.null;
+      expect(getLegalDocumentNamePartialMatchDetails(null, 'Jane Doe')).to.be.null;
     });
   });
 

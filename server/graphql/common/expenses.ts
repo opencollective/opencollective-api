@@ -1,6 +1,7 @@
 import assert from 'assert';
 
 import * as LibTaxes from '@opencollective/taxes';
+import { Mutex } from 'async-mutex';
 import config from 'config';
 import type express from 'express';
 import {
@@ -61,6 +62,8 @@ import { formatAddress } from '../../lib/format-address';
 import { handleExpensePayoutMethodChange } from '../../lib/kyc/expenses/kyc-expenses-check';
 import logger from '../../lib/logger';
 import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
+import { lockUntilResolved } from '../../lib/mutex';
+import { areNamesMatching } from '../../lib/name-matching';
 import { createRefundTransaction } from '../../lib/payments';
 import { isBlockedForUnpaidPlatformBilling } from '../../lib/platform-subscriptions';
 import { getPolicy } from '../../lib/policies';
@@ -153,12 +156,10 @@ const loadHostForExpense = async (req: express.Request, expense: Expense): Promi
 
 const isOwner = async (req: express.Request, expense: Expense): Promise<boolean> => {
   expense.fromCollective = expense.fromCollective || (await req.loaders.Collective.byId.load(expense.FromCollectiveId));
-  if (!req.remoteUser) {
+  if (!req.remoteUser || !expense.fromCollective) {
     return false;
   } else if (req.remoteUser.id === expense.UserId && expense.fromCollective.type !== CollectiveType.VENDOR) {
     return true;
-  } else if (!expense.fromCollective) {
-    return false;
   }
 
   return req.remoteUser.isAdminOfCollective(expense.fromCollective);
@@ -1019,6 +1020,23 @@ export const canMarkAsPaid: ExpensePermissionEvaluator = async (
 };
 
 /**
+ * Events and projects inherit their admins from their parent (see `User.isAdminOfCollective`),
+ * so their admins are counted together with the parent's.
+ */
+const countAdminsOfAccount = async (req: express.Request, account: Collective): Promise<number> => {
+  const isChildAccount = [CollectiveType.EVENT, CollectiveType.PROJECT].includes(account.type as CollectiveType);
+  if (!isChildAccount || !account.ParentCollectiveId) {
+    return req.loaders.Member.countAdminMembersOfCollective.load(account.id);
+  }
+
+  const [childAdminIds, parentAdminIds] = await Promise.all([
+    req.loaders.Member.adminMemberCollectiveIdsOfCollective.load(account.id),
+    req.loaders.Member.adminMemberCollectiveIdsOfCollective.load(account.ParentCollectiveId),
+  ]);
+  return new Set([...childAdminIds, ...parentAdminIds]).size;
+};
+
+/**
  * Returns true if expense can be approved by user.
  * SETTLEMENT expenses are created by the platform but approved by the billed fiscal host (or a platform admin).
  * PLATFORM_BILLING can only be approved by platform admins.
@@ -1080,7 +1098,7 @@ export const canApprove: ExpensePermissionEvaluator = async (
     const userIsCollectiveAdmin = await isCollectiveAdmin(req, expense);
     const hostPolicy = await getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
     const collectivePolicy = await getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
-    const numberOfAdmins = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
+    const numberOfAdmins = await countAdminsOfAccount(req, expense.collective);
     const isExpenseAuthor = req.remoteUser.id === expense.UserId;
 
     const hostPolicyApplies =
@@ -1107,7 +1125,28 @@ export const canApprove: ExpensePermissionEvaluator = async (
       usedPolicy = (collectivePolicyApplies && collectivePolicy) || (hostPolicyApplies && hostPolicy);
     }
 
-    const authorCannotApprove = usedPolicy && isExpenseAuthor && expense.amount >= usedPolicy.amountInCents;
+    let authorCannotApprove = false;
+    if (usedPolicy && isExpenseAuthor) {
+      // The policy limit is expressed in the host (or collective) currency
+      let amountInPolicyCurrency = expense.amount;
+      if (expense.currency && expense.currency !== currency) {
+        try {
+          amountInPolicyCurrency = await req.loaders.CurrencyExchangeRate.convert.load({
+            amount: expense.amount,
+            fromCurrency: expense.currency as SupportedCurrency,
+            toCurrency: currency as SupportedCurrency,
+          });
+        } catch (e) {
+          reportErrorToSentry(e, { req, user: req.remoteUser, feature: FEATURE.USE_EXPENSES });
+          amountInPolicyCurrency = NaN;
+        }
+      }
+
+      // Treat a failed conversion as above the limit
+      authorCannotApprove =
+        !Number.isFinite(amountInPolicyCurrency) || amountInPolicyCurrency >= usedPolicy.amountInCents;
+    }
+
     if (authorCannotApprove) {
       if (options?.throw) {
         throw new Forbidden(
@@ -1726,7 +1765,58 @@ const ROLLING_LIMIT_CACHE_VALIDITY = 3600; // 1h in secs for cache to expire
 
 const getExpensePayout2FALimitCacheKey = (userId: number, hostId: number) => `${userId}_2fa_payment_limit_${hostId}`;
 
-async function validateExpensePayout2FALimit(req, host, expense) {
+/** A payout that was added to a count of the amount paid, and what it must take back if it does not go through */
+type ExpensePayout2FALimitCount = { countKey: string; amount: number };
+
+/** Locks for the checks of the rolling limit running on this server, by cache key of the admin and host */
+const expensePayout2FALimitLocks = new Map<string, Mutex>();
+
+/**
+ * Hosts can require 2FA for payouts. A 2FA token opens a session: the admin can then pay without a token until the
+ * payouts add up to more than the host's rolling limit, at which point a new token is required and the count
+ * restarts.
+ *
+ * The amount paid is remembered in the cache, per admin and host, for an hour like the session:
+ * - The count has a key of its own, which changes each time a token restarts it. The cache key of the admin and
+ *   host holds the key of the current count.
+ * - Payouts can be made at the same time, so a payout never writes a total it computed from a value read earlier:
+ *   it adds its amount first, atomically, and is checked against the total that comes back.
+ * - A payout only adds to a count that exists. Without one (first payout, expired, not valid) a token is required.
+ * - A payout takes its amount back if it is refused here, or if the payment fails later on. It takes it back from
+ *   the count it was added to: a payout that fails after a new token restarted the count leaves the new one alone.
+ * - Only one payout of an admin on a host is checked at a time, here and across servers. A payout is then counted
+ *   in the count that goes with the 2FA session that authorizes it, and two tokens presented at the same time
+ *   restart the count one after the other.
+ *
+ * @returns what was counted for this payout, to pass to `releaseExpensePayout2FALimit` if the payment fails
+ */
+async function validateExpensePayout2FALimit(req, host, expense): Promise<ExpensePayout2FALimitCount | null> {
+  const lockKey = getExpensePayout2FALimitCacheKey(req.remoteUser.id, host.id);
+  const expenseAmountInHostCurrency = Number(await convertToCurrency(expense.amount, expense.currency, host.currency));
+
+  // The mutex orders the checks of this server without polling. The Redis lock coordinates them across servers:
+  // it expires by itself if a server dies while holding it, well after the time a check can take.
+  const mutex = expensePayout2FALimitLocks.get(lockKey) || new Mutex();
+  expensePayout2FALimitLocks.set(lockKey, mutex);
+  try {
+    return await mutex.runExclusive(() =>
+      lockUntilResolved(lockKey, () => checkExpensePayout2FALimit(req, host, expense, expenseAmountInHostCurrency), {
+        unlockTimeoutMs: 60 * 1000,
+      }),
+    );
+  } finally {
+    if (!mutex.isLocked()) {
+      expensePayout2FALimitLocks.delete(lockKey);
+    }
+  }
+}
+
+async function checkExpensePayout2FALimit(
+  req,
+  host,
+  expense,
+  expenseAmountInHostCurrency: number,
+): Promise<ExpensePayout2FALimitCount | null> {
   const expensePaidAmountKey = getExpensePayout2FALimitCacheKey(req.remoteUser.id, host.id);
   const hostPayoutTwoFactorAuthenticationRollingLimit = Number(
     get(host, 'settings.payoutsTwoFactorAuth.rollingLimit', 10_000_00),
@@ -1735,46 +1825,76 @@ async function validateExpensePayout2FALimit(req, host, expense) {
   const twoFactorSession =
     req.jwtPayload?.sessionId || (req.personalToken?.id && `personalToken_${req.personalToken.id}`);
 
-  const currentPaidExpenseAmountCache = await cache.get(expensePaidAmountKey);
-  const currentPaidExpenseAmount = Number(currentPaidExpenseAmountCache) || 0;
-  const expenseAmountInHostCurrency = Number(await convertToCurrency(expense.amount, expense.currency, host.currency));
-
-  // requires a 2FA token to be present if there is no value in the cache (first payout by user)
-  // or the this payout would put the user over the rolling limit.
-  const use2FAToken =
-    isNil(currentPaidExpenseAmountCache) ||
-    currentPaidExpenseAmount + expenseAmountInHostCurrency > hostPayoutTwoFactorAuthenticationRollingLimit;
-
-  if (!(await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
-    throw new Error('Host has two-factor authentication enabled for large payouts.');
+  // Add this payout to the current count, if there is one. Anything else than the key of a count is ignored, which
+  // includes the amounts that used to be stored under this key.
+  let counted: ExpensePayout2FALimitCount | null = null;
+  let newPaidExpenseAmount: number | undefined;
+  const countKey = await cache.get(expensePaidAmountKey);
+  if (typeof countKey === 'string' && countKey.startsWith(`${expensePaidAmountKey}:`)) {
+    newPaidExpenseAmount = await cache.incrementIfExists(countKey, expenseAmountInHostCurrency);
+    if (!isNil(newPaidExpenseAmount)) {
+      counted = { countKey, amount: expenseAmountInHostCurrency };
+    }
   }
 
-  await twoFactorAuthLib.validateRequest(req, {
-    requireTwoFactorAuthEnabled: true, // requires user to have 2FA configured
-    alwaysAskForToken: use2FAToken,
-    sessionDuration: ROLLING_LIMIT_CACHE_VALIDITY, // duration of a auth session after a token is presented
-    sessionKey: `2fa_expense_payout_${host.id}_${twoFactorSession}`, // key of the 2fa session where the 2fa will be valid for the duration
-    FromCollectiveId: host.id,
-    customData: {
-      rollingLimit: {
-        expenseAmount: expense.amount,
-        expenseCurrency: expense.currency,
-        expenseAmountInHostCurrency,
-        currentPaidExpenseAmount,
-        hostPayoutTwoFactorAuthenticationRollingLimit,
+  // Requires a 2FA token to be present if there is no count (first payout by user, expired session) or if this
+  // payout puts the user over the rolling limit. This is also the answer when the two cannot be compared, as with
+  // a limit that is not a number.
+  const use2FAToken = !counted || !(newPaidExpenseAmount <= hostPayoutTwoFactorAuthenticationRollingLimit);
+
+  try {
+    if (!(await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
+      throw new Error('Host has two-factor authentication enabled for large payouts.');
+    }
+
+    await twoFactorAuthLib.validateRequest(req, {
+      requireTwoFactorAuthEnabled: true, // requires user to have 2FA configured
+      alwaysAskForToken: use2FAToken,
+      sessionDuration: ROLLING_LIMIT_CACHE_VALIDITY, // duration of a auth session after a token is presented
+      sessionKey: `2fa_expense_payout_${host.id}_${twoFactorSession}`, // key of the 2fa session where the 2fa will be valid for the duration
+      FromCollectiveId: host.id,
+      customData: {
+        rollingLimit: {
+          expenseAmount: expense.amount,
+          expenseCurrency: expense.currency,
+          expenseAmountInHostCurrency,
+          currentPaidExpenseAmount: counted ? newPaidExpenseAmount - expenseAmountInHostCurrency : 0,
+          hostPayoutTwoFactorAuthenticationRollingLimit,
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    // The payout is refused: it must not weigh on the next ones
+    await releaseExpensePayout2FALimit(req, counted);
+    throw error;
+  }
 
   if (use2FAToken) {
-    // if a 2fa token was used, reset rolling limit
-    cache.set(expensePaidAmountKey, 0, ROLLING_LIMIT_CACHE_VALIDITY);
-  } else {
-    cache.set(
-      expensePaidAmountKey,
-      currentPaidExpenseAmount + expenseAmountInHostCurrency,
-      ROLLING_LIMIT_CACHE_VALIDITY,
-    );
+    // A 2FA token was used: the count restarts, under a new key. The count is stored before the key that points to
+    // it, so that it never expires after it.
+    const newCountKey = `${expensePaidAmountKey}:${uuid()}`;
+    await cache.set(newCountKey, 0, ROLLING_LIMIT_CACHE_VALIDITY);
+    await cache.set(expensePaidAmountKey, newCountKey, ROLLING_LIMIT_CACHE_VALIDITY);
+    return null;
+  }
+
+  return counted;
+}
+
+/**
+ * Takes back what `validateExpensePayout2FALimit` counted for a payout that did not go through. The count it was
+ * added to can only go down by what that same payout added to it, and never below zero.
+ */
+async function releaseExpensePayout2FALimit(req, counted: ExpensePayout2FALimitCount | null): Promise<void> {
+  if (!counted) {
+    return;
+  }
+
+  try {
+    await cache.decrement(counted.countKey, counted.amount);
+  } catch (e) {
+    // The amount stays counted, which only means that a 2FA token will be required sooner
+    reportErrorToSentry(e, { req, user: req.remoteUser, feature: FEATURE.USE_EXPENSES });
   }
 }
 
@@ -1818,12 +1938,12 @@ export const scheduleExpenseForPayment = async (
 
   expense.PayoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
   await checkHasBalanceToPayExpense(host, expense, expense.PayoutMethod);
-  if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
-    const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
-
-    if (hostHasPayoutTwoFactorAuthenticationEnabled) {
-      await validateExpensePayout2FALimit(req, host, expense);
-    }
+  const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
+  if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL && hostHasPayoutTwoFactorAuthenticationEnabled) {
+    await validateExpensePayout2FALimit(req, host, expense);
+  } else {
+    // Not using rolling limit, but still enforcing 2FA for all admins (same as `payExpense`)
+    await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
   }
 
   // If Wise, add expense to a new batch group
@@ -2791,36 +2911,12 @@ export const getItemsChanges = async (
   }
 };
 
-/*
- * Validate the account holder name against the legal name. Following cases are considered a match,
- *
- * 1) Punctuation are ignored; "Evil Corp, Inc" and "Evil Corp, Inc." are considered a match.
- * 2) Accents are ignored; "François" and "Francois" are considered a match.
- * 3) The first name and last name order is ignored; "Benjamin Piouffle" and "Piouffle Benjamin" is considered a match.
- * 4) If one of account holder name or legal name is not defined then this function returns true.
+/**
+ * Validate the account holder name against the legal name. Partial matches are accepted
+ * (e.g. a missing middle name), see `areNamesMatching` for the exact rules.
  */
 export const isAccountHolderNameAndLegalNameMatch = (accountHolderName: string, legalName: string): boolean => {
-  // Ignore 501(c)(3) in both account holder name and legal name
-  legalName = legalName.replace(/501\(c\)\(3\)/g, '');
-  accountHolderName = accountHolderName.replace(/501\(c\)\(3\)/g, '');
-
-  const namesArray = legalName.trim().split(' ');
-  let legalNameReversed;
-  if (namesArray.length === 2) {
-    const firstName = namesArray[0];
-    const lastName = namesArray[1];
-    legalNameReversed = `${lastName} ${firstName}`;
-  }
-  return !(
-    accountHolderName.localeCompare(legalName, undefined, {
-      sensitivity: 'base',
-      ignorePunctuation: true,
-    }) &&
-    accountHolderName.localeCompare(legalNameReversed, undefined, {
-      sensitivity: 'base',
-      ignorePunctuation: true,
-    })
-  );
+  return areNamesMatching(accountHolderName, legalName);
 };
 
 export async function submitExpenseDraft(
@@ -3719,6 +3815,11 @@ export async function editExpense(
     let status = expense.status;
     if (status === 'INCOMPLETE') {
       // When dealing with expenses marked as INCOMPLETE, only return to PENDING if the expense change requires Collective review
+      // Payout method changes are left out on purpose: hosts mark expenses INCOMPLETE mostly to ask the payee to fix
+      // their payout details. `getPayoutMethodFromExpenseData` only accepts the payee's own payout methods or a bank
+      // account or PayPal owned by the payee's own fiscal host (`fromCollective.HostCollectiveId`, for expenses across
+      // hosts). Either way the money goes to the payee or to the host that holds the payee's funds, so the expense can go
+      // back to APPROVED without a new review.
       status = changesRequireStatusUpdate(expense, expenseDataForStatusUpdate, hasItemChanges) ? 'PENDING' : 'APPROVED';
     } else if (shouldUpdateStatus) {
       status = 'PENDING';
@@ -4268,27 +4369,30 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     const use2FARollingLimit =
       isTwoFactorAuthenticationRequiredForPayoutMethod && !forceManual && hostHasPayoutTwoFactorAuthenticationEnabled;
 
-    const totalPaidExpensesAmountKey = getExpensePayout2FALimitCacheKey(req.remoteUser.id, host.id);
-    let totalPaidExpensesAmount;
+    let countedTowards2FARollingLimit: ExpensePayout2FALimitCount | null = null;
 
     if (use2FARollingLimit) {
-      totalPaidExpensesAmount = await cache.get(totalPaidExpensesAmountKey);
-      await validateExpensePayout2FALimit(req, host, expense);
+      countedTowards2FARollingLimit = await validateExpensePayout2FALimit(req, host, expense);
     } else {
       // Not using rolling limit, but still enforcing 2FA for all admins
+      // `onlyAskOnLogin` is intentional here: the second factor was already checked at sign-in, and the host's
+      // REQUIRE_2FA_FOR_ADMINS policy is still enforced. Fresh tokens are only asked for PayPal/bank payouts through the
+      // host's opt-in `payoutsTwoFactorAuth` rolling limit above.
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
     }
 
     let balanceAccountingCategory = null;
-    if (args.balanceAccountingCategory) {
-      balanceAccountingCategory = await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
-        throwIfMissing: true,
-        loaders: req.loaders,
-      });
-      checkIsValidBalanceAccountingCategory(balanceAccountingCategory, host);
-    }
 
     try {
+      // Checked here rather than before the `try`, so that an invalid category releases the 2FA rolling limit
+      if (args.balanceAccountingCategory) {
+        balanceAccountingCategory = await fetchAccountingCategoryWithReference(args.balanceAccountingCategory, {
+          throwIfMissing: true,
+          loaders: req.loaders,
+        });
+        checkIsValidBalanceAccountingCategory(balanceAccountingCategory, host);
+      }
+
       if (forceManual) {
         const paymentMethod = args.paymentMethodService
           ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
@@ -4334,7 +4438,9 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
           args.transferDetails,
         );
 
-        // Early return, Webhook will mark expense as Paid when the transaction completes.
+        // Early return, Webhook will mark expense as Paid when the transaction completes. This is not awaited, so an
+        // error here does not reach the `catch` below: the transfer is created, its amount must stay counted towards
+        // the 2FA rolling limit.
         return setTransferWiseExpenseAsProcessing({
           host,
           expense,
@@ -4378,9 +4484,8 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       }
     } catch (error) {
       if (use2FARollingLimit) {
-        if (!isNil(totalPaidExpensesAmount) && totalPaidExpensesAmount !== 0) {
-          cache.set(totalPaidExpensesAmountKey, totalPaidExpensesAmount - expense.amount, ROLLING_LIMIT_CACHE_VALIDITY);
-        }
+        // The payment failed: its amount does not count towards the rolling limit
+        await releaseExpensePayout2FALimit(req, countedTowards2FARollingLimit);
       }
 
       throw error;

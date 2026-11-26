@@ -362,6 +362,12 @@ export const setupPaypalSubscriptionForOrder = async (order: Order, paymentMetho
   } catch (e) {
     logger.error(`[PayPal] Error while activating subscription: ${e}`);
     reportErrorToSentry(e);
+
+    // Restore the initial subscription, as the new PayPal subscription was never activated
+    if (existingSubscription) {
+      await existingSubscription.update(initialSubscriptionParams);
+    }
+
     const error = new Error('Failed to activate PayPal subscription');
     error['rootException'] = e;
     order.update({ status: ORDER_STATUS.ERROR });
@@ -417,7 +423,6 @@ export const updateSubscriptionWithPaypal = async (
 const createSubscription = async (order: Order, paypalSubscriptionId) => {
   return order.createSubscription({
     paypalSubscriptionId,
-    amount: order.totalAmount,
     currency: order.currency,
     interval: order.interval,
     isActive: false, // Will be activated when the payment hits

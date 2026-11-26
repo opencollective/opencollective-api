@@ -153,19 +153,25 @@ async function handleSaleCompleted(req: Request): Promise<void> {
       outcome: MetricEvent.SUCCEEDED,
     });
 
-    // 2.3 Mark order/subscription as active
-    if (order.status !== OrderStatus.ACTIVE) {
+    // 2.3 Mark order/subscription as active, unless the contribution was ended before this sale arrived:
+    // a late sale for an earlier billing cycle must not resume a cancelled or paused contribution.
+    const isEnded = [OrderStatus.CANCELLED, OrderStatus.PAUSED, OrderStatus.EXPIRED, OrderStatus.REJECTED].includes(
+      order.status,
+    );
+    if (!isEnded && order.status !== OrderStatus.ACTIVE) {
       await order.update({ status: OrderStatus.ACTIVE, processedAt: new Date() });
     }
 
     const nextChargeDate = moment().add(1, order.interval);
     await order.Subscription.update({
       chargeNumber: (order.Subscription.chargeNumber || 0) + 1,
-      nextChargeDate: nextChargeDate,
-      nextPeriodStart: nextChargeDate,
-      isActive: true,
-      activatedAt: order.Subscription.activatedAt || new Date(),
       lastChargedAt: transaction.clearedAt || transaction.createdAt,
+      ...(!isEnded && {
+        nextChargeDate: nextChargeDate,
+        nextPeriodStart: nextChargeDate,
+        isActive: true,
+        activatedAt: order.Subscription.activatedAt || new Date(),
+      }),
     });
   });
 
@@ -248,6 +254,11 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
     await order.update({ processedAt: new Date(), status: OrderStatus.PAID });
   });
 
+  // Already recorded (e.g. by the synchronous `processPaypalOrder`), which also handles members & emails
+  if (!transaction) {
+    return;
+  }
+
   await Promise.all([
     // Register user as a member, since the transaction is not created in `processOrder`
     order.getOrCreateMembers(),
@@ -320,7 +331,9 @@ async function handleSaleRefunded(req: Request): Promise<void> {
       return;
     }
 
-    const rawRefundedPaypalFee = <string>get(refund, 'transaction_fee.value', '0.00');
+    // v1 Refund resources report the returned PayPal fee as `refund_from_transaction_fee`
+    const rawRefundedPaypalFee: string =
+      get(refund, 'refund_from_transaction_fee.value') || get(refund, 'transaction_fee.value', '0.00');
     const refundedPaypalFee = getRefundedPaypalFeeInHostCurrency(transaction, rawRefundedPaypalFee);
     await createRefundTransaction(
       transaction,
@@ -333,11 +346,12 @@ async function handleSaleRefunded(req: Request): Promise<void> {
 
 /**
  * Handles `PAYMENT.SALE.REVERSED` (chargeback / reversal on a subscription sale).
- * resource = Sale object in reversed state; `resource.id` is the original sale ID.
+ * resource = Refund object (resource_type "refund"): `resource.sale_id` is the original sale ID and
+ * `resource.id` is the reversal ID. Falls back to `resource.id` if `sale_id` is missing.
  */
 async function handleSaleReversed(req: Request): Promise<void> {
   const sale = req.body.resource;
-  const saleId = sale?.id;
+  const saleId = sale?.sale_id || sale?.id;
   if (!saleId) {
     logger.debug('PayPal: PAYMENT.SALE.REVERSED - no id in resource, ignoring');
     return;

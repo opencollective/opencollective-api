@@ -10,7 +10,7 @@ import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
-import { fakeUser, randStr } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeUpdate, fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 let host, user1, user2, collective1, event1, update1;
@@ -403,6 +403,50 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         user1,
       );
       expect(result.errors[0].message).to.equal('Validation error: Validation len on title failed');
+    });
+
+    describe('isChangelog', () => {
+      const editUpdateChangelogMutation = gql`
+        mutation EditUpdate($update: UpdateUpdateInput!) {
+          editUpdate(update: $update) {
+            id
+            isChangelog
+          }
+        }
+      `;
+
+      it('fails if the account cannot have changelog updates', async () => {
+        const result = await utils.graphqlQueryV2(
+          editUpdateChangelogMutation,
+          { update: { id: idEncode(update1.id, IDENTIFIER_TYPES.UPDATE), isChangelog: true } },
+          user1,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('This account cannot have changelog updates');
+        await update1.reload();
+        expect(update1.isChangelog).to.be.false;
+      });
+
+      it('can set isChangelog if the account can have changelog updates', async () => {
+        const changelogAdmin = await fakeUser();
+        const changelogCollective = await fakeCollective({
+          admin: changelogAdmin,
+          data: { canHaveChangelogUpdates: true },
+        });
+        const changelogUpdate = await fakeUpdate({
+          CollectiveId: changelogCollective.id,
+          isChangelog: false,
+          publishedAt: null,
+        });
+        const result = await utils.graphqlQueryV2(
+          editUpdateChangelogMutation,
+          { update: { id: idEncode(changelogUpdate.id, IDENTIFIER_TYPES.UPDATE), isChangelog: true } },
+          changelogAdmin,
+        );
+        result.errors && console.error(result.errors[0]);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editUpdate.isChangelog).to.be.true;
+      });
     });
   });
   describe('delete Update', () => {

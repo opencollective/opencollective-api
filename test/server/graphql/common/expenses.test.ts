@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import type { Request } from 'express';
 import { cloneDeep } from 'lodash';
 import moment from 'moment';
+import nock from 'nock';
 
 import { expenseStatus } from '../../../../server/constants';
 import { CollectiveType } from '../../../../server/constants/collectives';
@@ -48,15 +49,24 @@ import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import {
   fakeCollective,
   fakeCurrencyExchangeRate,
+  fakeEvent,
   fakeExpense,
   fakeHost,
   fakePayoutMethod,
   fakePlatformSubscription,
+  fakeProject,
   fakeTransaction,
   fakeUser,
   fakeVendor,
 } from '../../../test-helpers/fake-data';
-import { getApolloErrorCode, getOrCreatePlatformAccount, makeRequest, resetTestDB } from '../../../utils';
+import {
+  getApolloErrorCode,
+  getOrCreatePlatformAccount,
+  makeRequest,
+  nockFixerRates,
+  resetCaches,
+  resetTestDB,
+} from '../../../utils';
 
 describe('server/graphql/common/expenses', () => {
   const contextShape = {
@@ -445,6 +455,19 @@ describe('server/graphql/common/expenses', () => {
           limitedHostAdmin: false,
           platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
+      });
+    });
+
+    describe('when the payee account was deleted', () => {
+      it('does not recognise the submitter nor the former payee admins as owners, without crashing', async () => {
+        const submitter = await fakeUser();
+        const payeeAdmin = await fakeUser();
+        const payee = await fakeCollective({ type: CollectiveType.ORGANIZATION, admin: payeeAdmin });
+        const expense = await fakeExpense({ UserId: submitter.id, FromCollectiveId: payee.id });
+        await payee.destroy();
+        const reloadedExpense = await models.Expense.findByPk(expense.id);
+        expect(await canSeeExpenseInvoiceInfo(makeRequest(submitter), reloadedExpense)).to.be.false;
+        expect(await canSeeExpenseInvoiceInfo(makeRequest(payeeAdmin), reloadedExpense)).to.be.false;
       });
     });
   });
@@ -1934,6 +1957,100 @@ describe('server/graphql/common/expenses', () => {
           EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
         );
         expect(await canApprove(makeRequest(dualRoleAdmin), expense)).to.be.false;
+      });
+
+      it('applies the host policy to projects and events using the admins of their parent collective', async () => {
+        const host = await fakeHost();
+        await host.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
+            enabled: true,
+            amountInCents: 0,
+            appliesToHostedCollectives: true,
+            appliesToSingleAdminCollectives: false,
+          },
+        });
+
+        const author = await fakeUser();
+        const otherAdmin = await fakeUser();
+        const parent = await fakeCollective({ HostCollectiveId: host.id, admin: [author, otherAdmin] });
+        await author.populateRoles({ force: true });
+
+        // Projects and events have no admin members of their own: their admins are the ones of the parent
+        const project = await fakeProject({ ParentCollectiveId: parent.id });
+        const event = await fakeEvent({ ParentCollectiveId: parent.id });
+
+        for (const account of [parent, project, event]) {
+          const expense = await fakeExpense({
+            CollectiveId: account.id,
+            FromCollectiveId: author.CollectiveId,
+            UserId: author.id,
+            status: 'PENDING',
+            amount: 10e2,
+          });
+
+          expect(
+            await getApolloErrorCode(canApprove(makeRequest(author), expense, { throw: true })),
+            `${account.type} expense`,
+          ).to.be.equal(EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE);
+          expect(await canApprove(makeRequest(author), expense)).to.be.false;
+        }
+      });
+
+      describe('with an expense in another currency', () => {
+        before(async () => {
+          await resetCaches();
+          nockFixerRates({ GBP: { USD: 1.25 }, JPY: { USD: 0.0067 } });
+        });
+
+        after(async () => {
+          nock.cleanAll();
+          await resetCaches();
+        });
+
+        it('compares the policy limit with the expense amount converted to the host currency', async () => {
+          const collectiveAdmin = await fakeUser();
+          const host = await fakeHost({ currency: 'USD' });
+          const collective = await fakeCollective({
+            currency: 'USD',
+            HostCollectiveId: host.id,
+            admin: collectiveAdmin,
+          });
+          await collectiveAdmin.populateRoles({ force: true });
+          await collective.setPolicies({
+            [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true, amountInCents: 1000e2 },
+          } as Parameters<typeof collective.setPolicies>[0]);
+
+          const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+          const createExpense = async (amount: number, currency: string) => {
+            const expense = await fakeExpense({
+              CollectiveId: collective.id,
+              FromCollectiveId: collectiveAdmin.CollectiveId,
+              PayoutMethodId: payoutMethod.id,
+              UserId: collectiveAdmin.id,
+              status: 'PENDING',
+              amount,
+              currency,
+            });
+            expense.collective = collective;
+            return expense;
+          };
+
+          // 900 GBP = 1125 USD, above the 1000 USD limit
+          const gbpExpense = await createExpense(900e2, 'GBP');
+          expect(
+            await getApolloErrorCode(canApprove(makeRequest(collectiveAdmin), gbpExpense, { throw: true })),
+          ).to.equal(EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE);
+          expect(await canApprove(makeRequest(collectiveAdmin), gbpExpense)).to.be.false;
+
+          // 1500 JPY = 10 USD, below the 1000 USD limit
+          const jpyExpense = await createExpense(1500e2, 'JPY');
+          expect(await canApprove(makeRequest(collectiveAdmin), jpyExpense)).to.be.true;
+
+          // A failed conversion returns false instead of throwing
+          const failingReq = makeRequest(collectiveAdmin);
+          failingReq.loaders.CurrencyExchangeRate.convert.load = () => Promise.reject(new Error('FX unavailable'));
+          expect(await canApprove(failingReq, jpyExpense)).to.be.false;
+        });
       });
     });
 

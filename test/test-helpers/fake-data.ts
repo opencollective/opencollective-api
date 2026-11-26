@@ -793,7 +793,6 @@ export const fakeOrder = async (
 
   if (withSubscription) {
     const subscriptionData = {
-      amount: order.totalAmount,
       interval: order.interval || 'month',
       currency: order.currency,
       isActive: true,
@@ -865,7 +864,6 @@ export const fakeSocialLink = async (data: Partial<InferCreationAttributes<Socia
 
 export const fakeSubscription = (params = {}) => {
   return models.Subscription.create({
-    amount: randAmount(),
     currency: sample<SupportedCurrency>(['USD', 'EUR']),
     interval: <'month' | 'year'>sample(['month', 'year']),
     isActive: true,

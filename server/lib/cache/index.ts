@@ -114,6 +114,15 @@ const buildCache = (instanceType = RedisInstanceType.DEFAULT) => ({
     const provider = await getDefaultProvider(instanceType);
     return provider.increment(key, amount, expirationInSeconds);
   },
+  /**
+   * Atomically increments a counter that exists, keeping its expiry. Returns `undefined`, and creates nothing, if the
+   * key is missing or expired. No try/catch, like `increment`.
+   */
+  incrementIfExists: async (key: string, amount: number): Promise<number | undefined> => {
+    debugCache(`incrementIfExists ${key} by ${amount}`);
+    const provider = await getDefaultProvider(instanceType);
+    return provider.incrementIfExists(key, amount);
+  },
   /** Decrements an existing counter, never below zero. Does nothing if the key expired. No try/catch, like `increment`. */
   decrement: async (key: string, amount: number): Promise<number | undefined> => {
     debugCache(`decrement ${key} by ${amount}`);

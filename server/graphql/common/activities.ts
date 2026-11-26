@@ -2,6 +2,7 @@ import type Express from 'express';
 import { pick } from 'lodash';
 
 import ActivityTypes from '../../constants/activities';
+import MemberRoles from '../../constants/roles';
 import { Activity } from '../../models';
 import { CommentType } from '../../models/Comment';
 
@@ -197,7 +198,14 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
   } else if (activity.type === ActivityTypes.ACCOUNTING_CATEGORIES_EDITED) {
     toPick.push('added', 'removed', 'edited');
   } else if (activity.type === ActivityTypes.ADDED_FUNDS_EDITED) {
-    toPick.push('previousData', 'newData');
+    // The diff can contain private order fields (memo, fees, accounting category, tax...), only visible
+    // to host admins and accountants (same as `Order.memo`)
+    if (
+      activity.HostCollectiveId &&
+      req.remoteUser?.hasRole([MemberRoles.ADMIN, MemberRoles.ACCOUNTANT], activity.HostCollectiveId)
+    ) {
+      toPick.push('previousData', 'newData');
+    }
   } else if ([ActivityTypes.VENDOR_EDITED, ActivityTypes.VENDOR_CREATED].includes(activity.type)) {
     const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
     if (req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {

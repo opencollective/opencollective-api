@@ -25,7 +25,7 @@ import {
   sendOrderPendingEmail,
 } from '../../../server/lib/payments';
 import stripe from '../../../server/lib/stripe';
-import { getHostPlatformTipsAccount } from '../../../server/lib/transactions';
+import { createTransactionsFromPaidExpense, getHostPlatformTipsAccount } from '../../../server/lib/transactions';
 import type { PaymentMethod } from '../../../server/models';
 import models from '../../../server/models';
 import type { TransactionData } from '../../../server/models/Transaction';
@@ -35,6 +35,7 @@ import stripeMocks from '../../mocks/stripe';
 import {
   fakeActiveHost,
   fakeCollective,
+  fakeExpense,
   fakeHost,
   fakeManualPaymentProvider,
   fakeOrder,
@@ -369,7 +370,6 @@ describe('server/lib/payments', () => {
               const subscription = res.rows[0];
 
               expect(res.count).to.equal(1);
-              expect(subscription).to.have.property('amount', AMOUNT2);
               expect(subscription).to.have.property('interval', 'month');
               expect(subscription).to.have.property('data');
               expect(subscription).to.have.property('isActive', true);
@@ -1062,12 +1062,101 @@ describe('server/lib/payments', () => {
       utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS });
     });
 
+    it('credits the separate processor fee back to the collective when refunding a self-paid expense', async () => {
+      const host = await fakeHost({ currency: 'USD' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      const expense = await fakeExpense({
+        amount: 10000,
+        currency: 'USD',
+        status: 'PAID',
+        CollectiveId: collective.id,
+        FromCollectiveId: collective.id,
+        UserId: user.id,
+      });
+      await createTransactionsFromPaidExpense(
+        host,
+        expense,
+        { hostFeeInHostCurrency: 0, platformFeeInHostCurrency: 0, paymentProcessorFeeInHostCurrency: 500 },
+        1,
+      );
+
+      // Same lookup as `markExpenseAsUnpaid`: for a self-expense, this is the DEBIT
+      const transaction = await models.Transaction.findOne({
+        where: { ExpenseId: expense.id, RefundTransactionId: null, kind: 'EXPENSE', isRefund: false },
+      });
+      expect(transaction.type).to.eq('DEBIT');
+      await createRefundTransaction(transaction, 500, null, user);
+
+      const allTransactions = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
+      const feeRefund = allTransactions.find(
+        t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE && t.isRefund && t.CollectiveId === collective.id,
+      );
+      expect(feeRefund).to.exist;
+      expect(feeRefund.type).to.eq('CREDIT');
+      expect(feeRefund.amount).to.eq(500);
+
+      const collectiveNet = allTransactions
+        .filter(t => t.CollectiveId === collective.id)
+        .reduce((total, t) => total + t.netAmountInCollectiveCurrency, 0);
+      expect(collectiveNet).to.eq(0);
+    });
+
     it('should remove the settlement if the tip was already invoiced', async () => {
       // TODO(LedgerRefactor)
     });
 
     it('should revert the settlement if the tip was already paid', async () => {
       // TODO(LedgerRefactor)
+    });
+
+    describe('refunding the same transaction twice', () => {
+      const createContribution = () =>
+        models.Transaction.createFromContributionPayload({
+          CreatedByUserId: user.id,
+          FromCollectiveId: order.FromCollectiveId,
+          CollectiveId: collective.id,
+          type: 'CREDIT',
+          OrderId: order.id,
+          amount: 5000,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          amountInHostCurrency: 5000,
+          hostCurrencyFxRate: 1,
+          hostFeeInHostCurrency: 250,
+          paymentProcessorFeeInHostCurrency: 175,
+          description: 'Contribution',
+        });
+
+      const countContributionRefunds = () =>
+        models.Transaction.count({
+          where: { OrderId: order.id, kind: TransactionKind.CONTRIBUTION, isRefund: true, type: 'CREDIT' },
+        });
+
+      it('rejects a refund of an instance loaded before the transaction was refunded', async () => {
+        const transaction = await createContribution();
+        const staleTransaction = await models.Transaction.findByPk(transaction.id);
+        await createRefundTransaction(transaction, 0, null, user);
+
+        await expect(createRefundTransaction(staleTransaction, 0, null, user)).to.be.rejectedWith(
+          'This transaction has already been refunded',
+        );
+        expect(await countContributionRefunds()).to.equal(1);
+      });
+
+      it('only refunds once when two refunds run concurrently', async () => {
+        const transaction = await createContribution();
+        const instances = await Promise.all([
+          models.Transaction.findByPk(transaction.id),
+          models.Transaction.findByPk(transaction.id),
+        ]);
+
+        const results = await Promise.allSettled(instances.map(t => createRefundTransaction(t, 0, null, user)));
+
+        expect(results.map(r => r.status).sort()).to.deep.equal(['fulfilled', 'rejected']);
+        const rejected = results.find(r => r.status === 'rejected') as PromiseRejectedResult;
+        expect(rejected.reason.message).to.equal('This transaction has already been refunded');
+        expect(await countContributionRefunds()).to.equal(1);
+      });
     });
 
     describe('partial refunds', () => {

@@ -593,7 +593,9 @@ export async function createOrRetrievePaymentMethodFromSetupIntent(
   });
 
   if (existingPaymentMethod) {
-    if (existingPaymentMethod.type === PAYMENT_METHOD_TYPE.BANCONTACT) {
+    if (existingPaymentMethod.type !== PAYMENT_METHOD_TYPE.BANCONTACT) {
+      return existingPaymentMethod;
+    } else if (existingPaymentMethod.data?.generated_sepa_debit) {
       return await PaymentMethod.findOne({
         where: {
           data: {
@@ -602,7 +604,7 @@ export async function createOrRetrievePaymentMethodFromSetupIntent(
         },
       });
     }
-    return existingPaymentMethod;
+    // Bancontact setup not completed yet: no generated SEPA debit to look up, check the setup intent again below
   }
 
   if (['requires_payment_method', 'canceled'].includes(setupIntent.status)) {
@@ -665,7 +667,11 @@ export async function createOrRetrievePaymentMethodFromSetupIntent(
       },
     });
 
-    const generatedSepaPaymentId = latestAttempt.payment_method_details.bancontact.generated_sepa_debit as string;
+    const generatedSepaPaymentId = latestAttempt.payment_method_details?.bancontact?.generated_sepa_debit as string;
+    if (!generatedSepaPaymentId) {
+      throw new Error(`Bancontact setup intent is not completed yet (status: ${setupIntent.status})`);
+    }
+
     const generatedPaymentMethod = await createOrRetrieveStripePaymentMethod(
       generatedSepaPaymentId,
       customerConnectedAccount,

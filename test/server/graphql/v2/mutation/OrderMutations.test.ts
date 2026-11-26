@@ -1591,6 +1591,58 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
     });
 
     // Moved/adapted from `test/server/paymentProviders/opencollective/collective.test.ts` + `test/server/graphql/v1/createOrder.test.js`
+    describe('Host payment method (Added Funds)', () => {
+      let hostAdmin, host, hostedCollective, otherHost, foreignCollective, hostPaymentMethod;
+
+      before(async () => {
+        hostAdmin = await fakeUser();
+        host = await fakeActiveHost({ admin: hostAdmin, currency: 'USD' });
+        hostedCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+        otherHost = await fakeActiveHost({ currency: 'USD' });
+        foreignCollective = await fakeCollective({ HostCollectiveId: otherHost.id, currency: 'USD' });
+        hostPaymentMethod = await host.getOrCreateHostPaymentMethod();
+      });
+
+      const getOrderInput = fromAccount => ({
+        quantity: 1,
+        amount: { valueInCents: 1000, currency: 'USD' },
+        frequency: 'ONETIME',
+        fromAccount: { legacyId: fromAccount.id },
+        toAccount: { legacyId: hostedCollective.id },
+        paymentMethod: { id: idEncode(hostPaymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD) },
+      });
+
+      it('cannot be used to debit an account the host admin does not own or host', async () => {
+        const result = await callCreateOrder({ order: getOrderInput(foreignCollective) }, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include("You don't have the permission to add funds from accounts");
+        const ordersCount = await models.Order.count({ where: { FromCollectiveId: foreignCollective.id } });
+        expect(ordersCount).to.eq(0);
+      });
+
+      it('cannot be used to debit an individual unrelated to the host', async () => {
+        const randomUser = await fakeUser();
+        const result = await callCreateOrder({ order: getOrderInput(randomUser.collective) }, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include("You don't have the permission to add funds from accounts");
+      });
+
+      it('cannot be used by the admin of the source account if they are not a host admin', async () => {
+        const otherCollectiveAdmin = await fakeUser();
+        const otherCollective = await fakeCollective({ admin: otherCollectiveAdmin, HostCollectiveId: otherHost.id });
+        const result = await callCreateOrder({ order: getOrderInput(otherCollective) }, otherCollectiveAdmin);
+        expect(result.errors).to.exist;
+      });
+
+      it('can still be used from an account hosted by the same host', async () => {
+        const sameHostCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+        const result = await callCreateOrder({ order: getOrderInput(sameHostCollective) }, hostAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createOrder.order.status).to.eq('PAID');
+      });
+    });
+
     describe('Collective to Collective Transactions', () => {
       const STRIPE_FEE_STUBBED_VALUE = 300;
       let sandbox,
@@ -1891,7 +1943,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         const subscription = await orderFromDb.getSubscription();
         expect(subscription.interval).to.equal('month');
         expect(subscription.isActive).to.be.true;
-        expect(subscription.amount).to.equal(order.amount.valueInCents);
+        expect(orderFromDb.totalAmount).to.equal(order.amount.valueInCents);
 
         const transaction = await models.Transaction.findOne({
           where: {
@@ -3144,6 +3196,132 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(order.FromCollectiveId).to.not.eq(newProfile.id);
       });
     });
+
+    describe('backer memberships', () => {
+      const getBackerMembers = (MemberCollectiveId, CollectiveId) =>
+        models.Member.findAll({
+          where: { MemberCollectiveId, CollectiveId, role: MemberRoles.BACKER },
+          order: [['id', 'ASC']],
+        });
+
+      const fakeOrderWithPaymentMethod = async (orderData = {}, options = {}) => {
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        });
+        return fakeOrder({ PaymentMethodId: paymentMethod.id, ...orderData }, { withTransactions: true, ...options });
+      };
+
+      it('merges into the existing membership when moving to a tier the contributor already backs', async () => {
+        const order = await fakeOrderWithPaymentMethod({}, { withBackerMember: true, withTier: true });
+        const [sourceMember] = await getBackerMembers(order.FromCollectiveId, order.CollectiveId);
+        const existingMember = await models.Member.create({
+          MemberCollectiveId: order.FromCollectiveId,
+          CollectiveId: order.CollectiveId,
+          role: MemberRoles.BACKER,
+          TierId: null,
+          CreatedByUserId: order.CreatedByUserId,
+        });
+
+        const result = await callMoveOrders([order], rootUser, { tier: 'custom' });
+        expect(result.errors).to.not.exist;
+
+        const members = await getBackerMembers(order.FromCollectiveId, order.CollectiveId);
+        expect(members.map(m => m.id)).to.deep.eq([existingMember.id]);
+        expect(await models.Member.findByPk(sourceMember.id)).to.be.null;
+
+        const migrationLog = await models.MigrationLog.findOne({ where: { type: 'MOVE_ORDERS' } });
+        expect(migrationLog.data['members']).to.deep.eq([existingMember.id]);
+        expect(migrationLog.data['removedMembers']).to.deep.eq([sourceMember.id]);
+        expect(migrationLog.data['createdMembers']).to.deep.eq([]);
+      });
+
+      it('merges into the existing membership when moving to an account that already backs the tier', async () => {
+        const order = await fakeOrderWithPaymentMethod({}, { withBackerMember: true, withTier: true });
+        const [sourceMember] = await getBackerMembers(order.FromCollectiveId, order.CollectiveId);
+        const newProfile = (await fakeUser()).collective;
+        const existingMember = await models.Member.create({
+          MemberCollectiveId: newProfile.id,
+          CollectiveId: order.CollectiveId,
+          role: MemberRoles.BACKER,
+          TierId: order.TierId,
+          CreatedByUserId: order.CreatedByUserId,
+        });
+
+        const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
+        expect(result.errors).to.not.exist;
+
+        expect(await getBackerMembers(order.FromCollectiveId, order.CollectiveId)).to.be.empty;
+        const members = await getBackerMembers(newProfile.id, order.CollectiveId);
+        expect(members.map(m => m.id)).to.deep.eq([existingMember.id]);
+
+        const migrationLog = await models.MigrationLog.findOne({ where: { type: 'MOVE_ORDERS' } });
+        expect(migrationLog.data['members']).to.deep.eq([existingMember.id]);
+        expect(migrationLog.data['removedMembers']).to.deep.eq([sourceMember.id]);
+      });
+
+      it('keeps the source membership when contributions that are not moved still rely on it', async () => {
+        const order = await fakeOrderWithPaymentMethod({}, { withBackerMember: true, withTier: true });
+        const [sourceMember] = await getBackerMembers(order.FromCollectiveId, order.CollectiveId);
+        // Another contribution from the same account on the same tier, not moved
+        await fakeOrderWithPaymentMethod({
+          CreatedByUserId: order.CreatedByUserId,
+          FromCollectiveId: order.FromCollectiveId,
+          CollectiveId: order.CollectiveId,
+          TierId: order.TierId,
+          status: OrderStatuses.PAID,
+        });
+        const newProfile = (await fakeUser()).collective;
+
+        const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
+        expect(result.errors).to.not.exist;
+
+        const sourceMembers = await getBackerMembers(order.FromCollectiveId, order.CollectiveId);
+        expect(sourceMembers.map(m => m.id)).to.deep.eq([sourceMember.id]);
+        expect(sourceMembers[0].TierId).to.eq(order.TierId);
+
+        const newMembers = await getBackerMembers(newProfile.id, order.CollectiveId);
+        expect(newMembers).to.have.length(1);
+        expect(newMembers[0].TierId).to.eq(order.TierId);
+        expect(newMembers[0].since.getTime()).to.eq(sourceMember.since.getTime());
+
+        const migrationLog = await models.MigrationLog.findOne({ where: { type: 'MOVE_ORDERS' } });
+        expect(migrationLog.data['members']).to.deep.eq([newMembers[0].id]);
+        expect(migrationLog.data['createdMembers']).to.deep.eq([newMembers[0].id]);
+        expect(migrationLog.data['removedMembers']).to.deep.eq([]);
+      });
+
+      it('merges several moved contributions into a single membership', async () => {
+        const order1 = await fakeOrderWithPaymentMethod({}, { withBackerMember: true, withTier: true });
+        const order2 = await fakeOrderWithPaymentMethod(
+          {
+            CreatedByUserId: order1.CreatedByUserId,
+            FromCollectiveId: order1.FromCollectiveId,
+            CollectiveId: order1.CollectiveId,
+          },
+          { withBackerMember: true },
+        );
+        expect(await getBackerMembers(order1.FromCollectiveId, order1.CollectiveId)).to.have.length(2);
+        const newProfile = (await fakeUser()).collective;
+
+        const result = await callMoveOrders([order1, order2], rootUser, { fromAccount: newProfile, tier: 'custom' });
+        expect(result.errors).to.not.exist;
+
+        expect(await getBackerMembers(order1.FromCollectiveId, order1.CollectiveId)).to.be.empty;
+        const members = await getBackerMembers(newProfile.id, order1.CollectiveId);
+        expect(members).to.have.length(1);
+        expect(members[0].TierId).to.be.null;
+      });
+
+      it('does not create a membership when the contribution had none', async () => {
+        const order = await fakeOrderWithPaymentMethod({}, { withTier: true });
+        const newProfile = (await fakeUser()).collective;
+
+        const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
+        expect(result.errors).to.not.exist;
+        expect(await getBackerMembers(newProfile.id, order.CollectiveId)).to.be.empty;
+      });
+    });
   });
 
   describe('Other mutations', () => {
@@ -3766,7 +3944,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         await orderWithPlatformTip.reload({ include: [{ association: 'Subscription' }] });
         expect(orderWithPlatformTip.totalAmount).to.eq(1250);
         expect(orderWithPlatformTip.platformTipAmount).to.eq(250);
-        expect(orderWithPlatformTip.Subscription.amount).to.eq(1250);
       });
 
       it('preserves tax calculation when updating the platform tip amount', async () => {
@@ -3805,7 +3982,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(orderWithTaxes.totalAmount).to.eq(1500);
         expect(orderWithTaxes.platformTipAmount).to.eq(300);
         expect(orderWithTaxes.taxAmount).to.eq(200);
-        expect(orderWithTaxes.Subscription.amount).to.eq(1500);
       });
 
       it('recomputes tax when changing the amount and platform tip together', async () => {
@@ -3883,7 +4059,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(orderWithTaxes.totalAmount).to.eq(1200);
         expect(orderWithTaxes.platformTipAmount).to.eq(0);
         expect(orderWithTaxes.taxAmount).to.eq(200);
-        expect(orderWithTaxes.Subscription.amount).to.eq(1200);
       });
 
       it('rejects a negative platform tip amount', async () => {
@@ -4334,6 +4509,29 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(order.taxAmount).to.equal(2000); // 20% VAT on $100
         expect(order.totalAmount).to.equal(12000);
         expect(order.data.tax.percentage).to.equal(20);
+      });
+
+      it('keeps the contribution amount and adds the new platform tip when only the platform tip changes', async () => {
+        await order.update({ totalAmount: 10100, platformTipAmount: 100 });
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            action: 'MARK_AS_PAID',
+            order: {
+              id: idEncode(order.id, 'order'),
+              platformTip: { valueInCents: 200, currency: order.currency },
+            },
+          },
+          hostAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
+
+        await order.reload();
+        expect(order.platformTipAmount).to.equal(200);
+        expect(order.totalAmount).to.equal(10200);
       });
     });
 

@@ -9,22 +9,28 @@ import { TOKEN_EXPIRATION_SESSION } from '../lib/auth';
 import { Collective, sequelize, User } from '../models';
 
 import { arrangedBy, defineRecipe, type Recipe } from './builders';
+import { collectiveRecipes } from './collective-recipes';
 import { contributionRecipes } from './contribution-recipes';
 import { expenseRecipes } from './expense-recipes';
+import { hostRecipes } from './host-recipes';
+import { stripeRecipes } from './stripe-recipes';
+import { userRecipes } from './user-recipes';
 import { vendorRecipes } from './vendor-recipes';
 
 const identifier = z.string().regex(/^[a-zA-Z0-9_.:-]{1,100}$/);
+/** One test attempt of a Playwright run, as the frontend fixture transport identifies it. */
+export const attemptSchema = z
+  .object({
+    runId: identifier,
+    testId: identifier,
+    retry: z.number().int().min(0).max(1),
+    workerIndex: z.number().int().nonnegative(),
+    nonce: z.string().uuid(),
+  })
+  .strict();
 const requestSchema = z
   .object({
-    attempt: z
-      .object({
-        runId: identifier,
-        testId: identifier,
-        retry: z.number().int().min(0).max(1),
-        workerIndex: z.number().int().nonnegative(),
-        nonce: z.string().uuid(),
-      })
-      .strict(),
+    attempt: attemptSchema,
     requestId: identifier,
     recipe: z.string(),
     inputs: z.unknown(),
@@ -85,9 +91,13 @@ const accountRecipe = (conversations: boolean) =>
 const recipes: Record<string, Recipe> = {
   'account-profile': accountRecipe(false),
   'account-conversation': accountRecipe(true),
+  ...collectiveRecipes,
   ...contributionRecipes,
   ...expenseRecipes,
+  ...userRecipes,
   ...vendorRecipes,
+  ...hostRecipes,
+  ...stripeRecipes,
 };
 
 class FixtureError extends Error {

@@ -6,9 +6,6 @@
       "benchmark": true
     }
   },
-  "opensearch": {
-    "url": "http://localhost:9200"
-  },
   "fees": {
     "default": {
       "hostPercent": 5,

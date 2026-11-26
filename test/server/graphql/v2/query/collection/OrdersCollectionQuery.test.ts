@@ -1,20 +1,24 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import moment from 'moment';
 import sinon from 'sinon';
 
 import OrderStatuses from '../../../../../../server/constants/order-status';
+import { TransactionKind } from '../../../../../../server/constants/transaction-kind';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../../server/graphql/v2/identifiers';
 import * as SqlSearchLib from '../../../../../../server/lib/sql-search';
-import models from '../../../../../../server/models';
+import models, { sequelize } from '../../../../../../server/models';
 import {
   fakeAccountingCategory,
   fakeActiveHost,
   fakeCollective,
   fakeEvent,
+  fakeIncognitoProfile,
   fakeManualPaymentProvider,
   fakeOrder,
   fakePrivateHost,
   fakePrivateOrganization,
+  fakeTransaction,
   fakeUser,
   randStr,
 } from '../../../../../test-helpers/fake-data';
@@ -1351,6 +1355,130 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
     });
   });
 
+  describe('chargedDateFrom and chargedDateTo arguments', () => {
+    const chargedOrdersQuery = gql`
+      query ChargedOrders(
+        $account: AccountReferenceInput
+        $host: AccountReferenceInput
+        $oppositeAccount: AccountReferenceInput
+        $hostContext: HostContext
+        $filter: AccountOrdersFilter
+        $chargedDateFrom: DateTime
+        $chargedDateTo: DateTime
+      ) {
+        orders(
+          account: $account
+          host: $host
+          oppositeAccount: $oppositeAccount
+          hostContext: $hostContext
+          filter: $filter
+          chargedDateFrom: $chargedDateFrom
+          chargedDateTo: $chargedDateTo
+        ) {
+          totalCount
+          nodes {
+            legacyId
+          }
+        }
+      }
+    `;
+
+    const daysAgo = (days: number) => moment.utc().subtract(days, 'days').toDate();
+    const orders: Record<string, { id: number }> = {};
+    let host, collective, contributor, otherContributor;
+
+    before(async () => {
+      host = await fakeActiveHost();
+      collective = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
+      contributor = (await fakeUser()).collective;
+      otherContributor = (await fakeUser()).collective;
+
+      const contribute = async (
+        name: string,
+        transactions: {
+          createdAt: Date;
+          clearedAt?: Date;
+          kind?: TransactionKind;
+          isRefund?: boolean;
+          amount?: number;
+        }[],
+        fromCollective = contributor,
+      ) => {
+        const order = await fakeOrder({
+          CollectiveId: collective.id,
+          FromCollectiveId: fromCollective.id,
+          status: OrderStatuses.PAID,
+        });
+        for (const { createdAt, clearedAt, ...transaction } of transactions) {
+          const { id } = await fakeTransaction({
+            OrderId: order.id,
+            CollectiveId: collective.id,
+            FromCollectiveId: fromCollective.id,
+            HostCollectiveId: host.id,
+            kind: TransactionKind.CONTRIBUTION,
+            clearedAt: clearedAt || createdAt,
+            ...transaction,
+          });
+          // Sequelize sets `createdAt` on create
+          await sequelize.query(`UPDATE "Transactions" SET "createdAt" = :createdAt WHERE id = :id`, {
+            replacements: { createdAt, id },
+          });
+        }
+        orders[name] = order;
+      };
+
+      await contribute('chargedTwice', [{ createdAt: daysAgo(10) }, { createdAt: daysAgo(5) }]);
+      await contribute('addedFunds', [{ createdAt: daysAgo(10), kind: TransactionKind.ADDED_FUNDS }]);
+      await contribute('clearedInPeriod', [{ createdAt: daysAgo(50), clearedAt: daysAgo(10) }]);
+      await contribute('chargedBefore', [{ createdAt: daysAgo(60) }]);
+      await contribute('refund', [{ createdAt: daysAgo(10), isRefund: true }]);
+      await contribute('debit', [{ createdAt: daysAgo(10), amount: -1000 }]);
+      await contribute('otherKind', [{ createdAt: daysAgo(10), kind: TransactionKind.PLATFORM_TIP }]);
+      await contribute('notCharged', []);
+      await contribute('otherContributor', [{ createdAt: daysAgo(10) }], otherContributor);
+    });
+
+    const queryOrderIds = async (variables: Record<string, unknown>) => {
+      const result = await graphqlQueryV2(chargedOrdersQuery, variables);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(result.data.orders.nodes.length);
+      return result.data.orders.nodes.map(node => node.legacyId).sort();
+    };
+
+    const expectedIds = (...names: string[]) => names.map(name => orders[name].id).sort();
+
+    // Accounts scoped queries check each order's transactions, host-wide queries join the period's charged orders:
+    // both must return the same orders.
+    const scopes = {
+      'an account (incoming)': () => ({ account: { legacyId: collective.id }, filter: 'INCOMING' }),
+      'a host (hostContext ALL)': () => ({ account: { legacyId: host.id }, hostContext: 'ALL', filter: 'INCOMING' }),
+      'the host argument': () => ({ host: { legacyId: host.id } }),
+    };
+
+    for (const [scopeName, scope] of Object.entries(scopes)) {
+      it(`returns the orders charged after chargedDateFrom, for ${scopeName}`, async () => {
+        const ids = await queryOrderIds({ ...scope(), chargedDateFrom: daysAgo(30) });
+        expect(ids).to.deep.eq(expectedIds('chargedTwice', 'addedFunds', 'clearedInPeriod', 'otherContributor'));
+      });
+
+      it(`returns the orders charged between chargedDateFrom and chargedDateTo, for ${scopeName}`, async () => {
+        const ids = await queryOrderIds({ ...scope(), chargedDateFrom: daysAgo(90), chargedDateTo: daysAgo(30) });
+        expect(ids).to.deep.eq(expectedIds('chargedBefore'));
+      });
+    }
+
+    it('returns the charged orders between two accounts', async () => {
+      const ids = await queryOrderIds({
+        account: { legacyId: contributor.id },
+        oppositeAccount: { legacyId: collective.id },
+        filter: 'OUTGOING',
+        chargedDateFrom: daysAgo(30),
+      });
+      expect(ids).to.deep.eq(expectedIds('chargedTwice', 'addedFunds', 'clearedInPeriod'));
+    });
+  });
+
   describe('createdByUsers resolver', () => {
     let collective, childAccount, user1, user2, user3;
 
@@ -1666,6 +1794,110 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         const userCollectiveIds = result.data.orders.createdByUsers.nodes.map(node => node.legacyId);
         expect(userCollectiveIds).to.include(outgoingUser1.CollectiveId);
         expect(userCollectiveIds).to.include(outgoingUser2.CollectiveId);
+      });
+    });
+  });
+
+  describe('incognito contributions', () => {
+    let host, hostAdmin, collective, collectiveAdmin, contributor, incognitoProfile, publicContributor, randomUser;
+
+    before(async () => {
+      hostAdmin = await fakeUser();
+      host = await fakeActiveHost({ admin: hostAdmin });
+      collectiveAdmin = await fakeUser();
+      collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin, approvedAt: new Date() });
+      contributor = await fakeUser(null, { name: 'Secret Contributor' });
+      incognitoProfile = await fakeIncognitoProfile(contributor);
+      publicContributor = await fakeUser(null, { name: 'Public Contributor' });
+      randomUser = await fakeUser();
+
+      await fakeOrder({
+        CollectiveId: collective.id,
+        FromCollectiveId: incognitoProfile.id,
+        CreatedByUserId: contributor.id,
+        status: OrderStatuses.PAID,
+      });
+      await fakeOrder({
+        CollectiveId: collective.id,
+        FromCollectiveId: publicContributor.CollectiveId,
+        CreatedByUserId: publicContributor.id,
+        status: OrderStatuses.PAID,
+      });
+    });
+
+    describe('createdByUsers', () => {
+      const getCreatorIds = async remoteUser => {
+        const result = await graphqlQueryV2(
+          ordersWithCreatedByUsersQuery,
+          { account: { legacyId: collective.id }, filter: 'INCOMING' },
+          remoteUser,
+        );
+        expect(result.errors).to.not.exist;
+        const ids = result.data.orders.createdByUsers.nodes.map(node => node.legacyId);
+        expect(result.data.orders.createdByUsers.totalCount).to.eq(ids.length);
+        return ids;
+      };
+
+      it('does not reveal the creator of incognito contributions to unauthenticated users', async () => {
+        expect(await getCreatorIds(null)).to.deep.eq([publicContributor.CollectiveId]);
+      });
+
+      it('does not reveal the creator of incognito contributions to unrelated users', async () => {
+        expect(await getCreatorIds(randomUser)).to.deep.eq([publicContributor.CollectiveId]);
+      });
+
+      it('does not reveal the creator of incognito contributions to collective admins', async () => {
+        expect(await getCreatorIds(collectiveAdmin)).to.deep.eq([publicContributor.CollectiveId]);
+      });
+
+      it('does not leak the creator through the search term', async () => {
+        const result = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+          account: { legacyId: collective.id },
+          filter: 'INCOMING',
+          createdByUsersSearchTerm: 'Secret Contributor',
+        });
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.createdByUsers.totalCount).to.eq(0);
+        expect(result.data.orders.createdByUsers.nodes).to.be.empty;
+      });
+
+      it('reveals the creator of incognito contributions to host admins', async () => {
+        const ids = await getCreatorIds(hostAdmin);
+        expect(ids).to.have.length(2);
+        expect(ids).to.include.members([contributor.CollectiveId, publicContributor.CollectiveId]);
+      });
+
+      it('reveals the creator of incognito contributions to the contributor themselves', async () => {
+        const ids = await getCreatorIds(contributor);
+        expect(ids).to.have.length(2);
+        expect(ids).to.include.members([contributor.CollectiveId, publicContributor.CollectiveId]);
+      });
+    });
+
+    describe('createdBy', () => {
+      const countOrdersCreatedByContributor = async remoteUser => {
+        const result = await graphqlQueryV2(
+          ordersQuery,
+          {
+            account: { legacyId: collective.id },
+            filter: 'INCOMING',
+            createdBy: [{ legacyId: contributor.CollectiveId }],
+          },
+          remoteUser,
+        );
+        expect(result.errors).to.not.exist;
+        return result.data.orders.totalCount;
+      };
+
+      it('cannot be used to find incognito contributions of a user without permission', async () => {
+        expect(await countOrdersCreatedByContributor(null)).to.eq(0);
+        expect(await countOrdersCreatedByContributor(randomUser)).to.eq(0);
+        expect(await countOrdersCreatedByContributor(collectiveAdmin)).to.eq(0);
+      });
+
+      it('returns incognito contributions to host admins and to the contributor themselves', async () => {
+        expect(await countOrdersCreatedByContributor(hostAdmin)).to.eq(1);
+        expect(await countOrdersCreatedByContributor(contributor)).to.eq(1);
       });
     });
   });
@@ -2276,6 +2508,29 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         );
         expect(orderFromPrivateOrg?.fromAccount).to.be.null;
       });
+    });
+
+    it('createdByUsers keeps the creators of orders to private accounts visible to the sender', async () => {
+      const sender = await fakeUser();
+      await fakeOrder({
+        FromCollectiveId: sender.CollectiveId,
+        CollectiveId: privateCollective.id,
+        CreatedByUserId: sender.id,
+        status: OrderStatuses.PAID,
+      });
+
+      const variables = { account: { legacyId: sender.CollectiveId }, filter: 'OUTGOING' };
+      const resultAsSender = await graphqlQueryV2(ordersWithCreatedByUsersQuery, variables, sender);
+      expect(resultAsSender.errors).to.not.exist;
+      expect(resultAsSender.data.orders.totalCount).to.eq(1);
+      expect(resultAsSender.data.orders.createdByUsers.totalCount).to.eq(1);
+      expect(resultAsSender.data.orders.createdByUsers.nodes.map(n => n.legacyId)).to.deep.eq([sender.CollectiveId]);
+
+      const resultAsRandomUser = await graphqlQueryV2(ordersWithCreatedByUsersQuery, variables, randomUser);
+      expect(resultAsRandomUser.errors).to.not.exist;
+      expect(resultAsRandomUser.data.orders.totalCount).to.eq(0);
+      expect(resultAsRandomUser.data.orders.createdByUsers.totalCount).to.eq(0);
+      expect(resultAsRandomUser.data.orders.createdByUsers.nodes).to.be.empty;
     });
   });
 });

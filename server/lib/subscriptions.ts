@@ -255,7 +255,6 @@ export const updateSubscriptionDetails = async (
   // check if the amount is different from the previous amount
   if (amountInCents !== order.totalAmount) {
     newOrderData['totalAmount'] = amountInCents;
-    newSubscriptionData['amount'] = amountInCents;
   }
 
   if (platformTipAmount !== order.platformTipAmount) {

@@ -77,7 +77,13 @@ export const GraphQLTier = new GraphQLObjectType({
             };
           }
 
-          const result = await models.Order.findAndCountAll({ where, limit: args.limit, offset: args.offset });
+          // Sorted, so that pages read with `offset` don't skip or repeat orders
+          const result = await models.Order.findAndCountAll({
+            where,
+            order: [['id', 'ASC']],
+            limit: args.limit,
+            offset: args.offset,
+          });
 
           return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
         },

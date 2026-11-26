@@ -153,14 +153,14 @@ const virtualCardMutations = {
         host,
         POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL,
       );
-      const maximumLimitForInterval = virtualCardMaximumLimitForIntervalPolicy[limitInterval];
+      const maximumLimitForIntervalInCents = virtualCardMaximumLimitForIntervalPolicy[limitInterval];
 
-      if (limitAmountInCents > maximumLimitForInterval * 100) {
+      if (limitAmountInCents > maximumLimitForIntervalInCents) {
         throw new BadRequest(
-          `Limit for interval should not exceed ${maximumLimitForInterval} ${host.currency}`,
+          `Limit for interval should not exceed ${maximumLimitForIntervalInCents / 100} ${host.currency}`,
           undefined,
           {
-            limitAmount: `Limit for interval should not exceed ${maximumLimitForInterval} ${host.currency}`,
+            limitAmount: `Limit for interval should not exceed ${maximumLimitForIntervalInCents / 100} ${host.currency}`,
           },
         );
       }
@@ -336,18 +336,18 @@ const virtualCardMutations = {
           virtualCard.host,
           POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL,
         );
-        const maximumLimitForInterval = virtualCardMaximumLimitForIntervalPolicy[limitInterval];
+        const maximumLimitForIntervalInCents = virtualCardMaximumLimitForIntervalPolicy[limitInterval];
 
         const limitAmountInCents = getValueInCentsFromAmountInput(args.limitAmount, {
           expectedCurrency: virtualCard.host.currency,
         });
 
-        if (limitAmountInCents > maximumLimitForInterval * 100) {
+        if (limitAmountInCents > maximumLimitForIntervalInCents) {
           throw new BadRequest(
-            `Limit for interval should not exceed ${maximumLimitForInterval} ${virtualCard.host.currency}`,
+            `Limit for interval should not exceed ${maximumLimitForIntervalInCents / 100} ${virtualCard.host.currency}`,
             undefined,
             {
-              limitAmount: `Limit for interval should not exceed ${maximumLimitForInterval} ${virtualCard.host.currency}`,
+              limitAmount: `Limit for interval should not exceed ${maximumLimitForIntervalInCents / 100} ${virtualCard.host.currency}`,
             },
           );
         }

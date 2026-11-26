@@ -1741,6 +1741,29 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       expect(result.data.expenses.totalCount).to.be.at.least(5);
     });
 
+    it('Counts an expense once even when it has several matching activities', async () => {
+      const user = await fakeUser();
+      const otherCollective = await fakeCollective({ currency: 'USD' });
+      const expense = await fakeExpense({
+        CollectiveId: otherCollective.id,
+        amount: 100000,
+        currency: 'USD',
+        status: 'PENDING',
+      });
+      for (let i = 0; i < 3; i++) {
+        await fakeActivity({ ExpenseId: expense.id, UserId: user.id, type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED });
+      }
+
+      const result = await graphqlQueryV2(expensesQuery, {
+        account: { legacyId: otherCollective.id },
+        activity: { individual: { legacyId: user.CollectiveId }, type: ['COLLECTIVE_EXPENSE_UPDATED'] },
+      });
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.nodes.map(e => e.legacyId)).to.deep.eq([expense.id]);
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.totalAmount.amount.valueInCents).to.eq(100000);
+    });
+
     describe('Error checks', () => {
       it('Throws error when individual account is not found', async () => {
         const queryParams = {

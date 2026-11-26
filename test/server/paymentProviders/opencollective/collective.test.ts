@@ -133,6 +133,35 @@ describe('server/paymentProviders/opencollective/collective', () => {
       });
     });
 
+    describe('Concurrent refunds', () => {
+      before('Create initial data', async () => {
+        await setupHostAndCollectives('USD');
+      });
+
+      it('Refunds the transaction only once when two refunds run at the same time', async () => {
+        const orderData = await createOrder(fromCollective, toCollective);
+        const transaction = await processOrder(testPaymentProvider, orderData);
+        expect(await fromCollective.getBalance()).to.eq(-5000);
+        expect(await toCollective.getBalance()).to.eq(5000);
+
+        const instances = await Promise.all([
+          models.Transaction.findByPk(transaction.id),
+          models.Transaction.findByPk(transaction.id),
+        ]);
+        const results = await Promise.allSettled(
+          instances.map(t => collectivePaymentProvider.refundTransaction(t, user)),
+        );
+
+        expect(results.map(r => r.status).sort()).to.deep.equal(['fulfilled', 'rejected']);
+        const refundCredits = await models.Transaction.count({
+          where: { OrderId: orderData.id, isRefund: true, type: 'CREDIT', kind: TransactionKind.CONTRIBUTION },
+        });
+        expect(refundCredits).to.eq(1);
+        expect(await fromCollective.getBalance()).to.eq(0);
+        expect(await toCollective.getBalance()).to.eq(0);
+      });
+    });
+
     describe('With a Host in a different currency (split HOST_FEE transactions)', () => {
       const HOST_FEE_PERCENT = 10;
       let sandbox;
