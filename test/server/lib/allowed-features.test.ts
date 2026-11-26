@@ -120,23 +120,6 @@ describe('server/lib/allowed-features', () => {
       });
     });
 
-    describe('ALIPAY', () => {
-      it('is AVAILABLE for active hosts, UNSUPPORTED otherwise', async () => {
-        const host = await fakeActiveHost();
-        expect(await getFeatureAccess(host, FEATURE.ALIPAY)).to.deep.eq({ access: 'AVAILABLE', reason: null });
-        const inactiveHost = await fakeCollective({ hasMoneyManagement: true, isActive: false });
-        expect(await getFeatureAccess(inactiveHost, FEATURE.ALIPAY)).to.deep.eq({
-          access: 'UNSUPPORTED',
-          reason: 'ACCOUNT_TYPE',
-        });
-        const org = await fakeOrganization();
-        expect(await getFeatureAccess(org, FEATURE.ALIPAY)).to.deep.eq({
-          access: 'UNSUPPORTED',
-          reason: 'ACCOUNT_TYPE',
-        });
-      });
-    });
-
     describe('COLLECTIVE_GOALS', () => {
       it('is DISABLED for active collectives/orgs/projects by default (opt-in), AVAILABLE if opted in, UNSUPPORTED for others', async () => {
         const collective = await fakeCollective({ isActive: true });
@@ -906,7 +889,6 @@ describe('server/lib/allowed-features', () => {
     describe('USER', () => {
       const basePermissions = {
         ABOUT: { access: 'AVAILABLE', reason: null },
-        ALIPAY: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         COLLECTIVE_GOALS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CONNECTED_ACCOUNTS: { access: 'AVAILABLE', reason: null },
         CONTACT_COLLECTIVE: { access: 'AVAILABLE', reason: null },
@@ -979,7 +961,6 @@ describe('server/lib/allowed-features', () => {
     describe('ORGANIZATION', () => {
       const basePermissions = {
         ABOUT: { access: 'AVAILABLE', reason: null },
-        ALIPAY: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         COLLECTIVE_GOALS: { access: 'DISABLED', reason: 'OPT_IN' },
         CONNECTED_ACCOUNTS: { access: 'AVAILABLE', reason: null },
         CONTACT_COLLECTIVE: { access: 'AVAILABLE', reason: null },
@@ -1036,7 +1017,6 @@ describe('server/lib/allowed-features', () => {
         const featuresMap = await getFeaturesAccessMap(hostOrg);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
-          ALIPAY: { access: 'AVAILABLE', reason: null },
           HOST_DASHBOARD: { access: 'AVAILABLE', reason: null },
           OFF_PLATFORM_TRANSACTIONS: { access: 'DISABLED', reason: 'OPT_IN' },
           PAYPAL_DONATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
@@ -1054,7 +1034,6 @@ describe('server/lib/allowed-features', () => {
     describe('COLLECTIVE', () => {
       const basePermissions = {
         ABOUT: { access: 'AVAILABLE', reason: null },
-        ALIPAY: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         COLLECTIVE_GOALS: { access: 'DISABLED', reason: 'OPT_IN' },
         CONNECTED_ACCOUNTS: { access: 'AVAILABLE', reason: null },
         CONTACT_COLLECTIVE: { access: 'AVAILABLE', reason: null },
@@ -1120,7 +1099,6 @@ describe('server/lib/allowed-features', () => {
         const featuresMap = await getFeaturesAccessMap(selfHosted);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
-          ALIPAY: { access: 'AVAILABLE', reason: null },
           CHARGE_HOSTING_FEES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           CHART_OF_ACCOUNTS: { access: 'AVAILABLE', reason: null },
           EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
@@ -1166,7 +1144,6 @@ describe('server/lib/allowed-features', () => {
     describe('FUND', () => {
       const basePermissions = {
         ABOUT: { access: 'AVAILABLE', reason: null },
-        ALIPAY: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         COLLECTIVE_GOALS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CONNECTED_ACCOUNTS: { access: 'AVAILABLE', reason: null },
         CONTACT_COLLECTIVE: { access: 'AVAILABLE', reason: null },
@@ -1223,7 +1200,6 @@ describe('server/lib/allowed-features', () => {
     describe('PROJECT', () => {
       const basePermissions = {
         ABOUT: { access: 'AVAILABLE', reason: null },
-        ALIPAY: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         COLLECTIVE_GOALS: { access: 'DISABLED', reason: 'OPT_IN' },
         CONNECTED_ACCOUNTS: { access: 'AVAILABLE', reason: null },
         CONTACT_COLLECTIVE: { access: 'AVAILABLE', reason: null },
@@ -1280,7 +1256,6 @@ describe('server/lib/allowed-features', () => {
     describe('EVENT', () => {
       const basePermissions = {
         ABOUT: { access: 'AVAILABLE', reason: null },
-        ALIPAY: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         COLLECTIVE_GOALS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CONNECTED_ACCOUNTS: { access: 'AVAILABLE', reason: null },
         CONTACT_COLLECTIVE: { access: 'AVAILABLE', reason: null },
