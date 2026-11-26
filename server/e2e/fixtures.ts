@@ -52,8 +52,20 @@ export async function installE2EFixtures(app: Application): Promise<void> {
     return true;
   };
   // Live Stripe journeys: attempt-owned provider objects and the webhook ownership gate.
-  const { installStripeOwnership } = await import('./stripe-ownership.js');
-  await installStripeOwnership(app, owner.ownerRunId, authorized);
+  const { installStripeOwnership, retireAttemptRoute, probeStripeRoute } = await import('./stripe-ownership.js');
+  await installStripeOwnership(app, owner.ownerRunId);
+  for (const [path, route] of [
+    ['/e2e/stripe/attempts/retire', retireAttemptRoute],
+    ['/e2e/stripe/probe', probeStripeRoute],
+  ] as const) {
+    app.post(path, async (req, res) => {
+      res.set('Cache-Control', 'no-store');
+      if (authorized(req, res)) {
+        const { status, body } = await route(owner.ownerRunId, req.body);
+        res.status(status).json(body);
+      }
+    });
+  }
   app.post('/e2e/fixtures', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     if (!authorized(req, res)) {

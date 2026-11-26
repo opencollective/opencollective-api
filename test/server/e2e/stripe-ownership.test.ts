@@ -13,8 +13,10 @@ import type Stripe from 'stripe';
 import {
   gateStripeEvent,
   installStripeOwnership,
+  probeStripeRoute,
   recordOwnedObjects,
   retireAttempt,
+  retireAttemptRoute,
 } from '../../../server/e2e/stripe-ownership';
 import stripe from '../../../server/lib/stripe';
 import models, { sequelize } from '../../../server/models';
@@ -72,7 +74,17 @@ describe('server/e2e/stripe-ownership', () => {
     const app = express();
     app.use(express.json());
     app.use(cookieParser());
-    await installStripeOwnership(app, OWNER_RUN, () => true);
+    await installStripeOwnership(app, OWNER_RUN);
+    // As `installE2EFixtures` mounts them, minus its bearer-token check
+    for (const [path, route] of [
+      ['/e2e/stripe/attempts/retire', retireAttemptRoute],
+      ['/e2e/stripe/probe', probeStripeRoute],
+    ] as const) {
+      app.post(path, async (req, res) => {
+        const { status, body } = await route(OWNER_RUN, req.body);
+        res.status(status).json(body);
+      });
+    }
     app.post('/create-customer', async (req, res) => {
       res.json(await stripe.customers.create({}, { stripeAccount: HOST_ACCOUNT }));
     });

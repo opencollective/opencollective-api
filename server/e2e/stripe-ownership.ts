@@ -400,49 +400,44 @@ async function probeStripe(ownerRunId: string, timeoutMs: number) {
 }
 
 /**
- * Installs the gate, the attempt context and the two Stripe routes. Called by `installE2EFixtures` only, after
- * it verified the launcher's ownership proof; `authorized` is its bearer-token check.
+ * Installs the gate and the attempt context. Called by `installE2EFixtures` only, after it verified the
+ * launcher's ownership proof; it also mounts the two routes below behind its bearer-token check.
  */
 // Dynamically loaded by the guarded E2E fixture hook.
 // ts-unused-exports:disable-next-line
-export async function installStripeOwnership(
-  app: Application,
-  ownerRunId: string,
-  authorized: (req: Request, res: Response) => boolean,
-): Promise<void> {
+export async function installStripeOwnership(app: Application, ownerRunId: string): Promise<void> {
   await initializeStripeOwnership();
   instrumentStripeClient();
   setWebhookEventGate(gateStripeEvent);
-
   app.use((req: Request, res: Response, next: NextFunction) => {
     const context = contextFromCookie(ownerRunId, req.cookies?.[ATTEMPT_COOKIE]);
     return context ? attemptContext.run(context, next) : next();
   });
+}
 
-  app.post('/e2e/stripe/attempts/retire', async (req, res) => {
-    res.set('Cache-Control', 'no-store');
-    if (!authorized(req, res)) {
-      return;
-    }
-    const context = contextFor(ownerRunId, req.body?.attempt);
-    if (!context) {
-      res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Provide the complete attempt identity.' } });
-      return;
-    }
-    res.json(await retireAttempt(context));
-  });
+type RouteResult = { status: number; body: unknown };
 
-  app.post('/e2e/stripe/probe', async (req, res) => {
-    res.set('Cache-Control', 'no-store');
-    if (!authorized(req, res)) {
-      return;
-    }
-    const timeoutMs = Math.min(Math.max(Number(req.body?.timeoutMs) || 60_000, 1_000), 120_000);
-    try {
-      const { status, ...result } = await probeStripe(ownerRunId, timeoutMs);
-      res.status(status).json(status === 200 ? result : { error: result });
-    } catch (error) {
-      res.status(502).json({ error: { code: 'STRIPE_PROVIDER_ERROR', message: error.message } });
-    }
-  });
+/** `POST /e2e/stripe/attempts/retire` with `{ attempt }`: see `retireAttempt`. */
+// ts-unused-exports:disable-next-line
+export async function retireAttemptRoute(ownerRunId: string, body: { attempt?: unknown }): Promise<RouteResult> {
+  const context = contextFor(ownerRunId, body?.attempt);
+  if (!context) {
+    return {
+      status: 400,
+      body: { error: { code: 'INVALID_REQUEST', message: 'Provide the complete attempt identity.' } },
+    };
+  }
+  return { status: 200, body: await retireAttempt(context) };
+}
+
+/** `POST /e2e/stripe/probe` with an optional `{ timeoutMs }`: see `probeStripe`. */
+// ts-unused-exports:disable-next-line
+export async function probeStripeRoute(ownerRunId: string, body: { timeoutMs?: unknown }): Promise<RouteResult> {
+  const timeoutMs = Math.min(Math.max(Number(body?.timeoutMs) || 60_000, 1_000), 120_000);
+  try {
+    const { status, ...result } = await probeStripe(ownerRunId, timeoutMs);
+    return { status, body: status === 200 ? result : { error: result } };
+  } catch (error) {
+    return { status: 502, body: { error: { code: 'STRIPE_PROVIDER_ERROR', message: error.message } } };
+  }
 }
