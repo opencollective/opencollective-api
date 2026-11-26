@@ -23,6 +23,11 @@ import * as users from './controllers/users';
 import { paypalWebhook, plaidWebhook, stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
 import { getGraphqlCacheProperties } from './graphql/cache';
 import { formatGraphQLError } from './graphql/format-error';
+import {
+  structuralLimitsPlugin,
+  structuralLimitsTokenMiddleware,
+  structuralLimitsValidationRule,
+} from './graphql/protection/structural-limits-plugin';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import { apolloSlowRequestCachePlugin, apolloSlowResolverDebugPlugin, apolloStudioUsagePlugin } from './lib/apollo';
@@ -265,6 +270,7 @@ export default async (app: express.Application) => {
 
   const graphqlPlugins = [
     ...graphqlProtection.plugins,
+    structuralLimitsPlugin, // Log-only until GraphQL Armor is removed, see opencollective/opencollective#9086
     ApolloServerPluginDrainHttpServer({ httpServer }),
     apolloSlowRequestCachePlugin,
     apolloSlowResolverDebugPlugin,
@@ -287,6 +293,7 @@ export default async (app: express.Application) => {
     // https://www.apollographql.com/docs/apollo-server/api/apollo-server#formaterror
     formatError: formatGraphQLError,
     ...graphqlProtection,
+    validationRules: [...graphqlProtection.validationRules, structuralLimitsValidationRule],
     plugins: graphqlPlugins,
   };
 
@@ -298,6 +305,7 @@ export default async (app: express.Application) => {
   };
 
   app.use('/graphql', graphqlUploadExpress());
+  app.use('/graphql', structuralLimitsTokenMiddleware);
 
   /**
    * GraphQL v1
