@@ -9,6 +9,7 @@ import { TOKEN_EXPIRATION_SESSION } from '../lib/auth';
 import { Collective, sequelize, User } from '../models';
 
 import { arrangedBy, defineRecipe, type Recipe } from './builders';
+import { collectiveRecipes } from './collective-recipes';
 import { contributionRecipes } from './contribution-recipes';
 import { expenseRecipes } from './expense-recipes';
 import { userRecipes } from './user-recipes';
@@ -86,6 +87,7 @@ const accountRecipe = (conversations: boolean) =>
 const recipes: Record<string, Recipe> = {
   'account-profile': accountRecipe(false),
   'account-conversation': accountRecipe(true),
+  ...collectiveRecipes,
   ...contributionRecipes,
   ...expenseRecipes,
   ...userRecipes,
