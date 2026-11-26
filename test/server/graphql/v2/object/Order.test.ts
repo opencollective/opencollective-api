@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import OrderStatuses from '../../../../../server/constants/order-status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import roles from '../../../../../server/constants/roles';
 import {
   fakeActiveHost,
@@ -10,6 +11,7 @@ import {
   fakeLocation,
   fakeMember,
   fakeOrder,
+  fakePaymentMethod,
   fakePrivateOrganization,
   fakeTransaction,
   fakeUser,
@@ -367,6 +369,44 @@ describe('server/graphql/v2/object/Order', () => {
       const result = await graphqlQueryV2(customDataQuery, { legacyId: order.id }, randomUser);
       expect(result.errors).to.not.exist;
       expect(result.data.order.customData).to.be.null;
+    });
+  });
+
+  describe('paymentMethod', () => {
+    const orderPaymentMethodQuery = gql`
+      query Order($legacyId: Int!) {
+        order(order: { legacyId: $legacyId }) {
+          id
+          paymentMethod {
+            id
+            service
+            type
+          }
+        }
+      }
+    `;
+
+    it('returns the payment method used for the contribution', async () => {
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
+      const order = await fakeOrder({ PaymentMethodId: paymentMethod.id, status: OrderStatuses.PAID });
+      const result = await graphqlQueryV2(orderPaymentMethodQuery, { legacyId: order.id });
+      expect(result.errors).to.not.exist;
+      expect(result.data.order.paymentMethod).to.include({ service: 'STRIPE', type: 'CREDITCARD' });
+    });
+
+    it('still returns the payment method after it was deleted', async () => {
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
+      const order = await fakeOrder({ PaymentMethodId: paymentMethod.id, status: OrderStatuses.PAID });
+      await paymentMethod.destroy();
+      const result = await graphqlQueryV2(orderPaymentMethodQuery, { legacyId: order.id });
+      expect(result.errors).to.not.exist;
+      expect(result.data.order.paymentMethod).to.include({ service: 'STRIPE', type: 'CREDITCARD' });
     });
   });
 });

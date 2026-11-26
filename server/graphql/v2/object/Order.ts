@@ -291,9 +291,12 @@ export const GraphQLOrder = new GraphQLObjectType({
       },
       paymentMethod: {
         type: GraphQLPaymentMethod,
-        resolve(order, _, req) {
+        async resolve(order, _, req) {
           if (order.PaymentMethodId) {
-            return req.loaders.PaymentMethod.byId.load(order.PaymentMethodId);
+            const paymentMethod = await req.loaders.PaymentMethod.byId.load(order.PaymentMethodId);
+            // Payment methods removed by their owner are soft-deleted, but past contributions
+            // should still report how they were paid (see `Transaction.paymentMethod`).
+            return paymentMethod || models.PaymentMethod.findByPk(order.PaymentMethodId, { paranoid: false });
           }
         },
       },
