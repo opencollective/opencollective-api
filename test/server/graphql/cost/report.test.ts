@@ -217,6 +217,25 @@ describe('server/graphql/cost/report', () => {
     });
   });
 
+  describe('compareWithBaseline', () => {
+    it('lists the biggest increases first and the removed operations last', () => {
+      const report = getReport(FRONTEND_FILES);
+      const baseline = {
+        operations: [
+          { name: 'AllAccounts', cost: 10_000 },
+          { name: 'AccountPage', cost: 1_000 },
+          { name: 'Removed', cost: 50 },
+        ],
+      };
+      expect(compareWithBaseline(report, baseline).map(change => [change.name, change.status])).to.deep.eq([
+        ['AllAccounts', 'changed'],
+        ['AccountChildren', 'added'],
+        ['AccountPage', 'changed'],
+        ['Removed', 'removed'],
+      ]);
+    });
+  });
+
   describe('frontend change that adds an expensive query', () => {
     it('reports the new operation over the maximum, and as a new operation compared to the baseline', () => {
       const baseline = getReport(FRONTEND_FILES);

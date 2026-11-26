@@ -286,8 +286,9 @@ export const compareWithBaseline = (report: CostReport, baseline: BaselineReport
     changes.push({ name, source: null, before: cost, after: null, status: 'removed' });
   }
 
-  // Biggest increases first
-  const delta = (change: CostChange) => (change.after ?? Infinity) - (change.before ?? 0);
+  // Biggest increases first, removed operations last. A cost of `null` (not analyzable) counts as infinite.
+  const delta = (change: CostChange) =>
+    change.status === 'removed' ? -Infinity : (change.after ?? Infinity) - (change.before ?? 0);
   return changes.sort((a, b) => delta(b) - delta(a) || a.name.localeCompare(b.name));
 };
 
