@@ -8,6 +8,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import roles from '../constants/roles';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
+import { roundCentsAmount } from '../lib/currency';
 import { Member, Order, PaymentMethod, Subscription, Tier, Transaction } from '../models';
 
 import {
@@ -29,6 +30,8 @@ const inputs = z
      * (`Order.data.pendingTierChange`), as `updateOrder` leaves it.
      */
     pendingGoldTier: z.boolean().default(false),
+    /** The contribution adds a 15% platform tip to `amount`, which it may change (`platformTipEligible`). */
+    platformTip: z.boolean().default(false),
   })
   .strict();
 
@@ -107,6 +110,7 @@ export const contributionRecipes: Record<string, Recipe> = {
       const chargedAt = new Date();
       const nextChargeDate = moment().add(1, 'month').startOf('month').toDate();
       const amount = graph.pendingGoldTier ? gold.amount : graph.amount;
+      const platformTipAmount = graph.platformTip ? roundCentsAmount(amount * 0.15, 'USD') : 0;
       const subscription = await Subscription.create(
         {
           currency: 'USD',
@@ -128,8 +132,9 @@ export const contributionRecipes: Record<string, Recipe> = {
           PaymentMethodId: paymentMethod.id,
           SubscriptionId: subscription.id,
           TierId: null,
-          totalAmount: amount,
-          platformTipAmount: 0,
+          totalAmount: amount + platformTipAmount,
+          platformTipAmount,
+          ...(graph.platformTip && { platformTipEligible: true }),
           currency: 'USD',
           interval: 'month',
           quantity: 1,
