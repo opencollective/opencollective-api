@@ -2,6 +2,7 @@ import config from 'config';
 import type express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import {
+  cloneDeep,
   difference,
   flatten,
   get,
@@ -850,6 +851,7 @@ const orderMutations = {
         let restoreEdits: (() => Promise<void>) | null = null;
         const hasChanges = !isEmpty(difference(keys(args.order), ['id', 'legacyId', 'publicId']));
         if (hasChanges) {
+          const originalOrderValues = cloneDeep(order.dataValues);
           const { amount, paymentProcessorFee, platformTip, hostFeePercent, processedAt, tax } = args.order;
 
           // Ensure amounts are provided with the right currency
@@ -958,7 +960,7 @@ const orderMutations = {
             }
           }
 
-          const previousOrderValues = order.previous(); // Values of the changed fields before the edits
+          const previousOrderValues = pick(originalOrderValues, order.changed() || []);
           const previousImportRowValues = transactionsImportRow && pick(transactionsImportRow, ['OrderId', 'status']);
           await sequelize.transaction(async transaction => {
             await order.save({ transaction });

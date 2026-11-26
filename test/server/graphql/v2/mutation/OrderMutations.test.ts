@@ -4332,6 +4332,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
               amount: { valueInCents: 50000, currency: 'USD' },
               platformTip: { valueInCents: 700, currency: 'USD' },
               paymentProcessorFee: { valueInCents: 100, currency: 'USD' },
+              hostFeePercent: 7,
               transactionsImportRow: { id: idEncode(row.id, 'transactions-import-row') },
             },
           };
@@ -4347,12 +4348,14 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             totalAmount: order.totalAmount,
             platformTipAmount: order.platformTipAmount,
             paymentProcessorFee: order.data?.paymentProcessorFee,
+            hostFeePercent: order.data?.hostFeePercent,
             rowStatus: row.status,
             rowOrderId: row.OrderId,
           }).to.deep.eq({
             totalAmount: 10000,
             platformTipAmount: 0,
             paymentProcessorFee: undefined,
+            hostFeePercent: undefined,
             rowStatus: 'PENDING',
             rowOrderId: null,
           });
