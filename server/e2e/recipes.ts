@@ -13,8 +13,8 @@ import { collectiveRecipes } from './collective-recipes';
 import { contributionRecipes } from './contribution-recipes';
 import { expenseRecipes } from './expense-recipes';
 import { hostRecipes } from './host-recipes';
-import { userRecipes } from './user-recipes';
 import { stripeRecipes } from './stripe-recipes';
+import { userRecipes } from './user-recipes';
 import { vendorRecipes } from './vendor-recipes';
 
 const identifier = z.string().regex(/^[a-zA-Z0-9_.:-]{1,100}$/);
