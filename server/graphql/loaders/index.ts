@@ -1149,6 +1149,11 @@ export const generateLoaders = req => {
       ...context.loaders.PaymentMethod,
       byPublicId: generateEntityByPublicIdLoader(PaymentMethod),
       idByPublicId: generateEntityIdByPublicIdLoader(PaymentMethod),
+      /** Same as `byId`, but also returns soft-deleted payment methods */
+      byIdIncludingDeleted: new DataLoader<number, PaymentMethod | null>(async ids => {
+        const results = await PaymentMethod.findAll({ where: { id: ids as number[] }, paranoid: false });
+        return sortResultsSimple(ids, results);
+      }),
       // PaymentMethod - findByCollectiveId
       findByCollectiveId: new DataLoader<number, PaymentMethod[]>(async CollectiveIds => {
         const results = await PaymentMethod.findAll({
