@@ -1273,7 +1273,9 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
 
-  // Use manual payment provider if available, otherwise fall back to legacy manual bank transfer
+  // Every order that reaches this point has a ManualPaymentProviderId: v1 `createOrder` requires a provider for
+  // manual payments and sets it, and legacy bank-transfer orders were migrated in 20260115143930. There is no
+  // legacy fallback any more, so a missing provider is an error.
   let providerAccount;
   let providerInstructions;
   let providerName;
