@@ -1,6 +1,7 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { PARENT_LIMIT } from '../../cost/extensions';
 import { GraphQLTransactionSettlementStatus } from '../enum/TransactionSettlementStatus';
 import { getTimeSeriesFields, GraphQLTimeSeries } from '../interface/TimeSeries';
 
@@ -23,8 +24,9 @@ export const GraphQLTimeSeriesAmountWithSettlement = new GraphQLObjectType({
     ...getTimeSeriesFields(),
     nodes: {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTimeSeriesAmountWithSettlementNodes))),
-      // Time series are not paginated: one per time unit (and settlement status) in the date range
-      extensions: { cost: { listSize: 100 } },
+      // Not paginated: one per time unit (and settlement status) in the date range. The fields that return a time series
+      // declare that number in their `listSize`, with `getTimeSeriesListSize`.
+      extensions: { cost: { listSize: PARENT_LIMIT } },
       description: 'Time series data points',
     },
   }),

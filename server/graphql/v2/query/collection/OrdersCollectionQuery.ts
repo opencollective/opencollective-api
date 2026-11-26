@@ -34,6 +34,7 @@ import {
 } from '../../../../lib/sql-search';
 import models, { Collective, ManualPaymentProvider, Op, PaymentMethod, Tier, User } from '../../../../models';
 import { checkScope, enforceScope, isRemoteUserRoot } from '../../../common/scope-check';
+import { searchCollectionWeight } from '../../../cost/argument-costs';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../../errors';
 import { GraphQLOrderCollection } from '../../collection/OrderCollection';
 import { GraphQLAccountOrdersFilter, GraphQLAccountOrdersFilterValues } from '../../enum/AccountOrdersFilter';
@@ -1250,6 +1251,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
 // Using a generator to avoid circular dependencies (OrderCollection -> Order -> PaymentMethod -> OrderCollection -> ...)
 const getOrdersCollectionQuery = () => ({
   type: new GraphQLNonNull(GraphQLOrderCollection),
+  extensions: { cost: { weight: searchCollectionWeight } },
   args: {
     account: {
       type: GraphQLAccountReferenceInput,

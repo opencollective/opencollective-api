@@ -43,6 +43,7 @@ import {
   checkRemoteUserCanUseTransactions,
   checkRemoteUserCanUseVirtualCards,
 } from '../../common/scope-check';
+import { getTimeSeriesListSize } from '../../cost/argument-costs';
 import { CostTier } from '../../cost/extensions';
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
@@ -428,6 +429,8 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       hostMetricsTimeSeries: {
         type: new GraphQLNonNull(GraphQLHostMetricsTimeSeries),
+        // The series below share the range and the time unit. Some have one node per kind or settlement status.
+        extensions: { cost: { listSize: getTimeSeriesListSize({ labels: 5 }) } },
         args: {
           account: {
             type: new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput)),

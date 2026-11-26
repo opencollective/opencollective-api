@@ -34,9 +34,45 @@ const isCollectionType = (type: unknown): type is GraphQLObjectType | GraphQLInt
   return Boolean(nodes) && isListType(getNullableType(nodes.type));
 };
 
-/** A collection that is never paginated, like a time series, can declare the size on its `nodes` */
-const hasSizedNodes = (type: GraphQLObjectType | GraphQLInterfaceType): boolean =>
-  getFieldCostExtension(type.getFields().nodes as AnyField).listSize !== undefined;
+/**
+ * A collection that is never paginated can declare the size on its `nodes`. With `PARENT_LIMIT` (time series), the
+ * size comes from the fields that return it instead.
+ */
+const hasSizedNodes = (type: GraphQLObjectType | GraphQLInterfaceType): boolean => {
+  const { listSize } = getFieldCostExtension(type.getFields().nodes as AnyField);
+  return listSize !== undefined && listSize !== PARENT_LIMIT;
+};
+
+/** Fields returning each type, to check that a size declared above a field without arguments reaches it */
+type FieldsByReturnType = Map<string, AnyField[]>;
+
+const getFieldsByReturnType = (schema: GraphQLSchema): FieldsByReturnType => {
+  const fieldsByReturnType: FieldsByReturnType = new Map();
+  for (const type of Object.values(schema.getTypeMap())) {
+    if (!type.name.startsWith('__') && (isObjectType(type) || isInterfaceType(type))) {
+      for (const field of Object.values(type.getFields()) as AnyField[]) {
+        const returnType = getNamedType(field.type).name;
+        fieldsByReturnType.set(returnType, [...(fieldsByReturnType.get(returnType) ?? []), field]);
+      }
+    }
+  }
+  return fieldsByReturnType;
+};
+
+/**
+ * Whether a field without `limit` or `listSize` gets a size from above: it takes no arguments, returns a single object,
+ * and every field returning its parent type declares a `listSize` (`HostMetricsTimeSeries.hostFees`, sized by
+ * `Host.hostMetricsTimeSeries`).
+ */
+const isSizedByParent = (field: AnyField, parentTypeName: string, fieldsByReturnType: FieldsByReturnType): boolean => {
+  const parentFields = fieldsByReturnType.get(parentTypeName) ?? [];
+  return (
+    field.args.length === 0 &&
+    !isListType(getNullableType(field.type)) &&
+    parentFields.length > 0 &&
+    parentFields.every(parentField => getFieldCostExtension(parentField).listSize !== undefined)
+  );
+};
 
 const hasLimitDefault = (field: AnyField, limitArgument: AnyField['args'][number]): boolean => {
   // Resolving the limit of a field node without arguments falls back to the schema default, if any
@@ -45,7 +81,12 @@ const hasLimitDefault = (field: AnyField, limitArgument: AnyField['args'][number
 };
 
 /** Returns the problems of a field, if any */
-const getFieldProblems = (field: AnyField, parentIsCollection: boolean): string[] => {
+const getFieldProblems = (
+  field: AnyField,
+  parentTypeName: string,
+  parentIsCollection: boolean,
+  fieldsByReturnType: FieldsByReturnType,
+): string[] => {
   const limitArgument = field.args.find(arg => arg.name === 'limit');
   const { listSize } = getFieldCostExtension(field);
   const rawListSize = (field.extensions?.cost as Record<string, unknown> | undefined)?.listSize;
@@ -75,7 +116,11 @@ const getFieldProblems = (field: AnyField, parentIsCollection: boolean): string[
     if (!(parentIsCollection && field.name === 'nodes')) {
       problems.push('returns a list of objects without a `limit` argument or a listSize');
     }
-  } else if (isCollectionType(returnType) && !hasSizedNodes(returnType)) {
+  } else if (
+    isCollectionType(returnType) &&
+    !hasSizedNodes(returnType) &&
+    !isSizedByParent(field, parentTypeName, fieldsByReturnType)
+  ) {
     problems.push(
       `returns a collection without a \`limit\` argument or a listSize (use \`${PARENT_LIMIT}\` if it is a page of the parent)`,
     );
@@ -86,6 +131,7 @@ const getFieldProblems = (field: AnyField, parentIsCollection: boolean): string[
 
 const getSchemaProblems = (schema: GraphQLSchema): string[] => {
   const problems: string[] = [];
+  const fieldsByReturnType = getFieldsByReturnType(schema);
   for (const type of Object.values(schema.getTypeMap())) {
     if (type.name.startsWith('__') || (!isObjectType(type) && !isInterfaceType(type))) {
       continue;
@@ -93,7 +139,7 @@ const getSchemaProblems = (schema: GraphQLSchema): string[] => {
 
     const parentIsCollection = isCollectionType(type);
     for (const field of Object.values(type.getFields())) {
-      for (const problem of getFieldProblems(field as AnyField, parentIsCollection)) {
+      for (const problem of getFieldProblems(field as AnyField, type.name, parentIsCollection, fieldsByReturnType)) {
         problems.push(`${type.name}.${field.name} ${problem}`);
       }
     }

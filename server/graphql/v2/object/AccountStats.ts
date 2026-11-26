@@ -13,6 +13,8 @@ import sequelize, { QueryTypes } from '../../../lib/sequelize';
 import { computeDatesAsISOStrings } from '../../../lib/utils';
 import models, { Collective } from '../../../models';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
+import { getAccountAmountWeight, getAccountBalanceWeight, getTimeSeriesListSize } from '../../cost/argument-costs';
+import { isArgumentSet } from '../../cost/arguments';
 import { CostTier } from '../../cost/extensions';
 import { ValidationFailed } from '../../errors';
 import { GraphQLContributionFrequency } from '../enum/ContributionFrequency';
@@ -42,6 +44,8 @@ type ContributionAmountRow = {
   amount: number;
   currency: string;
 };
+
+const MONTH = 30 * 24 * 60 * 60 * 1000;
 
 const TransactionArgs = {
   net: {
@@ -106,8 +110,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       balance: {
-        // Batched by a loader
-        extensions: { cost: { weight: CostTier.Query } },
+        // Batched by a loader, reads a materialized view unless it includes the children
+        extensions: { cost: { weight: getAccountBalanceWeight } },
         description: 'Amount of money in cents in the currency of the collective',
         type: new GraphQLNonNull(GraphQLAmount),
         args: {
@@ -182,8 +186,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       totalAmountSpent: {
-        // Batched by a loader
-        extensions: { cost: { weight: CostTier.Query } },
+        // Batched by a loader, reads a materialized view unless filtered
+        extensions: { cost: { weight: getAccountAmountWeight } },
         description: 'Total amount spent',
         type: new GraphQLNonNull(GraphQLAmount),
         args: {
@@ -224,8 +228,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       totalAmountReceived: {
-        // Batched by a loader
-        extensions: { cost: { weight: CostTier.Query } },
+        // Batched by a loader, reads a materialized view unless filtered
+        extensions: { cost: { weight: getAccountAmountWeight } },
         description: 'Total amount received',
         type: new GraphQLNonNull(GraphQLAmount),
         args: {
@@ -266,7 +270,13 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       amountPledgedTimeSeries: {
-        extensions: { cost: { weight: CostTier.Aggregate } },
+        // Defaults to the next 24 months
+        extensions: {
+          cost: {
+            weight: CostTier.Aggregate,
+            listSize: getTimeSeriesListSize({ defaultDateFromOffset: 0, defaultDateToOffset: 24 * MONTH }),
+          },
+        },
         description: 'Amount pledged time series',
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
         args: {
@@ -444,7 +454,7 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
       },
       totalAmountReceivedTimeSeries: {
         // Batched by a loader
-        extensions: { cost: { weight: CostTier.Query } },
+        extensions: { cost: { weight: CostTier.Query, listSize: getTimeSeriesListSize() } },
         description: 'Total amount received time series',
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
         args: {
@@ -476,7 +486,7 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
       },
       totalAmountSpentTimeSeries: {
         // Batched by a loader
-        extensions: { cost: { weight: CostTier.Query } },
+        extensions: { cost: { weight: CostTier.Query, listSize: getTimeSeriesListSize() } },
         description: 'Total amount spent time series',
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
         args: {
@@ -507,7 +517,7 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       balanceTimeSeries: {
-        extensions: { cost: { weight: CostTier.Aggregate } },
+        extensions: { cost: { weight: CostTier.Aggregate, listSize: getTimeSeriesListSize() } },
         description: 'Balance time series',
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
         args: {
@@ -585,8 +595,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       totalNetAmountReceived: {
-        // Batched by a loader
-        extensions: { cost: { weight: CostTier.Query } },
+        // Batched by a loader, reads a materialized view unless filtered
+        extensions: { cost: { weight: getAccountAmountWeight } },
         description: 'Total net amount received',
         deprecationReason: '2022-12-13: Use totalAmountReceived + net=true instead',
         type: new GraphQLNonNull(GraphQLAmount),
@@ -613,7 +623,7 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
       },
       totalNetAmountReceivedTimeSeries: {
         // Batched by a loader
-        extensions: { cost: { weight: CostTier.Query } },
+        extensions: { cost: { weight: CostTier.Query, listSize: getTimeSeriesListSize() } },
         description: 'Total net amount received time series',
         deprecationReason: '2022-12-13: Use totalAmountReceivedTimeSeries + net=true instead',
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
@@ -684,8 +694,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
       activeRecurringContributionsBreakdown: {
         description: 'Returns some statistics about active recurring contributions, broken down by frequency',
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLAmountStats))),
-        // Monthly and yearly
-        extensions: { cost: { weight: CostTier.Query, listSize: 2 } },
+        // Monthly and yearly, or the requested frequency
+        extensions: { cost: { weight: CostTier.Query, listSize: args => (isArgumentSet(args.frequency) ? 1 : 2) } },
         args: {
           frequency: {
             type: GraphQLContributionFrequency,
@@ -758,7 +768,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       expensesTagsTimeSeries: {
-        extensions: { cost: { weight: CostTier.Aggregate } },
+        // One node per tag in each period
+        extensions: { cost: { weight: CostTier.Aggregate, listSize: getTimeSeriesListSize({ labels: 10 }) } },
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
         args: {
           ...TimeSeriesArgs, // dateFrom / dateTo / timeUnit
@@ -873,7 +884,8 @@ export const GraphQLAccountStats = new GraphQLObjectType<Collective, Request>({
         },
       },
       contributionsAmountTimeSeries: {
-        extensions: { cost: { weight: CostTier.Aggregate } },
+        // One-time and recurring in each period
+        extensions: { cost: { weight: CostTier.Aggregate, listSize: getTimeSeriesListSize({ labels: 2 }) } },
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
         description: 'Return amount time series for contributions (default, and only for now: one-time vs recurring)',
         args: {

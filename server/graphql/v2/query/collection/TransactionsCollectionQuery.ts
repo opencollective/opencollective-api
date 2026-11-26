@@ -24,6 +24,7 @@ import { AccountingCategory, Collective, Expense, PaymentMethod, sequelize } fro
 import Order from '../../../../models/Order';
 import Transaction, { MERCHANT_ID_PATHS } from '../../../../models/Transaction';
 import { checkScope, enforceScope, isRemoteUserRoot } from '../../../common/scope-check';
+import { searchCollectionWeight } from '../../../cost/argument-costs';
 import { BadRequest, Forbidden, NotFound } from '../../../errors';
 import {
   type AnyPaymentMethodType,
@@ -78,7 +79,9 @@ const { PLATFORM_TIP, HOST_FEE_SHARE } = TransactionKind;
 const TRANSACTIONS_COLLECTION_MAX_LIMIT = 10_000;
 
 /** For fields that use `TransactionsCollectionArgs` */
-export const TRANSACTIONS_COLLECTION_COST_EXTENSIONS = { cost: { maxLimit: TRANSACTIONS_COLLECTION_MAX_LIMIT } };
+export const TRANSACTIONS_COLLECTION_COST_EXTENSIONS = {
+  cost: { weight: searchCollectionWeight, maxLimit: TRANSACTIONS_COLLECTION_MAX_LIMIT },
+};
 
 export const TransactionsCollectionArgs = {
   limit: collectionLimitArg(100),

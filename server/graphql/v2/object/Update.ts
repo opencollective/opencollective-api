@@ -68,8 +68,8 @@ const GraphQLUpdate: GraphQLObjectType = new GraphQLObjectType({
       publishedAt: { type: GraphQLDateTime },
       notificationAudience: { type: GraphQLUpdateAudienceType },
       audienceStats: {
-        // Counts the members of the account, or of all its hosted accounts for a host
-        extensions: { cost: { weight: CostTier.Report } },
+        // Counts the members of the account, or of all its hosted accounts for a host. Free for `NO_ONE`.
+        extensions: { cost: { weight: args => (args.audience === 'NO_ONE' ? CostTier.Default : CostTier.Report) } },
         type: GraphQLUpdateAudienceStats,
         description: `Some stats about the target audience. Will be null if the update is already published or if you don't have enough permissions so see this information. Not backed by a loader, avoid using this field in lists.`,
         args: {

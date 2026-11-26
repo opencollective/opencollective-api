@@ -7,6 +7,7 @@ import {
   getSumCollectivesAmountSpent,
   sumTransactionsInCurrency,
 } from '../../../lib/budget';
+import { getHostAmountWeight } from '../../cost/argument-costs';
 import { CostTier } from '../../cost/extensions';
 
 import { GraphQLAmount } from './Amount';
@@ -50,7 +51,7 @@ export const GraphQLHostStats = new GraphQLObjectType({
       },
     },
     totalAmountSpent: {
-      extensions: { cost: { weight: CostTier.Report } },
+      extensions: { cost: { weight: getHostAmountWeight } },
       type: GraphQLAmount,
       args: pick(HostStatsArgs, ['dateTo', 'dateFrom', 'net', 'includeGiftCards']),
 
@@ -68,7 +69,7 @@ export const GraphQLHostStats = new GraphQLObjectType({
       },
     },
     totalAmountReceived: {
-      extensions: { cost: { weight: CostTier.Report } },
+      extensions: { cost: { weight: getHostAmountWeight } },
       type: GraphQLAmount,
       args: pick(HostStatsArgs, ['dateTo', 'dateFrom', 'net']),
 

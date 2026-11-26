@@ -165,7 +165,10 @@ export const collectOperations = (
   return { operations: result, errors };
 };
 
-/** Names of the variables passed to a `limit` argument, the only arguments the analyzer reads */
+/**
+ * Names of the variables passed to a `limit` argument. Cost functions read other arguments too, but only `limit` has
+ * a known maximum to set them to.
+ */
 const getLimitVariables = (document: DocumentNode): string[] => {
   const names = new Set<string>();
   visit(document, {
@@ -220,6 +223,11 @@ export const getCostReport = (
       maxLimit,
       breakdown: true,
     });
+    for (const { coordinate, property, message } of result.costFunctionErrors) {
+      reportErrors.push(
+        `${operation.source}: operation "${operation.name}": the ${property} function of "${coordinate}" failed, its fallback was counted instead: ${message}`,
+      );
+    }
     const maxLimitResult = getQueryCost(schema, operation.document, {
       operationName: operation.name,
       variables: { ...variables, ...Object.fromEntries(limitVariables.map(name => [name, maxLimit])) },

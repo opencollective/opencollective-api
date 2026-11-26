@@ -1,13 +1,14 @@
 import { GraphQLList, GraphQLNonNull } from 'graphql';
 
 import { loadFxRatesMap } from '../../../lib/currency';
+import { getListArgumentSize } from '../../cost/argument-costs';
 import { GraphQLCurrencyExchangeRateRequest } from '../input/CurrencyExchangeRateRequest';
 import GraphQLCurrencyExchangeRate, { GraphQLCurrencyExchangeRateFields } from '../object/CurrencyExchangeRate';
 
 const CurrencyExchangeRateQuery = {
   type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLCurrencyExchangeRate))),
-  // One per request
-  extensions: { cost: { listSize: 50 } },
+  // One per request. 50 when the requests are unknown (in the CI report, without variables).
+  extensions: { cost: { listSize: getListArgumentSize('requests', { sizeWhenUnknown: 50 }) } },
   description: 'Get exchange rates from Open Collective',
   args: {
     requests: {

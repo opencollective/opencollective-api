@@ -4,11 +4,12 @@ exports[`server/graphql/cost weights matches the snapshot of every weighted fiel
 "Account.communityStats: Query
 Account.expensesTags: Aggregate
 Account.transactionReports: Report
+Account.transactions: Query to Aggregate (arguments)
 AccountStats.activeRecurringContributions: Query
 AccountStats.activeRecurringContributionsBreakdown: Query
 AccountStats.activeRecurringContributionsV2: Query
 AccountStats.amountPledgedTimeSeries: Aggregate
-AccountStats.balance: Query
+AccountStats.balance: Query to Aggregate (arguments)
 AccountStats.balanceTimeSeries: Aggregate
 AccountStats.balanceWithBlockedFunds: Query
 AccountStats.consolidatedBalance: Aggregate
@@ -20,11 +21,11 @@ AccountStats.expensesTags: Aggregate
 AccountStats.expensesTagsTimeSeries: Aggregate
 AccountStats.managedAmount: Aggregate
 AccountStats.monthlySpending: Aggregate
-AccountStats.totalAmountReceived: Query
+AccountStats.totalAmountReceived: Query to Aggregate (arguments)
 AccountStats.totalAmountReceivedTimeSeries: Query
-AccountStats.totalAmountSpent: Query
+AccountStats.totalAmountSpent: Query to Aggregate (arguments)
 AccountStats.totalAmountSpentTimeSeries: Query
-AccountStats.totalNetAmountReceived: Query
+AccountStats.totalNetAmountReceived: Query to Aggregate (arguments)
 AccountStats.totalNetAmountReceivedTimeSeries: Query
 AccountStats.totalPaidExpenses: Aggregate
 AccountStats.yearlyBudget: Query
@@ -49,13 +50,17 @@ HostMetricsTimeSeries.totalMoneyManaged: Report
 HostMetricsTimeSeries.totalReceived: Report
 HostMetricsTimeSeries.totalSpent: Report
 HostStats.balance: Report
-HostStats.totalAmountReceived: Report
-HostStats.totalAmountSpent: Report
+HostStats.totalAmountReceived: Aggregate to Report (arguments)
+HostStats.totalAmountSpent: Aggregate to Report (arguments)
 Organization.contributionStats: Report
 Organization.expenseStats: Report
 Organization.offPlatformTransactionsStats: Aggregate
+Query.accounts: Query to Aggregate (arguments)
 Query.expenseTagStats: Aggregate
-Query.tagStats: Aggregate
+Query.expenses: Query to Aggregate (arguments)
+Query.orders: Query to Aggregate (arguments)
+Query.tagStats: Aggregate to Report (arguments)
+Query.transactions: Query to Aggregate (arguments)
 SearchResults.accounts: Report
 SearchResults.comments: Report
 SearchResults.expenses: Report
@@ -67,5 +72,5 @@ SearchResults.updates: Report
 TierStats.recurringAmount: Query
 TierStats.totalAmountReceived: Query
 TransactionsImport.stats: Query
-Update.audienceStats: Report"
+Update.audienceStats: Default to Report (arguments)"
 `;

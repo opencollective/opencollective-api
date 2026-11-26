@@ -23,6 +23,33 @@ const getCost = (query: string): number => {
   return result.cost;
 };
 
+/**
+ * Arguments to call weight functions with: none, then each argument that changes the work somewhere in the schema,
+ * then values a client could send that make no sense
+ */
+const WEIGHT_FUNCTION_PROBES: Record<string, unknown>[] = [
+  {},
+  { includeChildren: true },
+  { includeChildren: false },
+  { dateFrom: '2024-01-01T00:00:00Z' },
+  { dateTo: '2024-01-01T00:00:00Z' },
+  { dateFrom: '2024-01-01T00:00:00Z', dateTo: '2024-12-31T00:00:00Z', timeUnit: 'DAY' },
+  { periodInMonths: 12 },
+  { kind: ['CONTRIBUTION'] },
+  { includeGiftCards: true },
+  { searchTerm: 'foo' },
+  { searchTerm: '' },
+  { audience: 'NO_ONE' },
+  { audience: 'ALL' },
+  { includeChildren: 'yes', dateFrom: 42, kind: 'CONTRIBUTION', searchTerm: ['foo'], audience: null },
+];
+
+/** The tiers a weight returns: itself, or the results of a function over the probes */
+const getWeightTiers = (weight: unknown): unknown[] =>
+  typeof weight === 'function'
+    ? [...new Set(WEIGHT_FUNCTION_PROBES.map(args => weight(args)))].sort((a, b) => Number(a) - Number(b))
+    : [weight];
+
 const getCompositeTypes = (schema: GraphQLSchema): (GraphQLObjectType | GraphQLInterfaceType)[] =>
   Object.values(schema.getTypeMap()).filter(
     (type): type is GraphQLObjectType | GraphQLInterfaceType =>
@@ -56,8 +83,9 @@ const isInheritedWeight = (type: GraphQLObjectType | GraphQLInterfaceType, field
 describe('server/graphql/cost weights', () => {
   it('only uses named tiers', () => {
     const problems = [...getDeclaredWeights(schemaV2)]
-      .filter(([, { weight }]) => typeof weight !== 'number' || !TIER_NAMES[weight])
-      .map(([name, { weight }]) => `${name} has weight ${JSON.stringify(weight)}, use a CostTier`);
+      .flatMap(([name, { weight }]) => getWeightTiers(weight).map(tier => ({ name, tier })))
+      .filter(({ tier }) => typeof tier !== 'number' || !TIER_NAMES[tier])
+      .map(({ name, tier }) => `${name} has weight ${JSON.stringify(tier)}, use a CostTier`);
     expect(problems).to.deep.eq([]);
   });
 
@@ -87,10 +115,14 @@ describe('server/graphql/cost weights', () => {
   });
 
   it('matches the snapshot of every weighted field and its tier', () => {
-    // Fields inherited from an interface are listed once, on the interface
+    // Fields inherited from an interface are listed once, on the interface. Weights that depend on the arguments list
+    // the tiers they can return.
     const tiers = [...getDeclaredWeights(schemaV2)]
       .filter(([, { type, field }]) => !isInheritedWeight(type, field))
-      .map(([name, { weight }]) => `${name}: ${TIER_NAMES[weight as number]}`)
+      .map(([name, { weight }]) => {
+        const names = getWeightTiers(weight).map(tier => TIER_NAMES[tier as number]);
+        return `${name}: ${typeof weight === 'function' ? `${names.join(' to ')} (arguments)` : names[0]}`;
+      })
       .sort();
 
     expect(tiers.join('\n')).to.matchSnapshot();
@@ -122,7 +154,9 @@ describe('server/graphql/cost weights', () => {
     });
 
     it('host reports cost more than account stats', () => {
-      const hostStats = getCost('{ host(slug: "x") { hostStats { totalAmountReceived { valueInCents } } } }');
+      const hostStats = getCost(
+        '{ host(slug: "x") { hostStats { totalAmountReceived(dateFrom: "2024-01-01T00:00:00Z") { valueInCents } } } }',
+      );
       const accountStats = getCost(`{ account(slug: "x") { stats { totalAmountReceived { valueInCents } } } }`);
       expect(hostStats).to.be.greaterThan(10 * accountStats);
     });

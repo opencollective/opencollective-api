@@ -12,7 +12,8 @@ import {
 import { GraphQLDateTime } from 'graphql-scalars';
 import { isNil } from 'lodash';
 
-import { CostTier } from '../../../../graphql/cost/extensions';
+import { getMetricsListSize } from '../../../../graphql/cost/argument-costs';
+import { CostTier, PARENT_LIMIT } from '../../../../graphql/cost/extensions';
 import { queryMetrics } from '../..';
 import type {
   Dimension,
@@ -95,8 +96,8 @@ export function buildSourceField<P>(options: SourceFieldOptions<P>): GraphQLFiel
   return {
     type: new GraphQLNonNull(resultType),
     description,
-    // Aggregates across a whole host
-    extensions: { cost: { weight: CostTier.Report } },
+    // Aggregates across a whole host. The number of rows depends on `input`.
+    extensions: { cost: { weight: CostTier.Report, listSize: getMetricsListSize(METRICS_LIMIT_CAP) } },
     args: {
       input: { type: new GraphQLNonNull(mainInput) },
     },
@@ -304,10 +305,10 @@ function buildResultType(prefix: string, resultTypeName: string, rowType: GraphQ
         resolve: (r: { bucket?: string }) => (r.bucket ? r.bucket.toUpperCase() : null),
       },
       groupBy: { type: new GraphQLList(new GraphQLNonNull(GraphQLString)) },
-      // Capped when `input.limit` is set
+      // Counted by the `listSize` of the source field
       rows: {
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(rowType))),
-        extensions: { cost: { listSize: METRICS_LIMIT_CAP } },
+        extensions: { cost: { listSize: PARENT_LIMIT } },
       },
     }),
   });

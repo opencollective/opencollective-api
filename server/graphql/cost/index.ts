@@ -6,11 +6,14 @@
  *     cost(field) = weight + size × Σ cost(selected children)
  *
  * - `weight` is `DEFAULT_FIELD_WEIGHT`, or `PAGINATED_FIELD_WEIGHT` for fields that take a `limit`, unless the field
- *   declares `extensions.cost.weight` (one of the `CostTier` values).
+ *   declares `extensions.cost.weight` (one of the `CostTier` values, or a function of the arguments that returns one).
  * - `size` is 1, except for lists under a field that takes a `limit`, where it is the requested limit. For a
  *   collection (`{ totalCount, limit, offset, nodes }`), the limit applies to `nodes` and not to the other fields.
  *   Fields that return a list without taking a `limit` declare their size in `extensions.cost.listSize`, which
- *   works the same way.
+ *   works the same way, and can also be a function of the arguments.
+ * - Arguments resolve from literals, variables, variable defaults and schema defaults (see `arguments.ts`). A cost
+ *   function that throws or returns an invalid value gets a fallback (see `FieldCostExtension`) and is listed in
+ *   `costFunctionErrors`, for the caller to report: the analysis goes on.
  *
  * It also checks every `limit` against the maximum of its field (`DEFAULT_MAX_LIMIT`, unless the field declares
  * `extensions.cost.maxLimit`) and returns the ones above it in `limitViolations`.
@@ -42,7 +45,16 @@ import {
   Kind,
 } from 'graphql';
 
-import { CostTier, getFieldCostExtension, PARENT_LIMIT } from './extensions';
+import { resolveFieldArguments } from './arguments';
+import type { FieldCostExtension } from './extensions';
+import {
+  CostTier,
+  getFieldCostExtension,
+  isValidListSize,
+  isValidWeight,
+  MAX_COST_TIER,
+  PARENT_LIMIT,
+} from './extensions';
 import type { LimitSource } from './limit';
 import { DEFAULT_MAX_LIMIT, resolveLimitArgument } from './limit';
 
@@ -65,7 +77,7 @@ export const DEFAULT_MAX_DEPTH = 100;
 const FREE_FIELDS = new Set(['__schema', '__type', '__typename']);
 
 export interface QueryCostOptions {
-  /** Request variables, as received. Only integer `limit` values are read from them. */
+  /** Request variables, as received. Read for `limit` and for the arguments of cost functions. */
   variables?: unknown;
   /** Name of the operation to analyze. Required when the document contains several operations. */
   operationName?: string | null;
@@ -100,6 +112,19 @@ interface LimitViolation {
   source: Exclude<LimitSource, 'invalid' | 'missing'>;
 }
 
+/** A cost function of `extensions.cost` that threw or returned an invalid value */
+interface CostFunctionError {
+  /** Schema coordinate of the field, `Type.field` */
+  coordinate: string;
+  /** Alias if any, otherwise field name */
+  responseKey: string;
+  property: 'weight' | 'listSize';
+  message: string;
+}
+
+/** Longest error message kept in `costFunctionErrors` */
+const MAX_COST_FUNCTION_ERROR_LENGTH = 200;
+
 /** Cost of one schema field (`Type.field`) and its children, summed over all the places it is counted */
 interface QueryCostBreakdownEntry {
   coordinate: string;
@@ -126,6 +151,11 @@ interface QueryCostResult {
    * several places counts once). Partial when the analysis was aborted.
    */
   limitViolations: LimitViolation[];
+  /**
+   * The cost functions that failed, once per field in the document and property. The analysis used their fallback
+   * (see `FieldCostExtension`), so `cost` is still meaningful. Partial when the analysis was aborted.
+   */
+  costFunctionErrors: CostFunctionError[];
   /** Set when the analysis stopped because the document is too expensive to analyze */
   abortReason?: 'MAX_NODES' | 'MAX_DEPTH';
   /** Set when the operation could not be analyzed (no matching operation, unexpected error) */
@@ -152,6 +182,8 @@ interface AnalysisContext {
   visitedNodes: number;
   /** By field node, so that a node analyzed several times (fragments, possible types of an interface) counts once */
   limitViolations: Map<FieldNode, LimitViolation>;
+  /** By field node then property, for the same reason */
+  costFunctionErrors: Map<FieldNode, CostFunctionError[]>;
   /** Cost of a selection on a type, see `getSelectionCostCacheKey` */
   cache: Map<string, number>;
   /** With the `breakdown` option, the breakdown of each cached selection, for one evaluation of it */
@@ -401,6 +433,76 @@ const recordLimitViolation = (
   }
 };
 
+const recordCostFunctionError = (
+  context: AnalysisContext,
+  fieldNode: FieldNode,
+  error: Omit<CostFunctionError, 'responseKey'>,
+): void => {
+  const errors = context.costFunctionErrors.get(fieldNode) ?? [];
+  if (!errors.some(existing => existing.property === error.property)) {
+    const responseKey = fieldNode.alias?.value ?? fieldNode.name.value;
+    const message = error.message.slice(0, MAX_COST_FUNCTION_ERROR_LENGTH);
+    errors.push({ ...error, message, responseKey });
+    context.costFunctionErrors.set(fieldNode, errors);
+  }
+};
+
+/**
+ * Calls the cost functions of a field, if any, with its arguments. A function that throws or returns an invalid value
+ * is recorded in `costFunctionErrors` and replaced by its fallback.
+ */
+const evaluateCostExtension = (
+  context: AnalysisContext,
+  parentType: GraphQLCompositeType,
+  fieldDefinition: GraphQLField<unknown, unknown>,
+  fieldNode: FieldNode,
+  costExtension: FieldCostExtension,
+): { weight?: number; listSize?: number | typeof PARENT_LIMIT } => {
+  const { weight, listSize, maxLimit } = costExtension;
+  if (typeof weight !== 'function' && typeof listSize !== 'function') {
+    return { weight, listSize };
+  }
+
+  const args = Object.freeze(
+    resolveFieldArguments(fieldNode, fieldDefinition, {
+      variables: context.variables,
+      variableDefinitions: context.variableDefinitions,
+    }),
+  );
+  const call = <T>(
+    property: CostFunctionError['property'],
+    costFunction: (args: Record<string, unknown>) => unknown,
+    isValid: (value: unknown) => value is T,
+    fallback: T,
+  ): T => {
+    let message: string;
+    try {
+      const value = costFunction(args);
+      if (isValid(value)) {
+        return value;
+      }
+      message = `Returned an invalid value: ${String(value)}`;
+    } catch (error) {
+      message = `Threw: ${error instanceof Error ? error.message : String(error)}`;
+    }
+
+    recordCostFunctionError(context, fieldNode, {
+      coordinate: `${parentType.name}.${fieldDefinition.name}`,
+      property,
+      message,
+    });
+    return fallback;
+  };
+
+  return {
+    weight: typeof weight === 'function' ? call('weight', weight, isValidWeight, MAX_COST_TIER) : weight,
+    listSize:
+      typeof listSize === 'function'
+        ? call('listSize', listSize, isValidListSize, maxLimit ?? context.maxLimit)
+        : listSize,
+  };
+};
+
 /** Cost of a field, given all the nodes that select it under the same response key */
 const getFieldCost = (
   context: AnalysisContext,
@@ -423,7 +525,15 @@ const getFieldCost = (
 
   const limitArgument = fieldDefinition.args.find(arg => arg.name === 'limit');
   const costExtension = getFieldCostExtension(fieldDefinition);
-  const weight = costExtension.weight ?? (limitArgument ? PAGINATED_FIELD_WEIGHT : DEFAULT_FIELD_WEIGHT);
+  // Fields under the same response key have the same arguments (enforced by validation), use the first one
+  const { weight: declaredWeight, listSize } = evaluateCostExtension(
+    context,
+    parentType,
+    fieldDefinition,
+    fieldNodes[0],
+    costExtension,
+  );
+  const weight = declaredWeight ?? (limitArgument ? PAGINATED_FIELD_WEIGHT : DEFAULT_FIELD_WEIGHT);
   const returnType = getNamedType(fieldDefinition.type);
   // Fields that drive the cost: the ones that take a limit or declare a weight or a list size
   const isInBreakdown = Boolean(
@@ -440,7 +550,6 @@ const getFieldCost = (
   let size = 1;
   let childrenPendingListSize: number | undefined;
   if (limitArgument) {
-    // Fields under the same response key have the same arguments (enforced by validation), use the first one
     const maxLimit = costExtension.maxLimit ?? DEFAULT_MAX_LIMIT;
     const { value: limit, source } = resolveLimitArgument(fieldNodes[0], limitArgument, {
       variables: context.variables,
@@ -461,12 +570,12 @@ const getFieldCost = (
     } else {
       childrenPendingListSize = limit;
     }
-  } else if (costExtension.listSize !== undefined && costExtension.listSize !== PARENT_LIMIT) {
+  } else if (listSize !== undefined && listSize !== PARENT_LIMIT) {
     // A declared size replaces the limit of an enclosing paginated field, which stops here
     if (isList) {
-      size = costExtension.listSize;
+      size = listSize;
     } else {
-      childrenPendingListSize = costExtension.listSize;
+      childrenPendingListSize = listSize;
     }
   } else if (pendingListSize !== undefined) {
     if (isList) {
@@ -541,6 +650,7 @@ export const getQueryCost = (
     fields: [],
     visitedNodes: 0,
     limitViolations: [],
+    costFunctionErrors: [],
   };
 
   let context: AnalysisContext;
@@ -576,6 +686,7 @@ export const getQueryCost = (
       maxDepth,
       visitedNodes: 0,
       limitViolations: new Map(),
+      costFunctionErrors: new Map(),
       cache: new Map(),
       breakdownCache: breakdown ? new Map() : null,
       selectionSetIds: new WeakMap(),
@@ -607,5 +718,6 @@ export const getQueryCost = (
 
   result.visitedNodes = context?.visitedNodes ?? 0;
   result.limitViolations = context ? [...context.limitViolations.values()] : [];
+  result.costFunctionErrors = context ? [...context.costFunctionErrors.values()].flat() : [];
   return result;
 };

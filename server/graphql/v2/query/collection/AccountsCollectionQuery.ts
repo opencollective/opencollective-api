@@ -5,6 +5,7 @@ import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { searchCollectivesInDB } from '../../../../lib/sql-search';
 import type { Collective } from '../../../../models';
 import { isRemoteUserRoot } from '../../../common/scope-check';
+import { searchCollectionWeight } from '../../../cost/argument-costs';
 import { GraphQLAccountCollection } from '../../collection/AccountCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLCountryISO } from '../../enum';
 import { GraphQLTagSearchOperator } from '../../enum/TagSearchOperator';
@@ -58,6 +59,7 @@ export const CommonAccountsCollectionQueryArgs = {
 
 const AccountsCollectionQuery = {
   type: new GraphQLNonNull(GraphQLAccountCollection),
+  extensions: { cost: { weight: searchCollectionWeight } },
   args: {
     ...CollectionArgs,
     ...CommonAccountsCollectionQueryArgs,

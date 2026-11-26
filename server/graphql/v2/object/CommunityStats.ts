@@ -123,8 +123,8 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
         },
       },
       transactionSummaryTimeSeries: {
-        // Reads a pre-aggregated view
-        extensions: { cost: { weight: CostTier.Query } },
+        // Reads a pre-aggregated view, one node per year
+        extensions: { cost: { weight: CostTier.Query, listSize: 15 } },
         type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
         args: {
           type: {
