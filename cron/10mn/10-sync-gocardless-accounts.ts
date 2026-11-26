@@ -12,7 +12,7 @@ import { runCronJob } from '../utils';
 // GoCardless only allows 4 successful transaction fetches per bank account per rolling 24h.
 // Syncing every 8 hours uses at most 3 of them, keeping one in reserve for manual syncs.
 // See https://github.com/opencollective/opencollective/issues/9175
-export const GOCARDLESS_REFRESH_INTERVAL_MS = 8 * 60 * 60 * 1000;
+const GOCARDLESS_REFRESH_INTERVAL_MS = 8 * 60 * 60 * 1000;
 
 export const getGoCardlessImportsToSync = async (now = new Date()) => {
   return models.TransactionsImport.findAll({
