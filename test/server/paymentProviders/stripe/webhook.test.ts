@@ -3,7 +3,7 @@
 import * as Sentry from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
-import { set } from 'lodash';
+import { cloneDeep, set } from 'lodash';
 import sinon, { assert, createSandbox } from 'sinon';
 import Stripe from 'stripe';
 
@@ -282,6 +282,50 @@ describe('webhook', () => {
         tx => tx.kind === 'PAYMENT_PROCESSOR_DISPUTE_FEE' && tx.type === 'DEBIT',
       );
       expect(disputeFeeTransaction.amount).to.eql(-1500);
+    });
+
+    describe('when Stripe did not charge a dispute fee', () => {
+      const withoutDisputeFee = (event: Stripe.Event, balanceTransactions?: Stripe.BalanceTransaction[]) => {
+        const result = cloneDeep(event);
+        const dispute = result.data.object as Stripe.Dispute;
+        dispute.balance_transactions =
+          balanceTransactions ?? dispute.balance_transactions.map(tx => ({ ...tx, fee: 0, fee_details: [] }));
+        return result;
+      };
+
+      const cases: [string, Stripe.BalanceTransaction[] | undefined][] = [
+        ['without a "Dispute fee" entry', undefined],
+        ['without balance transactions', []],
+      ];
+      for (const [label, balanceTransactions] of cases) {
+        describe(label, () => {
+          it('un-disputes all Transactions and lifts the Order limit when the dispute was won', async () => {
+            await order.update({ SubscriptionId: null });
+            await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+            await webhook.chargeDisputeClosed(withoutDisputeFee(stripeMocks.webhook_dispute_won, balanceTransactions));
+
+            await order.reload();
+            expect(order.status).to.eql(OrderStatuses.PAID);
+            const transactions = await order.getTransactions();
+            expect(transactions.map(tx => tx.isDisputed)).to.not.include(true);
+            expect(transactions.some(tx => tx.kind === TransactionKind.PAYMENT_PROCESSOR_DISPUTE_FEE)).to.be.false;
+            await user.reload();
+            expect(user.data.features[FEATURE.ORDER]).to.eq(true);
+          });
+
+          it('un-disputes all Transactions when the dispute was lost', async () => {
+            await order.update({ SubscriptionId: null });
+            await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+            await webhook.chargeDisputeClosed(withoutDisputeFee(stripeMocks.webhook_dispute_lost, balanceTransactions));
+
+            await order.reload();
+            expect(order.status).to.eql(OrderStatuses.REFUNDED);
+            const transactions = await order.getTransactions();
+            expect(transactions.map(tx => tx.isDisputed)).to.not.include(true);
+            expect(transactions.some(tx => tx.kind === TransactionKind.PAYMENT_PROCESSOR_DISPUTE_FEE)).to.be.false;
+          });
+        });
+      }
     });
   });
 
