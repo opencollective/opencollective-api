@@ -167,6 +167,10 @@ describe('server/graphql/cost', () => {
     it('counts a missing limit without default as the maximum limit', () => {
       expect(getCost('{ expenses { id } }').cost).to.eq(P + DEFAULT_MAX_LIMIT);
       expect(getCost('{ expenses { id } }', { maxLimit: 50 }).cost).to.eq(P + 50);
+      expect(getCost('{ expenses { id } }', { maxLimit: 0 }).cost).to.eq(P);
+      for (const maxLimit of [-20, 1.5, NaN, Infinity, '50', null]) {
+        expect(getCost('{ expenses { id } }', { maxLimit } as QueryCostOptions).cost).to.eq(P + DEFAULT_MAX_LIMIT);
+      }
     });
 
     it('reports where the limit comes from', () => {
@@ -465,6 +469,14 @@ describe('server/graphql/cost', () => {
       });
     });
 
+    it('checks the depth of the root selection', () => {
+      expect(getQueryCost(schema, parse('{ __typename }'), { maxDepth: 1 }).abortReason).to.be.undefined;
+      expect(getQueryCost(schema, parse('{ __typename }'), { maxDepth: 0 })).to.deep.include({
+        cost: Infinity,
+        abortReason: 'MAX_DEPTH',
+      });
+    });
+
     it('stops at the maximum depth and counts as over budget', () => {
       const nested = (depth: number) =>
         `{ me { ${'members { nodes { account { '.repeat(depth)}id${' } } }'.repeat(depth)} } }`;
@@ -489,6 +501,7 @@ describe('server/graphql/cost', () => {
         [{} as GraphQLSchema, parse('{ me { id } }')],
       ];
 
+      expect(getQueryCost(schema, parse('{ me { id } }'), null).cost).to.eq(2); // Null options use the defaults
       for (const [badSchema, badDocument] of badInputs) {
         const result = getQueryCost(badSchema, badDocument);
         expect(result).to.be.an('object');
@@ -574,6 +587,7 @@ describe('server/graphql/cost', () => {
         expect(result.abortReason).to.be.undefined;
         expect(result.error).to.be.undefined;
         expect(result.cost).to.be.greaterThan(0);
+        expect(Number.isFinite(result.cost)).to.be.true;
         return Number(process.hrtime.bigint() - start) / 1e6;
       });
 

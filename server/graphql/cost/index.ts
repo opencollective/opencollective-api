@@ -79,7 +79,11 @@ interface QueryCostField {
 }
 
 interface QueryCostResult {
-  /** Total cost of the operation. `Infinity` when the analysis was aborted or failed. */
+  /**
+   * Total cost of the operation. `Infinity` when the analysis was aborted or failed unexpectedly. `0` with `error` set
+   * when there is nothing to execute (no matching operation, unsupported root type): check `error` before reading
+   * a zero cost as a successful estimate.
+   */
   cost: number;
   operationName: string | null;
   operationType: OperationDefinitionNode['operation'] | null;
@@ -89,7 +93,7 @@ interface QueryCostResult {
   visitedNodes: number;
   /** Set when the analysis stopped because the document is too expensive to analyze */
   abortReason?: 'MAX_NODES' | 'MAX_DEPTH';
-  /** Set when the operation could not be analyzed (no matching operation, unexpected error) */
+  /** Set when the operation could not be analyzed: no matching operation or root type (cost 0), unexpected error (cost Infinity) */
   error?: string;
 }
 
@@ -408,17 +412,11 @@ const getRootType = (schema: GraphQLSchema, operation: OperationDefinitionNode):
 export const getQueryCost = (
   schema: GraphQLSchema,
   document: DocumentNode,
-  {
-    variables,
-    operationName,
-    maxLimit = DEFAULT_MAX_LIMIT,
-    maxNodes = DEFAULT_MAX_NODES,
-    maxDepth = DEFAULT_MAX_DEPTH,
-  }: QueryCostOptions = {},
+  options: QueryCostOptions | null = {},
 ): QueryCostResult => {
   const result: QueryCostResult = {
     cost: 0,
-    operationName: operationName ?? null,
+    operationName: null,
     operationType: null,
     fields: [],
     visitedNodes: 0,
@@ -426,6 +424,14 @@ export const getQueryCost = (
 
   let context: AnalysisContext;
   try {
+    const {
+      variables,
+      operationName,
+      maxLimit = DEFAULT_MAX_LIMIT,
+      maxNodes = DEFAULT_MAX_NODES,
+      maxDepth = DEFAULT_MAX_DEPTH,
+    } = options ?? {};
+    result.operationName = operationName ?? null;
     const operation = getOperation(document, operationName);
     if (!operation) {
       // Execution fails the same way, nothing runs
@@ -452,7 +458,7 @@ export const getQueryCost = (
       variableDefinitions: new Map(
         (operation.variableDefinitions ?? []).map(definition => [definition.variable.name.value, definition]),
       ),
-      maxLimit,
+      maxLimit: Number.isInteger(maxLimit) && maxLimit >= 0 ? maxLimit : DEFAULT_MAX_LIMIT,
       maxNodes,
       maxDepth,
       visitedNodes: 0,
@@ -461,6 +467,10 @@ export const getQueryCost = (
       selectionSetIds: new WeakMap(),
       lastSelectionSetId: 0,
     };
+
+    if (context.maxDepth < 1) {
+      throw new AnalysisAbortedError('MAX_DEPTH'); // The operation's own selection set is at depth 1
+    }
 
     const fields = collectFields(context, rootType, [operation.selectionSet]);
     for (const [responseKey, fieldNodes] of fields) {
