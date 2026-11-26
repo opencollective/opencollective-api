@@ -317,7 +317,7 @@ describe('GraphQL Armor Protection Tests', () => {
             .expect(400);
 
           expect(response.body.errors).to.have.length(1);
-          expectValidationError(response, 'Token limit of 1500 exceeded.');
+          expectValidationError(response, 'Token limit of 1500 exceeded, found more than 1500.');
           expectOneStructuralLimitsReport('maxTokens', 'reject');
         });
 
@@ -348,7 +348,7 @@ describe('GraphQL Armor Protection Tests', () => {
       const query = buildQueryWithManyTokens('account(slug: "test")');
       const response = await request(app).get('/graphql/v2').query({ query }).expect(400);
 
-      expectValidationError(response, 'Token limit of 1500 exceeded.');
+      expectValidationError(response, 'Token limit of 1500 exceeded, found more than 1500.');
       expectOneStructuralLimitsReport('maxTokens', 'reject');
     });
 

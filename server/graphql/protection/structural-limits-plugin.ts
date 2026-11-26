@@ -41,7 +41,8 @@ const reportViolations = (
     severity: 'warning',
     transactionName: `GraphQL structural limits exceeded (${limits}): ${operationName || 'Anonymous'}`,
     tags: { mode: rejected ? 'reject' : 'log-only' },
-    req,
+    // No `req`: when Sentry is not configured, the fallback logs the params as-is, including credentials in the URL
+    user: req?.remoteUser ? { id: String(req.remoteUser.id) } : undefined,
     extra: {
       operationName,
       violations: violations.map(({ limit, max, found }) => ({ limit, max, found })),

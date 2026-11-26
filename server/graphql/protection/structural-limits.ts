@@ -196,7 +196,9 @@ export const computeStructuralMetrics = (
 
 export const getTokenLimitViolation = (tokens: number): StructuralLimitViolation | null => {
   const max = STRUCTURAL_LIMITS.maxTokens;
-  return tokens > max ? { limit: 'maxTokens', max, found: tokens, message: `Token limit of ${max} exceeded.` } : null;
+  return tokens > max
+    ? { limit: 'maxTokens', max, found: tokens, message: `Token limit of ${max} exceeded, found more than ${max}.` }
+    : null;
 };
 
 export const getStructuralLimitViolations = (metrics: StructuralMetrics): StructuralLimitViolation[] => {
@@ -234,8 +236,9 @@ export const getComputedStructuralMetrics = (document: DocumentNode | undefined)
  */
 export const createStructuralLimitsValidationRule = (shouldReject: () => boolean): ValidationRule => {
   return (context: ValidationContext) => ({
+    // On enter: the standard rules can abort the traversal (too many errors) before the document is left
     Document: {
-      leave(document: DocumentNode) {
+      enter(document: DocumentNode) {
         const metrics = computeStructuralMetrics(document, name => context.getFragment(name));
         metricsByDocument.set(document, metrics);
         if (shouldReject()) {

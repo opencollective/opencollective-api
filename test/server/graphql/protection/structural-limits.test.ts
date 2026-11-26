@@ -5,7 +5,7 @@ import type { BaseContext, GraphQLRequestContextParsingDidStart, GraphQLRequestL
 import { ApolloArmor } from '@escape.tech/graphql-armor';
 import { expect } from 'chai';
 import type { DocumentNode } from 'graphql';
-import { parse, validate } from 'graphql';
+import { parse, specifiedRules, validate } from 'graphql';
 
 import {
   computeStructuralMetrics,
@@ -198,7 +198,7 @@ describe('server/graphql/protection/structural-limits', () => {
         'Aliases limit of 100 exceeded, found 101.',
         'Directives limit of 100 exceeded, found 150.',
       ]);
-      expect(getTokenLimitViolation(1501).message).to.equal('Token limit of 1500 exceeded.');
+      expect(getTokenLimitViolation(1501).message).to.equal('Token limit of 1500 exceeded, found more than 1500.');
     });
   });
 
@@ -210,6 +210,15 @@ describe('server/graphql/protection/structural-limits', () => {
       const errors = validate(graphqlSchemaV2, document, [createStructuralLimitsValidationRule(() => false)]);
       expect(errors).to.have.length(0);
       expect(getComputedStructuralMetrics(document).depth).to.equal(27);
+    });
+
+    it('records the metrics even when the standard rules abort the validation', () => {
+      const fields = Array.from({ length: 150 }, (_, i) => `x${i}: unknownField`).join(' ');
+      const document: DocumentNode = parse(`{ account(slug: "x") { ${fields} } }`);
+      const rule = createStructuralLimitsValidationRule(() => false);
+      const errors = validate(graphqlSchemaV2, document, [...specifiedRules, rule]);
+      expect(errors.at(-1).message).to.equal('Too many validation errors, error limit reached. Validation aborted.');
+      expect(getComputedStructuralMetrics(document).aliases).to.equal(150);
     });
 
     it('reports an error per exceeded limit in rejection mode', () => {
