@@ -54,7 +54,8 @@ const PAYPAL_SUBSCRIPTION_SALE_WEBHOOK_CASES: Array<{
   },
   {
     eventType: 'PAYMENT.SALE.REVERSED',
-    buildBody: saleId => ({ resource: { id: saleId } }),
+    // PayPal sends a Refund object (resource_type = "refund"): `id` is the reversal ID, `sale_id` the original sale
+    buildBody: saleId => ({ resource_type: 'refund', resource: { id: `REVERSAL-${saleId}`, sale_id: saleId } }),
   },
 ];
 
@@ -799,6 +800,26 @@ describe('server/paymentProviders/paypal/webhook', () => {
       expect(refundTransaction.data.paypalRefundId).to.equal(saleId);
       expect(refundTransaction.data.refund).to.exist;
       // Original transaction data (e.g. paypalCaptureId) is preserved on the refund transaction
+      expect(refundTransaction.data.paypalCaptureId).to.equal(saleId);
+    });
+
+    it('creates a refund for the original sale when PayPal sends a Refund resource (resource.sale_id)', async () => {
+      const saleId = 'SALE-REV-003';
+      const reversalId = 'REVERSAL-003';
+      const { host, originalTransaction } = await setupPayPalSubscriptionContributionCredit({ saleId });
+
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+      await callPaymentSaleReversed(host.id, {
+        resource_type: 'refund',
+        resource: { id: reversalId, sale_id: saleId, state: 'completed', amount: { total: '-10.00', currency: 'USD' } },
+      });
+
+      const refundTransaction = await models.Transaction.findOne({
+        where: { RefundTransactionId: originalTransaction.id },
+      });
+      expect(refundTransaction).to.exist;
+      expect(refundTransaction.data.isRefundedFromPayPal).to.be.true;
+      expect(refundTransaction.data.paypalRefundId).to.equal(reversalId);
       expect(refundTransaction.data.paypalCaptureId).to.equal(saleId);
     });
   });
