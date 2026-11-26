@@ -313,6 +313,112 @@ jobs:
       - name: Generate & check schemas
         run: ./scripts/check-schemas.sh
 
+  # Cost of the frontend operations against the schema of this branch (opencollective/opencollective#9084): reports
+  # the operations that a change of weight, list size or formula pushes over the maximum or close to it, and the
+  # cost changes compared to the base branch. Report only until the maximum is calibrated
+  # (opencollective/opencollective#9086).
+  graphql-cost:
+    name: GraphQL query cost
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-26.04' }}
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup project
+        uses: ./.github/actions/setup-project
+        with:
+          CACHE_VERSION: ${{ secrets.CACHE_VERSION }}
+
+      - name: Get Node major version
+        id: node-major
+        run: echo "version=$(node -p 'process.versions.node.split(`.`)[0]')" >> "$GITHUB_OUTPUT"
+
+      # Same frontend revision as the E2E workflow: the branch with the same name, otherwise main
+      - name: Checkout frontend
+        id: checkout-stack
+        uses: ./.github/actions/checkout-e2e-stack
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore node_modules (frontend)
+        uses: actions/cache@v6
+        id: frontend-node-modules
+        with:
+          path: opencollective-frontend/node_modules
+          key: ${{ runner.os }}-node${{ steps.node-major.outputs.version }}-frontend-node-modules-${{ hashFiles('opencollective-frontend/package-lock.json') }}
+
+      - name: Install dependencies (frontend)
+        if: steps.frontend-node-modules.outputs.cache-hit != 'true'
+        working-directory: opencollective-frontend
+        env:
+          npm_config_engine_strict: 'false'
+        run: CYPRESS_INSTALL_BINARY=0 npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Checkout base revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: api-base
+          persist-credentials: false
+
+      - name: Report
+        env:
+          FRONTEND_REF: ${{ steps.checkout-stack.outputs.frontend-ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          out="${RUNNER_TEMP}/graphql-cost"
+          mkdir -p "${out}"
+          if [ ! -f opencollective-frontend/scripts/extract-graphql-operations.ts ]; then
+            message="The frontend revision ${FRONTEND_REF} cannot extract its operations yet (scripts/extract-graphql-operations.ts), skipping the report."
+            echo "::notice title=GraphQL query cost::${message}"
+            echo "${message}" >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          (cd opencollective-frontend && npx tsx scripts/extract-graphql-operations.ts "${out}/operations")
+          args=("${out}/operations" --variables "${out}/operations/variables.json")
+
+          # Baseline: the same operations against the schema of the base branch, if it has the command
+          baseline=()
+          compared_to="not computed"
+          if [ -f api-base/scripts/graphql-cost.ts ]; then
+            if cmp -s package-lock.json api-base/package-lock.json; then
+              ln -s "${PWD}/node_modules" api-base/node_modules
+            else
+              (cd api-base && npm ci --prefer-offline --no-audit --no-fund)
+            fi
+            if (cd api-base && npm run graphql:cost -- "${args[@]}" --json "${out}/base.json" --markdown /dev/null); then
+              baseline=(--baseline "${out}/base.json")
+              compared_to="compared to the schema of ${BASE_REF}"
+            else
+              echo "::warning title=GraphQL query cost::Could not compute the cost against ${BASE_REF}, the report does not compare costs"
+            fi
+          else
+            echo "::notice title=GraphQL query cost::${BASE_REF} does not have the cost command yet, the report does not compare costs"
+          fi
+
+          npm run graphql:cost -- "${args[@]}" "${baseline[@]}" \
+            --heading "GraphQL query cost of the frontend operations" \
+            --json "${out}/report.json" --markdown "${out}/report.md"
+          {
+            cat "${out}/report.md"
+            echo ""
+            echo "Frontend revision: opencollective/opencollective-frontend@${FRONTEND_REF}. Cost changes: ${compared_to}."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: graphql-cost
+          path: ${{ runner.temp }}/graphql-cost/*.json
+          if-no-files-found: ignore
+          retention-days: 14
+
   graphql-inspector:
     name: GraphQL Inspector
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-26.04' }}

@@ -1,0 +1,18 @@
+# Nested limits multiply: 1,000 accounts × 1,000 transactions × 100 members
+query FixtureExpensive {
+  accounts(limit: 1000) {
+    nodes {
+      transactions(limit: 1000) {
+        nodes {
+          fromAccount {
+            members(limit: 100) {
+              nodes {
+                id
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

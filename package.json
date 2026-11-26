@@ -243,7 +243,8 @@
     "prepare": "husky",
     "lint-staged": "lint-staged",
     "heroku-postbuild": "npm run build && ./scripts/upload-sourcemaps.sh",
-    "uploads": "./scripts/dev/run-docker.sh compose -f docker-compose/uploads.yml up"
+    "uploads": "./scripts/dev/run-docker.sh compose -f docker-compose/uploads.yml up",
+    "graphql:cost": "babel-node --extensions .js,.ts scripts/graphql-cost.ts"
   },
   "engines": {
     "node": "24.x",

@@ -1,0 +1,7 @@
+query FixtureAccountPage($slug: String) {
+  account(slug: $slug) {
+    id
+    name
+    ...FixtureAccountMembers
+  }
+}
