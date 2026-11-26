@@ -38,6 +38,7 @@ import {
   checkScope,
   isRemoteUserRoot,
 } from '../../common/scope-check';
+import { CostTier } from '../../cost/extensions';
 import { Forbidden, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
@@ -806,6 +807,8 @@ export const getOrganizationFields = () => ({
     },
   },
   offPlatformTransactionsStats: {
+    // Host-wide, batched by a loader
+    extensions: { cost: { weight: CostTier.Aggregate } },
     type: new GraphQLNonNull(GraphQLTransactionsImportStats),
     description: 'Returns stats for off platform transactions',
     async resolve(host, args, req) {
@@ -881,6 +884,7 @@ export const getOrganizationFields = () => ({
       Boolean(get(account, 'data.allowAddFundsFromAllAccounts') || get(account, 'data.isFirstPartyHost')),
   },
   contributionStats: {
+    extensions: { cost: { weight: CostTier.Report } },
     type: new GraphQLNonNull(GraphQLContributionStats),
     args: {
       account: {
@@ -977,6 +981,7 @@ export const getOrganizationFields = () => ({
     },
   },
   expenseStats: {
+    extensions: { cost: { weight: CostTier.Report } },
     type: new GraphQLNonNull(GraphQLExpenseStats),
     args: {
       account: {

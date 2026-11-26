@@ -4,10 +4,13 @@ import { pick } from 'lodash';
 
 import { assertCanSeeAccount } from '../../../../lib/private-accounts';
 import { getColletiveTagFrequencies } from '../../../../lib/sql-search';
+import { CostTier } from '../../../cost/extensions';
 import { GraphQLTagStatsCollection } from '../../collection/TagStatsCollection';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
 const TagStatsCollectionQuery = {
   type: new GraphQLNonNull(GraphQLTagStatsCollection),
+  // Counts the tags of all the collectives, or of all the accounts of a host
+  extensions: { cost: { weight: CostTier.Aggregate } },
   args: {
     searchTerm: {
       type: GraphQLString,

@@ -32,6 +32,7 @@ import {
   isRemoteUserRoot,
   requireSessionToken,
 } from '../../common/scope-check';
+import { CostTier } from '../../cost/extensions';
 import { BadRequest, ContentNotReady, Forbidden, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLConversationCollection } from '../collection/ConversationCollection';
@@ -569,6 +570,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   expensesTags: {
+    extensions: { cost: { weight: CostTier.Aggregate } },
     type: new GraphQLList(GraphQLTagStats),
     description: 'Returns expense tags for collective sorted by popularity',
     args: {
@@ -1145,6 +1147,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   transactionReports: {
+    extensions: { cost: { weight: CostTier.Report } },
     type: GraphQLTransactionReports,
     description: 'EXPERIMENTAL (this may change or be removed)',
     args: {
@@ -1297,6 +1300,8 @@ const accountFieldsDefinition = () => ({
     },
   },
   communityStats: {
+    // Batched by a loader
+    extensions: { cost: { weight: CostTier.Query } },
     type: GraphQLCommunityStats,
     description: 'Various stats about how this account is connected to the rest of the community',
     args: {
@@ -1588,6 +1593,7 @@ export const AccountFields = {
     },
   },
   expensesTags: {
+    extensions: { cost: { weight: CostTier.Aggregate } },
     type: new GraphQLList(GraphQLTagStats),
     description: 'Returns expense tags for collective sorted by popularity',
     args: {

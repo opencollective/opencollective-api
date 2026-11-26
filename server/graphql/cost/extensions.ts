@@ -2,9 +2,9 @@
  * Cost hints that a field definition can declare through `extensions.cost`:
  *
  * ```ts
- * someField: {
- *   type: GraphQLString,
- *   extensions: { cost: { weight: 50 } },
+ * someStat: {
+ *   type: GraphQLAmount,
+ *   extensions: { cost: { weight: CostTier.Aggregate } },
  * }
  *
  * socialLinks: {
@@ -23,6 +23,29 @@ import type { GraphQLField } from 'graphql';
  * page of search results. The list takes the limit of that field, as `nodes` does in a collection.
  */
 export const PARENT_LIMIT = 'parentLimit';
+
+/**
+ * Named weights for `extensions.cost.weight`. Pick the tier of the work the resolver does for one parent item:
+ *
+ * - `Default`: a plain property, or a relation batched by a loader. Fields without a weight get it.
+ * - `Query`: one SQL query per parent (an unbatched relation, a lookup in a pre-aggregated view), or an aggregate
+ *   for one account batched by a loader. Fields that take a `limit` get it by default.
+ * - `Aggregate`: an aggregate over the transactions (or expenses, orders...) of one account, one query per parent.
+ *   Also a host-wide aggregate batched by a loader.
+ * - `Report`: a scan across a whole host or the platform: host stats, time series and reports, search.
+ *
+ * A field batched by a loader takes the tier below the same work done once per parent, as its marginal cost is a
+ * share of one query rather than a query of its own.
+ *
+ * The values were set from production resolver timings (see opencollective/opencollective#9083): each tier is about
+ * an order of magnitude slower at p95 than the one below. Do not use other values, `test/server/graphql/cost` checks it.
+ */
+export const CostTier = {
+  Default: 1,
+  Query: 10,
+  Aggregate: 100,
+  Report: 1000,
+} as const;
 
 interface FieldCostExtension {
   /** Own cost of the field, added once per parent item. Defaults to 1, or more for paginated fields. */

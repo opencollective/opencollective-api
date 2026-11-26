@@ -18,7 +18,7 @@ import { keyBy, mapValues } from 'lodash';
 import OAuthScopes from '../../constants/oauth-scopes';
 import { checkScope } from '../../graphql/common/scope-check';
 import { FieldsToGraphQLFieldConfigArgumentMap } from '../../graphql/common/typescript-helpers';
-import { PARENT_LIMIT } from '../../graphql/cost/extensions';
+import { CostTier, PARENT_LIMIT } from '../../graphql/cost/extensions';
 import { GraphQLAccountCollection } from '../../graphql/v2/collection/AccountCollection';
 import { CommentCollection } from '../../graphql/v2/collection/CommentCollection';
 import { GraphQLExpenseCollection } from '../../graphql/v2/collection/ExpenseCollection';
@@ -132,6 +132,8 @@ const buildSearchResultsType = (entity: SearchEntity, name: string, collectionTy
   const strategy = GraphQLSearchResultsStrategy[entity];
   return {
     description: `Search results for ${name}`,
+    // A full-text search across the platform, or a whole host
+    extensions: { cost: { weight: CostTier.Report } },
     args: {
       ...getCollectionArgs({ offset: 0, limit: 0 }),
       ...strategy.args,

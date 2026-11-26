@@ -6,6 +6,7 @@ import { buildSearchConditions } from '../../../lib/sql-search';
 import { getTransactionsImportRowLinkedIdSearchConditions } from '../../../lib/transactions-imports';
 import { Op, TransactionsImport } from '../../../models';
 import TransactionsImportRow from '../../../models/TransactionsImportRow';
+import { CostTier } from '../../cost/extensions';
 import { GraphQLTransactionsImportRowCollection } from '../collection/GraphQLTransactionsImportRow';
 import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
@@ -235,6 +236,8 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
       },
     },
     stats: {
+      // Batched by a loader
+      extensions: { cost: { weight: CostTier.Query } },
       type: new GraphQLNonNull(GraphQLTransactionsImportStats),
       resolve: async (importInstance, _, req: Express.Request) => {
         return req.loaders.TransactionsImport.stats.load(importInstance.id);

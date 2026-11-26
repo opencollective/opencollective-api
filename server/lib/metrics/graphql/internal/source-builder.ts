@@ -12,6 +12,7 @@ import {
 import { GraphQLDateTime } from 'graphql-scalars';
 import { isNil } from 'lodash';
 
+import { CostTier } from '../../../../graphql/cost/extensions';
 import { queryMetrics } from '../..';
 import type {
   Dimension,
@@ -94,6 +95,8 @@ export function buildSourceField<P>(options: SourceFieldOptions<P>): GraphQLFiel
   return {
     type: new GraphQLNonNull(resultType),
     description,
+    // Aggregates across a whole host
+    extensions: { cost: { weight: CostTier.Report } },
     args: {
       input: { type: new GraphQLNonNull(mainInput) },
     },

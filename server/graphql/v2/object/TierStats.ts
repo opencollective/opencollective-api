@@ -3,6 +3,7 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import INTERVALS from '../../../constants/intervals';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { Tier } from '../../../models';
+import { CostTier } from '../../cost/extensions';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLAmount } from './Amount';
@@ -27,6 +28,8 @@ export const GraphQLTierStats = new GraphQLObjectType({
         description: `The resource public id (ie: ${Tier.nanoIdPrefix}_xxxxxxxx)`,
       },
       totalAmountReceived: {
+        // Batched by a loader
+        extensions: { cost: { weight: CostTier.Query } },
         description: 'Total amount donated for this tier, in cents.',
         type: new GraphQLNonNull(GraphQLAmount),
         async resolve(tier, args, req) {
@@ -42,6 +45,8 @@ export const GraphQLTierStats = new GraphQLObjectType({
         },
       },
       recurringAmount: {
+        // Batched by a loader
+        extensions: { cost: { weight: CostTier.Query } },
         description:
           'How much money is given for this tier for each tier.interval (monthly/yearly). For flexible tiers, this amount is a monthly average of contributions amount, taking into account both yearly and monthly subscriptions.',
         type: new GraphQLNonNull(GraphQLAmount),
