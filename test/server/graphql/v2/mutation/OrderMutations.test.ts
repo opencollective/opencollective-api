@@ -4543,6 +4543,29 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(orderWithTax.taxAmount).to.equal(200); // 10% VAT on $20
         expect(orderWithTax.totalAmount).to.equal(2200);
       });
+
+      it('keeps the contribution amount and adds the new platform tip when only the platform tip changes', async () => {
+        await order.update({ totalAmount: 10100, platformTipAmount: 100 });
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            action: 'MARK_AS_PAID',
+            order: {
+              id: idEncode(order.id, 'order'),
+              platformTip: { valueInCents: 200, currency: order.currency },
+            },
+          },
+          hostAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
+
+        await order.reload();
+        expect(order.platformTipAmount).to.equal(200);
+        expect(order.totalAmount).to.equal(10200);
+      });
     });
 
     it('should be able to remove platform tips', async () => {

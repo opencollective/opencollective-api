@@ -258,6 +258,39 @@ describe('server/paymentProviders/paypal/subscription', () => {
         assert.calledWith(paypalRequestStub, `${oldSubscriptionUrl}/cancel`);
         assert.callCount(paypalRequestStub, 2); // Must NOT call activate if cancellation fails
       });
+
+      it('restores the existing subscription if activation fails', async () => {
+        const cardPm = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        });
+        const order = await fakeOrder(
+          {
+            CollectiveId: host.id,
+            status: OrderStatuses.ACTIVE,
+            TierId: null,
+            totalAmount: 1000,
+            subscription: { isActive: true, isManagedExternally: false, paypalSubscriptionId: null },
+            PaymentMethodId: cardPm.id,
+          },
+          { withSubscription: true },
+        );
+        const newSubscriptionPm = await fakePaypalSubscriptionPm(validSubscriptionParams);
+
+        // PayPal API stubs
+        const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest');
+        const subscriptionUrl = `billing/subscriptions/${newSubscriptionPm.token}`;
+        paypalRequestStub.withArgs(subscriptionUrl).returns(validSubscriptionParams);
+        paypalRequestStub.withArgs(`${subscriptionUrl}/activate`).rejects(new Error('PayPal 500'));
+
+        const error = await setupPaypalSubscriptionForOrder(order, newSubscriptionPm).catch(e => e);
+        expect(error.message).to.eq('Failed to activate PayPal subscription');
+
+        // The card subscription must still be charged by the internal cron
+        const subscription = await order.getSubscription();
+        expect(subscription.isManagedExternally).to.be.false;
+        expect(subscription.paypalSubscriptionId).to.be.null;
+      });
     });
   });
 
