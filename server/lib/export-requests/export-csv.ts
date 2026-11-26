@@ -30,6 +30,10 @@ type TransactionExportRequestVariables = {
   };
   paymentMethodService?: string | string[];
   paymentMethodType?: string | string[];
+  manualPaymentProvider?: Array<{ id: string }>;
+  paymentMethod?: Array<{ id: string }>;
+  payoutMethod?: { id: string };
+  virtualCard?: Array<{ id: string }>;
   type?: string;
   searchTerm?: string;
   dateFrom?: string;
@@ -113,6 +117,21 @@ export const makeUrl = ({
   }
   if (queryFilter.variables.paymentMethodType) {
     url.searchParams.set('paymentMethodType', safeJoinString(queryFilter.variables.paymentMethodType));
+  }
+  if (!isEmpty(queryFilter.variables.manualPaymentProvider)) {
+    url.searchParams.set(
+      'manualPaymentProvider',
+      queryFilter.variables.manualPaymentProvider.map(provider => provider.id).join(','),
+    );
+  }
+  if (!isEmpty(queryFilter.variables.paymentMethod)) {
+    url.searchParams.set('paymentMethod', queryFilter.variables.paymentMethod.map(pm => pm.id).join(','));
+  }
+  if (queryFilter.variables.payoutMethod?.id) {
+    url.searchParams.set('payoutMethod', queryFilter.variables.payoutMethod.id);
+  }
+  if (!isEmpty(queryFilter.variables.virtualCard)) {
+    url.searchParams.set('virtualCard', queryFilter.variables.virtualCard.map(vc => vc.id).join(','));
   }
   if (queryFilter.variables.type) {
     url.searchParams.set('type', queryFilter.variables.type);
