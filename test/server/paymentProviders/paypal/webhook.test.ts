@@ -187,6 +187,36 @@ describe('server/paymentProviders/paypal/webhook', () => {
       expect(order.status).to.eq('ACTIVE');
     });
 
+    for (const status of [OrderStatuses.CANCELLED, OrderStatuses.PAUSED]) {
+      it(`records a late sale without reactivating a ${status} order`, async () => {
+        const host = await fakeHost();
+        await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const order = await createOrderWithSubscription({ CollectiveId: collective.id, status });
+        await order.Subscription.update({ isActive: false, deactivatedAt: new Date(), nextChargeDate: null });
+
+        sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+        await callPaymentSaleCompleted(host.id, {
+          resource: {
+            id: `LATE-SALE-${status}`,
+            billing_agreement_id: order.paymentMethod.token,
+            amount: { total: '12.00', currency: 'USD' },
+            transaction_fee: { value: '1.20', currency: 'USD' },
+          },
+        });
+
+        const transaction = await models.Transaction.findOne({
+          where: { OrderId: order.id, type: 'CREDIT', kind: 'CONTRIBUTION' },
+        });
+        expect(transaction.amount).to.eq(1200);
+        await order.reload({ include: [{ association: 'Subscription' }] });
+        expect(order.status).to.eq(status);
+        expect(order.Subscription.isActive).to.be.false;
+        expect(order.Subscription.nextChargeDate).to.be.null;
+        expect(order.Subscription.chargeNumber).to.eq(1);
+      });
+    }
+
     it('uses the order as committed when the lock is acquired, not as loaded before', async () => {
       const host = await fakeHost();
       await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
