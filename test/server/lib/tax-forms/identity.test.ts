@@ -5,7 +5,6 @@ import {
   getLegalDocumentCountryMismatchDetails,
   getLegalDocumentIdentity,
   getLegalDocumentNameMismatchDetails,
-  getLegalDocumentNamePartialMatchDetails,
   LegalDocumentIdentity,
 } from '../../../../server/lib/tax-forms/identity';
 import LegalDocument, {
@@ -223,29 +222,6 @@ describe('server/lib/tax-forms/identity', () => {
     });
   });
 
-  describe('getLegalDocumentNamePartialMatchDetails', () => {
-    it('returns details when the names only partially match', () => {
-      expect(
-        getLegalDocumentNamePartialMatchDetails(buildIdentity({ individualName: 'Jane Doe' }), 'Jane Marie Doe'),
-      ).to.eq('The name on the legal document ("Jane Doe") only partially matches the payee name ("Jane Marie Doe").');
-    });
-
-    it('returns null for exact matches, mismatches and missing names', () => {
-      expect(getLegalDocumentNamePartialMatchDetails(buildIdentity({ individualName: 'Jane Doe' }), 'Doe, Jane')).to.be
-        .null;
-      expect(
-        getLegalDocumentNamePartialMatchDetails(
-          buildIdentity({ individualName: 'Jane Doe', entityName: 'Acme Inc' }),
-          'Acme Inc',
-        ),
-      ).to.be.null;
-      expect(getLegalDocumentNamePartialMatchDetails(buildIdentity({ individualName: 'Jane Doe' }), 'John Smith')).to.be
-        .null;
-      expect(getLegalDocumentNamePartialMatchDetails(buildIdentity(), 'Jane Doe')).to.be.null;
-      expect(getLegalDocumentNamePartialMatchDetails(null, 'Jane Doe')).to.be.null;
-    });
-  });
-
   describe('getLegalDocumentNameMismatchDetails', () => {
     it('ignores missing names', () => {
       expect(getLegalDocumentNameMismatchDetails(buildIdentity(), 'Acme Inc')).to.be.null;
@@ -281,6 +257,15 @@ describe('server/lib/tax-forms/identity', () => {
           'Evil Corp',
         ),
       ).to.eq('The name on the legal document ("Jane Doe" / "Acme Inc") does not match the payee name ("Evil Corp").');
+    });
+
+    it('reports partial and abbreviated names as mismatches', () => {
+      expect(
+        getLegalDocumentNameMismatchDetails(buildIdentity({ individualName: 'Jane Doe' }), 'Jane Marie Doe'),
+      ).to.eq('The name on the legal document ("Jane Doe") does not match the payee name ("Jane Marie Doe").');
+      expect(getLegalDocumentNameMismatchDetails(buildIdentity({ individualName: 'Jane Doe' }), 'J. Doe')).to.eq(
+        'The name on the legal document ("Jane Doe") does not match the payee name ("J. Doe").',
+      );
     });
 
     it('supports a custom account holder label', () => {

@@ -2912,8 +2912,7 @@ export const getItemsChanges = async (
 };
 
 /**
- * Validate the account holder name against the legal name. Partial matches are accepted
- * (e.g. a missing middle name), see `areNamesMatching` for the exact rules.
+ * Validate the account holder name against the legal name, see `areNamesMatching` for the exact rules.
  */
 export const isAccountHolderNameAndLegalNameMatch = (accountHolderName: string, legalName: string): boolean => {
   return areNamesMatching(accountHolderName, legalName);

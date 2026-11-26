@@ -616,7 +616,7 @@ describe('lib/security/expense', () => {
       expect(getLegalDocumentChecks(checks)).to.be.empty;
     });
 
-    it('reports a LOW check when the legal document name only partially matches the payee name', async () => {
+    it('reports a mismatch when the legal document name only partially matches the payee name', async () => {
       const payee = await createPayeeWithLocation({
         legalName: 'Acme Inc Holdings',
         countryISO: 'FR',
@@ -645,14 +645,14 @@ describe('lib/security/expense', () => {
       expect(legalDocumentChecks).to.have.length(1);
       expect(legalDocumentChecks[0]).to.containSubset({
         scope: 'LEGAL_DOCUMENT',
-        level: 'LOW',
-        message: 'Legal document name partially matches the payee name',
+        level: 'MEDIUM',
+        message: 'Legal document name does not match the payee name',
         details:
-          'The name on the legal document ("Acme Inc") only partially matches the payee name ("Acme Inc Holdings").',
+          'The name on the legal document ("Jane Doe" / "Acme Inc") does not match the payee name ("Acme Inc Holdings").',
       });
     });
 
-    it('reports a LOW check when the legal document name only partially matches the bank account holder name', async () => {
+    it('reports a mismatch when the legal document name is abbreviated in the bank account holder name', async () => {
       const payee = await createPayeeWithLocation({
         legalName: 'Acme Inc',
         countryISO: 'FR',
@@ -677,7 +677,7 @@ describe('lib/security/expense', () => {
         type: PayoutMethodTypes.BANK_ACCOUNT,
         CollectiveId: payee.id,
         data: {
-          accountHolderName: 'Jane Marie Doe',
+          accountHolderName: 'J. Doe',
           currency: 'USD',
           type: 'aba',
           details: {
@@ -699,10 +699,10 @@ describe('lib/security/expense', () => {
       expect(legalDocumentChecks).to.have.length(1);
       expect(legalDocumentChecks[0]).to.containSubset({
         scope: 'LEGAL_DOCUMENT',
-        level: 'LOW',
-        message: 'Legal document name partially matches the payout method account holder name',
+        level: 'MEDIUM',
+        message: 'Legal document name does not match the payout method account holder name',
         details:
-          'The name on the legal document ("Jane Doe") only partially matches the payout method account holder name ("Jane Marie Doe").',
+          'The name on the legal document ("Jane Doe" / "Acme Inc") does not match the payout method account holder name ("J. Doe").',
       });
     });
 

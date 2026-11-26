@@ -3,7 +3,6 @@ import { compact, uniq } from 'lodash';
 import { isAccountHolderNameAndLegalNameMatch } from '../../graphql/common/expenses';
 import LegalDocument, { LEGAL_DOCUMENT_SERVICE } from '../../models/LegalDocument';
 import { StructuredAddress } from '../../types/Location';
-import { getNameMatchLevel, NameMatchLevel } from '../name-matching';
 import { reportErrorToSentry } from '../sentry';
 
 import {
@@ -205,29 +204,6 @@ export const getLegalDocumentNameMismatchDetails = (
 
   const formattedFormNames = formNames.map(formName => `"${formName}"`).join(' / ');
   return `The name on the legal document (${formattedFormNames}) does not match the ${nameLabel} ("${legalName}").`;
-};
-
-/**
- * Returns details when the name of the legal document is only a partial match of the payee name (e.g. a missing
- * middle name), i.e. when `getLegalDocumentNameMismatchDetails` passes but no name is an exact match.
- */
-export const getLegalDocumentNamePartialMatchDetails = (
-  identity: LegalDocumentIdentity | null | undefined,
-  payeeName?: string | null,
-  { nameLabel = 'payee name' }: { nameLabel?: string } = {},
-): string | null => {
-  const formNames = uniq(compact([normalizeString(identity?.individualName), normalizeString(identity?.entityName)]));
-  const legalName = normalizeString(payeeName);
-  if (!formNames.length || !legalName) {
-    return null;
-  }
-
-  const levels = formNames.map(formName => getNameMatchLevel(formName, legalName));
-  if (levels.includes(NameMatchLevel.EXACT) || !levels.includes(NameMatchLevel.PARTIAL)) {
-    return null;
-  }
-  const partialName = formNames[levels.indexOf(NameMatchLevel.PARTIAL)];
-  return `The name on the legal document ("${partialName}") only partially matches the ${nameLabel} ("${legalName}").`;
 };
 
 /**
