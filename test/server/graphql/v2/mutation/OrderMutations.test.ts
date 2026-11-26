@@ -425,7 +425,8 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
       before(async () => {
         await resetTestDB();
-        fromUser = await fakeUser();
+        // With a legal name, so the host's default contributor info thresholds do not get in the way
+        fromUser = await fakeUser(undefined, { legalName: 'Contributor Legal Name' });
 
         // Stub the payment
         sandbox = createSandbox();
@@ -1120,6 +1121,163 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           const result = await callCreateOrder({ order: orderData }, fromUser);
           expect(result.errors).to.exist;
           expect(result.errors[0].message).to.equal('No more tickets left for My Tier');
+        });
+      });
+
+      describe('Contributor info requirements (CONTRIBUTOR_INFO_THRESHOLDS)', () => {
+        let policyHost, policyCollective;
+
+        const orderTo = (collective, amount: number, extra: Record<string, unknown> = {}) => ({
+          ...validOrderParams,
+          toAccount: { legacyId: collective.id },
+          amount: { valueInCents: amount },
+          ...extra,
+        });
+
+        const expectRejected = (result, fields: RegExp) => {
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(fields);
+        };
+
+        before(async () => {
+          policyHost = await fakeHost({
+            plan: 'start-plan-2021',
+            data: { policies: { CONTRIBUTOR_INFO_THRESHOLDS: { legalName: 100e2, address: 500e2 } } },
+          });
+          policyCollective = await fakeCollective({ HostCollectiveId: policyHost.id });
+          await models.ConnectedAccount.create({
+            service: PAYMENT_METHOD_SERVICE.STRIPE,
+            token: 'abc',
+            CollectiveId: policyHost.id,
+            username: 'stripeAccount',
+          });
+        });
+
+        it('passes below the thresholds', async () => {
+          const user = await fakeUser();
+          const result = await callCreateOrder(
+            { order: orderTo(policyCollective, 99e2, { fromAccount: { legacyId: user.CollectiveId } }) },
+            user,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+        });
+
+        it('requires a legal name of at least 5 characters over the legal name threshold', async () => {
+          const user = await fakeUser();
+          const fromAccount = { legacyId: user.CollectiveId };
+          const ordersBefore = await models.Order.count({ where: { FromCollectiveId: user.CollectiveId } });
+
+          expectRejected(
+            await callCreateOrder({ order: orderTo(policyCollective, 100e2, { fromAccount }) }, user),
+            /requires your legal name \(at least 5 characters\) for contributions/,
+          );
+          expectRejected(
+            await callCreateOrder(
+              { order: orderTo(policyCollective, 100e2, { fromAccount, fromAccountInfo: { legalName: ' Bob ' } }) },
+              user,
+            ),
+            /legal name/,
+          );
+          expect(await models.Order.count({ where: { FromCollectiveId: user.CollectiveId } })).to.eq(ordersBefore);
+          await user.collective.reload();
+          expect(user.collective.legalName).to.be.null; // A rejected order does not save the invalid legal name
+
+          const result = await callCreateOrder(
+            {
+              order: orderTo(policyCollective, 100e2, { fromAccount, fromAccountInfo: { legalName: 'Robert Smith' } }),
+            },
+            user,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          await user.collective.reload();
+          expect(user.collective.legalName).to.eq('Robert Smith');
+        });
+
+        it('counts monthly contributions x12 and adds the realized yearly total', async () => {
+          const monthlyUser = await fakeUser();
+          expectRejected(
+            await callCreateOrder(
+              {
+                order: orderTo(policyCollective, 10e2, {
+                  fromAccount: { legacyId: monthlyUser.CollectiveId },
+                  frequency: 'MONTHLY',
+                }),
+              },
+              monthlyUser,
+            ),
+            /legal name/,
+          );
+
+          const repeatUser = await fakeUser();
+          const firstOrder = orderTo(policyCollective, 60e2, { fromAccount: { legacyId: repeatUser.CollectiveId } });
+          expect((await callCreateOrder({ order: firstOrder }, repeatUser)).errors).to.not.exist;
+          expectRejected(await callCreateOrder({ order: firstOrder }, repeatUser), /legal name/); // 60 + 60 >= 100
+        });
+
+        it('requires an address over the address threshold, the country alone is not enough', async () => {
+          const user = await fakeUser(undefined, { legalName: 'Valid Legal Name' });
+          const fromAccount = { legacyId: user.CollectiveId };
+          expectRejected(
+            await callCreateOrder(
+              {
+                order: orderTo(policyCollective, 500e2, {
+                  fromAccount,
+                  fromAccountInfo: { location: { country: 'FR' } },
+                }),
+              },
+              user,
+            ),
+            /requires your address for contributions/,
+          );
+
+          const location = { country: 'FR', address: '1 rue de la Paix, 75002 Paris' };
+          const result = await callCreateOrder(
+            { order: orderTo(policyCollective, 500e2, { fromAccount, fromAccountInfo: { location } }) },
+            user,
+          );
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+        });
+
+        it('applies to guests, with the info sent in guestInfo', async () => {
+          const captcha = { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' };
+          const guestOrder = (guestInfo: Record<string, unknown>) =>
+            orderTo(policyCollective, 100e2, {
+              fromAccount: null,
+              guestInfo: { email: randEmail(), captcha, ...guestInfo },
+            });
+
+          expectRejected(await callCreateOrder({ order: guestOrder({ name: 'Display Name' }) }), /legal name/);
+          const result = await callCreateOrder({ order: guestOrder({ legalName: 'Guest Legal Name' }) });
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+        });
+
+        it('does not apply to accounts hosted by the host, nor when the host disabled the thresholds', async () => {
+          const admin = await fakeUser();
+          const hostedOrganization = await fakeOrganization({ HostCollectiveId: policyHost.id });
+          await hostedOrganization.addUserWithRole(admin, roles.ADMIN);
+          const fromHosted = orderTo(policyCollective, 600e2, { fromAccount: { legacyId: hostedOrganization.id } });
+          let result = await callCreateOrder({ order: fromHosted }, admin);
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          await policyHost.update({ data: { policies: { CONTRIBUTOR_INFO_THRESHOLDS: {} } } });
+          try {
+            const user = await fakeUser();
+            result = await callCreateOrder(
+              { order: orderTo(policyCollective, 600e2, { fromAccount: { legacyId: user.CollectiveId } }) },
+              user,
+            );
+            result.errors && console.error(result.errors);
+            expect(result.errors).to.not.exist;
+          } finally {
+            await policyHost.update({
+              data: { policies: { CONTRIBUTOR_INFO_THRESHOLDS: { legalName: 100e2, address: 500e2 } } },
+            });
+          }
         });
       });
     });
