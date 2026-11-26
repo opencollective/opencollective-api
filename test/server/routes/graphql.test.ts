@@ -230,6 +230,9 @@ describe('GraphQL query cost (opencollective/opencollective#9081)', () => {
   // Cost: 1 (Collective) + 1 (id) + 1 (slug)
   const v1Query = 'query CostlyCollective { Collective(slug: "test") { id slug } }';
 
+  // The internal API key bypasses the per-IP rate limit (10/min), which later test files would hit otherwise
+  const post = (path: string) => request(app).post(path).query({ api_key: config.keys.opencollective.apiKey }); // eslint-disable-line camelcase
+
   const getCostReports = () =>
     reportMessageToSentry.getCalls().filter(call => call.args[0] === 'GraphQL query cost exceeded');
 
@@ -261,8 +264,7 @@ describe('GraphQL query cost (opencollective/opencollective#9081)', () => {
 
   describe('log-only mode', () => {
     it('returns the data and reports once to Sentry when over the maximum', async () => {
-      const response = await request(app)
-        .post('/graphql/v2')
+      const response = await post('/graphql/v2')
         .set('oc-application', 'test-client')
         .send({ query: v2Query })
         .expect(200);
@@ -291,7 +293,7 @@ describe('GraphQL query cost (opencollective/opencollective#9081)', () => {
 
     it('records the cost without reporting when under the maximum', async () => {
       sandbox.stub(config.graphql.cost, 'max').value(61);
-      const response = await request(app).post('/graphql/v2').send({ query: v2Query }).expect(200);
+      const response = await post('/graphql/v2').send({ query: v2Query }).expect(200);
 
       expect(response.body.errors).to.not.exist;
       expect(getCostReports()).to.have.length(0);
@@ -302,7 +304,7 @@ describe('GraphQL query cost (opencollective/opencollective#9081)', () => {
 
     it('runs on GraphQL V1', async () => {
       sandbox.stub(config.graphql.cost, 'max').value(1);
-      await request(app).post('/graphql/v1').send({ query: v1Query }).expect(200);
+      await post('/graphql/v1').send({ query: v1Query }).expect(200);
 
       expect(getCostReports()).to.have.length(1);
       expect(recordGraphQLQueryCost).to.have.been.calledOnceWith(
@@ -313,7 +315,7 @@ describe('GraphQL query cost (opencollective/opencollective#9081)', () => {
     it('does not break the request when the analyzer throws', async () => {
       sandbox.stub(config.graphql.cost, 'reject').value(true);
       sandbox.stub(QueryCostLib, 'getQueryCost').throws(new Error('Analyzer crashed'));
-      const response = await request(app).post('/graphql/v2').send({ query: v2Query }).expect(200);
+      const response = await post('/graphql/v2').send({ query: v2Query }).expect(200);
 
       expect(response.body.errors).to.not.exist;
       expect(response.body.data.accounts.nodes).to.be.an('array');
@@ -332,7 +334,7 @@ describe('GraphQL query cost (opencollective/opencollective#9081)', () => {
         visitedNodes: 0,
         error: 'Oops',
       });
-      const response = await request(app).post('/graphql/v2').send({ query: v2Query }).expect(200);
+      const response = await post('/graphql/v2').send({ query: v2Query }).expect(200);
 
       expect(response.body.errors).to.not.exist;
       expect(reportErrorToSentry).to.have.been.calledOnce;
@@ -348,7 +350,7 @@ describe('GraphQL query cost (opencollective/opencollective#9081)', () => {
     });
 
     it('rejects with a 400 stating the cost and the maximum', async () => {
-      const response = await request(app).post('/graphql/v2').send({ query: v2Query }).expect(400);
+      const response = await post('/graphql/v2').send({ query: v2Query }).expect(400);
 
       expect(response.body.data).to.not.exist;
       expect(response.body.errors).to.have.length(1);
@@ -366,7 +368,7 @@ describe('GraphQL query cost (opencollective/opencollective#9081)', () => {
 
     it('rejects on GraphQL V1', async () => {
       sandbox.stub(config.graphql.cost, 'max').value(1);
-      const response = await request(app).post('/graphql/v1').send({ query: v1Query }).expect(400);
+      const response = await post('/graphql/v1').send({ query: v1Query }).expect(400);
       expect(response.body.errors[0].message).to.equal('Query cost of 3 exceeds the maximum of 1.');
     });
 
@@ -374,13 +376,13 @@ describe('GraphQL query cost (opencollective/opencollective#9081)', () => {
       sandbox.stub(config.graphql.cost, 'max').value(50_000_000);
       const nested = buildDeepQuery('childrenAccounts.nodes', 8);
       const query = `query DeeplyNested { accounts(limit: 1000) { nodes { ${nested} } } }`;
-      const response = await request(app).post('/graphql/v2').send({ query }).expect(400);
+      const response = await post('/graphql/v2').send({ query }).expect(400);
       expect(response.body.errors[0].message).to.match(/^Query cost of \d+ exceeds the maximum of 50000000\.$/);
     });
 
     it('accepts queries under the maximum', async () => {
       sandbox.stub(config.graphql.cost, 'max').value(61);
-      const response = await request(app).post('/graphql/v2').send({ query: v2Query }).expect(200);
+      const response = await post('/graphql/v2').send({ query: v2Query }).expect(200);
 
       expect(response.body.errors).to.not.exist;
       expect(getCostReports()).to.have.length(0);
