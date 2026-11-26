@@ -305,6 +305,36 @@ describe('server/paymentProviders/paypal/webhook', () => {
 
       expect(metricsCountStub).to.have.been.calledOnce;
     });
+
+    it('does not record order.processed (thank-you email) again when the sale event is redelivered', async () => {
+      const host = await fakeHost();
+      await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const order = await createOrderWithSubscription({
+        CollectiveId: collective.id,
+        status: 'PENDING',
+      });
+
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+      const body = {
+        resource: {
+          id: 'SALE-REDELIVERED',
+          billing_agreement_id: order.paymentMethod.token,
+          amount: { total: '12.00', currency: 'USD' },
+          transaction_fee: { value: '1.20', currency: 'USD' },
+        },
+      };
+
+      await callPaymentSaleCompleted(host.id, body);
+      await callPaymentSaleCompleted(host.id, body);
+
+      const credits = await models.Transaction.count({
+        where: { OrderId: order.id, type: 'CREDIT', kind: 'CONTRIBUTION' },
+      });
+      const activities = await models.Activity.count({ where: { OrderId: order.id, type: 'order.processed' } });
+      expect(credits).to.eq(1);
+      expect(activities).to.eq(1);
+    });
   });
 
   describe('PAYMENT.CAPTURE.COMPLETED', () => {

@@ -172,9 +172,12 @@ async function handleSaleCompleted(req: Request): Promise<void> {
   // 3. Apply a tier change waiting for this payment (e.g. tier upgrade approved through a new PayPal subscription)
   await applyPendingTierChangeAfterCharge(order, transaction);
 
-  // 4. Send "Thank you" (order.processed) email & record activity
-  const isFirstPayment = order.Subscription.chargeNumber === 1;
-  await recordOrderProcessed(order, transaction, { isFirstPayment });
+  // 4. Send "Thank you" (order.processed) email & record activity, only if this event recorded the sale:
+  // a redelivered event must not thank the contributor (and log the activity) a second time.
+  if (transaction) {
+    const isFirstPayment = order.Subscription.chargeNumber === 1;
+    await recordOrderProcessed(order, transaction, { isFirstPayment });
+  }
 
   // 5. Register user as a member, since the transaction is not created in `processOrder`
   // for PayPal subscriptions.
