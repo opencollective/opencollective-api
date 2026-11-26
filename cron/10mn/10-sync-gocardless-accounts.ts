@@ -1,17 +1,18 @@
 import '../../server/env';
 
-import { isAxiosError } from 'axios';
 import debug from 'debug';
 import { pick } from 'lodash';
 
-import { syncGoCardlessAccount } from '../../server/lib/gocardless/sync';
+import { GoCardlessRateLimitError, syncGoCardlessAccount } from '../../server/lib/gocardless/sync';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { Op } from '../../server/models';
 import { TransactionsImportLockedError } from '../../server/models/TransactionsImport';
 import { runCronJob } from '../utils';
 
-// Every 60 minutes
-const refreshIntervalMs = 60 * 60 * 1000;
+// GoCardless only allows 4 successful transaction fetches per bank account per rolling 24h.
+// Syncing every 8 hours uses at most 3 of them, keeping one in reserve for manual syncs.
+// See https://github.com/opencollective/opencollective/issues/9175
+export const GOCARDLESS_REFRESH_INTERVAL_MS = 8 * 60 * 60 * 1000;
 
 export const getGoCardlessImportsToSync = async (now = new Date()) => {
   return models.TransactionsImport.findAll({
@@ -19,7 +20,7 @@ export const getGoCardlessImportsToSync = async (now = new Date()) => {
       type: 'GOCARDLESS',
       data: { lockedAt: null },
       lastSyncAt: {
-        [Op.or]: [{ [Op.eq]: null }, { [Op.lt]: new Date(now.getTime() - refreshIntervalMs) }],
+        [Op.or]: [{ [Op.eq]: null }, { [Op.lt]: new Date(now.getTime() - GOCARDLESS_REFRESH_INTERVAL_MS) }],
       },
     },
     include: [
@@ -43,8 +44,8 @@ const run = async () => {
         log: debug.enabled('gocardless'),
       });
     } catch (err) {
-      if (isAxiosError(err) && err.response?.status === 429) {
-        // Ignore rate limit errors
+      if (err instanceof GoCardlessRateLimitError) {
+        // All accounts are rate limited, they'll be retried once the limit resets
         continue;
       }
 

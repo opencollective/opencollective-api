@@ -7,7 +7,7 @@ import { isEmpty, keyBy, mapValues, omit, pick, truncate } from 'lodash';
 
 import { applyBalanceAccountingCategoryFromImportRow } from '../../../lib/accounting/categorization/balance-accounts';
 import { disconnectGoCardlessAccount } from '../../../lib/gocardless/connect';
-import { syncGoCardlessAccount } from '../../../lib/gocardless/sync';
+import { GoCardlessRateLimitError, syncGoCardlessAccount } from '../../../lib/gocardless/sync';
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import { requestPlaidAccountSync } from '../../../lib/plaid/sync';
 import RateLimit from '../../../lib/rate-limit';
@@ -95,7 +95,14 @@ const transactionImportsMutations = {
         await requestPlaidAccountSync(connectedAccount);
       } else if (transactionsImport.type === 'GOCARDLESS') {
         // For GoCardless, we sync immediately
-        await syncGoCardlessAccount(connectedAccount, transactionsImport);
+        try {
+          await syncGoCardlessAccount(connectedAccount, transactionsImport);
+        } catch (e) {
+          if (e instanceof GoCardlessRateLimitError) {
+            throw new RateLimitExceeded(e.message, undefined, { retryAt: e.retryAt.toISOString() });
+          }
+          throw e;
+        }
       } else {
         throw new Error(`Sync not supported for import type: ${transactionsImport.type}`);
       }

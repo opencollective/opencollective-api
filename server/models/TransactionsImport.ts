@@ -93,6 +93,20 @@ const dataSchema = z
             name: z.string(),
           }),
         ),
+        /** Per-account sync state, used to sync accounts independently and respect GoCardless rate limits */
+        accountsSyncState: z
+          .record(
+            z.string(),
+            z.object({
+              /** Last time transactions were successfully fetched for this account */
+              lastSyncAt: z.string().optional(),
+              /** GoCardless rate limit: don't try to sync this account before this date */
+              rateLimitedUntil: z.string().optional(),
+              /** Last error message, if the last sync attempt failed */
+              lastErrorMessage: z.string().optional(),
+            }),
+          )
+          .optional(),
       })
       .optional(),
   })
