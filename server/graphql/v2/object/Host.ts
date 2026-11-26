@@ -12,7 +12,7 @@ import {
 import { GraphQLDateTime } from 'graphql-scalars';
 import { compact, get, isEmpty, isNil, keyBy, mapValues, pick, set, uniq } from 'lodash';
 import moment from 'moment';
-import { QueryTypes } from 'sequelize';
+import { IncludeOptions, QueryTypes, WhereOptions } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
@@ -34,7 +34,7 @@ import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-repo
 import { ifStr } from '../../../lib/utils';
 import models, { Collective, Op } from '../../../models';
 import Agreement from '../../../models/Agreement';
-import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
+import LegalDocument, { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import {
   checkRemoteUserCanUseApplications,
   checkRemoteUserCanUseExpenses,
@@ -112,6 +112,75 @@ const getTimeUnit = numberOfDays => {
   } else {
     return 'YEAR';
   }
+};
+
+/**
+ * Thresholds for `hostedLegalDocuments` to check the tax form requirement of its candidate accounts only.
+ * Exported to be stubbed in tests.
+ */
+export const TAX_FORM_CANDIDATES_THRESHOLDS = {
+  /**
+   * Finding which payees of a host require a tax form reads every expense of the host: from this many
+   * expenses, it takes about 0.5 s (measured locally at 5 µs per expense). Smaller hosts always use it.
+   */
+  largeHostExpensesCount: 100_000,
+  /**
+   * Checking the requirement for given accounts takes about 6 µs per account, so up to this many candidates
+   * it remains faster than the host-wide query of a large host.
+   */
+  maxCandidateAccounts: 50_000,
+};
+
+/**
+ * Counts the expenses of a host, up to `max`. The predicate matches the partial `expenses__host_paid_at`
+ * index, so this is an index-only scan.
+ */
+const countHostExpenses = async (hostId: number, max: number): Promise<number> => {
+  const [result] = await sequelize.query<{ count: number }>(
+    `
+    SELECT COUNT(*)::integer AS "count" FROM (
+      SELECT 1 FROM "Expenses"
+      WHERE "HostCollectiveId" = :hostId
+      AND "deletedAt" IS NULL
+      AND "status" NOT IN ('DRAFT', 'SPAM')
+      LIMIT :max
+    ) AS capped
+    `,
+    { type: QueryTypes.SELECT, raw: true, replacements: { hostId, max } },
+  );
+  return result.count;
+};
+
+/**
+ * Only accounts that have a legal document matching the filters can be listed by `hostedLegalDocuments`.
+ * Returns these candidates when checking their tax form requirement is cheaper than checking it host-wide
+ * (on large hosts, when they are not too many), or `null` otherwise. Candidates come from every host's legal
+ * documents, so on smaller hosts the host-wide query is the cheapest.
+ */
+const getTaxFormCandidateAccountIds = async (
+  host: Collective,
+  requestedAccountIds: number[] | null,
+  where: WhereOptions<LegalDocument>,
+  include: IncludeOptions[],
+): Promise<number[] | null> => {
+  const { largeHostExpensesCount, maxCandidateAccounts } = TAX_FORM_CANDIDATES_THRESHOLDS;
+  let maxCandidates = maxCandidateAccounts;
+  if (requestedAccountIds) {
+    maxCandidates = requestedAccountIds.length;
+  } else if ((await countHostExpenses(host.id, largeHostExpensesCount)) < largeHostExpensesCount) {
+    return null;
+  }
+
+  const legalDocuments = await models.LegalDocument.findAll({
+    attributes: ['CollectiveId'],
+    where: { ...where, CollectiveId: requestedAccountIds ?? { [Op.ne]: null } },
+    include: include.map(association => ({ ...association, attributes: [] })),
+    group: ['LegalDocument.CollectiveId'],
+    limit: maxCandidates + 1,
+    raw: true,
+  });
+
+  return legalDocuments.length <= maxCandidates ? legalDocuments.map(document => document.CollectiveId) : null;
 };
 
 export const GraphQLHost = new GraphQLObjectType({
@@ -1485,24 +1554,15 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           const { offset, limit } = args;
-          // Finding which accounts require a tax form is expensive when done host-wide. When the
-          // caller already targets specific accounts, scope the query to them: Postgres then starts
-          // from the payees' expenses instead of scanning every expense of the host (see
-          // `getTaxFormsRequiredForAccounts`).
           const requestedAccountIds =
             args.account?.length > 0
               ? uniq(await fetchAccountsIdsWithReference(args.account, { throwIfMissing: true }))
               : null;
-          const accountIds = await SQLQueries.getTaxFormsRequiredForAccounts({
-            HostCollectiveId: host.id,
-            CollectiveId: requestedAccountIds ?? undefined,
-            allTime: true,
-          });
-          if (!accountIds.size) {
-            return { nodes: [], totalCount: 0, limit, offset };
-          }
 
-          const where = { CollectiveId: Array.from(accountIds) };
+          const where = {};
+          if (requestedAccountIds) {
+            where['CollectiveId'] = requestedAccountIds;
+          }
           if (args.type) {
             where['documentType'] = args.type;
           }
@@ -1534,6 +1594,28 @@ export const GraphQLHost = new GraphQLObjectType({
             where[Op.or] = searchTermConditions;
             include.push({ association: 'collective', required: true });
           }
+
+          // Finding which accounts require a tax form host-wide reads every expense of the host. When
+          // possible, scope it to the accounts that have a matching legal document: Postgres then starts
+          // from their expenses instead. Both paths return the same documents.
+          const candidateAccountIds = await getTaxFormCandidateAccountIds(host, requestedAccountIds, where, include);
+          if (candidateAccountIds?.length === 0) {
+            return { nodes: [], totalCount: 0, limit, offset };
+          }
+
+          const accountIds = await SQLQueries.getTaxFormsRequiredForAccounts({
+            HostCollectiveId: host.id,
+            CollectiveId: candidateAccountIds ?? undefined,
+            allTime: true,
+          });
+          const accountIdsRequiringTaxForm = candidateAccountIds
+            ? candidateAccountIds.filter(id => accountIds.has(id))
+            : Array.from(accountIds);
+          if (!accountIdsRequiringTaxForm.length) {
+            return { nodes: [], totalCount: 0, limit, offset };
+          }
+
+          where['CollectiveId'] = accountIdsRequiringTaxForm;
 
           return {
             totalCount: () => models.LegalDocument.count({ where, include }),
