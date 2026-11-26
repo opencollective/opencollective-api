@@ -230,7 +230,10 @@ export const reportMessageToSentry = (message: string, params: CaptureErrorParam
     if (checkIfSentryConfigured()) {
       Sentry.captureMessage(message, params?.severity || 'error');
     } else {
-      const errorDetailsStr = safeJsonStringify(params);
+      // Like `reportErrorToSentry`, never log the raw request (headers, cookies, tokens)
+      const errorDetailsStr = safeJsonStringify(
+        params?.req ? { ...params, req: redactSensitiveDataFromRequest(simplifyReq(params.req)) } : params,
+      );
       const logMsg = `[Sentry fallback] ${message} (${errorDetailsStr})`;
       if (params?.severity === 'warning') {
         logger.warn(logMsg);
