@@ -265,6 +265,42 @@ describe('server/lib/subscriptions', () => {
             expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
             expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
           });
+
+          it('yearly => keep dates, so the year already paid is not charged early', async () => {
+            const today = moment.utc('2026-11-26T12:00:00Z');
+            clock = sinon.useFakeTimers({ now: today.toDate(), toFake: ['Date'] }); // Manually setting today's date
+            const paypalPm = await fakePaymentMethod({
+              service: PAYMENT_METHOD_SERVICE.PAYPAL,
+              type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
+            });
+            const subscription = {
+              nextChargeDate: moment.utc('2027-06-15'),
+              nextPeriodStart: moment.utc('2027-06-15'),
+              isManagedExternally: true,
+            }; // Paid through PayPal on 2026-06-15, next payment: 2027-06-15
+            const order = await fakeOrder(
+              { PaymentMethodId: paypalPm.id, interval: INTERVALS.YEAR, subscription },
+              { withSubscription: true },
+            );
+            const host = order.collective.host;
+            await fakeConnectedAccount({
+              service: 'stripe',
+              username: 'host_stripe_account',
+              CollectiveId: host.id,
+            });
+
+            const user = order.createdByUser;
+            const newPaymentMethod = await fakePaymentMethod({
+              CollectiveId: user.CollectiveId,
+              service: PAYMENT_METHOD_SERVICE.STRIPE,
+              type: PAYMENT_METHOD_TYPE.CREDITCARD,
+            });
+
+            sandbox.stub(PaypalSubscriptionAPI, 'cancelPaypalSubscription').resolves();
+            const updatedOrder = await updatePaymentMethodForSubscription(user, order, newPaymentMethod);
+            expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2027-06-15T00:00:00.000Z');
+            expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2027-06-15T00:00:00.000Z');
+          });
         });
       });
 
