@@ -27,7 +27,7 @@ import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import SQLQueries from '../lib/queries';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize from '../lib/sequelize';
-import { getTaxFormsS3Bucket, isTaxFormS3KeyForAccount } from '../lib/tax-forms';
+import { getTaxFormS3KeyCollectiveId, getTaxFormsS3Bucket, isLegacyTaxFormS3Key } from '../lib/tax-forms';
 import { isValidURL, prependHttp } from '../lib/url-utils';
 
 import Activity from './Activity';
@@ -60,6 +60,9 @@ const ENCRYPTION_KEY = get(config, 'taxForms.encryptionKey');
 
 /** Legacy S3 keys (`US_TAX_FORM_<year>_<name>.pdf`) are not bound to an account ID; only trust them on old documents */
 const LEGACY_TAX_FORM_KEYS_CUTOFF_DATE = new Date('2024-01-01T00:00:00Z');
+
+/** Max length of a `mergedIntoCollectiveId` chain (A merged into B, B merged into C...) to follow */
+const MAX_ACCOUNT_MERGE_HOPS = 10;
 
 export type LegalDocumentAttributes = InferAttributes<LegalDocument>;
 
@@ -331,7 +334,7 @@ class LegalDocument extends ModelWithPublicId<
     }
 
     const taxFormsBucket = getTaxFormsS3Bucket();
-    if (taxFormsBucket && parsed.bucket === taxFormsBucket && !isTaxFormS3KeyForAccount(parsed.key, payee.id)) {
+    if (taxFormsBucket && parsed.bucket === taxFormsBucket && getTaxFormS3KeyCollectiveId(parsed.key) !== payee.id) {
       throw new ValidationFailed('This tax form link does not belong to this account');
     }
   };
@@ -528,26 +531,66 @@ class LegalDocument extends ModelWithPublicId<
    * Whether the document can be downloaded.
    *
    * Some links have been manually set to arbitrary values (e.g. Google Drive) by the support team in the past. Only "Official" S3 links can be downloaded.
+   * The S3 key must belong to the document owner, otherwise anyone able to set `documentLink` could point it at another account's tax form.
    */
-  canDownload = function (): boolean {
+  canDownload = async function (): Promise<boolean> {
     if (!this.documentLink) {
       return false;
     }
 
+    let parsed: { bucket: string; key: string };
     try {
-      const { bucket, key } = parseS3Url(this.documentLink);
-      if (bucket !== getTaxFormsS3Bucket()) {
-        return false;
-      }
-
-      // The S3 key must belong to the document owner, otherwise anyone able to set `documentLink`
-      // could point it at another account's tax form and download it.
-      return isTaxFormS3KeyForAccount(key, this.CollectiveId, {
-        allowLegacy: Boolean(this.createdAt) && new Date(this.createdAt) < LEGACY_TAX_FORM_KEYS_CUTOFF_DATE,
-      });
+      parsed = parseS3Url(this.documentLink);
     } catch {
       return false;
     }
+
+    if (parsed.bucket !== getTaxFormsS3Bucket()) {
+      return false;
+    } else if (isLegacyTaxFormS3Key(parsed.key)) {
+      return Boolean(this.createdAt) && new Date(this.createdAt) < LEGACY_TAX_FORM_KEYS_CUTOFF_DATE;
+    }
+
+    const keyCollectiveId = getTaxFormS3KeyCollectiveId(parsed.key);
+    return Boolean(keyCollectiveId) && this.isOwnerOrMergedIntoOwner(keyCollectiveId);
+  };
+
+  /**
+   * Whether `collectiveId` is the document owner, or an account that was merged into it. Merging accounts
+   * (`server/lib/merge-accounts.ts`) moves legal documents to the target account without renaming their files,
+   * and marks the source account as deleted with `data.mergedIntoCollectiveId`.
+   */
+  isOwnerOrMergedIntoOwner = async function (collectiveId: number): Promise<boolean> {
+    if (!collectiveId || !this.CollectiveId) {
+      return false;
+    } else if (collectiveId === this.CollectiveId) {
+      return true;
+    }
+
+    const CollectiveModel = sequelize.models.Collective as unknown as {
+      findByPk: (
+        id: number,
+        options: unknown,
+      ) => Promise<{ deletedAt?: Date | null; data?: { mergedIntoCollectiveId?: number } } | null>;
+    };
+
+    let currentId = collectiveId;
+    for (let hop = 0; hop < MAX_ACCOUNT_MERGE_HOPS; hop++) {
+      const account = await CollectiveModel.findByPk(currentId, {
+        paranoid: false,
+        attributes: ['id', 'deletedAt', 'data'],
+      });
+      const mergedIntoId = account?.deletedAt ? Number(account.data?.mergedIntoCollectiveId) : null;
+      if (!mergedIntoId) {
+        return false;
+      } else if (mergedIntoId === this.CollectiveId) {
+        return true;
+      }
+
+      currentId = mergedIntoId;
+    }
+
+    return false;
   };
 
   markAsInvalid = async (

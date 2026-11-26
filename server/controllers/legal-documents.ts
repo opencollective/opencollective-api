@@ -92,7 +92,7 @@ export default {
         return res.status(403).send({ message: 'Unauthorized' });
       } else if (!(await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
         return res.status(403).send({ message: 'Two-factor authentication required' });
-      } else if (!legalDocument.canDownload()) {
+      } else if (!(await legalDocument.canDownload())) {
         return res.status(403).send({ message: 'Document cannot be downloaded' });
       }
 
@@ -109,7 +109,7 @@ export default {
 
       // Defense in depth: files uploaded by the platform are tagged with the owner's collective ID
       const fileCollectiveId = metadata?.collectiveid ?? metadata?.collectiveId;
-      if (fileCollectiveId && fileCollectiveId !== `${legalDocument.CollectiveId}`) {
+      if (fileCollectiveId && !(await legalDocument.isOwnerOrMergedIntoOwner(Number(fileCollectiveId)))) {
         reportMessageToSentry('Legal document file does not belong to the document owner', {
           severity: 'error',
           extra: { legalDocumentId: legalDocument.id, CollectiveId: legalDocument.CollectiveId, fileCollectiveId },

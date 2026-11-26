@@ -226,7 +226,7 @@ describe('server/controllers/legal-documents', () => {
               year: YEAR - 1 - foreignKeys.indexOf(key), // Unique constraint on year/collective
               documentLink: fakeOpenCollectiveS3URL({ bucket: config.taxForms.aws.s3.bucket, key }),
             });
-            expect(doc.canDownload(), key).to.be.false;
+            expect(await doc.canDownload(), key).to.be.false;
             const res = await downloadWithValid2FA(doc.id);
             expect(res.status.firstCall.args[0], key).to.equal(403);
             expect(res.send.firstCall.args[0]).to.deep.equal({ message: 'Document cannot be downloaded' });
@@ -244,6 +244,18 @@ describe('server/controllers/legal-documents', () => {
           expect(res.status.firstCall.args[0]).to.equal(403);
           expect(res.send.firstCall.args[0]).to.deep.equal({ message: 'Document cannot be downloaded' });
           expect(res.set.called).to.be.false;
+        });
+
+        it('accepts S3 object metadata from an account merged into the document owner', async () => {
+          const mergedAccount = await fakeCollective();
+          await mergedAccount.update({ data: { mergedIntoCollectiveId: payee.CollectiveId } });
+          await mergedAccount.destroy();
+          sandbox.stub(LibS3, 'getFileWithMetadataFromS3').resolves({
+            body: LegalDocument.encrypt(Buffer.from('content')),
+            metadata: { collectiveid: `${mergedAccount.id}` },
+          });
+          const res = await downloadWithValid2FA(legalDocument.id);
+          expect(res.set.calledWith('Content-Type', 'application/pdf')).to.be.true;
         });
 
         it('accepts matching S3 object metadata', async () => {

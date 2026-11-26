@@ -149,21 +149,51 @@ describe('server/models/LegalDocument', () => {
         LegalDocument.build({ CollectiveId: owner.id, year, documentLink, ...attrs });
 
       // Valid
-      expect(build(taxFormUrl(`US_TAX_FORM/${year}/Name-${owner.id}.pdf`)).canDownload()).to.be.true;
-      expect(build(taxFormUrl(`US_TAX_FORM/${year - 1}/A-b/c-${owner.id}_${'f'.repeat(64)}.pdf`)).canDownload()).to.be
-        .true;
+      expect(await build(taxFormUrl(`US_TAX_FORM/${year}/Name-${owner.id}.pdf`)).canDownload()).to.be.true;
+      expect(await build(taxFormUrl(`US_TAX_FORM/${year - 1}/A-b/c-${owner.id}_${'f'.repeat(64)}.pdf`)).canDownload())
+        .to.be.true;
 
       // Invalid
-      expect(build(null).canDownload()).to.be.false;
-      expect(build('https://drive.google.com/whatever').canDownload()).to.be.false;
-      expect(build(fakeOpenCollectiveS3URL({ key: `US_TAX_FORM/${year}/X-${owner.id}.pdf` })).canDownload()).to.be
+      expect(await build(null).canDownload()).to.be.false;
+      expect(await build('https://drive.google.com/whatever').canDownload()).to.be.false;
+      expect(await build(fakeOpenCollectiveS3URL({ key: `US_TAX_FORM/${year}/X-${owner.id}.pdf` })).canDownload()).to.be
         .false;
-      expect(build(taxFormUrl(`US_TAX_FORM/${year}/Name-${other.id}.pdf`)).canDownload()).to.be.false;
-      expect(build(taxFormUrl(`US_TAX_FORM/${year}/X-${owner.id}-${other.id}.pdf`)).canDownload()).to.be.false;
-      expect(build(taxFormUrl(`US_TAX_FORM/${year}/X-${owner.id}_zz-${other.id}.pdf`)).canDownload()).to.be.false;
-      expect(build(taxFormUrl(`US_TAX_FORM/${year}/X-1${owner.id}.pdf`)).canDownload()).to.be.false;
-      expect(build(taxFormUrl(`US_TAX_FORM/${year}/X-${owner.id}1.pdf`)).canDownload()).to.be.false;
-      expect(build(taxFormUrl(`US_TAX_FORM/${year}/X-${owner.id}.pdf.exe`)).canDownload()).to.be.false;
+      expect(await build(taxFormUrl(`US_TAX_FORM/${year}/Name-${other.id}.pdf`)).canDownload()).to.be.false;
+      expect(await build(taxFormUrl(`US_TAX_FORM/${year}/X-${owner.id}-${other.id}.pdf`)).canDownload()).to.be.false;
+      expect(await build(taxFormUrl(`US_TAX_FORM/${year}/X-${owner.id}_zz-${other.id}.pdf`)).canDownload()).to.be.false;
+      expect(await build(taxFormUrl(`US_TAX_FORM/${year}/X-1${owner.id}.pdf`)).canDownload()).to.be.false;
+      expect(await build(taxFormUrl(`US_TAX_FORM/${year}/X-${owner.id}1.pdf`)).canDownload()).to.be.false;
+      expect(await build(taxFormUrl(`US_TAX_FORM/${year}/X-${owner.id}.pdf.exe`)).canDownload()).to.be.false;
+    });
+
+    it('accepts files from accounts that were merged into the document owner', async () => {
+      const year = new Date().getFullYear();
+      const owner = await fakeCollective();
+      const mergedDirectly = await fakeCollective();
+      const mergedTransitively = await fakeCollective();
+      const deletedNotMerged = await fakeCollective();
+      const mergedElsewhere = await fakeCollective();
+      await mergedDirectly.update({ data: { mergedIntoCollectiveId: owner.id } });
+      await mergedDirectly.destroy();
+      await mergedTransitively.update({ data: { mergedIntoCollectiveId: mergedDirectly.id } });
+      await mergedTransitively.destroy();
+      await deletedNotMerged.destroy();
+      await mergedElsewhere.update({ data: { mergedIntoCollectiveId: deletedNotMerged.id } });
+      await mergedElsewhere.destroy();
+      const notDeleted = await fakeCollective({ data: { mergedIntoCollectiveId: owner.id } });
+
+      const build = (keyCollectiveId: number) =>
+        LegalDocument.build({
+          CollectiveId: owner.id,
+          year,
+          documentLink: taxFormUrl(`US_TAX_FORM/${year}/Name-${keyCollectiveId}.pdf`),
+        });
+
+      expect(await build(mergedDirectly.id).canDownload()).to.be.true;
+      expect(await build(mergedTransitively.id).canDownload()).to.be.true;
+      expect(await build(deletedNotMerged.id).canDownload()).to.be.false;
+      expect(await build(mergedElsewhere.id).canDownload()).to.be.false;
+      expect(await build(notDeleted.id).canDownload()).to.be.false; // Must be marked as deleted by the merge
     });
 
     it('only accepts legacy (pre-2023) keys on old documents', async () => {
@@ -172,8 +202,8 @@ describe('server/models/LegalDocument', () => {
       const build = (createdAt: Date) =>
         LegalDocument.build({ CollectiveId: owner.id, year: 2022, documentLink: legacyLink, createdAt });
 
-      expect(build(new Date('2022-06-01')).canDownload()).to.be.true;
-      expect(build(new Date()).canDownload()).to.be.false;
+      expect(await build(new Date('2022-06-01')).canDownload()).to.be.true;
+      expect(await build(new Date()).canDownload()).to.be.false;
     });
   });
 
@@ -204,7 +234,7 @@ describe('server/models/LegalDocument', () => {
       });
       const externalDoc = await LegalDocument.findOne({ where: { CollectiveId: payee.id, year: year - 1 } });
       expect(externalDoc.documentLink).to.eq('https://drive.google.com/whatever');
-      expect(externalDoc.canDownload()).to.be.false;
+      expect(await externalDoc.canDownload()).to.be.false;
 
       const ownLink = fakeOpenCollectiveS3URL({
         bucket: config.taxForms.aws.s3.bucket,
@@ -213,7 +243,7 @@ describe('server/models/LegalDocument', () => {
       await LegalDocument.manuallyMarkTaxFormAsReceived(payee, user, ownLink);
       const ownDoc = await LegalDocument.findOne({ where: { CollectiveId: payee.id, year } });
       expect(ownDoc.documentLink).to.eq(ownLink);
-      expect(ownDoc.canDownload()).to.be.true;
+      expect(await ownDoc.canDownload()).to.be.true;
     });
   });
 
