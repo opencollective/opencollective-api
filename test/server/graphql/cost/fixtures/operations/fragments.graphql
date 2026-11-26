@@ -1,0 +1,9 @@
+fragment FixtureAccountMembers on Account {
+  members(limit: 10) {
+    totalCount
+    nodes {
+      id
+      role
+    }
+  }
+}

@@ -1,0 +1,14 @@
+query FixtureTransactions($slug: String, $limit: Int = 20) {
+  account(slug: $slug) {
+    transactions(limit: $limit) {
+      totalCount
+      nodes {
+        id
+        amount {
+          valueInCents
+          currency
+        }
+      }
+    }
+  }
+}

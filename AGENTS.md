@@ -33,3 +33,4 @@ Private organizations: `docs/private-organizations.md`.
 From this repo: `npm run type:check`, `npm run lint:check`, `npm run prettier:check` (fix: `prettier:write`), `npm run ts-unused-exports`.
 Tests: Mocha (`npm run test`).
 Schema dumps: `npm run graphql:update`.
+Query cost of GraphQL operations (CI job `GraphQL query cost`, on the frontend's operations): `npm run graphql:cost -- <files or directories>`, see `scripts/graphql-cost.ts`.

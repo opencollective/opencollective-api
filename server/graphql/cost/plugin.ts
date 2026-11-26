@@ -13,18 +13,14 @@
  */
 
 import type { ApolloServerPlugin, GraphQLRequestContextDidResolveOperation } from '@apollo/server';
-import config from 'config';
 import { GraphQLError } from 'graphql';
 import { orderBy } from 'lodash';
 
 import { HandlerType, reportErrorToSentry, reportMessageToSentry, Sentry } from '../../lib/sentry';
 import { recordGraphQLQueryCost } from '../../lib/sentry/metrics';
-import { parseToBoolean } from '../../lib/utils';
 
 import { getQueryCost } from './index';
-
-/** Used when `GRAPHQL_COST_MAX` is not a positive number. Keep in sync with `config/default.json`. */
-const DEFAULT_MAX_QUERY_COST = 50_000_000;
+import { getQueryCostSettings } from './settings';
 
 /** Rejected queries can be up to the size of the body limit, only the beginning is sent to Sentry */
 const MAX_QUERY_LENGTH_IN_REPORT = 10_000;
@@ -39,14 +35,6 @@ const MAX_FIELDS_IN_REPORT = 20;
 const CLIENT_APPLICATION_REGEX = /^[a-z0-9][a-z0-9._-]{0,49}$/i;
 
 type RequestContext = GraphQLRequestContextDidResolveOperation<Express.Request>;
-
-const getQueryCostSettings = (): { max: number; reject: boolean } => {
-  const max = Number(config.graphql.cost?.max);
-  return {
-    max: Number.isFinite(max) && max > 0 ? max : DEFAULT_MAX_QUERY_COST,
-    reject: parseToBoolean(config.graphql.cost?.reject),
-  };
-};
 
 /**
  * Identifies the client of a request, to group costs: `oauth:<ApplicationId>` for OAuth applications,
