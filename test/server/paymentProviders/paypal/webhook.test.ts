@@ -5,6 +5,7 @@ import { expect } from 'chai';
 import config from 'config';
 import { createSandbox } from 'sinon';
 
+import ActivityTypes from '../../../../server/constants/activities';
 import OrderStatuses from '../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
@@ -342,6 +343,38 @@ describe('server/paymentProviders/paypal/webhook', () => {
         1,
         { attributes: { flow: 'contribution', method: 'payment' } },
       ]);
+    });
+
+    it('does nothing if the capture transaction was already recorded (e.g. by the synchronous flow)', async () => {
+      const host = await fakeHost();
+      await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.PAYPAL,
+        type: PAYMENT_METHOD_TYPE.PAYMENT,
+      });
+      const order = await fakeOrder({
+        CollectiveId: collective.id,
+        FromCollectiveId: paymentMethod.CollectiveId,
+        PaymentMethodId: paymentMethod.id,
+        status: OrderStatuses.NEW,
+        data: { paypalCaptureId: 'PAYCAPTURE-DUP' },
+      });
+      await fakeTransaction({ OrderId: order.id, data: { paypalCaptureId: 'PAYCAPTURE-DUP' } });
+
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+      const recordPaypalCaptureStub = sandbox.stub(paypalPayment, 'recordPaypalCapture');
+
+      await callPayPalWebhook(host.id, {
+        event_type: 'PAYMENT.CAPTURE.COMPLETED',
+        resource: { id: 'PAYCAPTURE-DUP', amount: { total: '12.00', currency: 'USD' } },
+      });
+
+      expect(recordPaypalCaptureStub).to.not.have.been.called;
+      const processedActivitiesCount = await models.Activity.count({
+        where: { OrderId: order.id, type: ActivityTypes.ORDER_PROCESSED },
+      });
+      expect(processedActivitiesCount).to.eq(0);
     });
   });
 

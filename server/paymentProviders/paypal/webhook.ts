@@ -248,6 +248,11 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
     await order.update({ processedAt: new Date(), status: OrderStatus.PAID });
   });
 
+  // Already recorded (e.g. by the synchronous `processPaypalOrder`), which also handles members & emails
+  if (!transaction) {
+    return;
+  }
+
   await Promise.all([
     // Register user as a member, since the transaction is not created in `processOrder`
     order.getOrCreateMembers(),
