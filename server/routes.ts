@@ -22,6 +22,7 @@ import * as transferwise from './controllers/transferwise';
 import * as users from './controllers/users';
 import { paypalWebhook, plaidWebhook, stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
 import { getGraphqlCacheProperties } from './graphql/cache';
+import { queryCostPlugin } from './graphql/cost/plugin';
 import { formatGraphQLError } from './graphql/format-error';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
@@ -269,6 +270,7 @@ export default async (app: express.Application) => {
     apolloSlowRequestCachePlugin,
     apolloSlowResolverDebugPlugin,
     apolloStudioUsagePlugin,
+    queryCostPlugin, // Log-only by default, see opencollective/opencollective#9081
   ];
 
   // /* GraphQL server generic options */

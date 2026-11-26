@@ -230,6 +230,10 @@
     "cipher": "DES"
   },
   "graphql": {
+    "cost": {
+      "max": 50000000,
+      "reject": false
+    },
     "cache": {
       "enabled": false,
       "ttl": 300,
