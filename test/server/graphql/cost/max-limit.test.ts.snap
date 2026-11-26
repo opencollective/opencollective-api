@@ -1,0 +1,16 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`server/graphql/cost max limit V2 schema matches the snapshot of every field with its own maximum 1`] = `
+"Account.childrenAccounts: 100
+Account.transactions: 10000
+Query.community: 100
+Query.transactions: 10000
+SearchResults.accounts: 50
+SearchResults.comments: 50
+SearchResults.expenses: 50
+SearchResults.hostApplications: 50
+SearchResults.orders: 50
+SearchResults.tiers: 50
+SearchResults.transactions: 50
+SearchResults.updates: 50"
+`;

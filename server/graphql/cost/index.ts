@@ -12,6 +12,9 @@
  *   Fields that return a list without taking a `limit` declare their size in `extensions.cost.listSize`, which
  *   works the same way.
  *
+ * It also checks every `limit` against the maximum of its field (`DEFAULT_MAX_LIMIT`, unless the field declares
+ * `extensions.cost.maxLimit`) and returns the ones above it in `limitViolations`.
+ *
  * This is a pure function with no dependency on Apollo or the database, so that the server, the tests and CI can
  * all call it. It never throws.
  */
@@ -40,6 +43,7 @@ import {
 } from 'graphql';
 
 import { CostTier, getFieldCostExtension, PARENT_LIMIT } from './extensions';
+import type { LimitSource } from './limit';
 import { DEFAULT_MAX_LIMIT, resolveLimitArgument } from './limit';
 
 /** Cost of a field that does not declare a weight */
@@ -65,7 +69,10 @@ export interface QueryCostOptions {
   variables?: unknown;
   /** Name of the operation to analyze. Required when the document contains several operations. */
   operationName?: string | null;
-  /** Number of items to count when a `limit` is invalid or missing. Defaults to `DEFAULT_MAX_LIMIT`. */
+  /**
+   * Number of items to count when a `limit` is invalid or missing, for fields that do not declare
+   * `extensions.cost.maxLimit`. Defaults to `DEFAULT_MAX_LIMIT`.
+   */
   maxLimit?: number;
   /** See `DEFAULT_MAX_NODES` */
   maxNodes?: number;
@@ -80,6 +87,17 @@ interface QueryCostField {
   responseKey: string;
   fieldName: string;
   cost: number;
+}
+
+/** A `limit` above the maximum of its field */
+interface LimitViolation {
+  /** Schema coordinate of the field, `Type.field` */
+  coordinate: string;
+  /** Alias if any, otherwise field name */
+  responseKey: string;
+  limit: number;
+  maxLimit: number;
+  source: Exclude<LimitSource, 'invalid' | 'missing'>;
 }
 
 /** Cost of one schema field (`Type.field`) and its children, summed over all the places it is counted */
@@ -107,6 +125,11 @@ interface QueryCostResult {
    * expensive first. A field nested in another one counts in both, so the entries do not add up to `cost`.
    */
   breakdown?: QueryCostBreakdownEntry[];
+  /**
+   * The limits above the maximum of their field, once per field in the document (a field spread through a fragment in
+   * several places counts once). Partial when the analysis was aborted.
+   */
+  limitViolations: LimitViolation[];
   /** Set when the analysis stopped because the document is too expensive to analyze */
   abortReason?: 'MAX_NODES' | 'MAX_DEPTH';
   /** Set when the operation could not be analyzed: no matching operation or root type (cost 0), unexpected error (cost Infinity) */
@@ -131,6 +154,8 @@ interface AnalysisContext {
   maxNodes: number;
   maxDepth: number;
   visitedNodes: number;
+  /** By field node, so that a node analyzed several times (fragments, possible types of an interface) counts once */
+  limitViolations: Map<FieldNode, LimitViolation>;
   /** Cost of a selection on a type, see `getSelectionCostCacheKey` */
   cache: Map<string, CachedSelectionCost>;
   /** Deepest selection set reached so far in the subtree being analyzed, used to check the depth of cached subtrees */
@@ -393,6 +418,17 @@ const getFieldDefinition = (
   return 'getFields' in parentType ? parentType.getFields()[fieldName] : undefined;
 };
 
+const recordLimitViolation = (
+  context: AnalysisContext,
+  fieldNode: FieldNode,
+  violation: Omit<LimitViolation, 'responseKey'>,
+): void => {
+  if (!context.limitViolations.has(fieldNode)) {
+    const responseKey = fieldNode.alias?.value ?? fieldNode.name.value;
+    context.limitViolations.set(fieldNode, { ...violation, responseKey });
+  }
+};
+
 /** Cost of a field, given all the nodes that select it under the same response key */
 const getFieldCost = (
   context: AnalysisContext,
@@ -433,7 +469,21 @@ const getFieldCost = (
   let childrenPendingListSize: number | undefined;
   if (limitArgument) {
     // Fields under the same response key have the same arguments (enforced by validation), use the first one
-    const { value: limit } = resolveLimitArgument(fieldNodes[0], limitArgument, context);
+    const maxLimit = costExtension.maxLimit ?? DEFAULT_MAX_LIMIT;
+    const { value: limit, source } = resolveLimitArgument(fieldNodes[0], limitArgument, {
+      variables: context.variables,
+      variableDefinitions: context.variableDefinitions,
+      maxLimit: costExtension.maxLimit ?? context.maxLimit,
+    });
+    // A limit that cannot be determined counts as the maximum and is not a violation: an invalid one fails validation
+    if (limit > maxLimit && source !== 'invalid' && source !== 'missing') {
+      recordLimitViolation(context, fieldNodes[0], {
+        coordinate: `${parentType.name}.${fieldName}`,
+        limit,
+        maxLimit,
+        source,
+      });
+    }
     if (isList) {
       size = limit;
     } else {
@@ -511,6 +561,7 @@ export const getQueryCost = (
     operationType: null,
     fields: [],
     visitedNodes: 0,
+    limitViolations: [],
   };
 
   let context: AnalysisContext;
@@ -554,6 +605,7 @@ export const getQueryCost = (
       maxNodes,
       maxDepth,
       visitedNodes: 0,
+      limitViolations: new Map(),
       cache: new Map(),
       deepestDepth: 0,
       breakdownCache: breakdown ? new Map() : null,
@@ -593,5 +645,6 @@ export const getQueryCost = (
   }
 
   result.visitedNodes = context?.visitedNodes ?? 0;
+  result.limitViolations = context ? [...context.limitViolations.values()] : [];
   return result;
 };

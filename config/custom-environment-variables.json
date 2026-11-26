@@ -47,7 +47,10 @@
   "graphql": {
     "cost": {
       "max": "GRAPHQL_COST_MAX",
-      "reject": "GRAPHQL_COST_REJECT"
+      "reject": "GRAPHQL_COST_REJECT",
+      "maxLimit": {
+        "reject": "GRAPHQL_COST_MAX_LIMIT_REJECT"
+      }
     },
     "apollo": {
       "key": "APOLLO_KEY",

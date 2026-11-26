@@ -11,7 +11,7 @@ const GRAPHQL_MAX_INT = 2147483647;
 /** The maximum `limit` that collections accept, used when the requested limit cannot be determined. */
 export const DEFAULT_MAX_LIMIT = 1000;
 
-type LimitSource =
+export type LimitSource =
   /** Literal value in the document: `limit: 10` */
   | 'literal'
   /** Value of a request variable: `limit: $limit` with `{ "limit": 10 }` */

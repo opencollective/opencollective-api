@@ -345,6 +345,7 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
 const CommunityQuery = {
   description: 'Return accounts that have interacted with a given account or host',
   type: new GraphQLNonNull(GraphQLAccountCollection),
+  extensions: { cost: { maxLimit: DEFAULT_LIMIT } },
   args: {
     account: {
       type: GraphQLAccountReferenceInput,

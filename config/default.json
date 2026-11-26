@@ -232,7 +232,10 @@
   "graphql": {
     "cost": {
       "max": 50000000,
-      "reject": false
+      "reject": false,
+      "maxLimit": {
+        "reject": false
+      }
     },
     "cache": {
       "enabled": false,

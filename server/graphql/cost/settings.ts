@@ -17,3 +17,12 @@ export const getQueryCostSettings = (): { max: number; reject: boolean } => {
     reject: parseToBoolean(config.graphql.cost?.reject),
   };
 };
+
+/**
+ * `config.graphql.cost.maxLimit`: whether to reject a `limit` above the maximum of its field
+ * (`GRAPHQL_COST_MAX_LIMIT_REJECT`). Independent from `GRAPHQL_COST_REJECT`. The maximums are declared in the schema,
+ * see `extensions.cost.maxLimit`.
+ */
+export const getMaxLimitSettings = (): { reject: boolean } => ({
+  reject: parseToBoolean(config.graphql.cost?.maxLimit?.reject),
+});

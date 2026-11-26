@@ -33,6 +33,7 @@ import { getCollectionArgs } from '../../graphql/v2/interface/Collection';
 import type { SearchQueryAccountsResolverArgs } from '../../graphql/v2/object/SearchResponse';
 import { GraphQLSearchResultScore } from '../../graphql/v2/object/SearchResultScore';
 
+import { PostgresSearchLimits } from './providers/postgres/input';
 import { SearchEntity, SearchEntityParams, SearchHit, SearchRequest } from './types';
 
 /**
@@ -133,7 +134,7 @@ const buildSearchResultsType = (entity: SearchEntity, name: string, collectionTy
   return {
     description: `Search results for ${name}`,
     // A full-text search across the platform, or a whole host
-    extensions: { cost: { weight: CostTier.Report } },
+    extensions: { cost: { weight: CostTier.Report, maxLimit: PostgresSearchLimits.MAX_RESULTS_PER_PAGE } },
     args: {
       ...getCollectionArgs({ offset: 0, limit: 0 }),
       ...strategy.args,
