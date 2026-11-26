@@ -37,6 +37,7 @@ import Expense, { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
 import { isRemoteUserRoot } from '../../../common/scope-check';
+import { searchCollectionWeight } from '../../../cost/argument-costs';
 import { Forbidden, NotFound, Unauthorized } from '../../../errors';
 import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection';
 import { GraphQLActivityType } from '../../enum/ActivityType';
@@ -1386,6 +1387,7 @@ const fetchExpensesPayees = async (
 
 const ExpensesCollectionQuery = {
   type: new GraphQLNonNull(GraphQLExpenseCollection),
+  extensions: { cost: { weight: searchCollectionWeight } },
   args: ExpensesCollectionQueryArgs,
   resolve: ExpensesCollectionQueryResolver,
 };

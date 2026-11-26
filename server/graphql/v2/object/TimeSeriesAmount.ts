@@ -2,6 +2,7 @@ import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLStri
 import { GraphQLDateTime } from 'graphql-scalars';
 import moment from 'moment';
 
+import { PARENT_LIMIT } from '../../cost/extensions';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { getTimeSeriesFields, GraphQLTimeSeries } from '../interface/TimeSeries';
 
@@ -57,8 +58,9 @@ export const GraphQLTimeSeriesAmount = new GraphQLObjectType({
     ...getTimeSeriesFields(),
     nodes: {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTimeSeriesAmountNodes))),
-      // Time series are not paginated: one per time unit (and label) in the date range
-      extensions: { cost: { listSize: 100 } },
+      // Not paginated: one per time unit (and label) in the date range. The fields that return a time series
+      // declare that number in their `listSize`, with `getTimeSeriesListSize`.
+      extensions: { cost: { listSize: PARENT_LIMIT } },
       description: 'Time series data points',
     },
   }),

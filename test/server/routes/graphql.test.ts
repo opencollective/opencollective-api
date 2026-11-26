@@ -327,6 +327,35 @@ describe('GraphQL query cost (opencollective/opencollective#9081)', () => {
       expect(getCostReports()).to.have.length(0);
     });
 
+    it('reports the cost functions that failed, without breaking the request (opencollective/opencollective#9088)', async () => {
+      sandbox.stub(config.graphql.cost, 'reject').value(true);
+      sandbox.stub(config.graphql.cost, 'max').value(1000);
+      const costFunctionErrors = [
+        { coordinate: 'Query.accounts', responseKey: 'accounts', property: 'weight', message: 'Threw: Oops' },
+      ];
+      sandbox.stub(QueryCostLib, 'getQueryCost').returns({
+        cost: 61,
+        operationName: 'CostlyAccounts',
+        operationType: 'query',
+        fields: [],
+        visitedNodes: 3,
+        limitViolations: [],
+        costFunctionErrors,
+      });
+      const response = await post('/graphql/v2').send({ query: v2Query }).expect(200);
+
+      expect(response.body.errors).to.not.exist;
+      const reports = reportMessageToSentry
+        .getCalls()
+        .filter(call => call.args[0].startsWith('GraphQL cost function failed'));
+      expect(reports).to.have.length(1);
+      expect(reports[0].args[0]).to.equal('GraphQL cost function failed: Query.accounts');
+      expect(reports[0].args[1]).to.deep.include({ severity: 'error' });
+      expect(reports[0].args[1].extra).to.deep.equal({ operationName: 'CostlyAccounts', costFunctionErrors });
+      expect(getCostReports()).to.have.length(0);
+      expect(recordGraphQLQueryCost).to.have.been.calledOnceWith(sinon.match({ cost: 61, overMax: false }));
+    });
+
     it('does not break the request when the analysis fails', async () => {
       sandbox.stub(config.graphql.cost, 'reject').value(true);
       sandbox.stub(QueryCostLib, 'getQueryCost').returns({

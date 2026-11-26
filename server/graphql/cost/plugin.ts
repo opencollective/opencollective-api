@@ -10,6 +10,8 @@
  *   one Sentry report per request. With `config.graphql.cost.maxLimit.reject` (`GRAPHQL_COST_MAX_LIMIT_REJECT`, off by
  *   default), it is also rejected with an HTTP 400 naming the field. Root users are exempt. See
  *   opencollective/opencollective#9087.
+ * - A cost function of `extensions.cost` that fails (see opencollective/opencollective#9088) is reported, once per
+ *   request. The analyzer has already counted its fallback, so the request is checked as usual.
  * - A failure of the analyzer is reported and never fails the request.
  *
  * It runs on `didResolveOperation` rather than as a validation rule, because the cost depends on the variables
@@ -158,6 +160,35 @@ const checkLimits = (checkContext: CheckContext): GraphQLError | null => {
   });
 };
 
+/** Cost functions are our code: a failure is a bug to fix, never the client's fault */
+const reportCostFunctionErrors = ({
+  requestContext,
+  result,
+  client,
+  apiVersion,
+  reportedOperationName,
+}: CheckContext) => {
+  if (!result.costFunctionErrors?.length) {
+    return;
+  }
+
+  const coordinates = [...new Set(result.costFunctionErrors.map(error => error.coordinate))].sort();
+  reportMessageToSentry(
+    `GraphQL cost function failed: ${coordinates.slice(0, MAX_LIMIT_VIOLATIONS_IN_MESSAGE).join(', ')}`,
+    {
+      handler: HandlerType.GQL,
+      severity: 'error',
+      transactionName: `GraphQL cost function failed: ${reportedOperationName || 'Anonymous'}`,
+      tags: { client, apiVersion },
+      req: requestContext.contextValue,
+      extra: {
+        operationName: reportedOperationName,
+        costFunctionErrors: result.costFunctionErrors.slice(0, MAX_FIELDS_IN_REPORT),
+      },
+    },
+  );
+};
+
 /**
  * Analyzes the operation, records its cost and reports it if above the maximum, then checks its limits. Returns the
  * rejection error, if any: the one about limits first, as it names the field to fix.
@@ -204,6 +235,7 @@ const checkQueryCost = (requestContext: RequestContext): GraphQLError | null => 
   });
 
   const checkContext: CheckContext = { requestContext, result, client, application, apiVersion, reportedOperationName };
+  reportCostFunctionErrors(checkContext);
   const limitRejection = checkLimits(checkContext);
   if (!overMax) {
     return limitRejection;
