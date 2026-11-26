@@ -12,6 +12,7 @@ import { arrangedBy, defineRecipe, type Recipe } from './builders';
 import { collectiveRecipes } from './collective-recipes';
 import { contributionRecipes } from './contribution-recipes';
 import { expenseRecipes } from './expense-recipes';
+import { hostRecipes } from './host-recipes';
 import { userRecipes } from './user-recipes';
 import { vendorRecipes } from './vendor-recipes';
 
@@ -92,6 +93,7 @@ const recipes: Record<string, Recipe> = {
   ...expenseRecipes,
   ...userRecipes,
   ...vendorRecipes,
+  ...hostRecipes,
 };
 
 class FixtureError extends Error {
