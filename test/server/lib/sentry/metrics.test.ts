@@ -8,6 +8,7 @@ import { TransferwiseError, ValidationFailed } from '../../../../server/graphql/
 import {
   buildMetricName,
   ErrorType,
+  GRAPHQL_QUERY_COST_METRIC,
   isValidMetricName,
   mapErrorToType,
   MetricDomain,
@@ -16,6 +17,7 @@ import {
   MetricOrigin,
   MetricProvider,
   paymentServiceToMetricProvider,
+  recordGraphQLQueryCost,
   recordPaymentOutcome,
 } from '../../../../server/lib/sentry/metrics';
 
@@ -278,6 +280,67 @@ describe('server/lib/sentry/metrics', () => {
           errorType: ErrorType.CARD_DECLINED,
         }),
       ).to.not.throw();
+    });
+  });
+
+  describe('recordGraphQLQueryCost', () => {
+    let distributionStub;
+    const params = {
+      cost: 1234,
+      apiVersion: 'v2' as const,
+      operationName: 'ExpensePage',
+      operationType: 'query',
+      client: 'frontend',
+      overMax: false,
+    };
+
+    beforeEach(() => {
+      distributionStub = sandbox.stub(Sentry.metrics, 'distribution');
+    });
+
+    it('has a valid metric name', () => {
+      expect(isValidMetricName(GRAPHQL_QUERY_COST_METRIC)).to.be.true;
+    });
+
+    it('emits a distribution with the operation and the client as attributes', () => {
+      recordGraphQLQueryCost(params);
+      expect(distributionStub.firstCall.args).to.deep.equal([
+        'internal.opencollective.api.graphql_query_cost',
+        1234,
+        {
+          attributes: {
+            api_version: 'v2',
+            operation_name: 'ExpensePage',
+            operation_type: 'query',
+            client: 'frontend',
+            over_max: 'false',
+          },
+        },
+      ]);
+    });
+
+    it('names anonymous operations', () => {
+      recordGraphQLQueryCost({ ...params, operationName: null, operationType: null });
+      expect(distributionStub.firstCall.args[2].attributes).to.deep.include({
+        operation_name: 'Anonymous',
+        operation_type: 'unknown',
+      });
+    });
+
+    it('skips non-finite costs', () => {
+      recordGraphQLQueryCost({ ...params, cost: Infinity });
+      expect(distributionStub).to.not.have.been.called;
+    });
+
+    it('is a no-op when Sentry is not configured', () => {
+      sandbox.stub(config, 'sentry').value({});
+      recordGraphQLQueryCost(params);
+      expect(distributionStub).to.not.have.been.called;
+    });
+
+    it('never throws', () => {
+      distributionStub.throws(new Error('boom'));
+      expect(() => recordGraphQLQueryCost(params)).to.not.throw();
     });
   });
 });

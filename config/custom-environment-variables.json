@@ -45,6 +45,10 @@
     "readOnly": "DATABASE_READ_ONLY"
   },
   "graphql": {
+    "cost": {
+      "max": "GRAPHQL_COST_MAX",
+      "reject": "GRAPHQL_COST_REJECT"
+    },
     "apollo": {
       "key": "APOLLO_KEY",
       "graphRef": "APOLLO_GRAPH_REF"

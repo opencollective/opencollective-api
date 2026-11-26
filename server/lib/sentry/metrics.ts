@@ -262,3 +262,44 @@ export function recordPaymentOutcome(params: PaymentOutcomeParams): void {
     logger.warn('sentry/metrics: failed to record payment outcome', error);
   }
 }
+
+export const GRAPHQL_QUERY_COST_METRIC = 'internal.opencollective.api.graphql_query_cost';
+
+type GraphQLQueryCostParams = {
+  /** Finite cost of the operation. Operations whose analysis was aborted or failed are not recorded. */
+  cost: number;
+  apiVersion: 'v1' | 'v2';
+  operationName: string | null;
+  operationType: string | null;
+  /** See `getGraphQLClient` in `server/graphql/cost/plugin.ts` */
+  client: string;
+  /** Whether the cost is above the configured maximum */
+  overMax: boolean;
+};
+
+/**
+ * Records the cost of a GraphQL operation as a distribution, for every request (unlike traces, metrics are not
+ * sampled). Query it in Sentry > Explore > Metrics, grouped by `operation_name` or `client`.
+ * Never throws: metrics must not break a request. No-op when Sentry is not configured.
+ */
+export function recordGraphQLQueryCost(params: GraphQLQueryCostParams): void {
+  try {
+    if (!checkIfSentryConfigured() || !Number.isFinite(params.cost)) {
+      return;
+    }
+
+    /* eslint-disable camelcase */
+    const attributes: Record<string, string> = {
+      api_version: params.apiVersion,
+      operation_name: params.operationName || 'Anonymous',
+      operation_type: params.operationType || 'unknown',
+      client: params.client,
+      over_max: String(params.overMax),
+    };
+    /* eslint-enable camelcase */
+
+    Sentry.metrics.distribution(GRAPHQL_QUERY_COST_METRIC, params.cost, { attributes });
+  } catch (error) {
+    logger.warn('sentry/metrics: failed to record GraphQL query cost', error);
+  }
+}
