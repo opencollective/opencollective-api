@@ -53,6 +53,7 @@ export type Policies = Partial<{
     applies: 'ALL_COLLECTIVES' | 'NEW_COLLECTIVES';
     freeze: boolean;
   }>;
+  /** Maximum card limit for each interval, in cents of the host currency */
   [POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL]: Partial<{
     [interval in VirtualCardLimitIntervals]: number;
   }>;
