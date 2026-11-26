@@ -107,7 +107,11 @@ interface QueryCostBreakdownEntry {
 }
 
 interface QueryCostResult {
-  /** Total cost of the operation. `Infinity` when the analysis was aborted or failed. */
+  /**
+   * Total cost of the operation. `Infinity` when the analysis was aborted or failed unexpectedly. `0` with `error` set
+   * when there is nothing to execute (no matching operation, unsupported root type): check `error` before reading
+   * a zero cost as a successful estimate.
+   */
   cost: number;
   operationName: string | null;
   operationType: OperationDefinitionNode['operation'] | null;
@@ -128,7 +132,7 @@ interface QueryCostResult {
   limitViolations: LimitViolation[];
   /** Set when the analysis stopped because the document is too expensive to analyze */
   abortReason?: 'MAX_NODES' | 'MAX_DEPTH';
-  /** Set when the operation could not be analyzed (no matching operation, unexpected error) */
+  /** Set when the operation could not be analyzed: no matching operation or root type (cost 0), unexpected error (cost Infinity) */
   error?: string;
 }
 
@@ -153,18 +157,32 @@ interface AnalysisContext {
   /** By field node, so that a node analyzed several times (fragments, possible types of an interface) counts once */
   limitViolations: Map<FieldNode, LimitViolation>;
   /** Cost of a selection on a type, see `getSelectionCostCacheKey` */
-  cache: Map<string, number>;
+  cache: Map<string, CachedSelectionCost>;
+  /** Deepest selection set reached so far in the subtree being analyzed, used to check the depth of cached subtrees */
+  deepestDepth: number;
   /** With the `breakdown` option, the breakdown of each cached selection, for one evaluation of it */
   breakdownCache: Map<string, Breakdown> | null;
   selectionSetIds: WeakMap<SelectionSetNode, number>;
   lastSelectionSetId: number;
 }
 
+interface CachedSelectionCost {
+  cost: number;
+  /** Number of nested selection set levels in the subtree, this one included */
+  height: number;
+}
+
+/**
+ * `size × cost`, except that `0 × Infinity` is NaN, which compares as under any budget. Fail closed: an infinite
+ * subtree stays infinite.
+ */
+const multiplyCost = (size: number, cost: number): number => (size === 0 && cost === Infinity ? Infinity : size * cost);
+
 /** Adds `source × factor` to `target`, when building a breakdown */
 const addToBreakdown = (target: Breakdown | undefined, source: Breakdown | undefined, factor = 1): void => {
   if (target && source) {
     for (const [coordinate, cost] of source) {
-      target.set(coordinate, (target.get(coordinate) ?? 0) + cost * factor);
+      target.set(coordinate, (target.get(coordinate) ?? 0) + multiplyCost(factor, cost));
     }
   }
 };
@@ -299,6 +317,7 @@ const getSelectionSetId = (context: AnalysisContext, selectionSet: SelectionSetN
 /**
  * The cost of a selection only depends on the type, the selection sets and the pending list size, so it can be
  * cached. This keeps fragments that are spread in many places (or nested abstract types) linear to analyze.
+ * The depth is not part of the key: the height of the subtree is cached with its cost and checked on reuse.
  */
 const getSelectionCostCacheKey = (
   context: AnalysisContext,
@@ -335,9 +354,17 @@ const getSelectionCost = (
   const cacheKey = getSelectionCostCacheKey(context, type, selectionSets, pendingListSize);
   const cached = context.cache.get(cacheKey);
   if (cached !== undefined) {
+    const deepestDepth = depth + cached.height - 1;
+    if (deepestDepth > context.maxDepth) {
+      throw new AnalysisAbortedError('MAX_DEPTH');
+    }
+    context.deepestDepth = Math.max(context.deepestDepth, deepestDepth);
     addToBreakdown(breakdown, context.breakdownCache?.get(cacheKey));
-    return cached;
+    return cached.cost;
   }
+
+  const outerDeepestDepth = context.deepestDepth;
+  context.deepestDepth = depth;
 
   let cost: number;
   let selectionBreakdown: Breakdown | undefined;
@@ -359,7 +386,8 @@ const getSelectionCost = (
     cost = getFieldsCost(context, type, fields, pendingListSize, depth, selectionBreakdown);
   }
 
-  context.cache.set(cacheKey, cost);
+  context.cache.set(cacheKey, { cost, height: context.deepestDepth - depth + 1 });
+  context.deepestDepth = Math.max(outerDeepestDepth, context.deepestDepth);
   if (breakdown) {
     context.breakdownCache.set(cacheKey, selectionBreakdown ?? new Map());
     addToBreakdown(breakdown, selectionBreakdown);
@@ -486,7 +514,7 @@ const getFieldCost = (
     depth + 1,
     childrenBreakdown,
   );
-  const cost = weight + size * childrenCost;
+  const cost = weight + multiplyCost(size, childrenCost);
   if (breakdown) {
     addToBreakdown(breakdown, childrenBreakdown, size);
     if (isInBreakdown) {
@@ -525,18 +553,11 @@ const getRootType = (schema: GraphQLSchema, operation: OperationDefinitionNode):
 export const getQueryCost = (
   schema: GraphQLSchema,
   document: DocumentNode,
-  {
-    variables,
-    operationName,
-    maxLimit = DEFAULT_MAX_LIMIT,
-    maxNodes = DEFAULT_MAX_NODES,
-    maxDepth = DEFAULT_MAX_DEPTH,
-    breakdown = false,
-  }: QueryCostOptions = {},
+  options: QueryCostOptions | null = {},
 ): QueryCostResult => {
   const result: QueryCostResult = {
     cost: 0,
-    operationName: operationName ?? null,
+    operationName: null,
     operationType: null,
     fields: [],
     visitedNodes: 0,
@@ -545,6 +566,15 @@ export const getQueryCost = (
 
   let context: AnalysisContext;
   try {
+    const {
+      variables,
+      operationName,
+      maxLimit = DEFAULT_MAX_LIMIT,
+      maxNodes = DEFAULT_MAX_NODES,
+      maxDepth = DEFAULT_MAX_DEPTH,
+      breakdown = false,
+    } = options ?? {};
+    result.operationName = operationName ?? null;
     const operation = getOperation(document, operationName);
     if (!operation) {
       // Execution fails the same way, nothing runs
@@ -571,16 +601,21 @@ export const getQueryCost = (
       variableDefinitions: new Map(
         (operation.variableDefinitions ?? []).map(definition => [definition.variable.name.value, definition]),
       ),
-      maxLimit,
+      maxLimit: Number.isInteger(maxLimit) && maxLimit >= 0 ? maxLimit : DEFAULT_MAX_LIMIT,
       maxNodes,
       maxDepth,
       visitedNodes: 0,
       limitViolations: new Map(),
       cache: new Map(),
+      deepestDepth: 0,
       breakdownCache: breakdown ? new Map() : null,
       selectionSetIds: new WeakMap(),
       lastSelectionSetId: 0,
     };
+
+    if (context.maxDepth < 1) {
+      throw new AnalysisAbortedError('MAX_DEPTH'); // The operation's own selection set is at depth 1
+    }
 
     const fields = collectFields(context, rootType, [operation.selectionSet]);
     const operationBreakdown: Breakdown | undefined = breakdown ? new Map() : undefined;
@@ -588,6 +623,10 @@ export const getQueryCost = (
       const cost = getFieldCost(context, rootType, fieldNodes, undefined, 1, operationBreakdown);
       result.fields.push({ responseKey, fieldName: fieldNodes[0].name.value, cost });
       result.cost += cost;
+    }
+
+    if (Number.isNaN(result.cost)) {
+      result.cost = Infinity; // Defensive: NaN would compare as under any budget
     }
 
     if (operationBreakdown) {
