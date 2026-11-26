@@ -22,7 +22,7 @@ import User from '../../models/User';
 import { PaypalCapture, PaypalRefund, PaypalSale, PaypalTransaction } from '../../types/paypal';
 import { BasePaymentProviderService, PaymentProviderServiceWithoutRecurring } from '../types';
 
-import { paypalRequestV2 } from './api';
+import { paypalRequest, paypalRequestV2 } from './api';
 
 /** Create transaction in our database to reflect a PayPal charge */
 const recordTransaction = async (
@@ -168,6 +168,36 @@ export async function findTransactionByPaypalId(
   });
 }
 
+/**
+ * Make sure the PayPal order pays the host's own PayPal account (the owner of the API credentials).
+ * If the host's merchant ID can't be retrieved, we report it and let the payment go through.
+ */
+const checkPaypalOrderPayee = async (purchaseUnit, hostCollective): Promise<void> => {
+  const payee = purchaseUnit.payee;
+  if (!payee?.merchant_id && !payee?.email_address) {
+    return; // Defaults to the owner of the API credentials
+  }
+
+  let hostMerchantId, error;
+  try {
+    const userInfo = await paypalRequest('identity/oauth2/userinfo?schema=paypalv1.1', null, hostCollective, 'GET', {
+      shouldReportErrors: false,
+    });
+    hostMerchantId = userInfo?.['payer_id'];
+  } catch (e) {
+    error = e.message;
+  }
+
+  if (!hostMerchantId) {
+    reportMessageToSentry('Could not retrieve the PayPal merchant ID of the host', {
+      feature: FEATURE.PAYPAL_DONATIONS,
+      extra: { hostId: hostCollective.id, error },
+    });
+  } else if (payee.merchant_id !== hostMerchantId) {
+    throw new Error("The recipient of this PayPal payment doesn't match the host's PayPal account");
+  }
+};
+
 const processPaypalOrder = async (order, paypalOrderId): Promise<Transaction | undefined> => {
   const hostCollective = await order.collective.getHostCollective();
   const paypalOrderUrl = `checkout/orders/${paypalOrderId}`;
@@ -186,6 +216,8 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<Transaction | u
   } else if (paypalOrderDetails.status === 'COMPLETED') {
     throw new Error('This PayPal order has already been charged');
   }
+
+  await checkPaypalOrderPayee(purchaseUnit, hostCollective);
 
   // Confirm the authorization
   const authorizeResult = await paypalRequestV2(`${paypalOrderUrl}/authorize`, hostCollective, 'POST');

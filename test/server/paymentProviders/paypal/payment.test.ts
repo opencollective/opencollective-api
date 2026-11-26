@@ -65,6 +65,7 @@ describe('server/paymentProviders/paypal/payment', () => {
         currency = 'USD',
         captureStatus = 'COMPLETED',
         failOnOrderDetails = false,
+        payee = undefined,
       } = {}) => {
         // Catch the retrieval of auth tokens
         nock('https://api.sandbox.paypal.com')
@@ -79,7 +80,7 @@ describe('server/paymentProviders/paypal/payment', () => {
             .matchHeader('Authorization', 'Bearer dat-token')
             .get('/v2/checkout/orders/fake-order-id')
             .reply(200, {
-              purchase_units: [{ amount: { value: amount, currency_code: currency } }],
+              purchase_units: [{ amount: { value: amount, currency_code: currency }, payee }],
             });
         } else {
           nock('https://api.sandbox.paypal.com')
@@ -160,6 +161,33 @@ describe('server/paymentProviders/paypal/payment', () => {
         await expect(paypalPayment.processOrder(order)).to.be.rejectedWith(
           /The amount\/currency for this payment doesn't match what's expected for this order/,
         );
+      });
+
+      describe('payee', () => {
+        const mockHostUserInfo = () =>
+          nock('https://api.sandbox.paypal.com')
+            .matchHeader('Authorization', 'Bearer dat-token')
+            .get('/v1/identity/oauth2/userinfo')
+            .query({ schema: 'paypalv1.1' })
+            .reply(200, { payer_id: 'HOST-MERCHANT-ID' });
+
+        it('rejects if the payee is not the host PayPal account', async () => {
+          mockPaypalOrderDetail({ payee: { email_address: 'other@example.com', merchant_id: 'OTHER-MERCHANT-ID' } });
+          mockHostUserInfo();
+          await expect(paypalPayment.processOrder(order)).to.be.rejectedWith(
+            /The recipient of this PayPal payment doesn't match the host's PayPal account/,
+          );
+          expect(authorizePaymentNock.isDone()).to.be.false;
+          expect(await models.Transaction.count({ where: { OrderId: order.id } })).to.eq(0);
+        });
+
+        it('accepts if the payee is the host PayPal account', async () => {
+          mockPaypalOrderDetail({ payee: { email_address: 'host@example.com', merchant_id: 'HOST-MERCHANT-ID' } });
+          mockHostUserInfo();
+          const transaction = await paypalPayment.processOrder(order);
+          expect(transaction).to.exist;
+          expect(transaction.amount).to.eq(order.totalAmount);
+        });
       });
 
       it('Calls PayPal to confirm the order then records the transactions', async () => {
