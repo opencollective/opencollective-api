@@ -11,6 +11,7 @@ import orderStatus from '../../../../server/constants/order-status';
 // import app from '../../../../server/index';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
+import { refundTransaction } from '../../../../server/lib/payments';
 import * as SentryLib from '../../../../server/lib/sentry';
 import models from '../../../../server/models';
 import * as paypalPayment from '../../../../server/paymentProviders/paypal/payment';
@@ -361,6 +362,43 @@ describe('server/paymentProviders/paypal/payment', () => {
         // Guarantee MerchantID is consistent between the original transaction and the refund transaction
         expect(refundTransaction.merchantId).to.equal(refundId);
         expect(originalTransaction.merchantId).to.equal(captureId);
+      });
+
+      it('records the refund only in the ledger when the capture was already refunded on PayPal', async () => {
+        const refundedCaptureId = 'fake-already-refunded-capture-id';
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.PAYPAL,
+          type: PAYMENT_METHOD_TYPE.PAYMENT,
+        });
+        const order = await fakeOrder({ CollectiveId: collective.id, PaymentMethodId: paymentMethod.id });
+        const refundedTransaction = await fakeTransaction(
+          {
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            OrderId: order.id,
+            PaymentMethodId: paymentMethod.id,
+            amount: 1000,
+            currency: 'USD',
+            kind: TransactionKind.CONTRIBUTION,
+            data: { paypalCaptureId: refundedCaptureId, capture: { id: refundedCaptureId } },
+          },
+          { createDoubleEntry: true },
+        );
+
+        // PayPal response for a capture already refunded from the PayPal dashboard
+        nock('https://api.sandbox.paypal.com')
+          .post(`/v2/payments/captures/${refundedCaptureId}/refund`)
+          .reply(422, {
+            name: 'UNPROCESSABLE_ENTITY',
+            message:
+              'The requested action could not be performed, semantically incorrect, or failed business validation.',
+            details: [{ issue: 'CAPTURE_FULLY_REFUNDED', description: 'The capture has already been fully refunded' }],
+          });
+
+        await refundTransaction(refundedTransaction, user, 'Some reason');
+
+        await refundedTransaction.reload();
+        expect(refundedTransaction.RefundTransactionId).to.exist;
       });
 
       it('converts the refunded PayPal fee from the capture currency to the host currency', async () => {
