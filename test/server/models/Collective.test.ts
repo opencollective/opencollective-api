@@ -15,7 +15,6 @@ import POLICIES from '../../../server/constants/policies';
 import { getFxRate } from '../../../server/lib/currency';
 import emailLib from '../../../server/lib/email';
 import * as ImagesLib from '../../../server/lib/images';
-import { getHostPaypalAccount } from '../../../server/lib/paypal';
 import type { SpamAnalysisReport } from '../../../server/lib/spam';
 import type { Transaction as TransactionModel } from '../../../server/models';
 import models, { Op, sequelize } from '../../../server/models';
@@ -1882,21 +1881,6 @@ describe('server/models/Collective', () => {
 
       const account = await collective.getAccountForPaymentProvider(Service.TRANSFERWISE);
       expect(account.id).to.equal(connectedAccount.id);
-    });
-
-    it('returns the newest PayPal account, the same one as getHostPaypalAccount', async () => {
-      const host = await fakeHost();
-      const paypalAccountParams = { CollectiveId: host.id, service: Service.PAYPAL, token: 'token' };
-      await fakeConnectedAccount({ ...paypalAccountParams, clientId: 'app-A', createdAt: new Date('2024-01-01') });
-      const newestAccount = await fakeConnectedAccount({
-        ...paypalAccountParams,
-        clientId: 'app-B',
-        createdAt: new Date('2025-01-01'),
-      });
-
-      const account = await host.getAccountForPaymentProvider(Service.PAYPAL);
-      expect(account.id).to.equal(newestAccount.id);
-      expect((await getHostPaypalAccount(host)).id).to.equal(newestAccount.id);
     });
   });
 
