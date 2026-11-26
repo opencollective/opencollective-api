@@ -64,8 +64,7 @@ const getNextChargeDateForUpdateContribution = (
   } else if (previousNextChargeDate.date() > 15) {
     // Set the next charge date to 2 months time if the subscription was made after 15th of the month.
     // Counting from `now` is intended: once the previous date can't be reused (for example, a PayPal date
-    // estimated by the webhook), we treat the update like a new contribution started today. Counting from the
-    // previous next charge date would never give an earlier date.
+    // estimated by the webhook), we treat the update like a new contribution started today.
     // See 'after the 15th of the month => skip next month' in test/server/lib/subscriptions.test.ts.
     const newDates = now.add(2, 'months').startOf('month');
     return [newDates, newDates];
