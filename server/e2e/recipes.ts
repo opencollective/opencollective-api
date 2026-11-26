@@ -12,6 +12,7 @@ import { arrangedBy, defineRecipe, type Recipe } from './builders';
 import { collectiveRecipes } from './collective-recipes';
 import { contributionRecipes } from './contribution-recipes';
 import { expenseRecipes } from './expense-recipes';
+import { userRecipes } from './user-recipes';
 import { vendorRecipes } from './vendor-recipes';
 
 const identifier = z.string().regex(/^[a-zA-Z0-9_.:-]{1,100}$/);
@@ -89,6 +90,7 @@ const recipes: Record<string, Recipe> = {
   ...collectiveRecipes,
   ...contributionRecipes,
   ...expenseRecipes,
+  ...userRecipes,
   ...vendorRecipes,
 };
 
