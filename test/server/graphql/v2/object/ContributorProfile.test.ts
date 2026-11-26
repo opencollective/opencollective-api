@@ -1,8 +1,10 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 
+import { SupportedCurrency } from '../../../../../server/constants/currencies';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeIncognitoProfile,
   fakeMember,
@@ -102,6 +104,42 @@ describe('server/graphql/v2/object/ContributorProfile', () => {
     expect(result.data.account.contributorProfiles).to.containSubset([
       { account: { type: 'INDIVIDUAL', isIncognito: false }, totalContributedToHost: { valueInCents: 15000 } },
       { account: { type: 'INDIVIDUAL', isIncognito: true }, totalContributedToHost: { valueInCents: 15000 } },
+    ]);
+  });
+
+  it('should only count transactions in the current host currency', async () => {
+    const host = await fakeActiveHost({ currency: 'EUR' });
+    const eurCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'EUR' });
+    const contributor = await fakeUser();
+    const contribute = (hostCurrency: SupportedCurrency, amount: number) =>
+      fakeTransaction(
+        {
+          CollectiveId: eurCollective.id,
+          FromCollectiveId: contributor.collective.id,
+          HostCollectiveId: host.id,
+          amount,
+          currency: hostCurrency,
+          hostCurrency,
+          kind: TransactionKind.CONTRIBUTION,
+        },
+        { createDoubleEntry: true },
+      );
+
+    // Contributions received before the host switched from USD to EUR must be ignored
+    await contribute('USD', 7000);
+    await contribute('EUR', 3000);
+    await contribute('USD', 1000);
+
+    const result = await graphqlQueryV2(
+      query,
+      { slug: contributor.collective.slug, collectiveSlug: eurCollective.slug },
+      contributor,
+    );
+    expect(result.data.account.contributorProfiles).to.containSubset([
+      {
+        account: { legacyId: contributor.collective.id },
+        totalContributedToHost: { valueInCents: 3000, currency: 'EUR' },
+      },
     ]);
   });
 
