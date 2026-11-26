@@ -5,7 +5,6 @@ import logger from '../../../lib/logger';
 import PaymentMethod from '../../../models/PaymentMethod';
 
 export enum PaymentMethodLegacyTypeEnum {
-  ALIPAY = 'ALIPAY',
   CREDIT_CARD = 'CREDIT_CARD',
   GIFT_CARD = 'GIFT_CARD',
   PREPAID_BUDGET = 'PREPAID_BUDGET',
@@ -81,8 +80,6 @@ export const getServiceTypeFromLegacyPaymentMethodType = (type: PaymentMethodLeg
       return { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.MANUAL };
     case PaymentMethodLegacyTypeEnum.PAYPAL:
       return { service: PAYMENT_METHOD_SERVICE.PAYPAL, type: PAYMENT_METHOD_TYPE.PAYMENT };
-    case PaymentMethodLegacyTypeEnum.ALIPAY:
-      return { service: PAYMENT_METHOD_SERVICE.STRIPE, type: PAYMENT_METHOD_TYPE.ALIPAY };
     case PaymentMethodLegacyTypeEnum.CRYPTO:
       return { service: PAYMENT_METHOD_SERVICE.THEGIVINGBLOCK, type: PAYMENT_METHOD_TYPE.CRYPTO };
   }
