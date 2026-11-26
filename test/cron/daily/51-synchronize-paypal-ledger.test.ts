@@ -7,7 +7,9 @@ import { run } from '../../../cron/daily/51-synchronize-paypal-ledger';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../../server/constants/transactions';
+import * as PaymentsLib from '../../../server/lib/payments';
 import * as PaypalLib from '../../../server/lib/paypal';
+import * as SentryLib from '../../../server/lib/sentry';
 import models from '../../../server/models';
 import * as PaypalApi from '../../../server/paymentProviders/paypal/api';
 import {
@@ -319,6 +321,91 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
       // No refund transaction should have been created
       await originalTransaction.reload();
       expect(originalTransaction.RefundTransactionId).to.be.null;
+    });
+
+    it('keeps syncing other hosts when recording a refund fails for one host', async () => {
+      const setupRefundedContribution = async (captureId: string) => {
+        const host = await fakeHost();
+        await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'test-paypal-token' });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.PAYPAL,
+          type: PAYMENT_METHOD_TYPE.PAYMENT,
+        });
+        const order = await fakeOrder({ CollectiveId: collective.id, PaymentMethodId: paymentMethod.id });
+        const transaction = await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            isRefund: false,
+            RefundTransactionId: null,
+            OrderId: order.id,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            PaymentMethodId: paymentMethod.id,
+            amount: 1000,
+            paymentProcessorFeeInHostCurrency: -50,
+            data: { paypalCaptureId: captureId },
+          },
+          { createDoubleEntry: true },
+        );
+        return { host, transaction };
+      };
+
+      const hostA = await setupRefundedContribution('CAPTURE-ISOLATION-A');
+      const hostB = await setupRefundedContribution('CAPTURE-ISOLATION-B');
+      sandbox.stub(PaypalLib, 'getHostsWithPayPalConnected').resolves([hostA.host, hostB.host]);
+      sandbox.stub(PaypalLib, 'listPayPalTransactions').callsFake(async host => {
+        const captureId = host.id === hostA.host.id ? 'CAPTURE-ISOLATION-A' : 'CAPTURE-ISOLATION-B';
+        const transactions = [
+          { transaction_info: { transaction_id: captureId, transaction_event_code: 'T0006' } },
+          {
+            transaction_info: {
+              transaction_id: `REFUND-${captureId}`,
+              transaction_event_code: 'T1107',
+              paypal_reference_id: captureId,
+              paypal_reference_id_type: 'TXN',
+            },
+          },
+        ];
+        return { transactions, currentPage: 1, totalPages: 1, fullResponse: { total_items: transactions.length } };
+      });
+
+      sandbox.stub(PaypalApi, 'paypalRequestV2').callsFake(async url => {
+        if (url.startsWith('payments/refunds/')) {
+          return {
+            id: url.split('/').pop(),
+            status: 'COMPLETED',
+            seller_payable_breakdown: {
+              paypal_fee: { value: '0.00', currency_code: 'USD' },
+              total_refunded_amount: { value: '10.00', currency_code: 'USD' },
+            },
+          };
+        }
+        throw new Error(`Unexpected PayPal API call: ${url}`);
+      });
+
+      // Simulate a webhook recording host A's refund first: createRefundTransaction throws for it
+      const originalCreateRefundTransaction = PaymentsLib.createRefundTransaction;
+      sandbox
+        .stub(PaymentsLib, 'createRefundTransaction')
+        .callsFake(async (transaction, refundedPaymentProcessorFee, data, user) => {
+          if (transaction.id === hostA.transaction.id) {
+            throw new Error('This transaction has already been refunded');
+          }
+          return originalCreateRefundTransaction(transaction, refundedPaymentProcessorFee, data, user);
+        });
+      const reportErrorToSentry = sandbox.stub(SentryLib, 'reportErrorToSentry');
+
+      await expect(run()).to.be.fulfilled;
+
+      // The error is reported, and host B's refund is still recorded
+      expect(reportErrorToSentry.calledOnce).to.be.true;
+      expect(reportErrorToSentry.firstCall.args[0].message).to.eq('This transaction has already been refunded');
+      const refundTransaction = await models.Transaction.findOne({
+        where: { RefundTransactionId: hostB.transaction.id },
+      });
+      expect(refundTransaction, 'host B refund transaction should exist').to.exist;
     });
   });
 });

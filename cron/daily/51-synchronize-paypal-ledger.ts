@@ -460,10 +460,17 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
         }
 
         // Handle the transaction differently based on its type
-        if (transaction.transaction_info.transaction_event_code === 'T0002') {
-          await handleSubscriptionTransaction(host, transaction, captureDetails);
-        } else if (transaction.transaction_info.transaction_event_code === 'T0006') {
-          await handleCheckoutTransaction(host, transaction, captureDetails);
+        try {
+          if (transaction.transaction_info.transaction_event_code === 'T0002') {
+            await handleSubscriptionTransaction(host, transaction, captureDetails);
+          } else if (transaction.transaction_info.transaction_event_code === 'T0006') {
+            await handleCheckoutTransaction(host, transaction, captureDetails);
+          }
+        } catch (e) {
+          logger.error(
+            `Error while recording PayPal transaction ${transaction.transaction_info.transaction_id}: ${e.message}`,
+          );
+          reportErrorToSentry(e, { extra: { transaction, hostSlug: host.slug }, feature: FEATURE.PAYPAL_DONATIONS });
         }
       }
 
@@ -503,12 +510,20 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
         const msg = `Record missing ${isReversal ? 'reversal' : 'refund'} for PayPal capture ${(transaction.data as { paypalCaptureId?: string }).paypalCaptureId} (transaction #${transaction.id})`;
         logger.info(DRY_RUN ? `DRY RUN: ${msg}` : msg);
         if (!DRY_RUN) {
-          await createRefundTransaction(
-            transaction,
-            refundedPaypalFee,
-            { paypalResponse: paypalPayload, isRefundedFromPayPal: true },
-            null,
-          );
+          try {
+            await createRefundTransaction(
+              transaction,
+              refundedPaypalFee,
+              { paypalResponse: paypalPayload, isRefundedFromPayPal: true },
+              null,
+            );
+          } catch (e) {
+            logger.error(`Error while recording refund for transaction #${transaction.id}: ${e.message}`);
+            reportErrorToSentry(e, {
+              extra: { transactionId: transaction.id, hostSlug: host.slug },
+              feature: FEATURE.PAYPAL_DONATIONS,
+            });
+          }
         }
       }
     } while (currentPage++ < totalPages);
