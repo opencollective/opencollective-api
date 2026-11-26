@@ -320,7 +320,9 @@ async function handleSaleRefunded(req: Request): Promise<void> {
       return;
     }
 
-    const rawRefundedPaypalFee = <string>get(refund, 'transaction_fee.value', '0.00');
+    // v1 Refund resources report the returned PayPal fee as `refund_from_transaction_fee`
+    const rawRefundedPaypalFee: string =
+      get(refund, 'refund_from_transaction_fee.value') || get(refund, 'transaction_fee.value', '0.00');
     const refundedPaypalFee = getRefundedPaypalFeeInHostCurrency(transaction, rawRefundedPaypalFee);
     await createRefundTransaction(
       transaction,
