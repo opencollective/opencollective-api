@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import config from 'config';
 import { assert, createSandbox } from 'sinon';
 
 import { run as checkPendingTransfers } from '../../../cron/daily/91-check-pending-transferwise-transactions';
@@ -158,5 +159,24 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
     );
     expect(sendMessage.args[1][0]).to.equal(admin.email);
     expect(sendMessage.args[1][1]).to.contain(`🚨 Transaction failed on ${collective.name}`);
+  });
+
+  describe('when the transfer was cancelled', () => {
+    it('should set processing expense as error (legacy refund handler)', async () => {
+      getTransfer.resolves({ status: 'cancelled', id: 1234 });
+      await checkPendingTransfers();
+
+      await expense.reload();
+      expect(expense).to.have.property('status', status.ERROR);
+    });
+
+    it('should set processing expense as error (transfers#refund handler)', async () => {
+      sandbox.stub(config, 'transferwise').value({ ...config.transferwise, useTransferRefundHandler: 'true' });
+      getTransfer.resolves({ status: 'cancelled', id: 1234 });
+      await checkPendingTransfers();
+
+      await expense.reload();
+      expect(expense).to.have.property('status', status.ERROR);
+    });
   });
 });
