@@ -94,6 +94,45 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
     });
   };
 
+  describe('date range', () => {
+    const cronModulePath = Object.keys(require.cache).find(path =>
+      path.endsWith('/cron/daily/51-synchronize-paypal-ledger.ts'),
+    );
+
+    /**
+     * `START_DATE` and `END_DATE` are read when the cron module is loaded, so a custom range needs a fresh
+     * copy of the module loaded with them set. The cached copy is put back afterwards for the other tests.
+     */
+    const runWithDates = async (startDate: string, endDate: string) => {
+      const cachedModule = require.cache[cronModulePath];
+      const previousEnv = { START_DATE: process.env.START_DATE, END_DATE: process.env.END_DATE };
+      delete require.cache[cronModulePath];
+      process.env.START_DATE = startDate;
+      process.env.END_DATE = endDate;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports, n/no-missing-require -- the resolver does not see .ts files; mocha loads it through Babel
+        const { run: runWithEnv } = require('../../../cron/daily/51-synchronize-paypal-ledger');
+        await runWithEnv();
+      } finally {
+        for (const [key, value] of Object.entries(previousEnv)) {
+          if (value === undefined) {
+            delete process.env[key];
+          } else {
+            process.env[key] = value;
+          }
+        }
+        require.cache[cronModulePath] = cachedModule;
+      }
+    };
+
+    it('stops without processing any host when START_DATE is after END_DATE', async () => {
+      await setupHost();
+      const listStub = sandbox.stub(PaypalLib, 'listPayPalTransactions').resolves({ transactions: [], totalPages: 1 });
+      await runWithDates('2026-02-10', '2026-02-01');
+      expect(listStub).to.not.have.been.called;
+    });
+  });
+
   describe('getMissingRefundTransactions', () => {
     it('records a missing refund when PayPal marks a capture as REFUNDED', async () => {
       const host = await setupHost();
