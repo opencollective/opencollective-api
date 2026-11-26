@@ -111,6 +111,12 @@ export const updatePaymentMethodForSubscription = async (
     }
   }
 
+  // Externally managed payment methods (e.g. PayPal subscriptions) are bound to the order they were approved for:
+  // they must go through their own flow (see `updateSubscriptionWithPaypal`).
+  if (getIsSubscriptionManagedExternally(newPaymentMethod)) {
+    throw new BadRequest('This payment method cannot be used to update a recurring contribution');
+  }
+
   // Ensure that this payment method can be used for this order
   await newPaymentMethod.canBeUsedForOrder(order, user);
 
