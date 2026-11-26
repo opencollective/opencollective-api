@@ -258,6 +258,59 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
       expect(result.errors[0].message).to.include('This token is already being used');
     });
 
+    it('should fail if the host already has a PayPal payments account', async () => {
+      await fakeConnectedAccount({
+        CollectiveId: collective.id,
+        service: 'paypal',
+        clientId: 'app-A',
+        token: 'token-A',
+      });
+
+      const result = await graphqlQueryV2(
+        createConnectedAccountMutation,
+        {
+          connectedAccount: { clientId: 'app-B', token: 'token-B', service: 'paypal' },
+          account: { legacyId: collective.id },
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('ValidationFailed');
+      expect(result.errors[0].message).to.eq(
+        'This host already has a PayPal account connected. Disconnect it before connecting a new one.',
+      );
+      expect(paypal.setupPaypalWebhookForHost).to.not.have.been.called;
+      expect(await models.ConnectedAccount.count({ where: { CollectiveId: collective.id, service: 'paypal' } })).to.eq(
+        1,
+      );
+    });
+
+    it('should allow a PayPal payments account when the host only has deleted or payee PayPal accounts', async () => {
+      const deletedAccount = await fakeConnectedAccount({
+        CollectiveId: collective.id,
+        service: 'paypal',
+        clientId: 'app-A',
+        token: 'token-A',
+      });
+      await deletedAccount.destroy();
+      // "Log in with PayPal" payee account (see `connectPaypalPayoutMethod`): no clientId
+      await fakeConnectedAccount({ CollectiveId: collective.id, service: 'paypal', clientId: null, token: 'payee' });
+
+      const result = await graphqlQueryV2(
+        createConnectedAccountMutation,
+        {
+          connectedAccount: { clientId: 'app-B', token: 'token-B', service: 'paypal' },
+          account: { legacyId: collective.id },
+        },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(paypal.setupPaypalWebhookForHost).to.have.been.calledOnce;
+    });
+
     it('should fail if service is not supported (e.g. transferwise)', async () => {
       const result = await graphqlQueryV2(
         createConnectedAccountMutation,
