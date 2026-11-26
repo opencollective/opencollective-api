@@ -80,4 +80,19 @@ describe('server/lib/sentry', () => {
       expect(warnSpy.firstCall.args[0]).to.include('invalid-metric-name');
     });
   });
+
+  describe('reportMessageToSentry', () => {
+    it('does not log the raw request when Sentry is not configured', () => {
+      sandbox.stub(config, 'sentry').value({});
+      const warnStub = sandbox.stub(logger, 'warn');
+      const req = { ip: '1.2.3.4', headers: { authorization: 'Bearer secret-token' }, remoteUser: { id: 42 } };
+      SentryLib.reportMessageToSentry('Test message', { severity: 'warning', req: req as unknown as Express.Request });
+
+      expect(warnStub).to.have.been.calledOnce;
+      const logged = warnStub.firstCall.args[0];
+      expect(logged).to.include('[Sentry fallback] Test message');
+      expect(logged).to.include('1.2.3.4');
+      expect(logged).to.not.include('secret-token');
+    });
+  });
 });

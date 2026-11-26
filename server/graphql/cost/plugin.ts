@@ -29,6 +29,9 @@ const DEFAULT_MAX_QUERY_COST = 50_000_000;
 /** Rejected queries can be up to the size of the body limit, only the beginning is sent to Sentry */
 const MAX_QUERY_LENGTH_IN_REPORT = 10_000;
 
+/** Operation names are GraphQL names, but of any length */
+const MAX_OPERATION_NAME_LENGTH = 100;
+
 /** Number of top-level fields included in the Sentry report, the most expensive first */
 const MAX_FIELDS_IN_REPORT = 20;
 
@@ -105,13 +108,15 @@ const checkQueryCost = (requestContext: RequestContext): GraphQLError | null => 
     return null;
   }
 
+  // Operation names come from the client: keep them bounded in metrics and reports
+  const reportedOperationName = result.operationName?.slice(0, MAX_OPERATION_NAME_LENGTH) ?? null;
   const { max, reject } = getQueryCostSettings();
   const apiVersion = getApiVersion(req);
   const overMax = result.cost > max;
   recordGraphQLQueryCost({
     cost: result.cost,
     apiVersion,
-    operationName: result.operationName,
+    operationName: reportedOperationName,
     operationType: result.operationType,
     client,
     overMax,
@@ -130,11 +135,11 @@ const checkQueryCost = (requestContext: RequestContext): GraphQLError | null => 
   reportMessageToSentry('GraphQL query cost exceeded', {
     handler: HandlerType.GQL,
     severity: 'warning',
-    transactionName: `GraphQL query cost exceeded: ${result.operationName || 'Anonymous'}`,
+    transactionName: `GraphQL query cost exceeded: ${reportedOperationName || 'Anonymous'}`,
     tags: { mode, client, apiVersion },
     req,
     extra: {
-      operationName: result.operationName,
+      operationName: reportedOperationName,
       operationType: result.operationType,
       cost: Number.isFinite(result.cost) ? result.cost : 'Infinity',
       max,
