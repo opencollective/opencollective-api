@@ -241,8 +241,10 @@ describe('server/graphql/v2/query/SearchQuery (PostgreSQL)', () => {
     });
 
     it('rejects input longer than 200 characters', async () => {
-      expect((await getAccounts('a'.repeat(200))).collection.totalCount).to.eq(0);
-      const result = await searchAccounts('a'.repeat(201));
+      // Not a hex letter: fake-data names end with random hex words (e.g. "Test Collective aa3f9c21"), and a word
+      // starting with "aa" would typo-match "aaa…" (pg_trgm word_similarity = 0.5, our threshold), making this flaky.
+      expect((await getAccounts('x'.repeat(200))).collection.totalCount).to.eq(0);
+      const result = await searchAccounts('x'.repeat(201));
       expect(result.errors[0].message).to.eq('The search term is too long (maximum 200 characters)');
     });
 

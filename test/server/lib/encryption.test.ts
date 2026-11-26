@@ -161,8 +161,19 @@ describe('server/lib/encryption', () => {
     });
 
     it('fails to decrypt with the wrong key', () => {
-      const encrypted = encryptWithCipher('OpenCollective Rules', SECRET_KEY, 'AES');
-      expect(() => decryptWithCipher(encrypted, 'wrong-key', 'AES')).to.throw();
+      // CBC mode is not authenticated: decrypting with the wrong key usually fails on the PKCS#7
+      // padding check, but about 1 time in 256 the garbage output happens to have valid padding
+      // and no error is thrown. The only guarantee is that the original message is never recovered.
+      const message = 'OpenCollective Rules';
+      const encrypted = encryptWithCipher(message, SECRET_KEY, 'AES');
+      let decrypted: string | undefined;
+      try {
+        decrypted = decryptWithCipher(encrypted, 'wrong-key', 'AES');
+      } catch {
+        return; // Expected in most cases
+      }
+
+      expect(decrypted).to.not.eq(message);
     });
 
     // These payloads were generated with crypto-js@4.2.0, which we used before switching to the
