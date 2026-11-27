@@ -71,6 +71,22 @@ describe('server/lib/transferwise', () => {
       expect(f).to.not.include('Type: sort_code');
       expect(f).to.not.include('Currency: GBP');
     });
+
+    it('should skip null and undefined values', () => {
+      const f = transferwise.formatAccountDetails(
+        {
+          accountHolderName: 'John Malkovich',
+          details: { IBAN: 'DE893219828398123', bic: null, address: null, sortCode: undefined },
+        },
+        { asSafeHTML: true },
+      );
+
+      expect(f).to.include('IBAN');
+      expect(f).to.include('DE893219828398123');
+      expect(f).to.not.include('Address');
+      expect(f).to.not.include('null');
+      expect(f).to.not.include('undefined');
+    });
   });
 
   describe('requestDataAndThrowParsedError', () => {
