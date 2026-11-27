@@ -11,6 +11,7 @@ import {
   find,
   get,
   has,
+  isEqual,
   isUndefined,
   omit,
   omitBy,
@@ -18,8 +19,10 @@ import {
   random,
   round,
   set,
+  sortBy,
   split,
   toLower,
+  uniq,
 } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
@@ -610,7 +613,17 @@ const updateBatchGroup = async (batchGroup: BatchGroup): Promise<void> => {
 };
 
 /** What is stored, under the Wise approval code, while a batch payment waits for the admin to approve it */
-type PendingBatchGroupApproval = { batchGroupId: BatchGroup['id']; UserId: number };
+type PendingBatchGroupApproval = {
+  batchGroupId: BatchGroup['id'];
+  UserId: number;
+  /** The expenses of the batch, as checked when it was sent to Wise: the approval must be for these exactly */
+  ExpenseIds: number[];
+};
+
+const OTT_APPROVAL_CACHE_DURATION = 30 * 60;
+
+const storePendingBatchGroupApproval = (x2faApproval: string, pendingApproval: PendingBatchGroupApproval) =>
+  sessionCache.set(`transferwise_ott_${x2faApproval}`, pendingApproval, OTT_APPROVAL_CACHE_DURATION);
 
 async function payExpensesBatchGroup({
   host,
@@ -674,10 +687,13 @@ async function payExpensesBatchGroup({
     // If it is completed, fund it and forward the OTT
     const fundResponse = await transferwise.fundBatchGroup(token, profileId, batchGroup.id);
     if ('status' in fundResponse && 'headers' in fundResponse) {
-      const cacheKey = `transferwise_ott_${fundResponse.headers['x-2fa-approval']}`;
-      // The approval code can only be used by the admin who went through the 2FA check to send the batch
-      const pendingApproval: PendingBatchGroupApproval = { batchGroupId: batchGroup.id, UserId: remoteUser.id };
-      await sessionCache.set(cacheKey, pendingApproval, 30 * 60);
+      // The approval code can only be used by the admin who went through the 2FA check to send the batch, for the
+      // expenses that were checked against it
+      await storePendingBatchGroupApproval(fundResponse.headers['x-2fa-approval'], {
+        batchGroupId: batchGroup.id,
+        UserId: remoteUser.id,
+        ExpenseIds: expenses.map(e => e.id),
+      });
     }
     return fundResponse;
   } catch (e) {
@@ -688,10 +704,12 @@ async function payExpensesBatchGroup({
 
 async function approveExpenseBatchGroupPayment({
   host,
+  expenses,
   x2faApproval,
   remoteUser,
 }: {
   host: Collective;
+  expenses: Expense[];
   x2faApproval: string;
   remoteUser: User;
 }) {
@@ -712,11 +730,23 @@ async function approveExpenseBatchGroupPayment({
     } else if (pendingApproval.UserId !== remoteUser.id) {
       throw new Forbidden('This batch payment can only be approved by the admin who started it');
     }
+    // The expenses marked as paid are the ones of the request: they must be the ones of the funded batch
+    const requestedIds = sortBy(uniq(expenses.map(e => e.id)));
+    if (!isEqual(requestedIds, sortBy(uniq(pendingApproval.ExpenseIds || [])))) {
+      throw new ValidationFailed('The expenses do not match the batch payment being approved. Please try again.');
+    }
+
     const { batchGroupId } = pendingApproval;
-    const batchGroup = (await transferwise.fundBatchGroup(token, profileId, batchGroupId, x2faApproval)) as BatchGroup;
+    const fundResponse = await transferwise.fundBatchGroup(token, profileId, batchGroupId, x2faApproval);
     await sessionCache.delete(cacheKey);
-    await updateBatchGroup(batchGroup);
-    return batchGroup;
+    // Wise asked for another approval: the batch is not paid yet. The new code is bound the same way.
+    if ('status' in fundResponse && 'headers' in fundResponse) {
+      await storePendingBatchGroupApproval(fundResponse.headers['x-2fa-approval'], pendingApproval);
+      return fundResponse;
+    }
+
+    await updateBatchGroup(fundResponse);
+    return fundResponse;
   } catch (e) {
     logger.error('Error approving Wise batch group payment', e);
     throw e;

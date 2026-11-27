@@ -266,6 +266,21 @@ describe('server/controllers/transferwise', () => {
       expect(payExpensesBatchGroup.called).to.be.false;
     });
 
+    it('refuses a personal token that is not pre-authorized for 2FA with a 403', async () => {
+      await addTOTPToUser(remoteUser);
+      await transferwiseController.payBatch(
+        {
+          ...req,
+          personalToken: { id: 1, scope: ['expenses'], hasScope: () => true, preAuthorize2FA: false },
+        } as any,
+        res as any,
+      );
+
+      expect(res.status.firstCall.firstArg).to.equal(403);
+      expect(res.send.firstCall.firstArg).to.equal('This personal token is not pre-authorized for 2FA');
+      expect(payExpensesBatchGroup.called).to.be.false;
+    });
+
     describe('with the payouts rolling limit', () => {
       let secret;
 

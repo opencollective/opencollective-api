@@ -34,6 +34,9 @@ const getErrorStatusCode = (e: unknown): number => {
       ? (e.extensions as { code?: unknown } | undefined)?.code
       : undefined;
   switch (extensionsCode) {
+    case 'BadRequest':
+    case 'ValidationFailed':
+      return 400;
     case 'Unauthorized':
       return 401;
     case 'Forbidden':
@@ -153,7 +156,7 @@ export async function payBatch(
       // The payout 2FA check ran when the batch was sent to Wise, and the approval code it got back can only be used
       // by the same admin. The host's 2FA policy still applies.
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
-      fundResponse = await transferwise.approveExpenseBatchGroupPayment({ host, x2faApproval, remoteUser });
+      fundResponse = await transferwise.approveExpenseBatchGroupPayment({ host, expenses, x2faApproval, remoteUser });
     } else {
       // Paying the batch is what moves the money, so it goes through the payout 2FA check for its total
       const totalInHostCurrency = await getBatchTotalInHostCurrency(host, expenses);

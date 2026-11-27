@@ -21,7 +21,7 @@ import User from '../../models/User';
 import emailLib from '../email';
 import logger from '../logger';
 import { getTransactionPdf } from '../pdf';
-import { reportMessageToSentry } from '../sentry';
+import { reportErrorToSentry, reportMessageToSentry } from '../sentry';
 import { toIsoDateStr } from '../utils';
 
 import { replaceVideosByImagePreviews } from './utils';
@@ -587,11 +587,21 @@ export const notifyByEmail = async (activity: Activity) => {
           },
         });
         const unsubscribedUserIds = unsubscribed.map(notification => notification.UserId);
-        for (const user of admins) {
-          if (user.id !== activity.UserId && !unsubscribedUserIds.includes(user.id)) {
-            await notify.user(activity, { user, collective: host, template, skipUnsubscribedCheck: true });
+        const recipients = admins.filter(user => user.id !== activity.UserId && !unsubscribedUserIds.includes(user.id));
+        // Each admin is sent the alert on their own: an address the mail provider rejects must not stop the others
+        const results = await Promise.allSettled(
+          recipients.map(user =>
+            notify.user(activity, { user, collective: host, template, skipUnsubscribedCheck: true }),
+          ),
+        );
+        results.forEach((result, idx) => {
+          if (result.status === 'rejected') {
+            logger.error(
+              `Could not send the scheduled PayPal payout alert to user ${recipients[idx].id}: ${result.reason?.message}`,
+            );
+            reportErrorToSentry(result.reason, { extra: { activityId: activity.id, UserId: recipients[idx].id } });
           }
-        }
+        });
       }
       break;
 

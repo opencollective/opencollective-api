@@ -668,6 +668,21 @@ describe('server/lib/notification', () => {
       expect(sendEmailSpy.firstCall.args[1]).to.eq(otherHostAdmin.email);
     });
 
+    it('still notifies the other host admins when sending to one of them fails', async () => {
+      const thirdHostAdmin = await fakeUser();
+      await fakeMember({ CollectiveId: host.id, MemberCollectiveId: thirdHostAdmin.CollectiveId, role: roles.ADMIN });
+      sendEmailSpy.callsFake(async (template, email) => {
+        if (email === otherHostAdmin.email) {
+          throw new Error('Recipient address rejected');
+        }
+      });
+
+      await notifyByEmail(await fakeScheduledActivity('PAYPAL'));
+
+      const recipients = sendEmailSpy.getCalls().map(call => call.args[1]);
+      expect(recipients).to.have.members([otherHostAdmin.email, thirdHostAdmin.email]);
+    });
+
     it('does not notify for Wise payouts, which are only sent when the batch is paid', async () => {
       await notifyByEmail(await fakeScheduledActivity('BANK_ACCOUNT'));
       await utils.sleep(100);

@@ -136,6 +136,20 @@ describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
     expect(activity.data.message).to.eq('The admin who scheduled this payout is no longer an admin of the host');
   });
 
+  it('unschedules the payouts of a collective that is not hosted anymore', async () => {
+    const { hostAdmin, collective } = await fakeHostAndCollective();
+    const expense = await fakeScheduledExpense(collective, hostAdmin);
+    await collective.update({ HostCollectiveId: null, approvedAt: null, isActive: false });
+
+    await payPaypalScheduledExpenses();
+
+    expect(payExpensesBatch.called).to.be.false;
+    await expense.reload();
+    expect(expense.status).to.eq(status.APPROVED);
+    const activity = await getUnscheduledActivity(expense);
+    expect(activity.data.message).to.eq('The collective is not hosted anymore');
+  });
+
   it('does not pay payouts without a record of who scheduled them', async () => {
     const { collective } = await fakeHostAndCollective();
     const expense = await fakeScheduledExpense(collective, null);

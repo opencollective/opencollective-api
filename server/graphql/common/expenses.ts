@@ -1952,26 +1952,34 @@ export const scheduleExpenseForPayment = async (
   await checkHasBalanceToPayExpense(host, expense, expense.PayoutMethod);
   // Scheduling a PayPal payout is what authorizes it: the hourly cron pays it without anyone else involved. A Wise
   // payout only moves money when the batch is paid, which counts it towards the rolling limit at that point.
-  await enforcePayout2FA(req, host, expense, {
+  const countedTowards2FARollingLimit = await enforcePayout2FA(req, host, expense, {
     isAutomatedPayout: expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL,
   });
 
-  // If Wise, add expense to a new batch group
-  if (expense.PayoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
-    await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
-    await paymentProviders.transferwise.scheduleExpenseForPayment(expense, options.transferDetails, req.remoteUser);
-  }
-  // If PayPal, check if host is connected to PayPal
-  else if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
-    await checkFeatureAccess(host, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
-    await host.getAccountForPaymentProvider(Service.PAYPAL);
+  let updatedExpense: Expense;
+  try {
+    // If Wise, add expense to a new batch group
+    if (expense.PayoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+      await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
+      await paymentProviders.transferwise.scheduleExpenseForPayment(expense, options.transferDetails, req.remoteUser);
+    }
+    // If PayPal, check if host is connected to PayPal
+    else if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
+      await checkFeatureAccess(host, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
+      await host.getAccountForPaymentProvider(Service.PAYPAL);
+    }
+
+    updatedExpense = await expense.update({
+      status: 'SCHEDULED_FOR_PAYMENT',
+      lastEditedById: req.remoteUser.id,
+      onHold: false,
+    });
+  } catch (error) {
+    // Nothing was scheduled: the amount does not count towards the rolling limit
+    await releaseExpensePayout2FALimit(req, countedTowards2FARollingLimit);
+    throw error;
   }
 
-  const updatedExpense = await expense.update({
-    status: 'SCHEDULED_FOR_PAYMENT',
-    lastEditedById: req.remoteUser.id,
-    onHold: false,
-  });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
   return updatedExpense;
 };

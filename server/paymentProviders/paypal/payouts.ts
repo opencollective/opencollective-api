@@ -83,13 +83,25 @@ const unschedulePayout = async (expense: Expense, reason: string): Promise<void>
  *
  * @returns the expenses to pay
  */
-export const checkScheduledPayoutsBeforePaying = async (host: Collective, expenses: Expense[]): Promise<Expense[]> => {
+export const checkScheduledPayoutsBeforePaying = async (
+  host: Collective | null,
+  expenses: Expense[],
+): Promise<Expense[]> => {
   // The expenses were loaded when the cron started: the status of some may have changed since
   const stillScheduled = await models.Expense.findAll({
     attributes: ['id'],
     where: { id: expenses.map(e => e.id), status: status.SCHEDULED_FOR_PAYMENT },
   });
   const stillScheduledIds = new Set(stillScheduled.map(e => e.id));
+
+  // The collective left its host after the payouts were scheduled: no host can pay them, and they would otherwise
+  // stay scheduled, keeping their amounts in blocked funds
+  if (!host) {
+    for (const expense of expenses.filter(e => stillScheduledIds.has(e.id))) {
+      await unschedulePayout(expense, 'The collective is not hosted anymore');
+    }
+    return [];
+  }
 
   const stillAuthorized: Expense[] = [];
   for (const expense of expenses.filter(e => stillScheduledIds.has(e.id))) {
