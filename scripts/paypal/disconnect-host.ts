@@ -37,7 +37,7 @@ import {
   listPaypalWebhooks,
 } from '../../server/lib/paypal';
 import { sleep } from '../../server/lib/utils';
-import models, { Collective, sequelize } from '../../server/models';
+import models, { Collective, Op, sequelize } from '../../server/models';
 import Order from '../../server/models/Order';
 import { paypalRequest } from '../../server/paymentProviders/paypal/api';
 import { cancelPaypalSubscription } from '../../server/paymentProviders/paypal/subscription';
@@ -218,7 +218,8 @@ const disconnectHost = async (
   }
 
   const connectedAccounts = await models.ConnectedAccount.findAll({
-    where: { CollectiveId: host.id, service: 'paypal' },
+    // Only the host's API credentials: "Log in with PayPal" payee accounts have no `clientId` and must be kept
+    where: { CollectiveId: host.id, service: 'paypal', clientId: { [Op.ne]: null } },
   });
 
   for (const connectedAccount of connectedAccounts) {
@@ -355,14 +356,8 @@ export const disconnectPaypalHost = async ({
     report[result.paypalOutcome].push(order.id);
   }
 
-  // 2. Disconnect the host (only when processing all its subscriptions)
-  if (isConnected && !orderIds) {
-    Object.assign(report, await disconnectHost(host, { dryRun }));
-  } else if (!isConnected && !orderIds) {
-    log(dryRun, `@${host.slug} has no PayPal connection: subscriptions can only be cancelled in our database`);
-  }
-
-  // 3. Cancel in the database
+  // 2. Cancel in the database. Done before disconnecting the host so that, if it fails, a re-run still sees the
+  // connection and records the actual PayPal status.
   for (const [index, order] of orders.entries()) {
     const result = report.orders[index];
     log(dryRun, `Order #${order.id}: marking as CANCELLED in the database (was ${order.status})`);
@@ -370,6 +365,13 @@ export const disconnectPaypalHost = async ({
       await cancelInDb(order, host, result);
     }
     report.cancelledInDb.push(order.id);
+  }
+
+  // 3. Disconnect the host (only when processing all its subscriptions)
+  if (isConnected && !orderIds) {
+    Object.assign(report, await disconnectHost(host, { dryRun }));
+  } else if (!isConnected && !orderIds) {
+    log(dryRun, `@${host.slug} has no PayPal connection: subscriptions can only be cancelled in our database`);
   }
 
   // 4. Report

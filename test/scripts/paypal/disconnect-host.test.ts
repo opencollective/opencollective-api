@@ -139,6 +139,12 @@ describe('scripts/paypal/disconnect-host', () => {
 
   it('cancels the subscriptions on PayPal and disconnects a connected host', async () => {
     const { host, connectedAccount } = await fakeHostWithPaypal();
+    const payeeAccount = await fakeConnectedAccount({
+      CollectiveId: host.id,
+      service: 'paypal',
+      clientId: null,
+      token: randStr(),
+    });
     const collective = await fakeCollective({ HostCollectiveId: host.id });
     const activeOrder = await fakePaypalSubscriptionOrder(collective, { chargedByHost: host });
     const suspendedOrder = await fakePaypalSubscriptionOrder(collective, { chargedByHost: host });
@@ -172,8 +178,10 @@ describe('scripts/paypal/disconnect-host', () => {
     expect(getCalls(paypalRequestStub, 'DELETE')).to.deep.eq(['notifications/webhooks/WH-OC']);
     expect(report.deletedWebhookIds).to.deep.eq(['WH-OC']);
 
-    // Connected account is soft-deleted
+    // Connected account is soft-deleted, but not the "Log in with PayPal" payee account
     expect(await models.ConnectedAccount.findByPk(connectedAccount.id)).to.be.null;
+    expect(await models.ConnectedAccount.findByPk(payeeAccount.id)).to.exist;
+    expect(report.deletedConnectedAccountIds).to.deep.eq([connectedAccount.id]);
     const deletedAccount = await models.ConnectedAccount.findByPk(connectedAccount.id, { paranoid: false });
     expect(deletedAccount.deletedAt).to.exist;
 
