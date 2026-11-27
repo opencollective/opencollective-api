@@ -99,7 +99,15 @@ export const getCreditCardStats = async (
     ${ifStr(Boolean(interval), 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
     {
-      replacements: { name, expYear: toString(expYear), expMonth: toString(expMonth), country, interval, fingerprint },
+      // Sequelize throws on undefined replacements, and validateStat would count that throw as a fraud failure
+      replacements: {
+        name: name ?? null,
+        expYear: toString(expYear),
+        expMonth: toString(expMonth),
+        country: country ?? null,
+        interval,
+        fingerprint,
+      },
       type: QueryTypes.SELECT,
       raw: true,
       plain: true,
