@@ -90,6 +90,9 @@ describe('server/lib/contributor-info', () => {
       expect(isValidLegalName(null)).to.be.false;
       expect(isValidLegalName('  Bob  ')).to.be.false;
       expect(isValidLegalName('Wu Yi')).to.be.true;
+      // Characters, not UTF-16 units: 4 characters, 5 units
+      expect(isValidLegalName('𠮷田太郎')).to.be.false;
+      expect(isValidLegalName('𠮷田太郎子')).to.be.true;
     });
 
     it('isExemptFromHostContributorInfo: the host itself and the accounts it hosts', () => {
@@ -172,11 +175,17 @@ describe('server/lib/contributor-info', () => {
       await contribute(host, collective, (await fakeIncognitoProfile(incognitoOwner)).id, 60e2);
       profiles.organization = await fakeOrganization();
       await contribute(host, collective, profiles.organization.id, 150e2);
+      profiles.shortLegalName = await user({ legalName: ' Bob ' });
+      await contribute(host, collective, profiles.shortLegalName.id, 300e2);
+      profiles.supplementaryCharacters = await user({ legalName: '𠮷田太郎' });
+      await contribute(host, collective, profiles.supplementaryCharacters.id, 250e2);
 
       // Not flagged
       profiles.complete = await user({ legalName: 'Valid Legal Name' });
       await fakeLocation({ CollectiveId: profiles.complete.id });
       await contribute(host, collective, profiles.complete.id, 700e2);
+      profiles.validShortLegalName = await user({ legalName: 'Wu Yi' });
+      await contribute(host, collective, profiles.validShortLegalName.id, 300e2);
       profiles.belowThreshold = await user();
       await contribute(host, collective, profiles.belowThreshold.id, 99e2);
       profiles.refunded = await user();
@@ -206,6 +215,8 @@ describe('server/lib/contributor-info', () => {
       expect(results).to.deep.equal([
         { hostId: host.id, profileId: profiles.both.id, total: 700e2, missingFields: ['legalName', 'address'] },
         { hostId: host.id, profileId: profiles.countryOnly.id, total: 600e2, missingFields: ['address'] },
+        { hostId: host.id, profileId: profiles.shortLegalName.id, total: 300e2, missingFields: ['legalName'] },
+        { hostId: host.id, profileId: profiles.supplementaryCharacters.id, total: 250e2, missingFields: ['legalName'] },
         { hostId: host.id, profileId: profiles.legalNameOnly.id, total: 200e2, missingFields: ['legalName'] },
         { hostId: host.id, profileId: profiles.organization.id, total: 150e2, missingFields: ['legalName'] },
         { hostId: host.id, profileId: profiles.incognito.id, total: 120e2, missingFields: ['legalName'] },

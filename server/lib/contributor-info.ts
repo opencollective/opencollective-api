@@ -52,9 +52,15 @@ export const isExemptFromHostContributorInfo = (
 
 // ---- Missing fields ----
 
-/** SQL condition: the collective aliased as `alias` has no legal name */
+/**
+ * SQL condition: the collective aliased as `alias` has no valid legal name (missing, blank, or shorter than
+ * `LEGAL_NAME_MIN_LENGTH` once trimmed). SQL equivalent of `isValidLegalName`: `LENGTH` counts characters.
+ */
 export const sqlMissingLegalName = (alias: string): RawBuilder<boolean> =>
-  sql<boolean>`(${sql.ref(`${alias}.legalName`)} IS NULL OR TRIM(${sql.ref(`${alias}.legalName`)}) = '')`;
+  sql<boolean>`COALESCE(
+    LENGTH(REGEXP_REPLACE(${sql.ref(`${alias}.legalName`)}, '^\\s+|\\s+$', '', 'g')),
+    0
+  ) < ${LEGAL_NAME_MIN_LENGTH}`;
 
 /**
  * SQL condition: the collective aliased as `alias` has no address. A location has an address if its formatted
@@ -90,9 +96,12 @@ export const locationHasAddress = (
   }
 };
 
-/** Whether a legal name is acceptable for tax reporting (same rule as the profile Info page) */
+/**
+ * Whether a legal name is acceptable for tax reporting (same rule as the profile Info page). Counts characters (code
+ * points), like the HTML `pattern` of the contribution flow and `LENGTH` in `sqlMissingLegalName`, not UTF-16 units.
+ */
 export const isValidLegalName = (legalName: string | null | undefined): boolean => {
-  return Boolean(legalName) && legalName.trim().length >= LEGAL_NAME_MIN_LENGTH;
+  return Boolean(legalName) && Array.from(legalName.trim()).length >= LEGAL_NAME_MIN_LENGTH;
 };
 
 // ---- Totals ----
