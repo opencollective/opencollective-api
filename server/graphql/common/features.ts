@@ -167,9 +167,9 @@ const checkCanReceiveExpenses = async (collective, req: Express.Request) => {
  * The probes that the status of a feature may read, as far as the account alone can tell. A probe that is read
  * without being listed here costs one more statement.
  *
- * `RECEIVE_GRANTS` is left out on purpose. Most accounts do not accept grants, which only their host tells, and the
- * status then never reads the probe. Without an index on the type of expenses, that probe reads every expense of an
- * account that has no grant: all the requests would pay for it.
+ * Some are loaded for nothing, like the one of `RECEIVE_GRANTS` for the many accounts that do not accept grants, which
+ * only their host tells. Each must then stay a single index lookup, whether the account has the data or not: see the
+ * `expenses__collective_id_type` index.
  */
 const getProbesOfFeature = (feature: FEATURE, collective: Collective): FeatureProbe[] => {
   switch (feature) {
@@ -183,6 +183,8 @@ const getProbesOfFeature = (feature: FEATURE, collective: Collective): FeaturePr
       }
     case FEATURE.RECEIVE_EXPENSES:
       return ['HAS_RECEIVED_EXPENSES'];
+    case FEATURE.RECEIVE_GRANTS:
+      return ['HAS_RECEIVED_GRANTS'];
     case FEATURE.UPDATES:
       return ['HAS_PUBLISHED_UPDATES'];
     case FEATURE.CONVERSATIONS:

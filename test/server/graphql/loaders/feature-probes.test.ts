@@ -424,17 +424,18 @@ describe('server/graphql/loaders/feature-probes', () => {
         expect(getProbeStatements(querySpy)).to.have.length(1);
       });
 
-      it('take a second probe statement for the accounts that accept grants', async () => {
+      it('take a single probe statement for the accounts that accept grants', async () => {
         const querySpy = sandbox.spy(sequelize, 'query');
         const result = await graphqlQueryV2(query, { slug: host.slug }, hostAdmin);
         expect(result.errors).to.not.exist;
         expect(result.data.host.hostedAccounts.totalCount).to.be.at.least(4);
+        expect(getProbeStatements(querySpy)).to.have.length(1);
 
-        const probeStatements = getProbeStatements(querySpy);
-        expect(probeStatements).to.have.length(2);
-        expect(probeStatements[1]).to.match(
-          /^select "a"."id", exists \(select 1 as "one" from "Expenses" [^,]+ as "HAS_RECEIVED_GRANTS" from/,
+        const featuresById = Object.fromEntries(
+          result.data.host.hostedAccounts.nodes.map(node => [node.legacyId, node.features]),
         );
+        expect(featuresById[accountWithData.id].RECEIVE_GRANTS).to.equal('ACTIVE');
+        expect(featuresById[accountWithoutData.id].RECEIVE_GRANTS).to.equal('AVAILABLE');
       });
 
       it('take a single probe statement for a host whose features wait for its plan', async () => {
