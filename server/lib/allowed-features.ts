@@ -245,15 +245,15 @@ const FEATURES_NOT_AFFECTED_BY_SUSPENSION = [FEATURE.PUBLIC_PROFILE];
  * use `hasFeature` to properly check a feature activation.
  */
 export const isFeatureBlockedForAccount = (collective: Collective, feature: FEATURE | `${FEATURE}`): boolean => {
+  // Read with plain property accesses: this runs for every feature of every account, where `get` with a path was
+  // most of the time spent resolving feature statuses.
+  const data = collective?.data;
+  const features = data?.features;
   if (FEATURES_NOT_AFFECTED_BY_SUSPENSION.includes(feature as FEATURE)) {
-    return get(collective, `data.features.${feature}`) === false;
+    return features?.[feature] === false;
   }
 
-  return (
-    get(collective, `data.features.${FEATURE.ALL}`) === false ||
-    get(collective, `data.features.${feature}`) === false ||
-    get(collective, `data.isSuspended`) === true
-  );
+  return features?.[FEATURE.ALL] === false || features?.[feature] === false || data?.isSuspended === true;
 };
 
 const checkFeatureAccessParty = (
@@ -324,7 +324,7 @@ const hasOptInFlag = (
     enabledByDefaultFor,
   }: { flagOverride?: string; enabledByDefaultFor?: FEATURE_ACCESS_PARTY | readonly FEATURE_ACCESS_PARTY[] },
 ): boolean => {
-  if (get(collective, `data.features.${feature}`)) {
+  if (collective?.data?.features?.[feature]) {
     return true;
   } else if (flagOverride && get(collective, flagOverride)) {
     return true;
@@ -374,7 +374,7 @@ export const getFeatureAccessWithoutPricing = (
 
     // Check opt-out flag
     if (
-      get(collective, `data.features.${feature}`) === false ||
+      collective.data?.features?.[feature] === false ||
       (featureAccess.flagOverride && get(collective, featureAccess.flagOverride) === false)
     ) {
       return { access: 'DISABLED', reason: 'BLOCKED' };
