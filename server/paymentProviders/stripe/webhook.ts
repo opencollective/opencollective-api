@@ -71,6 +71,19 @@ const getPaymentIntentExpenseIdFromMetadata = (stripePaymentIntent: Stripe.Payme
 const isPlatformStripeAccount = (stripeAccount: string | undefined) =>
   !stripeAccount || stripeAccount === config.stripe.accountId;
 
+/**
+ * Returns `previousStripePaymentIntents` with the current intent archived in it, if `stripePaymentIntent` replaces it.
+ * Keeps every intent created for the expense traceable, so that a late webhook for one of them can still be resolved.
+ */
+const getPreviousStripePaymentIntentsWithCurrent = (
+  data: Expense['data'],
+  stripePaymentIntent: Stripe.PaymentIntent,
+): Stripe.PaymentIntent[] => {
+  const previous = data?.previousStripePaymentIntents ?? [];
+  const current = data?.stripePaymentIntent;
+  return current?.id && current.id !== stripePaymentIntent.id ? [...previous, current] : previous;
+};
+
 const isPaymentIntentInExpenseHistory = (expense: Expense, stripePaymentIntentId: string) =>
   expense.data?.stripePaymentIntent?.id === stripePaymentIntentId ||
   Boolean(expense.data?.previousStripePaymentIntents?.some(pi => pi?.id === stripePaymentIntentId));
@@ -326,20 +339,11 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
 
   if (!order) {
     // Synchronous card payments are recorded right away and move their intent to `previousStripePaymentIntents`
-    // before this webhook arrives: only report intents that were never handled.
-    const orderIdFromMetadata = parseInt(stripePaymentIntent.metadata?.orderId);
-    const [previousOrder, existingChargeTransaction] = await Promise.all([
-      orderIdFromMetadata
-        ? models.Order.findByPk(orderIdFromMetadata, { attributes: ['id', 'data'] }).then(order =>
-            order?.data?.previousStripePaymentIntents?.some(pi => pi?.id === stripePaymentIntent.id) ? order : null,
-          )
-        : null,
-      charge?.id
-        ? models.Transaction.findOne({ attributes: ['id'], where: { data: { charge: { id: charge.id } } } })
-        : null,
-    ]);
-
-    if (!previousOrder && !existingChargeTransaction) {
+    // before this webhook arrives. Only a recorded charge proves the payment is in the ledger: report everything else.
+    const existingChargeTransaction =
+      charge?.id &&
+      (await models.Transaction.findOne({ attributes: ['id'], where: { data: { charge: { id: charge.id } } } }));
+    if (!existingChargeTransaction) {
       reportUnmatchedSucceededPaymentIntent('Order', stripePaymentIntent, stripeAccount);
     }
     return;
@@ -518,7 +522,21 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
       return [expense, false];
     }
 
-    if (expense.status === ExpenseStatus.PAID) {
+    // `markAsPaid` runs after this transaction commits: under the expense lock, the ledger is what tells
+    // whether a concurrent delivery for another intent of the same expense already recorded the payment.
+    const existingExpenseCredit = await models.Transaction.findOne({
+      attributes: ['id'],
+      where: {
+        ExpenseId: expense.id,
+        kind: TransactionKind.EXPENSE,
+        type: TransactionTypes.CREDIT,
+        isRefund: false,
+        RefundTransactionId: null,
+      },
+      transaction,
+    });
+
+    if (expense.status === ExpenseStatus.PAID || existingExpenseCredit) {
       // The expense was already paid by another payment intent (e.g. payer retried with two intents
       // still open): do not record it twice, but make sure the extra payment gets refunded.
       const message = `Stripe Webhook: Payment Intent ${stripePaymentIntent.id} succeeded for Expense ${expense.id}, which is already paid. The payment probably needs to be refunded.`;
@@ -542,7 +560,10 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
       {
         data: {
           ...omit(expense.data, ['stripePaymentIntent']),
-          previousStripePaymentIntents: [...(expense.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
+          previousStripePaymentIntents: [
+            ...getPreviousStripePaymentIntentsWithCurrent(expense.data, stripePaymentIntent),
+            stripePaymentIntent,
+          ],
         },
         PaymentMethodId: pm.id,
         feesPayer: 'PAYEE',
@@ -771,7 +792,11 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
         status: ExpenseStatus.PROCESSING,
         feesPayer: 'PAYEE',
         PaymentMethodId: pm.id,
-        data: { ...expense.data, stripePaymentIntent: stripePaymentIntent },
+        data: {
+          ...expense.data,
+          previousStripePaymentIntents: getPreviousStripePaymentIntentsWithCurrent(expense.data, stripePaymentIntent),
+          stripePaymentIntent: stripePaymentIntent,
+        },
       },
       { transaction },
     );
