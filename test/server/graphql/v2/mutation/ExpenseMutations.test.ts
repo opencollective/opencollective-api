@@ -7820,6 +7820,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           plan: { features: { [FEATURE.TRANSFERWISE]: true } },
         });
         wiseCollective = await fakeCollective({ HostCollectiveId: wiseHost.id, currency: 'USD' });
+        await fakeTransaction({
+          type: 'CREDIT',
+          CollectiveId: wiseCollective.id,
+          HostCollectiveId: wiseHost.id,
+          amount: 1000e2,
+          currency: 'USD',
+        });
+        await fakeConnectedAccount({ CollectiveId: wiseHost.id, service: 'transferwise', token: 'faketoken' });
         await wiseHostAdmin.populateRoles();
       });
 
@@ -7856,6 +7864,59 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await expense.reload();
         expect(expense.status).to.eq('APPROVED');
         expect(expense.lastEditedById).to.eq(wiseHostAdmin.id);
+      });
+
+      it('does not override a status changed after the Wise batch was canceled', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.BANK_ACCOUNT });
+        const expense = await fakeExpense({
+          CollectiveId: wiseCollective.id,
+          status: 'SCHEDULED_FOR_PAYMENT',
+          PayoutMethodId: payoutMethod.id,
+          data: { batchGroup: { id: 'fake-batch-group' } },
+        });
+
+        sandbox.stub(paymentProviders.transferwise, 'unscheduleExpenseForPayment').callsFake(async () => {
+          await models.Expense.update({ status: 'APPROVED', data: {} }, { where: { id: expense.id } });
+          // Concurrent request landing right after the provider committed
+          await models.Expense.update({ status: 'PENDING' }, { where: { id: expense.id } });
+        });
+
+        const mutationParams = { expenseId: expense.id, action: 'UNSCHEDULE_PAYMENT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, wiseHostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('The status of this expense changed (PENDING)');
+        await expense.reload();
+        expect(expense.status).to.eq('PENDING');
+      });
+
+      it('SCHEDULE_FOR_PAYMENT does not override a status changed while the provider reloads the expense', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.BANK_ACCOUNT });
+        const expense = await fakeExpense({
+          amount: 1000,
+          currency: 'USD',
+          CollectiveId: wiseCollective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        sandbox.stub(paymentProviders.transferwise, 'quoteExpense').resolves({
+          payOut: 'BANK_TRANSFER',
+          paymentOption: { fee: { total: 1 }, sourceCurrency: 'USD', targetCurrency: 'USD', disabled: false },
+        });
+        // Like the real implementation, the provider reloads the expense instance it receives
+        sandbox.stub(paymentProviders.transferwise, 'scheduleExpenseForPayment').callsFake(async expenseInstance => {
+          // Concurrent unapprove while the Wise transfer is being created
+          await models.Expense.update({ status: 'PENDING' }, { where: { id: expense.id } });
+          await expenseInstance.reload();
+          return expenseInstance;
+        });
+
+        const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, wiseHostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('The status of this expense changed (PENDING)');
+        await expense.reload();
+        expect(expense.status).to.eq('PENDING');
       });
 
       it('unschedules a non-Wise expense', async () => {

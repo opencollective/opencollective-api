@@ -1634,6 +1634,11 @@ export const canSeeExpenseOnHoldFlag = async (req: express.Request, expense: Exp
 const updateExpenseStatusWithLock = async (
   expense: Expense,
   values: Parameters<Expense['update']>[0],
+  {
+    // Pass this explicitly when `expense` may have been reloaded since the permission checks (e.g. by a payment
+    // provider), otherwise a status changed concurrently in the meantime would be silently accepted.
+    expectedStatus = expense.status,
+  }: { expectedStatus?: Expense['status'] } = {},
 ): Promise<Expense> => {
   return sequelize.transaction(async transaction => {
     const lockedExpense = await models.Expense.findByPk(expense.id, { lock: true, transaction });
@@ -1641,7 +1646,7 @@ const updateExpenseStatusWithLock = async (
       throw new NotFound('Expense not found');
     } else if (lockedExpense.data?.isLocked) {
       throw new ValidationFailed('This expense is currently being processed, please try again later');
-    } else if (lockedExpense.status !== expense.status) {
+    } else if (lockedExpense.status !== expectedStatus) {
       throw new ValidationFailed(
         `The status of this expense changed (${lockedExpense.status}) while processing the request, please refresh and try again`,
       );
@@ -1960,6 +1965,9 @@ export const scheduleExpenseForPayment = async (
     throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
   }
 
+  // The Wise provider reloads `expense`, so keep the status the permission checks above were made against
+  const statusBeforeScheduling = expense.status;
+
   const host = expense.collective.host || (await expense.collective.getHostCollective({ loaders: req.loaders }));
   if (expense.currency !== expense.collective.currency && !hasMultiCurrency(expense.collective, host)) {
     throw new Forbidden('Multi-currency expenses are not enabled for this collective');
@@ -1991,11 +1999,11 @@ export const scheduleExpenseForPayment = async (
     await host.getAccountForPaymentProvider(Service.PAYPAL);
   }
 
-  const updatedExpense = await updateExpenseStatusWithLock(expense, {
-    status: 'SCHEDULED_FOR_PAYMENT',
-    lastEditedById: req.remoteUser.id,
-    onHold: false,
-  });
+  const updatedExpense = await updateExpenseStatusWithLock(
+    expense,
+    { status: 'SCHEDULED_FOR_PAYMENT', lastEditedById: req.remoteUser.id, onHold: false },
+    { expectedStatus: statusBeforeScheduling },
+  );
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
   return updatedExpense;
 };
@@ -2006,20 +2014,23 @@ export const unscheduleExpensePayment = async (req: express.Request, expense: Ex
   }
 
   // If Wise, add expense to a new batch group
+  let expectedStatus = expense.status;
   const payoutMethod = await expense.getPayoutMethod();
   if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
     const host = await loadHostForExpense(req, expense);
     await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
     await paymentProviders.transferwise.unscheduleExpenseForPayment(expense);
     // The Wise provider moves every expense of the canceled batch (including this one) back to APPROVED
-    // through other instances, so refresh ours before the locked status check below.
+    // through other instances: refresh ours, and expect the status the provider committed.
     await expense.reload();
+    expectedStatus = ExpenseStatus.APPROVED;
   }
 
-  const updatedExpense = await updateExpenseStatusWithLock(expense, {
-    status: 'APPROVED',
-    lastEditedById: req.remoteUser.id,
-  });
+  const updatedExpense = await updateExpenseStatusWithLock(
+    expense,
+    { status: 'APPROVED', lastEditedById: req.remoteUser.id },
+    { expectedStatus },
+  );
 
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT, req.remoteUser);
 
