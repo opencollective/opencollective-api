@@ -14,6 +14,7 @@ import {
   orderFraudProtection,
   validateStat,
 } from '../../../../server/lib/security/order';
+import { SuspendedAsset } from '../../../../server/models';
 import { fakeOrder, fakePaymentMethod, fakeUser, multiple } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
@@ -249,7 +250,7 @@ describe('lib/security/order', () => {
           name: '4242',
           type: PAYMENT_METHOD_TYPE.CREDITCARD,
           service: PAYMENT_METHOD_SERVICE.STRIPE,
-          data: { expYear: 2022, expMonth: 13, brand: 'Visa' },
+          data: { expYear: 2022, expMonth: 13, country: 'US', brand: 'Visa' },
         },
       };
       before(() => {
@@ -299,6 +300,19 @@ describe('lib/security/order', () => {
         await expect(orderFraudProtection({} as express.Request, order)).to.be.rejectedWith(
           'Credit Card 1111-Visa-12-2031 failed fraud protection',
         );
+      });
+
+      it('should not flag a clean card that has no fingerprint nor country', async () => {
+        const order = {
+          paymentMethod: {
+            name: '9999',
+            type: PAYMENT_METHOD_TYPE.CREDITCARD,
+            service: PAYMENT_METHOD_SERVICE.STRIPE,
+            data: { expYear: 2030, expMonth: 1, brand: 'Visa' },
+          },
+        };
+        await expect(orderFraudProtection({} as express.Request, order)).to.be.fulfilled;
+        expect(await SuspendedAsset.count({ where: { fingerprint: '9999-Visa-1-2030' } })).to.eq(0);
       });
     });
   });
