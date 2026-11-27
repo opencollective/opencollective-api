@@ -5,7 +5,7 @@ import type Stripe from 'stripe';
 import logger from '../../lib/logger';
 import { getApplicationFee } from '../../lib/payments';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
-import stripe, { convertToStripeAmount } from '../../lib/stripe';
+import stripe, { convertToStripeAmount, getStripeErrorMessage } from '../../lib/stripe';
 import models, { Collective } from '../../models';
 import Order from '../../models/Order';
 import PaymentMethod from '../../models/PaymentMethod';
@@ -199,7 +199,8 @@ export default {
         stripePaymentMethod,
       });
     } catch (error) {
-      // Here, we check strictly the error message
+      // Here, we check strictly the error message, as Stripe returned it (without the request id prefix)
+      const stripeErrorMessage = getStripeErrorMessage(error);
       const knownErrors = [
         'Your card has insufficient funds.',
         'Your card was declined.',
@@ -218,12 +219,14 @@ export default {
 
       if (
         knownErrors.some(knownError =>
-          typeof knownError === 'string' ? knownError === error.message : knownError.test(error.message),
+          typeof knownError === 'string' ? knownError === stripeErrorMessage : knownError.test(stripeErrorMessage),
         )
       ) {
         logger.error(
-          `Stripe Error (handled): ${error.type}, Message: ${error.message}, Decline Code: ${error.decline_code}, Code: ${error.code}`,
+          `Stripe Error (handled): ${error.type}, Message: ${stripeErrorMessage}, Decline Code: ${error.decline_code}, Code: ${error.code}, Request: ${error.requestId}`,
         );
+        // Shown to the contributor and stored on the order (payment failed emails)
+        error.message = stripeErrorMessage;
         throw error;
       }
 
