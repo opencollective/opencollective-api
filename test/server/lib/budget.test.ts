@@ -454,11 +454,15 @@ describe('server/lib/budget', () => {
       await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
     };
 
-    // The fast path (checkpoints) must give the same totals as summing all the transactions
+    // The fast path (checkpoints) must give the same totals as summing all the transactions,
+    // with the raw query and through the loaders used by GraphQL
     const expectSameAsTransactions = async (ids: number[]) => {
       const fromTransactions = await getBalances(ids, { includeChildren: true, useMaterializedView: false });
       const fast = await getBalances(ids, { includeChildren: true, useMaterializedView: true });
       expect(fast).to.deep.eq(fromTransactions);
+      const loaders = makeRequest().loaders;
+      const fastWithLoaders = await getBalances(ids, { includeChildren: true, useMaterializedView: true, loaders });
+      expect(fastWithLoaders).to.deep.eq(fromTransactions);
       return fast;
     };
 
@@ -574,6 +578,24 @@ describe('server/lib/budget', () => {
 
       expect(await getCurrentConsolidatedBalances([parent.id])).to.be.empty;
       await expectSameAsTransactions([parent.id]);
+    });
+
+    it('sums a child on another budget version from its own transactions, like the transactions path', async () => {
+      const v3Project = await fakeCollective({
+        type: CollectiveType.PROJECT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: host.id,
+        settings: { budget: { version: 'v3' } },
+      });
+      await addTransaction(v3Project, { amount: 13e2 });
+      await refreshCheckpoints();
+
+      // The checkpoints of a v3 account are filtered out, by the raw query and by the loader
+      expect(await getCurrentCollectiveBalances([v3Project.id])).to.be.empty;
+      expect(await getCurrentCollectiveBalances([v3Project.id], { loaders: makeRequest().loaders })).to.be.empty;
+
+      const balances = await expectSameAsTransactions([parent.id]);
+      expect(await getCurrentConsolidatedBalances([parent.id])).to.deep.eq(balances);
     });
 
     it('falls back to the transactions when the children are in several currencies', async () => {
