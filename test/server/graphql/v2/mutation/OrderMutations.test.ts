@@ -4618,6 +4618,39 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(order.data.tax.percentage).to.equal(20);
       });
 
+      it('recomputes the stored tax when marking as paid with a new amount but no tax', async () => {
+        const orderWithTax = await fakeOrder({
+          CreatedByUserId: user.id,
+          FromCollectiveId: user.CollectiveId,
+          CollectiveId: collective.id,
+          status: OrderStatuses.PENDING,
+          frequency: 'ONETIME',
+          totalAmount: 1100,
+          taxAmount: 100,
+          currency: 'USD',
+          data: { tax: { id: 'VAT', percentage: 10 } },
+        } as any);
+
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            action: 'MARK_AS_PAID',
+            order: {
+              id: idEncode(orderWithTax.id, 'order'),
+              amount: { valueInCents: 2000, currency: 'USD' },
+            },
+          },
+          hostAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        await orderWithTax.reload();
+        expect(orderWithTax.taxAmount).to.equal(200); // 10% VAT on $20
+        expect(orderWithTax.totalAmount).to.equal(2200);
+      });
+
       it('keeps the contribution amount and adds the new platform tip when only the platform tip changes', async () => {
         await order.update({ totalAmount: 10100, platformTipAmount: 100 });
         const result = await graphqlQueryV2(

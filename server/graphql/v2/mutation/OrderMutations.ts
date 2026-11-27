@@ -910,6 +910,10 @@ const orderMutations = {
           let baseAmount;
           if (!isNil(args.order.amount)) {
             baseAmount = getValueInCentsFromAmountInput(args.order.amount);
+            if (isNil(tax) && order.data?.tax) {
+              // The stored tax applies to the new amount
+              order.set('taxAmount', getTaxAmount(baseAmount, order.data.tax, order.currency));
+            }
           } else {
             baseAmount = existingBaseAmount;
           }
