@@ -4,6 +4,7 @@ import sinon, { createSandbox } from 'sinon';
 
 import OrderStatuses from '../../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
+import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import * as GoCardlessConnect from '../../../../../server/lib/gocardless/connect';
 import * as paypal from '../../../../../server/lib/paypal';
@@ -16,6 +17,7 @@ import {
   fakeConnectedAccount,
   fakeOrder,
   fakePaymentMethod,
+  fakeTransaction,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
@@ -534,6 +536,47 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
         const stillExists = await models.ConnectedAccount.findByPk(paypalAccount.id);
         expect(stillExists).to.not.be.null;
         expect(stillExists.deletedAt).to.be.null;
+      });
+
+      it('with PayPal - fails when collectives that moved still have subscriptions charged by this host', async () => {
+        const host = await fakeActiveHost();
+        await host.addUserWithRole(user, 'ADMIN');
+        const paypalAccount = await fakeConnectedAccount({ service: 'paypal', CollectiveId: host.id });
+
+        // The collective moved to another host, but its PayPal subscription is still charged on this host's account
+        const otherHost = await fakeActiveHost();
+        const movedCollective = await fakeCollective({ HostCollectiveId: otherHost.id });
+        const pm = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.PAYPAL,
+          type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
+        });
+        const order = await fakeOrder(
+          {
+            CollectiveId: movedCollective.id,
+            PaymentMethodId: pm.id,
+            status: OrderStatuses.ACTIVE,
+            subscription: { paypalSubscriptionId: 'I-MOVED', isActive: true, isManagedExternally: true },
+          },
+          { withSubscription: true },
+        );
+        await fakeTransaction({
+          OrderId: order.id,
+          CollectiveId: movedCollective.id,
+          HostCollectiveId: host.id,
+          kind: TransactionKind.CONTRIBUTION,
+          type: 'CREDIT',
+          amount: 1000,
+        });
+
+        const result = await graphqlQueryV2(
+          deleteConnectedAccountMutation,
+          { connectedAccount: { legacyId: paypalAccount.id } },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('ValidationFailed');
+        expect(await models.ConnectedAccount.findByPk(paypalAccount.id)).to.not.be.null;
       });
 
       it('with GoCardless', async () => {

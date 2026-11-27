@@ -307,6 +307,31 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
     expect(activity.data.reasonCode).to.equal('PAUSED');
   });
 
+  it('deactivates paypal subscriptions locally when the PayPal host is not connected anymore', async () => {
+    const disconnectedHost = await fakeHost();
+    const collective = await fakeCollective({ HostCollectiveId: disconnectedHost.id });
+    const paypalOrder = await fakePayPalSubscriptionOrder(collective, { needsAsyncDeactivation: true });
+    await paypalOrder.update({ status: OrderStatuses.CANCELLED });
+    const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest').resolves();
+    const reportMessageStub = sandbox.stub(SentryLib, 'reportMessageToSentry');
+    const reportErrorStub = sandbox.stub(SentryLib, 'reportErrorToSentry');
+
+    await runCronJob();
+
+    assert.notCalled(paypalRequestStub);
+    assert.notCalled(reportErrorStub);
+    assert.calledOnce(reportMessageStub);
+    await paypalOrder.reload();
+    await paypalOrder.Subscription.reload();
+    expect(paypalOrder.status).to.eq(OrderStatuses.CANCELLED);
+    expect(paypalOrder.Subscription.isActive).to.be.false;
+    expect(paypalOrder.data.needsAsyncDeactivation).to.be.false;
+    expect(paypalOrder.data.paypalNotCancelledHostDisconnected).to.be.true;
+
+    // Not retried
+    expect(await runCronJob()).to.be.empty;
+  });
+
   describe('paused orders (from freezing collectives)', () => {
     it('pauses subscriptions from paused orders', async () => {
       const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest').resolves();
