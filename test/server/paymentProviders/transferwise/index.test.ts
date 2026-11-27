@@ -456,13 +456,16 @@ describe('server/paymentProviders/transferwise/index', () => {
         }
       });
 
-      it('records the failure metric even when cancelling the transfer fails', async () => {
+      it('records the failure metric and rethrows the funding error even when cancelling the transfer fails', async () => {
         const wiseExpense = await fakeWiseExpense();
         fundTransfer.rejects(new Error('Funding exploded'));
         cancelTransfer.rejects(new Error('Cancel exploded'));
 
         try {
-          await expect(transferwise.payExpense(connectedAccount, payoutMethod, wiseExpense)).to.be.rejected;
+          await expect(transferwise.payExpense(connectedAccount, payoutMethod, wiseExpense)).to.be.rejectedWith(
+            'Funding exploded',
+          );
+          expect(cancelTransfer).to.have.been.called;
 
           expect(metricsCountStub).to.have.been.calledOnce;
           expect(metricsCountStub.firstCall.args).to.deep.equal([
