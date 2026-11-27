@@ -342,24 +342,28 @@ describe('server/controllers/transferwise', () => {
         expect(payExpensesBatchGroup.calledTwice).to.be.true;
       });
 
-      it('does not count a batch that failed to be paid', async () => {
+      it('keeps counting a batch sent to Wise even if the call fails', async () => {
         // A 2FA code opens the session: the count starts at 0
         req.headers[TwoFactorAuthenticationHeader] = `totp ${generateSync({ secret })}`;
         await transferwiseController.payBatch(req, res);
         expect(res.status.called).to.be.false;
         delete req.headers[TwoFactorAuthenticationHeader];
 
-        // Within the session, a 400 batch is counted, then fails
-        payExpensesBatchGroup.rejects(new Error('Wise is down'));
+        // Within the session, a 400 batch is counted, then the call to Wise fails. Wise may still have funded it.
+        payExpensesBatchGroup.rejects(new Error('Wise timed out'));
         await expense.update({ status: expenseStatus.SCHEDULED_FOR_PAYMENT, amount: 400_00 });
         await transferwiseController.payBatch(req, res);
         expect(res.status.firstCall.firstArg).to.equal(500);
 
-        // The failed 400 was released, so another 400 still fits in the 500 limit without a new code
+        // The failed 400 stays counted: another 400 goes over the 500 limit and asks for a new code
         payExpensesBatchGroup.resolves({ status: 'COMPLETED' });
+        payExpensesBatchGroup.resetHistory();
         res.status.resetHistory();
+        res.send.resetHistory();
         await transferwiseController.payBatch(req, res);
-        expect(res.status.called).to.be.false;
+        expect(res.status.firstCall.firstArg).to.equal(401);
+        expect(res.send.firstCall.firstArg).to.have.property('message', 'Two-factor authentication required');
+        expect(payExpensesBatchGroup.called).to.be.false;
       });
 
       it('does not ask for a 2FA code again when approving the Wise payment', async () => {

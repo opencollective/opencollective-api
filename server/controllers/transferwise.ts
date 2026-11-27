@@ -3,13 +3,7 @@ import type Express from 'express';
 
 import { Service } from '../constants/connected-account';
 import expenseStatus from '../constants/expense-status';
-import {
-  enforcePayout2FA,
-  ExpensePayout2FALimitCount,
-  getExpenseFees,
-  releaseExpensePayout2FALimit,
-  setTransferWiseExpenseAsProcessing,
-} from '../graphql/common/expenses';
+import { enforcePayout2FA, getExpenseFees, setTransferWiseExpenseAsProcessing } from '../graphql/common/expenses';
 import { checkRemoteUserCanUseExpenses } from '../graphql/common/scope-check';
 import { fetchAccountWithReference } from '../graphql/v2/input/AccountReferenceInput';
 import { fetchExpenseWithReference } from '../graphql/v2/input/ExpenseReferenceInput';
@@ -101,7 +95,6 @@ export async function payBatch(
   req: Express.Request<Record<string, string>, unknown, { expenseIds: Array<string>; hostId: string }>,
   res: Express.Response,
 ): Promise<void> {
-  let countedTowards2FARollingLimit: ExpensePayout2FALimitCount | null = null;
   try {
     const { remoteUser, headers, body } = req;
     if (!remoteUser) {
@@ -158,9 +151,11 @@ export async function payBatch(
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
       fundResponse = await transferwise.approveExpenseBatchGroupPayment({ host, expenses, x2faApproval, remoteUser });
     } else {
-      // Paying the batch is what moves the money, so it goes through the payout 2FA check for its total
+      // Paying the batch is what moves the money, so it goes through the payout 2FA check for its total. Once the batch
+      // is sent to Wise, its amount stays counted even if the call fails: a timeout or a 5xx does not tell whether Wise
+      // funded it, so the count errs on the side of asking for a code sooner.
       const totalInHostCurrency = await getBatchTotalInHostCurrency(host, expenses);
-      countedTowards2FARollingLimit = await enforcePayout2FA(
+      await enforcePayout2FA(
         req,
         host,
         { amount: totalInHostCurrency, currency: host.currency },
@@ -171,11 +166,9 @@ export async function payBatch(
 
     // If OTT response, proxy it to the frontend and return early
     if ('status' in fundResponse && 'headers' in fundResponse) {
-      countedTowards2FARollingLimit = null; // Waiting for approval: stays counted
       res.setHeader('x-2fa-approval', fundResponse.headers['x-2fa-approval']);
       res.sendStatus(fundResponse.status);
     } else if (fundResponse.status === 'COMPLETED') {
-      countedTowards2FARollingLimit = null; // Paid: stays counted, whatever happens next
       // Mark expenses as paid and create transactions
       await Promise.all(expenses.map(processPaidExpense(host, remoteUser, fundResponse)));
       // Send 200 to the frontend
@@ -202,9 +195,6 @@ export async function payBatch(
       throw new Error(`Could not pay for batch group #${fundResponse.id}, please contact support.`);
     }
   } catch (e) {
-    // The batch was not paid: its amount does not count towards the rolling limit. A batch that Wise asked to approve
-    // stays counted, even if the admin never approves it.
-    await releaseExpensePayout2FALimit(req, countedTowards2FARollingLimit);
     if (send2FAError(e, res)) {
       return;
     }

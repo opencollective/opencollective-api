@@ -1861,7 +1861,7 @@ const ROLLING_LIMIT_CACHE_VALIDITY = 3600; // 1h in secs for cache to expire
 const getExpensePayout2FALimitCacheKey = (userId: number, hostId: number) => `${userId}_2fa_payment_limit_${hostId}`;
 
 /** A payout that was added to a count of the amount paid, and what it must take back if it does not go through */
-export type ExpensePayout2FALimitCount = { countKey: string; amount: number };
+type ExpensePayout2FALimitCount = { countKey: string; amount: number };
 
 /** The amount leaving the host's account in one payout: an expense, or the total of a batch of expenses */
 type PayoutAmount = { amount: number; currency: SupportedCurrency };
@@ -1987,7 +1987,7 @@ async function checkExpensePayout2FALimit(
  * Takes back what `validateExpensePayout2FALimit` counted for a payout that did not go through. The count it was
  * added to can only go down by what that same payout added to it, and never below zero.
  */
-export async function releaseExpensePayout2FALimit(req, counted: ExpensePayout2FALimitCount | null): Promise<void> {
+async function releaseExpensePayout2FALimit(req, counted: ExpensePayout2FALimitCount | null): Promise<void> {
   if (!counted) {
     return;
   }

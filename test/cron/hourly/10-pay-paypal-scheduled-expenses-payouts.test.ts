@@ -6,6 +6,7 @@ import activities from '../../../server/constants/activities';
 import status from '../../../server/constants/expense-status';
 import MemberRoles from '../../../server/constants/roles';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
+import * as LibCurrency from '../../../server/lib/currency';
 import models, { sequelize } from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import * as paypal from '../../../server/paymentProviders/paypal/payouts';
@@ -62,7 +63,10 @@ describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
   const fakeScheduledExpense = async (
     collective,
     scheduledBy,
-    { justScheduled = false, ...expenseData }: { justScheduled?: boolean; type?: string; feesPayer?: string } = {},
+    {
+      justScheduled = false,
+      ...expenseData
+    }: { justScheduled?: boolean; type?: string; feesPayer?: string; currency?: string } = {},
   ) => {
     const payoutMethod = await fakePaypalPayoutMethod();
     const expense = await fakeExpense({
@@ -190,6 +194,47 @@ describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
     expect(getPaidExpenseIds()).to.deep.eq([covered.id]);
     await notCovered.reload();
     expect(notCovered.status).to.eq(status.APPROVED);
+  });
+
+  it('checks the admin of the current scheduling when the payout was rescheduled after the cron loaded it', async () => {
+    const { host, hostAdmin, collective } = await fakeHostAndCollective();
+    const otherAdmin = await fakeUser();
+    await host.addUserWithRole(otherAdmin, MemberRoles.ADMIN);
+    const expense = await fakeScheduledExpense(collective, hostAdmin);
+    await expense.update({ data: { ...expense.data, scheduledForPaymentByUserId: hostAdmin.id } });
+    const loadedByCron = await models.Expense.findByPk(expense.id, { include: [{ association: 'collective' }] });
+
+    // Unscheduled and scheduled again by another admin, who has been removed since
+    await models.Expense.update(
+      { data: { ...expense.data, scheduledForPaymentByUserId: otherAdmin.id } },
+      { where: { id: expense.id } },
+    );
+    await sequelize.query(`UPDATE "Expenses" SET "updatedAt" = NOW() - INTERVAL '1 hour' WHERE "id" = :id`, {
+      replacements: { id: expense.id },
+    });
+    await models.Member.destroy({ where: { MemberCollectiveId: otherAdmin.CollectiveId, CollectiveId: host.id } });
+
+    const toPay = await paypal.checkScheduledPayoutsBeforePaying(host, [loadedByCron]);
+
+    expect(toPay).to.be.empty;
+    await expense.reload();
+    expect(expense.status).to.eq(status.APPROVED);
+  });
+
+  it('shares the balance across currencies, paying the oldest payouts first', async () => {
+    const rates = { 'EUR-USD': 1.1, 'USD-EUR': 1 / 1.1 };
+    sandbox.stub(LibCurrency, 'getFxRate').callsFake(async (from, to) => (from === to ? 1 : rates[`${from}-${to}`]));
+    // $102 for the USD payout (with its fee), ~$56 for the EUR one: $120 only covers one of them
+    const { hostAdmin, collective } = await fakeHostAndCollective({ balance: 120_00 });
+    const usdExpense = await fakeScheduledExpense(collective, hostAdmin, { feesPayer: 'COLLECTIVE' });
+    const eurExpense = await fakeScheduledExpense(collective, hostAdmin, { feesPayer: 'COLLECTIVE', currency: 'EUR' });
+    await eurExpense.update({ amount: 50_00 });
+
+    await payPaypalScheduledExpenses();
+
+    expect(getPaidExpenseIds()).to.deep.eq([usdExpense.id]);
+    await eurExpense.reload();
+    expect(eurExpense.status).to.eq(status.APPROVED);
   });
 
   it('checks the admin recorded with the current scheduling, not an older scheduling activity', async () => {

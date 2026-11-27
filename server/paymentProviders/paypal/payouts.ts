@@ -87,12 +87,15 @@ export const checkScheduledPayoutsBeforePaying = async (
   host: Collective | null,
   expenses: Expense[],
 ): Promise<Expense[]> => {
-  // The expenses were loaded when the cron started: the status of some may have changed since
+  // The expenses were loaded when the cron started: the status of some may have changed since, and an expense may
+  // have been unscheduled and scheduled again by another admin. The status and who scheduled the payout are read
+  // again together.
   const stillScheduled = await models.Expense.findAll({
-    attributes: ['id'],
+    attributes: ['id', 'data', 'updatedAt'],
     where: { id: expenses.map(e => e.id), status: status.SCHEDULED_FOR_PAYMENT },
   });
   const stillScheduledIds = new Set(stillScheduled.map(e => e.id));
+  const current = new Map(stillScheduled.map(e => [e.id, e]));
 
   // The collective left its host after the payouts were scheduled: no host can pay them, and they would otherwise
   // stay scheduled, keeping their amounts in blocked funds
@@ -107,8 +110,9 @@ export const checkScheduledPayoutsBeforePaying = async (
   for (const expense of expenses.filter(e => stillScheduledIds.has(e.id))) {
     // Scheduling records who scheduled the payout in the same write as the status. Payouts scheduled before that
     // was recorded fall back to the last scheduling activity, which is written right after the status.
-    const isBeingScheduled = Date.now() - new Date(expense.updatedAt).getTime() < SCHEDULING_GRACE_PERIOD_MS;
-    let scheduledByUserId = expense.data?.scheduledForPaymentByUserId as number | undefined;
+    const { data: currentData, updatedAt } = current.get(expense.id);
+    const isBeingScheduled = Date.now() - new Date(updatedAt).getTime() < SCHEDULING_GRACE_PERIOD_MS;
+    let scheduledByUserId = currentData?.scheduledForPaymentByUserId as number | undefined;
     if (!scheduledByUserId) {
       const scheduledActivity = await models.Activity.findOne({
         where: { ExpenseId: expense.id, type: activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT },
