@@ -118,6 +118,11 @@ describe('migrations/20261126120000-two-phase-admin-community-transaction-summar
     });
 
     await deletedCollective.destroy();
+
+    // Each test reads the views directly, so build them from the fixtures above
+    for (const view of VIEWS) {
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "${view}"`);
+    }
   });
 
   it('produces the same rows, columns and indexes as the previous definition', async () => {

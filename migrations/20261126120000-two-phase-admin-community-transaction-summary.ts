@@ -11,6 +11,8 @@
 /** @type {import('sequelize-cli').Migration} */
 
 const dropViews = async (queryInterface, transaction) => {
+  // The hourly REFRESH holds the views for minutes: fail fast instead of queueing readers behind the DROPs
+  await queryInterface.sequelize.query(`SET LOCAL lock_timeout = '10s'`, { transaction });
   await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "AdminCommunityHostTransactionSummary";`, {
     transaction,
   });
@@ -166,8 +168,8 @@ const twoPhaseSummaryQuery = `
       FROM
         per_from p
         INNER JOIN "Collectives" c ON p."FromCollectiveId" = c.id AND c."deletedAt" IS NULL
-      GROUP BY COALESCE(((c.data #> '{UserCollectiveId}')::integer), c.id), p."CollectiveId", p."HostCollectiveId", p.year, p."hostCurrency", p.kind
-      ORDER BY COALESCE(((c.data #> '{UserCollectiveId}')::integer), c.id), p."CollectiveId", p."HostCollectiveId", p.kind, p.year DESC
+      -- Same key order as the window PARTITION BY ... ORDER BY year below, so the window needs no extra sort
+      GROUP BY COALESCE(((c.data #> '{UserCollectiveId}')::integer), c.id), p."HostCollectiveId", p."CollectiveId", p.kind, p."hostCurrency", p.year
     )
   SELECT
     "FromCollectiveId", "CollectiveId", "HostCollectiveId", year, kind, "hostCurrency", "debitTotal", "debitCount", "creditTotal", "creditCount", "refundDebitTotal",
