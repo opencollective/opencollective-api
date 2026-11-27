@@ -123,9 +123,9 @@ async function findExpenseForStripePaymentIntent(
     !isPaymentIntentInExpenseHistory(expenseFromMetadata, stripePaymentIntent.id) &&
     !isPlatformStripeAccount(stripeAccount)
   ) {
-    reportMessageToSentry(
+    // Not reported to Sentry here: callers report the unmatched intent, with the event's context.
+    logger.warn(
       `Stripe Webhook: Payment Intent ${stripePaymentIntent.id} references Expense ${expenseId} in its metadata, but is not part of its history`,
-      { extra: { paymentIntentId: stripePaymentIntent.id, expenseId, stripeAccount } },
     );
     return null;
   }

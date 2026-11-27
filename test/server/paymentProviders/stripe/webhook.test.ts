@@ -1698,6 +1698,7 @@ describe('webhook', () => {
       }
 
       it('does not trust the metadata of an unknown intent coming from a connected account', async () => {
+        const reportStub = sandbox.stub(SentryLib, 'reportMessageToSentry');
         await expense.update({ data: { stripePaymentIntent: { id: randStr('pi_fake') } as Stripe.PaymentIntent } });
         event.account = 'testUserName';
         event.data.object.id = randStr('pi_unknown');
@@ -1708,6 +1709,7 @@ describe('webhook', () => {
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
         expect(transactions.createTransactionsFromPaidStripeExpense).to.not.have.been.called;
+        assert.calledOnceWithMatch(reportStub, sinon.match('Could not find Expense for succeeded Payment Intent'));
       });
 
       it('does not record a second payment for an expense that is already paid', async () => {
