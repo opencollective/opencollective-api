@@ -45,7 +45,11 @@ const getNextChargeDateForUpdateContribution = (
 
   // We allow re-using the previous next charge date if it's no too old or if the next charge date is in the future (and the new date is supported)
   if (nextChargeIsFuture) {
-    if (isKeepingInterval && (allowReuseOfFutureOffCycleNextChargeDate || previousNextChargeDate.date() === 1)) {
+    // Yearly dates are always kept: re-aligning them to next Jan 1 could charge months before the paid year ends
+    if (
+      isKeepingInterval &&
+      (allowReuseOfFutureOffCycleNextChargeDate || previousNextChargeDate.date() === 1 || newInterval === 'year')
+    ) {
       return [previousNextChargeDate, previousNextPeriodStart];
     }
   } else if (now.diff(previousNextChargeDate, 'days') < maxDiffInDaysToReusePreviousNextChargeDate) {
