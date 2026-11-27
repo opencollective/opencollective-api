@@ -210,6 +210,23 @@ describe('webhook', () => {
           await order.reload();
           expect(order.status).to.eql(OrderStatuses.PAID);
         });
+
+        it('does not revive an Order that was already REFUNDED', async () => {
+          await order.update({ SubscriptionId: null, status: OrderStatuses.REFUNDED });
+          await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+
+          // The dispute is still tracked, but the Order keeps its final status
+          await order.reload();
+          expect(order.status).to.eql(OrderStatuses.REFUNDED);
+          const transactions = await order.getTransactions();
+          expect(transactions.map(tx => tx.isDisputed)).to.eql([true, true, true, true]);
+          await user.reload();
+          expect(user.data.features[FEATURE.ORDER]).to.eq(false);
+
+          await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won);
+          await order.reload();
+          expect(order.status).to.eql(OrderStatuses.REFUNDED);
+        });
       });
 
       describe('when the User has other disputed Orders', () => {
