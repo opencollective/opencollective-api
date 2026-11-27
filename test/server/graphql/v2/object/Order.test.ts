@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 
 import OrderStatuses from '../../../../../server/constants/order-status';
 import roles from '../../../../../server/constants/roles';
+import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -331,6 +332,60 @@ describe('server/graphql/v2/object/Order', () => {
 
       expect(result.errors).to.not.exist;
       expect(result.data.order.transactions).to.be.an('array').that.is.not.empty;
+    });
+  });
+
+  describe('lastChargedAt', () => {
+    const lastChargedAtQuery = gql`
+      query Order($legacyId: Int!) {
+        order(order: { legacyId: $legacyId }) {
+          id
+          lastChargedAt
+        }
+      }
+    `;
+
+    it('returns the date of the latest payment for one-time contributions', async () => {
+      const order = await fakeOrder({ status: OrderStatuses.PAID });
+      const chargeDate = new Date('2024-01-15T10:00:00Z');
+      const baseTransaction = {
+        OrderId: order.id,
+        CollectiveId: order.CollectiveId,
+        FromCollectiveId: order.FromCollectiveId,
+        kind: TransactionKind.CONTRIBUTION,
+      };
+      await fakeTransaction({ ...baseTransaction, type: 'CREDIT', amount: 1000, createdAt: chargeDate });
+      // Refunds and debits are ignored
+      await fakeTransaction({
+        ...baseTransaction,
+        type: 'CREDIT',
+        amount: 1000,
+        isRefund: true,
+        createdAt: new Date('2024-02-01T10:00:00Z'),
+      });
+      await fakeTransaction({ ...baseTransaction, type: 'DEBIT', amount: -1000, createdAt: new Date('2024-03-01') });
+
+      const result = await graphqlQueryV2(lastChargedAtQuery, { legacyId: order.id });
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(new Date(result.data.order.lastChargedAt).toISOString()).to.equal(chargeDate.toISOString());
+    });
+
+    it('returns null for one-time contributions that were never charged', async () => {
+      const order = await fakeOrder({ status: OrderStatuses.PENDING });
+      const result = await graphqlQueryV2(lastChargedAtQuery, { legacyId: order.id });
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.order.lastChargedAt).to.be.null;
+    });
+
+    it('returns the subscription lastChargedAt for recurring contributions', async () => {
+      const lastChargedAt = new Date('2024-05-01T10:00:00Z');
+      const order = await fakeOrder({ interval: 'month', subscription: { lastChargedAt } }, { withSubscription: true });
+      const result = await graphqlQueryV2(lastChargedAtQuery, { legacyId: order.id });
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(new Date(result.data.order.lastChargedAt).toISOString()).to.equal(lastChargedAt.toISOString());
     });
   });
 

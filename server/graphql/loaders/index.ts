@@ -1204,6 +1204,7 @@ export const generateLoaders = req => {
       // Order - activities
       activities: orderLoaders.generateOrderActivitiesLoader(),
       totalContributed: orderLoaders.generateOrderTotalContributedLoader(),
+      lastChargedAt: orderLoaders.generateOrderLastChargedAtLoader(),
     },
     Member: {
       ...context.loaders.Member,
