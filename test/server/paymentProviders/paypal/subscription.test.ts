@@ -197,6 +197,58 @@ describe('server/paymentProviders/paypal/subscription', () => {
         expect(error['rootException'].message).to.eq('The plan amount does not match the order amount');
         assert.calledOnce(paypalRequestStub); // We only fetch the subscription, not approving it
       });
+
+      it('must not override the plan', async () => {
+        const paymentMethod = await fakePaypalSubscriptionPm(validSubscriptionParams);
+        const order = await fakeOrder({
+          CollectiveId: host.id,
+          status: OrderStatuses.NEW,
+          TierId: null,
+          totalAmount: 1000,
+        });
+        const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest');
+        const subscriptionUrl = `billing/subscriptions/${paymentMethod.token}`;
+        paypalRequestStub.withArgs(subscriptionUrl).returns({ ...validSubscriptionParams, plan_overridden: true });
+        const error = await setupPaypalSubscriptionForOrder(order, paymentMethod).catch(e => e);
+        expect(error['rootException'].message).to.eq('PayPal subscriptions with a customized plan are not supported');
+        assert.calledOnce(paypalRequestStub); // We only fetch the subscription, not approving it
+      });
+
+      for (const quantity of [undefined, null, '1']) {
+        it(`accepts a quantity of ${JSON.stringify(quantity) ?? 'undefined'}`, async () => {
+          const paymentMethod = await fakePaypalSubscriptionPm(validSubscriptionParams);
+          const order = await fakeOrder({
+            CollectiveId: host.id,
+            status: OrderStatuses.NEW,
+            TierId: null,
+            totalAmount: 1000,
+          });
+          const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest');
+          const subscriptionUrl = `billing/subscriptions/${paymentMethod.token}`;
+          paypalRequestStub.withArgs(subscriptionUrl).returns({ ...validSubscriptionParams, quantity });
+          paypalRequestStub.withArgs(`${subscriptionUrl}/activate`).resolves();
+          await setupPaypalSubscriptionForOrder(order, paymentMethod);
+          assert.calledWith(paypalRequestStub, `${subscriptionUrl}/activate`);
+        });
+      }
+
+      for (const quantity of ['0', '2', '', 'abc']) {
+        it(`must have a quantity of 1 (rejects ${JSON.stringify(quantity)})`, async () => {
+          const paymentMethod = await fakePaypalSubscriptionPm(validSubscriptionParams);
+          const order = await fakeOrder({
+            CollectiveId: host.id,
+            status: OrderStatuses.NEW,
+            TierId: null,
+            totalAmount: 1000,
+          });
+          const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest');
+          const subscriptionUrl = `billing/subscriptions/${paymentMethod.token}`;
+          paypalRequestStub.withArgs(subscriptionUrl).returns({ ...validSubscriptionParams, quantity });
+          const error = await setupPaypalSubscriptionForOrder(order, paymentMethod).catch(e => e);
+          expect(error['rootException'].message).to.eq('PayPal subscription quantity must be 1');
+          assert.calledOnce(paypalRequestStub); // We only fetch the subscription, not approving it
+        });
+      }
     });
 
     describe('when a subscription already exists', () => {

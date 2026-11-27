@@ -517,6 +517,7 @@ export type SubscriptionTransactions = {
 export type PayPalSubscription = {
   id: string;
   plan_id: string;
+  plan_overridden?: boolean;
   start_time: string;
   quantity: string;
   shipping_amount: {
