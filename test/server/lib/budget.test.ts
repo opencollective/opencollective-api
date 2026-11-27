@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { QueryTypes } from 'sequelize';
 import { createSandbox } from 'sinon';
 
 import { CollectiveType } from '../../../server/constants/collectives';
@@ -536,13 +537,40 @@ describe('server/lib/budget', () => {
       expect(balances[emptyParent.id]).to.deep.eq({ CollectiveId: emptyParent.id, currency: 'USD', value: 0 });
     });
 
-    it('falls back to the transactions when a child has transactions but no checkpoint', async () => {
+    it('sums a child without checkpoint from its own transactions', async () => {
       const newProject = await fakeCollective({
         type: CollectiveType.PROJECT,
         ParentCollectiveId: parent.id,
         HostCollectiveId: host.id,
       });
       await addTransaction(newProject, { amount: 9e2, createdAt: new Date() });
+
+      const balances = await expectSameAsTransactions([parent.id]);
+      expect(await getCurrentConsolidatedBalances([parent.id])).to.deep.eq(balances);
+    });
+
+    it('sums an archived child from its own transactions', async () => {
+      // Archiving removes the host, which drops the account from the checkpoints at the next refresh
+      await event.update({ isActive: false, approvedAt: null, HostCollectiveId: null });
+      await refreshCheckpoints();
+      const [checkpoint] = await sequelize.query(
+        `SELECT 1 FROM "CollectiveBalanceCheckpoint" WHERE "CollectiveId" = :id`,
+        { replacements: { id: event.id }, type: QueryTypes.SELECT },
+      );
+      expect(checkpoint).to.be.undefined;
+
+      const balances = await expectSameAsTransactions([parent.id]);
+      expect(await getCurrentConsolidatedBalances([parent.id])).to.deep.eq(balances);
+    });
+
+    it('falls back to the transactions when a child without checkpoint has transactions in several currencies', async () => {
+      const newProject = await fakeCollective({
+        type: CollectiveType.PROJECT,
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: host.id,
+      });
+      await addTransaction(newProject, { amount: 9e2, createdAt: new Date() });
+      await addTransaction(newProject, { amount: 5e2, currency: 'EUR', hostCurrency: 'EUR', createdAt: new Date() });
 
       expect(await getCurrentConsolidatedBalances([parent.id])).to.be.empty;
       await expectSameAsTransactions([parent.id]);

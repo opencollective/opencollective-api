@@ -1444,8 +1444,8 @@ export async function getCurrentCollectiveBalances(
  * checkpoints (`CurrentCollectiveBalance`). Gives the same totals as `sumCollectivesTransactions`
  * with `includeChildren`, without summing every transaction of the account and its children.
  *
- * An account is left out (for the caller to compute from the transactions) when one of its
- * children or itself has transactions but no checkpoint, or when they are in several currencies.
+ * Accounts without a checkpoint are summed from their own transactions. An account is left out
+ * (for the caller to compute from the transactions) when it and its children are in several currencies.
  */
 export async function getCurrentConsolidatedBalances(
   collectiveIds: number[] | readonly number[],
@@ -1469,17 +1469,29 @@ export async function getCurrentConsolidatedBalances(
   const accountIds = accounts.map(account => account.id);
   const balances = accountIds.length ? await getCurrentCollectiveBalances(accountIds, { loaders }) : {};
 
-  // An account without a checkpoint is fine only if it has no transactions
+  // Accounts without a checkpoint (archived events and projects, new or other budget versions):
+  // sum their own transactions, so that the rest of the tree stays on the checkpoints
   const accountsWithoutCheckpoint = accountIds.filter(id => !balances[id]);
   const accountsWithUnknownBalance = new Set<number>();
   if (accountsWithoutCheckpoint.length) {
-    const rows = await sequelize.query<{ id: number }>(
-      `SELECT c."id" FROM "Collectives" c
-       WHERE c."id" IN (:accountsWithoutCheckpoint)
-       AND EXISTS (SELECT 1 FROM "Transactions" t WHERE t."CollectiveId" = c."id" AND t."deletedAt" IS NULL)`,
+    const rows = await sequelize.query<{ CollectiveId: number; hostCurrency: SupportedCurrency; value: number }>(
+      `SELECT t."CollectiveId", t."hostCurrency",
+         SUM(COALESCE(t."amountInHostCurrency", 0)) + SUM(COALESCE(t."platformFeeInHostCurrency", 0))
+         + SUM(COALESCE(t."hostFeeInHostCurrency", 0)) + SUM(COALESCE(t."paymentProcessorFeeInHostCurrency", 0))
+         + SUM(COALESCE(t."taxAmount" * t."hostCurrencyFxRate", 0)) AS "value"
+       FROM "Transactions" t
+       WHERE t."CollectiveId" IN (:accountsWithoutCheckpoint) AND t."deletedAt" IS NULL
+       GROUP BY t."CollectiveId", t."hostCurrency"`,
       { replacements: { accountsWithoutCheckpoint }, type: QueryTypes.SELECT, raw: true },
     );
-    rows.forEach(row => accountsWithUnknownBalance.add(Number(row.id)));
+    for (const [CollectiveId, accountRows] of Object.entries(groupBy(rows, row => row.CollectiveId))) {
+      if (accountRows.length > 1) {
+        accountsWithUnknownBalance.add(Number(CollectiveId)); // Currency conversions stay in the slow path
+      } else {
+        const { hostCurrency, value } = accountRows[0];
+        balances[CollectiveId] = { CollectiveId: Number(CollectiveId), currency: hostCurrency, value: Number(value) };
+      }
+    }
   }
 
   const accountsByRoot = groupBy(accounts, account => account.rootId);
