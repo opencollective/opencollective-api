@@ -1141,8 +1141,8 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
           RefundKind.DISPUTE,
         );
       }
-      // A won dispute means it was decided as not fraudulent
-    } else if (dispute.status === 'won') {
+      // A won dispute means it was decided as not fraudulent, and a closed inquiry (warning_closed) never escalated
+    } else if (dispute.status === 'won' || dispute.status === 'warning_closed') {
       if (order.status === OrderStatuses.DISPUTED) {
         if (order.SubscriptionId) {
           // We should not resume the subscription because a dispute is a strong signal the user does not want to pay anymore
@@ -1192,18 +1192,22 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
     }
 
     // The dispute is settled, whether or not Stripe charged a dispute fee
-    if (dispute.status === 'won' || dispute.status === 'lost') {
-      const user = chargeTransaction.createdByUser;
-      const userHasDisputedOrders = await user.hasDisputedOrders();
-      if (!userHasDisputedOrders) {
-        await user.unlimitFeature(FEATURE.ORDER);
-      }
-
+    if (['won', 'lost', 'warning_closed'].includes(dispute.status)) {
       await Promise.all(
         transactions.map(async transaction => {
           await transaction.update({ isDisputed: false });
         }),
       );
+
+      // A recurring order leaves DISPUTED on its first close, so also look for other charges that are still disputed
+      const user = chargeTransaction.createdByUser;
+      const userHasDisputedOrders = await user.hasDisputedOrders();
+      const userHasDisputedCharges = await models.Transaction.count({
+        where: { CreatedByUserId: user.id, isDisputed: true },
+      });
+      if (!userHasDisputedOrders && !userHasDisputedCharges) {
+        await user.unlimitFeature(FEATURE.ORDER);
+      }
     }
 
     await models.Activity.create({

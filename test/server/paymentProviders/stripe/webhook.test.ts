@@ -133,10 +133,10 @@ describe('webhook', () => {
   });
 
   describe('chargeDisputeClosed()', () => {
-    let order, user, paymentMethod;
+    let order, user, paymentMethod, collective;
 
     beforeEach(async () => {
-      const collective = await fakeCollective({ hasMoneyManagement: true });
+      collective = await fakeCollective({ hasMoneyManagement: true });
       paymentMethod = await fakePaymentMethod({
         service: PAYMENT_METHOD_SERVICE.STRIPE,
         type: PAYMENT_METHOD_TYPE.CREDITCARD,
@@ -272,6 +272,72 @@ describe('webhook', () => {
           expect(order.status).to.eql(OrderStatuses.REFUNDED);
         });
       });
+    });
+
+    describe('the dispute was an inquiry closed without escalating (warning_closed)', () => {
+      const inquiryClosed = () => {
+        const event = cloneDeep(stripeMocks.webhook_dispute_created) as Stripe.Event;
+        event.type = 'charge.dispute.closed';
+        (event.data.object as Stripe.Dispute).status = 'warning_closed';
+        return event;
+      };
+
+      it('un-disputes the Order and its Transactions, and lifts the Order limit', async () => {
+        await order.update({ SubscriptionId: null });
+        await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+        await webhook.chargeDisputeClosed(inquiryClosed());
+
+        await order.reload();
+        expect(order.status).to.eql(OrderStatuses.PAID);
+        const transactions = await order.getTransactions();
+        expect(transactions.map(tx => tx.isDisputed)).to.not.include(true);
+        await user.reload();
+        expect(await user.hasDisputedOrders()).to.be.false;
+        expect(user.data.features[FEATURE.ORDER]).to.eq(true);
+      });
+    });
+
+    describe('when another charge of the same recurring Order is still disputed', () => {
+      const forCharge = (event: Stripe.Event, chargeId: string, disputeId: string) => {
+        const result = cloneDeep(event);
+        (result.data.object as Stripe.Dispute).charge = chargeId;
+        (result.data.object as Stripe.Dispute).id = disputeId;
+        return result;
+      };
+
+      for (const [status, closedEvent] of [
+        ['won', stripeMocks.webhook_dispute_won],
+        ['lost', stripeMocks.webhook_dispute_lost],
+      ] as const) {
+        it(`keeps the Order limit when the first dispute is ${status}`, async () => {
+          await fakeTransaction(
+            {
+              CreatedByUserId: user.id,
+              OrderId: order.id,
+              HostCollectiveId: collective.id,
+              amount: 10,
+              kind: TransactionKind.CONTRIBUTION,
+              data: { charge: { id: 'ch_second_month' } as Stripe.Charge },
+            },
+            { createDoubleEntry: true },
+          );
+          const firstCharge = (stripeMocks.webhook_dispute_created.data.object as Stripe.Dispute).charge as string;
+          await webhook.chargeDisputeCreated(forCharge(stripeMocks.webhook_dispute_created, firstCharge, 'dp_first'));
+          await webhook.chargeDisputeCreated(
+            forCharge(stripeMocks.webhook_dispute_created, 'ch_second_month', 'dp_second'),
+          );
+          await webhook.chargeDisputeClosed(forCharge(closedEvent, firstCharge, 'dp_first'));
+
+          const stillDisputed = await order.getTransactions({ where: { isDisputed: true } });
+          expect(stillDisputed).to.have.length(2);
+          await user.reload();
+          expect(user.data.features[FEATURE.ORDER]).to.eq(false);
+
+          await webhook.chargeDisputeClosed(forCharge(closedEvent, 'ch_second_month', 'dp_second'));
+          await user.reload();
+          expect(user.data.features[FEATURE.ORDER]).to.eq(true);
+        });
+      }
     });
 
     it('creates a dispute fee DEBIT transaction for the host collective whenever a fee is charged', async () => {
