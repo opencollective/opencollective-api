@@ -1484,7 +1484,6 @@ export async function getCurrentConsolidatedBalances(
 
   const accountsByRoot = groupBy(accounts, account => account.rootId);
   const totals: TotalsByCollective = {};
-  let hasSkippedAccount = false;
   for (const CollectiveId of requestedIds) {
     const rootAccounts = accountsByRoot[CollectiveId] || [];
     const rootBalances = rootAccounts.map(account => balances[account.id]).filter(Boolean);
@@ -1492,23 +1491,12 @@ export async function getCurrentConsolidatedBalances(
       rootAccounts.some(account => accountsWithUnknownBalance.has(Number(account.id))) ||
       new Set(rootBalances.map(balance => balance.currency)).size > 1 // Currency conversions stay in the slow path
     ) {
-      hasSkippedAccount = true;
       continue;
     }
 
     const currency = rootBalances[0]?.currency || 'USD';
     const value = rootBalances.reduce((sum, balance) => sum + balance.value, 0);
     totals[CollectiveId] = { CollectiveId, currency, value: roundCentsAmount(value, currency) };
-  }
-
-  // The slow path rolls a child up into its parent only when both are requested in the same call:
-  // if the request mixes them, compute every account there rather than only the skipped ones
-  const requestedIdsSet = new Set(requestedIds);
-  const requestsParentAndChild = accounts.some(
-    account => account.rootId !== account.id && requestedIdsSet.has(account.id),
-  );
-  if (hasSkippedAccount && requestsParentAndChild) {
-    return {};
   }
 
   return totals;
