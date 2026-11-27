@@ -5,6 +5,7 @@ import { cloneDeep, set } from 'lodash';
 import moment from 'moment';
 import { createSandbox, useFakeTimers } from 'sinon';
 
+import { run as runBatchSubscriptionsUpdateCron } from '../../../../../cron/10mn/00-handle-batch-subscriptions-update';
 import { activities, roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
@@ -20,6 +21,7 @@ import stripe from '../../../../../server/lib/stripe';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import { md5 } from '../../../../../server/lib/utils';
 import models from '../../../../../server/models';
+import * as PaypalAPI from '../../../../../server/paymentProviders/paypal/api';
 import * as StripeCommon from '../../../../../server/paymentProviders/stripe/common';
 import { randEmail, stripeConnectedAccount } from '../../../../stores';
 import {
@@ -3563,6 +3565,67 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         expect(result.data.cancelOrder.status).to.eq('CANCELLED');
+      });
+
+      it('does not let the batch cron reactivate a PAUSED PayPal order cancelled while waiting for reactivation', async () => {
+        const paypalRequestStub = cancelOrderSandbox.stub(PaypalAPI, 'paypalRequest').resolves();
+        const paypalHost = await fakeHost();
+        await fakeConnectedAccount({
+          service: 'paypal',
+          clientId: randStr(),
+          token: randStr(),
+          CollectiveId: paypalHost.id,
+        });
+        const paypalCollective = await fakeCollective({ HostCollectiveId: paypalHost.id, approvedAt: new Date() });
+        const paypalSubscriptionId = randStr();
+        const paypalPaymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.PAYPAL,
+          type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
+          token: paypalSubscriptionId,
+          CollectiveId: user.CollectiveId,
+        });
+        const pausedOrder = await fakeOrder(
+          {
+            CollectiveId: paypalCollective.id,
+            FromCollectiveId: user.CollectiveId,
+            CreatedByUserId: user.id,
+            interval: 'month',
+            status: OrderStatuses.PAUSED,
+            totalAmount: 1000,
+            subscription: { paypalSubscriptionId, isActive: false, isManagedExternally: true },
+            PaymentMethodId: paypalPaymentMethod.id,
+            data: { pausedBy: 'HOST' },
+          },
+          { withTier: true, withSubscription: true, withTransactions: true },
+        );
+
+        // Host resumes the paused contributions: the reactivation is scheduled for the batch cron
+        await models.Order.resumePausedSubscriptions(paypalCollective.id, { messageSource: 'HOST' });
+        await pausedOrder.reload();
+        expect(pausedOrder.data.needsAsyncReactivation).to.be.true;
+
+        // Contributor cancels before the cron runs
+        const result = await graphqlQueryV2(
+          cancelRecurringContributionMutation,
+          { order: { id: idEncode(pausedOrder.id, 'order') } },
+          user,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.cancelOrder.status).to.eq('CANCELLED');
+
+        await pausedOrder.reload();
+        expect(pausedOrder.data.needsAsyncReactivation).to.not.exist;
+
+        await runBatchSubscriptionsUpdateCron();
+        await pausedOrder.reload();
+        const subscription = await models.Subscription.findByPk(pausedOrder.SubscriptionId);
+        expect(paypalRequestStub.getCalls().map(call => call.args[0])).to.not.include(
+          `billing/subscriptions/${paypalSubscriptionId}/activate`,
+        );
+        expect(pausedOrder.status).to.eq(OrderStatuses.CANCELLED);
+        expect(subscription.isActive).to.be.false;
+        paypalRequestStub.restore();
       });
 
       it('cannot cancel an already cancelled order', async () => {

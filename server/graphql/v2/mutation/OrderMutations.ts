@@ -367,7 +367,11 @@ const orderMutations = {
       const previousStatus = order.status;
       await sequelize.transaction(async transaction => {
         await order.update(
-          { status: OrderStatuses.CANCELLED, data: { ...order.data, previousStatus } },
+          {
+            status: OrderStatuses.CANCELLED,
+            // Drop pending async pause/reactivation so the batch cron does not revive the cancelled subscription
+            data: { ...omit(order.data, ['needsAsyncReactivation', 'needsAsyncPause']), previousStatus },
+          },
           { transaction },
         );
 
