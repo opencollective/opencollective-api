@@ -6,6 +6,7 @@ import moment from 'moment';
 import { generateSecret, generateSync } from 'otplib';
 import type { SinonSpy, SinonStub } from 'sinon';
 import { createSandbox } from 'sinon';
+import type Stripe from 'stripe';
 
 import { activities, expenseStatus, expenseTypes } from '../../../../../server/constants';
 import { CollectiveType } from '../../../../../server/constants/collectives';
@@ -9446,5 +9447,97 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.data.stripePaymentIntent.id).to.equal('pi_new'); // overwritten with the fresh PI
       });
     }
+
+    it('keeps changes a webhook makes to the expense while Stripe is called', async () => {
+      const { hostAdmin, expense } = await setupStripeExpense();
+      sandbox.stub(stripe.customers, 'create').resolves({ id: 'cus_test' });
+      sandbox.stub(stripe.paymentIntents, 'create').callsFake(async () => {
+        // A webhook archives another intent while the new one is being created
+        await models.Expense.update(
+          { data: { previousStripePaymentIntents: [{ id: 'pi_from_webhook' } as Stripe.PaymentIntent] } },
+          { where: { id: expense.id } },
+        );
+        // eslint-disable-next-line camelcase
+        return { id: 'pi_new', client_secret: 'cs_new', status: 'requires_payment_method' };
+      });
+
+      const result = await graphqlQueryV2(createPaymentIntentMutation, { expense: expenseRef(expense) }, hostAdmin);
+
+      expect(result.errors).to.not.exist;
+      await expense.reload();
+      expect(expense.data.stripePaymentIntent.id).to.equal('pi_new');
+      expect(expense.data.previousStripePaymentIntents.map(pi => pi.id)).to.include('pi_from_webhook');
+    });
+
+    it('cancels archived PaymentIntents that are still live before creating a new one', async () => {
+      const { hostAdmin, expense } = await setupStripeExpense();
+      await expense.update({
+        data: {
+          previousStripePaymentIntents: [
+            { id: 'pi_declined', status: 'requires_payment_method' } as Stripe.PaymentIntent,
+            { id: 'pi_done', status: 'succeeded' } as Stripe.PaymentIntent,
+          ],
+        },
+      });
+      const retrieveStub = sandbox
+        .stub(stripe.paymentIntents, 'retrieve')
+        .resolves({ id: 'pi_declined', amount: 1000, currency: 'usd', status: 'requires_payment_method' });
+      const cancelStub = sandbox
+        .stub(stripe.paymentIntents, 'cancel')
+        .resolves({ id: 'pi_declined', status: 'canceled' });
+      sandbox.stub(stripe.customers, 'create').resolves({ id: 'cus_test' });
+      sandbox
+        .stub(stripe.paymentIntents, 'create')
+        // eslint-disable-next-line camelcase
+        .resolves({ id: 'pi_new', client_secret: 'cs_new', status: 'requires_payment_method' });
+
+      const result = await graphqlQueryV2(createPaymentIntentMutation, { expense: expenseRef(expense) }, hostAdmin);
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.createExpenseStripePaymentIntent.id).to.equal('pi_new');
+      expect(retrieveStub.calledOnce).to.be.true; // succeeded intents are not checked again
+      expect(cancelStub.calledOnce).to.be.true;
+      expect(cancelStub.firstCall.args[0]).to.equal('pi_declined');
+
+      // The cancellation is stored, so the intent is not fetched again on the next call
+      await expense.reload();
+      const archivedStatuses = expense.data.previousStripePaymentIntents.map(pi => [pi.id, pi.status]);
+      expect(archivedStatuses).to.deep.include(['pi_declined', 'canceled']);
+      expect(archivedStatuses).to.deep.include(['pi_done', 'succeeded']);
+    });
+
+    it('cancels the stored PaymentIntent before creating a new one when it no longer matches the expense', async () => {
+      const { hostAdmin, expense } = await setupStripeExpense({
+        stripePaymentIntent: { id: 'pi_outdated', amount: 500, currency: 'usd' },
+      });
+      sandbox.stub(stripe.paymentIntents, 'retrieve').resolves({
+        id: 'pi_outdated',
+        amount: 500,
+        currency: 'usd',
+        status: 'requires_payment_method',
+      });
+      const cancelStub = sandbox
+        .stub(stripe.paymentIntents, 'cancel')
+        .resolves({ id: 'pi_outdated', status: 'canceled' });
+      sandbox.stub(stripe.customers, 'create').resolves({ id: 'cus_test' });
+      sandbox
+        .stub(stripe.paymentIntents, 'create')
+        // eslint-disable-next-line camelcase
+        .resolves({ id: 'pi_new', client_secret: 'cs_new', status: 'requires_payment_method' });
+
+      const result = await graphqlQueryV2(createPaymentIntentMutation, { expense: expenseRef(expense) }, hostAdmin);
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.createExpenseStripePaymentIntent.id).to.equal('pi_new');
+      expect(cancelStub.calledOnce).to.be.true;
+      expect(cancelStub.firstCall.args[0]).to.equal('pi_outdated');
+
+      await expense.reload();
+      expect(expense.data.stripePaymentIntent.id).to.equal('pi_new');
+      expect(expense.data.previousStripePaymentIntents.map(pi => [pi.id, pi.status])).to.deep.include([
+        'pi_outdated',
+        'canceled',
+      ]);
+    });
   });
 });

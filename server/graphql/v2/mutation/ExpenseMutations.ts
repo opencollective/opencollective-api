@@ -12,7 +12,8 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { groupBy, isNil, pick, size } from 'lodash';
+import { groupBy, isNil, omit, pick, size, uniq } from 'lodash';
+import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../../constants/activities';
@@ -24,7 +25,7 @@ import RateLimit from '../../../lib/rate-limit';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
-import models from '../../../models';
+import models, { sequelize } from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import ExpenseModel, { ExpenseLockableFields } from '../../../models/Expense';
 import { checkIsValidBalanceAccountingCategory } from '../../common/balance-accounting-categories';
@@ -895,16 +896,39 @@ const expenseMutations = {
       }
 
       const isPlatformHost = payeeHostStripeAccount.username === config.stripe.accountId;
+      const stripeRequestOptions = !isPlatformHost ? { stripeAccount: payeeHostStripeAccount.username } : undefined;
+      // Stripe calls happen between reads and writes here, and webhooks update the same `data` concurrently:
+      // always write from a fresh copy, under the expense row lock that the webhook handlers also take.
+      const updateExpenseData = (getData: (data: ExpenseModel['data']) => ExpenseModel['data']) =>
+        sequelize.transaction(async transaction => {
+          const lockedExpense = await models.Expense.findByPk(expense.id, {
+            transaction,
+            lock: transaction.LOCK.UPDATE,
+          });
+          await lockedExpense.update({ data: getData(lockedExpense.data ?? {}) }, { transaction });
+          expense.data = lockedExpense.data;
+        });
+
+      const cancellableStatuses = [
+        'requires_payment_method',
+        'requires_confirmation',
+        'requires_action',
+        'requires_capture',
+      ];
+
+      // Archived intents can still be confirmed (e.g. after a decline, or a failure once processing): list them
+      // before touching the stored one, so they can be cancelled before a new intent is created.
+      const archivedStripePaymentIntentIds = uniq(
+        (expense.data?.previousStripePaymentIntents ?? [])
+          .filter(pi => pi?.id && !['canceled', 'succeeded'].includes(pi.status))
+          .map(pi => pi.id),
+      );
 
       const storedStripePaymentIntent = expense.data?.stripePaymentIntent;
       if (storedStripePaymentIntent?.id) {
         const stripePaymentIntent = await stripe.paymentIntents.retrieve(
           storedStripePaymentIntent.id,
-          !isPlatformHost
-            ? {
-                stripeAccount: payeeHostStripeAccount.username,
-              }
-            : undefined,
+          stripeRequestOptions,
         );
 
         const matchesExpense =
@@ -920,6 +944,50 @@ const expenseMutations = {
             stripeAccountPublishableSecret: payeeHostStripeAccount.data.publishableKey,
           };
         }
+
+        // The stored intent is outdated (e.g. the expense amount changed): cancel it so that only one
+        // intent can be confirmed for this expense.
+        // Archive the intent as cancelled, so it isn't fetched again on the next call.
+        const archivedStripePaymentIntent = cancellableStatuses.includes(stripePaymentIntent.status)
+          ? await stripe.paymentIntents.cancel(stripePaymentIntent.id, undefined, stripeRequestOptions)
+          : stripePaymentIntent;
+
+        await updateExpenseData(data => ({
+          // A webhook may have made another intent current in the meantime: only detach the one we cancelled
+          ...(data.stripePaymentIntent?.id === stripePaymentIntent.id ? omit(data, ['stripePaymentIntent']) : data),
+          previousStripePaymentIntents: [...(data.previousStripePaymentIntents ?? []), archivedStripePaymentIntent],
+        }));
+      }
+
+      const refreshedStripePaymentIntents = new Map<string, Stripe.PaymentIntent>();
+      for (const archivedStripePaymentIntentId of archivedStripePaymentIntentIds) {
+        try {
+          const archivedStripePaymentIntent = await stripe.paymentIntents.retrieve(
+            archivedStripePaymentIntentId,
+            stripeRequestOptions,
+          );
+          refreshedStripePaymentIntents.set(
+            archivedStripePaymentIntentId,
+            cancellableStatuses.includes(archivedStripePaymentIntent.status)
+              ? await stripe.paymentIntents.cancel(archivedStripePaymentIntentId, undefined, stripeRequestOptions)
+              : archivedStripePaymentIntent,
+          );
+        } catch (e) {
+          // Don't block the payment (e.g. intent on a Stripe account the host no longer uses). The webhook
+          // still refuses to record a second payment for the expense if this intent ever succeeds.
+          logger.warn(`Could not cancel archived payment intent ${archivedStripePaymentIntentId}: ${e.message}`);
+          reportErrorToSentry(e, { req, extra: { expenseId: expense.id, archivedStripePaymentIntentId } });
+        }
+      }
+
+      // Store the up-to-date statuses, so that terminal intents are skipped on the next call
+      if (refreshedStripePaymentIntents.size > 0) {
+        await updateExpenseData(data => ({
+          ...data,
+          previousStripePaymentIntents: (data.previousStripePaymentIntents ?? []).map(
+            pi => refreshedStripePaymentIntents.get(pi?.id) ?? pi,
+          ),
+        }));
       }
 
       let stripeCustomerAccount = await payer.getCustomerStripeAccount(payeeHostStripeAccount.username);
@@ -971,11 +1039,17 @@ const expenseMutations = {
             : undefined,
         );
 
-        await expense.update({
-          data: {
-            ...expense.data,
-            stripePaymentIntent: stripePaymentIntent,
-          },
+        await updateExpenseData(data => {
+          // Keep any intent a webhook made current in the meantime in the history, so it can still be resolved
+          const current = data.stripePaymentIntent;
+          const replacesCurrent = current?.id && current.id !== stripePaymentIntent.id;
+          return {
+            ...data,
+            previousStripePaymentIntents: replacesCurrent
+              ? [...(data.previousStripePaymentIntents ?? []), current]
+              : data.previousStripePaymentIntents,
+            stripePaymentIntent,
+          };
         });
 
         return {
