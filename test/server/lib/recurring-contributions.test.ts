@@ -531,6 +531,47 @@ describe('server/lib/recurring-contributions', () => {
         expect(lockedRead.args[1].transaction).to.exist;
       });
 
+      describe('keeps a pause that happened while the order was being charged', () => {
+        // e.g. a host pausing contributions with `updateOrdersSubscriptionStatus` running concurrently
+        const pauseConcurrently = (order: Order) =>
+          models.Order.update(
+            { status: status.PAUSED, data: { ...order.data, needsAsyncPause: true } },
+            { where: { id: order.id } },
+          );
+
+        it('when the charge fails', async () => {
+          const { order } = await createOrderWithSubscription('month', '2018-01-27');
+          processOrderStub.callsFake(async () => {
+            await pauseConcurrently(order);
+            throw new Error('Your card was declined.');
+          });
+
+          const entry = await processOrderWithSubscription(order, { dryRun: false });
+
+          expect(entry.status).to.equal('failure');
+          await order.reload();
+          expect(order.status).to.equal(status.PAUSED);
+          expect(order.data.needsAsyncPause).to.be.true;
+        });
+
+        it('when the charge succeeds', async () => {
+          const { order } = await createOrderWithSubscription('month', '2018-01-27');
+          await order.update({ status: status.ERROR });
+          const transaction = await fakeTransaction({ OrderId: order.id });
+          processOrderStub.callsFake(async () => {
+            await pauseConcurrently(order);
+            return transaction;
+          });
+
+          const entry = await processOrderWithSubscription(order, { dryRun: false });
+
+          expect(entry.status).to.equal('success');
+          await order.reload();
+          expect(order.status).to.equal(status.PAUSED);
+          expect(order.data.needsAsyncPause).to.be.true;
+        });
+      });
+
       it('should update dates after successfully processing yearly', async () => {
         // Given an order with a subscription
         const { order } = await createOrderWithSubscription('year', '2018-01-27');

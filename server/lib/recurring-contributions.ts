@@ -328,9 +328,9 @@ export async function processOrderWithSubscription(
 }
 
 /**
- * A bulk cancellation (tier deletion, archived account) can happen while the order is being charged. Saving the
- * in-memory order as-is would then overwrite the `CANCELLED` status and drop `needsAsyncDeactivation`, and the
- * contribution would keep being charged. Keep the cancellation instead.
+ * A bulk cancellation or pause (tier deletion, archived account, host pausing contributions) can happen while the
+ * order is being charged. Saving the in-memory order as-is would then overwrite the `CANCELLED`/`PAUSED` status and
+ * drop `needsAsyncDeactivation`/`needsAsyncPause`, and the contribution would keep being charged. Keep it instead.
  */
 async function keepConcurrentCancellation(order: Order, transaction: SequelizeTransaction): Promise<void> {
   if (order.status === status.CANCELLED) {
@@ -342,8 +342,8 @@ async function keepConcurrentCancellation(order: Order, transaction: SequelizeTr
     transaction,
     lock: true,
   });
-  if (currentOrder?.status === status.CANCELLED) {
-    order.status = status.CANCELLED;
+  if (currentOrder?.status === status.CANCELLED || currentOrder?.status === status.PAUSED) {
+    order.status = currentOrder.status;
     order.data = { ...order.data, ...currentOrder.data };
   }
 }
